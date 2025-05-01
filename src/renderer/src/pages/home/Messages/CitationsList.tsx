@@ -1,5 +1,6 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
+import { fetchWebContent } from '@renderer/utils/fetch'
 import { Button, Drawer } from 'antd'
 import { FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
@@ -20,11 +21,20 @@ interface CitationsListProps {
   citations: Citation[]
 }
 
+/**
+ * 限制文本长度
+ * @param text
+ * @param maxLength
+ */
 const truncateText = (text: string, maxLength = 100) => {
   if (!text) return ''
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
 }
 
+/**
+ * 清理Markdown内容
+ * @param text
+ */
 const cleanMarkdownContent = (text: string): string => {
   if (!text) return ''
   let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '')
@@ -106,19 +116,31 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
   else window.api.file.openPath(url)
 }
 
-const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
-  <WebSearchCard>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-      {citation.showFavicon && citation.url && (
-        <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
-      )}
-      <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-        {citation.title || <span className="hostname">{citation.hostname}</span>}
-      </CitationLink>
-    </div>
-    {citation.content && <CitationContent>{truncateText(cleanMarkdownContent(citation.content), 200)}</CitationContent>}
-  </WebSearchCard>
-)
+const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+  const [fetchedContent, setFetchedContent] = React.useState('')
+  React.useEffect(() => {
+    if (citation.url) {
+      fetchWebContent(citation.url, 'markdown').then((res) => {
+        const cleaned = cleanMarkdownContent(res.content)
+        setFetchedContent(truncateText(cleaned, 100))
+      })
+    }
+  }, [citation.url])
+
+  return (
+    <WebSearchCard>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        {citation.showFavicon && citation.url && (
+          <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
+        )}
+        <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+          {citation.title || <span className="hostname">{citation.hostname}</span>}
+        </CitationLink>
+      </div>
+      {fetchedContent}
+    </WebSearchCard>
+  )
+}
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
   <>
@@ -173,13 +195,6 @@ const MoreCount = styled.span`
   justify-content: center;
   border-radius: 50%;
   margin-left: -8px;
-`
-
-const CitationContent = styled.div`
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--color-text-2);
-  line-height: 1.5;
 `
 
 const CitationLink = styled.a`
