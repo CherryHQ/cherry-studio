@@ -491,11 +491,11 @@ export class WindowService {
     })
 
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/mini')
+      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/src/windows/mini/index.html')
+      console.log('loadURL', process.env['ELECTRON_RENDERER_URL'] + '/src/windows/mini/index.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: '#/mini'
-      })
+      this.miniWindow.loadFile(join(__dirname, '../renderer/src/windows/mini/index.html'))
+      console.log('loadFile', join(__dirname, '../renderer/src/windows/mini/index.html'))
     }
 
     return this.miniWindow

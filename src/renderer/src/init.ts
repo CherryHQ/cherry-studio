@@ -6,7 +6,7 @@ import store from './store'
 
 function initSpinner() {
   const spinner = document.getElementById('spinner')
-  if (spinner && window.location.hash !== '#/mini') {
+  if (spinner) {
     spinner.style.display = 'flex'
   }
 }

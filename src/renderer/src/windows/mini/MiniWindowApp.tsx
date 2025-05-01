@@ -57,6 +57,18 @@ function useMiniWindowCustomCss() {
   return isInitialized
 }
 
+// Inner component that uses the hook after Redux is initialized
+function MiniWindowContent(): React.ReactElement {
+  const cssInitialized = useMiniWindowCustomCss()
+
+  // Show empty fragment until CSS is initialized
+  if (!cssInitialized) {
+    return <></>
+  }
+
+  return <HomeWindow />
+}
+
 function MiniWindow(): React.ReactElement {
   //miniWindow should register its own message component
   const [messageApi, messageContextHolder] = message.useMessage()
@@ -76,18 +88,6 @@ function MiniWindow(): React.ReactElement {
       </ThemeProvider>
     </Provider>
   )
-}
-
-// Inner component that uses the hook after Redux is initialized
-function MiniWindowContent(): React.ReactElement {
-  const cssInitialized = useMiniWindowCustomCss()
-
-  // Show empty fragment until CSS is initialized
-  if (!cssInitialized) {
-    return <></>
-  }
-
-  return <HomeWindow />
 }
 
 export default MiniWindow

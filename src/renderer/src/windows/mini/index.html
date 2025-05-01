@@ -13,31 +13,12 @@
     body {
       margin: 0;
     }
-
-    #spinner {
-      position: fixed;
-      width: 100vw;
-      height: 100vh;
-      flex-direction: row;
-      justify-content: center;
-      align-items: center;
-      display: none;
-    }
-
-    #spinner img {
-      width: 100px;
-      border-radius: 50px;
-    }
   </style>
 </head>
 
 <body>
   <div id="root"></div>
-  <div id="spinner">
-    <img src="/src/assets/images/logo.png" />
-  </div>
-  <script type="module" src="/src/init.ts"></script>
-  <script type="module" src="/src/entryPoint.tsx"></script>
+  <script type="module" src="./entryPoint.tsx"></script>
 </body>
 
 </html>
