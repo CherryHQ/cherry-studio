@@ -211,7 +211,6 @@ const dispatchMultiModelResponses = async (
   for (const mentionedModel of mentionedModels) {
     const assistantForThisMention = { ...assistant, model: mentionedModel }
     const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-      // Use baseAssistantId
       askId: triggeringMessage.id,
       model: mentionedModel,
       modelId: mentionedModel.id
