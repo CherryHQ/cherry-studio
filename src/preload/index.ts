@@ -110,9 +110,6 @@ const api = {
     listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
     deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
   },
-  selectionMenu: {
-    action: (action: string) => ipcRenderer.invoke(IpcChannel.SelectionMenu_Action, action)
-  },
   config: {
     set: (key: string, value: any) => ipcRenderer.invoke(IpcChannel.Config_Set, key, value),
     get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)

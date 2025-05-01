@@ -22,8 +22,6 @@ export class WindowService {
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
-  private selectionMenuWindow: BrowserWindow | null = null
-  private lastSelectedText: string = ''
   private contextMenu: Menu | null = null
   private lastRendererProcessCrashTime: number = 0
 
@@ -508,10 +506,6 @@ export class WindowService {
       return
     }
 
-    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
-      this.selectionMenuWindow.hide()
-    }
-
     if (this.miniWindow && !this.miniWindow.isDestroyed()) {
       this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
 
@@ -557,74 +551,6 @@ export class WindowService {
 
   public setPinMiniWindow(isPinned) {
     this.isPinnedMiniWindow = isPinned
-  }
-
-  public showSelectionMenu(bounds: { x: number; y: number }) {
-    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
-      this.selectionMenuWindow.setPosition(bounds.x, bounds.y)
-      this.selectionMenuWindow.show()
-      return
-    }
-
-    const theme = configManager.getTheme()
-
-    this.selectionMenuWindow = new BrowserWindow({
-      width: 280,
-      height: 40,
-      x: bounds.x,
-      y: bounds.y,
-      show: true,
-      autoHideMenuBar: true,
-      transparent: true,
-      frame: false,
-      alwaysOnTop: false,
-      skipTaskbar: true,
-      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
-      resizable: false,
-      vibrancy: 'popover',
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
-        webSecurity: false
-      }
-    })
-
-    // 点击其他地方时隐藏窗口
-    this.selectionMenuWindow.on('blur', () => {
-      this.selectionMenuWindow?.hide()
-      this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
-        action: 'home',
-        selectedText: this.lastSelectedText
-      })
-    })
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.selectionMenuWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/src/windows/menu/menu.html')
-    } else {
-      this.selectionMenuWindow.loadFile(join(__dirname, '../renderer/src/windows/menu/menu.html'))
-    }
-
-    this.setupSelectionMenuEvents()
-  }
-
-  private setupSelectionMenuEvents() {
-    if (!this.selectionMenuWindow) return
-
-    ipcMain.removeHandler(IpcChannel.SelectionMenu_Action)
-    ipcMain.handle(IpcChannel.SelectionMenu_Action, (_, action) => {
-      this.selectionMenuWindow?.hide()
-      this.showMiniWindow()
-      setTimeout(() => {
-        this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
-          action,
-          selectedText: this.lastSelectedText
-        })
-      }, 100)
-    })
-  }
-
-  public setLastSelectedText(text: string) {
-    this.lastSelectedText = text
   }
 }
 

@@ -238,15 +238,9 @@ const HomeWindow: FC = () => {
 
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
-    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
-      selectedText && setSelectedText(selectedText)
-      action && setRoute(action)
-      action === 'chat' && onSendMessage()
-    })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
   }, [onWindowShow, onSendMessage, setRoute])
 

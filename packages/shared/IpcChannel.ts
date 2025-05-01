@@ -82,8 +82,6 @@ export enum IpcChannel {
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
 
-  SelectionMenu_Action = 'selection-menu:action',
-
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
@@ -136,7 +134,6 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
 
   // events
-  SelectionAction = 'selection-action',
   BackupProgress = 'backup-progress',
   ThemeChange = 'theme:change',
   UpdateDownloadedCancelled = 'update-downloaded-cancelled',
