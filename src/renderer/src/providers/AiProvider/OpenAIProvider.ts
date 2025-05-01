@@ -565,6 +565,7 @@ export default class OpenAIProvider extends BaseProvider {
             time_first_content_millsec = 0
             thinkingContent = ''
             isFirstThinkingChunk = true
+            hasReasoningContent = false
           }
         }
 
