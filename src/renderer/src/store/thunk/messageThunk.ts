@@ -193,23 +193,24 @@ const saveUpdatedBlockToDB = async (
 }
 
 // --- Helper Function for Multi-Model Dispatch ---
+// 多模型创建和发送请求的逻辑，用于用户消息多模型发送和重发
 const dispatchMultiModelResponses = async (
   dispatch: AppDispatch,
   getState: () => RootState,
   topicId: string,
   triggeringMessage: Message, // userMessage or messageToResend
-  baseAssistantId: string, // Changed from Assistant to ID
+  assistant: Assistant,
   mentionedModels: Model[]
 ) => {
   console.log(
     `[DEBUG] dispatchMultiModelResponses called for ${mentionedModels.length} models, triggered by message ${triggeringMessage.id}.`
   )
   const assistantMessageStubs: Message[] = []
-  const tasksToQueue: { assistantId: string; model: Model; messageStub: Message }[] = [] // Store ID and model separately
+  const tasksToQueue: { assistantConfig: Assistant; messageStub: Message }[] = []
 
   for (const mentionedModel of mentionedModels) {
-    // No need to create a full assistant object here anymore
-    const assistantMessage = createAssistantMessage(baseAssistantId, topicId, {
+    const assistantForThisMention = { ...assistant, model: mentionedModel }
+    const assistantMessage = createAssistantMessage(assistant.id, topicId, {
       // Use baseAssistantId
       askId: triggeringMessage.id,
       model: mentionedModel,
@@ -217,8 +218,7 @@ const dispatchMultiModelResponses = async (
     })
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     assistantMessageStubs.push(assistantMessage)
-    // Pass only the ID and the specific model for this task
-    tasksToQueue.push({ assistantId: baseAssistantId, model: mentionedModel, messageStub: assistantMessage })
+    tasksToQueue.push({ assistantConfig: assistantForThisMention, messageStub: assistantMessage })
   }
 
   const topicFromDB = await db.topics.get(topicId)
