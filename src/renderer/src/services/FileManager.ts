@@ -33,7 +33,7 @@ class FileManager {
     return fileData.data
   }
 
-  static async readFile(file: FileType): Promise<string> {
+  static async readBase64File(file: FileType): Promise<string> {
     const fileData = await window.api.file.base64File(file.id + file.ext)
     return fileData.data
   }

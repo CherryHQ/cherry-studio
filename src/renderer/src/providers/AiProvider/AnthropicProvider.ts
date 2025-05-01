@@ -80,7 +80,7 @@ export default class AnthropicProvider extends BaseProvider {
     // Get and process file blocks
     const fileBlocks = findFileBlocks(message)
     for (const fileBlock of fileBlocks) {
-      const file = fileBlock.file
+      const { file } = fileBlock
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         // FIXME: 需要使用anthropic官key测试一下，先注释掉
         // if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
