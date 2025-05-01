@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
+import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -10,7 +10,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, EFFORT_RATIO, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -126,13 +126,19 @@ export default class AnthropicProvider extends BaseProvider {
     if (!isReasoningModel(model)) {
       return undefined
     }
+    const { maxTokens } = getAssistantSettings(assistant)
 
-    const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-    const budgetTokens = assistant?.settings?.thinking_budget || maxTokens
+    const reasoningEffort = assistant?.settings?.reasoning_effort
 
-    if (budgetTokens > maxTokens) {
-      return undefined
+    if (reasoningEffort === undefined) {
+      return {
+        type: 'disabled'
+      }
     }
+
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+
+    const budgetTokens = Math.floor((maxTokens || DEFAULT_MAX_TOKENS) * effortRatio * 0.8)
 
     return {
       type: 'enabled',
@@ -174,6 +180,14 @@ export default class AnthropicProvider extends BaseProvider {
       systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
     }
 
+    let systemMessage: TextBlockParam | undefined = undefined
+    if (systemPrompt) {
+      systemMessage = {
+        type: 'text',
+        text: systemPrompt
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -181,7 +195,7 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
-      system: systemPrompt,
+      system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
       thinking: this.getBudgetToken(assistant, model),
       ...this.getCustomParameters(assistant)

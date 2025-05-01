@@ -22,7 +22,6 @@ export type Assistant = {
   enableWebSearch?: boolean
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
-  enableThinking?: boolean
   mcpServers?: MCPServer[]
 }
 
@@ -37,6 +36,16 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
+export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
+export type EffortRatio = Record<ReasoningEffortOptions, number>
+
+export const EFFORT_RATIO: EffortRatio = {
+  low: 0.2,
+  medium: 0.5,
+  high: 1,
+  auto: 2
+}
+
 export type AssistantSettings = {
   contextCount: number
   temperature: number
@@ -47,8 +56,7 @@ export type AssistantSettings = {
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: 'low' | 'medium' | 'high'
-  thinking_budget?: number
+  reasoning_effort?: ReasoningEffortOptions
 }
 
 export type Agent = Omit<Assistant, 'model'> & {

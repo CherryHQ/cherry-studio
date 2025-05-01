@@ -60,6 +60,7 @@
       "settings.reasoning_effort.low": "浮想",
       "settings.reasoning_effort.medium": "斟酌",
       "settings.reasoning_effort.high": "沉思",
+      "settings.reasoning_effort.default": "默认",
       "settings.more": "助手设置"
     },
     "auth": {

@@ -14,6 +14,7 @@ import {
   ToolListUnion
 } from '@google/genai'
 import {
+  findTokenLimit,
   isGeminiReasoningModel,
   isGemmaModel,
   isGenerateImageModel,
@@ -31,6 +32,7 @@ import {
 } from '@renderer/services/MessagesService'
 import {
   Assistant,
+  EFFORT_RATIO,
   FileType,
   FileTypes,
   MCPToolResponse,
@@ -213,18 +215,29 @@ export default class GeminiProvider extends BaseProvider {
    */
   private getBudgetToken(assistant: Assistant, model: Model) {
     if (isGeminiReasoningModel(model)) {
-      // 检查thinking_budget是否明确设置
-      const thinkingBudget = assistant?.settings?.thinking_budget
+      const reasoningEffort = assistant?.settings?.reasoning_effort
 
-      // 如果thinking_budget是undefined，使用模型的默认行为
-      if (thinkingBudget === undefined) {
-        return {} // 返回空对象以使用模型默认值
+      // 如果thinking_budget是undefined，不思考
+      if (reasoningEffort === undefined) {
+        return {
+          thinkingConfig: {
+            includeThoughts: false
+          } as ThinkingConfig
+        }
       }
+
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
+
+      if (effortRatio > 1) {
+        return {}
+      }
+
+      const { max } = findTokenLimit(model.id) || { max: 0 }
 
       // 如果thinking_budget是明确设置的值（包括0），使用该值
       return {
         thinkingConfig: {
-          thinkingBudget: thinkingBudget,
+          thinkingBudget: max * effortRatio,
           includeThoughts: true
         } as ThinkingConfig
       }

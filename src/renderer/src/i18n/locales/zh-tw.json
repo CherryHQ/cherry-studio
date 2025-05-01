@@ -60,6 +60,7 @@
       "settings.reasoning_effort.high": "盡力思考",
       "settings.reasoning_effort.low": "稍微思考",
       "settings.reasoning_effort.medium": "正常思考",
+      "settings.reasoning_effort.default": "預設",
       "settings.more": "助手設定"
     },
     "auth": {

@@ -60,6 +60,7 @@
       "settings.reasoning_effort.high": "最大限の思考",
       "settings.reasoning_effort.low": "少しの思考",
       "settings.reasoning_effort.medium": "普通の思考",
+      "settings.reasoning_effort.default": "デフォルト",
       "settings.more": "アシスタント設定"
     },
     "auth": {

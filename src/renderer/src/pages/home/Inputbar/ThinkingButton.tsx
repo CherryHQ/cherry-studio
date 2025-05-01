@@ -1,70 +1,19 @@
 import {
+  MdiLightbulbAutoOutline,
   MdiLightbulbOffOutline,
   MdiLightbulbOn10,
   MdiLightbulbOn50,
   MdiLightbulbOn90
 } from '@renderer/components/Icons/SVGIcon'
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
-import {
-  isSupportedReasoningEffortGrokModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel
-} from '@renderer/config/models'
+import { useQuickPanel } from '@renderer/components/QuickPanel'
+import { isSupportedReasoningEffortGrokModel, isSupportedThinkingTokenGeminiModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { Assistant, Model } from '@renderer/types'
+import { Assistant, Model, ReasoningEffortOptions } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, ReactElement, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, ReactElement, useCallback, useEffect, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export type ReasoningEffortOptions = 'low' | 'medium' | 'high'
-
-const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
-  // Gemini models
-  'gemini-.*$': { min: 0, max: 24576 },
-
-  // Qwen models
-  'qwen-plus-.*$': { min: 0, max: 38912 },
-  'qwen-turbo-.*$': { min: 0, max: 38912 },
-  'qwen3-0\\.6b$': { min: 0, max: 30720 },
-  'qwen3-1\\.7b$': { min: 0, max: 30720 },
-  'qwen3-.*$': { min: 0, max: 38912 },
-
-  // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 0, max: 64000 }
-}
-
-// Helper function to find matching token limit
-const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
-  for (const [pattern, limits] of Object.entries(THINKING_TOKEN_MAP)) {
-    if (new RegExp(pattern).test(modelId)) {
-      return limits
-    }
-  }
-  return undefined
-}
-
-// 根据模型和选择的思考档位计算thinking_budget值
-const calculateThinkingBudget = (model: Model, option: ReasoningEffortOptions | null): number | undefined => {
-  if (!option || !isSupportedThinkingTokenModel(model)) {
-    return undefined
-  }
-
-  const tokenLimits = findTokenLimit(model.id)
-  if (!tokenLimits) return undefined
-
-  const { min, max } = tokenLimits
-
-  switch (option) {
-    case 'low':
-      return Math.floor(min + (max - min) * 0.25)
-    case 'medium':
-      return Math.floor(min + (max - min) * 0.5)
-    case 'high':
-      return Math.floor(min + (max - min) * 0.75)
-    default:
-      return undefined
-  }
-}
+type ThinkingOption = ReasoningEffortOptions | 'off'
 
 export interface ThinkingButtonRef {
   openQuickPanel: () => void
@@ -77,52 +26,59 @@ interface Props {
   ToolbarButton: any
 }
 
+// 模型类型到支持选项的映射表
+const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
+  default: ['off', 'low', 'medium', 'high'],
+  grok: ['off', 'low', 'high'],
+  gemini: ['off', 'low', 'medium', 'high', 'auto']
+}
+
+// 选项转换映射表：当选项不支持时使用的替代选项
+const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
+  off: 'off',
+  low: 'low',
+  medium: 'high', // medium -> high (for Grok models)
+  high: 'high',
+  auto: 'high' // auto -> high (for non-Gemini models)
+}
+
 const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): ReactElement => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const { updateAssistantSettings } = useAssistant(assistant.id)
 
-  const supportedThinkingToken = isSupportedThinkingTokenModel(model)
-  const supportedReasoningEffort = isSupportedReasoningEffortModel(model)
   const isGrokModel = isSupportedReasoningEffortGrokModel(model)
-
-  // 根据thinking_budget逆推思考档位
-  const inferReasoningEffortFromBudget = useCallback(
-    (model: Model, budget: number | undefined): ReasoningEffortOptions | null => {
-      if (!budget || !supportedThinkingToken) return null
-
-      const tokenLimits = findTokenLimit(model.id)
-      if (!tokenLimits) return null
-
-      const { min, max } = tokenLimits
-      const range = max - min
-
-      // 计算预算在范围内的百分比
-      const normalizedBudget = (budget - min) / range
-
-      // 根据百分比确定档位
-      if (normalizedBudget <= 0.33) return 'low'
-      if (normalizedBudget <= 0.66) return 'medium'
-      return 'high'
-    },
-    [supportedThinkingToken]
-  )
+  const isGeminiModel = isSupportedThinkingTokenGeminiModel(model)
 
   const currentReasoningEffort = useMemo(() => {
-    // 优先使用显式设置的reasoning_effort
-    if (assistant.settings?.reasoning_effort) {
-      return assistant.settings.reasoning_effort
+    return assistant.settings?.reasoning_effort || 'off'
+  }, [assistant.settings?.reasoning_effort])
+
+  // 确定当前模型支持的选项类型
+  const modelType = useMemo(() => {
+    if (isGeminiModel) return 'gemini'
+    if (isGrokModel) return 'grok'
+    return 'default'
+  }, [isGeminiModel, isGrokModel])
+
+  // 获取当前模型支持的选项
+  const supportedOptions = useMemo(() => {
+    return MODEL_SUPPORTED_OPTIONS[modelType]
+  }, [modelType])
+
+  // 检查当前设置是否与当前模型兼容
+  useEffect(() => {
+    if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
+      // 使用表中定义的替代选项
+      const fallbackOption = OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
+
+      updateAssistantSettings({
+        reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption
+      })
     }
+  }, [currentReasoningEffort, supportedOptions, updateAssistantSettings, model.id])
 
-    // 如果有thinking_budget但没有reasoning_effort，则推导档位
-    if (assistant.settings?.thinking_budget) {
-      return inferReasoningEffortFromBudget(model, assistant.settings.thinking_budget)
-    }
-
-    return null
-  }, [assistant.settings?.reasoning_effort, assistant.settings?.thinking_budget, inferReasoningEffortFromBudget, model])
-
-  const createThinkingIcon = useCallback((option: ReasoningEffortOptions | null, isActive: boolean = false) => {
+  const createThinkingIcon = useCallback((option?: ThinkingOption, isActive: boolean = false) => {
     const iconColor = isActive ? 'var(--color-link)' : 'var(--color-icon)'
 
     switch (true) {
@@ -132,81 +88,46 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
         return <MdiLightbulbOn50 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
       case option === 'high':
         return <MdiLightbulbOn90 width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
+      case option === 'auto':
+        return <MdiLightbulbAutoOutline width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
+      case option === 'off':
+        return <MdiLightbulbOffOutline width={18} height={18} style={{ color: iconColor, marginTop: -2 }} />
       default:
         return <MdiLightbulbOffOutline width={18} height={18} style={{ color: iconColor }} />
     }
   }, [])
 
   const onThinkingChange = useCallback(
-    (option: ReasoningEffortOptions | null) => {
-      if (!option) {
-        // 禁用思考
+    (option?: ThinkingOption) => {
+      const isEnabled = option !== undefined && option !== 'off'
+      // 然后更新设置
+      if (!isEnabled) {
         updateAssistantSettings({
-          reasoning_effort: undefined,
-          thinking_budget: undefined
+          reasoning_effort: undefined
         })
         return
       }
-
-      // 启用思考
-      if (supportedReasoningEffort) {
-        updateAssistantSettings({
-          reasoning_effort: option
-        })
-      }
-
-      if (supportedThinkingToken) {
-        const budget = calculateThinkingBudget(model, option)
-        updateAssistantSettings({
-          reasoning_effort: option,
-          thinking_budget: budget
-        })
-      }
+      updateAssistantSettings({
+        reasoning_effort: option
+      })
+      return
     },
-    [model, supportedReasoningEffort, supportedThinkingToken, updateAssistantSettings]
+    [updateAssistantSettings]
   )
 
-  const baseOptions = useMemo(
-    () => [
-      {
-        level: null,
-        label: t('assistants.settings.reasoning_effort.off'),
-        description: '',
-        icon: createThinkingIcon(null),
-        isSelected: currentReasoningEffort === null,
-        action: () => onThinkingChange(null)
-      },
-      {
-        level: 'low',
-        label: t('assistants.settings.reasoning_effort.low'),
-        description: '',
-        icon: createThinkingIcon('low'),
-        isSelected: currentReasoningEffort === 'low',
-        action: () => onThinkingChange('low')
-      },
-      {
-        level: 'medium',
-        label: t('assistants.settings.reasoning_effort.medium'),
-        description: '',
-        icon: createThinkingIcon('medium'),
-        isSelected: currentReasoningEffort === 'medium',
-        action: () => onThinkingChange('medium')
-      },
-      {
-        level: 'high',
-        label: t('assistants.settings.reasoning_effort.high'),
-        description: '',
-        icon: createThinkingIcon('high'),
-        isSelected: currentReasoningEffort === 'high',
-        action: () => onThinkingChange('high')
-      }
-    ],
-    [currentReasoningEffort, onThinkingChange, t, createThinkingIcon]
-  )
+  const baseOptions = useMemo(() => {
+    // 使用表中定义的选项创建UI选项
+    return supportedOptions.map((option) => ({
+      level: option,
+      label: t(`assistants.settings.reasoning_effort.${option === 'auto' ? 'default' : option}`),
+      description: '',
+      icon: createThinkingIcon(option),
+      isSelected: currentReasoningEffort === option,
+      action: () => onThinkingChange(option)
+    }))
+  }, [t, createThinkingIcon, currentReasoningEffort, supportedOptions, onThinkingChange])
 
-  const panelItems = useMemo<QuickPanelListItem[]>(() => {
-    return isGrokModel ? baseOptions.filter((option) => option.level === 'low' || option.level === 'high') : baseOptions
-  }, [baseOptions, isGrokModel])
+  const panelItems = baseOptions
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
@@ -226,8 +147,13 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
 
   // 获取当前应显示的图标
   const getThinkingIcon = useCallback(() => {
-    return createThinkingIcon(currentReasoningEffort, currentReasoningEffort !== null)
-  }, [createThinkingIcon, currentReasoningEffort])
+    // 如果当前选项不支持，显示回退选项的图标
+    if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
+      const fallbackOption = OPTION_FALLBACK[currentReasoningEffort as ThinkingOption]
+      return createThinkingIcon(fallbackOption, true)
+    }
+    return createThinkingIcon(currentReasoningEffort, currentReasoningEffort !== 'off')
+  }, [createThinkingIcon, currentReasoningEffort, supportedOptions])
 
   useImperativeHandle(ref, () => ({
     openQuickPanel

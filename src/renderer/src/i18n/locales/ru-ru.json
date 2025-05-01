@@ -59,6 +59,7 @@
       "settings.reasoning_effort.high": "Стараюсь думать",
       "settings.reasoning_effort.low": "Меньше думать",
       "settings.reasoning_effort.medium": "Среднее",
+      "settings.reasoning_effort.default": "По умолчанию",
       "settings.more": "Настройки ассистента"
     },
     "auth": {

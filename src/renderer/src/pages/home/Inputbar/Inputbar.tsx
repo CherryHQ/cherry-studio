@@ -187,6 +187,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+      console.log('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -854,20 +855,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const isExpended = expended || !!textareaHeight
-
-  // 点击面板外部关闭思维面板
-  useEffect(() => {
-    if (!thinkingPanelVisible) return
-    const handleClickOutside = (event: MouseEvent) => {
-      if (thinkingPanelRef.current && !thinkingPanelRef.current.contains(event.target as Node)) {
-        setThinkingPanelVisible(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [thinkingPanelVisible])
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">

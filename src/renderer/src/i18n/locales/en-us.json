@@ -60,6 +60,7 @@
       "settings.reasoning_effort.high": "Think harder",
       "settings.reasoning_effort.low": "Think less",
       "settings.reasoning_effort.medium": "Think normally",
+      "settings.reasoning_effort.default": "Default",
       "settings.more": "Assistant Settings"
     },
     "auth": {

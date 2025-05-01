@@ -1,4 +1,5 @@
 import {
+  findTokenLimit,
   getOpenAIWebSearchParams,
   isHunyuanSearchModel,
   isOpenAIWebSearch,
@@ -26,6 +27,7 @@ import { processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
+  EFFORT_RATIO,
   FileTypes,
   GenerateImageParams,
   MCPToolResponse,
@@ -260,76 +262,75 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
 
-    if (isReasoningModel(model)) {
-      if (model.provider === 'openrouter') {
-        if (isSupportedReasoningEffortModel(model)) {
-          return {
-            reasoning: {
-              effort: assistant?.settings?.reasoning_effort
-            }
-          }
-        } else if (isSupportedThinkingTokenModel(model)) {
-          return {
-            reasoning: {
-              max_tokens: assistant?.settings?.thinking_budget
-            }
-          }
-        }
-      }
-      const enableThinking = assistant?.enableThinking
+    if (!isReasoningModel(model)) {
+      return {}
+    }
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (!reasoningEffort) {
       if (isSupportedThinkingTokenQwenModel(model)) {
-        if (enableThinking) {
-          return {
-            enable_thinking: true,
-            thinking_budget: assistant?.settings?.thinking_budget
-          }
-        } else {
-          return {
-            enable_thinking: false
-          }
-        }
-      }
-
-      if (isSupportedReasoningEffortGrokModel(model)) {
-        if (enableThinking) {
-          return {
-            reasoning_effort: assistant?.settings?.reasoning_effort
-          }
-        } else {
-          return {}
-        }
-      }
-
-      if (isSupportedReasoningEffortOpenAIModel(model)) {
-        if (enableThinking) {
-          return {
-            reasoning_effort: assistant?.settings?.reasoning_effort
-          }
-        } else {
-          return {}
-        }
+        return { enable_thinking: false }
       }
 
       if (isSupportedThinkingTokenClaudeModel(model)) {
-        if (enableThinking) {
-          return {
-            thinking: {
-              type: 'enabled',
-              budget_tokens: assistant?.settings?.thinking_budget
-            }
-          }
-        } else {
-          return {
-            thinking: {
-              type: 'disabled'
-            }
-          }
-        }
+        return { thinking: { type: 'disabled' } }
       }
 
       return {}
     }
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+    const budgetTokens = (findTokenLimit(model.id)?.max || 0) * effortRatio
+    // OpenRouter models
+    if (model.provider === 'openrouter') {
+      if (isSupportedReasoningEffortModel(model)) {
+        return {
+          reasoning: {
+            effort: assistant?.settings?.reasoning_effort
+          }
+        }
+      }
 
+      if (isSupportedThinkingTokenModel(model)) {
+        return {
+          reasoning: {
+            max_tokens: budgetTokens
+          }
+        }
+      }
+    }
+
+    // Qwen models
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens
+      }
+    }
+
+    // Grok models
+    if (isSupportedReasoningEffortGrokModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // OpenAI models
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // Claude models
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      return {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: budgetTokens
+        }
+      }
+    }
+
+    // Default case: no special thinking settings
     return {}
   }
 

@@ -2544,3 +2544,27 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
     {} as Record<string, Model[]>
   )
 }
+
+export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+  // Gemini models
+  'gemini-.*$': { min: 0, max: 24576 },
+
+  // Qwen models
+  'qwen-plus-.*$': { min: 0, max: 38912 },
+  'qwen-turbo-.*$': { min: 0, max: 38912 },
+  'qwen3-0\\.6b$': { min: 0, max: 30720 },
+  'qwen3-1\\.7b$': { min: 0, max: 30720 },
+  'qwen3-.*$': { min: 0, max: 38912 },
+
+  // Claude models
+  'claude-3[.-]7.*sonnet.*$': { min: 0, max: 64000 }
+}
+
+export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
+  for (const [pattern, limits] of Object.entries(THINKING_TOKEN_MAP)) {
+    if (new RegExp(pattern).test(modelId)) {
+      return limits
+    }
+  }
+  return undefined
+}
