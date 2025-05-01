@@ -97,8 +97,6 @@ export class StoreSyncService {
       IpcChannel.StoreSync_BroadcastSync,
       (_, action: StoreSyncAction) => {
         try {
-          console.log('StoreSync_BroadcastSync action', action)
-
           // Dispatch to the store
           if (window.store) {
             window.store.dispatch(action)

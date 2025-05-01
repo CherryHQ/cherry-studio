@@ -19,7 +19,6 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   restartTray: () => ipcRenderer.invoke(IpcChannel.App_RestartTray),
   setTheme: (theme: 'light' | 'dark' | 'auto') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
-  setCustomCss: (css: string) => ipcRenderer.invoke(IpcChannel.App_SetCustomCss, css),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
