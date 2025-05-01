@@ -81,13 +81,6 @@ class ContextMenu {
 
     const template: MenuItemConstructorOptions[] = [
       {
-        id: 'cut',
-        label: common.cut,
-        role: 'cut',
-        enabled: can('Cut'),
-        visible: properties.isEditable
-      },
-      {
         id: 'copy',
         label: common.copy,
         role: 'copy',
@@ -99,6 +92,13 @@ class ContextMenu {
         label: common.paste,
         role: 'paste',
         enabled: properties.editFlags.canPaste,
+        visible: properties.isEditable
+      },
+      {
+        id: 'cut',
+        label: common.cut,
+        role: 'cut',
+        enabled: can('Cut'),
         visible: properties.isEditable
       }
     ]
