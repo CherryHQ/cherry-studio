@@ -131,7 +131,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
-      title: t('chat.input.thinking'),
+      title: t('assistants.settings.reasoning_effort'),
       list: panelItems,
       symbol: 'thinking'
     })
