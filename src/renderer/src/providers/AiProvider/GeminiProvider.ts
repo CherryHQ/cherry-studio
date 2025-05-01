@@ -40,7 +40,7 @@ import {
   Usage,
   WebSearchSource
 } from '@renderer/types'
-import { BlockCompleteChunk, ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { BlockCompleteChunk, Chunk, ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 import type { Message, Response } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
@@ -122,8 +122,11 @@ export default class GeminiProvider extends BaseProvider {
     // Add any generated images from previous responses
     const imageBlocks = findImageBlocks(message)
     for (const imageBlock of imageBlocks) {
-      if (imageBlock.metadata?.generateImage?.images && imageBlock.metadata.generateImage.images.length > 0) {
-        for (const imageUrl of imageBlock.metadata.generateImage.images) {
+      if (
+        imageBlock.metadata?.generateImageResponse?.images &&
+        imageBlock.metadata.generateImageResponse.images.length > 0
+      ) {
+        for (const imageUrl of imageBlock.metadata.generateImageResponse.images) {
           if (imageUrl && imageUrl.startsWith('data:')) {
             // Extract base64 data and mime type from the data URL
             const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
@@ -448,7 +451,7 @@ export default class GeminiProvider extends BaseProvider {
         }
 
         // 4. Image Generation
-        const generateImage = this.processGeminiImageResponse(chunk)
+        const generateImage = this.processGeminiImageResponse(chunk, onChunk)
         if (generateImage?.images?.length) {
           onChunk({ type: ChunkType.IMAGE_COMPLETE, image: generateImage })
         }
@@ -715,7 +718,10 @@ export default class GeminiProvider extends BaseProvider {
    * @param response - Gemini响应
    * @param onChunk - 处理生成块的回调
    */
-  private processGeminiImageResponse(chunk: GenerateContentResponse): { type: 'base64'; images: string[] } | undefined {
+  private processGeminiImageResponse(
+    chunk: GenerateContentResponse,
+    onChunk: (chunk: Chunk) => void
+  ): { type: 'base64'; images: string[] } | undefined {
     const parts = chunk.candidates?.[0]?.content?.parts
     if (!parts) {
       return
@@ -727,6 +733,10 @@ export default class GeminiProvider extends BaseProvider {
         if (!part.inlineData) {
           return null
         }
+        // onChunk的位置需要更改
+        onChunk({
+          type: ChunkType.IMAGE_CREATED
+        })
         const dataPrefix = `data:${part.inlineData.mimeType || 'image/png'};base64,`
         return part.inlineData.data?.startsWith('data:') ? part.inlineData.data : dataPrefix + part.inlineData.data
       })
