@@ -799,13 +799,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [assistant, model, updateAssistant])
 
-  const onMentionModel = (model: Model) => {
+  const onMentionModel = useCallback((model: Model) => {
     setMentionModels((prev) => {
       const modelId = getModelUniqId(model)
       const exists = prev.some((m) => getModelUniqId(m) === modelId)
       return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
     })
-  }
+  }, [])
 
   const onToggleExpended = () => {
     if (textareaHeight) {

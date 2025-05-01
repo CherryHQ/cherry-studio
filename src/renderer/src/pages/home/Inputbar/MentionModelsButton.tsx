@@ -10,7 +10,7 @@ import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, Plus } from 'lucide-react'
-import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -143,7 +143,8 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
   )
 }
 
-export default MentionModelsButton
 const ProviderName = styled.span`
   font-weight: 500;
 `
+
+export default memo(MentionModelsButton)
