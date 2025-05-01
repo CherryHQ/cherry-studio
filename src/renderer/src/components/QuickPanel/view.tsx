@@ -10,6 +10,7 @@ import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, 
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
+import LazyItem from '../LazyItem'
 import { QuickPanelContext } from './provider'
 import { QuickPanelCallBackOptions, QuickPanelCloseAction, QuickPanelListItem, QuickPanelOpenOptions } from './types'
 
@@ -429,38 +430,55 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       className={ctx.isVisible ? 'visible' : ''}>
       <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
         <QuickPanelContent ref={contentRef} $pageSize={ctx.pageSize} $isMouseOver={isMouseOver}>
-          {list.map((item, i) => (
-            <QuickPanelItem
-              className={classNames({
-                focused: i === index,
-                selected: item.isSelected,
-                disabled: item.disabled
-              })}
-              key={i}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleItemAction(item, 'click')
-              }}
-              onMouseEnter={() => setIndex(i)}>
-              <QuickPanelItemLeft>
-                <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
-                <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
-              </QuickPanelItemLeft>
+          {list.map((item, i) => {
+            const renderItem = (
+              <QuickPanelItem
+                key={i}
+                className={classNames({
+                  focused: i === index,
+                  selected: item.isSelected,
+                  disabled: item.disabled
+                })}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleItemAction(item, 'click')
+                }}
+                onMouseEnter={() => setIndex(i)}>
+                <QuickPanelItemLeft>
+                  <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
+                  <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
+                </QuickPanelItemLeft>
 
-              <QuickPanelItemRight>
-                {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
-                <QuickPanelItemSuffixIcon>
-                  {item.suffix ? (
-                    item.suffix
-                  ) : item.isSelected ? (
-                    <Check />
-                  ) : (
-                    item.isMenu && !item.disabled && <RightOutlined />
-                  )}
-                </QuickPanelItemSuffixIcon>
-              </QuickPanelItemRight>
-            </QuickPanelItem>
-          ))}
+                <QuickPanelItemRight>
+                  {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
+                  <QuickPanelItemSuffixIcon>
+                    {item.suffix ? (
+                      item.suffix
+                    ) : item.isSelected ? (
+                      <Check />
+                    ) : (
+                      item.isMenu && !item.disabled && <RightOutlined />
+                    )}
+                  </QuickPanelItemSuffixIcon>
+                </QuickPanelItemRight>
+              </QuickPanelItem>
+            )
+
+            if (i < ctx.pageSize) {
+              return renderItem
+            } else {
+              return (
+                <LazyItem
+                  key={i}
+                  minHeight={30}
+                  once={false}
+                  rootMargin={`${14 * 30}px`}
+                  scrollContainer={contentRef.current}>
+                  {renderItem}
+                </LazyItem>
+              )
+            }
+          })}
         </QuickPanelContent>
         <QuickPanelFooter ref={footerRef}>
           <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
