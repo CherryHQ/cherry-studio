@@ -1,14 +1,28 @@
 import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@dify-chat/api'
-import { Workflow } from '@renderer/types'
-import { Button, Form, Input, InputNumber, Select, Upload } from 'antd'
+import { uploadFile } from '@renderer/services/FlowEngineService'
+import { FlowEngine, Workflow } from '@renderer/types'
+import { Button, Form, Input, InputNumber, Select } from 'antd'
+import { UploadFile } from 'antd/lib'
 import { FC } from 'react'
+
+import FileUpload from './FileUpload'
+
+export interface IUploadFileItem extends UploadFile {
+  type?: string
+  transfer_method?: 'local_file' | 'remote_url'
+  upload_file_id?: string
+  related_id?: string
+  remote_url?: string
+  filename?: string
+}
 
 interface Props {
   workflow: Workflow
+  provider: FlowEngine
   onSubmit: (values: any) => void
 }
 
-const WorkflowForm: FC<Props> = ({ workflow, onSubmit }) => {
+const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
   const [form] = Form.useForm()
   console.log('Received workflow prop:', workflow) // 添加这行来检查传入的 workflow
 
@@ -32,16 +46,27 @@ const WorkflowForm: FC<Props> = ({ workflow, onSubmit }) => {
         return <InputNumber style={{ width: '100%' }} />
       case 'file':
         return (
-          <Upload maxCount={1}>
-            <Button>上传文件</Button>
-          </Upload>
+          <FileUpload
+            mode="single"
+            disabled={false}
+            allowed_file_types={item.allowed_file_types}
+            uploadFile={uploadFile}
+            workflow={workflow}
+            provider={provider}
+          />
         )
       case 'file-list':
         return (
-          <Upload multiple>
-            <Button>上传多个文件</Button>
-          </Upload>
+          <FileUpload
+            maxCount={item.max_length}
+            disabled={false}
+            allowed_file_types={item.allowed_file_types}
+            uploadFile={uploadFile}
+            workflow={workflow}
+            provider={provider}
+          />
         )
+
       default:
         console.warn('Unsupported form item type:', type)
         return <Input disabled placeholder={`不支持的类型: ${type}`} />
@@ -49,8 +74,27 @@ const WorkflowForm: FC<Props> = ({ workflow, onSubmit }) => {
   }
 
   const handleFinish = (values: any) => {
-    console.log('Form values:', values)
-    onSubmit(values)
+    // 处理文件类型的字段，提取upload_file_id
+    const processedValues = { ...values }
+
+    // 遍历表单项
+    formItems.forEach(({ type, item }) => {
+      const fieldName = item.variable
+      if (!fieldName) return
+
+      // 处理单个文件上传
+      if (type === 'file' && values[fieldName]) {
+        processedValues[fieldName] = values[fieldName].upload_file_id
+      }
+
+      // 处理多文件上传
+      if (type === 'file-list' && Array.isArray(values[fieldName])) {
+        processedValues[fieldName] = values[fieldName].map((file: IUploadFileItem) => file.upload_file_id)
+      }
+    })
+
+    console.log('Processed form values:', processedValues)
+    onSubmit(processedValues)
   }
 
   // 处理可能是数组或Record的情况
@@ -87,8 +131,6 @@ const WorkflowForm: FC<Props> = ({ workflow, onSubmit }) => {
     },
     {} as Record<string, any>
   )
-
-  console.log('Generated formItems:', formItems) // 添加这行来检查生成的 formItems
 
   return (
     <Form form={form} layout="vertical" onFinish={handleFinish} initialValues={initialValues}>

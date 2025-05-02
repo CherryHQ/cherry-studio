@@ -234,9 +234,9 @@ const DetailViewContainer = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: auto;
+  height: 100%;
   position: relative;
-  overflow: hidden; /* 防止本身滚动 */
+  overflow: hidden; /* 添加这一行，防止这一层产生滚动 */
 `
 
 const BackButtonContainer = styled.div`
@@ -247,8 +247,8 @@ const BackButtonContainer = styled.div`
 const DetailContent = styled.div`
   flex: 1;
   width: 100%;
-  overflow-y: auto; /* 只在内容超出时滚动 */
-  padding: 0 20px 20px 20px;
+  padding: 5px 10px 5px 5px; /* 合并右侧内边距设置 */
+  overflow-y: auto; /* 保持此处的滚动 */
 `
 
 const BackButton = styled.div`

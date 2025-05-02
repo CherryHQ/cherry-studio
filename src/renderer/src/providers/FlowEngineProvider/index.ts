@@ -1,4 +1,4 @@
-import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
+import { IFileType, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { Flow, FlowEngine } from '@renderer/types'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
@@ -20,7 +20,7 @@ export default class FlowEngineProvider {
     return await this.sdk.check(flow)
   }
 
-  public async getAppParameters(flow: Flow): Promise<IUserInputForm[]> {
+  public async getAppParameters(flow: Flow): Promise<{ parameters: IUserInputForm[]; allowFileTypes: IFileType[] }> {
     return await this.sdk.getAppParameters(flow)
   }
 

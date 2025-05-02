@@ -1,5 +1,5 @@
 import { DeleteOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons'
-import WorkflowForm from '@renderer/components/EmojiPicker/WorkflowForm'
+import WorkflowForm from '@renderer/components/Dify/WorkflowForm'
 // Remove getFlowEngineProviderLogo import if miniAppConfig is removed
 // import { getFlowEngineProviderLogo } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -242,7 +242,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       </SettingGroup>
       <SettingDivider />
       <Button onClick={getParameters}>获取参数</Button>
-      <WorkflowForm workflow={flow as Workflow} onSubmit={() => console.log('submit')} />
+      <WorkflowForm workflow={flow as Workflow} provider={flowEngineProvider} onSubmit={() => console.log('submit')} />
     </SettingContainer>
   )
 }
