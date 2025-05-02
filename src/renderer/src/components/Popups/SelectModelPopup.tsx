@@ -1,3 +1,4 @@
+import VirtualList, { ListRef } from '@alephpiece/rc-virtual-list'
 import { PushpinOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -5,18 +6,31 @@ import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { Avatar, Divider, Empty, Input, InputRef, Menu, MenuProps, Modal } from 'antd'
+import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { HStack } from '../Layout'
 import ModelTagsWithLabel from '../ModelTagsWithLabel'
-import Scrollbar from '../Scrollbar'
 
-type MenuItem = Required<MenuProps>['items'][number]
+const ITEM_HEIGHT = 36
+
+// 列表项类型，组名也作为列表项
+type ListItemType = 'group' | 'model'
+
+// 扁平化列表项接口
+interface FlatListItem {
+  key: string
+  type: ListItemType
+  icon?: React.ReactNode
+  name: React.ReactNode
+  tags?: React.ReactNode
+  model?: Model
+  isPinned?: boolean
+}
 
 interface Props {
   model?: Model
@@ -29,23 +43,19 @@ interface PopupContainerProps extends Props {
 const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const [searchText, setSearchText] = useState('')
+  const [_searchText, setSearchText] = useState('')
+  const searchText = useDeferredValue(_searchText)
   const inputRef = useRef<InputRef>(null)
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const [keyboardSelectedId, setKeyboardSelectedId] = useState<string>('')
-  const menuItemRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [selectedItemKey, setSelectedItemKey] = useState<string>('')
+  const listRef = useRef<ListRef>(null)
+  const hasInitSelected = useRef(false)
 
-  const setMenuItemRef = useCallback(
-    (key: string) => (el: HTMLElement | null) => {
-      if (el) {
-        menuItemRefs.current[key] = el
-      }
-    },
-    []
-  )
+  // 当前选中的模型ID
+  const currentModelId = model ? getModelUniqId(model) : ''
 
+  // 加载置顶模型列表
   useEffect(() => {
     const loadPinnedModels = async () => {
       const setting = await db.settings.get('pinned:models')
@@ -99,267 +109,195 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     [searchText, t, pinnedModels]
   )
 
-  // 递归处理菜单项，为每个项添加ref
-  const processMenuItems = useCallback(
-    (items: MenuItem[]) => {
-      // 内部定义 renderMenuItem 函数
-      const renderMenuItem = (item: any) => {
-        return {
-          ...item,
-          label: <div ref={setMenuItemRef(item.key)}>{item.label}</div>
-        }
-      }
+  // 创建模型列表项
+  const createModelItem = useCallback(
+    (model: Model, provider: any, isPinned: boolean): FlatListItem => {
+      const modelId = getModelUniqId(model)
+      const key = isPinned ? `${modelId}_pinned` : modelId
+      const providerName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
 
-      return items.map((item) => {
-        if (item && 'children' in item && item.children) {
-          return {
-            ...item,
-            children: (item.children as MenuItem[]).map(renderMenuItem)
-          }
-        }
-        return item
-      })
+      const fullName = isPinned ? `${model.name} | ${providerName}` : model.name
+
+      return {
+        key,
+        type: 'model',
+        name: <ModelName>{fullName}</ModelName>,
+        tags: (
+          <TagsContainer>
+            <ModelTagsWithLabel model={model} size={11} showLabel={false} />
+          </TagsContainer>
+        ),
+        icon: (
+          <Avatar src={getModelLogo(model.id || '')} size={24}>
+            {first(model.name)}
+          </Avatar>
+        ),
+        model,
+        isPinned
+      }
     },
-    [setMenuItemRef]
+    [t]
   )
 
-  const filteredItems: MenuItem[] = providers
-    .filter((p) => p.models && p.models.length > 0)
-    .map((p) => {
-      const filteredModels = getFilteredModels(p).map((m) => ({
-        key: getModelUniqId(m),
-        label: (
-          <ModelItem>
-            <ModelNameRow>
-              <span>{m?.name}</span> <ModelTagsWithLabel model={m} size={11} showLabel={false} />
-            </ModelNameRow>
-            <PinIcon
-              onClick={(e) => {
-                e.stopPropagation()
-                togglePin(getModelUniqId(m))
-              }}
-              isPinned={pinnedModels.includes(getModelUniqId(m))}>
-              <PushpinOutlined />
-            </PinIcon>
-          </ModelItem>
-        ),
-        icon: (
-          <Avatar src={getModelLogo(m?.id || '')} size={24}>
-            {first(m?.name)}
-          </Avatar>
-        ),
-        onClick: () => {
-          resolve(m)
-          setOpen(false)
-        }
-      }))
+  // 构建扁平化列表数据
+  const flatListItems = useCallback(() => {
+    const items: FlatListItem[] = []
 
-      // Only return the group if it has filtered models
-      return filteredModels.length > 0
-        ? {
-            key: p.id,
-            label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-            type: 'group',
-            children: filteredModels
-          }
-        : null
-    })
-    .filter(Boolean) as MenuItem[] // Filter out null items
-
-  if (pinnedModels.length > 0 && searchText.length === 0) {
-    const pinnedItems = providers
-      .flatMap((p) =>
-        p.models
-          .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-          .map((m) => ({
-            key: getModelUniqId(m),
-            model: m,
-            provider: p
-          }))
-      )
-      .map((m) => ({
-        key: getModelUniqId(m.model) + '_pinned',
-        label: (
-          <ModelItem>
-            <ModelNameRow>
-              <span>
-                {m.model?.name} | {m.provider.isSystem ? t(`provider.${m.provider.id}`) : m.provider.name}
-              </span>{' '}
-              <ModelTagsWithLabel model={m.model} size={11} showLabel={false} />
-            </ModelNameRow>
-            <PinIcon
-              onClick={(e) => {
-                e.stopPropagation()
-                togglePin(getModelUniqId(m.model))
-              }}
-              isPinned={true}>
-              <PushpinOutlined />
-            </PinIcon>
-          </ModelItem>
-        ),
-        icon: (
-          <Avatar src={getModelLogo(m.model?.id || '')} size={24}>
-            {first(m.model?.name)}
-          </Avatar>
-        ),
-        onClick: () => {
-          resolve(m.model)
-          setOpen(false)
-        }
-      }))
-
-    if (pinnedItems.length > 0) {
-      filteredItems.unshift({
-        key: 'pinned',
-        label: t('models.pinned'),
-        type: 'group',
-        children: pinnedItems
-      } as MenuItem)
-    }
-  }
-
-  // 处理菜单项，添加ref
-  const processedItems = processMenuItems(filteredItems)
-
-  const onCancel = () => {
-    setKeyboardSelectedId('')
-    setOpen(false)
-  }
-
-  const onClose = async () => {
-    setKeyboardSelectedId('')
-    resolve(undefined)
-    SelectModelPopup.hide()
-  }
-
-  useEffect(() => {
-    open && setTimeout(() => inputRef.current?.focus(), 0)
-  }, [open])
-
-  useEffect(() => {
-    if (open && model) {
-      setTimeout(() => {
-        const modelId = getModelUniqId(model)
-        if (menuItemRefs.current[modelId]) {
-          menuItemRefs.current[modelId]?.scrollIntoView({ block: 'center', behavior: 'auto' })
-        }
-      }, 100) // Small delay to ensure menu is rendered
-    }
-  }, [open, model])
-
-  // 获取所有可见的模型项
-  const getVisibleModelItems = useCallback(() => {
-    const items: { key: string; model: Model }[] = []
-
-    // 如果有置顶模型且没有搜索文本，添加置顶模型
+    // 添加置顶模型分组（仅在无搜索文本时）
     if (pinnedModels.length > 0 && searchText.length === 0) {
-      providers
-        .flatMap((p) => p.models || [])
-        .filter((m) => pinnedModels.includes(getModelUniqId(m)))
-        .forEach((m) => items.push({ key: getModelUniqId(m) + '_pinned', model: m }))
+      const pinnedItems = providers.flatMap((p) =>
+        p.models.filter((m) => pinnedModels.includes(getModelUniqId(m))).map((m) => createModelItem(m, p, true))
+      )
+
+      if (pinnedItems.length > 0) {
+        // 添加置顶分组标题
+        items.push({
+          key: 'pinned-group',
+          type: 'group',
+          name: t('models.pinned')
+        })
+
+        items.push(...pinnedItems)
+      }
     }
 
-    // 添加其他过滤后的模型
-    providers.forEach((p) => {
-      if (p.models) {
-        getFilteredModels(p).forEach((m) => {
-          const modelId = getModelUniqId(m)
-          const isPinned = pinnedModels.includes(modelId)
+    // 添加常规模型分组
+    providers
+      .filter((p) => {
+        const filtered = getFilteredModels(p)
+        return filtered.length > 0
+      })
+      .forEach((p) => {
+        const filteredModels = getFilteredModels(p).filter(
+          (m) => !pinnedModels.includes(getModelUniqId(m)) || searchText.length > 0
+        )
 
-          // 搜索状态下，所有匹配的模型都应该可以被选中，包括固定的模型
-          // 非搜索状态下，只添加非固定模型（固定模型已在上面添加）
-          if (searchText.length > 0 || !isPinned) {
-            items.push({
-              key: modelId,
-              model: m
-            })
-          }
+        if (filteredModels.length === 0) return
+
+        // 添加 provider 分组标题
+        items.push({
+          key: `provider-${p.id}`,
+          type: 'group',
+          name: p.isSystem ? t(`provider.${p.id}`) : p.name
         })
-      }
-    })
+
+        items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
+      })
 
     return items
-  }, [pinnedModels, searchText, providers, getFilteredModels])
+  }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
 
-  // 添加一个useLayoutEffect来处理滚动
-  useLayoutEffect(() => {
-    if (open && keyboardSelectedId && menuItemRefs.current[keyboardSelectedId]) {
-      // 获取当前选中元素和容器
-      const selectedElement = menuItemRefs.current[keyboardSelectedId]
-      const scrollContainer = scrollContainerRef.current
+  // 计算列表项
+  const listItems = flatListItems()
 
-      if (!scrollContainer) return
+  // 获取可选择的模型项（过滤掉分组标题）
+  const getSelectableItems = useCallback(() => {
+    const items = listItems.filter((item) => item.type === 'model')
+    return items
+  }, [listItems])
 
-      const selectedRect = selectedElement.getBoundingClientRect()
-      const containerRect = scrollContainer.getBoundingClientRect()
-
-      // 计算元素相对于容器的位置
-      const currentScrollTop = scrollContainer.scrollTop
-      const elementTop = selectedRect.top - containerRect.top + currentScrollTop
-      const groupTitleHeight = 30
-
-      // 确定滚动位置
-      if (selectedRect.top < containerRect.top + groupTitleHeight) {
-        // 元素被组标题遮挡，向上滚动
-        scrollContainer.scrollTo({
-          top: elementTop - groupTitleHeight,
-          behavior: 'smooth'
-        })
-      } else if (selectedRect.bottom > containerRect.bottom) {
-        // 元素在视口下方，向下滚动
-        scrollContainer.scrollTo({
-          top: elementTop - containerRect.height + selectedRect.height,
-          behavior: 'smooth'
-        })
+  // 找到当前模型在列表中的索引（只在首次打开时设置）
+  useEffect(() => {
+    if (!hasInitSelected.current && currentModelId && listItems.length > 0) {
+      const index = listItems.findIndex(
+        (item) => item.type === 'model' && getModelUniqId(item.model as Model) === currentModelId
+      )
+      if (index >= 0) {
+        setSelectedItemKey(listItems[index].key)
+        hasInitSelected.current = true
       }
     }
-  }, [open, keyboardSelectedId])
+  }, [currentModelId, listItems])
+
+  // 滚动到选中项（高亮项）
+  useEffect(() => {
+    if (selectedItemKey) {
+      const actualIndex = listItems.findIndex((item) => item.key === selectedItemKey)
+      if (actualIndex >= 0) {
+        listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
+      }
+    }
+  }, [selectedItemKey, listItems])
+
+  const handleItemClick = (item: FlatListItem) => {
+    if (item.type !== 'model') return
+
+    resolve(item.model)
+    setOpen(false)
+  }
 
   // 处理键盘导航
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const items = getVisibleModelItems()
-      if (items.length === 0) return
+      if (!open || listItems.length === 0) {
+        return
+      }
+
+      const selectableItems = getSelectableItems()
+      if (selectableItems.length === 0) {
+        return
+      }
 
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
-        const currentIndex = items.findIndex((item) => item.key === keyboardSelectedId)
-        let nextIndex
 
+        const currentIndex = selectableItems.findIndex((item) => item.key === selectedItemKey)
+
+        let nextIndex: number
         if (currentIndex === -1) {
-          nextIndex = e.key === 'ArrowDown' ? 0 : items.length - 1
+          nextIndex = e.key === 'ArrowDown' ? 0 : selectableItems.length - 1
         } else {
           nextIndex =
-            e.key === 'ArrowDown' ? (currentIndex + 1) % items.length : (currentIndex - 1 + items.length) % items.length
+            e.key === 'ArrowDown'
+              ? (currentIndex + 1) % selectableItems.length
+              : (currentIndex - 1 + selectableItems.length) % selectableItems.length
         }
 
-        const nextItem = items[nextIndex]
-        setKeyboardSelectedId(nextItem.key)
+        const nextItem = selectableItems[nextIndex]
+
+        setSelectedItemKey(nextItem.key)
       } else if (e.key === 'Enter') {
-        e.preventDefault() // 阻止回车的默认行为
-        if (keyboardSelectedId) {
-          const selectedItem = items.find((item) => item.key === keyboardSelectedId)
+        if (selectedItemKey) {
+          e.preventDefault()
+          const selectedItem = selectableItems.find((item) => item.key === selectedItemKey)
           if (selectedItem) {
             resolve(selectedItem.model)
             setOpen(false)
           }
         }
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+        resolve(undefined)
       }
     },
-    [keyboardSelectedId, getVisibleModelItems, resolve, setOpen]
+    [open, listItems, selectedItemKey, getSelectableItems, resolve]
   )
 
+  // 搜索文本改变时重置选中状态
+  useEffect(() => {
+    setSelectedItemKey('')
+    hasInitSelected.current = false
+  }, [searchText])
+
+  // 全局事件监听
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // 搜索文本改变时重置键盘选中状态
-  useEffect(() => {
-    setKeyboardSelectedId('')
-  }, [searchText])
+  const onCancel = useCallback(() => {
+    setOpen(false)
+  }, [])
 
-  const selectedKeys = keyboardSelectedId ? [keyboardSelectedId] : model ? [getModelUniqId(model)] : []
+  const onClose = useCallback(async () => {
+    resolve(undefined)
+    SelectModelPopup.hide()
+  }, [resolve])
+
+  useEffect(() => {
+    open && setTimeout(() => inputRef.current?.focus(), 0)
+  }, [open])
 
   return (
     <Modal
@@ -380,6 +318,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       }}
       closeIcon={null}
       footer={null}>
+      {/* 搜索框 */}
       <HStack style={{ padding: '0 12px', marginTop: 5 }}>
         <Input
           prefix={
@@ -389,7 +328,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           }
           ref={inputRef}
           placeholder={t('models.search')}
-          value={searchText}
+          value={_searchText}
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
           autoFocus
@@ -398,109 +337,135 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           size="middle"
           onKeyDown={(e) => {
             // 防止上下键移动光标
-            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'Enter') {
               e.preventDefault()
             }
           }}
         />
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-      <Scrollbar style={{ height: '50vh' }} ref={scrollContainerRef}>
-        <Container>
-          {processedItems.length > 0 ? (
-            <StyledMenu
-              items={processedItems}
-              selectedKeys={selectedKeys}
-              mode="inline"
-              inlineIndent={6}
-              onSelect={({ key }) => {
-                setKeyboardSelectedId(key as string)
-              }}
-            />
-          ) : (
-            <EmptyState>
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            </EmptyState>
-          )}
-        </Container>
-      </Scrollbar>
+
+      {/* 虚拟列表 */}
+      {listItems.length > 0 ? (
+        <VirtualList
+          ref={listRef}
+          data={listItems}
+          itemKey="key"
+          height={9 * ITEM_HEIGHT} // 显示9个模型
+          itemHeight={ITEM_HEIGHT}
+          overscan={4}
+          smoothScroll={true}
+          styles={{
+            verticalScrollBar: { background: 'transparent', width: 6 },
+            verticalScrollBarThumb: {
+              background: 'var(--color-scrollbar-thumb)',
+              borderRadius: 4
+            }
+          }}>
+          {(item) =>
+            item.type === 'group' ? (
+              <GroupItem>{item.name}</GroupItem>
+            ) : (
+              <ModelItem onClick={() => handleItemClick(item)} $isSelected={item.key === selectedItemKey}>
+                <ModelItemLeft>
+                  {item.icon}
+                  {item.name}
+                  {item.tags}
+                </ModelItemLeft>
+                <PinIconWrapper
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (item.model) {
+                      togglePin(getModelUniqId(item.model))
+                    }
+                  }}
+                  data-pinned={item.isPinned}
+                  $isPinned={item.isPinned}>
+                  <PushpinOutlined />
+                </PinIconWrapper>
+              </ModelItem>
+            )
+          }
+        </VirtualList>
+      ) : (
+        <EmptyState>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        </EmptyState>
+      )}
     </Modal>
   )
 }
 
-const Container = styled.div`
-  margin-top: 10px;
-`
-
-const StyledMenu = styled(Menu)`
-  background-color: transparent;
-  padding: 5px;
-  margin-top: -10px;
-  max-height: calc(60vh - 50px);
-
-  .ant-menu-item-group-title {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    margin: 0 -5px;
-    padding: 5px 10px;
-    padding-left: 18px;
-    font-size: 12px;
-    font-weight: 500;
-
-    /* Scroll-driven animation for sticky header */
-    animation: background-change linear both;
-    animation-timeline: scroll();
-    animation-range: entry 0% entry 1%;
-  }
-
-  /* Simple animation that changes background color when sticky */
-  @keyframes background-change {
-    to {
-      background-color: var(--color-background);
-    }
-  }
-
-  .ant-menu-item {
-    height: 36px;
-    line-height: 36px;
-
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-mute) !important;
-      color: var(--color-text-primary) !important;
-    }
-
-    &:not([data-menu-id^='pinned-']) {
-      .pin-icon {
-        opacity: 0;
-      }
-
-      &:hover {
-        .pin-icon {
-          opacity: 0.3;
-        }
-      }
-    }
-
-    .anticon {
-      min-width: auto;
-    }
-  }
-`
-
-const ModelItem = styled.div`
+const GroupItem = styled.div`
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 10px 5px 18px;
+  color: var(--color-text-3);
+  background-color: var(--color-background);
+  height: ${ITEM_HEIGHT}px;
   display: flex;
   align-items: center;
-  font-size: 14px;
   position: relative;
-  width: 100%;
+  z-index: 1;
 `
 
-const ModelNameRow = styled.div`
+const ModelItem = styled.div<{ $isSelected: boolean }>`
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  position: relative;
+  font-size: 14px;
+  padding: 0 8px;
+  margin: 1px 12px;
+  height: ${ITEM_HEIGHT - 2}px;
+  border-radius: 6px;
+  cursor: pointer;
+  background-color: ${(props) => (props.$isSelected ? 'var(--color-background-mute)' : 'transparent')};
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: var(--color-background-mute);
+  }
+
+  .pin-icon {
+    opacity: 0;
+  }
+
+  &:hover .pin-icon {
+    opacity: 0.3;
+  }
+`
+
+const ModelItemLeft = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+  overflow: hidden;
+  padding-right: 26px;
+
+  .anticon {
+    min-width: auto;
+    flex-shrink: 0;
+  }
+`
+
+const ModelName = styled.span`
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  margin: 0 8px;
+  min-width: 0;
+`
+
+const TagsContainer = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  min-width: 80px;
+  max-width: 180px;
+  overflow: hidden;
+  flex-shrink: 0;
 `
 
 const EmptyState = styled.div`
@@ -522,19 +487,19 @@ const SearchIcon = styled.div`
   margin-right: 2px;
 `
 
-const PinIcon = styled.span.attrs({ className: 'pin-icon' })<{ isPinned: boolean }>`
+const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?: boolean }>`
   margin-left: auto;
-  padding: 0 8px;
-  opacity: ${(props) => (props.isPinned ? 1 : 'inherit')};
+  padding: 0 10px;
+  opacity: ${(props) => (props.$isPinned ? 1 : 'inherit')};
   transition: opacity 0.2s;
   position: absolute;
   right: 0;
-  color: ${(props) => (props.isPinned ? 'var(--color-primary)' : 'inherit')};
-  transform: ${(props) => (props.isPinned ? 'rotate(-45deg)' : 'none')};
+  color: ${(props) => (props.$isPinned ? 'var(--color-primary)' : 'inherit')};
+  transform: ${(props) => (props.$isPinned ? 'rotate(-45deg)' : 'none')};
 
   &:hover {
     opacity: 1 !important;
-    color: ${(props) => (props.isPinned ? 'var(--color-primary)' : 'inherit')};
+    color: ${(props) => (props.$isPinned ? 'var(--color-primary)' : 'inherit')};
   }
 `
 
@@ -542,6 +507,7 @@ export default class SelectModelPopup {
   static hide() {
     TopView.hide('SelectModelPopup')
   }
+
   static show(params: Props) {
     return new Promise<Model | undefined>((resolve) => {
       TopView.show(<PopupContainer {...params} resolve={resolve} />, 'SelectModelPopup')
