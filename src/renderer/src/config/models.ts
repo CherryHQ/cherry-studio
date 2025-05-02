@@ -2223,6 +2223,19 @@ export function isOpenAIReasoningModel(model: Model): boolean {
   return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
 }
 
+export function isOpenAIModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  if (isOpenAIReasoningModel(model)) {
+    return true
+  }
+  if (model.id.includes('gpt')) {
+    return true
+  }
+  return false
+}
+
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
