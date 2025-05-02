@@ -444,8 +444,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           }}
           style={{
             padding: '0 5px',
-            overflowX: 'hidden',
-            overflowY: 'auto',
             pointerEvents: isMouseOver ? 'auto' : 'none'
           }}>
           {(item, i) => (
