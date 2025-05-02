@@ -119,7 +119,11 @@ const throttledBlockUpdate = throttle((id, blockUpdate) => {
   const state = store.getState()
   const block = state.messageBlocks.entities[id]
   // throttle是异步函数,可能会在complete事件触发后才执行
-  if (blockUpdate.status === MessageBlockStatus.STREAMING && block?.status === MessageBlockStatus.SUCCESS) return
+  if (
+    blockUpdate.status === MessageBlockStatus.STREAMING &&
+    (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+  )
+    return
 
   store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
 }, 150)
@@ -135,7 +139,11 @@ export const throttledBlockDbUpdate = throttle(
     const state = store.getState()
     const block = state.messageBlocks.entities[blockId]
     // throttle是异步函数,可能会在complete事件触发后才执行
-    if (blockChanges.status === MessageBlockStatus.STREAMING && block?.status === MessageBlockStatus.SUCCESS) return
+    if (
+      blockChanges.status === MessageBlockStatus.STREAMING &&
+      (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+    )
+      return
     console.log(`[DB Throttle Block Update] Updating block ${blockId} with changes:`, blockChanges)
     try {
       await db.message_blocks.update(blockId, blockChanges)
@@ -271,6 +279,9 @@ const fetchAndProcessAssistantResponseImpl = async (
       lastBlockType = newBlockType
       if (newBlockType !== MessageBlockType.MAIN_TEXT) {
         accumulatedContent = ''
+      }
+      if (newBlockType !== MessageBlockType.THINKING) {
+        accumulatedThinking = ''
       }
       console.log(`[Transition] Adding/Updating new ${newBlockType} block ${newBlock.id}.`)
       dispatch(
@@ -592,7 +603,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         const finalStateOnComplete = getState()
         const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 
-        if (status === 'success' && finalAssistantMsg && response && !response?.usage) {
+        if (status === 'success' && finalAssistantMsg) {
           const userMsgId = finalAssistantMsg.askId
           const orderedMsgs = selectMessagesForTopic(finalStateOnComplete, topicId)
           const userMsgIndex = orderedMsgs.findIndex((m) => m.id === userMsgId)
@@ -602,8 +613,10 @@ const fetchAndProcessAssistantResponseImpl = async (
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
-          const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
-          response.usage = usage
+          if (response && !response.usage) {
+            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
+            response.usage = usage
+          }
         }
         if (response && response.metrics) {
           if (!response.metrics.completion_tokens && response.usage) {

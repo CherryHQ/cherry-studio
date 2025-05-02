@@ -1,7 +1,7 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isGenerateImageModel, isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -65,6 +65,7 @@ import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
+import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
 import TokenCount from './TokenCount'
 import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
@@ -130,7 +131,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
-  const webSearchButtonRef = useRef<WebSearchButtonRef>(null)
+  const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
+  const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -185,6 +187,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+      console.log('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -567,16 +570,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      const clipboardText = event.clipboardData?.getData('text')
-      if (clipboardText) {
-        // Prioritize the text when pasting.
-        // handled by the default event
-      } else {
-        for (const file of event.clipboardData?.files || []) {
-          event.preventDefault()
-
+      // 1. 文件/图片粘贴
+      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+        event.preventDefault()
+        for (const file of event.clipboardData.files) {
           if (file.path === '') {
-            if (file.type.startsWith('image/') && isVisionModel(model)) {
+            // 图像生成也支持图像编辑
+            if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
@@ -604,23 +604,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             }
           }
         }
+        return
       }
 
-      if (pasteLongTextAsFile) {
-        const item = event.clipboardData?.items[0]
-        if (item && item.kind === 'string' && item.type === 'text/plain') {
-          item.getAsString(async (pasteText) => {
-            if (pasteText.length > pasteLongTextThreshold) {
-              const tempFilePath = await window.api.file.create('pasted_text.txt')
-              await window.api.file.write(tempFilePath, pasteText)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-              setText(text)
-              setTimeout(() => resizeTextArea(), 50)
-            }
-          })
-        }
+      // 2. 文本粘贴
+      const clipboardText = event.clipboardData?.getData('text')
+      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
+        // 长文本直接转文件，阻止默认粘贴
+        event.preventDefault()
+
+        const tempFilePath = await window.api.file.create('pasted_text.txt')
+        await window.api.file.write(tempFilePath, clipboardText)
+        const selectedFile = await window.api.file.get(tempFilePath)
+        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+        setText(text) // 保持输入框内容不变
+        setTimeout(() => resizeTextArea(), 50)
+        return
       }
+
+      // 短文本走默认粘贴行为
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
@@ -798,13 +800,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [assistant, model, updateAssistant])
 
-  const onMentionModel = (model: Model) => {
+  const onMentionModel = useCallback((model: Model) => {
     setMentionModels((prev) => {
       const modelId = getModelUniqId(model)
       const exists = prev.some((m) => getModelUniqId(m) === modelId)
       return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
     })
-  }
+  }, [])
 
   const onToggleExpended = () => {
     if (textareaHeight) {
@@ -918,6 +920,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
               />
+              {isReasoningModel(model) && (
+                <ThinkingButton
+                  ref={thinkingButtonRef}
+                  model={model}
+                  assistant={assistant}
+                  ToolbarButton={ToolbarButton}
+                />
+              )}
               <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
@@ -1103,7 +1113,8 @@ const ToolbarButton = styled(Button)`
   &.active {
     background-color: var(--color-primary) !important;
     .anticon,
-    .iconfont {
+    .iconfont,
+    .chevron-icon {
       color: var(--color-white-soft);
     }
     &:hover {

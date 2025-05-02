@@ -1,9 +1,9 @@
 import { TranslationOutlined } from '@ant-design/icons'
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import type { TranslationMessageBlock } from '@renderer/types/newMessage'
 import { Divider } from 'antd'
 import { FC, Fragment } from 'react'
 import { useTranslation } from 'react-i18next'
-import BeatLoader from 'react-spinners/BeatLoader'
 
 import Markdown from '../Markdown/Markdown'
 
@@ -24,7 +24,7 @@ const MessageTranslate: FC<Props> = ({ block }) => {
         <TranslationOutlined />
       </Divider>
       {block.content === t('translate.processing') ? (
-        <BeatLoader color="var(--color-text-2)" size="10" style={{ marginBottom: 15 }} />
+        <SvgSpinners180Ring color="var(--color-text-2)" style={{ marginBottom: 15 }} />
       ) : (
         <Markdown block={block} />
       )}

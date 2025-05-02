@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
+import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -10,7 +10,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, EFFORT_RATIO, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -22,8 +22,6 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-type ReasoningEffort = 'high' | 'medium' | 'low'
 
 interface ReasoningConfig {
   type: 'enabled' | 'disabled'
@@ -124,32 +122,23 @@ export default class AnthropicProvider extends BaseProvider {
    * @param model - The model
    * @returns The reasoning effort
    */
-  private getReasoningEffort(assistant: Assistant, model: Model): ReasoningConfig | undefined {
+  private getBudgetToken(assistant: Assistant, model: Model): ReasoningConfig | undefined {
     if (!isReasoningModel(model)) {
       return undefined
     }
+    const { maxTokens } = getAssistantSettings(assistant)
 
-    const effortRatios: Record<ReasoningEffort, number> = {
-      high: 0.8,
-      medium: 0.5,
-      low: 0.2
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+
+    if (reasoningEffort === undefined) {
+      return {
+        type: 'disabled'
+      }
     }
 
-    const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-    const effortRatio = effortRatios[effort]
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    if (!effortRatio) {
-      return undefined
-    }
-
-    const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
-
-    if (!isClaude37Sonnet) {
-      return undefined
-    }
-
-    const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-    const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
+    const budgetTokens = Math.floor((maxTokens || DEFAULT_MAX_TOKENS) * effortRatio * 0.8)
 
     return {
       type: 'enabled',
@@ -191,6 +180,14 @@ export default class AnthropicProvider extends BaseProvider {
       systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
     }
 
+    let systemMessage: TextBlockParam | undefined = undefined
+    if (systemPrompt) {
+      systemMessage = {
+        type: 'text',
+        text: systemPrompt
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -198,9 +195,9 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
-      system: systemPrompt,
+      system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
-      thinking: this.getReasoningEffort(assistant, model),
+      thinking: this.getBudgetToken(assistant, model),
       ...this.getCustomParameters(assistant)
     }
 
@@ -259,7 +256,17 @@ export default class AnthropicProvider extends BaseProvider {
           .on('text', (text) => {
             if (hasThinkingContent && !checkThinkingContent) {
               checkThinkingContent = true
-              onChunk({ type: ChunkType.THINKING_COMPLETE, text: thinking_content, thinking_millsec: 0 })
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinking_content,
+                thinking_millsec: time_first_content_millsec - time_first_token_millsec
+              })
+              // FIXME: 临时方案，重置时间戳和思考内容
+              time_first_token_millsec = 0
+              time_first_content_millsec = 0
+              thinking_content = ''
+              checkThinkingContent = false
+              hasThinkingContent = false
             }
             if (time_first_token_millsec == 0) {
               time_first_token_millsec = new Date().getTime() - start_time_millsec
@@ -531,25 +538,50 @@ export default class AnthropicProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
 
     const body = {
       model: model.id,
-      messages: [{ role: 'user', content: 'hi' }],
+      messages: [{ role: 'user' as const, content: 'hi' }],
       max_tokens: 100,
-      stream: false
+      stream
     }
 
     try {
-      const message = await this.sdk.messages.create(body as MessageCreateParamsNonStreaming)
-      return {
-        valid: message.content.length > 0,
-        error: null
+      if (!stream) {
+        const message = await this.sdk.messages.create(body as MessageCreateParamsNonStreaming)
+        return {
+          valid: message.content.length > 0,
+          error: null
+        }
+      } else {
+        return await new Promise((resolve, reject) => {
+          let hasContent = false
+          this.sdk.messages
+            .stream(body)
+            .on('text', (text) => {
+              if (!hasContent && text) {
+                hasContent = true
+                resolve({ valid: true, error: null })
+              }
+            })
+            .on('finalMessage', (message) => {
+              if (!hasContent && message.content && message.content.length > 0) {
+                hasContent = true
+                resolve({ valid: true, error: null })
+              }
+              if (!hasContent) {
+                reject(new Error('Empty streaming response'))
+              }
+            })
+            .on('error', (error) => reject(error))
+        })
       }
     } catch (error: any) {
       return {

@@ -55,12 +55,11 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
-      "settings.reasoning_effort": "Длина цепочки рассуждений",
-      "settings.reasoning_effort.high": "Длинная",
-      "settings.reasoning_effort.low": "Короткая",
-      "settings.reasoning_effort.medium": "Средняя",
-      "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Поддерживается только моделями рассуждений OpenAI o-series, Anthropic и Grok",
+      "settings.reasoning_effort.off": "Выключить",
+      "settings.reasoning_effort.high": "Стараюсь думать",
+      "settings.reasoning_effort.low": "Меньше думать",
+      "settings.reasoning_effort.medium": "Среднее",
+      "settings.reasoning_effort.default": "По умолчанию",
       "settings.more": "Настройки ассистента"
     },
     "auth": {
@@ -250,7 +249,14 @@
       "input.upload.upload_from_local": "Загрузить локальный файл...",
       "input.web_search.builtin": "Модель встроена",
       "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
-      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск"
+      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
+      "input.thinking": "Мыслим",
+      "input.thinking.mode.default": "По умолчанию",
+      "input.thinking.mode.default.tip": "Модель автоматически определяет количество токенов для размышления",
+      "input.thinking.mode.custom": "Пользовательский",
+      "input.thinking.mode.custom.tip": "Модель может максимально размышлять количество токенов. Необходимо учитывать ограничение контекста модели, иначе будет ошибка",
+      "input.thinking.mode.tokens.tip": "Установите количество токенов для размышления",
+      "input.thinking.budget_exceeds_max": "Бюджет размышления превышает максимальное количество токенов"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -1508,7 +1514,7 @@
         "title": "Настройки приватности",
         "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
       },
-      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
+      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {
       "any.language": "Любой язык",
