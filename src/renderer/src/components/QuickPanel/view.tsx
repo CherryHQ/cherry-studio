@@ -100,7 +100,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
     setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
 
-    return newList
+    return newList.map((item, i) => ({
+      ...item,
+      id: i // 添加id，用于虚拟列表的key
+    }))
   }, [ctx.defaultIndex, ctx.isVisible, ctx.list, ctx.symbol, searchText])
 
   const canForwardAndBackward = useMemo(() => {
@@ -431,7 +434,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           itemKey="id"
           height={listHeight}
           itemHeight={31}
-          overscan={4}
+          overscan={6}
           styles={{
             verticalScrollBar: { background: 'transparent', width: 3 },
             verticalScrollBarThumb: {
@@ -452,7 +455,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 selected: item.isSelected,
                 disabled: item.disabled
               })}
-              key={i}
+              data-id={item.id}
               onClick={(e) => {
                 e.stopPropagation()
                 handleItemAction(item, 'click')
