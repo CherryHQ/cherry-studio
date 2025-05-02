@@ -1,4 +1,4 @@
-import { IUserInputForm } from '@dify-chat/api'
+import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { Flow, FlowEngine } from '@renderer/types'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
@@ -22,5 +22,9 @@ export default class FlowEngineProvider {
 
   public async getAppParameters(flow: Flow): Promise<IUserInputForm[]> {
     return await this.sdk.getAppParameters(flow)
+  }
+
+  public async uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse> {
+    return await this.sdk.uploadFile(flow, file)
   }
 }

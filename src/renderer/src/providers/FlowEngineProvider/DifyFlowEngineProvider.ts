@@ -3,6 +3,7 @@ import {
   createDifyApiInstance,
   EventEnum,
   IChunkChatCompletionResponse,
+  IUploadFileResponse,
   IUserInputForm,
   IWorkflowNode
 } from '@dify-chat/api'
@@ -117,6 +118,23 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     } catch (error) {
       console.error('获取工作流参数失败', error)
       throw new Error('获取工作流参数失败')
+    }
+  }
+
+  public async uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse> {
+    try {
+      const difyApi = createDifyApiInstance({
+        user: uuidv4(),
+        apiKey: flow.apiKey,
+        apiBase: flow.apiHost
+      })
+
+      const response = await difyApi.uploadFile(file)
+
+      return response
+    } catch (error) {
+      console.error('上传文件失败', error)
+      throw new Error('上传文件失败')
     }
   }
 

@@ -1,5 +1,5 @@
 import { DeleteOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons'
-import WorkflowForm from '@renderer/components/WorkflowForm'
+import WorkflowForm from '@renderer/components/EmojiPicker/WorkflowForm'
 // Remove getFlowEngineProviderLogo import if miniAppConfig is removed
 // import { getFlowEngineProviderLogo } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'

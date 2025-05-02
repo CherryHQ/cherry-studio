@@ -1,4 +1,4 @@
-import { IUserInputForm } from '@dify-chat/api'
+import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { Chatflow, Flow, FlowEngine } from '@renderer/types'
 
 export default abstract class BaseFlowEngineProvider {
@@ -13,6 +13,8 @@ export default abstract class BaseFlowEngineProvider {
   abstract check(flow: Flow): Promise<{ valid: boolean; error: Error | null }>
 
   abstract getAppParameters(flow: Flow): Promise<IUserInputForm[]>
+
+  abstract uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse>
 
   public isChatflow(workflow: Flow): workflow is Chatflow {
     return workflow.type === 'chatflow'
