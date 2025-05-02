@@ -5,6 +5,7 @@ import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -82,24 +83,23 @@ export default class AnthropicProvider extends BaseProvider {
     for (const fileBlock of fileBlocks) {
       const { file } = fileBlock
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        // FIXME: 需要使用anthropic官key测试一下，先注释掉
-        // if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
-        //   const base64Data = await FileManager.readFile(file)
-        //   parts.push({
-        //     type: 'document',
-        //     source: {
-        //       type: 'base64',
-        //       media_type: 'application/pdf',
-        //       data: base64Data
-        //     }
-        //   })
-        // } else {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-        parts.push({
-          type: 'text',
-          text: file.origin_name + '\n' + fileContent
-        })
-        // }
+        if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
+          const base64Data = await FileManager.readBase64File(file)
+          parts.push({
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64Data
+            }
+          })
+        } else {
+          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+          parts.push({
+            type: 'text',
+            text: file.origin_name + '\n' + fileContent
+          })
+        }
       }
     }
 
