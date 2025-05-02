@@ -584,9 +584,6 @@ export default class OpenAIProvider extends BaseProvider {
               thinking_millsec: final_time_thinking_millsec_delta
             })
 
-            // FIXME: 临时方案，重置时间戳和思考内容
-            time_first_token_millsec = 0
-            time_first_content_millsec = 0
             thinkingContent = ''
             isFirstThinkingChunk = true
             hasReasoningContent = false
@@ -610,8 +607,11 @@ export default class OpenAIProvider extends BaseProvider {
               )
             }
           }
-          if (isFirstChunk) {
+          // 说明前面没有思考内容
+          if (isFirstChunk && time_first_token_millsec === 0 && time_first_token_millsec_delta === 0) {
             isFirstChunk = false
+            time_first_token_millsec = currentTime
+            time_first_token_millsec_delta = time_first_token_millsec - start_time_millsec
           }
           content += delta.content // Still accumulate for processToolUses
 
@@ -711,8 +711,9 @@ export default class OpenAIProvider extends BaseProvider {
         }
       })
 
-      // OpenAI stream typically doesn't provide a final summary chunk easily.
-      // We are sending per-chunk usage if available.
+      // FIXME: 临时方案，重置时间戳和思考内容
+      time_first_token_millsec = 0
+      time_first_content_millsec = 0
     }
 
     console.debug('[completions] reqMessages before processing', model.id, reqMessages)
@@ -1164,8 +1165,7 @@ export default class OpenAIProvider extends BaseProvider {
           validUserFiles.map(async (f) => {
             // f.file is guaranteed to exist here due to the filter above
             const fileInfo = f.file!
-            const binaryData = await FileManager.readFile(fileInfo)
-            console.log('binaryData', binaryData)
+            const binaryData = await FileManager.readBinaryImage(fileInfo)
             const file = await toFile(binaryData, fileInfo.origin_name || 'image.png', {
               type: 'image/png'
             })

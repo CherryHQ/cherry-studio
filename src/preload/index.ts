@@ -65,7 +65,8 @@ const api = {
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
     download: (url: string) => ipcRenderer.invoke(IpcChannel.File_Download, url),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
-    binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId)
+    binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
+    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId)
   },
   fs: {
     read: (path: string) => ipcRenderer.invoke(IpcChannel.Fs_Read, path)
