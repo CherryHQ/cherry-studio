@@ -1,7 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
 
@@ -256,7 +255,6 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
-      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload

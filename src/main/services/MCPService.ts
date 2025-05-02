@@ -183,7 +183,7 @@ class McpService {
           // add -x to args if args exist
           if (args && args.length > 0) {
             if (!args.includes('-y')) {
-              !args.includes('-y') && args.unshift('-y')
+              args.unshift('-y')
             }
             if (!args.includes('x')) {
               args.unshift('x')

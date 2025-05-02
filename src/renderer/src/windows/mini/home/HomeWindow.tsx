@@ -2,9 +2,17 @@ import { isMac } from '@renderer/config/constant'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { uuid } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
+import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
+import store from '@renderer/store'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
+import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -34,13 +42,12 @@ const HomeWindow: FC = () => {
   const [generating, setGenerating] = useState(false)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
+  const topic = defaultAssistant.topics[0]
   const { defaultModel: model } = useDefaultModel()
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
-  const messageIdRef = useRef<string>(null) //message id
-
   const referenceText = selectedText || clipboardText || text
 
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
@@ -164,24 +171,67 @@ const HomeWindow: FC = () => {
       }
       setGenerating(true)
 
-      setTimeout(() => {
-        const message = {
-          id: uuid(),
-          role: 'user',
-          content: prompt ? `${prompt}\n\n${content}` : content,
-          assistantId: defaultAssistant.id,
-          topicId: defaultAssistant.topics[0].id || uuid(),
-          createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-          type: 'text',
-          status: 'success'
+      const messageParams = {
+        role: 'user',
+        content: prompt ? `${prompt}\n\n${content}` : content,
+        assistant: defaultAssistant,
+        topic,
+        createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        status: 'success'
+      }
+      const topicId = topic.id
+      const { message: userMessage, blocks } = getUserMessage(messageParams)
+
+      store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+      store.dispatch(upsertManyBlocks(blocks))
+
+      const assistant = getDefaultAssistant()
+      let blockId: string | null = null
+      let blockContent: string = ''
+
+      const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
+      store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+
+      fetchChatCompletion({
+        messages: [userMessage],
+        assistant: { ...assistant, model: getDefaultModel() },
+        onChunkReceived: (chunk: Chunk) => {
+          if (chunk.type === ChunkType.TEXT_DELTA) {
+            blockContent += chunk.text
+            if (!blockId) {
+              const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                status: MessageBlockStatus.STREAMING
+              })
+              blockId = block.id
+              store.dispatch(
+                newMessagesActions.updateMessage({
+                  topicId,
+                  messageId: assistantMessage.id,
+                  updates: { blockInstruction: { id: block.id } }
+                })
+              )
+              store.dispatch(upsertOneBlock(block))
+            } else {
+              store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+            }
+          }
+          if (chunk.type === ChunkType.TEXT_COMPLETE) {
+            blockId && store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
+            store.dispatch(
+              newMessagesActions.updateMessage({
+                topicId,
+                messageId: assistantMessage.id,
+                updates: { status: AssistantMessageStatus.SUCCESS }
+              })
+            )
+          }
         }
-        EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
-        messageIdRef.current = message.id
-        setIsFirstMessage(false)
-        setText('')
-      }, 0)
+      })
+
+      setIsFirstMessage(false)
+      setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant.id, defaultAssistant.topics, generating]
+    [content, defaultAssistant, topic]
   )
 
   const clearClipboard = () => {
@@ -214,15 +264,9 @@ const HomeWindow: FC = () => {
   }
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
-    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
-      selectedText && setSelectedText(selectedText)
-      action && setRoute(action)
-      action === 'chat' && onSendMessage()
-    })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
   }, [onWindowShow, onSendMessage, setRoute])
 
@@ -296,7 +340,7 @@ const HomeWindow: FC = () => {
             <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           </div>
         )}
-        <ChatWindow route={route} />
+        <ChatWindow route={route} assistant={defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
       </Container>
