@@ -217,7 +217,9 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
    * @returns The top P
    */
   override getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model) || isOpenAIWebSearch(model)) return undefined
+    if (isReasoningModel(model) || isOpenAIWebSearch(model)) {
+      return undefined
+    }
 
     return assistant?.settings?.topP
   }
@@ -364,7 +366,9 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
         thinking?: string
       }
     ) => {
-      if (!delta?.content) return false
+      if (!delta?.content) {
+        return false
+      }
 
       // 检查当前chunk和上一个chunk的组合是否形成###Response标记
       const combinedChunks = lastChunk + delta.content
@@ -548,9 +552,6 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
             thinking_millsec: final_time_thinking_millsec_delta
           })
 
-          // FIXME: 临时方案，重置时间戳和思考内容
-          time_first_token_millsec = 0
-          time_first_content_millsec = 0
           thinkingContent = ''
           isFirstThinkingChunk = true
           hasReasoningContent = false
@@ -1077,7 +1078,9 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
   }
 
   public async checkIsCopilot() {
-    if (this.provider.id !== 'copilot') return
+    if (this.provider.id !== 'copilot') {
+      return
+    }
     const defaultHeaders = store.getState().copilot.defaultHeaders
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)

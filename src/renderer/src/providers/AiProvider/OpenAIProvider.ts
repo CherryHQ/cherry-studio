@@ -243,7 +243,7 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     for (const fileBlock of fileBlocks) {
-      const file = fileBlock.file
+      const { file } = fileBlock
       if (!file) {
         continue
       }
