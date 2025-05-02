@@ -176,7 +176,11 @@ async function fetchExternalTool(
   let webSearchResponseFromSearch: WebSearchResponse | undefined
   let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
   const isWebSearchValid =
-    extractResults?.websearch && extractResults.websearch.question[0] !== 'not_needed' && assistant.model
+    extractResults?.websearch &&
+    Array.isArray(extractResults.websearch.question) &&
+    extractResults.websearch.question.length > 0 &&
+    extractResults.websearch.question[0] !== 'not_needed' &&
+    assistant.model
   const isKnowledgeSearchValid = extractResults?.knowledge
   const isAllValidSearch = lastUserMessage && (isKnowledgeSearchValid || isWebSearchValid)
 
