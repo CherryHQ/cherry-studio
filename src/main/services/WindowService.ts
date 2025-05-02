@@ -19,6 +19,8 @@ export class WindowService {
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
+  private cssEditorWindow: BrowserWindow | null = null
+  private isPinnedCSSEditorWindow: boolean = false
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
@@ -545,6 +547,93 @@ export class WindowService {
 
   public setPinMiniWindow(isPinned) {
     this.isPinnedMiniWindow = isPinned
+  }
+
+  public showCSSEditorWindow() {
+    if (this.cssEditorWindow && !this.cssEditorWindow.isDestroyed()) {
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+
+      if (this.cssEditorWindow.isMinimized()) {
+        this.cssEditorWindow.restore()
+      }
+      this.cssEditorWindow.show()
+      return
+    }
+
+    this.createCSSEditorWindow()
+  }
+
+  public createCSSEditorWindow() {
+    const theme = configManager.getTheme()
+    if (theme === ThemeMode.auto) {
+      nativeTheme.themeSource = 'system'
+    } else {
+      nativeTheme.themeSource = theme
+    }
+
+    this.cssEditorWindow = new BrowserWindow({
+      width: 400,
+      height: 300,
+      minWidth: 400,
+      minHeight: 300,
+      show: false,
+      autoHideMenuBar: true,
+      transparent: isMac,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+      titleBarStyle: isLinux ? 'default' : 'hidden',
+      titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+      backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
+      darkTheme: nativeTheme.shouldUseDarkColors,
+      trafficLightPosition: { x: 8, y: 12 },
+      ...(isLinux ? { icon } : {}),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        webSecurity: false
+      }
+    })
+
+    this.cssEditorWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+
+    this.cssEditorWindow.on('ready-to-show', () => {
+      this.wasMainWindowFocused = this.mainWindow?.isFocused() || false
+      this.cssEditorWindow?.show()
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      this.cssEditorWindow?.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/css-editor')
+    } else {
+      this.cssEditorWindow.loadFile(join(__dirname, '../renderer/index.html'), {
+        hash: '#/css-editor'
+      })
+    }
+
+    this.cssEditorWindow.on('closed', () => {
+      this.cssEditorWindow = null
+    })
+
+    return this.cssEditorWindow
+  }
+
+  public closeCSSEditorWindow() {
+    this.cssEditorWindow?.close()
+  }
+
+  public getCSSEditorWindow(): BrowserWindow | null {
+    return this.cssEditorWindow
+  }
+
+  public togglePinCSSEditorWindow() {
+    const window = this.cssEditorWindow
+    if (window) {
+      const isAlwaysOnTop = window.isAlwaysOnTop()
+      window.setAlwaysOnTop(!isAlwaysOnTop, 'screen-saver')
+      window.setVisibleOnAllWorkspaces(!isAlwaysOnTop, { visibleOnFullScreen: !isAlwaysOnTop })
+      this.isPinnedCSSEditorWindow = !isAlwaysOnTop
+      return !isAlwaysOnTop
+    }
+    return false
   }
 }
 

@@ -3,6 +3,7 @@ import '@renderer/databases'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store, { persistor, useAppDispatch } from '@renderer/store'
 import { setCustomCss } from '@renderer/store/settings'
+import { IpcChannel } from '@shared/IpcChannel'
 import { message } from 'antd'
 import { useEffect, useState } from 'react'
 import { Provider } from 'react-redux'
@@ -28,7 +29,7 @@ function useMiniWindowCustomCss() {
     })
 
     // Listen for custom CSS updates from main window
-    const removeListener = window.electron.ipcRenderer.on('custom-css:update', (_event, css) => {
+    const removeListener = window.electron.ipcRenderer.on(IpcChannel.App_UpdateCustomCss, (_event, css) => {
       dispatch(setCustomCss(css))
     })
 

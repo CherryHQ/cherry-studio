@@ -1,4 +1,4 @@
-import { SyncOutlined } from '@ant-design/icons'
+import { ExpandOutlined, ExportOutlined, SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -97,6 +97,10 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
+  const handleExpandClick = useCallback(() => {
+    window.api.cssEditor.open()
+  }, [])
+
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={theme}>
@@ -181,10 +185,16 @@ const DisplaySettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.display.custom.css')}
-          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
-            {t('settings.display.custom.css.cherrycss')}
-          </TitleExtra>
+          <Button icon={<ExpandOutlined />} size="small" onClick={handleExpandClick}></Button>
         </SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.display.custom.css.cherrycss')}</SettingRowTitle>
+          <Button
+            icon={<ExportOutlined />}
+            size="small"
+            onClick={() => window.api.openWebsite('https://cherrycss.com/')}></Button>
+        </SettingRow>
         <SettingDivider />
         <Input.TextArea
           value={customCss}

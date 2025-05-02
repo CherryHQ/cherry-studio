@@ -1,9 +1,10 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setCustomCss } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
-
 interface ThemeContextType {
   theme: ThemeMode
   settingTheme: ThemeMode
@@ -22,6 +23,7 @@ interface ThemeProviderProps extends PropsWithChildren {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme }) => {
   const { theme, setTheme } = useSettings()
+  const dispatch = useAppDispatch()
   const [effectiveTheme, setEffectiveTheme] = useState(theme)
 
   const toggleTheme = () => {
@@ -49,6 +51,20 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
     )
     return () => {
       themeChangeListenerRemover()
+    }
+  })
+
+  useEffect(() => {
+    const customCssChangeListenerRemover = window.electron.ipcRenderer.on(
+      IpcChannel.App_UpdateCustomCss,
+      (_, css: string) => {
+        if (window.location.hash !== '#/mini-window') {
+          dispatch(setCustomCss(css))
+        }
+      }
+    )
+    return () => {
+      customCssChangeListenerRemover()
     }
   })
 
