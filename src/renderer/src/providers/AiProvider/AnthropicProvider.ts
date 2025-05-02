@@ -274,18 +274,16 @@ export default class AnthropicProvider extends BaseProvider {
                 text: thinking_content,
                 thinking_millsec: new Date().getTime() - time_first_content_millsec
               })
-              // FIXME: 临时方案，重置时间戳和思考内容
-              time_first_token_millsec = 0
-              time_first_content_millsec = 0
-              thinking_content = ''
-              checkThinkingContent = false
-              hasThinkingContent = false
             }
             if (time_first_token_millsec == 0) {
               time_first_token_millsec = new Date().getTime()
             }
 
-            if (hasThinkingContent && time_first_content_millsec === 0) {
+            thinking_content = ''
+            checkThinkingContent = false
+            hasThinkingContent = false
+
+            if (!hasThinkingContent && time_first_content_millsec === 0) {
               time_first_content_millsec = new Date().getTime()
             }
 
@@ -356,7 +354,9 @@ export default class AnthropicProvider extends BaseProvider {
                 }
               }
             })
-
+            // FIXME: 临时方案，重置时间戳和思考内容
+            time_first_token_millsec = 0
+            time_first_content_millsec = 0
             resolve()
           })
           .on('error', (error) => reject(error))
