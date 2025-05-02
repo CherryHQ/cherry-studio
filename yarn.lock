@@ -67,9 +67,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@alephpiece/rc-virtual-list@npm:^3.19.0":
-  version: 3.19.0
-  resolution: "@alephpiece/rc-virtual-list@npm:3.19.0"
+"@alephpiece/rc-virtual-list@npm:3.19.1":
+  version: 3.19.1
+  resolution: "@alephpiece/rc-virtual-list@npm:3.19.1"
   dependencies:
     "@babel/runtime": "npm:^7.20.0"
     classnames: "npm:^2.2.6"
@@ -78,7 +78,7 @@ __metadata:
   peerDependencies:
     react: ">=16.9.0"
     react-dom: ">=16.9.0"
-  checksum: 10c0/bb54eb2bef32907261564f2ebeb8e4f6a109367487978d7a7f5929faecbd1d8cbf815890a66aaaa727df69c3499fcd2add227001be412f64b04206b8f93b6e3f
+  checksum: 10c0/847e00deca5b08de99e111d21e0e00a3e135c57434e761d75a37276c7185ef966e114611e5608bd32ffc2a528587c5f2d7b247b36511febcc022b38b6b2dd5b0
   languageName: node
   linkType: hard
 
@@ -4331,7 +4331,7 @@ __metadata:
     "@agentic/exa": "npm:^7.3.3"
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
-    "@alephpiece/rc-virtual-list": "npm:^3.19.0"
+    "@alephpiece/rc-virtual-list": "npm:3.19.1"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.38.0"
     "@cherrystudio/embedjs": "npm:^0.1.28"

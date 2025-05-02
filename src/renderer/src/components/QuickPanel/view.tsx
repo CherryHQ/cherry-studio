@@ -435,6 +435,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           height={listHeight}
           itemHeight={31}
           overscan={6}
+          smoothScroll={true}
           styles={{
             verticalScrollBar: { background: 'transparent', width: 3 },
             verticalScrollBarThumb: {
