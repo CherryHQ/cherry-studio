@@ -263,6 +263,14 @@ class FileStorage {
     }
   }
 
+  public base64File = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: string; mime: string }> => {
+    const filePath = path.join(this.storageDir, id)
+    const buffer = await fs.promises.readFile(filePath)
+    const base64 = buffer.toString('base64')
+    const mime = `application/${path.extname(filePath).slice(1)}`
+    return { data: base64, mime }
+  }
+
   public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
     const filePath = path.join(this.storageDir, id)
     const data = await fs.promises.readFile(filePath)
