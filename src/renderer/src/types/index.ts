@@ -620,3 +620,12 @@ export interface Citation {
 }
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+
+export interface StoreSyncAction {
+  type: string
+  payload: any
+  meta?: {
+    fromSync?: boolean
+    source?: string
+  }
+}

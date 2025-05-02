@@ -2,6 +2,7 @@ import KeyvStorage from '@kangfenmao/keyv-storage'
 
 import { startAutoSync } from './services/BackupService'
 import { startNutstoreAutoSync } from './services/NutstoreService'
+import storeSyncService from './services/StoreSyncService'
 import store from './store'
 
 function initSpinner() {
@@ -29,6 +30,11 @@ function initAutoSync() {
   }, 8000)
 }
 
+function initStoreSync() {
+  storeSyncService.subscribe()
+}
+
 initSpinner()
 initKeyv()
 initAutoSync()
+initStoreSync()
