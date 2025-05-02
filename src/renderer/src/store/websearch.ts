@@ -25,6 +25,8 @@ export interface WebSearchState {
   /** @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用 */
   overwrite: boolean
   contentLimit?: number
+  // 具体供应商的配置
+  providerConfig: Record<string, any>
 }
 
 const initialState: WebSearchState = {
@@ -33,16 +35,26 @@ const initialState: WebSearchState = {
     {
       id: 'tavily',
       name: 'Tavily',
+      apiHost: 'https://api.tavily.com',
       apiKey: ''
     },
     {
       id: 'searxng',
       name: 'Searxng',
-      apiHost: ''
+      apiHost: '',
+      basicAuthUsername: '',
+      basicAuthPassword: ''
     },
     {
       id: 'exa',
       name: 'Exa',
+      apiHost: 'https://api.exa.ai',
+      apiKey: ''
+    },
+    {
+      id: 'bocha',
+      name: 'Bocha',
+      apiHost: 'https://api.bochaai.com',
       apiKey: ''
     },
     {
@@ -65,7 +77,8 @@ const initialState: WebSearchState = {
   maxResults: 5,
   excludeDomains: [],
   subscribeSources: [],
-  overwrite: false
+  overwrite: false,
+  providerConfig: {}
 }
 
 export const defaultWebSearchProviders = initialState.providers
@@ -139,6 +152,12 @@ const websearchSlice = createSlice({
     },
     setContentLimit: (state, action: PayloadAction<number | undefined>) => {
       state.contentLimit = action.payload
+    },
+    setProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
+      state.providerConfig = action.payload
+    },
+    updateProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
+      state.providerConfig = { ...state.providerConfig, ...action.payload }
     }
   }
 })
@@ -157,7 +176,9 @@ export const {
   setSubscribeSources,
   setOverwrite,
   addWebSearchProvider,
-  setContentLimit
+  setContentLimit,
+  setProviderConfig,
+  updateProviderConfig
 } = websearchSlice.actions
 
 export default websearchSlice.reducer

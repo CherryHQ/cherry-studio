@@ -10,7 +10,6 @@ import BaseWebSearchProvider from './BaseWebSearchProvider'
 export default class SearxngProvider extends BaseWebSearchProvider {
   private searxng: SearxngClient
   private engines: string[] = []
-  private readonly apiHost: string
   private readonly basicAuthUsername?: string
   private readonly basicAuthPassword?: string
   private isInitialized = false

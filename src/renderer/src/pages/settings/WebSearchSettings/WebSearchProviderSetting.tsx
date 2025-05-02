@@ -200,6 +200,10 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
               {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
             </Button>
           </Flex>
+        </>
+      )}
+      {hasObjectKey(provider, 'basicAuthUsername') && (
+        <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth')}

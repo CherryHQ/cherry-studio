@@ -175,7 +175,8 @@ async function fetchExternalTool(
 
   let webSearchResponseFromSearch: WebSearchResponse | undefined
   let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
-  const isWebSearchValid = extractResults?.websearch && assistant.model
+  const isWebSearchValid =
+    extractResults?.websearch && extractResults.websearch.question[0] !== 'not_needed' && assistant.model
   const isKnowledgeSearchValid = extractResults?.knowledge
   const isAllValidSearch = lastUserMessage && (isKnowledgeSearchValid || isWebSearchValid)
 
@@ -197,6 +198,14 @@ async function fetchExternalTool(
       external_tool: {
         webSearch: webSearchResponseFromSearch,
         knowledge: knowledgeReferencesFromSearch
+      }
+    })
+  } else {
+    onChunkReceived({
+      type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+      external_tool: {
+        webSearch: undefined,
+        knowledge: undefined
       }
     })
   }
