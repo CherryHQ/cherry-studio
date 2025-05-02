@@ -6,7 +6,7 @@ import { theme } from 'antd'
 import Color from 'color'
 import { t } from 'i18next'
 import { Check } from 'lucide-react'
-import VirtualList, { ListRef } from 'rc-virtual-list'
+import VirtualList, { ListRef } from '@alephpiece/rc-virtual-list'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -431,6 +431,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           itemKey="id"
           height={listHeight}
           itemHeight={31}
+          overscan={4}
           styles={{
             verticalScrollBar: { background: 'transparent', width: 3 },
             verticalScrollBarThumb: {
