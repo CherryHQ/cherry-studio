@@ -1,5 +1,8 @@
 import {
+  getOpenAIWebSearchParams,
+  isOpenAILLMModel,
   isOpenAIReasoningModel,
+  isOpenAIWebSearch,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
@@ -22,16 +25,19 @@ import {
   Model,
   Provider,
   Suggestion,
+  Usage,
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { addImageFileToContents } from '@renderer/utils/formats'
+import { convertLinks } from '@renderer/utils/linkConverter'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { takeRight } from 'lodash'
+import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
+import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
 import { FileLike, toFile } from 'openai/uploads'
 
@@ -144,6 +150,16 @@ export default class OpenAIProvider extends BaseProvider {
     }
   }
 
+  protected getServiceTier(model: Model) {
+    if (model.id.includes('o3') || model.id.includes('o4')) {
+      return 'flex'
+    }
+    if (isOpenAILLMModel(model)) {
+      return 'auto'
+    }
+    return undefined
+  }
+
   /**
    * Get the temperature for the assistant
    * @param assistant - The assistant
@@ -151,7 +167,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The temperature
    */
   protected getTemperature(assistant: Assistant, model: Model) {
-    return isOpenAIReasoningModel(model) ? undefined : assistant?.settings?.temperature
+    return isOpenAIReasoningModel(model) || isOpenAILLMModel(model) ? undefined : assistant?.settings?.temperature
   }
 
   /**
@@ -161,7 +177,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The top P
    */
   protected getTopP(assistant: Assistant, model: Model) {
-    return isOpenAIReasoningModel(model) ? undefined : assistant?.settings?.topP
+    return isOpenAIReasoningModel(model) || isOpenAILLMModel(model) ? undefined : assistant?.settings?.topP
   }
 
   private getResponseReasoningEffort(assistant: Assistant, model: Model) {
@@ -178,12 +194,73 @@ export default class OpenAIProvider extends BaseProvider {
       return {
         reasoning: {
           effort: reasoningEffort as OpenAI.ReasoningEffort,
-          summary: 'auto'
+          summary: 'detailed'
         } as OpenAI.Reasoning
       }
     }
 
     return {}
+  }
+
+  /**
+   * Get the message parameter
+   * @param message - The message
+   * @param model - The model
+   * @returns The message parameter
+   */
+  protected async getMessageParam(
+    message: Message,
+    model: Model
+  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
+    const isVision = isVisionModel(model)
+    const content = await this.getMessageContent(message)
+    const fileBlocks = findFileBlocks(message)
+    const imageBlocks = findImageBlocks(message)
+
+    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
+      return {
+        role: message.role === 'system' ? 'user' : message.role,
+        content
+      }
+    }
+
+    // If the model supports files, add the file content to the message
+    const parts: ChatCompletionContentPart[] = []
+
+    if (content) {
+      parts.push({ type: 'text', text: content })
+    }
+
+    for (const imageBlock of imageBlocks) {
+      if (isVision) {
+        if (imageBlock.file) {
+          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+          parts.push({ type: 'image_url', image_url: { url: image.data } })
+        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
+          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
+        }
+      }
+    }
+
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if (!file) {
+        continue
+      }
+
+      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        parts.push({
+          type: 'text',
+          text: file.origin_name + '\n' + fileContent
+        })
+      }
+    }
+
+    return {
+      role: message.role === 'system' ? 'user' : message.role,
+      content: parts
+    } as ChatCompletionMessageParam
   }
 
   /**
@@ -204,6 +281,105 @@ export default class OpenAIProvider extends BaseProvider {
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
+    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    // 退回到 OpenAI 兼容模式
+    if (isOpenAIWebSearch(model)) {
+      const systemMessage = { role: 'system', content: assistant.prompt || '' }
+      const userMessages: ChatCompletionMessageParam[] = []
+      const _messages = filterUserRoleStartMessages(
+        filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
+      )
+      onFilterMessages(_messages)
+
+      for (const message of _messages) {
+        userMessages.push(await this.getMessageParam(message, model))
+      }
+      //当 systemMessage 内容为空时不发送 systemMessage
+      let reqMessages: ChatCompletionMessageParam[]
+      if (!systemMessage.content) {
+        reqMessages = [...userMessages]
+      } else {
+        reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+      }
+      const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+      const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
+      const { signal } = abortController
+      let time_first_token_millsec_delta = 0
+      const start_time_millsec = new Date().getTime()
+      const response = await this.sdk.chat.completions
+        // @ts-ignore key is not typed
+        .create(
+          {
+            model: model.id,
+            messages: reqMessages,
+            stream: true,
+            temperature: this.getTemperature(assistant, model),
+            top_p: this.getTopP(assistant, model),
+            max_tokens: maxTokens,
+            ...getOpenAIWebSearchParams(assistant, model),
+            ...this.getCustomParameters(assistant)
+          },
+          {
+            signal
+          }
+        )
+      const processStream = async (stream: any) => {
+        let content = ''
+        let isFirstChunk = true
+        let final_time_completion_millsec_delta = 0
+        let lastUsage: Usage | undefined = undefined
+        for await (const chunk of stream as any) {
+          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+            break
+          }
+          const delta = chunk.choices[0]?.delta
+          const finishReason = chunk.choices[0]?.finish_reason
+          if (delta?.content) {
+            if (delta?.annotations) {
+              delta.content = convertLinks(delta.content || '', isFirstChunk)
+            }
+            if (isFirstChunk) {
+              isFirstChunk = false
+              time_first_token_millsec_delta = new Date().getTime() - start_time_millsec
+            }
+            content += delta.content
+            onChunk({ type: ChunkType.TEXT_DELTA, text: delta.content })
+          }
+          if (!isEmpty(finishReason) || chunk?.annotations) {
+            onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+            final_time_completion_millsec_delta = new Date().getTime() - start_time_millsec
+            if (chunk.usage) {
+              lastUsage = chunk.usage
+            }
+          }
+          if (delta?.annotations) {
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: delta.annotations,
+                source: WebSearchSource.OPENAI_COMPATIBLE
+              }
+            })
+          }
+        }
+        onChunk({
+          type: ChunkType.BLOCK_COMPLETE,
+          response: {
+            usage: lastUsage,
+            metrics: {
+              completion_tokens: lastUsage?.completion_tokens,
+              time_completion_millsec: final_time_completion_millsec_delta,
+              time_first_token_millsec: time_first_token_millsec_delta
+            }
+          }
+        })
+      }
+      await processStream(response).finally(cleanup)
+      await signalPromise?.promise?.catch((error) => {
+        throw error
+      })
+      return
+    }
     const tools: OpenAI.Responses.Tool[] = []
     if (isEnabledWebSearch) {
       tools.push({
@@ -281,7 +457,10 @@ export default class OpenAIProvider extends BaseProvider {
             temperature: this.getTemperature(assistant, model),
             top_p: this.getTopP(assistant, model),
             max_output_tokens: maxTokens,
-            stream: true
+            stream: true,
+            service_tier: this.getServiceTier(model),
+            ...this.getResponseReasoningEffort(assistant, model),
+            ...this.getCustomParameters(assistant)
           },
           {
             signal
@@ -298,15 +477,19 @@ export default class OpenAIProvider extends BaseProvider {
       if (!streamOutput) {
         const nonStream = stream as OpenAI.Responses.Response
         const time_completion_millsec = new Date().getTime() - start_time_millsec
+        const completion_tokens =
+          (nonStream.usage?.output_tokens || 0) + (nonStream.usage?.output_tokens_details.reasoning_tokens ?? 0)
+        const total_tokens =
+          (nonStream.usage?.total_tokens || 0) + (nonStream.usage?.output_tokens_details.reasoning_tokens ?? 0)
         const finalMetrics = {
-          completion_tokens: nonStream.usage?.output_tokens,
+          completion_tokens,
           time_completion_millsec,
           time_first_token_millsec: 0
         }
         const finalUsage = {
-          completion_tokens: nonStream.usage?.output_tokens || 0,
+          completion_tokens,
           prompt_tokens: nonStream.usage?.input_tokens || 0,
-          total_tokens: nonStream.usage?.total_tokens || 0
+          total_tokens
         }
         for (const output of nonStream.output) {
           switch (output.type) {
@@ -347,7 +530,6 @@ export default class OpenAIProvider extends BaseProvider {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
         }
-        const citations: OpenAI.Responses.ResponseOutputText.URLCitation[] = []
         switch (chunk.type) {
           case 'response.created':
             time_first_token_millsec = new Date().getTime()
@@ -362,7 +544,8 @@ export default class OpenAIProvider extends BaseProvider {
           case 'response.reasoning_summary_text.done':
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
-              text: chunk.text
+              text: chunk.text,
+              thinking_millsec: new Date().getTime() - time_first_token_millsec
             })
             break
           case 'response.output_text.delta':
@@ -378,40 +561,41 @@ export default class OpenAIProvider extends BaseProvider {
               text: chunk.text
             })
             break
-          case 'response.web_search_call.in_progress':
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
-            })
+          case 'response.content_part.done':
+            if (chunk.part.type === 'output_text' && chunk.part.annotations && chunk.part.annotations.length > 0) {
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  source: WebSearchSource.OPENAI,
+                  results: chunk.part.annotations
+                }
+              })
+            }
             break
-          case 'response.output_text.annotation.added':
-            citations.push(chunk.annotation as OpenAI.Responses.ResponseOutputText.URLCitation)
-            break
-          case 'response.web_search_call.completed':
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                source: WebSearchSource.OPENAI,
-                results: citations
-              }
-            })
-            break
-          case 'response.completed':
+          case 'response.completed': {
+            const completion_tokens =
+              (chunk.response.usage?.output_tokens || 0) +
+              (chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0)
+            const total_tokens =
+              (chunk.response.usage?.total_tokens || 0) +
+              (chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0)
             onChunk({
               type: ChunkType.BLOCK_COMPLETE,
               response: {
                 usage: {
-                  completion_tokens: chunk.response.usage?.output_tokens || 0,
+                  completion_tokens,
                   prompt_tokens: chunk.response.usage?.input_tokens || 0,
-                  total_tokens: chunk.response.usage?.total_tokens || 0
+                  total_tokens
                 },
                 metrics: {
-                  completion_tokens: chunk.response.usage?.output_tokens || 0,
+                  completion_tokens,
                   time_completion_millsec: new Date().getTime() - start_time_millsec,
                   time_first_token_millsec: time_first_token_millsec - start_time_millsec
                 }
               }
             })
             break
+          }
           case 'error':
             onChunk({
               type: ChunkType.ERROR,
@@ -427,7 +611,6 @@ export default class OpenAIProvider extends BaseProvider {
       await processToolUses(content, idx)
     }
 
-    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     const stream = await this.sdk.responses.create(
       {
         model: model.id,
@@ -437,7 +620,7 @@ export default class OpenAIProvider extends BaseProvider {
         max_output_tokens: maxTokens,
         stream: streamOutput,
         tools: tools.length > 0 ? tools : undefined,
-        service_tier: 'flex',
+        service_tier: this.getServiceTier(model),
         ...this.getResponseReasoningEffort(assistant, model),
         ...this.getCustomParameters(assistant)
       },

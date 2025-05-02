@@ -2,7 +2,7 @@ import {
   findTokenLimit,
   getOpenAIWebSearchParams,
   isHunyuanSearchModel,
-  isOpenAIModel,
+  isOpenAILLMModel,
   isOpenAIReasoningModel,
   isOpenAIWebSearch,
   isReasoningModel,
@@ -108,7 +108,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
    * @param model - The model
    * @returns The message parameter
    */
-  private async getMessageParam(
+  override async getMessageParam(
     message: Message,
     model: Model
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
@@ -154,7 +154,9 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
 
     for (const fileBlock of fileBlocks) {
       const file = fileBlock.file
-      if (!file) continue
+      if (!file) {
+        continue
+      }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
@@ -320,7 +322,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
 
-    if (assistant.model?.provider === 'aihubmix' && isOpenAIModel(model)) {
+    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
       await super.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
       return
     }
@@ -449,6 +451,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
               keep_alive: this.keepAliveTime,
               stream: isSupportStreamOutput(),
               // tools: tools,
+              service_tier: this.getServiceTier(model),
               ...getOpenAIWebSearchParams(assistant, model),
               ...this.getReasoningEffort(assistant, model),
               ...this.getProviderSpecificParameters(assistant, model),
@@ -536,29 +539,26 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
           const thinking_time = currentTime - time_first_token_millsec
           onChunk({ type: ChunkType.THINKING_DELTA, text: reasoningContent, thinking_millsec: thinking_time })
         }
+        if (isReasoningJustDone(delta) && time_first_content_millsec === 0) {
+          time_first_content_millsec = currentTime
+          final_time_thinking_millsec_delta = time_first_content_millsec - time_first_token_millsec
+          onChunk({
+            type: ChunkType.THINKING_COMPLETE,
+            text: thinkingContent,
+            thinking_millsec: final_time_thinking_millsec_delta
+          })
 
-        if (isReasoningJustDone(delta)) {
-          if (time_first_content_millsec === 0) {
-            time_first_content_millsec = currentTime
-            final_time_thinking_millsec_delta = time_first_content_millsec - time_first_token_millsec
-            onChunk({
-              type: ChunkType.THINKING_COMPLETE,
-              text: thinkingContent,
-              thinking_millsec: final_time_thinking_millsec_delta
-            })
-
-            // FIXME: 临时方案，重置时间戳和思考内容
-            time_first_token_millsec = 0
-            time_first_content_millsec = 0
-            thinkingContent = ''
-            isFirstThinkingChunk = true
-            hasReasoningContent = false
-          }
+          // FIXME: 临时方案，重置时间戳和思考内容
+          time_first_token_millsec = 0
+          time_first_content_millsec = 0
+          thinkingContent = ''
+          isFirstThinkingChunk = true
+          hasReasoningContent = false
         }
 
         // 2. Text Content
         if (delta?.content) {
-          if (assistant.enableWebSearch) {
+          if (isEnabledWebSearch) {
             if (delta?.annotations) {
               delta.content = convertLinks(delta.content || '', isFirstChunk)
             } else if (assistant.model?.provider === 'openrouter') {
@@ -586,7 +586,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
           // }
         }
         // console.log('delta?.finish_reason', delta?.finish_reason)
-        if (!isEmpty(finishReason)) {
+        if (!isEmpty(finishReason) || delta?.annotations) {
           onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
           final_time_completion_millsec_delta = currentTime - start_time_millsec
           console.log(
@@ -695,6 +695,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
           keep_alive: this.keepAliveTime,
           stream: isSupportStreamOutput(),
           // tools: tools,
+          service_tier: this.getServiceTier(model),
           ...getOpenAIWebSearchParams(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...this.getProviderSpecificParameters(assistant, model),
@@ -723,7 +724,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
   async translate(content: string, assistant: Assistant, onResponse?: (text: string, isComplete: boolean) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    if (assistant.model?.provider === 'aihubmix' && isOpenAIModel(model)) {
+    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
       return await super.translate(content, assistant, onResponse)
     }
     const messagesForApi = content
@@ -800,7 +801,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    if (assistant.model?.provider === 'aihubmix' && isOpenAIModel(model)) {
+    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
       return await super.summaries(messages, assistant)
     }
 
@@ -854,7 +855,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     const model = assistant.model || getDefaultModel()
 
-    if (assistant.model?.provider === 'aihubmix' && isOpenAIModel(model)) {
+    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
       return await super.summaryForSearch(messages, assistant)
     }
 
@@ -931,7 +932,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
    * @returns The suggestions
    */
   async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
-    const model = assistant.model
+    const { model } = assistant
 
     if (!model) {
       return []
@@ -971,7 +972,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-    if (model.provider === 'aihubmix' && isOpenAIModel(model)) {
+    if (model.provider === 'aihubmix' && isOpenAILLMModel(model)) {
       return await super.check(model, stream)
     }
     const body = {

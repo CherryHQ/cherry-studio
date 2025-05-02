@@ -602,7 +602,6 @@ const fetchAndProcessAssistantResponseImpl = async (
       onComplete: async (status: AssistantMessageStatus, response?: Response) => {
         const finalStateOnComplete = getState()
         const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
-
         if (status === 'success' && finalAssistantMsg) {
           const userMsgId = finalAssistantMsg.askId
           const orderedMsgs = selectMessagesForTopic(finalStateOnComplete, topicId)
