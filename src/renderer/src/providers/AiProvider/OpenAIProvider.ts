@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
@@ -268,6 +269,7 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
     const reasoningEffort = assistant?.settings?.reasoning_effort
+    const { maxTokens } = getAssistantSettings(assistant)
     if (!reasoningEffort) {
       if (isSupportedThinkingTokenQwenModel(model)) {
         return { enable_thinking: false }
@@ -280,7 +282,7 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    let budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
     // OpenRouter models
     if (model.provider === 'openrouter') {
       if (isSupportedReasoningEffortModel(model)) {
@@ -290,7 +292,11 @@ export default class OpenAIProvider extends BaseProvider {
           }
         }
       }
-
+      if (isSupportedThinkingTokenClaudeModel(model)) {
+        budgetTokens = Math.floor(
+          Math.max(Math.min(budgetTokens, maxTokens || DEFAULT_MAX_TOKENS) * 0.8 * effortRatio, 1024)
+        )
+      }
       if (isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
