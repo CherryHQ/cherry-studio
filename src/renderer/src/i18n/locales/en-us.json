@@ -56,11 +56,11 @@
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
-      "settings.reasoning_effort.high": "high",
-      "settings.reasoning_effort.low": "low",
-      "settings.reasoning_effort.medium": "medium",
-      "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
+      "settings.reasoning_effort.off": "Off",
+      "settings.reasoning_effort.high": "Think harder",
+      "settings.reasoning_effort.low": "Think less",
+      "settings.reasoning_effort.medium": "Think normally",
+      "settings.reasoning_effort.default": "Default",
       "settings.more": "Assistant Settings"
     },
     "auth": {
@@ -250,7 +250,14 @@
       "input.upload.upload_from_local": "Upload local file...",
       "input.web_search.builtin": "Model Built-in",
       "input.web_search.builtin.enabled_content": "Use the built-in web search function of the model",
-      "input.web_search.builtin.disabled_content": "The current model does not support web search"
+      "input.web_search.builtin.disabled_content": "The current model does not support web search",
+      "input.thinking": "Thinking",
+      "input.thinking.mode.default": "Default",
+      "input.thinking.mode.default.tip": "The model will automatically determine the number of tokens to think",
+      "input.thinking.mode.custom": "Custom",
+      "input.thinking.mode.custom.tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported",
+      "input.thinking.mode.tokens.tip": "Set the number of thinking tokens to use.",
+      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number"
     },
     "code_block": {
       "collapse": "Collapse",

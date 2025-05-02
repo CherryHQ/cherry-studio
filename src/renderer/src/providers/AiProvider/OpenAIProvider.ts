@@ -1,15 +1,18 @@
-import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
+  findTokenLimit,
   getOpenAIWebSearchParams,
-  isGrokReasoningModel,
   isHunyuanSearchModel,
-  isOpenAIoSeries,
   isOpenAIWebSearch,
   isReasoningModel,
   isSupportedModel,
+  isSupportedReasoningEffortGrokModel,
+  isSupportedReasoningEffortModel,
+  isSupportedReasoningEffortOpenAIModel,
+  isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenModel,
+  isSupportedThinkingTokenQwenModel,
   isVisionModel,
-  isZhipuModel,
-  OPENAI_NO_SUPPORT_DEV_ROLE_MODELS
+  isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -25,6 +28,7 @@ import { processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
+  EFFORT_RATIO,
   FileTypes,
   GenerateImageParams,
   MCPToolResponse,
@@ -58,8 +62,6 @@ import { FileLike } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
@@ -262,8 +264,26 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
 
-    if (isReasoningModel(model)) {
-      if (model.provider === 'openrouter') {
+    if (!isReasoningModel(model)) {
+      return {}
+    }
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (!reasoningEffort) {
+      if (isSupportedThinkingTokenQwenModel(model)) {
+        return { enable_thinking: false }
+      }
+
+      if (isSupportedThinkingTokenClaudeModel(model)) {
+        return { thinking: { type: 'disabled' } }
+      }
+
+      return {}
+    }
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    // OpenRouter models
+    if (model.provider === 'openrouter') {
+      if (isSupportedReasoningEffortModel(model)) {
         return {
           reasoning: {
             effort: assistant?.settings?.reasoning_effort
@@ -271,46 +291,48 @@ export default class OpenAIProvider extends BaseProvider {
         }
       }
 
-      if (isGrokReasoningModel(model)) {
+      if (isSupportedThinkingTokenModel(model)) {
         return {
-          reasoning_effort: assistant?.settings?.reasoning_effort
-        }
-      }
-
-      if (isOpenAIoSeries(model)) {
-        return {
-          reasoning_effort: assistant?.settings?.reasoning_effort
-        }
-      }
-
-      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
-        const effortRatios: Record<ReasoningEffort, number> = {
-          high: 0.8,
-          medium: 0.5,
-          low: 0.2
-        }
-
-        const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-        const effortRatio = effortRatios[effort]
-
-        if (!effortRatio) {
-          return {}
-        }
-
-        const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-        const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
-
-        return {
-          thinking: {
-            type: 'enabled',
-            budget_tokens: budgetTokens
+          reasoning: {
+            max_tokens: budgetTokens
           }
         }
       }
-
-      return {}
     }
 
+    // Qwen models
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens
+      }
+    }
+
+    // Grok models
+    if (isSupportedReasoningEffortGrokModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // OpenAI models
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // Claude models
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      return {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: budgetTokens
+        }
+      }
+    }
+
+    // Default case: no special thinking settings
     return {}
   }
 
@@ -343,7 +365,7 @@ export default class OpenAIProvider extends BaseProvider {
     const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isOpenAIoSeries(model) && !OPENAI_NO_SUPPORT_DEV_ROLE_MODELS.includes(model.id)) {
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`

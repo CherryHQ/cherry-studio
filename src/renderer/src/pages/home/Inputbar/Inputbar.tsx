@@ -1,7 +1,7 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isGenerateImageModel, isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -65,6 +65,7 @@ import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
+import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
 import TokenCount from './TokenCount'
 import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
@@ -130,7 +131,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
-  const webSearchButtonRef = useRef<WebSearchButtonRef>(null)
+  const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
+  const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -185,6 +187,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+      console.log('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -919,6 +922,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
               />
+              {isReasoningModel(model) && (
+                <ThinkingButton
+                  ref={thinkingButtonRef}
+                  model={model}
+                  assistant={assistant}
+                  ToolbarButton={ToolbarButton}
+                />
+              )}
               <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
@@ -1104,7 +1115,8 @@ const ToolbarButton = styled(Button)`
   &.active {
     background-color: var(--color-primary) !important;
     .anticon,
-    .iconfont {
+    .iconfont,
+    .chevron-icon {
       color: var(--color-white-soft);
     }
     &:hover {
