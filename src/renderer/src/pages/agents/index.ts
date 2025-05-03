@@ -29,18 +29,6 @@ export function useSystemAgents() {
           _agents = JSON.parse(localAgentsData) as Agent[]
         }
 
-        // 如果有远程配置，尝试获取远程 agents
-        if (defaultaides && defaultaides.startsWith('http')) {
-          const response = await fetch(defaultaides)
-          if (response.ok) {
-            const remoteAgents = await response.json()
-            // 合并本地和远程 agents
-            const mergedAgents = [..._agents, ...remoteAgents]
-            setAgents(mergedAgents)
-            return
-          }
-        }
-
         // 如果没有远程配置或获取失败，使用本地 agents
         setAgents(_agents)
       } catch (error) {
