@@ -50,6 +50,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const { providers } = useProviders()
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const [selectedItemKey, setSelectedItemKey] = useState<string>('')
+  const [focusedItemKey, setFocusedItemKey] = useState<string>('')
   const listRef = useRef<ListRef>(null)
   const hasAutoSelected = useRef(false)
   const hasAutoScrolled = useRef(false)
@@ -204,26 +205,29 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       const index = listItems.findIndex(
         (item) => item.type === 'model' && getModelUniqId(item.model as Model) === currentModelId
       )
+
       if (index >= 0) {
         setSelectedItemKey(listItems[index].key)
+        setFocusedItemKey(listItems[index].key)
         hasAutoSelected.current = true
-        hasAutoScrolled.current = false
       }
     }
   }, [currentModelId, listItems])
 
-  // 滚动到选中项（高亮项）
+  // 滚动到聚焦项
   useEffect(() => {
-    if (!selectedItemKey) return
-    const actualIndex = listItems.findIndex((item) => item.key === selectedItemKey)
+    if (!focusedItemKey) return
+
+    const actualIndex = listItems.findIndex((item) => item.key === focusedItemKey)
     if (actualIndex < 0) return
+
     if (!hasAutoScrolled.current) {
       listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
       hasAutoScrolled.current = true
     } else {
       listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
     }
-  }, [selectedItemKey, listItems])
+  }, [focusedItemKey, listItems])
 
   const handleItemClick = (item: FlatListItem) => {
     if (item.type !== 'model') return
@@ -247,7 +251,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
 
-        const currentIndex = selectableItems.findIndex((item) => item.key === selectedItemKey)
+        const currentIndex = selectableItems.findIndex((item) => item.key === focusedItemKey)
 
         let nextIndex: number
         if (currentIndex === -1) {
@@ -260,12 +264,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         }
 
         const nextItem = selectableItems[nextIndex]
-
-        setSelectedItemKey(nextItem.key)
+        setFocusedItemKey(nextItem.key)
       } else if (e.key === 'Enter') {
-        if (selectedItemKey) {
+        if (focusedItemKey) {
           e.preventDefault()
-          const selectedItem = selectableItems.find((item) => item.key === selectedItemKey)
+          const selectedItem = selectableItems.find((item) => item.key === focusedItemKey)
           if (selectedItem) {
             resolve(selectedItem.model)
             setOpen(false)
@@ -277,14 +280,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         resolve(undefined)
       }
     },
-    [open, listItems, selectedItemKey, getSelectableItems, resolve]
+    [open, listItems, focusedItemKey, getSelectableItems, resolve]
   )
 
-  // 搜索文本改变时重置选中状态和自动选中/滚动状态
+  // 搜索文本改变时
   useEffect(() => {
-    setSelectedItemKey('')
+    // 清除聚焦状态，但保留选中状态
+    setFocusedItemKey('')
+
+    // 根据新的搜索条件，重新找选中项
     hasAutoSelected.current = false
-    hasAutoScrolled.current = false
   }, [searchText])
 
   // 全局事件监听
@@ -377,7 +382,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
             item.type === 'group' ? (
               <GroupItem>{item.name}</GroupItem>
             ) : (
-              <ModelItem onClick={() => handleItemClick(item)} $isSelected={item.key === selectedItemKey}>
+              <ModelItem
+                onClick={() => handleItemClick(item)}
+                $isFocused={item.key === focusedItemKey}
+                $isSelected={item.key === selectedItemKey}
+                onMouseEnter={() => setFocusedItemKey(item.key)}>
                 <ModelItemLeft>
                   {item.icon}
                   {item.name}
@@ -419,7 +428,7 @@ const GroupItem = styled.div`
   z-index: 1;
 `
 
-const ModelItem = styled.div<{ $isSelected: boolean }>`
+const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -430,12 +439,13 @@ const ModelItem = styled.div<{ $isSelected: boolean }>`
   height: ${ITEM_HEIGHT - 2}px;
   border-radius: 6px;
   cursor: pointer;
-  background-color: ${(props) => (props.$isSelected ? 'var(--color-background-mute)' : 'transparent')};
+  background-color: ${(props) => {
+    if (props.$isSelected && props.$isFocused) return 'var(--color-primary-mute)'
+    if (props.$isSelected) return 'var(--color-background-mute)'
+    if (props.$isFocused) return 'var(--color-background-soft)'
+    return 'transparent'
+  }};
   transition: background-color 0.3s;
-
-  &:hover {
-    background-color: var(--color-background-mute);
-  }
 
   .pin-icon {
     opacity: 0;
