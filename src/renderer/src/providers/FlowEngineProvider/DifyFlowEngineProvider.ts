@@ -1,13 +1,6 @@
-import { XStream } from '@ant-design/x'
-import {
-  createDifyApiInstance,
-  EventEnum,
-  IChunkChatCompletionResponse,
-  IUploadFileResponse,
-  IUserInputForm,
-  IWorkflowNode
-} from '@dify-chat/api'
-import { Flow, FlowEngine } from '@renderer/types'
+import { createDifyApiInstance, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
+import { EventEnum, Flow, FlowEngine } from '@renderer/types'
+import XStream from '@renderer/utils/stream'
 import { v4 as uuidv4 } from 'uuid'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
@@ -18,72 +11,6 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
   }
 
   public async completion(flow: Flow): Promise<void> {
-    if (!this.isChatflow(flow)) {
-      throw new Error('Dify completion only supports Chatflow')
-    }
-
-    const client = createDifyApiInstance({ user: uuidv4(), apiKey: flow.apiKey, apiBase: flow.apiHost })
-    const response = await client.sendMessage({
-      inputs: {},
-      files: [],
-      user: '123',
-      response_mode: 'streaming',
-      query: 'starberry有几个r?'
-    })
-
-    const stream = XStream({
-      readableStream: response.body as NonNullable<ReadableStream>
-    })
-
-    const reader = stream.getReader()
-    let result = ''
-    while (reader) {
-      const { value: chunk, done } = await reader.read()
-      if (done) {
-        console.log('Stream finished')
-        break
-      }
-      if (!chunk) continue
-      let parsedData = {} as {
-        id: string
-        task_id: string
-        position: number
-        tool: string
-        tool_input: string
-        observation: string
-        message_files: string[]
-
-        event: IChunkChatCompletionResponse['event']
-        answer: string
-        conversation_id: string
-        message_id: string
-
-        // 类型
-        type: 'image'
-        // 图片链接
-        url: string
-
-        data: {
-          // 工作流节点的数据
-          id: string
-          node_type: IWorkflowNode['type']
-          title: string
-          inputs: string
-          outputs: string
-          process_data: string
-          elapsed_time: number
-          execution_metadata: IWorkflowNode['execution_metadata']
-        }
-      }
-      try {
-        parsedData = JSON.parse(chunk.data)
-      } catch (error) {
-        console.error('解析 JSON 失败', error)
-      }
-      result = this.processChunk(result, parsedData)
-      console.log('当前结果', result)
-    }
-    console.log('最终结果', result)
     return
   }
 
@@ -138,32 +65,116 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     }
   }
 
-  private processChunk(result: string, parsedData: any): string {
-    if (parsedData.event === EventEnum.WORKFLOW_STARTED) {
-      console.log('工作流开始', parsedData)
-    } else if (parsedData.event === EventEnum.WORKFLOW_FINISHED) {
-      console.log('工作流结束', parsedData)
-    } else if (parsedData.event === EventEnum.WORKFLOW_NODE_STARTED) {
-      console.log('工作流节点开始', parsedData)
-    } else if (parsedData.event === EventEnum.WORKFLOW_NODE_FINISHED) {
-      console.log('工作流节点结束', parsedData)
+  public async runWorkflow(flow: Flow, inputs: Record<string, string>): Promise<void> {
+    try {
+      const difyApi = createDifyApiInstance({
+        user: uuidv4(),
+        apiKey: flow.apiKey,
+        apiBase: flow.apiHost
+      })
+
+      const body = {
+        response_mode: 'streaming',
+        user: uuidv4(),
+        inputs: inputs
+      }
+
+      const response = await difyApi.baseRequest.baseRequest('/workflows/run', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      // const processStream = async (stream: any, idx: number) => {
+      //   const decoder = new TextDecoder()
+      //   let fullText = ''
+
+      //   for await (const chunk of stream) {
+      //     // 将 Uint8Array 转换为文本
+      //     const text = decoder.decode(chunk, { stream: true })
+
+      //     // 尝试解析为 JSON
+      //     try {
+      //       // 一个 chunk 可能包含多个 JSON 对象，按行分割
+      //       const lines = text.split('\n').filter((line) => line.trim())
+
+      //       for (const line of lines) {
+      //         // 有些流式响应使用 data: 前缀
+      //         const jsonStr = line.startsWith('data: ') ? line.slice(5) : line
+
+      //         if (jsonStr && jsonStr !== '[DONE]') {
+      //           console.log('原始文本:', jsonStr)
+      //           const jsonData = JSON.parse(jsonStr)
+      //           if (jsonData && jsonData.event === 'text_chunk') {
+      //             const textChunk = jsonData.data.text
+      //             fullText += textChunk
+      //           }
+      //         }
+      //       }
+      //     } catch (e) {
+      //       console.error('解析 JSON 失败:', e, 'Raw text:', text)
+      //     }
+      //     console.log('完整文本:', fullText)
+      //   }
+      // }
+
+      await this.processStream(response)
+
+      return
+    } catch (error) {
+      console.error('运行工作流失败', error)
+      throw new Error('运行工作流失败')
     }
-    if (parsedData.event === EventEnum.MESSAGE_FILE) {
-      console.log('文件消息', parsedData)
+  }
+  private async processStream(response: Response): Promise<void> {
+    const readableStream = XStream({
+      readableStream: response.body as NonNullable<ReadableStream>
+    })
+    const reader = readableStream.getReader()
+    let text = ''
+    while (reader) {
+      const { value: chunk, done } = await reader.read()
+      if (done) {
+        console.log('流已结束')
+        break
+      }
+      if (!chunk) {
+        console.log('chunk 为空')
+        continue
+      }
+      if (chunk.data) {
+        try {
+          const parsedData = JSON.parse(chunk.data)
+          const event = parsedData.event
+          switch (event) {
+            case EventEnum.WORKFLOW_STARTED:
+              console.log('工作流开始')
+              break
+            case EventEnum.WORKFLOW_NODE_STARTED:
+              console.log('工作流节点开始')
+              break
+            case EventEnum.WORKFLOW_TEXT_CHUNK: {
+              const textChunk = parsedData.data.text
+              text += textChunk
+              break
+            }
+            case EventEnum.WORKFLOW_NODE_FINISHED:
+              console.log('工作流节点结束')
+              break
+            case EventEnum.WORKFLOW_FINISHED:
+              console.log('工作流结束')
+              break
+          }
+        } catch (e) {
+          console.error('处理流数据失败', e)
+        }
+      } else {
+        console.log('chunk 没有 data 属性')
+        continue
+      }
     }
-    if (parsedData.event === EventEnum.MESSAGE) {
-      const text = parsedData.answer
-      result += text
-    }
-    if (parsedData.event === EventEnum.ERROR) {
-      console.error('错误', parsedData)
-    }
-    if (parsedData.event === EventEnum.AGENT_MESSAGE) {
-      console.log('Agent消息', parsedData)
-    }
-    if (parsedData.event === EventEnum.AGENT_THOUGHT) {
-      console.log('Agent思考', parsedData)
-    }
-    return result
+    console.log('完整文本:', text)
   }
 }

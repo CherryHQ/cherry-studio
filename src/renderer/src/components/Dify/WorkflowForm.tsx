@@ -1,5 +1,5 @@
 import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@dify-chat/api'
-import { uploadFile } from '@renderer/services/FlowEngineService'
+import { runWorkflow, uploadFile } from '@renderer/services/FlowEngineService'
 import { FlowEngine, Workflow } from '@renderer/types'
 import { Button, Form, Input, InputNumber, Select } from 'antd'
 import { UploadFile } from 'antd/lib'
@@ -73,28 +73,10 @@ const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
     }
   }
 
-  const handleFinish = (values: any) => {
-    // 处理文件类型的字段，提取upload_file_id
-    const processedValues = { ...values }
-
-    // 遍历表单项
-    formItems.forEach(({ type, item }) => {
-      const fieldName = item.variable
-      if (!fieldName) return
-
-      // 处理单个文件上传
-      if (type === 'file' && values[fieldName]) {
-        processedValues[fieldName] = values[fieldName].upload_file_id
-      }
-
-      // 处理多文件上传
-      if (type === 'file-list' && Array.isArray(values[fieldName])) {
-        processedValues[fieldName] = values[fieldName].map((file: IUploadFileItem) => file.upload_file_id)
-      }
-    })
-
-    console.log('Processed form values:', processedValues)
-    onSubmit(processedValues)
+  const handleFinish = async (values: any) => {
+    console.log('Form values:', values)
+    await runWorkflow(provider, workflow, values)
+    onSubmit(values)
   }
 
   // 处理可能是数组或Record的情况

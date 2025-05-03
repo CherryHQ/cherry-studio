@@ -16,3 +16,8 @@ export async function uploadFile(provider: FlowEngine, workflow: Flow, file: Fil
   const flowEngineProvider = new FlowEngineProvider(provider)
   return await flowEngineProvider.uploadFile(workflow, file)
 }
+
+export async function runWorkflow(provider: FlowEngine, workflow: Flow, inputs: Record<string, string>) {
+  const flowEngineProvider = new FlowEngineProvider(provider)
+  return await flowEngineProvider.runWorkflow(workflow, inputs)
+}

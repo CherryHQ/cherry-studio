@@ -16,6 +16,8 @@ export default abstract class BaseFlowEngineProvider {
 
   abstract uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse>
 
+  abstract runWorkflow(flow: Flow, inputs: Record<string, string>): Promise<void>
+
   public isChatflow(workflow: Flow): workflow is Chatflow {
     return workflow.type === 'chatflow'
   }

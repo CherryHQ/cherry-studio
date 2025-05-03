@@ -34,6 +34,19 @@ FileTypeMap.set('audio', ['mp3', 'm4a', 'wav', 'webm', 'amr'])
 FileTypeMap.set('video', ['mp4', 'mov', 'mpeg', 'mpga'])
 FileTypeMap.set('custom', [])
 
+export const getFileTypeByName = (filename: string): IFileType => {
+  const ext = filename.split('.').pop()
+
+  // 使用文件扩展名和 FileTypeMap 进行匹配
+  let fileType: IFileType = 'document'
+  FileTypeMap.forEach((extensions, type) => {
+    if (extensions.indexOf(ext as string) > -1) {
+      fileType = type
+    }
+  })
+  return fileType
+}
+
 export interface IUploadFileItem extends UploadFile {
   type?: string
   transfer_method?: 'local_file' | 'remote_url'
@@ -95,7 +108,7 @@ export default function FileUpload(props: IFileUploadProps) {
 
   const formatFiles = (files: IUploadFileItem[]) => {
     return files?.map((file) => {
-      const fileType = getFileExtension(file.name)
+      const fileType = getFileTypeByName(file.name)
       return {
         ...file,
         type: fileType
@@ -132,40 +145,8 @@ export default function FileUpload(props: IFileUploadProps) {
     const fileBaseInfo: IUploadFileItem = {
       uid: file.uid,
       name: file.name,
-      status: 'uploading',
-      size: file.size,
-      type: file.type,
-      originFileObj: file,
       transfer_method: 'local_file'
     }
-
-    // 模拟上传进度
-    const mockLoadingProgress = () => {
-      let percent = 0
-      updateFiles([
-        {
-          ...fileBaseInfo,
-          percent: percent
-        }
-      ])
-      const interval = setInterval(() => {
-        if (percent >= 99) {
-          clearInterval(interval)
-          return
-        }
-        percent = percent + 1
-        updateFiles([
-          {
-            ...fileBaseInfo,
-            percent
-          }
-        ])
-      }, 100)
-      return {
-        clear: () => clearInterval(interval)
-      }
-    }
-    const { clear } = mockLoadingProgress()
 
     // const result = await uploadFile(provider, workflow, file)
     const result = {
@@ -179,15 +160,13 @@ export default function FileUpload(props: IFileUploadProps) {
       preview_url: null
     }
 
-    clear()
-    const fileType = getFileExtension(file.name)
+    const fileType = getFileTypeByName(file.name)
     updateFiles([
       {
         ...fileBaseInfo,
         upload_file_id: result.id,
-        type: fileType || 'document',
-        percent: 100,
-        status: 'done'
+        // type: fileType || 'document'
+        type: 'document'
       }
     ])
   }
