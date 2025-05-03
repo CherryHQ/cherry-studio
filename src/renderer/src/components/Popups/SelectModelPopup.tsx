@@ -407,7 +407,6 @@ const GroupItem = styled.div`
   font-weight: 500;
   padding: 5px 10px 5px 18px;
   color: var(--color-text-3);
-  background-color: var(--color-background);
   height: ${ITEM_HEIGHT}px;
   display: flex;
   align-items: center;
