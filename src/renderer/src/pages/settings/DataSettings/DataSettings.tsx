@@ -17,13 +17,12 @@ import { reset } from '@renderer/services/BackupService'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, Star } from 'lucide-react'
+import { FileText, FolderCog, FolderInput } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-import DefaultaidesSettings from './DefaultaidesSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
@@ -102,11 +101,6 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: 'settings.data.siyuan.title',
       icon: <SiyuanIcon />
-    },
-    {
-      key: 'default_aides',
-      title: 'settings.data.default_aides.title',
-      icon: <Star size={16} />
     }
   ]
 

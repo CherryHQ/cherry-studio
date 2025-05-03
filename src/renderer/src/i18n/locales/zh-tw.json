@@ -1,14 +1,15 @@
 {
   "translation": {
     "agents": {
-      "add.button": "新增到助手",
+      "add.button": "添加到助手",
       "add.knowledge_base": "知識庫",
       "add.knowledge_base.placeholder": "選擇知識庫",
       "add.name": "名稱",
       "add.name.placeholder": "輸入名稱",
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
-      "add.title": "建立智慧代理人",
+      "add.title": "創建智能體",
+      "import.title": "從外部導入",
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.message.add.title": "新增",
       "edit.message.assistant.placeholder": "輸入助手訊息",
@@ -1506,9 +1507,8 @@
       },
       "privacy": {
         "title": "隱私設定",
-        "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
-      },
-      "defaultaides": "內建"
+        "enable_privacy_mode": "匿名報告錯誤和統計"
+      }
     },
     "translate": {
       "any.language": "任意語言",
