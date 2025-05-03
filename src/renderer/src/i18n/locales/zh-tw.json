@@ -500,7 +500,7 @@
     },
     "message": {
       "agents": {
-        "import.success": "匯入成功",
+        "imported": "匯入成功",
         "import.error": "匯入失敗"
       },
       "api.check.model.title": "請選擇要偵測的模型",

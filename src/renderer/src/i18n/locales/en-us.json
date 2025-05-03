@@ -500,7 +500,7 @@
     },
     "message": {
       "agents": {
-        "import.success": "Imported successfully",
+        "imported": "Imported successfully",
         "import.error": "Import failed"
       },
       "api.check.model.title": "Select the model to use for detection",

@@ -500,7 +500,7 @@
     },
     "message": {
       "agents": {
-        "import.success": "Импорт успешно выполнен",
+        "imported": "Импорт успешно выполнен",
         "import.error": "Импорт не выполнен"
       },
       "api.check.model.title": "Выберите модель для проверки",
