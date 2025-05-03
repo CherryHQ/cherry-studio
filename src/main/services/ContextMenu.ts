@@ -5,10 +5,6 @@ import { configManager } from './ConfigManager'
 
 class ContextMenu {
   public contextMenu(w: Electron.BrowserWindow) {
-    const locale = configManager.getLanguage()
-    // Sets the spellchecker to check English US and French
-    w.webContents.session.setSpellCheckerLanguages([locale])
-
     w.webContents.on('context-menu', (_event, properties) => {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
