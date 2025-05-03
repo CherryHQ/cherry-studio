@@ -1,8 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { updateOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import {
   appendAssistantResponseThunk,
@@ -13,9 +12,9 @@ import {
   initiateTranslationThunk,
   regenerateAssistantResponseThunk,
   resendMessageThunk,
-  resendUserMessageWithEditThunk
+  resendUserMessageWithEditThunk,
+  throttledBlockDbUpdate
 } from '@renderer/store/thunk/messageThunk'
-import { throttledBlockDbUpdate } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -296,11 +295,9 @@ export function useMessageOperations(topic: Topic) {
 }
 
 export const useTopicMessages = (topic: Topic) => {
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, topic.id))
-  return messages
+  return useAppSelector((state) => selectMessagesForTopic(state, topic.id))
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectNewTopicLoading(state, topic.id))
-  return loading
+  return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
 }

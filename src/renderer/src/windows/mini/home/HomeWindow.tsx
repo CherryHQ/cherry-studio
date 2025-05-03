@@ -4,6 +4,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
@@ -12,11 +13,11 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Divider } from 'antd'
-import { Button, Tooltip } from 'antd'
+import { Button, Divider, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
 import { CirclePause, SendIcon } from 'lucide-react'
@@ -47,9 +48,11 @@ const HomeWindow: FC = () => {
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
+  const topicIdRef = useRef<string>(topic.id)
+  const askIdRef = useRef<string | null>(null)
+
   const featureMenusRef = useRef<FeatureMenusRef>(null)
   const referenceText = selectedText || clipboardText || text
-
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const readClipboard = useCallback(async () => {
@@ -170,7 +173,7 @@ const HomeWindow: FC = () => {
         return
       }
       setGenerating(true)
-
+      topicIdRef.current = topic.id
       const messageParams = {
         role: 'user',
         content: prompt ? `${prompt}\n\n${content}` : content,
@@ -191,53 +194,72 @@ const HomeWindow: FC = () => {
 
       const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
       store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-
-      fetchChatCompletion({
-        messages: [userMessage],
-        assistant: { ...assistant, model: getDefaultModel() },
-        onChunkReceived: (chunk: Chunk) => {
-          if (chunk.type === ChunkType.TEXT_DELTA) {
-            blockContent += chunk.text
-            if (!blockId) {
-              const block = createMainTextBlock(assistantMessage.id, chunk.text, {
-                status: MessageBlockStatus.STREAMING
-              })
-              blockId = block.id
+      askIdRef.current = assistantMessage.id
+      console.log('!!!', assistantMessage)
+      try {
+        await fetchChatCompletion({
+          messages: [userMessage],
+          assistant: { ...assistant, model: getDefaultModel() },
+          onChunkReceived: (chunk: Chunk) => {
+            if (chunk.type === ChunkType.TEXT_DELTA) {
+              blockContent += chunk.text
+              if (!blockId) {
+                const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                  status: MessageBlockStatus.STREAMING
+                })
+                blockId = block.id
+                store.dispatch(
+                  newMessagesActions.updateMessage({
+                    topicId,
+                    messageId: assistantMessage.id,
+                    updates: { blockInstruction: { id: block.id } }
+                  })
+                )
+                store.dispatch(upsertOneBlock(block))
+              } else {
+                store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+              }
+            }
+            if (chunk.type === ChunkType.TEXT_COMPLETE) {
+              blockId &&
+                store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
               store.dispatch(
                 newMessagesActions.updateMessage({
                   topicId,
                   messageId: assistantMessage.id,
-                  updates: { blockInstruction: { id: block.id } }
+                  updates: { status: AssistantMessageStatus.SUCCESS }
                 })
               )
-              store.dispatch(upsertOneBlock(block))
-            } else {
-              store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
             }
           }
-          if (chunk.type === ChunkType.TEXT_COMPLETE) {
-            blockId && store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
-            store.dispatch(
-              newMessagesActions.updateMessage({
-                topicId,
-                messageId: assistantMessage.id,
-                updates: { status: AssistantMessageStatus.SUCCESS }
-              })
-            )
-          }
-        }
-      })
+        })
+      } catch (err) {
+        console.error('Error while sending message:', err)
+      } finally {
+        setGenerating(false)
+      }
 
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant, topic]
+    [content, defaultAssistant, generating, topic]
   )
 
   const clearClipboard = () => {
     setClipboardText('')
     setSelectedText('')
     focusInput()
+  }
+
+  const stopMessageGeneration = () => {
+    if (generating && askIdRef.current) {
+      abortCompletion(askIdRef.current)
+    }
+    setGenerating(false)
+  }
+
+  const onPause = async () => {
+    stopMessageGeneration()
   }
 
   // If the input is focused, the `Esc` callback will not be triggered here.
@@ -252,16 +274,12 @@ const HomeWindow: FC = () => {
     }
   })
 
-  const stopMessageGeneration = () => {
-    setGenerating(false)
-    if (messageIdRef.current) {
-      abortCompletion(messageIdRef.current) // 停止输出
+  useHotkeys('ctrl+c', () => {
+    if (generating) {
+      stopMessageGeneration()
     }
-  }
+  })
 
-  const onPause = async () => {
-    stopMessageGeneration()
-  }
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
 
@@ -410,6 +428,7 @@ const Main = styled.main`
   flex: 1;
   overflow: hidden;
 `
+
 const ToolbarMenu = styled.div`
   display: flex;
   flex-direction: row;
