@@ -11,7 +11,7 @@ import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 
 import { HStack } from '../Layout'
 import ModelTagsWithLabel from '../ModelTagsWithLabel'
@@ -442,18 +442,13 @@ const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
   transition: background-color 0.3s;
   background-color: ${(props) => (props.$isFocused ? 'var(--color-background-mute)' : 'transparent')};
 
-  // 选中状态下显示左侧竖条
-  &::before {
-    content: '';
-    display: ${(props) => (props.$isSelected ? 'block' : 'none')};
-    position: absolute;
-    left: 0;
-    top: 10%;
-    width: 2px;
-    height: 80%;
-    background: var(--color-primary-soft);
-    border-radius: 2px;
-  }
+  ${(props) =>
+    props.$isSelected &&
+    css`
+      border-left: 3px solid var(--color-primary-soft);
+      border-top-left-radius: 3px;
+      border-bottom-left-radius: 3px;
+    `}
 
   .pin-icon {
     opacity: 0;
