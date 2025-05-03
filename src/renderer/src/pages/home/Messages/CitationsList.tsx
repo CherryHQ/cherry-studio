@@ -80,7 +80,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           ))}
           {extraCount > 0 && <MoreCount style={{ zIndex: 0 }}>+{extraCount}</MoreCount>}
         </PreviewIcons>
-        {t('message.citations')}
+        {t('message.citation')}
       </OpenButton>
 
       <Drawer
