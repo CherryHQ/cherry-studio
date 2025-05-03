@@ -11,7 +11,7 @@ import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
 
 import { HStack } from '../Layout'
 import ModelTagsWithLabel from '../ModelTagsWithLabel'
@@ -442,14 +442,17 @@ const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
   transition: background-color 0.3s;
   background-color: ${(props) => (props.$isFocused ? 'var(--color-background-mute)' : 'transparent')};
 
-  ${(props) =>
-    props.$isSelected &&
-    css`
-      margin-left: 5px;
-      border-left: 3px solid var(--color-primary-soft);
-      border-top-left-radius: 3px;
-      border-bottom-left-radius: 3px;
-    `}
+  &::before {
+    content: '';
+    display: ${(props) => (props.$isSelected ? 'block' : 'none')};
+    position: absolute;
+    left: -1px;
+    top: 13%;
+    width: 3px;
+    height: 74%;
+    background: var(--color-primary-soft);
+    border-radius: 8px;
+  }
 
   .pin-icon {
     opacity: 0;
