@@ -178,7 +178,6 @@
     "openai": "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch",
     "p-queue": "^8.1.0",
     "prettier": "^3.5.3",
-    "rc-virtual-list": "^3.18.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hotkeys-hook": "^4.6.1",
