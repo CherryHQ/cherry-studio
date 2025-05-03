@@ -42,17 +42,19 @@ interface PopupContainerProps extends Props {
 }
 
 const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
-  const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const { providers } = useProviders()
+  const [open, setOpen] = useState(true)
+  const inputRef = useRef<InputRef>(null)
+  const listRef = useRef<ListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
-  const inputRef = useRef<InputRef>(null)
-  const { providers } = useProviders()
+  const [isMouseOver, setIsMouseOver] = useState(false)
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const [selectedItemKey, setSelectedItemKey] = useState<string>('')
   const [focusedItemKey, setFocusedItemKey] = useState<string>('')
-  const [isMouseOver, setIsMouseOver] = useState(false)
-  const listRef = useRef<ListRef>(null)
+  const [currentStickyGroup, setCurrentStickyGroup] = useState<FlatListItem | null>(null)
+  const firstGroupRef = useRef<FlatListItem | null>(null)
   const hasAutoSelected = useRef(false)
   const hasAutoScrolled = useRef(false)
 
@@ -191,6 +193,13 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
       })
 
+    // 移除第一个分组标题，使用 sticky group banner 替代，模拟 sticky 效果
+    if (items.length > 0 && items[0].type === 'group') {
+      firstGroupRef.current = items[0]
+      items.shift()
+    } else {
+      firstGroupRef.current = null
+    }
     return items
   }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
 
@@ -321,6 +330,27 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
   }, [listItems.length])
 
+  const handleVisibleChange = (visibleItems: FlatListItem[]) => {
+    const firstModelItem = visibleItems.find((item) => item.type === 'model')
+    if (!firstModelItem) {
+      setCurrentStickyGroup(null)
+      return
+    }
+    // 从 listItems 中找到此 model 之前的最近一个分组标题
+    const modelIndex = listItems.findIndex((item) => item.key === firstModelItem.key)
+
+    // 向前查找最近的分组标题
+    for (let i = modelIndex - 1; i >= 0; i--) {
+      if (listItems[i].type === 'group') {
+        setCurrentStickyGroup(listItems[i])
+        return
+      }
+    }
+
+    // 找不到则显示第一个分组标题
+    setCurrentStickyGroup(firstGroupRef.current ?? null)
+  }
+
   return (
     <Modal
       centered
@@ -367,8 +397,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
-      {/* 虚拟列表 */}
       <ListContainer onMouseMove={() => setIsMouseOver(true)}>
+        {/* Sticky Group Banner，它会替换第一个分组名称 */}
+        {listItems.length > 0 && <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>}
+        {/* 虚拟列表 */}
         {listItems.length > 0 ? (
           <VirtualList
             ref={listRef}
@@ -378,6 +410,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
             itemHeight={ITEM_HEIGHT}
             overscan={4}
             smoothScroll={true}
+            onVisibleChange={handleVisibleChange}
             styles={{
               verticalScrollBar: { background: 'transparent', width: 6 },
               verticalScrollBarThumb: {
@@ -388,7 +421,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
             style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
             {(item) =>
               item.type === 'group' ? (
-                <GroupItem>{item.name}</GroupItem>
+                <GroupItem $isSticky={item.key === currentStickyGroup?.key}>{item.name}</GroupItem>
               ) : (
                 <ModelItem
                   onClick={() => handleItemClick(item)}
@@ -429,18 +462,26 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
 const ListContainer = styled.div`
   position: relative;
+  overflow: hidden;
 `
 
-const GroupItem = styled.div`
-  font-size: 12px;
-  font-weight: 500;
-  padding: 5px 10px 5px 18px;
-  color: var(--color-text-3);
-  height: ${ITEM_HEIGHT}px;
+const GroupItem = styled.div<{ $isSticky?: boolean }>`
   display: flex;
   align-items: center;
   position: relative;
+  font-size: 12px;
+  font-weight: 500;
+  height: ${ITEM_HEIGHT}px;
+  padding: 5px 10px 5px 18px;
+  color: var(--color-text-3);
   z-index: 1;
+
+  visibility: ${(props) => (props.$isSticky ? 'hidden' : 'visible')};
+`
+
+const StickyGroupBanner = styled(GroupItem)`
+  position: sticky;
+  background: var(--modal-background);
 `
 
 const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
