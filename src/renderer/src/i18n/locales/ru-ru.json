@@ -60,7 +60,8 @@
       "settings.reasoning_effort.low": "Меньше думать",
       "settings.reasoning_effort.medium": "Среднее",
       "settings.reasoning_effort.default": "По умолчанию",
-      "settings.more": "Настройки ассистента"
+      "settings.more": "Настройки ассистента",
+      "settings.reasoning_effort": "Настройки размышлений"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",

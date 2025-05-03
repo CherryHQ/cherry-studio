@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
@@ -283,14 +284,13 @@ export default class OpenAIProvider extends BaseProvider {
     const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
     // OpenRouter models
     if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenClaudeModel(model)) {
         return {
           reasoning: {
             effort: assistant?.settings?.reasoning_effort
           }
         }
       }
-
       if (isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
@@ -323,11 +323,12 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     // Claude models
+    const { maxTokens } = getAssistantSettings(assistant)
     if (isSupportedThinkingTokenClaudeModel(model)) {
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: budgetTokens
+          budget_tokens: Math.floor(Math.max(Math.min(budgetTokens, maxTokens || DEFAULT_MAX_TOKENS), 1024))
         }
       }
     }
