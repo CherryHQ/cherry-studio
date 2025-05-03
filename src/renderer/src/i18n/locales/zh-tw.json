@@ -499,6 +499,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "agents": {
+        "import.success": "匯入成功",
+        "import.error": "匯入失敗"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",

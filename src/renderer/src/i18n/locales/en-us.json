@@ -499,6 +499,10 @@
       "title": "Mermaid Diagram"
     },
     "message": {
+      "agents": {
+        "import.success": "Imported successfully",
+        "import.error": "Import failed"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",

@@ -499,6 +499,10 @@
       "title": "Диаграмма Mermaid"
     },
     "message": {
+      "agents": {
+        "import.success": "Импорт успешно выполнен",
+        "import.error": "Импорт не выполнен"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
