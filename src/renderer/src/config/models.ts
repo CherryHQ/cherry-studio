@@ -2312,7 +2312,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   return (
-    model.id.includes('qwen3') ||
+    model.id.toLowerCase().includes('qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2320,7 +2320,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
-    ].includes(model.id)
+    ].includes(model.id.toLowerCase())
   )
 }
 
