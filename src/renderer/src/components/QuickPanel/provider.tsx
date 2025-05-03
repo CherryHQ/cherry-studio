@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   QuickPanelCallBackOptions,
@@ -63,6 +63,15 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     },
     [onClose, symbol]
   )
+
+  useEffect(() => {
+    return () => {
+      if (clearTimer.current) {
+        clearTimeout(clearTimer.current)
+        clearTimer.current = null
+      }
+    }
+  }, [])
 
   const value = useMemo(
     () => ({

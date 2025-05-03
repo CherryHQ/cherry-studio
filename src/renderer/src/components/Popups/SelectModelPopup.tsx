@@ -380,7 +380,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           }
           ref={inputRef}
           placeholder={t('models.search')}
-          value={_searchText}
+          value={_searchText} // 使用 _searchText，需要实时更新
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
           autoFocus
