@@ -151,7 +151,7 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   protected getServiceTier(model: Model) {
-    if (model.id.includes('o3') || model.id.includes('o4')) {
+    if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
       return 'flex'
     }
     if (isOpenAILLMModel(model)) {
