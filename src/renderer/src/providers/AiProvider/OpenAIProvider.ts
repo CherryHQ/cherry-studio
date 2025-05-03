@@ -269,7 +269,6 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
     const reasoningEffort = assistant?.settings?.reasoning_effort
-    const { maxTokens } = getAssistantSettings(assistant)
     if (!reasoningEffort) {
       if (isSupportedThinkingTokenQwenModel(model)) {
         return { enable_thinking: false }
@@ -282,20 +281,15 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
-    let budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
     // OpenRouter models
     if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenClaudeModel(model)) {
         return {
           reasoning: {
             effort: assistant?.settings?.reasoning_effort
           }
         }
-      }
-      if (isSupportedThinkingTokenClaudeModel(model)) {
-        budgetTokens = Math.floor(
-          Math.max(Math.min(budgetTokens, maxTokens || DEFAULT_MAX_TOKENS) * 0.8 * effortRatio, 1024)
-        )
       }
       if (isSupportedThinkingTokenModel(model)) {
         return {
@@ -329,11 +323,12 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     // Claude models
+    const { maxTokens } = getAssistantSettings(assistant)
     if (isSupportedThinkingTokenClaudeModel(model)) {
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: budgetTokens
+          budget_tokens: Math.floor(Math.max(Math.min(budgetTokens, maxTokens || DEFAULT_MAX_TOKENS), 1024))
         }
       }
     }
