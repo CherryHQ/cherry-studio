@@ -16,7 +16,6 @@ import {
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { convertLinksMiddleware } from '@renderer/middleware/convertLinksMiddleware'
 import { extractReasoningMiddleware } from '@renderer/middleware/extractReasoningMiddleware'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
@@ -44,6 +43,12 @@ import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
+import {
+  convertLinks,
+  convertLinksToHunyuan,
+  convertLinksToOpenRouter,
+  convertLinksToZhipu
+} from '@renderer/utils/linkConverter'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
@@ -531,7 +536,7 @@ export default class OpenAIProvider extends BaseProvider {
       }
 
       // 2. 使用中间件
-      const { stream: reasoningStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
+      const { stream: processedStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
         tagName: reasoningTag.tagName,
         separator: reasoningTag.separator,
         startWithReasoning: false
@@ -541,13 +546,12 @@ export default class OpenAIProvider extends BaseProvider {
         })
       })
 
-      const { stream: processedStream } = await convertLinksMiddleware<OpenAIStreamChunk>().wrapStream({
-        doStream: async () => ({ stream: reasoningStream })
-      })
-
       // 3. 消费 processedStream，分发 onChunk
       for await (const chunk of readableStreamAsyncIterable(processedStream)) {
         const currentTime = new Date().getTime()
+        const delta = chunk.type === 'finish' ? chunk.delta : chunk
+        const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
+
         switch (chunk.type) {
           case 'reasoning': {
             if (time_thinking_start === 0) {
@@ -555,12 +559,30 @@ export default class OpenAIProvider extends BaseProvider {
               time_first_token_millsec = currentTime
               time_first_token_millsec_delta = currentTime - start_time_millsec
             }
+            console.log('消费思考增量', chunk)
             thinkingContent += chunk.textDelta
             const thinking_time = currentTime - time_thinking_start
             onChunk({ type: ChunkType.THINKING_DELTA, text: chunk.textDelta, thinking_millsec: thinking_time })
             break
           }
           case 'text-delta': {
+            let textDelta = chunk.textDelta
+
+            if (assistant.enableWebSearch && delta) {
+              const originalDelta = rawChunk?.choices?.[0]?.delta
+
+              if (originalDelta?.annotations) {
+                textDelta = convertLinks(textDelta, isFirstChunk)
+              } else if (assistant.model?.provider === 'openrouter') {
+                textDelta = convertLinksToOpenRouter(textDelta, isFirstChunk)
+              } else if (isZhipuModel(assistant.model)) {
+                textDelta = convertLinksToZhipu(textDelta, isFirstChunk)
+              } else if (isHunyuanSearchModel(assistant.model)) {
+                const searchResults = rawChunk?.search_info?.search_results || []
+                textDelta = convertLinksToHunyuan(textDelta, searchResults, isFirstChunk)
+              }
+            }
+
             if (isFirstChunk) {
               isFirstChunk = false
               if (time_first_token_millsec === 0) {
@@ -568,8 +590,8 @@ export default class OpenAIProvider extends BaseProvider {
                 time_first_token_millsec_delta = currentTime - start_time_millsec
               }
             }
-            content += chunk.textDelta
-            // 推理转正文的分界点
+            console.log('消费文本增量', chunk)
+            content += textDelta
             if (time_thinking_start > 0 && time_first_content_millsec === 0) {
               time_first_content_millsec = currentTime
               final_time_thinking_millsec_delta = time_first_content_millsec - time_thinking_start
@@ -579,33 +601,32 @@ export default class OpenAIProvider extends BaseProvider {
                 thinking_millsec: final_time_thinking_millsec_delta
               })
             }
-            onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.textDelta })
+            onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
             break
           }
           case 'finish': {
-            // 处理 finishReason、usage、websearch
             const finishReason = chunk.finishReason
             const usage = chunk.usage
-            const delta = chunk.delta
-            const rawChunk = chunk.chunk
-            const currentTime = new Date().getTime()
+            const originalFinishDelta = chunk.delta
+            const originalFinishRawChunk = chunk.chunk
+
             if (!isEmpty(finishReason)) {
               onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
               final_time_completion_millsec_delta = currentTime - start_time_millsec
               if (usage) {
                 lastUsage = usage
               }
-              if (delta?.annotations) {
+              if (originalFinishDelta?.annotations) {
                 onChunk({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
-                    results: delta.annotations,
+                    results: originalFinishDelta.annotations,
                     source: WebSearchSource.OPENAI
                   }
                 } as LLMWebSearchCompleteChunk)
               }
               if (assistant.model?.provider === 'perplexity') {
-                const citations = rawChunk.citations
+                const citations = originalFinishRawChunk.citations
                 if (citations) {
                   onChunk({
                     type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
@@ -616,26 +637,34 @@ export default class OpenAIProvider extends BaseProvider {
                   } as LLMWebSearchCompleteChunk)
                 }
               }
-              if (isEnabledWebSearch && isZhipuModel(model) && finishReason === 'stop' && rawChunk?.web_search) {
+              if (
+                isEnabledWebSearch &&
+                isZhipuModel(model) &&
+                finishReason === 'stop' &&
+                originalFinishRawChunk?.web_search
+              ) {
                 onChunk({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
-                    results: rawChunk.web_search,
+                    results: originalFinishRawChunk.web_search,
                     source: WebSearchSource.ZHIPU
                   }
                 } as LLMWebSearchCompleteChunk)
               }
-              if (isEnabledWebSearch && isHunyuanSearchModel(model) && rawChunk?.search_info?.search_results) {
+              if (
+                isEnabledWebSearch &&
+                isHunyuanSearchModel(model) &&
+                originalFinishRawChunk?.search_info?.search_results
+              ) {
                 onChunk({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
-                    results: rawChunk.search_info.search_results,
+                    results: originalFinishRawChunk.search_info.search_results,
                     source: WebSearchSource.HUNYUAN
                   }
                 } as LLMWebSearchCompleteChunk)
               }
             }
-            // 5. 工具调用和最终 block_complete
             await processToolUses(content, idx)
             onChunk({
               type: ChunkType.BLOCK_COMPLETE,
