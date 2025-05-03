@@ -217,7 +217,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     const actualIndex = listItems.findIndex((item) => item.key === selectedItemKey)
     if (actualIndex < 0) return
     if (!hasAutoScrolled.current) {
-      listRef.current?.scrollTo({ index: actualIndex, align: 'top' })
+      listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
       hasAutoScrolled.current = true
     } else {
       listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
