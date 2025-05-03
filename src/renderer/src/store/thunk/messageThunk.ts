@@ -901,7 +901,8 @@ export const resendMessageThunk =
       for (const originalMsg of assistantMessagesToReset) {
         const blockIdsToDelete = [...(originalMsg.blocks || [])]
         const resetMsg = resetAssistantMessage(originalMsg, {
-          status: AssistantMessageStatus.PENDING
+          status: AssistantMessageStatus.PENDING,
+          ...(assistantMessagesToReset.length === 1 ? { model: assistant.model } : {})
         })
 
         resetDataList.push({ resetMsg })
