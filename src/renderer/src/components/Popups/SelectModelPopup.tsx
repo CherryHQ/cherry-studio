@@ -445,6 +445,7 @@ const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
   ${(props) =>
     props.$isSelected &&
     css`
+      margin-left: 5px;
       border-left: 3px solid var(--color-primary-soft);
       border-top-left-radius: 3px;
       border-bottom-left-radius: 3px;
