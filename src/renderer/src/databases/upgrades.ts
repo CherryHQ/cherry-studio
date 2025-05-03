@@ -110,22 +110,43 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       const citationDataToCreate: Partial<Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>> = {}
       let hasCitationData = false
 
+      // 2. Thinking Block (Status is SUCCESS)
+      // 挪到前面,尽量保持与旧版本的一致性
+      if (oldMessage.reasoning_content?.trim()) {
+        const block = createThinkingBlock(oldMessage.id, oldMessage.reasoning_content, {
+          createdAt: oldMessage.createdAt,
+          status: MessageBlockStatus.SUCCESS // Thinking block is complete content
+        })
+        blocksToCreate.push(block)
+        messageBlockIds.push(block.id)
+      }
+
+      // 7. Tool Blocks (Status based on original mcpTool status)
+      // 挪到前面,尽量保持与旧版本的一致性
+      if (oldMessage.metadata?.mcpTools?.length) {
+        oldMessage.metadata.mcpTools.forEach((mcpTool) => {
+          const block = createToolBlock(oldMessage.id, mcpTool.id, {
+            // Determine status based on original tool status
+            status: MessageBlockStatus.SUCCESS,
+            content: mcpTool.response,
+            error:
+              mcpTool.status !== 'done'
+                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status }
+                : undefined,
+            createdAt: oldMessage.createdAt,
+            metadata: { rawMcpToolResponse: mcpTool }
+          })
+          blocksToCreate.push(block)
+          messageBlockIds.push(block.id)
+        })
+      }
+
       // 1. Main Text Block
       if (oldMessage.content?.trim()) {
         const block = createMainTextBlock(oldMessage.id, oldMessage.content, {
           createdAt: oldMessage.createdAt,
           status: mapOldStatusToBlockStatus(oldMessage.status),
           knowledgeBaseIds: oldMessage.knowledgeBaseIds
-        })
-        blocksToCreate.push(block)
-        messageBlockIds.push(block.id)
-      }
-
-      // 2. Thinking Block (Status is SUCCESS)
-      if (oldMessage.reasoning_content?.trim()) {
-        const block = createThinkingBlock(oldMessage.id, oldMessage.reasoning_content, {
-          createdAt: oldMessage.createdAt,
-          status: MessageBlockStatus.SUCCESS // Thinking block is complete content
         })
         blocksToCreate.push(block)
         messageBlockIds.push(block.id)
@@ -176,25 +197,6 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 
       // 6. Web Search Block - REMOVED, data moved to citation collection
       // if (oldMessage.metadata?.webSearch?.results?.length) { ... }
-
-      // 7. Tool Blocks (Status based on original mcpTool status)
-      if (oldMessage.metadata?.mcpTools?.length) {
-        oldMessage.metadata.mcpTools.forEach((mcpTool) => {
-          const block = createToolBlock(oldMessage.id, mcpTool.id, {
-            // Determine status based on original tool status
-            status: MessageBlockStatus.SUCCESS,
-            content: mcpTool.response,
-            error:
-              mcpTool.status !== 'done'
-                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status }
-                : undefined,
-            createdAt: oldMessage.createdAt,
-            metadata: { rawMcpToolResponse: mcpTool }
-          })
-          blocksToCreate.push(block)
-          messageBlockIds.push(block.id)
-        })
-      }
 
       // 8. Collect Citation and Reference Data (Simplified: Independent checks)
       if (oldMessage.metadata?.groundingMetadata) {

@@ -8,13 +8,11 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isGrokReasoningModel, isSupportedReasoningEffortModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -52,9 +50,9 @@ import {
   TranslateLanguageVarious
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, InputNumber, Row, Segmented, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -72,7 +70,6 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -127,17 +124,9 @@ const SettingsTab: FC<Props> = (props) => {
     }
   }
 
-  const onReasoningEffortChange = useCallback(
-    (value?: 'low' | 'medium' | 'high') => {
-      updateAssistantSettings({ reasoning_effort: value })
-    },
-    [updateAssistantSettings]
-  )
-
   const onReset = () => {
     setTemperature(DEFAULT_TEMPERATURE)
     setContextCount(DEFAULT_CONTEXTCOUNT)
-    setReasoningEffort(undefined)
     updateAssistant({
       ...assistant,
       settings: {
@@ -148,7 +137,6 @@ const SettingsTab: FC<Props> = (props) => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         hideMessages: false,
-        reasoning_effort: undefined,
         customParameters: []
       }
     })
@@ -160,24 +148,7 @@ const SettingsTab: FC<Props> = (props) => {
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
-    setReasoningEffort(assistant?.settings?.reasoning_effort)
   }, [assistant])
-
-  useEffect(() => {
-    // 当是Grok模型时，处理reasoning_effort的设置
-    // For Grok models, only 'low' and 'high' reasoning efforts are supported.
-    // This ensures compatibility with the model's capabilities and avoids unsupported configurations.
-    if (isGrokReasoningModel(assistant?.model || getDefaultModel())) {
-      const currentEffort = assistant?.settings?.reasoning_effort
-      if (!currentEffort || currentEffort === 'low') {
-        setReasoningEffort('low') // Default to 'low' if no effort is set or if it's already 'low'.
-        onReasoningEffortChange('low')
-      } else if (currentEffort === 'medium' || currentEffort === 'high') {
-        setReasoningEffort('high') // Force 'high' for 'medium' or 'high' to simplify the configuration.
-        onReasoningEffortChange('high')
-      }
-    }
-  }, [assistant?.model, assistant?.settings?.reasoning_effort, onReasoningEffortChange])
 
   const formatSliderTooltip = (value?: number) => {
     if (value === undefined) return ''
@@ -293,46 +264,6 @@ const SettingsTab: FC<Props> = (props) => {
               />
             </Col>
           </Row>
-        )}
-        {isSupportedReasoningEffortModel(assistant?.model || getDefaultModel()) && (
-          <>
-            <SettingDivider />
-            <Row align="middle">
-              <Label>{t('assistants.settings.reasoning_effort')}</Label>
-              <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
-                <CircleHelp size={14} color="var(--color-text-2)" />
-              </Tooltip>
-            </Row>
-            <Row align="middle" gutter={10}>
-              <Col span={24}>
-                <SegmentedContainer>
-                  <Segmented
-                    value={reasoningEffort || 'off'}
-                    onChange={(value) => {
-                      const typedValue = value === 'off' ? undefined : (value as 'low' | 'medium' | 'high')
-                      setReasoningEffort(typedValue)
-                      onReasoningEffortChange(typedValue)
-                    }}
-                    options={
-                      isGrokReasoningModel(assistant?.model || getDefaultModel())
-                        ? [
-                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
-                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') }
-                          ]
-                        : [
-                            { value: 'low', label: t('assistants.settings.reasoning_effort.low') },
-                            { value: 'medium', label: t('assistants.settings.reasoning_effort.medium') },
-                            { value: 'high', label: t('assistants.settings.reasoning_effort.high') },
-                            { value: 'off', label: t('assistants.settings.reasoning_effort.off') }
-                          ]
-                    }
-                    name="group"
-                    block
-                  />
-                </SegmentedContainer>
-              </Col>
-            </Row>
-          </>
         )}
       </SettingGroup>
       <SettingGroup>
@@ -704,27 +635,6 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-top: 0;
   border-radius: 8px;
   margin-bottom: 10px;
-`
-
-// Define the styled component with hover state styling
-const SegmentedContainer = styled.div`
-  margin-top: 5px;
-  .ant-segmented-item {
-    font-size: 12px;
-  }
-  .ant-segmented-item-selected {
-    background-color: var(--color-primary) !important;
-    color: white !important;
-  }
-
-  .ant-segmented-item:hover:not(.ant-segmented-item-selected) {
-    background-color: var(--color-primary-bg) !important;
-    color: var(--color-primary) !important;
-  }
-
-  .ant-segmented-thumb {
-    background-color: var(--color-primary) !important;
-  }
 `
 
 const StyledSelect = styled(Select)`

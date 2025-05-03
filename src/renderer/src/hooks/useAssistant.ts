@@ -17,7 +17,7 @@ import {
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { TopicManager } from './useTopic'
 
@@ -84,11 +84,12 @@ export function useAssistant(id: string) {
 export function useDefaultAssistant() {
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
   const dispatch = useAppDispatch()
+  const memoizedTopics = useMemo(() => [getDefaultTopic(defaultAssistant.id)], [defaultAssistant.id])
 
   return {
     defaultAssistant: {
       ...defaultAssistant,
-      topics: [getDefaultTopic(defaultAssistant.id)]
+      topics: memoizedTopics
     },
     updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
   }
