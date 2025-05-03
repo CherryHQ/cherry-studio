@@ -9,7 +9,7 @@ import { Model } from '@renderer/types'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -144,7 +144,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   )
 
   // 构建扁平化列表数据
-  const flatListItems = useCallback(() => {
+  const listItems = useMemo(() => {
     const items: FlatListItem[] = []
 
     // 添加置顶模型分组（仅在无搜索文本时）
@@ -190,9 +190,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
     return items
   }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
-
-  // 计算列表项
-  const listItems = flatListItems()
 
   // 获取可选择的模型项（过滤掉分组标题）
   const getSelectableItems = useCallback(() => {
