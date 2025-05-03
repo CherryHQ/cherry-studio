@@ -8,7 +8,7 @@ import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -160,8 +160,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     })
   }
 
-  const onSelectModel = async () => {
-    const selectedModel = await SelectModelPopup.show({ model: assistant?.model })
+  const onSelectModel = useCallback(async () => {
+    const currentModel = defaultModel ? assistant?.model : undefined
+    const selectedModel = await SelectModelPopup.show({ model: currentModel })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({
@@ -170,7 +171,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         defaultModel: selectedModel
       })
     }
-  }
+  }, [assistant, defaultModel, updateAssistant])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
