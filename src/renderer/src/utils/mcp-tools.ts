@@ -228,7 +228,7 @@ export async function callMCPTool(tool: MCPTool): Promise<MCPCallToolResponse> {
       content: [
         {
           type: 'text',
-          text: `Error calling tool ${tool.name}: ${e instanceof Error ? (e.stack || e.message || "No error details available") : JSON.stringify(e)}`
+          text: `Error calling tool ${tool.name}: ${e instanceof Error ? e.stack || e.message || 'No error details available' : JSON.stringify(e)}`
         }
       ]
     })
@@ -309,18 +309,21 @@ export function upsertMCPToolResponse(
   onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
 ) {
   const index = results.findIndex((ret) => ret.id === resp.id)
+  let result = resp
   if (index !== -1) {
-    results[index] = {
+    const cur = {
       ...results[index],
       response: resp.response,
       status: resp.status
     }
+    results[index] = cur
+    result = cur
   } else {
     results.push(resp)
   }
   onChunk({
     type: resp.status === 'invoking' ? ChunkType.MCP_TOOL_IN_PROGRESS : ChunkType.MCP_TOOL_COMPLETE,
-    responses: results
+    responses: [result]
   })
 }
 

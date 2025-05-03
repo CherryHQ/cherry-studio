@@ -210,6 +210,7 @@ export const FUNCTION_CALLING_MODELS = [
   'o1(?:-[\\w-]+)?',
   'claude',
   'qwen',
+  'qwen3',
   'hunyuan',
   'deepseek',
   'glm-4(?:-[\\w-]+)?',
@@ -2218,12 +2219,32 @@ export function isVisionModel(model: Model): boolean {
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
 }
 
-export function isOpenAIoSeries(model: Model): boolean {
+export function isOpenAIReasoningModel(model: Model): boolean {
   return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
+}
+
+export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
+  return (
+    (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
+    model.id.includes('o3') ||
+    model.id.includes('o4')
+  )
 }
 
 export function isOpenAIWebSearch(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
+}
+
+export function isSupportedThinkingTokenModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return (
+    isSupportedThinkingTokenGeminiModel(model) ||
+    isSupportedThinkingTokenQwenModel(model) ||
+    isSupportedThinkingTokenClaudeModel(model)
+  )
 }
 
 export function isSupportedReasoningEffortModel(model?: Model): boolean {
@@ -2231,17 +2252,7 @@ export function isSupportedReasoningEffortModel(model?: Model): boolean {
     return false
   }
 
-  if (
-    model.id.includes('claude-3-7-sonnet') ||
-    model.id.includes('claude-3.7-sonnet') ||
-    isOpenAIoSeries(model) ||
-    isGrokReasoningModel(model) ||
-    isGemini25ReasoningModel(model)
-  ) {
-    return true
-  }
-
-  return false
+  return isSupportedReasoningEffortOpenAIModel(model) || isSupportedReasoningEffortGrokModel(model)
 }
 
 export function isGrokModel(model?: Model): boolean {
@@ -2263,7 +2274,9 @@ export function isGrokReasoningModel(model?: Model): boolean {
   return false
 }
 
-export function isGemini25ReasoningModel(model?: Model): boolean {
+export const isSupportedReasoningEffortGrokModel = isGrokReasoningModel
+
+export function isGeminiReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
@@ -2275,6 +2288,51 @@ export function isGemini25ReasoningModel(model?: Model): boolean {
   return false
 }
 
+export const isSupportedThinkingTokenGeminiModel = isGeminiReasoningModel
+
+export function isQwenReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  if (isSupportedThinkingTokenQwenModel(model)) {
+    return true
+  }
+
+  if (model.id.includes('qwq') || model.id.includes('qvq')) {
+    return true
+  }
+
+  return false
+}
+
+export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return (
+    model.id.includes('qwen3') ||
+    [
+      'qwen-plus-latest',
+      'qwen-plus-0428',
+      'qwen-plus-2025-04-28',
+      'qwen-turbo-latest',
+      'qwen-turbo-0428',
+      'qwen-turbo-2025-04-28'
+    ].includes(model.id)
+  )
+}
+
+export function isClaudeReasoningModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
+}
+
+export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
+
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
@@ -2284,15 +2342,14 @@ export function isReasoningModel(model?: Model): boolean {
     return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
   }
 
-  if (model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet') || isOpenAIoSeries(model)) {
-    return true
-  }
-
-  if (isGemini25ReasoningModel(model)) {
-    return true
-  }
-
-  if (model.id.includes('glm-z1')) {
+  if (
+    isClaudeReasoningModel(model) ||
+    isOpenAIReasoningModel(model) ||
+    isGeminiReasoningModel(model) ||
+    isQwenReasoningModel(model) ||
+    isGrokReasoningModel(model) ||
+    model.id.includes('glm-z1')
+  ) {
     return true
   }
 
@@ -2486,4 +2543,28 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
     },
     {} as Record<string, Model[]>
   )
+}
+
+export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
+  // Gemini models
+  'gemini-.*$': { min: 0, max: 24576 },
+
+  // Qwen models
+  'qwen-plus-.*$': { min: 0, max: 38912 },
+  'qwen-turbo-.*$': { min: 0, max: 38912 },
+  'qwen3-0\\.6b$': { min: 0, max: 30720 },
+  'qwen3-1\\.7b$': { min: 0, max: 30720 },
+  'qwen3-.*$': { min: 0, max: 38912 },
+
+  // Claude models
+  'claude-3[.-]7.*sonnet.*$': { min: 0, max: 64000 }
+}
+
+export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
+  for (const [pattern, limits] of Object.entries(THINKING_TOKEN_MAP)) {
+    if (new RegExp(pattern).test(modelId)) {
+      return limits
+    }
+  }
+  return undefined
 }

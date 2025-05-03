@@ -1,11 +1,9 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getAssistantMessage } from '@renderer/services/MessagesService'
+import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { Assistant } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { last } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useRef } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -21,8 +19,8 @@ interface ContainerProps {
 }
 
 const Messages: FC<Props> = ({ assistant, route }) => {
-  const [messages, setMessages] = useState<Message[]>([])
-
+  // const [messages, setMessages] = useState<Message[]>([])
+  const messages = useTopicMessages(assistant.topics[0])
   const containerRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
 
@@ -30,25 +28,23 @@ const Messages: FC<Props> = ({ assistant, route }) => {
 
   messagesRef.current = messages
 
-  const onSendMessage = useCallback(
-    async (message: Message) => {
-      setMessages((prev) => {
-        const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
-        const messages = prev.concat([message, assistantMessage])
-        return messages
-      })
-    },
-    [assistant]
-  )
+  // const onSendMessage = useCallback(
+  //   async (message: Message) => {
+  //     setMessages((prev) => {
+  // const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
+  // store.dispatch(newMessagesActions.addMessage({ topicId: assistant.topics[0].id, message: assistantMessage }))
 
-  const onGetMessages = useCallback(() => {
-    return messagesRef.current
-  }, [])
+  //       const messages = prev.concat([message, assistantMessage])
+  //       return messages
+  //     })
+  //   },
+  //   [assistant]
+  // )
 
-  useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, onSendMessage)]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [assistant.id, onSendMessage])
+  // useEffect(() => {
+  //   const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, onSendMessage)]
+  //   return () => unsubscribes.forEach((unsub) => unsub())
+  // }, [assistant.id])
 
   useHotkeys('c', () => {
     const lastMessage = last(messages)
@@ -58,19 +54,10 @@ const Messages: FC<Props> = ({ assistant, route }) => {
       window.message.success(t('message.copy.success'))
     }
   })
-
   return (
     <Container id="messages" key={assistant.id} ref={containerRef}>
       {[...messages].reverse().map((message, index) => (
-        <MessageItem
-          key={message.id}
-          message={message}
-          index={index}
-          total={messages.length}
-          onSetMessages={setMessages}
-          onGetMessages={onGetMessages}
-          route={route}
-        />
+        <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
       ))}
     </Container>
   )

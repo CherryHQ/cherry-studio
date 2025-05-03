@@ -146,7 +146,7 @@ const MessageItem: FC<Props> = ({
         className="message-content-container"
         style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
         <MessageErrorBoundary>
-          <MessageContent message={message} model={model} />
+          <MessageContent message={message} />
         </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter

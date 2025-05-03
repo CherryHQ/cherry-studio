@@ -43,7 +43,7 @@ export default abstract class BaseProvider {
   abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
   abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
   abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
-  abstract check(model: Model): Promise<{ valid: boolean; error: Error | null }>
+  abstract check(model: Model, stream: boolean): Promise<{ valid: boolean; error: Error | null }>
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>

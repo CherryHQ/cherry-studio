@@ -6,7 +6,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, Divider, Input, InputNumber, Radio, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,7 +23,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
-  const [reasoningEffort, setReasoningEffort] = useState(assistant?.settings?.reasoning_effort)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
@@ -41,10 +40,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     if (!isNaN(value as number)) {
       updateAssistantSettings({ temperature: value })
     }
-  }
-
-  const onReasoningEffortChange = (value) => {
-    updateAssistantSettings({ reasoning_effort: value })
   }
 
   const onContextCountChange = (value) => {
@@ -153,7 +148,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setMaxTokens(0)
     setStreamOutput(true)
     setTopP(1)
-    setReasoningEffort(undefined)
     setCustomParameters([])
     updateAssistantSettings({
       temperature: DEFAULT_TEMPERATURE,
@@ -162,7 +156,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       maxTokens: 0,
       streamOutput: true,
       topP: 1,
-      reasoning_effort: undefined,
       customParameters: []
     })
   }
@@ -381,27 +374,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             updateAssistantSettings({ streamOutput: checked })
           }}
         />
-      </SettingRow>
-      <Divider style={{ margin: '10px 0' }} />
-      <SettingRow style={{ minHeight: 30 }}>
-        <Label>
-          {t('assistants.settings.reasoning_effort')}{' '}
-          <Tooltip title={t('assistants.settings.reasoning_effort.tip')}>
-            <QuestionIcon />
-          </Tooltip>
-        </Label>
-        <Radio.Group
-          value={reasoningEffort}
-          buttonStyle="solid"
-          onChange={(e) => {
-            setReasoningEffort(e.target.value)
-            onReasoningEffortChange(e.target.value)
-          }}>
-          <Radio.Button value="low">{t('assistants.settings.reasoning_effort.low')}</Radio.Button>
-          <Radio.Button value="medium">{t('assistants.settings.reasoning_effort.medium')}</Radio.Button>
-          <Radio.Button value="high">{t('assistants.settings.reasoning_effort.high')}</Radio.Button>
-          <Radio.Button value={undefined}>{t('assistants.settings.reasoning_effort.off')}</Radio.Button>
-        </Radio.Group>
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>

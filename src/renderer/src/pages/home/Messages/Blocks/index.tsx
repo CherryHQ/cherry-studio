@@ -1,6 +1,5 @@
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { Model } from '@renderer/types'
 import type {
   ErrorMessageBlock,
   FileMessageBlock,
@@ -15,6 +14,7 @@ import type {
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import React from 'react'
 import { useSelector } from 'react-redux'
+import styled from 'styled-components'
 
 import CitationBlock from './CitationBlock'
 import ErrorBlock from './ErrorBlock'
@@ -28,21 +28,46 @@ import TranslationBlock from './TranslationBlock'
 
 interface Props {
   blocks: MessageBlock[] | string[] // 可以接收块ID数组或MessageBlock数组
-  model?: Model
   messageStatus?: Message['status']
   message: Message
 }
 
-const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
+const filterImageBlockGroups = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
+  return blocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
+    if (currentBlock.type === MessageBlockType.IMAGE) {
+      const prevGroup = acc[acc.length - 1]
+      if (Array.isArray(prevGroup) && prevGroup[0].type === MessageBlockType.IMAGE) {
+        prevGroup.push(currentBlock)
+      } else {
+        acc.push([currentBlock])
+      }
+    } else {
+      acc.push(currentBlock)
+    }
+    return acc
+  }, [])
+}
+
+const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // 始终调用useSelector，避免条件调用Hook
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  // if (!blocks || blocks.length === 0) return null
-
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+  const groupedBlocks = filterImageBlockGroups(renderedBlocks)
+
   return (
     <>
-      {renderedBlocks.map((block) => {
+      {groupedBlocks.map((block) => {
+        if (Array.isArray(block)) {
+          return (
+            <ImageBlockGroup key={block.map((imageBlock) => imageBlock.id).join('-')}>
+              {block.map((imageBlock) => (
+                <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
+              ))}
+            </ImageBlockGroup>
+          )
+        }
+
         switch (block.type) {
           case MessageBlockType.UNKNOWN:
             if (block.status === MessageBlockStatus.PROCESSING) {
@@ -61,7 +86,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
               <MainTextBlock
                 key={block.id}
                 block={mainTextBlock}
-                model={model}
                 // Pass only the ID string
                 citationBlockId={citationBlockId}
                 role={message.role}
@@ -95,3 +119,18 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
 }
 
 export default React.memo(MessageBlockRenderer)
+
+const ImageBlockGroup = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 8px 0;
+  > * {
+    flex: 0 0 auto;
+    min-width: 200px;
+    max-width: calc(33.33% - 8px);
+  }
+`

@@ -10,67 +10,13 @@ class ContextMenu {
     w.webContents.session.setSpellCheckerLanguages([locale])
 
     w.webContents.on('context-menu', (_event, properties) => {
-      const template: MenuItemConstructorOptions[] = [
-        ...this.createDictionarySuggestions(properties, w),
-        { type: 'separator' },
-        this.createSpellCheckMenuItem(properties, w),
-        { type: 'separator' },
-        ...this.createEditMenuItems(properties)
-      ]
-      const filtered = this.removeInvisibleItems(template)
+      const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
+      const filtered = template.filter((item) => item.visible !== false)
       if (filtered.length > 0) {
-        // Sets the spellchecker to check English US and French
         const menu = Menu.buildFromTemplate(filtered)
-        menu.popup({})
+        menu.popup()
       }
     })
-  }
-
-  private createDictionarySuggestions(
-    properties: Electron.ContextMenuParams,
-    win: Electron.BrowserWindow
-  ): MenuItemConstructorOptions[] {
-    const hasText = properties.selectionText.length > 0
-
-    if (!hasText || !properties.misspelledWord) {
-      return []
-    }
-
-    if (properties.dictionarySuggestions.length === 0) {
-      return [
-        {
-          id: 'dictionarySuggestions',
-          label: 'No Guesses Found',
-          visible: true,
-          enabled: false
-        }
-      ]
-    }
-
-    return properties.dictionarySuggestions.map((suggestion) => ({
-      id: 'dictionarySuggestions',
-      label: suggestion,
-      visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
-      click: (menuItem: Electron.MenuItem) => {
-        win.webContents.replaceMisspelling(menuItem.label)
-      }
-    }))
-  }
-
-  private createSpellCheckMenuItem(
-    properties: Electron.ContextMenuParams,
-    mainWindow: Electron.BrowserWindow
-  ): MenuItemConstructorOptions {
-    const hasText = properties.selectionText.length > 0
-
-    return {
-      id: 'learnSpelling',
-      label: '&Learn Spelling',
-      visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
-      click: () => {
-        mainWindow.webContents.session.addWordToSpellCheckerDictionary(properties.misspelledWord)
-      }
-    }
   }
 
   private createEditMenuItems(properties: Electron.ContextMenuParams): MenuItemConstructorOptions[] {
@@ -112,27 +58,6 @@ class ContextMenu {
     })
 
     return template
-  }
-
-  private removeInvisibleItems(template: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] {
-    const filtered = template.filter((item) => item.visible !== false)
-
-    return filtered.reduce((acc, curr, index, arr) => {
-      if (index === 0 && curr.type === 'separator') {
-        return acc
-      }
-
-      if (curr.type === 'separator' && arr[index - 1]?.type === 'separator') {
-        return acc
-      }
-
-      if (index === arr.length - 1 && curr.type === 'separator') {
-        return acc
-      }
-
-      acc.push(curr)
-      return acc
-    }, [] as MenuItemConstructorOptions[])
   }
 }
 

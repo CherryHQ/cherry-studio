@@ -90,14 +90,16 @@ const MessageImage: FC<Props> = ({ block }) => {
   const images = block.metadata?.generateImageResponse?.images?.length
     ? block.metadata?.generateImageResponse?.images
     : // TODO 加file是否合适？
-      [`file://${block?.file?.path}`]
+      block?.file?.path
+      ? [`file://${block?.file?.path}`]
+      : []
   return (
     <Container style={{ marginBottom: 8 }}>
       {images.map((image, index) => (
         <Image
           src={image}
           key={`image-${index}`}
-          width="33%"
+          height={200}
           preview={{
             toolbarRender: (
               _,
@@ -129,15 +131,21 @@ const Container = styled.div`
   flex-direction: row;
   gap: 10px;
   margin-top: 8px;
+  width: auto;
 `
 const Image = styled(AntdImage)`
-  border-radius: 10px;
+  padding: 5px;
+  border-radius: 8px;
+
+  .ant-image-img {
+    width: auto;
+  }
 `
 const ToobarWrapper = styled(Space)`
   padding: 0px 24px;
   color: #fff;
   font-size: 20px;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(238, 233, 233, 0.1);
   border-radius: 100px;
   .anticon {
     padding: 12px;

@@ -26,7 +26,6 @@ const encodeHTML = (str: string): string => {
 interface Props {
   block: MainTextMessageBlock
   citationBlockId?: string
-  model?: Model
   mentions?: Model[]
   role: Message['role']
 }
