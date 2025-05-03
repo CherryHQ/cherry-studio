@@ -437,15 +437,23 @@ const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
   padding: 0 8px;
   margin: 1px 12px 1px 8px;
   height: ${ITEM_HEIGHT - 2}px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  background-color: ${(props) => {
-    if (props.$isSelected && props.$isFocused) return 'var(--color-primary-mute)'
-    if (props.$isSelected) return 'var(--color-background-mute)'
-    if (props.$isFocused) return 'var(--color-background-soft)'
-    return 'transparent'
-  }};
   transition: background-color 0.3s;
+  background-color: ${(props) => (props.$isFocused ? 'var(--color-background-mute)' : 'transparent')};
+
+  // 选中状态下显示左侧竖条
+  &::before {
+    content: '';
+    display: ${(props) => (props.$isSelected ? 'block' : 'none')};
+    position: absolute;
+    left: 0;
+    top: 10%;
+    width: 2px;
+    height: 80%;
+    background: var(--color-primary-soft);
+    border-radius: 2px;
+  }
 
   .pin-icon {
     opacity: 0;
