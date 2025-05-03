@@ -16,6 +16,8 @@ import {
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { convertLinksMiddleware } from '@renderer/middleware/convertLinksMiddleware'
+import { extractReasoningMiddleware } from '@renderer/middleware/extractReasoningMiddleware'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -42,15 +44,10 @@ import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
-import {
-  convertLinks,
-  convertLinksToHunyuan,
-  convertLinksToOpenRouter,
-  convertLinksToZhipu
-} from '@renderer/utils/linkConverter'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
+import { asyncGeneratorToReadableStream, readableStreamAsyncIterable } from '@renderer/utils/stream'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI, toFile } from 'openai'
 import {
@@ -62,6 +59,11 @@ import { FileLike } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
+
+// 1. 定义联合类型
+export type OpenAIStreamChunk =
+  | { type: 'reasoning' | 'text-delta'; textDelta: string }
+  | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
 
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
@@ -390,42 +392,6 @@ export default class OpenAIProvider extends BaseProvider {
       return streamOutput
     }
 
-    let hasReasoningContent = false
-    let lastChunk = ''
-    const isReasoningJustDone = (
-      delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
-        reasoning_content?: string
-        reasoning?: string
-        thinking?: string
-      }
-    ) => {
-      if (!delta?.content) return false
-
-      // 检查当前chunk和上一个chunk的组合是否形成###Response标记
-      const combinedChunks = lastChunk + delta.content
-      lastChunk = delta.content
-
-      // 检测思考结束
-      if (combinedChunks.includes('###Response') || delta.content === '</think>') {
-        return true
-      }
-
-      // 如果有reasoning_content或reasoning，说明是在思考中
-      if (delta?.reasoning_content || delta?.reasoning || delta?.thinking) {
-        hasReasoningContent = true
-      }
-
-      // 如果之前有reasoning_content或reasoning，现在有普通content，说明思考结束
-      if (hasReasoningContent && delta.content) {
-        return true
-      }
-
-      return false
-    }
-
-    let time_first_token_millsec = 0
-    let time_first_token_millsec_delta = 0
-    let time_first_content_millsec = 0
     const start_time_millsec = new Date().getTime()
     console.log(
       `completions start_time_millsec ${new Date(start_time_millsec).toLocaleString(undefined, {
@@ -500,7 +466,6 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const processStream = async (stream: any, idx: number) => {
-      // Handle non-streaming case (already returns early, no change needed here)
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
         // Calculate final metrics once
@@ -522,198 +487,172 @@ export default class OpenAIProvider extends BaseProvider {
         return
       }
 
-      let content = '' // Accumulate content for tool processing if needed
+      let content = ''
       let thinkingContent = ''
-      // 记录最终的完成时间差
       let final_time_completion_millsec_delta = 0
       let final_time_thinking_millsec_delta = 0
-      // Variable to store the last received usage object
       let lastUsage: Usage | undefined = undefined
-      // let isThinkingInContent: ThoughtProcessor | undefined = undefined
-      // const processThinkingChunk = this.handleThinkingTags()
       let isFirstChunk = true
-      let isFirstThinkingChunk = true
-      for await (const chunk of stream) {
-        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-          break
-        }
+      let time_first_token_millsec = 0
+      let time_first_token_millsec_delta = 0
+      let time_first_content_millsec = 0
+      let time_thinking_start = 0
 
-        const delta = chunk.choices[0]?.delta
-        const finishReason = chunk.choices[0]?.finish_reason
+      // 1. 初始化中间件
+      const reasoningTags = [
+        { tagName: 'think', separator: '\n' },
+        { tagName: 'reasoning', separator: '\n' }
+      ]
+      const getAppropriateTag = (model: Model | undefined) => {
+        if (!model) return reasoningTags[0]
+        if (model.id.includes('claude')) return reasoningTags[0]
+        return reasoningTags[0]
+      }
+      const reasoningTag = getAppropriateTag(model)
 
-        // --- Incremental onChunk calls ---
-
-        // 1. Reasoning Content
-        const reasoningContent = delta?.reasoning_content || delta?.reasoning
-        const currentTime = new Date().getTime() // Get current time for each chunk
-
-        if (time_first_token_millsec === 0 && isFirstThinkingChunk && reasoningContent) {
-          // 记录第一个token的时间
-          time_first_token_millsec = currentTime
-          // 记录第一个token的时间差
-          time_first_token_millsec_delta = currentTime - start_time_millsec
-          console.log(
-            `completions time_first_token_millsec ${new Date(currentTime).toLocaleString(undefined, {
-              year: 'numeric',
-              month: 'numeric',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: 'numeric',
-              second: 'numeric',
-              fractionalSecondDigits: 3
-            })}`
-          )
-          isFirstThinkingChunk = false
-        }
-        if (reasoningContent) {
-          thinkingContent += reasoningContent
-          hasReasoningContent = true // Keep track if reasoning occurred
-
-          // Calculate thinking time as time elapsed since start until this chunk
-          const thinking_time = currentTime - time_first_token_millsec
-          onChunk({ type: ChunkType.THINKING_DELTA, text: reasoningContent, thinking_millsec: thinking_time })
-        }
-
-        if (isReasoningJustDone(delta)) {
-          if (time_first_content_millsec === 0) {
-            time_first_content_millsec = currentTime
-            final_time_thinking_millsec_delta = time_first_content_millsec - time_first_token_millsec
-            onChunk({
-              type: ChunkType.THINKING_COMPLETE,
-              text: thinkingContent,
-              thinking_millsec: final_time_thinking_millsec_delta
-            })
-
-            thinkingContent = ''
-            isFirstThinkingChunk = true
-            hasReasoningContent = false
+      async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
+        for await (const chunk of stream) {
+          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+            break
+          }
+          const delta = chunk.choices[0]?.delta
+          if (delta?.reasoning_content || delta?.reasoning) {
+            yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+          }
+          if (delta?.content) {
+            yield { type: 'text-delta', textDelta: delta.content }
+          }
+          const finishReason = chunk.choices[0]?.finish_reason
+          if (!isEmpty(finishReason)) {
+            yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+            break
           }
         }
+      }
 
-        // 2. Text Content
-        if (delta?.content) {
-          if (assistant.enableWebSearch) {
-            if (delta?.annotations) {
-              delta.content = convertLinks(delta.content || '', isFirstChunk)
-            } else if (assistant.model?.provider === 'openrouter') {
-              delta.content = convertLinksToOpenRouter(delta.content || '', isFirstChunk)
-            } else if (isZhipuModel(assistant.model)) {
-              delta.content = convertLinksToZhipu(delta.content || '', isFirstChunk)
-            } else if (isHunyuanSearchModel(assistant.model)) {
-              delta.content = convertLinksToHunyuan(
-                delta.content || '',
-                chunk.search_info.search_results || [],
-                isFirstChunk
-              )
-            }
-          }
-          // 说明前面没有思考内容
-          if (isFirstChunk && time_first_token_millsec === 0 && time_first_token_millsec_delta === 0) {
-            isFirstChunk = false
-            time_first_token_millsec = currentTime
-            time_first_token_millsec_delta = time_first_token_millsec - start_time_millsec
-          }
-          content += delta.content // Still accumulate for processToolUses
-
-          // isThinkingInContent = this.findThinkingProcessor(content, model)
-          // if (isThinkingInContent) {
-          //   processThinkingChunk(content, isThinkingInContent, onChunk)
-          onChunk({ type: ChunkType.TEXT_DELTA, text: delta.content })
-          // } else {
-          // }
-        }
-        // console.log('delta?.finish_reason', delta?.finish_reason)
-        if (!isEmpty(finishReason)) {
-          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-          final_time_completion_millsec_delta = currentTime - start_time_millsec
-          console.log(
-            `completions final_time_completion_millsec ${new Date(currentTime).toLocaleString(undefined, {
-              year: 'numeric',
-              month: 'numeric',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: 'numeric',
-              second: 'numeric',
-              fractionalSecondDigits: 3
-            })}`
-          )
-          // 6. Usage (If provided per chunk) - Capture the last known usage
-          if (chunk.usage) {
-            // console.log('chunk.usage', chunk.usage)
-            lastUsage = chunk.usage // Update with the latest usage info
-            // Send incremental usage update if needed by UI (optional, keep if useful)
-            // onChunk({ type: 'block_in_progress', response: { usage: chunk.usage } })
-          }
-
-          // 3. Web Search
-          if (delta?.annotations) {
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: delta.annotations,
-                source: WebSearchSource.OPENAI
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
-
-          if (assistant.model?.provider === 'perplexity') {
-            const citations = chunk.citations
-            if (citations) {
-              onChunk({
-                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                llm_web_search: {
-                  results: citations,
-                  source: WebSearchSource.PERPLEXITY
-                }
-              } as LLMWebSearchCompleteChunk)
-            }
-          }
-          if (isEnabledWebSearch && isZhipuModel(model) && finishReason === 'stop' && chunk?.web_search) {
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: chunk.web_search,
-                source: WebSearchSource.ZHIPU
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
-          if (isEnabledWebSearch && isHunyuanSearchModel(model) && chunk?.search_info?.search_results) {
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: chunk.search_info.search_results,
-                source: WebSearchSource.HUNYUAN
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
-        }
-
-        // --- End of Incremental onChunk calls ---
-      } // End of for await loop
-
-      // Call processToolUses AFTER the loop finishes processing the main stream content
-      // Note: parseAndCallTools inside processToolUses should handle its own onChunk for tool responses
-      await processToolUses(content, idx)
-
-      // Send the final block_complete chunk with accumulated data
-      onChunk({
-        type: ChunkType.BLOCK_COMPLETE,
-        response: {
-          // Use the enhanced usage object
-          usage: lastUsage,
-          metrics: {
-            // Get completion tokens from the last usage object if available
-            completion_tokens: lastUsage?.completion_tokens,
-            time_completion_millsec: final_time_completion_millsec_delta,
-            time_first_token_millsec: time_first_token_millsec_delta,
-            time_thinking_millsec: final_time_thinking_millsec_delta
-          }
-        }
+      // 2. 使用中间件
+      const { stream: reasoningStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
+        tagName: reasoningTag.tagName,
+        separator: reasoningTag.separator,
+        startWithReasoning: false
+      }).wrapStream({
+        doStream: async () => ({
+          stream: asyncGeneratorToReadableStream(openAIChunkToTextDelta(stream))
+        })
       })
 
-      // FIXME: 临时方案，重置时间戳和思考内容
-      time_first_token_millsec = 0
-      time_first_content_millsec = 0
+      const { stream: processedStream } = await convertLinksMiddleware<OpenAIStreamChunk>().wrapStream({
+        doStream: async () => ({ stream: reasoningStream })
+      })
+
+      // 3. 消费 processedStream，分发 onChunk
+      for await (const chunk of readableStreamAsyncIterable(processedStream)) {
+        const currentTime = new Date().getTime()
+        switch (chunk.type) {
+          case 'reasoning': {
+            if (time_thinking_start === 0) {
+              time_thinking_start = currentTime
+              time_first_token_millsec = currentTime
+              time_first_token_millsec_delta = currentTime - start_time_millsec
+            }
+            thinkingContent += chunk.textDelta
+            const thinking_time = currentTime - time_thinking_start
+            onChunk({ type: ChunkType.THINKING_DELTA, text: chunk.textDelta, thinking_millsec: thinking_time })
+            break
+          }
+          case 'text-delta': {
+            if (isFirstChunk) {
+              isFirstChunk = false
+              if (time_first_token_millsec === 0) {
+                time_first_token_millsec = currentTime
+                time_first_token_millsec_delta = currentTime - start_time_millsec
+              }
+            }
+            content += chunk.textDelta
+            // 推理转正文的分界点
+            if (time_thinking_start > 0 && time_first_content_millsec === 0) {
+              time_first_content_millsec = currentTime
+              final_time_thinking_millsec_delta = time_first_content_millsec - time_thinking_start
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinkingContent,
+                thinking_millsec: final_time_thinking_millsec_delta
+              })
+            }
+            onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.textDelta })
+            break
+          }
+          case 'finish': {
+            // 处理 finishReason、usage、websearch
+            const finishReason = chunk.finishReason
+            const usage = chunk.usage
+            const delta = chunk.delta
+            const rawChunk = chunk.chunk
+            const currentTime = new Date().getTime()
+            if (!isEmpty(finishReason)) {
+              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              final_time_completion_millsec_delta = currentTime - start_time_millsec
+              if (usage) {
+                lastUsage = usage
+              }
+              if (delta?.annotations) {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: delta.annotations,
+                    source: WebSearchSource.OPENAI
+                  }
+                } as LLMWebSearchCompleteChunk)
+              }
+              if (assistant.model?.provider === 'perplexity') {
+                const citations = rawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.PERPLEXITY
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
+              }
+              if (isEnabledWebSearch && isZhipuModel(model) && finishReason === 'stop' && rawChunk?.web_search) {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: rawChunk.web_search,
+                    source: WebSearchSource.ZHIPU
+                  }
+                } as LLMWebSearchCompleteChunk)
+              }
+              if (isEnabledWebSearch && isHunyuanSearchModel(model) && rawChunk?.search_info?.search_results) {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: rawChunk.search_info.search_results,
+                    source: WebSearchSource.HUNYUAN
+                  }
+                } as LLMWebSearchCompleteChunk)
+              }
+            }
+            // 5. 工具调用和最终 block_complete
+            await processToolUses(content, idx)
+            onChunk({
+              type: ChunkType.BLOCK_COMPLETE,
+              response: {
+                usage: lastUsage,
+                metrics: {
+                  completion_tokens: lastUsage?.completion_tokens,
+                  time_completion_millsec: final_time_completion_millsec_delta,
+                  time_first_token_millsec: time_first_token_millsec_delta,
+                  time_thinking_millsec: final_time_thinking_millsec_delta
+                }
+              }
+            })
+            break
+          }
+        }
+      }
     }
 
     console.debug('[completions] reqMessages before processing', model.id, reqMessages)
