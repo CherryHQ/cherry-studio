@@ -16,6 +16,7 @@ import styled from 'styled-components'
 import { HStack } from '../Layout'
 import ModelTagsWithLabel from '../ModelTagsWithLabel'
 
+const PAGE_SIZE = 9
 const ITEM_HEIGHT = 36
 
 // 列表项类型，组名也作为列表项
@@ -305,6 +306,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     open && setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
 
+  const listHeight = useMemo(() => {
+    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
+  }, [listItems.length])
+
   return (
     <Modal
       centered
@@ -357,7 +362,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           ref={listRef}
           data={listItems}
           itemKey="key"
-          height={9 * ITEM_HEIGHT} // 显示9个模型
+          height={listHeight}
           itemHeight={ITEM_HEIGHT}
           overscan={4}
           smoothScroll={true}
