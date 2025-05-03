@@ -114,14 +114,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     (model: Model, provider: any, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
       const key = isPinned ? `${modelId}_pinned` : modelId
-      const providerName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
-
-      const fullName = isPinned ? `${model.name} | ${providerName}` : model.name
+      const groupName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
 
       return {
         key,
         type: 'model',
-        name: <ModelName>{fullName}</ModelName>,
+        name: (
+          <ModelName>
+            {model.name}
+            {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+          </ModelName>
+        ),
         tags: (
           <TagsContainer>
             <ModelTagsWithLabel model={model} size={11} showLabel={false} />
@@ -450,7 +453,6 @@ const ModelItemLeft = styled.div`
 `
 
 const ModelName = styled.span`
-  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
