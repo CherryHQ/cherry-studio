@@ -51,6 +51,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const [selectedItemKey, setSelectedItemKey] = useState<string>('')
   const [focusedItemKey, setFocusedItemKey] = useState<string>('')
+  const [isMouseOver, setIsMouseOver] = useState(false)
   const listRef = useRef<ListRef>(null)
   const hasAutoSelected = useRef(false)
   const hasAutoScrolled = useRef(false)
@@ -243,6 +244,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         return
       }
 
+      // 键盘操作时禁用鼠标 hover
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Escape'].includes(e.key)) {
+        setIsMouseOver(false)
+      }
+
       const selectableItems = getSelectableItems()
       if (selectableItems.length === 0) {
         return
@@ -362,59 +368,68 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {/* 虚拟列表 */}
-      {listItems.length > 0 ? (
-        <VirtualList
-          ref={listRef}
-          data={listItems}
-          itemKey="key"
-          height={listHeight}
-          itemHeight={ITEM_HEIGHT}
-          overscan={4}
-          smoothScroll={true}
-          styles={{
-            verticalScrollBar: { background: 'transparent', width: 6 },
-            verticalScrollBarThumb: {
-              background: 'var(--color-scrollbar-thumb)',
-              borderRadius: 4
+      <ListContainer onMouseMove={() => setIsMouseOver(true)}>
+        {listItems.length > 0 ? (
+          <VirtualList
+            ref={listRef}
+            data={listItems}
+            itemKey="key"
+            height={listHeight}
+            itemHeight={ITEM_HEIGHT}
+            overscan={4}
+            smoothScroll={true}
+            styles={{
+              verticalScrollBar: { background: 'transparent', width: 6 },
+              verticalScrollBarThumb: {
+                background: 'var(--color-scrollbar-thumb)',
+                borderRadius: 4
+              }
+            }}
+            style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
+            {(item) =>
+              item.type === 'group' ? (
+                <GroupItem>{item.name}</GroupItem>
+              ) : (
+                <ModelItem
+                  onClick={() => handleItemClick(item)}
+                  $isFocused={item.key === focusedItemKey}
+                  $isSelected={item.key === selectedItemKey}
+                  onMouseEnter={() => {
+                    if (isMouseOver) setFocusedItemKey(item.key)
+                  }}>
+                  <ModelItemLeft>
+                    {item.icon}
+                    {item.name}
+                    {item.tags}
+                  </ModelItemLeft>
+                  <PinIconWrapper
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (item.model) {
+                        togglePin(getModelUniqId(item.model))
+                      }
+                    }}
+                    data-pinned={item.isPinned}
+                    $isPinned={item.isPinned}>
+                    <PushpinOutlined />
+                  </PinIconWrapper>
+                </ModelItem>
+              )
             }
-          }}>
-          {(item) =>
-            item.type === 'group' ? (
-              <GroupItem>{item.name}</GroupItem>
-            ) : (
-              <ModelItem
-                onClick={() => handleItemClick(item)}
-                $isFocused={item.key === focusedItemKey}
-                $isSelected={item.key === selectedItemKey}
-                onMouseEnter={() => setFocusedItemKey(item.key)}>
-                <ModelItemLeft>
-                  {item.icon}
-                  {item.name}
-                  {item.tags}
-                </ModelItemLeft>
-                <PinIconWrapper
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (item.model) {
-                      togglePin(getModelUniqId(item.model))
-                    }
-                  }}
-                  data-pinned={item.isPinned}
-                  $isPinned={item.isPinned}>
-                  <PushpinOutlined />
-                </PinIconWrapper>
-              </ModelItem>
-            )
-          }
-        </VirtualList>
-      ) : (
-        <EmptyState>
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        </EmptyState>
-      )}
+          </VirtualList>
+        ) : (
+          <EmptyState>
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </EmptyState>
+        )}
+      </ListContainer>
     </Modal>
   )
 }
+
+const ListContainer = styled.div`
+  position: relative;
+`
 
 const GroupItem = styled.div`
   font-size: 12px;
