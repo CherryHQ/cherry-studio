@@ -5,8 +5,6 @@ import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
-import { getDefaultModel } from '@renderer/services/AssistantService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
@@ -22,6 +20,7 @@ import { groupTranslations } from './agentGroupTranslations'
 import AddAgentPopup from './components/AddAgentPopup'
 import AgentCard from './components/AgentCard'
 import { AgentGroupIcon } from './components/AgentGroupIcon'
+import ImportAgentPopup from './components/ImportAgentPopup'
 
 const AgentsPage: FC = () => {
   const [search, setSearch] = useState('')
@@ -142,46 +141,7 @@ const AgentsPage: FC = () => {
 
   const handleImportAgent = async () => {
     try {
-      const result = await window.api.file.open({
-        filters: [{ name: 'JSON Files', extensions: ['json'] }]
-      })
-
-      if (result) {
-        console.log(JSON.parse(new TextDecoder('utf-8').decode(result.content)))
-        const agents = JSON.parse(new TextDecoder('utf-8').decode(result.content))
-
-        if (!Array.isArray(agents)) {
-          throw new Error('Invalid format: expected an array of agents')
-        }
-
-        for (const agent of agents) {
-          // Validate required fields
-          if (!agent.id || !agent.name || !agent.prompt) {
-            throw new Error('Invalid agent format: missing required fields')
-          }
-
-          // Create agent with default values for optional fields
-          const newAgent: Agent = {
-            id: uuid(),
-            name: agent.name,
-            emoji: agent.emoji || '🤖',
-            group: agent.group || [],
-            prompt: agent.prompt,
-            description: agent.description || '',
-            type: 'agent',
-            topics: [],
-            messages: [],
-            defaultModel: getDefaultModel()
-          }
-          addAgent(newAgent)
-        }
-        setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-
-        window.message.success({
-          content: t('message.agents.imported'),
-          key: 'agents-imported'
-        })
-      }
+      await ImportAgentPopup.show()
     } catch (error) {
       window.message.error({
         content: error instanceof Error ? error.message : t('message.agents.import.error'),

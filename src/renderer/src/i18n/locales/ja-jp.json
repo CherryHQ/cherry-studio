@@ -10,6 +10,22 @@
       "add.prompt.placeholder": "プロンプトを入力",
       "add.title": "エージェントを作成",
       "import.title": "外部からインポート",
+      "import": {
+        "title": "外部からインポート",
+        "type": {
+          "url": "URL",
+          "file": "ファイル"
+        },
+        "url_placeholder": "JSON URLを入力",
+        "select_file": "ファイルを選択",
+        "button": "インポート",
+        "file_filter": "JSONファイル",
+        "error": {
+          "url_required": "URLを入力してください",
+          "fetch_failed": "URLからのデータ取得に失敗しました",
+          "invalid_format": "無効なエージェント形式：必須フィールドが不足しています"
+        }
+      },
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.message.add.title": "追加",
       "edit.message.assistant.placeholder": "アシスタントのメッセージを入力",

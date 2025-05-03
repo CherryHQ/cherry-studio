@@ -30,7 +30,23 @@
       "tag.default": "По умолчанию",
       "tag.new": "Новый",
       "tag.system": "Система",
-      "title": "Агенты"
+      "title": "Агенты",
+      "import": {
+        "title": "Импорт из внешнего источника",
+        "type": {
+          "url": "URL",
+          "file": "Файл"
+        },
+        "url_placeholder": "Введите URL JSON",
+        "select_file": "Выбрать файл",
+        "button": "Импорт",
+        "file_filter": "JSON файлы",
+        "error": {
+          "url_required": "Пожалуйста, введите URL",
+          "fetch_failed": "Не удалось получить данные по URL",
+          "invalid_format": "Неверный формат агента: отсутствуют обязательные поля"
+        }
+      }
     },
     "assistants": {
       "title": "Ассистенты",
