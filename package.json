@@ -56,7 +56,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@alephpiece/rc-virtual-list": "^3.19.2",
+    "@alephpiece/rc-virtual-list": "^3.19.4",
     "@cherrystudio/embedjs": "^0.1.28",
     "@cherrystudio/embedjs-libsql": "^0.1.28",
     "@cherrystudio/embedjs-loader-csv": "^0.1.28",
