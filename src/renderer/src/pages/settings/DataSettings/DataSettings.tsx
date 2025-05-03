@@ -247,7 +247,6 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-        {menu === 'default_aides' && <DefaultaidesSettings />}
       </SettingContainer>
     </Container>
   )

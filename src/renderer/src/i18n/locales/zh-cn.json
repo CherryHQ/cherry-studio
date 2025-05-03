@@ -1046,11 +1046,6 @@
             "error": "连接异常，请检查网络连接"
           }
         },
-        "default_aides": {
-          "repo_url": "智能体 URL",
-          "repo_url_placeholder": "智能体 URL",
-          "title": "智能体 配置"
-        },
         "nutstore": {
           "title": "坚果云配置",
           "isLogin": "已登录",

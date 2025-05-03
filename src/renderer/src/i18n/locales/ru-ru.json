@@ -1520,11 +1520,6 @@
         "title": "Настройки конфиденциальности",
         "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
-      "default_aides": {
-        "repo_url": "URL агента",
-        "repo_url_placeholder": "URL агента",
-        "title": "Настройки агента"
-      },
       "defaultaides": "Встроенный",
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
