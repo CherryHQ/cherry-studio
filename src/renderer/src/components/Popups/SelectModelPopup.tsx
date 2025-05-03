@@ -50,7 +50,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const [selectedItemKey, setSelectedItemKey] = useState<string>('')
   const listRef = useRef<ListRef>(null)
-  const hasInitSelected = useRef(false)
+  const hasAutoSelected = useRef(false)
+  const hasAutoScrolled = useRef(false)
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
@@ -201,24 +202,28 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
   // 找到当前模型在列表中的索引（只在首次打开时设置）
   useEffect(() => {
-    if (!hasInitSelected.current && currentModelId && listItems.length > 0) {
+    if (!hasAutoSelected.current && currentModelId && listItems.length > 0) {
       const index = listItems.findIndex(
         (item) => item.type === 'model' && getModelUniqId(item.model as Model) === currentModelId
       )
       if (index >= 0) {
         setSelectedItemKey(listItems[index].key)
-        hasInitSelected.current = true
+        hasAutoSelected.current = true
+        hasAutoScrolled.current = false
       }
     }
   }, [currentModelId, listItems])
 
   // 滚动到选中项（高亮项）
   useEffect(() => {
-    if (selectedItemKey) {
-      const actualIndex = listItems.findIndex((item) => item.key === selectedItemKey)
-      if (actualIndex >= 0) {
-        listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
-      }
+    if (!selectedItemKey) return
+    const actualIndex = listItems.findIndex((item) => item.key === selectedItemKey)
+    if (actualIndex < 0) return
+    if (!hasAutoScrolled.current) {
+      listRef.current?.scrollTo({ index: actualIndex, align: 'top' })
+      hasAutoScrolled.current = true
+    } else {
+      listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
     }
   }, [selectedItemKey, listItems])
 
@@ -277,10 +282,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     [open, listItems, selectedItemKey, getSelectableItems, resolve]
   )
 
-  // 搜索文本改变时重置选中状态
+  // 搜索文本改变时重置选中状态和自动选中/滚动状态
   useEffect(() => {
     setSelectedItemKey('')
-    hasInitSelected.current = false
+    hasAutoSelected.current = false
+    hasAutoScrolled.current = false
   }, [searchText])
 
   // 全局事件监听
