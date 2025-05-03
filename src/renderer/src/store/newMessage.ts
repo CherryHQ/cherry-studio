@@ -82,6 +82,7 @@ const messagesSlice = createSlice({
       const { topicId, messages } = action.payload
       messagesAdapter.upsertMany(state, messages)
       state.messageIdsByTopic[topicId] = messages.map((m) => m.id)
+      state.currentTopicId = topicId
     },
     addMessage(state, action: PayloadAction<{ topicId: string; message: Message }>) {
       const { topicId, message } = action.payload
