@@ -6,6 +6,7 @@ import { HashRouter, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
 
 import Sidebar from './components/app/Sidebar'
+import DialogMap from './components/DialogMap'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import StyleSheetManager from './context/StyleSheetManager'
@@ -33,6 +34,7 @@ function App(): React.ReactElement {
                   <HashRouter>
                     <NavigationHandler />
                     <Sidebar />
+                    <DialogMap />
                     <Routes>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/agents" element={<AgentsPage />} />
