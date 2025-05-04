@@ -7,8 +7,10 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { Model } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import { UserMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
@@ -16,8 +18,9 @@ import { Avatar, Spin, Tooltip } from 'antd'
 import { isEqual } from 'lodash'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
+import { v4 as uuidv4 } from 'uuid'
 
 // 定义Tooltip相关样式组件
 const TooltipContent = styled.div`
@@ -99,6 +102,19 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
     }
   }
 
+  const handleAddBranch = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    // 创建一个自定义事件来通知添加分支
+    const customEvent = new CustomEvent('flow-add-branch', {
+      detail: {
+        nodeId: data.id,
+        messageId: data.messageId
+      },
+      bubbles: true
+    })
+    document.dispatchEvent(customEvent)
+  }
+
   // 隐藏连接点的通用样式
   const handleStyle = {
     opacity: 0,
@@ -128,6 +144,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
           boxShadow: `0 4px 10px rgba(0, 0, 0, 0.1), 0 0 0 2px ${borderColor}40`
         }}
         onClick={handleNodeClick}>
+        <PlusButton onClick={handleAddBranch}>+</PlusButton>
         <Handle type="target" position={Position.Top} style={handleStyle} isConnectable={false} />
         <Handle type="target" position={Position.Left} style={handleStyle} isConnectable={false} />
 
@@ -214,6 +231,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
   const [loading, setLoading] = useState(true)
   const { userName } = useSettings()
   const { theme } = useTheme()
+  const dispatch = useDispatch()
 
   const topicId = conversationId
 
@@ -235,7 +253,8 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
           prevMsg.role === nextMsg.role &&
           prevMsg.createdAt === nextMsg.createdAt &&
           prevMsg.askId === nextMsg.askId &&
-          isEqual(prevMsg.model, nextMsg.model)
+          isEqual(prevMsg.model, nextMsg.model) &&
+          prevMsg.branchId === nextMsg.branchId
         )
       })
     }
@@ -261,6 +280,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
     // 布局参数
     const verticalGap = 100 // 用户消息之间的垂直间距
     const baseX = 150
+    const branchOffset = 350 // 分支的水平偏移量
 
     // 如果没有任何消息可以显示，返回空结果
     if (userMessages.length === 0 && assistantMessages.length === 0) {
@@ -323,6 +343,30 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
 
       const adjustedYPosition = yPosition + heightCompensation
 
+      // 检查是否有分支
+      const hasBranch = message.branchId !== undefined
+      const xPosition = hasBranch ? baseX + branchOffset : baseX
+
+      // 如果是分支消息，找到父节点
+      const parentNodeId = message.parentMessageId ? `user-${message.parentMessageId}` : null
+      const parentNode = parentNodeId ? flowNodes.find((node) => node.id === parentNodeId) : null
+
+      // 计算分支节点的位置
+      const adjustedXPosition = parentNode ? parentNode.position.x + branchOffset : xPosition
+
+      // 找到父节点的下一个节点
+      let nextNodeY = adjustedYPosition
+      if (parentNode) {
+        const parentIndex = userMessages.findIndex((msg) => msg.id === message.parentMessageId)
+        if (parentIndex !== -1 && parentIndex + 1 < userMessages.length) {
+          const nextMessage = userMessages[parentIndex + 1]
+          const nextNodeIndex = flowNodes.findIndex((node) => node.id === `user-${nextMessage.id}`)
+          if (nextNodeIndex !== -1) {
+            nextNodeY = flowNodes[nextNodeIndex].position.y
+          }
+        }
+      }
+
       // 准备相关模型信息
       const relatedModels = relatedAssistantMsgs.map((aMsg) => {
         const aMsgAny = aMsg as any
@@ -342,15 +386,30 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
           type: 'user',
           messageId: message.id,
           userAvatar: msgUserAvatar,
-          relatedModels
+          relatedModels,
+          branchId: message.branchId,
+          parentMessageId: message.parentMessageId
         },
-        position: { x: baseX, y: adjustedYPosition },
+        position: { x: adjustedXPosition, y: nextNodeY },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top
       })
 
-      // 连接相邻的用户消息
-      if (index > 0) {
+      // 如果是分支消息，连接到父节点
+      if (parentNodeId) {
+        flowEdges.push({
+          id: `edge-${parentNodeId}-to-${nodeId}`,
+          source: parentNodeId,
+          target: nodeId,
+          type: 'step',
+          animated: true,
+          style: {
+            ...commonEdgeStyle,
+            stroke: 'var(--color-primary)'
+          }
+        })
+      } else if (index > 0) {
+        // 连接相邻的用户消息
         const prevUserNodeId = `user-${userMessages[index - 1].id}`
         flowEdges.push({
           id: `edge-${prevUserNodeId}-to-${nodeId}`,
@@ -422,6 +481,42 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
       setLoading(false)
     }, 500)
   }, [buildConversationFlowData, setNodes, setEdges])
+
+  // 添加分支事件监听
+  useEffect(() => {
+    const handleAddBranch = (e: CustomEvent) => {
+      const { messageId } = e.detail
+
+      // 生成唯一的branchId
+      const branchId = uuidv4()
+
+      // 创建新的消息块
+      const newMessage: Message = {
+        id: uuidv4(),
+        role: 'user',
+        assistantId: '', // 需要从当前对话获取
+        topicId: topicId || '',
+        createdAt: new Date().toISOString(),
+        status: UserMessageStatus.SUCCESS,
+        blocks: [],
+        branchId,
+        parentMessageId: messageId // 记录父节点ID
+      }
+
+      // 添加到store
+      dispatch(newMessagesActions.addMessage({ topicId: topicId || '', message: newMessage }))
+
+      // 重新构建对话流
+      const { nodes: flowNodes, edges: flowEdges } = buildConversationFlowData()
+      setNodes([...flowNodes])
+      setEdges([...flowEdges])
+    }
+
+    document.addEventListener('flow-add-branch', handleAddBranch as EventListener)
+    return () => {
+      document.removeEventListener('flow-add-branch', handleAddBranch as EventListener)
+    }
+  }, [dispatch, topicId, buildConversationFlowData, setNodes, setEdges])
 
   return (
     <FlowContainer>
@@ -524,6 +619,7 @@ const CustomNodeContainer = styled.div`
   display: flex;
   flex-direction: column;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  position: relative;
 
   &:hover {
     transform: translateY(-2px);
@@ -538,6 +634,29 @@ const CustomNodeContainer = styled.div`
     transform: scale(0.98);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     transition: all 0.1s ease;
+  }
+`
+
+const PlusButton = styled.button`
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    transform: scale(1.1);
+    background: var(--color-primary-hover);
   }
 `
 
