@@ -16,7 +16,7 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 }
 
 export function useSystemAgents() {
-  const { defaultaides } = useSettings()
+  const { defaultAgent } = useSettings()
   const [agents, setAgents] = useState<Agent[]>([])
   const { resourcesPath } = useRuntime()
 
@@ -39,7 +39,7 @@ export function useSystemAgents() {
     }
 
     loadAgents()
-  }, [defaultaides, resourcesPath])
+  }, [defaultAgent, resourcesPath])
 
   return agents
 }

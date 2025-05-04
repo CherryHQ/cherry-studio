@@ -1536,7 +1536,7 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
-      "defaultaides": "内蔵",
+      "defaultAgent": "内蔵",
       "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {

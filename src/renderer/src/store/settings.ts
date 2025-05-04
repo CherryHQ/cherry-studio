@@ -104,7 +104,7 @@ export interface SettingsState {
   joplinToken: string | null
   joplinUrl: string | null
   defaultObsidianVault: string | null
-  defaultaides: string | null
+  defaultAgent: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
   siyuanToken: string | null
@@ -211,6 +211,7 @@ export const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
+  defaultAgent: null,
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
@@ -472,8 +473,8 @@ const settingsSlice = createSlice({
     setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
       state.defaultObsidianVault = action.payload
     },
-    setDefaultAides: (state, action: PayloadAction<string>) => {
-      state.defaultaides = action.payload
+    setDefaultAgent: (state, action: PayloadAction<string>) => {
+      state.defaultAgent = action.payload
     },
     setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
       state.siyuanApiUrl = action.payload
@@ -588,7 +589,7 @@ export const {
   setJoplinUrl,
   setMessageNavigation,
   setDefaultObsidianVault,
-  setDefaultAides,
+  setDefaultAgent,
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
