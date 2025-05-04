@@ -81,14 +81,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     loadPinnedModels()
   }, [providers])
 
-  const togglePin = async (modelId: string) => {
-    const newPinnedModels = pinnedModels.includes(modelId)
-      ? pinnedModels.filter((id) => id !== modelId)
-      : [...pinnedModels, modelId]
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      const newPinnedModels = pinnedModels.includes(modelId)
+        ? pinnedModels.filter((id) => id !== modelId)
+        : [...pinnedModels, modelId]
 
-    await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
-    setPinnedModels(sortBy(newPinnedModels, ['group', 'name']))
-  }
+      await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
+      setPinnedModels(sortBy(newPinnedModels, ['group', 'name']))
+    },
+    [pinnedModels]
+  )
 
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
@@ -232,19 +235,24 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     if (actualIndex < 0) return
 
     if (!hasAutoScrolled.current) {
-      listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
-      hasAutoScrolled.current = true
+      requestAnimationFrame(() => {
+        listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
+        hasAutoScrolled.current = true
+      })
     } else {
       listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
     }
   }, [focusedItemKey, listItems])
 
-  const handleItemClick = (item: FlatListItem) => {
-    if (item.type !== 'model') return
-
-    resolve(item.model)
-    setOpen(false)
-  }
+  const handleItemClick = useCallback(
+    (item: FlatListItem) => {
+      if (item.type === 'model') {
+        resolve(item.model)
+        setOpen(false)
+      }
+    },
+    [resolve]
+  )
 
   // 处理键盘导航
   const handleKeyDown = useCallback(
