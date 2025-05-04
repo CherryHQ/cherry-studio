@@ -1,4 +1,3 @@
-import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
   isOpenAILLMModel,
@@ -31,6 +30,7 @@ import {
 } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import { convertLinks } from '@renderer/utils/linkConverter'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
@@ -42,7 +42,6 @@ import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/re
 import { Stream } from 'openai/streaming'
 import { FileLike, toFile } from 'openai/uploads'
 
-import { removeSpecialCharactersForTopicName } from '../../utils/naming'
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
 
@@ -267,6 +266,7 @@ export default class OpenAIProvider extends BaseProvider {
    * Generate completions for the assistant use Response API
    * @param messages - The messages
    * @param assistant - The assistant
+   * @param mcpTools
    * @param onChunk - The onChunk callback
    * @param onFilterMessages - The onFilterMessages callback
    * @returns The completions
@@ -667,10 +667,7 @@ export default class OpenAIProvider extends BaseProvider {
       if (!onResponse) {
         return false
       }
-      if (isOpenAIReasoning) {
-        return false
-      }
-      return true
+      return !isOpenAIReasoning
     }
 
     const stream = isSupportedStreamOutput()
@@ -953,10 +950,9 @@ export default class OpenAIProvider extends BaseProvider {
             // f.file is guaranteed to exist here due to the filter above
             const fileInfo = f.file!
             const binaryData = await FileManager.readBinaryImage(fileInfo)
-            const file = await toFile(binaryData, fileInfo.origin_name || 'image.png', {
+            return await toFile(binaryData, fileInfo.origin_name || 'image.png', {
               type: 'image/png'
             })
-            return file
           })
         )
         images = images.concat(userImages)
@@ -973,10 +969,9 @@ export default class OpenAIProvider extends BaseProvider {
             for (let i = 0; i < binary.length; i++) {
               bytes[i] = binary.charCodeAt(i)
             }
-            const file = await toFile(bytes, 'assistant_image.png', {
+            return await toFile(bytes, 'assistant_image.png', {
               type: 'image/png'
             })
-            return file
           })
         )
         images = images.concat(assistantImages.filter(Boolean) as FileLike[])

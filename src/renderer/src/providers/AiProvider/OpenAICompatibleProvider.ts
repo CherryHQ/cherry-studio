@@ -385,11 +385,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
       }
 
       // 如果之前有reasoning_content或reasoning，现在有普通content，说明思考结束
-      if (hasReasoningContent && delta.content) {
-        return true
-      }
-
-      return false
+      return !!(hasReasoningContent && delta.content)
     }
 
     let time_first_token_millsec = 0
@@ -724,7 +720,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
 
   /**
    * Translate a message
-   * @param message - The message
+   * @param content
    * @param assistant - The assistant
    * @param onResponse - The onResponse callback
    * @returns The translated message
