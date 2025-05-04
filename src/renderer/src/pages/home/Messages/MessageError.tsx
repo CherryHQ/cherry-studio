@@ -1,35 +1,36 @@
-import { Message } from '@renderer/types'
-import { formatErrorMessage } from '@renderer/utils/error'
+import type { ErrorMessageBlock } from '@renderer/types/newMessage'
 import { Alert as AntdAlert } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import Markdown from '../Markdown/Markdown'
-const MessageError: FC<{ message: Message }> = ({ message }) => {
+const MessageError: FC<{ block: ErrorMessageBlock }> = ({ block }) => {
   return (
     <>
-      <Markdown message={message} />
-      {message.error && (
+      {/* <Markdown block={block} role={role} />
+      {block.error && (
         <Markdown
           message={{
-            ...message,
-            content: formatErrorMessage(message.error)
+            ...block,
+            content: formatErrorMessage(block.error)
           }}
         />
-      )}
-      <MessageErrorInfo message={message} />
+      )} */}
+      <MessageErrorInfo block={block} />
     </>
   )
 }
 
-const MessageErrorInfo: FC<{ message: Message }> = ({ message }) => {
+const MessageErrorInfo: FC<{ block: ErrorMessageBlock }> = ({ block }) => {
   const { t } = useTranslation()
 
   const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
-
-  if (message.error && HTTP_ERROR_CODES.includes(message.error?.status)) {
-    return <Alert description={t(`error.http.${message.error.status}`)} type="error" />
+  console.log('block', block)
+  if (block.error && HTTP_ERROR_CODES.includes(block.error?.status)) {
+    return <Alert description={t(`error.http.${block.error.status}`)} type="error" />
+  }
+  if (block?.error?.message) {
+    return <Alert description={block.error.message} type="error" />
   }
 
   return <Alert description={t('error.chat.response')} type="error" />

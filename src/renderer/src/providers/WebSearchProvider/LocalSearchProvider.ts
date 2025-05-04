@@ -1,6 +1,6 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
@@ -18,7 +18,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     super(provider)
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     const uid = nanoid()
     try {
       if (!query.trim()) {
@@ -51,7 +51,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       })
 
       // Wait for all fetches to complete
-      const results: WebSearchResult[] = await Promise.all(fetchPromises)
+      const results: WebSearchProviderResult[] = await Promise.all(fetchPromises)
 
       return {
         query: query,

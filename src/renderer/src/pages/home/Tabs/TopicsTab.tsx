@@ -391,7 +391,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
             return (
               <TopicListItem
-                onMouseEnter={() => setTargetTopic(topic)}
+                onContextMenu={() => setTargetTopic(topic)}
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>

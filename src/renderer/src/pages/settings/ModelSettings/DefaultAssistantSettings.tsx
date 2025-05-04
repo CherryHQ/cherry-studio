@@ -47,7 +47,7 @@ const AssistantSettings: FC = () => {
 
   const handleChange =
     (setter: Dispatch<SetStateAction<number>>, updater: (value: number) => void) => (value: number | null) => {
-      if (!!value && !isNaN(value)) {
+      if (value !== null) {
         setter(value)
         updater(value)
       }

@@ -1,26 +1,28 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
+import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, MCPToolResponse, Message, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, EFFORT_RATIO, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToAnthropicMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { first, flatten, sum, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-type ReasoningEffort = 'high' | 'medium' | 'low'
 
 interface ReasoningConfig {
   type: 'enabled' | 'disabled'
@@ -55,12 +57,16 @@ export default class AnthropicProvider extends BaseProvider {
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: await this.getMessageContent(message)
+        text: getMainTextContent(message)
       }
     ]
 
-    for (const file of message.files || []) {
-      if (file.type === FileTypes.IMAGE) {
+    // Get and process image blocks
+    const imageBlocks = findImageBlocks(message)
+    for (const imageBlock of imageBlocks) {
+      if (imageBlock.file) {
+        // Handle uploaded file
+        const file = imageBlock.file
         const base64Data = await window.api.file.base64Image(file.id + file.ext)
         parts.push({
           type: 'image',
@@ -71,18 +77,34 @@ export default class AnthropicProvider extends BaseProvider {
           }
         })
       }
-
+    }
+    // Get and process file blocks
+    const fileBlocks = findFileBlocks(message)
+    for (const fileBlock of fileBlocks) {
+      const { file } = fileBlock
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-        parts.push({
-          type: 'text',
-          text: file.origin_name + '\n' + fileContent
-        })
+        if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
+          const base64Data = await FileManager.readBase64File(file)
+          parts.push({
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64Data
+            }
+          })
+        } else {
+          const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+          parts.push({
+            type: 'text',
+            text: file.origin_name + '\n' + fileContent
+          })
+        }
       }
     }
 
     return {
-      role: message.role,
+      role: message.role === 'system' ? 'user' : message.role,
       content: parts
     }
   }
@@ -113,32 +135,23 @@ export default class AnthropicProvider extends BaseProvider {
    * @param model - The model
    * @returns The reasoning effort
    */
-  private getReasoningEffort(assistant: Assistant, model: Model): ReasoningConfig | undefined {
+  private getBudgetToken(assistant: Assistant, model: Model): ReasoningConfig | undefined {
     if (!isReasoningModel(model)) {
       return undefined
     }
+    const { maxTokens } = getAssistantSettings(assistant)
 
-    const effortRatios: Record<ReasoningEffort, number> = {
-      high: 0.8,
-      medium: 0.5,
-      low: 0.2
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+
+    if (reasoningEffort === undefined) {
+      return {
+        type: 'disabled'
+      }
     }
 
-    const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-    const effortRatio = effortRatios[effort]
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    if (!effortRatio) {
-      return undefined
-    }
-
-    const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
-
-    if (!isClaude37Sonnet) {
-      return undefined
-    }
-
-    const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-    const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
+    const budgetTokens = Math.floor((maxTokens || DEFAULT_MAX_TOKENS) * effortRatio * 0.8)
 
     return {
       type: 'enabled',
@@ -180,6 +193,14 @@ export default class AnthropicProvider extends BaseProvider {
       systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
     }
 
+    let systemMessage: TextBlockParam | undefined = undefined
+    if (systemPrompt) {
+      systemMessage = {
+        type: 'text',
+        text: systemPrompt
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -187,14 +208,16 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
-      system: systemPrompt,
+      system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
-      thinking: this.getReasoningEffort(assistant, model),
+      thinking: this.getBudgetToken(assistant, model),
       ...this.getCustomParameters(assistant)
     }
 
     let time_first_token_millsec = 0
     let time_first_content_millsec = 0
+    let checkThinkingContent = false
+    let thinking_content = ''
     const start_time_millsec = new Date().getTime()
 
     if (!streamOutput) {
@@ -218,13 +241,16 @@ export default class AnthropicProvider extends BaseProvider {
       }
 
       return onChunk({
-        text,
-        reasoning_content,
-        usage: message.usage as any,
-        metrics: {
-          completion_tokens: message.usage.output_tokens,
-          time_completion_millsec,
-          time_first_token_millsec: 0
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          text,
+          reasoning_content,
+          usage: message.usage as any,
+          metrics: {
+            completion_tokens: message.usage.output_tokens,
+            time_completion_millsec,
+            time_first_token_millsec: 0
+          }
         }
       })
     }
@@ -235,61 +261,60 @@ export default class AnthropicProvider extends BaseProvider {
 
     const processStream = (body: MessageCreateParamsNonStreaming, idx: number) => {
       return new Promise<void>((resolve, reject) => {
+        // 等待接口返回流
+        onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
         let hasThinkingContent = false
         this.sdk.messages
-          .stream({ ...body, stream: true }, { signal })
+          .stream({ ...body, stream: true }, { signal, timeout: 5 * 60 * 1000 })
           .on('text', (text) => {
-            // if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-            //   stream.controller.abort()
-            //   return resolve()
-            // }
-
+            if (hasThinkingContent && !checkThinkingContent) {
+              checkThinkingContent = true
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinking_content,
+                thinking_millsec: new Date().getTime() - time_first_content_millsec
+              })
+            }
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = new Date().getTime() - start_time_millsec
+              time_first_token_millsec = new Date().getTime()
             }
 
-            if (hasThinkingContent && time_first_content_millsec === 0) {
+            thinking_content = ''
+            checkThinkingContent = false
+            hasThinkingContent = false
+
+            if (!hasThinkingContent && time_first_content_millsec === 0) {
               time_first_content_millsec = new Date().getTime()
             }
 
-            const time_thinking_millsec = time_first_content_millsec
-              ? time_first_content_millsec - start_time_millsec
-              : 0
-
-            const time_completion_millsec = new Date().getTime() - start_time_millsec
-
-            onChunk({
-              text,
-              metrics: {
-                completion_tokens: undefined,
-                time_completion_millsec,
-                time_first_token_millsec,
-                time_thinking_millsec
-              }
-            })
+            onChunk({ type: ChunkType.TEXT_DELTA, text })
           })
           .on('thinking', (thinking) => {
             hasThinkingContent = true
+            const currentTime = new Date().getTime() // Get current time for each chunk
 
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = new Date().getTime() - start_time_millsec
+              time_first_token_millsec = currentTime
             }
 
-            const time_completion_millsec = new Date().getTime() - start_time_millsec
+            // Set time_first_content_millsec ONLY when the first content (thinking or text) arrives
+            if (time_first_content_millsec === 0) {
+              time_first_content_millsec = currentTime
+            }
 
+            // Calculate thinking time as time elapsed since start until this chunk
+            const thinking_time = currentTime - time_first_content_millsec
             onChunk({
-              reasoning_content: thinking,
-              text: '',
-              metrics: {
-                completion_tokens: undefined,
-                time_completion_millsec,
-                time_first_token_millsec
-              }
+              type: ChunkType.THINKING_DELTA,
+              text: thinking,
+              thinking_millsec: thinking_time
             })
+            thinking_content += thinking
           })
           .on('finalMessage', async (message) => {
             const content = message.content[0]
             if (content && content.type === 'text') {
+              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content.text })
               const toolResults = await parseAndCallTools(
                 content.text,
                 toolResponses,
@@ -313,26 +338,25 @@ export default class AnthropicProvider extends BaseProvider {
             }
 
             const time_completion_millsec = new Date().getTime() - start_time_millsec
-            const time_thinking_millsec = time_first_content_millsec
-              ? time_first_content_millsec - start_time_millsec
-              : 0
 
             onChunk({
-              text: '',
-              usage: {
-                prompt_tokens: message.usage.input_tokens,
-                completion_tokens: message.usage.output_tokens,
-                total_tokens: sum(Object.values(message.usage))
-              },
-              metrics: {
-                completion_tokens: message.usage.output_tokens,
-                time_completion_millsec,
-                time_first_token_millsec,
-                time_thinking_millsec
-              },
-              mcpToolResponse: toolResponses
+              type: ChunkType.BLOCK_COMPLETE,
+              response: {
+                usage: {
+                  prompt_tokens: message.usage.input_tokens,
+                  completion_tokens: message.usage.output_tokens,
+                  total_tokens: sum(Object.values(message.usage))
+                },
+                metrics: {
+                  completion_tokens: message.usage.output_tokens,
+                  time_completion_millsec,
+                  time_first_token_millsec: time_first_token_millsec - start_time_millsec
+                }
+              }
             })
-
+            // FIXME: 临时方案，重置时间戳和思考内容
+            time_first_token_millsec = 0
+            time_first_content_millsec = 0
             resolve()
           })
           .on('error', (error) => reject(error))
@@ -352,19 +376,21 @@ export default class AnthropicProvider extends BaseProvider {
    * @param onResponse - The onResponse callback
    * @returns The translated message
    */
-  public async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
+  public async translate(
+    content: string,
+    assistant: Assistant,
+    onResponse?: (text: string, isComplete: boolean) => void
+  ) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const messages = [
-      { role: 'system', content: assistant.prompt },
-      { role: 'user', content: message.content }
-    ]
 
-    const stream = onResponse ? true : false
+    const messagesForApi = [{ role: 'user' as const, content: content }]
+
+    const stream = !!onResponse
 
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
-      messages: messages.filter((m) => m.role === 'user') as MessageParam[],
+      messages: messagesForApi,
       max_tokens: 4096,
       temperature: assistant?.settings?.temperature,
       system: assistant.prompt
@@ -382,9 +408,12 @@ export default class AnthropicProvider extends BaseProvider {
         .stream({ ...body, stream: true })
         .on('text', (_text) => {
           text += _text
-          onResponse?.(text)
+          onResponse?.(text, false)
         })
-        .on('finalMessage', () => resolve(text))
+        .on('finalMessage', () => {
+          onResponse?.(text, true)
+          resolve(text)
+        })
         .on('error', (error) => reject(error))
     })
   }
@@ -402,7 +431,7 @@ export default class AnthropicProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content: getMainTextContent(message)
       }))
 
     if (first(userMessages)?.role === 'assistant') {
@@ -410,8 +439,8 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
-      const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
-      return prev + (prev ? '\n' : '') + content
+      const currentContent = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
+      return prev + (prev ? '\n' : '') + currentContent
     }, '')
 
     const systemMessage = {
@@ -432,9 +461,8 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: 4096
     })
 
-    const content = message.content[0].type === 'text' ? message.content[0].text : ''
-
-    return removeSpecialCharactersForTopicName(content)
+    const responseContent = message.content[0].type === 'text' ? message.content[0].text : ''
+    return removeSpecialCharactersForTopicName(responseContent)
   }
 
   /**
@@ -445,33 +473,33 @@ export default class AnthropicProvider extends BaseProvider {
    */
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     const model = assistant.model || getDefaultModel()
-    //这里只有上一条回答和当前的搜索消息
-    const systemMessage = {
-      role: 'system',
-      content: assistant.prompt
-    }
+    const systemMessage = { content: assistant.prompt }
+
+    const userMessageContent = messages.map((m) => getMainTextContent(m)).join('\n')
 
     const userMessage = {
-      role: 'user',
-      content: messages.map((m) => m.content).join('\n')
+      role: 'user' as const,
+      content: userMessageContent
     }
+    const lastUserMessage = messages[messages.length - 1]
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
 
-    const response = await this.sdk.messages.create(
-      {
-        messages: [userMessage] as Anthropic.Messages.MessageParam[],
-        model: model.id,
-        system: systemMessage.content,
-        stream: false,
-        max_tokens: 4096
-      },
-      {
-        timeout: 20 * 1000
-      }
-    )
+    const response = await this.sdk.messages
+      .create(
+        {
+          messages: [userMessage],
+          model: model.id,
+          system: systemMessage.content,
+          stream: false,
+          max_tokens: 4096
+        },
+        { timeout: 20 * 1000, signal }
+      )
+      .finally(cleanup)
 
-    const content = response.content[0].type === 'text' ? response.content[0].text : ''
-
-    return content
+    const responseContent = response.content[0].type === 'text' ? response.content[0].text : ''
+    return responseContent
   }
 
   /**
@@ -522,25 +550,50 @@ export default class AnthropicProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
 
     const body = {
       model: model.id,
-      messages: [{ role: 'user', content: 'hi' }],
+      messages: [{ role: 'user' as const, content: 'hi' }],
       max_tokens: 100,
-      stream: false
+      stream
     }
 
     try {
-      const message = await this.sdk.messages.create(body as MessageCreateParamsNonStreaming)
-      return {
-        valid: message.content.length > 0,
-        error: null
+      if (!stream) {
+        const message = await this.sdk.messages.create(body as MessageCreateParamsNonStreaming)
+        return {
+          valid: message.content.length > 0,
+          error: null
+        }
+      } else {
+        return await new Promise((resolve, reject) => {
+          let hasContent = false
+          this.sdk.messages
+            .stream(body)
+            .on('text', (text) => {
+              if (!hasContent && text) {
+                hasContent = true
+                resolve({ valid: true, error: null })
+              }
+            })
+            .on('finalMessage', (message) => {
+              if (!hasContent && message.content && message.content.length > 0) {
+                hasContent = true
+                resolve({ valid: true, error: null })
+              }
+              if (!hasContent) {
+                reject(new Error('Empty streaming response'))
+              }
+            })
+            .on('error', (error) => reject(error))
+        })
       }
     } catch (error: any) {
       return {

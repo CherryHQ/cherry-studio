@@ -21,15 +21,15 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
-import { DEFAULT_PAINTING } from '@renderer/store/paintings'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileType, Painting } from '@renderer/types'
-import { getErrorMessage } from '@renderer/utils'
+import { getErrorMessage, uuid } from '@renderer/utils'
 import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
@@ -69,22 +69,53 @@ const IMAGE_SIZES = [
     icon: ImageSize9_16
   }
 ]
+const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
-let _painting: Painting
+const DEFAULT_PAINTING: Painting = {
+  id: uuid(),
+  urls: [],
+  files: [],
+  prompt: '',
+  negativePrompt: '',
+  imageSize: '1024x1024',
+  numImages: 1,
+  seed: '',
+  steps: 25,
+  guidanceScale: 4.5,
+  model: TEXT_TO_IMAGES_MODELS[0].id
+}
 
-const PaintingsPage: FC = () => {
+// let _painting: Painting
+
+const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { paintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<Painting>(_painting || paintings[0])
+  const [painting, setPainting] = useState<Painting>(DEFAULT_PAINTING)
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const siliconProvider = providers.find((p) => p.id === 'silicon')!
+  const providerOptions = Options.map((option) => {
+    const provider = providers.find((p) => p.id === option)
+    return {
+      label: t(`provider.${provider?.id}`),
+      value: provider?.id
+    }
+  })
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const dispatch = useAppDispatch()
   const { generating } = useRuntime()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const getNewPainting = () => {
+    return {
+      ...DEFAULT_PAINTING,
+      id: uuid(),
+      seed: generateRandomSeed()
+    }
+  }
 
   const modelOptions = TEXT_TO_IMAGES_MODELS.map((model) => ({
     label: model.name,
@@ -92,12 +123,12 @@ const PaintingsPage: FC = () => {
   }))
 
   const textareaRef = useRef<any>(null)
-  _painting = painting
+  // _painting = painting
 
   const updatePaintingState = (updates: Partial<Painting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting(updatedPainting)
+    updatePainting('paintings', updatedPainting)
   }
 
   const onSelectModel = (modelId: string) => {
@@ -228,10 +259,10 @@ const PaintingsPage: FC = () => {
       }
     }
 
-    removePainting(paintingToDelete)
+    removePainting('paintings', paintingToDelete)
 
     if (paintings.length === 1) {
-      setPainting(DEFAULT_PAINTING)
+      setPainting(getNewPainting())
     }
   }
 
@@ -286,13 +317,23 @@ const PaintingsPage: FC = () => {
     }
   }
 
+  const handleProviderChange = (providerId: string) => {
+    const routeName = location.pathname.split('/').pop()
+    if (providerId !== routeName) {
+      navigate('../' + providerId, { replace: true })
+    }
+  }
+
   useEffect(() => {
+    if (paintings.length === 0) {
+      addPainting('paintings', getNewPainting())
+    }
     return () => {
       if (spaceClickTimer.current) {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [])
+  }, [paintings.length, addPainting])
 
   return (
     <Container>
@@ -300,7 +341,11 @@ const PaintingsPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={() => setPainting(addPainting())}>
+            <Button
+              size="small"
+              className="nodrag"
+              icon={<PlusOutlined />}
+              onClick={() => setPainting(addPainting('paintings', getNewPainting()))}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -309,11 +354,7 @@ const PaintingsPage: FC = () => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <Select
-            value={siliconProvider.id}
-            disabled={true}
-            options={[{ label: t(`provider.${siliconProvider.id}`), value: siliconProvider.id }]}
-          />
+          <Select value={providerOptions[1].value} onChange={handleProviderChange} options={providerOptions} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
@@ -459,11 +500,12 @@ const PaintingsPage: FC = () => {
           </InputContainer>
         </MainContainer>
         <PaintingsList
+          namespace="paintings"
           paintings={paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting())}
+          onNewPainting={() => setPainting(addPainting('paintings', getNewPainting()))}
         />
       </ContentContainer>
     </Container>
