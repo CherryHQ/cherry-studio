@@ -268,14 +268,12 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
     }
 
     // 处理孤立消息
-    const orphanedMessages = new Set<string>()
     const processedMessages = new Set<string>()
 
-    // 首先处理所有用户消息及其相关的模型回复
+    // 为所有用户消息创建节点
     userMessages.forEach((message, index) => {
       const nodeId = `user-${message.id}`
-      const yPosition = index * verticalGap * 2
-      processedMessages.add(message.id)
+      const yPosition = index * verticalGap * 2 + 20
 
       // 获取用户名
       const userNameValue = userName || t('chat.history.user_node')
@@ -295,6 +293,35 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
         }
         return isRelated
       })
+
+      // 计算当前节点前的所有模型回复数A
+      const totalModelResponsesBefore = assistantMessages.filter((aMsg) => {
+        const aMsgTime = new Date(aMsg.createdAt).getTime()
+        return aMsgTime < userMsgTime
+      }).length
+
+      // 计算当前节点前的带回答的提问数B
+      const answeredQuestionsBefore = userMessages.slice(0, index).filter((msg) => {
+        const msgTime = new Date(msg.createdAt).getTime()
+        return assistantMessages.some((aMsg) => {
+          const aMsgTime = new Date(aMsg.createdAt).getTime()
+          return aMsgTime > msgTime && aMsgTime < userMsgTime
+        })
+      }).length
+
+      // 计算当前节点前的无回答的提问数C
+      const unansweredQuestionsBefore = userMessages.slice(0, index).filter((msg) => {
+        const msgTime = new Date(msg.createdAt).getTime()
+        return !assistantMessages.some((aMsg) => {
+          const aMsgTime = new Date(aMsg.createdAt).getTime()
+          return aMsgTime > msgTime && aMsgTime < userMsgTime
+        })
+      }).length
+
+      // 计算高度补偿
+      const heightCompensation = (totalModelResponsesBefore - answeredQuestionsBefore - unansweredQuestionsBefore) * 50
+
+      const adjustedYPosition = yPosition + heightCompensation
 
       // 准备相关模型信息
       const relatedModels = relatedAssistantMsgs.map((aMsg) => {
@@ -317,7 +344,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
           userAvatar: msgUserAvatar,
           relatedModels
         },
-        position: { x: baseX, y: yPosition },
+        position: { x: baseX, y: adjustedYPosition },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top
       })
@@ -336,7 +363,8 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
     // 处理剩余的孤立消息（没有对应用户消息的模型回复）
     const orphanAssistantMsgs = assistantMessages.filter((aMsg) => !processedMessages.has(aMsg.id))
     if (orphanAssistantMsgs.length > 0) {
-      const startY = flowNodes.length > 0 ? Math.min(...flowNodes.map((node) => node.position.y)) - verticalGap * 2 : 0
+      // 在图表顶部添加这些孤立消息，确保有足够的间距
+      const startY = flowNodes.length > 0 ? Math.min(...flowNodes.map((node) => node.position.y)) - verticalGap * 3 : 0
 
       orphanAssistantMsgs.forEach((aMsg, index) => {
         const nodeId = `orphan-${aMsg.id}`
@@ -346,6 +374,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
         const modelInfo = aMsgAny.model as Model | undefined
         const modelId = (aMsgAny.model && aMsgAny.model.id) || ''
 
+        // 创建孤立消息节点
         flowNodes.push({
           id: nodeId,
           type: 'custom',
@@ -353,27 +382,29 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
             type: 'orphan',
             content: getMainTextContent(aMsg),
             messageId: aMsg.id,
-            relatedModels: [
-              {
-                modelId,
-                modelInfo,
-                content: getMainTextContent(aMsg)
-              }
-            ]
+            modelId: modelId,
+            modelInfo
           },
-          position: { x: baseX, y: startY - index * verticalGap },
+          position: {
+            x: baseX,
+            y: startY + index * verticalGap * 1.5
+          },
           sourcePosition: Position.Bottom,
           targetPosition: Position.Top
         })
 
-        // 连接相邻的孤立消息
-        if (index > 0) {
-          const prevNodeId = `orphan-${orphanAssistantMsgs[index - 1].id}`
-          flowEdges.push({
-            id: `edge-${prevNodeId}-to-${nodeId}`,
-            source: prevNodeId,
-            target: nodeId
-          })
+        // 连接孤立消息到最近的用户消息
+        if (flowNodes.length > 0) {
+          // 找到最近的用户消息节点
+          const userNodes = flowNodes.filter((node) => node.data.type === 'user')
+          if (userNodes.length > 0) {
+            const closestUserNode = userNodes[0] // 由于用户节点是按时间顺序排列的，第一个就是最近的
+            flowEdges.push({
+              id: `edge-${nodeId}-to-${closestUserNode.id}`,
+              source: nodeId,
+              target: closestUserNode.id
+            })
+          }
         }
       })
     }
@@ -435,7 +466,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
                 nodeStrokeWidth={3}
                 zoomable
                 pannable
-                nodeColor={(node) => (node.data.type === 'user' ? 'var(--color-info)' : 'var(--color-primary)')}
+                nodeColor={(node) => (node.data.type === 'orphan' ? 'var(--color-info)' : 'var(--color-primary)')}
               />
             </ReactFlow>
           </div>
