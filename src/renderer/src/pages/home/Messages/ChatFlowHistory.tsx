@@ -616,6 +616,4 @@ const NodeContent = styled.div`
 `
 
 // 确保组件使用React.memo包装以减少不必要的重渲染
-export default memo(ChatFlowHistory, (prevProps, nextProps) => {
-  return prevProps.conversationId === nextProps.conversationId
-})
+export default memo(ChatFlowHistory)

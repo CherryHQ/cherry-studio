@@ -20,7 +20,7 @@ interface ContainerProps {
 
 const Messages: FC<Props> = ({ assistant, route }) => {
   // const [messages, setMessages] = useState<Message[]>([])
-  const messages = useTopicMessages(assistant.topics[0])
+  const messages = useTopicMessages(assistant.topics[0].id)
   const containerRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
 
