@@ -9,6 +9,22 @@
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
       "add.title": "建立智慧代理人",
+      "import": {
+        "title": "從外部導入",
+        "type": {
+          "url": "URL",
+          "file": "檔案"
+        },
+        "url_placeholder": "輸入 JSON URL",
+        "select_file": "選擇檔案",
+        "button": "導入",
+        "file_filter": "JSON 檔案",
+        "error": {
+          "url_required": "請輸入 URL",
+          "fetch_failed": "從 URL 獲取資料失敗",
+          "invalid_format": "無效的代理人格式：缺少必填欄位"
+        }
+      },
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.message.add.title": "新增",
       "edit.message.assistant.placeholder": "輸入助手訊息",
@@ -498,6 +514,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "agents": {
+        "imported": "匯入成功",
+        "import.error": "匯入失敗"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",

@@ -237,8 +237,7 @@ async function getPoisData(apiKey: string, ids: string[]): Promise<BravePoiRespo
     throw new Error(`Brave API error: ${response.status} ${response.statusText}\n${await response.text()}`)
   }
 
-  const poisResponse = (await response.json()) as BravePoiResponse
-  return poisResponse
+  return (await response.json()) as BravePoiResponse
 }
 
 async function getDescriptionsData(apiKey: string, ids: string[]): Promise<BraveDescription> {
@@ -257,8 +256,7 @@ async function getDescriptionsData(apiKey: string, ids: string[]): Promise<Brave
     throw new Error(`Brave API error: ${response.status} ${response.statusText}\n${await response.text()}`)
   }
 
-  const descriptionsData = (await response.json()) as BraveDescription
-  return descriptionsData
+  return (await response.json()) as BraveDescription
 }
 
 function formatLocalResults(poisData: BravePoiResponse, descData: BraveDescription): string {

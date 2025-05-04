@@ -1,7 +1,7 @@
 {
   "translation": {
     "agents": {
-      "add.button": "Добавить к ассистенту",
+      "add.button": "Добавить в ассистента",
       "add.knowledge_base": "База знаний",
       "add.knowledge_base.placeholder": "Выберите базу знаний",
       "add.name": "Имя",
@@ -9,6 +9,7 @@
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
       "add.title": "Создать агента",
+      "import.title": "Импорт из внешнего источника",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
       "edit.message.assistant.placeholder": "Введите сообщение ассистента",
@@ -29,7 +30,23 @@
       "tag.default": "По умолчанию",
       "tag.new": "Новый",
       "tag.system": "Система",
-      "title": "Агенты"
+      "title": "Агенты",
+      "import": {
+        "title": "Импорт из внешнего источника",
+        "type": {
+          "url": "URL",
+          "file": "Файл"
+        },
+        "url_placeholder": "Введите URL JSON",
+        "select_file": "Выбрать файл",
+        "button": "Импорт",
+        "file_filter": "JSON файлы",
+        "error": {
+          "url_required": "Пожалуйста, введите URL",
+          "fetch_failed": "Не удалось получить данные по URL",
+          "invalid_format": "Неверный формат агента: отсутствуют обязательные поля"
+        }
+      }
     },
     "assistants": {
       "title": "Ассистенты",
@@ -498,6 +515,10 @@
       "title": "Диаграмма Mermaid"
     },
     "message": {
+      "agents": {
+        "imported": "Импорт успешно выполнен",
+        "import.error": "Импорт не выполнен"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -1512,9 +1533,10 @@
         "multiple": "Множественный выбор"
       },
       "privacy": {
-        "title": "Настройки приватности",
-        "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
+        "title": "Настройки конфиденциальности",
+        "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
+      "defaultAgent": "Встроенный",
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {

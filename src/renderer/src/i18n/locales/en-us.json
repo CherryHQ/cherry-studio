@@ -9,6 +9,23 @@
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
       "add.title": "Create Agent",
+      "import.title": "Import from External",
+      "import": {
+        "title": "Import from External",
+        "type": {
+          "url": "URL",
+          "file": "File"
+        },
+        "url_placeholder": "Enter JSON URL",
+        "select_file": "Select File",
+        "button": "Import",
+        "file_filter": "JSON Files",
+        "error": {
+          "url_required": "Please enter a URL",
+          "fetch_failed": "Failed to fetch from URL",
+          "invalid_format": "Invalid agent format: missing required fields"
+        }
+      },
       "delete.popup.content": "Are you sure you want to delete this agent?",
       "edit.message.add.title": "Add",
       "edit.message.assistant.placeholder": "Enter assistant message",
@@ -498,6 +515,10 @@
       "title": "Mermaid Diagram"
     },
     "message": {
+      "agents": {
+        "imported": "Imported successfully",
+        "import.error": "Import failed"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",
@@ -707,7 +728,7 @@
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
       "learn_more": "Learn More",
-      "prompt_placeholder_edit": "Enter your image description, text drawing uses “double quotes” to wrap",
+      "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
@@ -1515,7 +1536,8 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
-      }
+      },
+      "defaultAgent": "Built-in"
     },
     "translate": {
       "any.language": "Any language",
