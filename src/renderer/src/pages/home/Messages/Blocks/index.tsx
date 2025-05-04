@@ -42,6 +42,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
 
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+  console.log('Rendered blocks:', renderedBlocks)
   return (
     <>
       {renderedBlocks.map((block) => {

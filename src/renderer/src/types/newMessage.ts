@@ -137,6 +137,11 @@ export interface FlowMessageBlock extends BaseMessageBlock {
   // form data
   chunkType: ChunkType
   workflow: Flow
+  metadata?: {
+    id: string
+    title: string
+    type: string
+  }
 }
 
 // MessageBlock 联合类型

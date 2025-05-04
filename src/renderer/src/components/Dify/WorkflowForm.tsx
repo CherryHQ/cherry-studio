@@ -1,4 +1,5 @@
 import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@dify-chat/api'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import i18n from '@renderer/i18n'
 import { runWorkflow, uploadFile } from '@renderer/services/FlowEngineService'
@@ -28,8 +29,9 @@ interface Props {
 const WorkflowForm: FC<Props> = ({ workflow, message }) => {
   const [form] = Form.useForm()
   const { flowEngineProvider } = useFlowEngineProvider(workflow.providerId)
+  const { assistant } = useAssistant(message.assistantId)
+
   const dispatch = useAppDispatch()
-  console.log('Received workflow prop:', workflow) // 添加这行来检查传入的 workflow
 
   const renderFormItem = (type: IUserInputFormItemType, item: IUserInputFormItemValueBase) => {
     switch (type) {
@@ -81,7 +83,7 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
   const handleFinish = async (values: any) => {
     console.log('Form values:', values)
     // await runWorkflow(flowEngineProvider, workflow, values)
-    await dispatch(runWorkflow(message.topicId, flowEngineProvider, workflow, values, message.assistantId))
+    await dispatch(runWorkflow(message.topicId, flowEngineProvider, workflow, values, assistant))
   }
 
   // 处理可能是数组或Record的情况

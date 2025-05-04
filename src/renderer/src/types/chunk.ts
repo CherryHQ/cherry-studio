@@ -351,18 +351,38 @@ export interface WorkflowInitChunk {
 
 export interface WorkflowStartedChunk {
   type: ChunkType.WORKFLOW_STARTED
+  metadata?: {
+    id: string
+    title?: string
+    type?: string
+  }
 }
 
 export interface WorkflowNodeStartedChunk {
   type: ChunkType.WORKFLOW_NODE_STARTED
+  metadata: {
+    id: string
+    title: string
+    type: string
+  }
 }
 
 export interface WorkflowNodeFinishedChunk {
   type: ChunkType.WORKFLOW_NODE_FINISHED
+  metadata: {
+    id: string
+    title: string
+    type: string
+  }
 }
 
 export interface WorkflowFinishedChunk {
   type: ChunkType.WORKFLOW_FINISHED
+  metadata?: {
+    id: string
+    title: string
+    type: string
+  }
 }
 
 export interface WorkflowCompletedChunk {

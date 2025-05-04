@@ -148,25 +148,26 @@ export default function FileUpload(props: IFileUploadProps) {
       transfer_method: 'local_file'
     }
 
-    // const result = await uploadFile(provider, workflow, file)
-    const result = {
-      id: 'fa078ebc-7dcd-4afc-9df1-1b4a0981a052',
-      name: '1706.03762v7.pdf',
-      size: 2215244,
-      extension: 'pdf',
-      mime_type: 'application/pdf',
-      created_by: '57414477-3c1b-4728-b9bc-0b29742f6950',
-      created_at: 1746177704,
-      preview_url: null
-    }
+    const result = await uploadFile(provider, workflow, file)
+    console.log('uploadFile result:', result)
+    // const result = {
+    //   id: 'fa078ebc-7dcd-4afc-9df1-1b4a0981a052',
+    //   name: '1706.03762v7.pdf',
+    //   size: 2215244,
+    //   extension: 'pdf',
+    //   mime_type: 'application/pdf',
+    //   created_by: '57414477-3c1b-4728-b9bc-0b29742f6950',
+    //   created_at: 1746177704,
+    //   preview_url: null
+    // }
 
     const fileType = getFileTypeByName(file.name)
     updateFiles([
       {
         ...fileBaseInfo,
         upload_file_id: result.id,
-        // type: fileType || 'document'
-        type: 'document'
+        type: fileType || 'document'
+        // type: 'document'
       }
     ])
   }

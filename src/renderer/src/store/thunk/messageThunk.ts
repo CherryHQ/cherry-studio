@@ -47,7 +47,7 @@ export const handleChangeLoadingOfTopic = async (topicId: string) => {
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
 }
 
-const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[]) => {
+export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[]) => {
   try {
     console.log(`[DEBUG] saveMessageAndBlocksToDB started for message ${message.id} with ${blocks.length} blocks`)
     if (blocks.length > 0) {
@@ -116,7 +116,7 @@ const updateExistingMessageAndBlocksInDB = async (
 }
 
 // 更新单个块的逻辑，用于更新消息中的单个块
-const throttledBlockUpdate = throttle((id, blockUpdate) => {
+export const throttledBlockUpdate = throttle((id, blockUpdate) => {
   const state = store.getState()
   const block = state.messageBlocks.entities[id]
   // throttle是异步函数,可能会在complete事件触发后才执行
@@ -174,7 +174,7 @@ export const saveUpdatesToDB = async (
 }
 
 // 新增: 辅助函数，用于获取并保存单个更新后的 Block 到数据库
-const saveUpdatedBlockToDB = async (
+export const saveUpdatedBlockToDB = async (
   blockId: string | null,
   messageId: string,
   topicId: string,

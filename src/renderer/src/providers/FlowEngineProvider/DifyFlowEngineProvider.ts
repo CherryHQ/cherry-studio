@@ -152,11 +152,17 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
           const event = parsedData.event
           switch (event) {
             case EventEnum.WORKFLOW_STARTED:
-              onChunk({ type: ChunkType.WORKFLOW_STARTED })
+              // onChunk({
+              //   type: ChunkType.WORKFLOW_STARTED,
+              //   metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
+              // })
               console.log('工作流开始')
               break
             case EventEnum.WORKFLOW_NODE_STARTED:
-              onChunk({ type: ChunkType.WORKFLOW_NODE_STARTED })
+              onChunk({
+                type: ChunkType.WORKFLOW_NODE_STARTED,
+                metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
+              })
               console.log('工作流节点开始')
               break
             case EventEnum.WORKFLOW_TEXT_CHUNK: {
@@ -166,11 +172,17 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
               break
             }
             case EventEnum.WORKFLOW_NODE_FINISHED:
-              onChunk({ type: ChunkType.WORKFLOW_NODE_FINISHED })
+              onChunk({
+                type: ChunkType.WORKFLOW_NODE_FINISHED,
+                metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
+              })
               console.log('工作流节点完成')
               break
             case EventEnum.WORKFLOW_FINISHED:
-              onChunk({ type: ChunkType.WORKFLOW_FINISHED })
+              // onChunk({
+              //   type: ChunkType.WORKFLOW_FINISHED,
+              //   metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
+              // })
               console.log('工作流完成')
               break
           }
