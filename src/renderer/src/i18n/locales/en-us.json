@@ -144,7 +144,7 @@
       "message.new.branch.created": "New Branch Created",
       "message.new.context": "New Context",
       "message.quote": "Quote",
-      "message.raw": "Original",
+      "message.text": "Raw Text",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
       "navigation": {

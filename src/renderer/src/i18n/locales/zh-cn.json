@@ -156,7 +156,7 @@
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
       "message.quote": "引用",
-      "message.raw": "原文",
+      "message.text": "文本",
       "message.regenerate.model": "切换模型",
       "message.useful": "有用",
       "navigation": {

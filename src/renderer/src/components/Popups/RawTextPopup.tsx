@@ -53,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
 
   return (
     <Modal
-      title={t('chat.message.raw')}
+      title={t('chat.message.text')}
       width="60vw"
       transitionName="animation-move-down"
       open={open}

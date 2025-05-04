@@ -21,14 +21,10 @@ import {
   exportMessageAsMarkdown,
   messageToMarkdown
 } from '@renderer/utils/export'
+import { stringifyMessage } from '@renderer/utils/formats'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import {
-  findImageBlocks,
-  findMainTextBlocks,
-  getMainTextContent,
-  stringifyMessage
-} from '@renderer/utils/messageUtils/find'
+import { findImageBlocks, findMainTextBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { AtSign, Copy, FileText, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
@@ -249,7 +245,7 @@ const MessageMenubar: FC<Props> = (props) => {
       //   onClick: onEdit
       // },
       {
-        label: t('chat.message.raw'),
+        label: t('chat.message.text'),
         key: 'raw',
         icon: <FileText size={16} />,
         onClick: () => RawTextPopup.show({ text: stringifiedMessage })

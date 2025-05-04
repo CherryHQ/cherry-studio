@@ -144,7 +144,7 @@
       "message.new.branch.created": "新しいブランチが作成されました",
       "message.new.context": "新しいコンテキスト",
       "message.quote": "引用",
-      "message.raw": "原文",
+      "message.text": "テキスト",
       "message.regenerate.model": "モデルを切り替え",
       "message.useful": "役立つ",
       "navigation": {

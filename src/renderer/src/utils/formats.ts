@@ -1,7 +1,8 @@
 import { Model } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 
-import { findImageBlocks, getMainTextContent } from './messageUtils/find'
+import { findAllBlocks, findImageBlocks, getMainTextContent } from './messageUtils/find'
+import { isThinkingBlock } from './messageUtils/is'
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -212,4 +213,20 @@ export function addImageFileToContents(messages: Message[]) {
   }
 
   return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
+}
+
+/**
+ * Stringify a message to a string.
+ * @param message The message to stringify.
+ * @returns The stringified message.
+ */
+export const stringifyMessage = (message: Message): string => {
+  return findAllBlocks(message)
+    .map((block: any) => {
+      if (isThinkingBlock(block)) {
+        return `<think>\n${block.content}\n</think>`
+      }
+      return block && (block.content ?? '<BLOCK_WITHOUT_CONTENT>')
+    })
+    .join('\n\n')
 }

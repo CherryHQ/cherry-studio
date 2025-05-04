@@ -113,14 +113,6 @@ export const getThinkingContent = (message: Message): string => {
   return thinkingBlocks.map((block) => block.content).join('\n\n')
 }
 
-export const stringifyMessage = (message: Message): string => {
-  return findAllBlocks(message)
-    .map((block: any) => {
-      return block && (block.content ?? '<BLOCK_WITHOUT_CONTENT>')
-    })
-    .join('\n\n')
-}
-
 /**
  * Gets the knowledgeBaseIds array from the *first* MainTextMessageBlock of a message.
  * Note: Assumes knowledgeBaseIds are only relevant on the first text block, adjust if needed.
