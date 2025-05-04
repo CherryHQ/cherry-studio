@@ -10,7 +10,7 @@ export class GeminiService {
 
   static async uploadFile(_: Electron.IpcMainInvokeEvent, file: FileType, apiKey: string): Promise<File> {
     const sdk = new GoogleGenAI({ vertexai: false, apiKey })
-    const uploadResult = await sdk.files.upload({
+    return await sdk.files.upload({
       file: file.path,
       config: {
         mimeType: 'application/pdf',
@@ -18,7 +18,6 @@ export class GeminiService {
         displayName: file.origin_name
       }
     })
-    return uploadResult
   }
 
   static async base64File(_: Electron.IpcMainInvokeEvent, file: FileType) {
