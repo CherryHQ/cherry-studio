@@ -3,19 +3,25 @@
 import { getPotentialStartIndex } from '../utils/getPotentialIndex'
 
 export interface ExtractReasoningMiddlewareOptions {
-  tagName: string
+  openingTag: string
+  closingTag: string
   separator?: string
-  startWithReasoning?: boolean
+  enableReasoning?: boolean
+}
+
+function escapeRegExp(str: string) {
+  return str.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
 }
 
 // 支持泛型 T，默认 T = { type: string; textDelta: string }
 export function extractReasoningMiddleware<T extends { type: string } = { type: string; textDelta: string }>({
-  tagName,
+  openingTag,
+  closingTag,
   separator = '\n',
-  startWithReasoning = false
+  enableReasoning
 }: ExtractReasoningMiddlewareOptions) {
-  const openingTag = `<${tagName}>`
-  const closingTag = `</${tagName}>`
+  const openingTagEscaped = escapeRegExp(openingTag)
+  const closingTagEscaped = escapeRegExp(closingTag)
 
   return {
     wrapGenerate: async ({ doGenerate }: { doGenerate: () => Promise<{ text: string } & Record<string, any>> }) => {
@@ -23,8 +29,8 @@ export function extractReasoningMiddleware<T extends { type: string } = { type: 
       if (rawText == null) {
         return { text: rawText, ...rest }
       }
-      const text = startWithReasoning ? openingTag + rawText : rawText
-      const regexp = new RegExp(`${openingTag}(.*?)${closingTag}`, 'gs')
+      const text = rawText
+      const regexp = new RegExp(`${openingTagEscaped}(.*?)${closingTagEscaped}`, 'gs')
       const matches = Array.from(text.matchAll(regexp))
       if (!matches.length) {
         return { text, ...rest }
@@ -46,10 +52,16 @@ export function extractReasoningMiddleware<T extends { type: string } = { type: 
       doStream: () => Promise<{ stream: ReadableStream<T> } & Record<string, any>>
     }) => {
       const { stream, ...rest } = await doStream()
+      if (!enableReasoning) {
+        return {
+          stream,
+          ...rest
+        }
+      }
       let isFirstReasoning = true
       let isFirstText = true
       let afterSwitch = false
-      let isReasoning = startWithReasoning
+      let isReasoning = false
       let buffer = ''
       return {
         stream: stream.pipeThrough(

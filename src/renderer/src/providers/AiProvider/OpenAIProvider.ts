@@ -370,6 +370,10 @@ export default class OpenAIProvider extends BaseProvider {
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
+    const enableReasoning =
+      ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+        assistant.settings?.reasoning_effort !== undefined) ||
+      (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
     if (isSupportedReasoningEffortOpenAIModel(model)) {
@@ -505,12 +509,11 @@ export default class OpenAIProvider extends BaseProvider {
 
       // 1. 初始化中间件
       const reasoningTags = [
-        { tagName: 'think', separator: '\n' },
-        { tagName: 'reasoning', separator: '\n' }
+        { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
+        { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
       ]
-      const getAppropriateTag = (model: Model | undefined) => {
-        if (!model) return reasoningTags[0]
-        if (model.id.includes('claude')) return reasoningTags[0]
+      const getAppropriateTag = (model: Model) => {
+        if (model.id.includes('qwen3')) return reasoningTags[0]
         return reasoningTags[0]
       }
       const reasoningTag = getAppropriateTag(model)
@@ -537,9 +540,10 @@ export default class OpenAIProvider extends BaseProvider {
 
       // 2. 使用中间件
       const { stream: processedStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
-        tagName: reasoningTag.tagName,
-        separator: reasoningTag.separator,
-        startWithReasoning: false
+        openingTag: reasoningTag?.openingTag,
+        closingTag: reasoningTag?.closingTag,
+        separator: reasoningTag?.separator,
+        enableReasoning
       }).wrapStream({
         doStream: async () => ({
           stream: asyncGeneratorToReadableStream(openAIChunkToTextDelta(stream))
