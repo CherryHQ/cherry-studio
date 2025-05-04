@@ -16,7 +16,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
+import { estimateTextTokens as estimateTxtTokens, estimateUserMessageUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
@@ -209,7 +209,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         )
       }
 
-      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
+      baseUserMessage.usage = await estimateUserMessageUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
 

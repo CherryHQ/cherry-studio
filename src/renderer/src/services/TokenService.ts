@@ -56,15 +56,32 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateMessageUsage(message: Partial<Message>, params?: MessageInputBaseParams): Promise<Usage> {
+export async function estimateUserMessageUsage(params?: MessageInputBaseParams): Promise<Usage> {
   let imageTokens = 0
-  let files: FileType[] = []
-  if (params?.files) {
-    files = params.files
-  } else {
-    const fileBlocks = findFileBlocks(message as Message)
-    files = fileBlocks.map((f) => f.file)
+
+  if (params?.files && params.files.length > 0) {
+    const images = params.files.filter((f) => f.type === FileTypes.IMAGE)
+    if (images.length > 0) {
+      for (const image of images) {
+        imageTokens = estimateImageTokens(image) + imageTokens
+      }
+    }
   }
+
+  const tokens = estimateTextTokens(params?.content || '')
+
+  return {
+    prompt_tokens: tokens,
+    completion_tokens: tokens,
+    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0)
+  }
+}
+
+export async function estimateMessageUsage(message: Partial<Message>): Promise<Usage> {
+  const fileBlocks = findFileBlocks(message as Message)
+  const files = fileBlocks.map((f) => f.file)
+
+  let imageTokens = 0
 
   if (files.length > 0) {
     const images = files.filter((f) => f.type === FileTypes.IMAGE)
@@ -74,16 +91,9 @@ export async function estimateMessageUsage(message: Partial<Message>, params?: M
       }
     }
   }
-  let content = ''
-  if (params?.content) {
-    content = params.content
-  } else {
-    content = getMainTextContent(message as Message)
-  }
-  let reasoningContent = ''
-  if (!params) {
-    reasoningContent = getThinkingContent(message as Message)
-  }
+
+  const content = getMainTextContent(message as Message)
+  const reasoningContent = getThinkingContent(message as Message)
   const combinedContent = [content, reasoningContent].filter((s) => s !== undefined).join(' ')
   const tokens = estimateTextTokens(combinedContent)
 
