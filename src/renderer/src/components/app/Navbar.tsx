@@ -1,4 +1,4 @@
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isLinux, isMac, isWindows } from '@renderer/config/constant'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
@@ -63,6 +63,6 @@ const NavbarRightContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 12px;
-  padding-right: ${isWindows ? '140px' : 12};
+  padding-right: ${isWindows ? '140px' : isLinux ? '120px' : '12px'};
   justify-content: flex-end;
 `

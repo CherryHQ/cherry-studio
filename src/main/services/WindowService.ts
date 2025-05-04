@@ -64,7 +64,7 @@ export class WindowService {
       transparent: isMac,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      titleBarStyle: isLinux ? 'default' : 'hidden',
+      titleBarStyle: 'hidden',
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
