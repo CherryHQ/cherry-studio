@@ -51,7 +51,8 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
   let borderColor = 'var(--color-border)'
   let backgroundColor = 'var(--bg-color)'
   let gradientColor = 'rgba(0, 0, 0, 0.03)'
-  let avatar: React.ReactNode | null = null
+  let userAvatar: React.ReactNode | null = null
+  let modelResponses: { model: any; content: string }[] = []
 
   // 根据消息类型设置不同的样式和图标
   if (nodeType === 'user') {
@@ -61,30 +62,17 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
     // 用户头像
     if (data.userAvatar) {
-      avatar = <Avatar src={data.userAvatar} size={24} />
+      userAvatar = <Avatar src={data.userAvatar} size={24} />
     } else {
-      avatar = <Avatar icon={<UserOutlined />} size={24} style={{ backgroundColor: 'var(--color-info)' }} />
+      userAvatar = <Avatar icon={<UserOutlined />} size={24} style={{ backgroundColor: 'var(--color-info)' }} />
     }
-  } else if (nodeType === 'assistant') {
-    borderColor = 'var(--color-primary)'
-    backgroundColor = 'rgba(var(--color-primary-rgb), 0.03)'
-    gradientColor = 'rgba(var(--color-primary-rgb), 0.08)'
 
-    // 模型头像
-    if (data.modelInfo) {
-      avatar = <ModelAvatar model={data.modelInfo} size={24} />
-    } else if (data.modelId) {
-      const modelLogo = getModelLogo(data.modelId)
-      avatar = (
-        <Avatar
-          src={modelLogo}
-          icon={!modelLogo ? <RobotOutlined /> : undefined}
-          size={24}
-          style={{ backgroundColor: 'var(--color-primary)' }}
-        />
-      )
-    } else {
-      avatar = <Avatar icon={<RobotOutlined />} size={24} style={{ backgroundColor: 'var(--color-primary)' }} />
+    // 获取相关的模型回复
+    if (data.relatedModels && data.relatedModels.length > 0) {
+      modelResponses = data.relatedModels.map((model: any) => ({
+        model,
+        content: model.content || ''
+      }))
     }
   }
 
@@ -144,9 +132,46 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         <Handle type="target" position={Position.Left} style={handleStyle} isConnectable={false} />
 
         <NodeRow>
-          {avatar}
+          {userAvatar}
           <NodeContent title={data.content}>{data.content}</NodeContent>
         </NodeRow>
+
+        {modelResponses.length > 0 && (
+          <>
+            <Divider />
+            {modelResponses.map((response, index) => (
+              <ModelResponseRow key={index}>
+                <ModelContent>{response.content}</ModelContent>
+                <ModelAvatarsContainer>
+                  {response.model.modelInfo ? (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        right: `${index * 1}px`,
+                        top: `${index * 1}px`,
+                        zIndex: modelResponses.length - index
+                      }}>
+                      <ModelAvatar model={response.model.modelInfo} size={24} />
+                    </div>
+                  ) : response.model.modelId ? (
+                    <Avatar
+                      src={getModelLogo(response.model.modelId)}
+                      icon={!getModelLogo(response.model.modelId) ? <RobotOutlined /> : undefined}
+                      size={24}
+                      style={{
+                        backgroundColor: 'var(--color-primary)',
+                        position: 'absolute',
+                        right: `${index * 1}px`,
+                        top: `${index * 1}px`,
+                        zIndex: modelResponses.length - index
+                      }}
+                    />
+                  ) : null}
+                </ModelAvatarsContainer>
+              </ModelResponseRow>
+            ))}
+          </>
+        )}
 
         <Handle type="source" position={Position.Bottom} style={handleStyle} isConnectable={false} />
         <Handle type="source" position={Position.Right} style={handleStyle} isConnectable={false} />
@@ -235,7 +260,6 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
 
     // 布局参数
     const verticalGap = 100 // 用户消息之间的垂直间距
-    const horizontalGap = 350
     const baseX = 150
 
     // 如果没有任何消息可以显示，返回空结果
@@ -243,16 +267,44 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
       return { nodes: [], edges: [] }
     }
 
-    // 为所有用户消息创建节点
+    // 处理孤立消息
+    const orphanedMessages = new Set<string>()
+    const processedMessages = new Set<string>()
+
+    // 首先处理所有用户消息及其相关的模型回复
     userMessages.forEach((message, index) => {
       const nodeId = `user-${message.id}`
       const yPosition = index * verticalGap * 2
+      processedMessages.add(message.id)
 
       // 获取用户名
       const userNameValue = userName || t('chat.history.user_node')
 
       // 获取用户头像
       const msgUserAvatar = userAvatar || null
+
+      // 找到用户消息之后的助手回复
+      const userMsgTime = new Date(message.createdAt).getTime()
+      const relatedAssistantMsgs = assistantMessages.filter((aMsg) => {
+        const aMsgTime = new Date(aMsg.createdAt).getTime()
+        const isRelated =
+          aMsgTime > userMsgTime &&
+          (index === userMessages.length - 1 || aMsgTime < new Date(userMessages[index + 1].createdAt).getTime())
+        if (isRelated) {
+          processedMessages.add(aMsg.id)
+        }
+        return isRelated
+      })
+
+      // 准备相关模型信息
+      const relatedModels = relatedAssistantMsgs.map((aMsg) => {
+        const aMsgAny = aMsg as any
+        return {
+          modelId: (aMsgAny.model && aMsgAny.model.id) || '',
+          modelInfo: aMsgAny.model as Model | undefined,
+          content: getMainTextContent(aMsg)
+        }
+      })
 
       flowNodes.push({
         id: nodeId,
@@ -262,151 +314,52 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
           content: getMainTextContent(message),
           type: 'user',
           messageId: message.id,
-          userAvatar: msgUserAvatar
+          userAvatar: msgUserAvatar,
+          relatedModels
         },
         position: { x: baseX, y: yPosition },
         sourcePosition: Position.Bottom,
         targetPosition: Position.Top
       })
 
-      // 找到用户消息之后的助手回复
-      const userMsgTime = new Date(message.createdAt).getTime()
-      const relatedAssistantMsgs = assistantMessages.filter((aMsg) => {
-        const aMsgTime = new Date(aMsg.createdAt).getTime()
-        return (
-          aMsgTime > userMsgTime &&
-          (index === userMessages.length - 1 || aMsgTime < new Date(userMessages[index + 1].createdAt).getTime())
-        )
-      })
-
-      // 为相关的助手消息创建节点
-      relatedAssistantMsgs.forEach((aMsg, aIndex) => {
-        const assistantNodeId = `assistant-${aMsg.id}`
-        const isMultipleResponses = relatedAssistantMsgs.length > 1
-        const assistantX = baseX + (isMultipleResponses ? horizontalGap * aIndex : 0)
-        const assistantY = yPosition + 50 // 减小用户到助手的垂直间距
-
-        // 根据位置确定连接点位置
-        let sourcePos = Position.Bottom // 默认向下输出
-        let targetPos = Position.Top // 默认从上方输入
-
-        // 横向排列多个助手消息时调整连接点
-        if (isMultipleResponses) {
-          targetPos = Position.Top
-          sourcePos = Position.Bottom
-        }
-
-        const aMsgAny = aMsg as any
-
-        // 获取模型名称
-        const modelName = (aMsgAny.model && aMsgAny.model.name) || t('chat.history.assistant_node')
-
-        // 获取模型ID
-        const modelId = (aMsgAny.model && aMsgAny.model.id) || ''
-
-        // 完整的模型信息
-        const modelInfo = aMsgAny.model as Model | undefined
-
-        flowNodes.push({
-          id: assistantNodeId,
-          type: 'custom',
-          data: {
-            model: modelName,
-            content: getMainTextContent(aMsg),
-            type: 'assistant',
-            messageId: aMsg.id,
-            modelId: modelId,
-            modelInfo
-          },
-          position: { x: assistantX, y: assistantY },
-          sourcePosition: sourcePos,
-          targetPosition: targetPos
-        })
-
-        // 连接消息 - 将每个助手节点直接连接到用户节点
-        if (aIndex === 0) {
-          // 连接用户消息到第一个助手回复
-          // flowEdges.push({
-          //   id: `edge-${nodeId}-to-${assistantNodeId}`,
-          //   source: nodeId,
-          //   target: assistantNodeId
-          // })
-        } else {
-          // 直接连接用户消息到所有其他助手回复
-          // flowEdges.push({
-          //   id: `edge-${nodeId}-to-${assistantNodeId}`,
-          //   source: nodeId,
-          //   target: assistantNodeId
-          // })
-        }
-      })
-
       // 连接相邻的用户消息
       if (index > 0) {
         const prevUserNodeId = `user-${userMessages[index - 1].id}`
-        const prevUserTime = new Date(userMessages[index - 1].createdAt).getTime()
-
-        // 查找前一个用户消息的所有助手回复
-        const prevAssistantMsgs = assistantMessages.filter((aMsg) => {
-          const aMsgTime = new Date(aMsg.createdAt).getTime()
-          return aMsgTime > prevUserTime && aMsgTime < userMsgTime
+        flowEdges.push({
+          id: `edge-${prevUserNodeId}-to-${nodeId}`,
+          source: prevUserNodeId,
+          target: nodeId
         })
-
-        if (prevAssistantMsgs.length > 0) {
-          // 所有前一个用户的助手消息都连接到当前用户消息
-          prevAssistantMsgs.forEach((aMsg) => {
-            const assistantId = `assistant-${aMsg.id}`
-            flowEdges.push({
-              id: `edge-${assistantId}-to-${nodeId}`,
-              source: assistantId,
-              target: nodeId
-            })
-          })
-        } else {
-          // 如果没有助手消息，直接连接两个用户消息
-          flowEdges.push({
-            id: `edge-${prevUserNodeId}-to-${nodeId}`,
-            source: prevUserNodeId,
-            target: nodeId
-          })
-        }
       }
     })
 
-    // 处理孤立的助手消息（没有对应的用户消息）
-    const orphanAssistantMsgs = assistantMessages.filter(
-      (aMsg) => !flowNodes.some((node) => node.id === `assistant-${aMsg.id}`)
-    )
-
+    // 处理剩余的孤立消息（没有对应用户消息的模型回复）
+    const orphanAssistantMsgs = assistantMessages.filter((aMsg) => !processedMessages.has(aMsg.id))
     if (orphanAssistantMsgs.length > 0) {
-      // 在图表顶部添加这些孤立消息
       const startY = flowNodes.length > 0 ? Math.min(...flowNodes.map((node) => node.position.y)) - verticalGap * 2 : 0
 
       orphanAssistantMsgs.forEach((aMsg, index) => {
-        const assistantNodeId = `orphan-assistant-${aMsg.id}`
-
-        // 获取模型数据
+        const nodeId = `orphan-${aMsg.id}`
         const aMsgAny = aMsg as any
 
-        // 获取模型名称
-        const modelName = (aMsgAny.model && aMsgAny.model.name) || t('chat.history.assistant_node')
-
-        // 获取模型ID
+        // 获取模型信息
+        const modelInfo = aMsgAny.model as Model | undefined
         const modelId = (aMsgAny.model && aMsgAny.model.id) || ''
 
-        // 完整的模型信息
-        const modelInfo = aMsgAny.model as Model | undefined
-
         flowNodes.push({
-          id: assistantNodeId,
+          id: nodeId,
           type: 'custom',
           data: {
-            model: modelName,
+            type: 'orphan',
             content: getMainTextContent(aMsg),
-            type: 'assistant',
             messageId: aMsg.id,
-            modelId: modelId,
-            modelInfo
+            relatedModels: [
+              {
+                modelId,
+                modelInfo,
+                content: getMainTextContent(aMsg)
+              }
+            ]
           },
           position: { x: baseX, y: startY - index * verticalGap },
           sourcePosition: Position.Bottom,
@@ -415,11 +368,11 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
 
         // 连接相邻的孤立消息
         if (index > 0) {
-          const prevNodeId = `orphan-assistant-${orphanAssistantMsgs[index - 1].id}`
+          const prevNodeId = `orphan-${orphanAssistantMsgs[index - 1].id}`
           flowEdges.push({
-            id: `edge-${prevNodeId}-to-${assistantNodeId}`,
+            id: `edge-${prevNodeId}-to-${nodeId}`,
             source: prevNodeId,
-            target: assistantNodeId
+            target: nodeId
           })
         }
       })
@@ -573,6 +526,38 @@ const NodeRow = styled.div`
   display: flex;
   align-items: flex-start;
   gap: 8px;
+`
+
+const Divider = styled.div`
+  height: 1px;
+  background: var(--color-border);
+  margin: 8px 0;
+  opacity: 0.5;
+`
+
+const ModelResponseRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  position: relative;
+`
+
+const ModelContent = styled.div`
+  flex: 1;
+  font-size: 14px;
+  color: var(--color-text);
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+`
+
+const ModelAvatarsContainer = styled.div`
+  position: relative;
+  width: 24px;
+  height: 24px;
+  margin-left: 8px;
 `
 
 // 确保组件使用React.memo包装以减少不必要的重渲染
