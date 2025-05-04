@@ -10,7 +10,7 @@ import {
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -128,4 +128,4 @@ const Container = styled.div`
   }
 `
 
-export default ModelTagsWithLabel
+export default memo(ModelTagsWithLabel)
