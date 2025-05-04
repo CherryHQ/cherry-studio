@@ -15,7 +15,7 @@ import { formatApiHost } from '@renderer/utils/api'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Settings, SquareArrowOutUpRight } from 'lucide-react'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -293,19 +293,19 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex align="center" gap={5}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
-          {officialWebsite! && (
+          {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <SquareArrowOutUpRight size={14} color="var(--color-text)" />
+              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
           {!provider.isSystem && (
-            <Settings
+            <Button
               type="text"
-              size={16}
-              style={{ cursor: 'pointer' }}
+              size="small"
               onClick={() => ProviderSettingsPopup.show({ provider })}
+              icon={<Settings2 size={14} />}
             />
           )}
         </Flex>
@@ -434,6 +434,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
+  margin-right: -2px;
 `
 
 export default ProviderSetting

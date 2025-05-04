@@ -225,7 +225,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
 const ContentContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 10px;
 `
 
 const ProviderSelector = styled.div`
@@ -319,7 +319,6 @@ const ButtonContainer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin-top: 10px;
   padding-top: 15px;
   border-top: 1px solid var(--color-border);
 `

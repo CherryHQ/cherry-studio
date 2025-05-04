@@ -37,19 +37,11 @@ export class ConfigManager {
   }
 
   getTheme(): ThemeMode {
-    return this.get(ConfigKeys.Theme, ThemeMode.light)
+    return this.get(ConfigKeys.Theme, ThemeMode.auto)
   }
 
   setTheme(theme: ThemeMode) {
     this.set(ConfigKeys.Theme, theme)
-  }
-
-  getCustomCss(): string {
-    return this.store.get('customCss', '') as string
-  }
-
-  setCustomCss(css: string) {
-    this.store.set('customCss', css)
   }
 
   getLaunchToTray(): boolean {

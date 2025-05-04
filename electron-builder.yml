@@ -77,6 +77,8 @@ linux:
   desktop:
     entry:
       StartupWMClass: CherryStudio
+  mimeTypes:
+    - x-scheme-handler/cherrystudio
 publish:
   provider: generic
   url: https://releases.cherry-ai.com

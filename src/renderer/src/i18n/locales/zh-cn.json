@@ -56,11 +56,11 @@
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
       "settings.reasoning_effort": "思维链长度",
-      "settings.reasoning_effort.high": "长",
-      "settings.reasoning_effort.low": "短",
-      "settings.reasoning_effort.medium": "中",
-      "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series、Anthropic、Grok 推理模型",
+      "settings.reasoning_effort.off": "关闭",
+      "settings.reasoning_effort.low": "浮想",
+      "settings.reasoning_effort.medium": "斟酌",
+      "settings.reasoning_effort.high": "沉思",
+      "settings.reasoning_effort.default": "默认",
       "settings.more": "助手设置"
     },
     "auth": {
@@ -100,7 +100,7 @@
       "artifacts.button.preview": "预览",
       "artifacts.preview.openExternal.error.content": "外部浏览器打开出错",
       "assistant.search.placeholder": "搜索",
-      "deeply_thought": "已深度思考（用时 {{secounds}} 秒）",
+      "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
       "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
       "default.name": "默认助手",
       "default.topic.name": "默认话题",
@@ -133,15 +133,25 @@
       "input.translating": "翻译中...",
       "input.send": "发送",
       "input.settings": "设置",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "默认",
+      "input.thinking.mode.default.tip": "模型会自动确定思考的 token 数",
+      "input.thinking.mode.custom": "自定义",
+      "input.thinking.mode.custom.tip": "模型最多可以思考的 token 数。需要考虑模型的上下文限制，否则会报错",
+      "input.thinking.mode.tokens.tip": "设置思考的 token 数",
+      "input.thinking.budget_exceeds_max": "思考预算超过最大 token 数",
       "input.topics": " 话题 ",
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
       "input.upload.upload_from_local": "上传本地文件...",
       "input.upload.document": "上传文档（模型不支持图片）",
-      "input.web_search": "开启网络搜索",
+      "input.web_search": "网络搜索",
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
       "input.web_search.enable_content": "需要先在设置中检查网络搜索连通性",
+      "input.web_search.builtin": "模型内置",
+      "input.web_search.builtin.enabled_content": "使用模型内置的网络搜索功能",
+      "input.web_search.builtin.disabled_content": "当前模型不支持网络搜索功能",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -187,7 +197,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
       "suggestions.title": "建议的问题",
-      "thinking": "思考中",
+      "thinking": "思考中（用时 {{seconds}} 秒）",
       "topics.auto_rename": "生成话题名",
       "topics.clear.title": "清空消息",
       "topics.copy.image": "复制为图片",
@@ -332,7 +342,8 @@
         "title": "渲染错误"
       },
       "user_message_not_found": "无法找到原始用户消息",
-      "unknown": "未知错误"
+      "unknown": "未知错误",
+      "pause_placeholder": "已中断"
     },
     "export": {
       "assistant": "助手",
@@ -545,6 +556,7 @@
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
+      "processing": "正在处理...",
       "regenerate.confirm": "重新生成会覆盖当前消息",
       "reset.confirm.content": "确定要重置所有数据吗？",
       "reset.double.confirm.content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
@@ -689,7 +701,59 @@
       "regenerate.confirm": "这将覆盖已生成的图片，是否继续？",
       "seed": "随机种子",
       "seed_tip": "相同的种子和提示词可以生成相似的图片",
-      "title": "图片"
+      "title": "图片",
+      "magic_prompt_option": "提示词增强",
+      "model": "版本",
+      "aspect_ratio": "画幅比例",
+      "style_type": "风格",
+      "learn_more": "了解更多",
+      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 “双引号” 包裹",
+      "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
+      "image_file_required": "请先上传图片",
+      "image_file_retry": "请重新上传图片",
+      "mode": {
+        "generate": "绘图",
+        "edit": "编辑",
+        "remix": "混合",
+        "upscale": "放大"
+      },
+      "generate": {
+        "model_tip": "模型版本：V2 为接口最新模型，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
+        "number_images_tip": "单次出图数量",
+        "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
+        "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
+        "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
+        "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本"
+      },
+      "edit": {
+        "image_file": "编辑的图像",
+        "model_tip": "局部编辑仅支持 V_2 和 V_2_TURBO 版本",
+        "number_images_tip": "生成的编辑结果数量",
+        "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本",
+        "seed_tip": "控制编辑结果的随机性",
+        "magic_prompt_option_tip": "智能优化编辑提示词"
+      },
+      "remix": {
+        "model_tip": "选择重混使用的 AI 模型版本",
+        "image_file": "参考图",
+        "image_weight": "参考图权重",
+        "image_weight_tip": "调整参考图像的影响程度",
+        "number_images_tip": "生成的重混结果数量",
+        "seed_tip": "控制重混结果的随机性",
+        "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本",
+        "negative_prompt_tip": "描述不想在重混结果中出现的元素",
+        "magic_prompt_option_tip": "智能优化重混提示词"
+      },
+      "upscale": {
+        "image_file": "需要放大的图片",
+        "resemblance": "相似度",
+        "resemblance_tip": "控制放大结果与原图的相似程度",
+        "detail": "细节",
+        "detail_tip": "控制放大图像的细节增强程度",
+        "number_images_tip": "生成的放大结果数量",
+        "seed_tip": "控制放大结果的随机性",
+        "magic_prompt_option_tip": "智能优化放大提示词"
+      }
     },
     "plantuml": {
       "download": {
@@ -1187,7 +1251,16 @@
           "success": "同步MCP服务器成功",
           "unauthorized": "同步未授权",
           "noServersAvailable": "无可用的 MCP 服务器"
-        }
+        },
+        "timeout": "超时",
+        "timeoutTooltip": "对该服务器请求的超时时间（秒），默认为60秒",
+        "provider": "提供者",
+        "providerUrl": "提供者网址",
+        "logoUrl": "标志网址",
+        "tags": "标签",
+        "tagsPlaceholder": "输入标签",
+        "providerPlaceholder": "提供者名称",
+        "advancedSettings": "高级设置"
       },
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
@@ -1320,7 +1393,12 @@
         "remove_invalid_keys": "删除无效密钥",
         "search": "搜索模型平台...",
         "search_placeholder": "搜索模型 ID 或名称",
-        "title": "模型服务"
+        "title": "模型服务",
+        "notes": {
+          "title": "模型备注",
+          "placeholder": "请输入Markdown格式内容...",
+          "markdown_editor_default_value": "预览区域"
+        }
       },
       "proxy": {
         "mode": {

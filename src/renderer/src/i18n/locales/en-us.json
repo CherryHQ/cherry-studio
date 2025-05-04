@@ -56,11 +56,11 @@
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
-      "settings.reasoning_effort.high": "high",
-      "settings.reasoning_effort.low": "low",
-      "settings.reasoning_effort.medium": "medium",
-      "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
+      "settings.reasoning_effort.off": "Off",
+      "settings.reasoning_effort.high": "Think harder",
+      "settings.reasoning_effort.low": "Think less",
+      "settings.reasoning_effort.medium": "Think normally",
+      "settings.reasoning_effort.default": "Default",
       "settings.more": "Assistant Settings"
     },
     "auth": {
@@ -100,7 +100,7 @@
       "artifacts.button.preview": "Preview",
       "artifacts.preview.openExternal.error.content": "Error opening the external browser.",
       "assistant.search.placeholder": "Search",
-      "deeply_thought": "Deeply thought ({{secounds}} seconds)",
+      "deeply_thought": "Deeply thought ({{seconds}} seconds)",
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
@@ -136,7 +136,7 @@
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
-      "input.web_search": "Enable web search",
+      "input.web_search": "Web search",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Need to check web search connectivity in settings first",
@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
       "suggestions.title": "Suggested Questions",
-      "thinking": "Thinking",
+      "thinking": "Thinking ({{seconds}} seconds)",
       "topics.auto_rename": "Auto Rename",
       "topics.clear.title": "Clear Messages",
       "topics.copy.image": "Copy as image",
@@ -247,7 +247,17 @@
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
-      "input.upload.upload_from_local": "Upload local file..."
+      "input.upload.upload_from_local": "Upload local file...",
+      "input.web_search.builtin": "Model Built-in",
+      "input.web_search.builtin.enabled_content": "Use the built-in web search function of the model",
+      "input.web_search.builtin.disabled_content": "The current model does not support web search",
+      "input.thinking": "Thinking",
+      "input.thinking.mode.default": "Default",
+      "input.thinking.mode.default.tip": "The model will automatically determine the number of tokens to think",
+      "input.thinking.mode.custom": "Custom",
+      "input.thinking.mode.custom.tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported",
+      "input.thinking.mode.tokens.tip": "Set the number of thinking tokens to use.",
+      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -332,7 +342,8 @@
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
-      "unknown": "Unknown error"
+      "unknown": "Unknown error",
+      "pause_placeholder": "Paused"
     },
     "export": {
       "assistant": "Assistant",
@@ -545,6 +556,7 @@
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
+      "processing": "Processing...",
       "regenerate.confirm": "Regenerating will replace current message",
       "reset.confirm.content": "Are you sure you want to clear all data?",
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
@@ -689,7 +701,59 @@
       "regenerate.confirm": "This will replace your existing generated images. Do you want to continue?",
       "seed": "Seed",
       "seed_tip": "The same seed and prompt can produce similar images",
-      "title": "Images"
+      "title": "Images",
+      "magic_prompt_option": "Magic Prompt",
+      "model": "Model Version",
+      "aspect_ratio": "Aspect Ratio",
+      "style_type": "Style",
+      "learn_more": "Learn More",
+      "prompt_placeholder_edit": "Enter your image description, text drawing uses “double quotes” to wrap",
+      "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
+      "image_file_required": "Please upload an image first",
+      "image_file_retry": "Please re-upload an image first",
+      "mode": {
+        "generate": "Draw",
+        "edit": "Edit",
+        "remix": "Remix",
+        "upscale": "Upscale"
+      },
+      "generate": {
+        "model_tip": "Model version: V2 is the latest model of the interface, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+        "number_images_tip": "Number of images to generate",
+        "seed_tip": "Controls image generation randomness for reproducible results",
+        "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
+        "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
+        "style_type_tip": "Image generation style for V_2 and above"
+      },
+      "edit": {
+        "image_file": "Edited Image",
+        "model_tip": "Only supports V_2 and V_2_TURBO versions",
+        "number_images_tip": "Number of edited results to generate",
+        "style_type_tip": "Style for edited image, only for V_2 and above",
+        "seed_tip": "Controls editing randomness",
+        "magic_prompt_option_tip": "Intelligently enhances editing prompts"
+      },
+      "remix": {
+        "model_tip": "Select AI model version for remixing",
+        "image_file": "Reference Image",
+        "image_weight": "Reference Image Weight",
+        "image_weight_tip": "Adjust reference image influence",
+        "number_images_tip": "Number of remix results to generate",
+        "seed_tip": "Control the randomness of the mixed result",
+        "style_type_tip": "Style for remixed image, only for V_2 and above",
+        "negative_prompt_tip": "Describe unwanted elements in remix results",
+        "magic_prompt_option_tip": "Intelligently enhances remix prompts"
+      },
+      "upscale": {
+        "image_file": "Image to upscale",
+        "resemblance": "Similarity",
+        "resemblance_tip": "Controls similarity to original image",
+        "detail": "Detail",
+        "detail_tip": "Controls detail enhancement level",
+        "number_images_tip": "Number of upscaled results to generate",
+        "seed_tip": "Controls upscaling randomness",
+        "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
+      }
     },
     "plantuml": {
       "download": {
@@ -1187,7 +1251,16 @@
           "success": "Sync MCP Servers successful",
           "unauthorized": "Sync Unauthorized",
           "noServersAvailable": "No MCP servers available"
-        }
+        },
+        "timeout": "Timeout",
+        "timeoutTooltip": "Timeout in seconds for requests to this server, default is 60 seconds",
+        "provider": "Provider",
+        "providerUrl": "Provider URL",
+        "logoUrl": "Logo URL",
+        "tags": "Tags",
+        "tagsPlaceholder": "Enter tags",
+        "providerPlaceholder": "Provider name",
+        "advancedSettings": "Advanced Settings"
       },
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
@@ -1320,7 +1393,12 @@
         "remove_invalid_keys": "Remove Invalid Keys",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
-        "title": "Model Provider"
+        "title": "Model Provider",
+        "notes": {
+          "title": "Model Notes",
+          "placeholder": "Enter Markdown content...",
+          "markdown_editor_default_value": "Preview area"
+        }
       },
       "proxy": {
         "mode": {

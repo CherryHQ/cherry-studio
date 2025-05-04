@@ -28,8 +28,14 @@ class FileManager {
     return Promise.all(files.map((file) => this.addFile(file)))
   }
 
-  static async readFile(file: FileType): Promise<Buffer> {
-    return (await window.api.file.binaryFile(file.id + file.ext)).data
+  static async readBinaryImage(file: FileType): Promise<Buffer> {
+    const fileData = await window.api.file.binaryImage(file.id + file.ext)
+    return fileData.data
+  }
+
+  static async readBase64File(file: FileType): Promise<string> {
+    const fileData = await window.api.file.base64File(file.id + file.ext)
+    return fileData.data
   }
 
   static async uploadFile(file: FileType): Promise<FileType> {

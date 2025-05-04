@@ -1,7 +1,7 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isGenerateImageModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import { isGenerateImageModel, isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -20,9 +20,10 @@ import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
-import { sendMessage as _sendMessage } from '@renderer/store/messages'
 import { setSearching } from '@renderer/store/runtime'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Message, Model, Topic } from '@renderer/types'
+import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
+import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -47,9 +48,9 @@ import {
   Upload,
   Zap
 } from 'lucide-react'
+// import { CompletionUsage } from 'openai/resources'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
@@ -64,7 +65,9 @@ import MentionModelsInput from './MentionModelsInput'
 import NewContextButton from './NewContextButton'
 import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
+import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
 import TokenCount from './TokenCount'
+import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
 interface Props {
   assistant: Assistant
@@ -114,7 +117,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const navigate = useNavigate()
   const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
 
@@ -129,6 +131,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
   const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
+  const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
+  const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -174,41 +178,46 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
 
+    console.log('[DEBUG] Starting to send message')
+
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
 
     try {
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
-      const userMessage = getUserMessage({ assistant, topic, type: 'text', content: text })
 
+      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+      console.log('baseUserMessage', baseUserMessage)
+
+      // getUserMessage()
       if (uploadedFiles) {
-        userMessage.files = uploadedFiles
+        baseUserMessage.files = uploadedFiles
       }
-
       const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
 
       if (knowledgeBaseIds) {
-        userMessage.knowledgeBaseIds = knowledgeBaseIds
+        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
       }
 
       if (mentionModels) {
-        userMessage.mentions = mentionModels
+        baseUserMessage.mentions = mentionModels
       }
 
       if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        userMessage.enabledMCPs = activedMcpServers.filter((server) =>
+        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
           assistant.mcpServers?.some((s) => s.id === server.id)
         )
       }
 
-      userMessage.usage = await estimateMessageUsage(userMessage)
-      currentMessageId.current = userMessage.id
+      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
 
-      dispatch(
-        _sendMessage(userMessage, assistant, topic, {
-          mentions: mentionModels
-        })
-      )
+      const { message, blocks } = getUserMessage(baseUserMessage)
+
+      currentMessageId.current = message.id
+      console.log('[DEBUG] Created message and blocks:', message, blocks)
+      console.log('[DEBUG] Dispatching _sendMessage')
+      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      console.log('[DEBUG] _sendMessage dispatched')
 
       // Clear input
       setText('')
@@ -371,6 +380,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openResourcesList()
+        }
+      },
+      {
+        label: t('chat.input.web_search'),
+        description: '',
+        icon: <Globe />,
+        isMenu: true,
+        action: () => {
+          webSearchButtonRef.current?.openQuickPanel()
         }
       },
       {
@@ -552,16 +570,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      const clipboardText = event.clipboardData?.getData('text')
-      if (clipboardText) {
-        // Prioritize the text when pasting.
-        // handled by the default event
-      } else {
-        for (const file of event.clipboardData?.files || []) {
-          event.preventDefault()
-
+      // 1. 文件/图片粘贴
+      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+        event.preventDefault()
+        for (const file of event.clipboardData.files) {
           if (file.path === '') {
-            if (file.type.startsWith('image/') && isVisionModel(model)) {
+            // 图像生成也支持图像编辑
+            if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
               const tempFilePath = await window.api.file.create(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
@@ -589,23 +604,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             }
           }
         }
+        return
       }
 
-      if (pasteLongTextAsFile) {
-        const item = event.clipboardData?.items[0]
-        if (item && item.kind === 'string' && item.type === 'text/plain') {
-          item.getAsString(async (pasteText) => {
-            if (pasteText.length > pasteLongTextThreshold) {
-              const tempFilePath = await window.api.file.create('pasted_text.txt')
-              await window.api.file.write(tempFilePath, pasteText)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-              setText(text)
-              setTimeout(() => resizeTextArea(), 50)
-            }
-          })
-        }
+      // 2. 文本粘贴
+      const clipboardText = event.clipboardData?.getData('text')
+      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
+        // 长文本直接转文件，阻止默认粘贴
+        event.preventDefault()
+
+        const tempFilePath = await window.api.file.create('pasted_text.txt')
+        await window.api.file.write(tempFilePath, clipboardText)
+        const selectedFile = await window.api.file.get(tempFilePath)
+        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+        setText(text) // 保持输入框内容不变
+        setTimeout(() => resizeTextArea(), 50)
+        return
       }
+
+      // 短文本走默认粘贴行为
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
@@ -694,11 +711,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (message: Message) => {
-        setText(message.content)
-        textareaRef.current?.focus()
-        setTimeout(() => resizeTextArea(), 0)
-      }),
+      // EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (message: Message) => {
+      //   setText(message.content)
+      //   textareaRef.current?.focus()
+      //   setTimeout(() => resizeTextArea(), 0)
+      // }),
       EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
@@ -764,58 +781,32 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(newKnowledgeBases ?? [])
   }
 
-  const showWebSearchEnableModal = () => {
-    window.modal.confirm({
-      title: t('chat.input.web_search.enable'),
-      content: t('chat.input.web_search.enable_content'),
-      centered: true,
-      okText: t('chat.input.web_search.button.ok'),
-      onOk: () => {
-        navigate('/settings/web-search')
-      }
-    })
-  }
-
-  const shouldShowEnableModal = () => {
-    // 网络搜索功能是否未启用
-    const webSearchNotEnabled = !WebSearchService.isWebSearchEnabled()
-    // 非网络搜索模型：仅当网络搜索功能未启用时显示启用提示
-    if (!isWebSearchModel(model)) {
-      return webSearchNotEnabled
-    }
-    // 网络搜索模型：当允许覆盖但网络搜索功能未启用时显示启用提示
-    return WebSearchService.isOverwriteEnabled() && webSearchNotEnabled
-  }
-
-  const onEnableWebSearch = () => {
-    if (shouldShowEnableModal()) {
-      showWebSearchEnableModal()
-      return
-    }
-
-    updateAssistant({ ...assistant, enableWebSearch: !assistant.enableWebSearch })
-  }
-
   const onEnableGenerateImage = () => {
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
 
   useEffect(() => {
-    if (!isWebSearchModel(model) && !WebSearchService.isWebSearchEnabled() && assistant.enableWebSearch) {
+    if (!isWebSearchModel(model) && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+    if (assistant.webSearchProviderId && !WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
+      updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
+    if (isGenerateImageModel(model) && !assistant.enableGenerateImage && model.id !== 'gemini-2.0-flash-exp') {
+      updateAssistant({ ...assistant, enableGenerateImage: true })
+    }
   }, [assistant, model, updateAssistant])
 
-  const onMentionModel = (model: Model) => {
+  const onMentionModel = useCallback((model: Model) => {
     setMentionModels((prev) => {
       const modelId = getModelUniqId(model)
       const exists = prev.some((m) => getModelUniqId(m) === modelId)
       return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
     })
-  }
+  }, [])
 
   const onToggleExpended = () => {
     if (textareaHeight) {
@@ -929,14 +920,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
               />
-              <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-                <ToolbarButton type="text" onClick={onEnableWebSearch}>
-                  <Globe
-                    size={18}
-                    style={{ color: assistant.enableWebSearch ? 'var(--color-link)' : 'var(--color-icon)' }}
-                  />
-                </ToolbarButton>
-              </Tooltip>
+              {isReasoningModel(model) && (
+                <ThinkingButton
+                  ref={thinkingButtonRef}
+                  model={model}
+                  assistant={assistant}
+                  ToolbarButton={ToolbarButton}
+                />
+              )}
+              <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
                   ref={knowledgeBaseButtonRef}
@@ -953,6 +945,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
               />
+
               <GenerateImageButton
                 model={model}
                 assistant={assistant}
@@ -1120,7 +1113,8 @@ const ToolbarButton = styled(Button)`
   &.active {
     background-color: var(--color-primary) !important;
     .anticon,
-    .iconfont {
+    .iconfont,
+    .chevron-icon {
       color: var(--color-white-soft);
     }
     &:hover {

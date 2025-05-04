@@ -12,7 +12,6 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
-  App_SetCustomCss = 'app:set-custom-css',
   App_SetAutoUpdate = 'app:set-auto-update',
 
   App_IsBinaryExist = 'app:is-binary-exist',
@@ -38,6 +37,7 @@ export enum IpcChannel {
   MiniWindow_SetPin = 'miniwindow:set-pin',
 
   // Mcp
+  Mcp_AddServer = 'mcp:add-server',
   Mcp_RemoveServer = 'mcp:remove-server',
   Mcp_RestartServer = 'mcp:restart-server',
   Mcp_StopServer = 'mcp:stop-server',
@@ -81,8 +81,6 @@ export enum IpcChannel {
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
 
-  SelectionMenu_Action = 'selection-menu:action',
-
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
@@ -108,8 +106,8 @@ export enum IpcChannel {
   File_Base64Image = 'file:base64Image',
   File_Download = 'file:download',
   File_Copy = 'file:copy',
-  File_BinaryFile = 'file:binaryFile',
-
+  File_BinaryImage = 'file:binaryImage',
+  File_Base64File = 'file:base64File',
   Fs_Read = 'fs:read',
 
   Export_Word = 'export:word',
@@ -135,7 +133,6 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
 
   // events
-  SelectionAction = 'selection-action',
   BackupProgress = 'backup-progress',
   ThemeChange = 'theme:change',
   UpdateDownloadedCancelled = 'update-downloaded-cancelled',
@@ -153,7 +150,6 @@ export enum IpcChannel {
 
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
-  MiniWindowReload = 'miniwindow-reload',
 
   ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',
@@ -161,5 +157,11 @@ export enum IpcChannel {
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
-  SearchWindow_OpenUrl = 'search-window:open-url'
+  SearchWindow_OpenUrl = 'search-window:open-url',
+
+  //Store Sync
+  StoreSync_Subscribe = 'store-sync:subscribe',
+  StoreSync_Unsubscribe = 'store-sync:unsubscribe',
+  StoreSync_OnUpdate = 'store-sync:on-update',
+  StoreSync_BroadcastSync = 'store-sync:broadcast-sync'
 }

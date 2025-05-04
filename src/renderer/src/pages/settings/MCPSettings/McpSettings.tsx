@@ -1,10 +1,11 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
-import { Button, Flex, Form, Input, Radio, Switch, Tabs } from 'antd'
+import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { ChevronDown } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -26,6 +27,12 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  timeout?: number
+
+  provider?: string
+  providerUrl?: string
+  logoUrl?: string
+  tags?: string[]
 }
 
 interface Registry {
@@ -42,7 +49,7 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
-type TabKey = 'settings' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const parseKeyValueString = (str: string): Record<string, string> => {
   const result: Record<string, string> = {}
@@ -61,7 +68,10 @@ const parseKeyValueString = (str: string): Record<string, string> => {
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const { server } = useLocation().state as { server: MCPServer }
+  const {
+    server: { id: serverId }
+  } = useLocation().state as { server: MCPServer }
+  const server = useMCPServer(serverId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
@@ -76,10 +86,13 @@ const McpSettings: React.FC = () => {
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
 
+  const [showAdvanced, setShowAdvanced] = useState(false)
+
   const { theme } = useTheme()
 
   const navigate = useNavigate()
 
+  // Initialize form values whenever the server changes
   useEffect(() => {
     const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
     setServerType(serverType)
@@ -105,6 +118,7 @@ const McpSettings: React.FC = () => {
       }
     }
 
+    // Initialize basic fields
     form.setFieldsValue({
       name: server.name,
       description: server.description,
@@ -113,6 +127,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
         ? Object.entries(server.env)
@@ -125,8 +140,18 @@ const McpSettings: React.FC = () => {
             .join('\n')
         : ''
     })
+
+    // Initialize advanced fields separately to ensure they're captured
+    // even if the Collapse panel is closed
+    form.setFieldsValue({
+      provider: server.provider || '',
+      providerUrl: server.providerUrl || '',
+      logoUrl: server.logoUrl || '',
+      tags: server.tags || []
+    })
   }, [server, form])
 
+  // Watch for serverType changes
   useEffect(() => {
     const currentServerType = form.getFieldValue('serverType')
     if (currentServerType) {
@@ -214,7 +239,14 @@ const McpSettings: React.FC = () => {
         type: values.serverType || server.type,
         description: values.description,
         isActive: values.isActive,
-        registryUrl: values.registryUrl
+        registryUrl: values.registryUrl,
+        searchKey: server.searchKey,
+        timeout: values.timeout || server.timeout,
+        // Preserve existing advanced properties if not set in the form
+        provider: values.provider || server.provider,
+        providerUrl: values.providerUrl || server.providerUrl,
+        logoUrl: values.logoUrl || server.logoUrl,
+        tags: values.tags || server.tags
       }
 
       // set stdio or sse server
@@ -410,8 +442,8 @@ const McpSettings: React.FC = () => {
               label={t('settings.mcp.type')}
               rules={[{ required: true }]}
               initialValue="stdio">
-              <Radio.Group
-                onChange={(e) => setServerType(e.target.value)}
+              <Select
+                onChange={(value) => setServerType(value)}
                 options={[
                   { label: t('settings.mcp.stdio'), value: 'stdio' },
                   { label: t('settings.mcp.sse'), value: 'sse' },
@@ -513,6 +545,53 @@ const McpSettings: React.FC = () => {
               </Form.Item>
             </>
           )}
+          <Form.Item
+            name="timeout"
+            label={t('settings.mcp.timeout', 'Timeout')}
+            tooltip={t(
+              'settings.mcp.timeoutTooltip',
+              'Timeout in seconds for requests to this server, default is 60 seconds'
+            )}>
+            <Input type="number" min={1} placeholder="60" addonAfter="s" />
+          </Form.Item>
+
+          <AdvancedSettingsButton onClick={() => setShowAdvanced(!showAdvanced)}>
+            <ChevronDown
+              size={18}
+              style={{
+                transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s',
+                marginRight: 8,
+                stroke: 'var(--color-primary)'
+              }}
+            />
+            {t('common.advanced_settings')}
+          </AdvancedSettingsButton>
+
+          {showAdvanced && (
+            <>
+              <Form.Item name="provider" label={t('settings.mcp.provider', 'Provider')}>
+                <Input placeholder={t('settings.mcp.providerPlaceholder', 'Provider name')} />
+              </Form.Item>
+
+              <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
+                <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+              </Form.Item>
+
+              <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
+                <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+              </Form.Item>
+
+              <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>
+                <Select
+                  mode="tags"
+                  style={{ width: '100%' }}
+                  placeholder={t('settings.mcp.tagsPlaceholder', 'Enter tags')}
+                  tokenSeparators={[',']}
+                />
+              </Form.Item>
+            </>
+          )}
         </Form>
       )
     }
@@ -586,6 +665,15 @@ const McpSettings: React.FC = () => {
 const ServerName = styled.span`
   font-size: 14px;
   font-weight: 500;
+`
+
+const AdvancedSettingsButton = styled.div`
+  cursor: pointer;
+  margin-bottom: 16px;
+  margin-top: -10px;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
 `
 
 export default McpSettings

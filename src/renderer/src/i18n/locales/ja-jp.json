@@ -56,11 +56,11 @@
       "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
       "settings.reasoning_effort": "思考連鎖の長さ",
-      "settings.reasoning_effort.high": "長い",
-      "settings.reasoning_effort.low": "短い",
-      "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
-      "settings.reasoning_effort.tip": "OpenAI o-series、Anthropic、および Grok の推論モデルのみサポート",
+      "settings.reasoning_effort.high": "最大限の思考",
+      "settings.reasoning_effort.low": "少しの思考",
+      "settings.reasoning_effort.medium": "普通の思考",
+      "settings.reasoning_effort.default": "デフォルト",
       "settings.more": "アシスタント設定"
     },
     "auth": {
@@ -100,7 +100,7 @@
       "artifacts.button.preview": "プレビュー",
       "artifacts.preview.openExternal.error.content": "外部ブラウザの起動に失敗しました。",
       "assistant.search.placeholder": "検索",
-      "deeply_thought": "深く考えています（{{secounds}} 秒）",
+      "deeply_thought": "深く考えています（{{seconds}} 秒）",
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
       "default.name": "デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
@@ -136,7 +136,7 @@
       "input.translate": "{{target_language}}に翻訳",
       "input.upload": "画像またはドキュメントをアップロード",
       "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
-      "input.web_search": "ウェブ検索を有効にする",
+      "input.web_search": "ウェブ検索",
       "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
       "input.web_search.enable_content": "ウェブ検索の接続性を先に設定で確認する必要があります",
@@ -185,7 +185,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "デフォルト値は1で、値が小さいほど回答の多様性が減り、理解しやすくなります。値が大きいほど、AIの語彙範囲が広がり、多様性が増します",
       "suggestions.title": "提案された質問",
-      "thinking": "思考中...",
+      "thinking": "思考中（用時 {{seconds}} 秒）",
       "topics.auto_rename": "自動リネーム",
       "topics.clear.title": "メッセージをクリア",
       "topics.copy.image": "画像としてコピー",
@@ -247,7 +247,17 @@
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
       "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
       "input.translating": "翻訳中...",
-      "input.upload.upload_from_local": "ローカルファイルをアップロード..."
+      "input.upload.upload_from_local": "ローカルファイルをアップロード...",
+      "input.web_search.builtin": "モデル内蔵",
+      "input.web_search.builtin.enabled_content": "モデル内蔵のウェブ検索機能を使用",
+      "input.web_search.builtin.disabled_content": "現在のモデルはウェブ検索をサポートしていません",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "デフォルト",
+      "input.thinking.mode.custom": "カスタム",
+      "input.thinking.mode.custom.tip": "モデルが最大で思考できるトークン数。モデルのコンテキスト制限を考慮する必要があります。そうしないとエラーが発生します",
+      "input.thinking.mode.default.tip": "モデルが自動的に思考のトークン数を決定します",
+      "input.thinking.mode.tokens.tip": "思考のトークン数を設定します",
+      "input.thinking.budget_exceeds_max": "思考予算が最大トークン数を超えました"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -332,7 +342,8 @@
         "title": "レンダリングエラー"
       },
       "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
-      "unknown": "不明なエラー"
+      "unknown": "不明なエラー",
+      "pause_placeholder": "応答を一時停止しました"
     },
     "export": {
       "assistant": "アシスタント",
@@ -544,6 +555,7 @@
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",
+      "processing": "処理中...",
       "regenerate.confirm": "再生成すると現在のメッセージが置き換えられます",
       "reset.confirm.content": "すべてのデータをリセットしてもよろしいですか？",
       "reset.double.confirm.content": "すべてのデータが失われます。続行しますか？",
@@ -689,7 +701,59 @@
       "regenerate.confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？",
       "seed": "シード",
       "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
-      "title": "画像"
+      "title": "画像",
+      "magic_prompt_option": "プロンプト強化",
+      "model": "モデルバージョン",
+      "aspect_ratio": "画幅比例",
+      "style_type": "スタイル",
+      "learn_more": "詳しくはこちら",
+      "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
+      "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
+      "image_file_required": "画像を先にアップロードしてください",
+      "image_file_retry": "画像を先にアップロードしてください",
+      "mode": {
+        "generate": "画像生成",
+        "edit": "部分編集",
+        "remix": "混合",
+        "upscale": "拡大"
+      },
+      "generate": {
+        "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
+        "number_images_tip": "一度に生成する画像の枚数",
+        "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
+        "negative_prompt_tip": "画像に含めたくない内容を説明します",
+        "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
+        "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+      },
+      "edit": {
+        "image_file": "編集画像",
+        "model_tip": "部分編集は V_2 と V_2_TURBO のバージョンのみサポートします",
+        "number_images_tip": "生成される編集結果の数",
+        "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用",
+        "seed_tip": "編集結果のランダム性を制御します",
+        "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します"
+      },
+      "remix": {
+        "model_tip": "リミックスに使用する AI モデルのバージョンを選択します",
+        "image_file": "参照画像",
+        "image_weight": "参照画像の重み",
+        "image_weight_tip": "参照画像の影響度を調整します",
+        "number_images_tip": "生成されるリミックス結果の数",
+        "seed_tip": "リミックス結果のランダム性を制御します",
+        "style_type_tip": "リミックス後の画像スタイル、V_2 以上のバージョンでのみ適用",
+        "negative_prompt_tip": "リミックス結果に含めたくない内容を説明します",
+        "magic_prompt_option_tip": "リミックス効果を向上させるための提示詞を最適化します"
+      },
+      "upscale": {
+        "image_file": "拡大する画像",
+        "resemblance": "類似度",
+        "resemblance_tip": "拡大結果と原画像の類似度を制御します",
+        "detail": "詳細度",
+        "detail_tip": "拡大画像の詳細度を制御します",
+        "number_images_tip": "生成される拡大結果の数",
+        "seed_tip": "拡大結果のランダム性を制御します",
+        "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
+      }
     },
     "plantuml": {
       "download": {
@@ -1185,7 +1249,16 @@
           "success": "MCPサーバーの同期成功",
           "unauthorized": "同期が許可されていません",
           "noServersAvailable": "利用可能な MCP サーバーがありません"
-        }
+        },
+        "timeout": "タイムアウト",
+        "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
+        "provider": "プロバイダー",
+        "providerUrl": "プロバイダーURL",
+        "logoUrl": "ロゴURL",
+        "tags": "タグ",
+        "tagsPlaceholder": "タグを入力",
+        "providerPlaceholder": "プロバイダー名",
+        "advancedSettings": "詳細設定"
       },
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
@@ -1318,7 +1391,12 @@
         "remove_invalid_keys": "無効なキーを削除",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
-        "title": "モデルプロバイダー"
+        "title": "モデルプロバイダー",
+        "notes": {
+          "title": "モデルノート",
+          "placeholder": "Markdown形式の内容を入力してください...",
+          "markdown_editor_default_value": "プレビュー領域"
+        }
       },
       "proxy": {
         "mode": {
@@ -1436,7 +1514,8 @@
       "privacy": {
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
-      }
+      },
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {
       "any.language": "任意の言語",
