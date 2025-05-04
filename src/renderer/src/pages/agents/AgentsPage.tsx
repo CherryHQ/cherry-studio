@@ -28,7 +28,7 @@ const AgentsPage: FC = () => {
   const [activeGroup, setActiveGroup] = useState('我的')
   const [agentGroups, setAgentGroups] = useState<Record<string, Agent[]>>({})
   const systemAgents = useSystemAgents()
-  const { agents: userAgents, addAgent } = useAgents()
+  const { agents: userAgents } = useAgents()
 
   useEffect(() => {
     const systemAgentsGroupList = groupByCategories(systemAgents)
