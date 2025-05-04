@@ -359,6 +359,45 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     setCurrentStickyGroup(firstGroupRef.current ?? null)
   }
 
+  const renderGroupItem = useCallback(
+    (item: FlatListItem) => {
+      return <GroupItem $isSticky={item.key === currentStickyGroup?.key}>{item.name}</GroupItem>
+    },
+    [currentStickyGroup]
+  )
+
+  const renderModelItem = useCallback(
+    (item: FlatListItem) => {
+      return (
+        <ModelItem
+          onClick={() => handleItemClick(item)}
+          $isFocused={item.key === focusedItemKey}
+          $isSelected={item.key === selectedItemKey}
+          onMouseEnter={() => {
+            if (isMouseOver) setFocusedItemKey(item.key)
+          }}>
+          <ModelItemLeft>
+            {item.icon}
+            {item.name}
+            {item.tags}
+          </ModelItemLeft>
+          <PinIconWrapper
+            onClick={(e) => {
+              e.stopPropagation()
+              if (item.model) {
+                togglePin(getModelUniqId(item.model))
+              }
+            }}
+            data-pinned={item.isPinned}
+            $isPinned={item.isPinned}>
+            <PushpinOutlined />
+          </PinIconWrapper>
+        </ModelItem>
+      )
+    },
+    [focusedItemKey, handleItemClick, isMouseOver, selectedItemKey, togglePin]
+  )
+
   return (
     <Modal
       centered
@@ -405,11 +444,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
-      <ListContainer onMouseMove={() => setIsMouseOver(true)}>
-        {/* Sticky Group Banner，它会替换第一个分组名称 */}
-        {listItems.length > 0 && <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>}
-        {/* 虚拟列表 */}
-        {listItems.length > 0 ? (
+      {listItems.length > 0 ? (
+        <ListContainer onMouseMove={() => setIsMouseOver(true)}>
+          {/* Sticky Group Banner，它会替换第一个分组名称 */}
+          <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
           <VirtualList
             ref={listRef}
             data={listItems}
@@ -427,43 +465,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
               }
             }}
             style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
-            {(item) =>
-              item.type === 'group' ? (
-                <GroupItem $isSticky={item.key === currentStickyGroup?.key}>{item.name}</GroupItem>
-              ) : (
-                <ModelItem
-                  onClick={() => handleItemClick(item)}
-                  $isFocused={item.key === focusedItemKey}
-                  $isSelected={item.key === selectedItemKey}
-                  onMouseEnter={() => {
-                    if (isMouseOver) setFocusedItemKey(item.key)
-                  }}>
-                  <ModelItemLeft>
-                    {item.icon}
-                    {item.name}
-                    {item.tags}
-                  </ModelItemLeft>
-                  <PinIconWrapper
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (item.model) {
-                        togglePin(getModelUniqId(item.model))
-                      }
-                    }}
-                    data-pinned={item.isPinned}
-                    $isPinned={item.isPinned}>
-                    <PushpinOutlined />
-                  </PinIconWrapper>
-                </ModelItem>
-              )
-            }
+            {(item) => (item.type === 'group' ? renderGroupItem(item) : renderModelItem(item))}
           </VirtualList>
-        ) : (
-          <EmptyState>
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          </EmptyState>
-        )}
-      </ListContainer>
+        </ListContainer>
+      ) : (
+        <EmptyState>
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        </EmptyState>
+      )}
     </Modal>
   )
 }
