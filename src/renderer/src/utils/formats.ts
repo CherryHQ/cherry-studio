@@ -2,7 +2,7 @@ import { Model } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 
 import { findAllBlocks, findImageBlocks, getMainTextContent } from './messageUtils/find'
-import { isThinkingBlock } from './messageUtils/is'
+import { isToolBlock } from './messageUtils/is'
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -223,10 +223,17 @@ export function addImageFileToContents(messages: Message[]) {
 export const stringifyMessage = (message: Message): string => {
   return findAllBlocks(message)
     .map((block: any) => {
-      if (isThinkingBlock(block)) {
-        return `<think>\n${block.content}\n</think>`
+      if (!block) return ''
+
+      if (isToolBlock(block)) {
+        return `<${block.type}>\n${JSON.stringify(block.metadata?.rawMcpToolResponse, null, 2)}\n</${block.type}>`
       }
-      return block && (block.content ?? '<BLOCK_WITHOUT_CONTENT>')
+
+      if (block.content) {
+        return `<${block.type}>\n${block.content}\n</${block.type}>`
+      }
+
+      return `<${block.type}>\n${JSON.stringify(block, null, 2)}\n</${block.type}>`
     })
     .join('\n\n')
 }
