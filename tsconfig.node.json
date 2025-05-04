@@ -7,7 +7,7 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*"
-  ],
+, "src/renderer/src/utils/stream.ts"  ],
   "compilerOptions": {
     "composite": true,
     "types": [
