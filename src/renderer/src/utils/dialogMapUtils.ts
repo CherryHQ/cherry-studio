@@ -529,7 +529,7 @@ export const buildDialogMapFlowData = (
               isHorizontal:
                 childPosition && parentPosition && Math.abs(childPosition.x - parentPosition.x) > NODE_WIDTH / 2
             },
-            animated: isSelectedPath,
+            animated: false,
             type: 'bezier',
             style: isSelectedPath ? selectedEdgeStyle : commonEdgeStyle,
             markerEnd: isSelectedPath
@@ -590,20 +590,20 @@ export const buildDialogMapFlowData = (
           targetPosition,
           isHorizontal: childPosition && parentPosition && Math.abs(childPosition.x - parentPosition.x) > NODE_WIDTH / 2
         },
-        animated: isSelected,
+        animated: false,
         type: 'bezier',
         style: isSelected ? selectedEdgeStyle : commonEdgeStyle,
         markerEnd: isSelected
           ? {
               type: MarkerType.ArrowClosed,
-              width: 10, // 减小箭头大小，原值12
-              height: 10, // 减小箭头大小，原值12
+              width: 10,
+              height: 10,
               color: 'var(--color-primary)'
             }
           : {
               type: MarkerType.Arrow,
-              width: 8, // 减小箭头大小，原值12
-              height: 8, // 减小箭头大小，原值12
+              width: 8,
+              height: 8,
               color: 'var(--color-border-dark, #666)'
             }
       })

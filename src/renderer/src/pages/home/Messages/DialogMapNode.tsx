@@ -436,7 +436,7 @@ const AddBranchButtonOutside = styled.button`
 
   &:hover {
     transform: scale(1.1);
-    background-color: var(--color-primary-dark);
+    background-color: var(--color-primary);
   }
 
   &:active {
