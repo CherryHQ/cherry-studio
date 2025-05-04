@@ -6,11 +6,11 @@ import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { getUserMessage } from '@renderer/services/MessagesService'
 import { RootState } from '@renderer/store'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { Model } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { UserMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
@@ -20,7 +20,6 @@ import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
-import { v4 as uuidv4 } from 'uuid'
 
 // 定义Tooltip相关样式组件
 const TooltipContent = styled.div`
@@ -235,6 +234,18 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
 
   const topicId = conversationId
 
+  // 获取当前 assistant 和 topics
+  const currentAssistant = useSelector((state: RootState) => {
+    const assistants = state.assistants.assistants
+    const currentTopic = assistants.flatMap((a) => a.topics).find((t) => t.id === topicId)
+    return assistants.find((a) => a.id === currentTopic?.assistantId)
+  })
+
+  const currentTopic = useSelector((state: RootState) => {
+    const assistants = state.assistants.assistants
+    return assistants.flatMap((a) => a.topics).find((t) => t.id === topicId)
+  })
+
   // 只在消息实际内容变化时更新，而不是属性变化（如foldSelected）
   const messages = useSelector(
     (state: RootState) => selectMessagesForTopic(state, topicId || ''),
@@ -289,6 +300,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
 
     // 处理孤立消息
     const processedMessages = new Set<string>()
+    console.log('userMessages', userMessages)
 
     // 为所有用户消息创建节点
     userMessages.forEach((message, index) => {
@@ -345,14 +357,34 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
 
       // 检查是否有分支
       const hasBranch = message.branchId !== undefined
-      const xPosition = hasBranch ? baseX + branchOffset : baseX
+
+      // 计算分支层级
+      let branchLevel = 0
+      if (hasBranch) {
+        // 获取所有唯一的 branchId 并排序
+        const uniqueBranchIds = [
+          ...new Set(
+            userMessages
+              .filter((msg) => msg.branchId)
+              .map((msg) => msg.branchId)
+              .sort()
+          )
+        ]
+        // 获取当前 branchId 在排序后的数组中的索引
+        console.log('uniqueBranchIds', uniqueBranchIds)
+        branchLevel = uniqueBranchIds.indexOf(message.branchId)
+        console.log('branchLevel', branchLevel)
+        console.log('message.branchId', message.branchId)
+      }
+
+      const xPosition = hasBranch ? baseX + branchOffset * (branchLevel + 1) : baseX
 
       // 如果是分支消息，找到父节点
       const parentNodeId = message.parentMessageId ? `user-${message.parentMessageId}` : null
       const parentNode = parentNodeId ? flowNodes.find((node) => node.id === parentNodeId) : null
 
       // 计算分支节点的位置
-      const adjustedXPosition = parentNode ? parentNode.position.x + branchOffset : xPosition
+      const adjustedXPosition = xPosition
 
       // 找到父节点的下一个节点
       let nextNodeY = adjustedYPosition
@@ -487,24 +519,28 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
     const handleAddBranch = (e: CustomEvent) => {
       const { messageId } = e.detail
 
+      if (!currentAssistant || !currentTopic) {
+        console.error('Failed to find current assistant or topic')
+        return
+      }
+
       // 生成唯一的branchId
-      const branchId = uuidv4()
+      const branchId = `branch-${Date.now()}`
 
       // 创建新的消息块
-      const newMessage: Message = {
-        id: uuidv4(),
-        role: 'user',
-        assistantId: '', // 需要从当前对话获取
-        topicId: topicId || '',
-        createdAt: new Date().toISOString(),
-        status: UserMessageStatus.SUCCESS,
-        blocks: [],
+      const { message: newMessage, blocks } = getUserMessage({
+        assistant: currentAssistant,
+        topic: currentTopic,
         branchId,
-        parentMessageId: messageId // 记录父节点ID
-      }
+        parentMessageId: messageId, // 记录父节点ID
+        content: '' // 添加空内容
+      })
 
       // 添加到store
       dispatch(newMessagesActions.addMessage({ topicId: topicId || '', message: newMessage }))
+      if (blocks.length > 0) {
+        dispatch(upsertManyBlocks(blocks))
+      }
 
       // 重新构建对话流
       const { nodes: flowNodes, edges: flowEdges } = buildConversationFlowData()
@@ -516,7 +552,7 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
     return () => {
       document.removeEventListener('flow-add-branch', handleAddBranch as EventListener)
     }
-  }, [dispatch, topicId, buildConversationFlowData, setNodes, setEdges])
+  }, [dispatch, topicId, buildConversationFlowData, setNodes, setEdges, currentAssistant, currentTopic])
 
   return (
     <FlowContainer>

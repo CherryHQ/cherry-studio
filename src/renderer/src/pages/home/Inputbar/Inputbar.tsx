@@ -16,7 +16,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
+import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
@@ -96,6 +96,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
+  const [currentBranchId, setCurrentBranchId] = useState<string | undefined>()
+  const [currentMessageId, setCurrentMessageId] = useState<string | undefined>()
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
@@ -114,7 +116,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const { activedMcpServers } = useMCPServers()
@@ -186,60 +187,44 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
 
-      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
+      const baseUserMessage: MessageInputBaseParams = {
+        assistant,
+        topic,
+        content: text,
+        branchId: currentBranchId,
+        parentMessageId: currentMessageId,
+        files: uploadedFiles,
+        knowledgeBaseIds: selectedKnowledgeBases.map((kb) => kb.id),
+        mentions: mentionModels,
+        enabledMCPs: activedMcpServers
+      }
       console.log('baseUserMessage', baseUserMessage)
 
-      // getUserMessage()
-      if (uploadedFiles) {
-        baseUserMessage.files = uploadedFiles
-      }
-      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
-
-      if (knowledgeBaseIds) {
-        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
-      }
-
-      if (mentionModels) {
-        baseUserMessage.mentions = mentionModels
-      }
-
-      if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
-          assistant.mcpServers?.some((s) => s.id === server.id)
-        )
-      }
-
-      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
-
-      const { message, blocks } = getUserMessage(baseUserMessage)
-
-      currentMessageId.current = message.id
-      console.log('[DEBUG] Created message and blocks:', message, blocks)
-      console.log('[DEBUG] Dispatching _sendMessage')
+      const { message, blocks } = await getUserMessage(baseUserMessage)
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
-      console.log('[DEBUG] _sendMessage dispatched')
 
-      // Clear input
+      // Reset state
       setText('')
       setFiles([])
-      setTimeout(() => setText(''), 500)
-      setTimeout(() => resizeTextArea(), 0)
-      setExpend(false)
+      setSelectedKnowledgeBases([])
+      setMentionModels([])
+      setTokenCount(0)
+      setCurrentBranchId(undefined)
+      setCurrentMessageId(undefined)
     } catch (error) {
-      console.error('Failed to send message:', error)
+      console.error('Error sending message:', error)
     }
   }, [
-    activedMcpServers,
-    assistant,
-    dispatch,
-    files,
     inputEmpty,
     loading,
-    mentionModels,
-    resizeTextArea,
-    selectedKnowledgeBases,
+    assistant,
+    files,
     text,
-    topic
+    topic,
+    selectedKnowledgeBases,
+    mentionModels,
+    activedMcpServers,
+    dispatch
   ])
 
   const translate = useCallback(async () => {
@@ -760,6 +745,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     // if assistant knowledge bases are undefined return []
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
+
+  useEffect(() => {
+    const unsubscribes = [
+      EventEmitter.on('flow-add-branch', (event: CustomEvent) => {
+        const { branchId, messageId } = event.detail
+        setCurrentBranchId(branchId)
+        setCurrentMessageId(messageId)
+      })
+    ]
+    return () => unsubscribes.forEach((unsub) => unsub())
+  }, [])
 
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 

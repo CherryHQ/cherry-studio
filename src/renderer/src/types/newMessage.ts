@@ -203,10 +203,12 @@ export type ResponseError = Record<string, any>
 export interface MessageInputBaseParams {
   assistant: Assistant
   topic: Topic
-  content?: string
+  content: string
+  branchId?: string
+  parentMessageId?: string
   files?: FileType[]
   knowledgeBaseIds?: string[]
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
-  usage?: CompletionUsage
+  metadata?: Record<string, any>
 }

@@ -8,7 +8,7 @@ import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messag
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant, FileType, MCPServer, Model, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock, MessageInputBaseParams } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { getTitleFromString } from '@renderer/utils/export'
@@ -107,11 +107,12 @@ export function getUserMessage({
   type,
   content,
   files,
-  // Keep other potential params if needed by createMessage
   knowledgeBaseIds,
   mentions,
-  enabledMCPs
-}: {
+  enabledMCPs,
+  branchId,
+  parentMessageId
+}: MessageInputBaseParams & {
   assistant: Assistant
   topic: Topic
   type?: Message['type']
@@ -120,6 +121,8 @@ export function getUserMessage({
   knowledgeBaseIds?: string[]
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
+  branchId?: string
+  parentMessageId?: string
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
@@ -160,14 +163,17 @@ export function getUserMessage({
       modelId: model?.id,
       model: model,
       blocks: blockIds,
-      // 移除knowledgeBaseIds
       mentions,
       enabledMCPs,
-      type
+      type,
+      branchId,
+      parentMessageId:
+        parentMessageId || (topic.messages?.length ? topic.messages[topic.messages.length - 1]?.id : undefined)
     }
   )
 
   // 不再需要手动合并ID
+  console.log('branchId', branchId)
   return { message, blocks }
 }
 
