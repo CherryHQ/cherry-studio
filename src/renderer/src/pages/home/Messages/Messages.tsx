@@ -12,6 +12,7 @@ import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/s
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -49,7 +50,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
-  const messages = useTopicMessages(topic)
+  const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
@@ -147,6 +148,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
           const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
           dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
+          await saveMessageAndBlocksToDB(clearMessage, [])
 
           scrollToBottom()
         } finally {
