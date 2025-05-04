@@ -226,20 +226,15 @@ export const stringifyMessage = (message: Message): string => {
       if (!block) return ''
 
       if (isMainTextBlock(block)) {
-        return block.content
+        return block.content.trim() ? block.content : ''
       }
 
-      if (isTextLikeBlock(block)) {
-        if ('content' in block) {
-          return `<${block.type}>\n${block.content}\n</${block.type}>`
-        }
-
-        if ('error' in block) {
-          return `<${block.type}>\n${JSON.stringify(block.error, null, 2)}\n</${block.type}>`
-        }
+      if (isTextLikeBlock(block) && 'content' in block) {
+        return `<${block.type}>\n${block.content}\n</${block.type}>`
       }
 
       return `<${block.type}>\nREDACTED\n</${block.type}>`
     })
+    .filter((s) => s)
     .join('\n\n')
 }
