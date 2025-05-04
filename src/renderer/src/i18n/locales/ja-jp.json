@@ -9,6 +9,23 @@
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
       "add.title": "エージェントを作成",
+      "import.title": "外部からインポート",
+      "import": {
+        "title": "外部からインポート",
+        "type": {
+          "url": "URL",
+          "file": "ファイル"
+        },
+        "url_placeholder": "JSON URLを入力",
+        "select_file": "ファイルを選択",
+        "button": "インポート",
+        "file_filter": "JSONファイル",
+        "error": {
+          "url_required": "URLを入力してください",
+          "fetch_failed": "URLからのデータ取得に失敗しました",
+          "invalid_format": "無効なエージェント形式：必須フィールドが不足しています"
+        }
+      },
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.message.add.title": "追加",
       "edit.message.assistant.placeholder": "アシスタントのメッセージを入力",
@@ -498,6 +515,10 @@
       "title": "Mermaid図"
     },
     "message": {
+      "agents": {
+        "imported": "インポートに成功しました",
+        "import.error": "インポートに失敗しました"
+      },
       "api.check.model.title": "検出に使用するモデルを選択してください",
       "api.connection.failed": "接続に失敗しました",
       "api.connection.success": "接続に成功しました",
@@ -1515,6 +1536,7 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
+      "defaultAgent": "内蔵",
       "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {
