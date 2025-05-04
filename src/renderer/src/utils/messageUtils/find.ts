@@ -6,6 +6,7 @@ import type {
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
+  MessageBlock,
   ThinkingMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
@@ -90,7 +91,7 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
  * @param message - The message object.
  * @returns An array of MessageBlocks (empty if none found).
  */
-export const findAllBlocks = (message: Message): any[] => {
+export const findAllBlocks = (message: Message): MessageBlock[] => {
   if (!message || !message.blocks || message.blocks.length === 0) {
     return []
   }

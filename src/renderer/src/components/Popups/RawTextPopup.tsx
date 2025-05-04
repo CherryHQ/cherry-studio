@@ -65,7 +65,6 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
       {...modalProps}>
       <TextArea
         ref={textareaRef}
-        rows={2}
         spellCheck={false}
         value={text}
         style={{ ...textareaProps?.style, minHeight: '60vh', maxHeight: '80vh' }}
