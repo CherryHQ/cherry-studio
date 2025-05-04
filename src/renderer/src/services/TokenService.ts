@@ -1,5 +1,5 @@
 import { Assistant, FileType, FileTypes, Usage } from '@renderer/types'
-import type { Message, MessageInputBaseParams } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
 import { approximateTokenSize } from 'tokenx'
@@ -56,11 +56,17 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateUserMessageUsage(params?: MessageInputBaseParams): Promise<Usage> {
+export async function estimateUserMessageUsage({
+  content,
+  files
+}: {
+  content?: string
+  files?: FileType[]
+}): Promise<Usage> {
   let imageTokens = 0
 
-  if (params?.files && params.files.length > 0) {
-    const images = params.files.filter((f) => f.type === FileTypes.IMAGE)
+  if (files && files.length > 0) {
+    const images = files.filter((f) => f.type === FileTypes.IMAGE)
     if (images.length > 0) {
       for (const image of images) {
         imageTokens = estimateImageTokens(image) + imageTokens
@@ -68,7 +74,7 @@ export async function estimateUserMessageUsage(params?: MessageInputBaseParams):
     }
   }
 
-  const tokens = estimateTextTokens(params?.content || '')
+  const tokens = estimateTextTokens(content || '')
 
   return {
     prompt_tokens: tokens,
