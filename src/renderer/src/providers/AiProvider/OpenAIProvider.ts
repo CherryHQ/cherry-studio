@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   getOpenAIWebSearchParams,
   isOpenAILLMModel,
@@ -224,7 +225,6 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
 
-    // If the model supports files, add the file content to the message
     const parts: ChatCompletionContentPart[] = []
 
     if (content) {
