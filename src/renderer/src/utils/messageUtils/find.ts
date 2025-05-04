@@ -86,6 +86,19 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
 }
 
 /**
+ * Finds all block associated with a given message.
+ * @param message - The message object.
+ * @returns An array of MessageBlocks (empty if none found).
+ */
+export const findAllBlocks = (message: Message): any[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  return message.blocks.map((blockId) => messageBlocksSelectors.selectById(state, blockId)).filter(Boolean)
+}
+
+/**
  * Gets the concatenated content string from all MainTextMessageBlocks of a message, in order.
  * @param message - The message object.
  * @returns The concatenated content string or an empty string if no text blocks are found.
@@ -98,6 +111,14 @@ export const getMainTextContent = (message: Message): string => {
 export const getThinkingContent = (message: Message): string => {
   const thinkingBlocks = findThinkingBlocks(message)
   return thinkingBlocks.map((block) => block.content).join('\n\n')
+}
+
+export const stringifyMessage = (message: Message): string => {
+  return findAllBlocks(message)
+    .map((block: any) => {
+      return block && (block.content ?? '<BLOCK_WITHOUT_CONTENT>')
+    })
+    .join('\n\n')
 }
 
 /**

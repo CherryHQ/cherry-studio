@@ -144,6 +144,7 @@
       "message.new.branch.created": "Новая ветка создана",
       "message.new.context": "Новый контекст",
       "message.quote": "Цитата",
+      "message.raw": "Исходный текст",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
       "navigation": {

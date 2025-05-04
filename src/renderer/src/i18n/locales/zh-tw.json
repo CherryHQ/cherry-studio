@@ -144,6 +144,7 @@
       "message.new.branch.created": "新分支已建立",
       "message.new.context": "新上下文",
       "message.quote": "引用",
+      "message.raw": "原文",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
       "navigation": {

@@ -1,5 +1,6 @@
 import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
+import RawTextPopup from '@renderer/components/Popups/RawTextPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -22,10 +23,15 @@ import {
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findImageBlocks, findMainTextBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  findImageBlocks,
+  findMainTextBlocks,
+  getMainTextContent,
+  stringifyMessage
+} from '@renderer/utils/messageUtils/find'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
+import { AtSign, Copy, FileText, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -84,17 +90,21 @@ const MessageMenubar: FC<Props> = (props) => {
     return getMainTextContent(message)
   }, [message])
 
+  const stringifiedMessage = useMemo(() => {
+    return stringifyMessage(message)
+  }, [message])
+
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      console.log('mainTextContent', mainTextContent)
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
+      console.log('stringifiedMessage', stringifiedMessage)
+      navigator.clipboard.writeText(removeTrailingDoubleSpaces(stringifiedMessage.trimStart()))
 
       window.message.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     },
-    [mainTextContent, t]
+    [stringifiedMessage, t]
   )
 
   const onNewBranch = useCallback(async () => {
@@ -239,6 +249,12 @@ const MessageMenubar: FC<Props> = (props) => {
       //   onClick: onEdit
       // },
       {
+        label: t('chat.message.raw'),
+        key: 'raw',
+        icon: <FileText size={16} />,
+        onClick: () => RawTextPopup.show({ text: stringifiedMessage })
+      },
+      {
         label: t('chat.message.new.branch'),
         key: 'new-branch',
         icon: <Split size={16} />,
@@ -338,7 +354,7 @@ const MessageMenubar: FC<Props> = (props) => {
         ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
+    [message, messageContainerRef, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions, stringifiedMessage]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
