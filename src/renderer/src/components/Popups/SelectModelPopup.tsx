@@ -431,6 +431,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
           autoFocus
+          spellCheck={false}
           style={{ paddingLeft: 0 }}
           variant="borderless"
           size="middle"
