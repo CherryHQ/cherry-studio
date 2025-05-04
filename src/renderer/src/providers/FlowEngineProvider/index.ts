@@ -1,5 +1,6 @@
 import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { Flow, FlowEngine } from '@renderer/types'
+import { Chunk } from '@renderer/types/chunk'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
 import FlowEngineProviderFactory from './FlowEngineProviderFactory'
@@ -27,7 +28,7 @@ export default class FlowEngineProvider {
   public async uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse> {
     return await this.sdk.uploadFile(flow, file)
   }
-  public async runWorkflow(flow: Flow, inputs: Record<string, string>): Promise<void> {
-    return await this.sdk.runWorkflow(flow, inputs)
+  public async runWorkflow(flow: Flow, inputs: Record<string, string>, onChunk: (chunk: Chunk) => void): Promise<void> {
+    return await this.sdk.runWorkflow(flow, inputs, onChunk)
   }
 }

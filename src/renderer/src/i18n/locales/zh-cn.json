@@ -309,7 +309,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "submit": "提交"
     },
     "docs": {
       "title": "帮助文档"

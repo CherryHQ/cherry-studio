@@ -22,6 +22,7 @@ interface Props {
 // Update form values: remove url, apiKey/apiHost are always present
 interface WorkflowFormValues {
   name: string
+  trigger: string
   description?: string
   apiKey: string // Now required based on FlowBase
   apiHost: string // Now required based on FlowBase
@@ -88,6 +89,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
         id: flow.id,
         providerId: flow.providerId,
         name: values.name,
+        trigger: values.trigger,
         description: values.description,
         enabled: flow.enabled, // Use state value for enabled
         apiKey: values.apiKey || '', // Ensure non-null
@@ -219,6 +221,13 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           <Form.Item name="name" label={t('settings.workflow.name')} rules={[{ required: true, message: '' }]}>
             <Input placeholder={t('common.name')} />
           </Form.Item>
+          <Form.Item
+            name="trigger"
+            label={t('settings.workflow.trigger')}
+            rules={[{ required: true }]}
+            tooltip={t('settings.workflow.triggerTooltip')}>
+            <Input placeholder={t('settings.workflow.trigger')} />
+          </Form.Item>
           <Form.Item name="description" label={t('settings.workflow.description')}>
             <TextArea rows={2} placeholder={t('common.description')} />
           </Form.Item>
@@ -242,7 +251,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       </SettingGroup>
       <SettingDivider />
       <Button onClick={getParameters}>获取参数</Button>
-      <WorkflowForm workflow={flow as Workflow} provider={flowEngineProvider} onSubmit={() => console.log('submit')} />
+      <WorkflowForm workflow={flow as Workflow} onSubmit={() => console.log('submit')} />
     </SettingContainer>
   )
 }

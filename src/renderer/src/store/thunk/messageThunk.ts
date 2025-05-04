@@ -5,6 +5,7 @@ import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
+import { ChunkType } from '@renderer/types/chunk'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -22,6 +23,7 @@ import {
   createBaseMessageBlock,
   createCitationBlock,
   createErrorBlock,
+  createFlowBlock,
   createImageBlock,
   createMainTextBlock,
   createThinkingBlock,
@@ -29,6 +31,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { throttle } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -37,7 +40,7 @@ import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
-const handleChangeLoadingOfTopic = async (topicId: string) => {
+export const handleChangeLoadingOfTopic = async (topicId: string) => {
   console.log('topicId', topicId)
   await waitForTopicQueue(topicId)
   console.log('[DEBUG] Waiting for topic queue to complete')
@@ -146,7 +149,7 @@ export const throttledBlockDbUpdate = throttle(
 )
 
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
-const saveUpdatesToDB = async (
+export const saveUpdatesToDB = async (
   messageId: string,
   topicId: string,
   messageUpdates: Partial<Message>, // 需要更新的消息字段
@@ -668,6 +671,27 @@ export const sendMessage =
       if (mentionedModels && mentionedModels.length > 0) {
         console.log(`[DEBUG] Multi-model send detected for ${mentionedModels.length} models.`)
         await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+      } else if (assistant.workflow) {
+        const content = getMainTextContent(userMessage)
+        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+          askId: userMessage.id
+        })
+        // trigger workflow
+        if (content === assistant.workflow.trigger) {
+          console.log('[DEBUG] Workflow trigger detected')
+
+          const flowBlock = createFlowBlock(assistantMessage.id, ChunkType.WORKFLOW_INIT, assistant.workflow)
+          await saveMessageAndBlocksToDB(assistantMessage, [flowBlock])
+          dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+          dispatch(upsertOneBlock(flowBlock))
+          dispatch(
+            newMessagesActions.upsertBlockReference({
+              messageId: assistantMessage.id,
+              blockId: flowBlock.id,
+              status: flowBlock.status
+            })
+          )
+        }
       } else {
         console.log('[DEBUG] Single-model send.')
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {

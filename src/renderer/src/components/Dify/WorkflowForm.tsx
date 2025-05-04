@@ -1,7 +1,11 @@
 import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@dify-chat/api'
+import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
+import i18n from '@renderer/i18n'
 import { runWorkflow, uploadFile } from '@renderer/services/FlowEngineService'
-import { FlowEngine, Workflow } from '@renderer/types'
-import { Button, Form, Input, InputNumber, Select } from 'antd'
+import { useAppDispatch } from '@renderer/store'
+import { Workflow } from '@renderer/types'
+import { Message } from '@renderer/types/newMessage'
+import { Button, Card, Form, Input, InputNumber, Select } from 'antd'
 import { UploadFile } from 'antd/lib'
 import { FC } from 'react'
 
@@ -18,12 +22,13 @@ export interface IUploadFileItem extends UploadFile {
 
 interface Props {
   workflow: Workflow
-  provider: FlowEngine
-  onSubmit: (values: any) => void
+  message: Message
 }
 
-const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
+const WorkflowForm: FC<Props> = ({ workflow, message }) => {
   const [form] = Form.useForm()
+  const { flowEngineProvider } = useFlowEngineProvider(workflow.providerId)
+  const dispatch = useAppDispatch()
   console.log('Received workflow prop:', workflow) // 添加这行来检查传入的 workflow
 
   const renderFormItem = (type: IUserInputFormItemType, item: IUserInputFormItemValueBase) => {
@@ -52,7 +57,7 @@ const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
             allowed_file_types={item.allowed_file_types}
             uploadFile={uploadFile}
             workflow={workflow}
-            provider={provider}
+            provider={flowEngineProvider}
           />
         )
       case 'file-list':
@@ -63,7 +68,7 @@ const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
             allowed_file_types={item.allowed_file_types}
             uploadFile={uploadFile}
             workflow={workflow}
-            provider={provider}
+            provider={flowEngineProvider}
           />
         )
 
@@ -75,8 +80,8 @@ const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
 
   const handleFinish = async (values: any) => {
     console.log('Form values:', values)
-    await runWorkflow(provider, workflow, values)
-    onSubmit(values)
+    // await runWorkflow(flowEngineProvider, workflow, values)
+    await dispatch(runWorkflow(message.topicId, flowEngineProvider, workflow, values, message.assistantId))
   }
 
   // 处理可能是数组或Record的情况
@@ -115,28 +120,41 @@ const WorkflowForm: FC<Props> = ({ workflow, provider, onSubmit }) => {
   )
 
   return (
-    <Form form={form} layout="vertical" onFinish={handleFinish} initialValues={initialValues}>
-      {formItems.map(({ type, item }) => {
-        if (!item.variable || !item.label) {
-          console.error('Invalid parameter item:', item)
-          return null
-        }
-        return (
-          <Form.Item
-            key={item.variable}
-            name={item.variable}
-            label={item.label}
-            rules={[{ required: item.required, message: `${item.label} 是必填项` }]}>
-            {renderFormItem(type, item)}
-          </Form.Item>
-        )
-      })}
-      <Form.Item>
-        <Button type="primary" htmlType="submit">
-          提交
-        </Button>
-      </Form.Item>
-    </Form>
+    <Card title={workflow.name} variant={'outlined'} style={{ maxWidth: 400 }}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleFinish}
+        initialValues={initialValues}
+        size="small"
+        // 从 Form 移除 maxWidth 样式，因为它现在由 Card 控制
+        // style={{ maxWidth: 400 }}
+      >
+        {formItems.map(({ type, item }) => {
+          if (!item.variable || !item.label) {
+            console.error('Invalid parameter item:', item)
+            return null
+          }
+          return (
+            <Form.Item
+              key={item.variable}
+              name={item.variable}
+              label={item.label}
+              rules={[{ required: item.required, message: `${item.label} 是必填项` }]}
+              style={{ marginBottom: 10 }} // 可以适当调整间距
+            >
+              {renderFormItem(type, item)}
+            </Form.Item>
+          )
+        })}
+        <Form.Item style={{ marginBottom: 0, marginTop: 15 }}>
+          {/* 调整按钮的上边距 */}
+          <Button type="primary" htmlType="submit">
+            {i18n.t('common.submit')}
+          </Button>
+        </Form.Item>
+      </Form>
+    </Card>
   )
 }
 

@@ -9,6 +9,7 @@ interface FlowBase {
   id: string // 工作流唯一标识
   providerId: string // 所属 Provider 的 ID
   name: string // 工作流名称
+  trigger: string // 工作流触发器
   description?: string // 工作流描述
   enabled: boolean // 是否启用
   apiKey: string

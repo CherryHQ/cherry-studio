@@ -1,5 +1,6 @@
 import { createDifyApiInstance, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { EventEnum, Flow, FlowEngine } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
 import XStream from '@renderer/utils/stream'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -65,7 +66,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     }
   }
 
-  public async runWorkflow(flow: Flow, inputs: Record<string, string>): Promise<void> {
+  public async runWorkflow(flow: Flow, inputs: Record<string, string>, onChunk: (chunk: Chunk) => void): Promise<void> {
     try {
       const difyApi = createDifyApiInstance({
         user: uuidv4(),
@@ -120,7 +121,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       //   }
       // }
 
-      await this.processStream(response)
+      await this.processStream(response, onChunk)
 
       return
     } catch (error) {
@@ -128,7 +129,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       throw new Error('运行工作流失败')
     }
   }
-  private async processStream(response: Response): Promise<void> {
+  private async processStream(response: Response, onChunk: (chunk: Chunk) => void): Promise<void> {
     const readableStream = XStream({
       readableStream: response.body as NonNullable<ReadableStream>
     })
@@ -138,6 +139,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       const { value: chunk, done } = await reader.read()
       if (done) {
         console.log('流已结束')
+        onChunk({ type: ChunkType.WORKFLOW_FINISHED })
         break
       }
       if (!chunk) {
@@ -150,21 +152,26 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
           const event = parsedData.event
           switch (event) {
             case EventEnum.WORKFLOW_STARTED:
+              onChunk({ type: ChunkType.WORKFLOW_STARTED })
               console.log('工作流开始')
               break
             case EventEnum.WORKFLOW_NODE_STARTED:
+              onChunk({ type: ChunkType.WORKFLOW_NODE_STARTED })
               console.log('工作流节点开始')
               break
             case EventEnum.WORKFLOW_TEXT_CHUNK: {
               const textChunk = parsedData.data.text
               text += textChunk
+              onChunk({ type: ChunkType.TEXT_DELTA, text: textChunk })
               break
             }
             case EventEnum.WORKFLOW_NODE_FINISHED:
-              console.log('工作流节点结束')
+              onChunk({ type: ChunkType.WORKFLOW_NODE_FINISHED })
+              console.log('工作流节点完成')
               break
             case EventEnum.WORKFLOW_FINISHED:
-              console.log('工作流结束')
+              onChunk({ type: ChunkType.WORKFLOW_FINISHED })
+              console.log('工作流完成')
               break
           }
         } catch (e) {
@@ -176,5 +183,6 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       }
     }
     console.log('完整文本:', text)
+    onChunk({ type: ChunkType.TEXT_COMPLETE, text: text })
   }
 }

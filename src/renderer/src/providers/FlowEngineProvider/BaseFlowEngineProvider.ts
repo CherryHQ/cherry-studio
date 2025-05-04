@@ -1,5 +1,6 @@
 import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { Chatflow, Flow, FlowEngine } from '@renderer/types'
+import { Chunk } from '@renderer/types/chunk'
 
 export default abstract class BaseFlowEngineProvider {
   protected provider: FlowEngine
@@ -16,7 +17,7 @@ export default abstract class BaseFlowEngineProvider {
 
   abstract uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse>
 
-  abstract runWorkflow(flow: Flow, inputs: Record<string, string>): Promise<void>
+  abstract runWorkflow(flow: Flow, inputs: Record<string, string>, onChunk: (chunk: Chunk) => void): Promise<void>
 
   public isChatflow(workflow: Flow): workflow is Chatflow {
     return workflow.type === 'chatflow'

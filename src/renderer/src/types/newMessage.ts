@@ -3,6 +3,7 @@ import { CompletionUsage } from 'openai/resources'
 import type {
   Assistant,
   FileType,
+  Flow,
   GenerateImageResponse,
   KnowledgeReference,
   MCPServer,
@@ -13,6 +14,7 @@ import type {
   Usage,
   WebSearchResponse
 } from '.'
+import { ChunkType } from './chunk'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -133,6 +135,8 @@ export interface ErrorMessageBlock extends BaseMessageBlock {
 export interface FlowMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.FLOW
   // form data
+  chunkType: ChunkType
+  workflow: Flow
 }
 
 // MessageBlock 联合类型

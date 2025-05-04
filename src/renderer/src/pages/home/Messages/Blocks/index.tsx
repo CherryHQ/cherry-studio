@@ -4,6 +4,7 @@ import type { Model } from '@renderer/types'
 import type {
   ErrorMessageBlock,
   FileMessageBlock,
+  FlowMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
@@ -19,6 +20,7 @@ import { useSelector } from 'react-redux'
 import CitationBlock from './CitationBlock'
 import ErrorBlock from './ErrorBlock'
 import FileBlock from './FileBlock'
+import FlowBlock from './FlowBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
@@ -84,6 +86,8 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, model, message }) => {
           //   return <CodeBlock key={block.id} block={block as CodeMessageBlock} />
           case MessageBlockType.TRANSLATION:
             return <TranslationBlock key={block.id} block={block as TranslationMessageBlock} />
+          case MessageBlockType.FLOW:
+            return <FlowBlock key={block.id} block={block as FlowMessageBlock} message={message} />
           default:
             // Cast block to any for console.warn to fix linter error
             console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
