@@ -7,7 +7,7 @@ import { Assistant, WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { Globe, Settings } from 'lucide-react'
-import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
@@ -126,4 +126,4 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   )
 }
 
-export default WebSearchButton
+export default memo(WebSearchButton)

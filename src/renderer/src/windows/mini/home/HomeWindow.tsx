@@ -181,7 +181,6 @@ const HomeWindow: FC = () => {
         messages: [userMessage],
         assistant: { ...assistant, model: getDefaultModel() },
         onChunkReceived: (chunk: Chunk) => {
-          console.log('chunk', chunk)
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
             if (!blockId) {
@@ -217,7 +216,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant]
+    [content, defaultAssistant, topic]
   )
 
   const clearClipboard = () => {
@@ -238,15 +237,9 @@ const HomeWindow: FC = () => {
 
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
-    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
-      selectedText && setSelectedText(selectedText)
-      action && setRoute(action)
-      action === 'chat' && onSendMessage()
-    })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
   }, [onWindowShow, onSendMessage, setRoute])
 

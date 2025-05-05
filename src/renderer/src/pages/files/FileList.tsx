@@ -28,7 +28,7 @@ interface FileItemProps {
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: 16, overflowY: 'auto' }}>
         <Image.PreviewGroup>
           <Row gutter={[16, 16]}>
             {files?.map((file) => (

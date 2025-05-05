@@ -1,20 +1,25 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
+  findTokenLimit,
   getOpenAIWebSearchParams,
-  isGrokReasoningModel,
   isHunyuanSearchModel,
-  isOpenAIoSeries,
   isOpenAIWebSearch,
   isReasoningModel,
   isSupportedModel,
+  isSupportedReasoningEffortGrokModel,
+  isSupportedReasoningEffortModel,
+  isSupportedReasoningEffortOpenAIModel,
+  isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenModel,
+  isSupportedThinkingTokenQwenModel,
   isVisionModel,
-  isZhipuModel,
-  OPENAI_NO_SUPPORT_DEV_ROLE_MODELS
+  isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -24,6 +29,7 @@ import { processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
+  EFFORT_RATIO,
   FileTypes,
   GenerateImageParams,
   MCPToolResponse,
@@ -47,17 +53,16 @@ import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
-import OpenAI, { AzureOpenAI } from 'openai'
+import OpenAI, { AzureOpenAI, toFile } from 'openai'
 import {
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam
 } from 'openai/resources'
+import { FileLike } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class OpenAIProvider extends BaseProvider {
   private sdk: OpenAI
@@ -260,55 +265,75 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
 
-    if (isReasoningModel(model)) {
-      if (model.provider === 'openrouter') {
+    if (!isReasoningModel(model)) {
+      return {}
+    }
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (!reasoningEffort) {
+      if (isSupportedThinkingTokenQwenModel(model)) {
+        return { enable_thinking: false }
+      }
+
+      if (isSupportedThinkingTokenClaudeModel(model)) {
+        return { thinking: { type: 'disabled' } }
+      }
+
+      return {}
+    }
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    // OpenRouter models
+    if (model.provider === 'openrouter') {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenClaudeModel(model)) {
         return {
           reasoning: {
             effort: assistant?.settings?.reasoning_effort
           }
         }
       }
-
-      if (isGrokReasoningModel(model)) {
+      if (isSupportedThinkingTokenModel(model)) {
         return {
-          reasoning_effort: assistant?.settings?.reasoning_effort
-        }
-      }
-
-      if (isOpenAIoSeries(model)) {
-        return {
-          reasoning_effort: assistant?.settings?.reasoning_effort
-        }
-      }
-
-      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
-        const effortRatios: Record<ReasoningEffort, number> = {
-          high: 0.8,
-          medium: 0.5,
-          low: 0.2
-        }
-
-        const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-        const effortRatio = effortRatios[effort]
-
-        if (!effortRatio) {
-          return {}
-        }
-
-        const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-        const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
-
-        return {
-          thinking: {
-            type: 'enabled',
-            budget_tokens: budgetTokens
+          reasoning: {
+            max_tokens: budgetTokens
           }
         }
       }
-
-      return {}
     }
 
+    // Qwen models
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens
+      }
+    }
+
+    // Grok models
+    if (isSupportedReasoningEffortGrokModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // OpenAI models
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // Claude models
+    const { maxTokens } = getAssistantSettings(assistant)
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      return {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: Math.floor(Math.max(Math.min(budgetTokens, maxTokens || DEFAULT_MAX_TOKENS), 1024))
+        }
+      }
+    }
+
+    // Default case: no special thinking settings
     return {}
   }
 
@@ -341,7 +366,7 @@ export default class OpenAIProvider extends BaseProvider {
     const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isOpenAIoSeries(model) && !OPENAI_NO_SUPPORT_DEV_ROLE_MODELS.includes(model.id)) {
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
@@ -559,6 +584,10 @@ export default class OpenAIProvider extends BaseProvider {
               text: thinkingContent,
               thinking_millsec: final_time_thinking_millsec_delta
             })
+
+            thinkingContent = ''
+            isFirstThinkingChunk = true
+            hasReasoningContent = false
           }
         }
 
@@ -579,8 +608,11 @@ export default class OpenAIProvider extends BaseProvider {
               )
             }
           }
-          if (isFirstChunk) {
+          // 说明前面没有思考内容
+          if (isFirstChunk && time_first_token_millsec === 0 && time_first_token_millsec_delta === 0) {
             isFirstChunk = false
+            time_first_token_millsec = currentTime
+            time_first_token_millsec_delta = time_first_token_millsec - start_time_millsec
           }
           content += delta.content // Still accumulate for processToolUses
 
@@ -680,8 +712,9 @@ export default class OpenAIProvider extends BaseProvider {
         }
       })
 
-      // OpenAI stream typically doesn't provide a final summary chunk easily.
-      // We are sending per-chunk usage if available.
+      // FIXME: 临时方案，重置时间戳和思考内容
+      time_first_token_millsec = 0
+      time_first_content_millsec = 0
     }
 
     console.debug('[completions] reqMessages before processing', model.id, reqMessages)
@@ -962,26 +995,41 @@ export default class OpenAIProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      stream: false
+      stream
     }
 
     try {
       await this.checkIsCopilot()
       console.debug('[checkModel] body', model.id, body)
-      const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
-
-      return {
-        valid: Boolean(response?.choices[0].message),
-        error: null
+      if (!stream) {
+        const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
+        if (!response?.choices[0].message) {
+          throw new Error('Empty response')
+        }
+        return { valid: true, error: null }
+      } else {
+        const response: any = await this.sdk.chat.completions.create(body as any)
+        // 等待整个流式响应结束
+        let hasContent = false
+        for await (const chunk of response) {
+          if (chunk.choices?.[0]?.delta?.content) {
+            hasContent = true
+          }
+        }
+        if (hasContent) {
+          return { valid: true, error: null }
+        }
+        throw new Error('Empty streaming response')
       }
     } catch (error: any) {
       return {
@@ -1026,6 +1074,9 @@ export default class OpenAIProvider extends BaseProvider {
       }
 
       const models = response?.data || []
+      models.forEach((model) => {
+        model.id = model.id.trim()
+      })
 
       return models.filter(isSupportedModel)
     } catch (error) {
@@ -1096,50 +1147,118 @@ export default class OpenAIProvider extends BaseProvider {
   public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+    // save image data from the last assistant message
+    messages = addImageFileToContents(messages)
     const lastUserMessage = messages.findLast((m) => m.role === 'user')
+    const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
+    if (!lastUserMessage) {
+      return
+    }
+
     const { abortController } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
+    const content = getMainTextContent(lastUserMessage!)
+    let response: OpenAI.Images.ImagesResponse | null = null
+    let images: FileLike[] = []
 
-    onChunk({
-      type: ChunkType.IMAGE_CREATED
-    })
-    const start_time_millsec = new Date().getTime()
-    const response = await this.sdk.images.generate(
-      {
-        model: model.id,
-        prompt: getMainTextContent(lastUserMessage!) || '',
-        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
-      },
-      {
-        signal
+    try {
+      if (lastUserMessage) {
+        const UserFiles = findImageBlocks(lastUserMessage)
+        const validUserFiles = UserFiles.filter((f) => f.file) // Filter out files that are undefined first
+        const userImages = await Promise.all(
+          validUserFiles.map(async (f) => {
+            // f.file is guaranteed to exist here due to the filter above
+            const fileInfo = f.file!
+            const binaryData = await FileManager.readBinaryImage(fileInfo)
+            const file = await toFile(binaryData, fileInfo.origin_name || 'image.png', {
+              type: 'image/png'
+            })
+            return file
+          })
+        )
+        images = images.concat(userImages)
       }
-    )
 
-    onChunk({
-      type: ChunkType.IMAGE_COMPLETE,
-      image: {
-        type: 'base64',
-        images: response.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
+      if (lastAssistantMessage) {
+        const assistantFiles = findImageBlocks(lastAssistantMessage)
+        const assistantImages = await Promise.all(
+          assistantFiles.filter(Boolean).map(async (f) => {
+            const base64Data = f?.url?.replace(/^data:image\/\w+;base64,/, '')
+            if (!base64Data) return null
+            const binary = atob(base64Data)
+            const bytes = new Uint8Array(binary.length)
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i)
+            }
+            const file = await toFile(bytes, 'assistant_image.png', {
+              type: 'image/png'
+            })
+            return file
+          })
+        )
+        images = images.concat(assistantImages.filter(Boolean) as FileLike[])
       }
-    })
+      onChunk({
+        type: ChunkType.IMAGE_CREATED
+      })
 
-    // Create synthetic usage and metrics data for image generation
-    const time_completion_millsec = new Date().getTime() - start_time_millsec
-    onChunk({
-      type: ChunkType.BLOCK_COMPLETE,
-      response: {
-        usage: {
-          completion_tokens: response.usage?.output_tokens || 0,
-          prompt_tokens: response.usage?.input_tokens || 0,
-          total_tokens: response.usage?.total_tokens || 0
-        },
-        metrics: {
-          completion_tokens: response.usage?.output_tokens || 0,
-          time_first_token_millsec: 0, // Non-streaming, first token time is not relevant
-          time_completion_millsec
+      const start_time_millsec = new Date().getTime()
+
+      if (images.length > 0) {
+        response = await this.sdk.images.edit(
+          {
+            model: model.id,
+            image: images,
+            prompt: content || ''
+          },
+          {
+            signal,
+            timeout: 300_000
+          }
+        )
+      } else {
+        response = await this.sdk.images.generate(
+          {
+            model: model.id,
+            prompt: content || '',
+            response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+          },
+          {
+            signal,
+            timeout: 300_000
+          }
+        )
+      }
+
+      onChunk({
+        type: ChunkType.IMAGE_COMPLETE,
+        image: {
+          type: 'base64',
+          images: response?.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
         }
-      }
-    })
-    return
+      })
+
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          usage: {
+            completion_tokens: response.usage?.output_tokens || 0,
+            prompt_tokens: response.usage?.input_tokens || 0,
+            total_tokens: response.usage?.total_tokens || 0
+          },
+          metrics: {
+            completion_tokens: response.usage?.output_tokens || 0,
+            time_first_token_millsec: 0, // Non-streaming, first token time is not relevant
+            time_completion_millsec: new Date().getTime() - start_time_millsec
+          }
+        }
+      })
+    } catch (error: any) {
+      console.error('[generateImageByChat] error', error)
+      onChunk({
+        type: ChunkType.ERROR,
+        error
+      })
+    }
   }
 }

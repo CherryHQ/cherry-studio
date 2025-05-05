@@ -2,7 +2,6 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -583,7 +582,6 @@ const llmSlice = createSlice({
     },
     setDefaultModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.defaultModel = action.payload.model
-      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTopicNamingModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.topicNamingModel = action.payload.model
