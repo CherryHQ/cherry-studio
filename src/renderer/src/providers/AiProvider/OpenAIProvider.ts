@@ -164,7 +164,7 @@ export default class OpenAIProvider extends BaseProvider {
     if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
       return 15 * 1000 * 60
     }
-    return undefined
+    return 5 * 1000 * 60
   }
 
   /**
