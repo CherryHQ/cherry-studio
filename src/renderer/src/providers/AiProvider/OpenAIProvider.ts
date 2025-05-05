@@ -886,6 +886,9 @@ export default class OpenAIProvider extends BaseProvider {
     try {
       const response = await this.sdk.models.list()
       const models = response.data || []
+      models.forEach((model) => {
+        model.id = model.id.trim()
+      })
       return models.filter(isSupportedModel)
     } catch (error) {
       return []

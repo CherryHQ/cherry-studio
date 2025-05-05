@@ -9,6 +9,22 @@
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
       "add.title": "创建智能体",
+      "import": {
+        "title": "从外部导入",
+        "type": {
+          "url": "URL",
+          "file": "文件"
+        },
+        "url_placeholder": "输入 JSON URL",
+        "select_file": "选择文件",
+        "button": "导入",
+        "file_filter": "JSON 文件",
+        "error": {
+          "url_required": "请输入 URL",
+          "fetch_failed": "从 URL 获取数据失败",
+          "invalid_format": "无效的代理格式：缺少必填字段"
+        }
+      },
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
       "edit.message.assistant.placeholder": "输入助手消息",
@@ -498,6 +514,10 @@
       "title": "Mermaid 图表"
     },
     "message": {
+      "agents": {
+        "imported": "导入成功",
+        "import.error": "导入失败"
+      },
       "api.check.model.title": "请选择要检测的模型",
       "api.connection.failed": "连接失败",
       "api.connection.success": "连接成功",
@@ -707,7 +727,7 @@
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
       "learn_more": "了解更多",
-      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 “双引号” 包裹",
+      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",

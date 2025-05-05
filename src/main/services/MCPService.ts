@@ -429,13 +429,12 @@ class McpService {
     const client = await this.initClient(server)
     try {
       const { prompts } = await client.listPrompts()
-      const serverPrompts = prompts.map((prompt: any) => ({
+      return prompts.map((prompt: any) => ({
         ...prompt,
         id: `p${nanoid()}`,
         serverId: server.id,
         serverName: server.name
       }))
-      return serverPrompts
     } catch (error) {
       Logger.error(`[MCP] Failed to list prompts for server: ${server.name}`, error)
       return []
