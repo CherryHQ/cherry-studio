@@ -126,7 +126,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               // @ts-ignore name
               name: model.name || model.id,
               provider: _provider.id,
-              group: getDefaultGroupName(model.id),
+              group: getDefaultGroupName(model.id, _provider.id),
               // @ts-ignore name
               description: model?.description,
               owned_by: model?.owned_by

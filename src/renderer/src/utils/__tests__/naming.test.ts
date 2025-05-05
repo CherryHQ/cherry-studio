@@ -126,8 +126,35 @@ describe('naming', () => {
     })
 
     it('should return ungrouped if no separators', () => {
-      // 验证没有分隔符时返回 ungrouped
-      expect(getDefaultGroupName('foobar')).toBe('ungrouped')
+      // 验证没有分隔符时返回 UNGROUPED
+      expect(getDefaultGroupName('foobar')).toBe('UNGROUPED')
+    })
+
+    it('should use first delimiters for aihubmix provider', () => {
+      // provider 为 aihubmix 时，'-' 属于第一类分隔符，分割后取第0部分
+      expect(getDefaultGroupName('gpt-4.1-mini', 'aihubmix')).toBe('gpt')
+      expect(getDefaultGroupName('gpt-4.1', 'aihubmix')).toBe('gpt')
+      expect(getDefaultGroupName('Qwen/Qwen3-32B', 'aihubmix')).toBe('qwen')
+      expect(getDefaultGroupName('DeepSeek Chat', 'aihubmix')).toBe('deepseek')
+      expect(getDefaultGroupName('foo:bar', 'aihubmix')).toBe('foo')
+    })
+
+    it('should use first delimiters for silicon provider', () => {
+      // provider 为 silicon 时，'-' 属于第一类分隔符，分割后取第0部分
+      expect(getDefaultGroupName('gpt-4.1-mini', 'SILICON')).toBe('gpt')
+      expect(getDefaultGroupName('gpt-4.1', 'silicon')).toBe('gpt')
+    })
+
+    it('should use second delimiters for other providers', () => {
+      // provider 为其他值时，'-' 属于第二类分隔符，取前两个部分拼接
+      expect(getDefaultGroupName('gpt-4.1-mini', 'foobar')).toBe('gpt-4.1')
+      expect(getDefaultGroupName('gpt-4.1', 'foobar')).toBe('gpt-4.1')
+    })
+
+    it('should fallback to ungrouped if no delimiters', () => {
+      // 没有分隔符时返回 UNGROUPED
+      expect(getDefaultGroupName('foobar', 'aihubmix')).toBe('UNGROUPED')
+      expect(getDefaultGroupName('foobar', 'openai')).toBe('UNGROUPED')
     })
   })
 
