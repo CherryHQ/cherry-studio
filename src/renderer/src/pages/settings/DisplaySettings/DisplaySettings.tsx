@@ -14,7 +14,7 @@ import {
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { Button, Input, Segmented, Select, Switch } from 'antd'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -121,21 +121,6 @@ const DisplaySettings: FC = () => {
     ],
     []
   )
-
-  useEffect(() => {
-    const fetchZoomFactor = async () => {
-      try {
-        const factor = await window.api.getZoomFactor()
-        if (factor && typeof factor === 'number') {
-          setZoomFactor(factor)
-        }
-      } catch (error) {
-        console.error('Failed to get zoom factor:', error)
-      }
-    }
-
-    fetchZoomFactor()
-  }, [setZoomFactor])
 
   return (
     <SettingContainer theme={themeMode}>

@@ -5,6 +5,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
+import { setZoomFactor } from '@renderer/store/settings'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -30,6 +31,17 @@ export function useAppInit() {
   useEffect(() => {
     avatar?.value && dispatch(setAvatar(avatar.value))
   }, [avatar, dispatch])
+
+  useEffect(() => {
+    // 从主进程获取缩放因子并同步到Redux状态
+    const getZoomFactor = async () => {
+      const factor = await window.api.getZoomFactor()
+      if (factor && typeof factor === 'number') {
+        dispatch(setZoomFactor(factor))
+      }
+    }
+    getZoomFactor()
+  }, [dispatch])
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
