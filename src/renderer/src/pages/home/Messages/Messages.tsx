@@ -239,11 +239,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
-            {isLoadingMore && (
-              <LoaderContainer>
-                <SvgSpinners180Ring color="var(--color-text-2)" />
-              </LoaderContainer>
-            )}
             {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
@@ -252,6 +247,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 hidePresetMessages={assistant.settings?.hideMessages}
               />
             ))}
+            {isLoadingMore && (
+              <LoaderContainer>
+                <SvgSpinners180Ring color="var(--color-text-2)" />
+              </LoaderContainer>
+            )}
           </ScrollContainer>
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
@@ -310,7 +310,6 @@ const LoaderContainer = styled.div`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  margin-bottom: -20px; // 添加负的底部外边距来减少空间
 `
 
 interface ContainerProps {
