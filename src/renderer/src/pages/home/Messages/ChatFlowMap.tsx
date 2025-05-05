@@ -104,10 +104,13 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
   const handleAddBranch = (e: React.MouseEvent) => {
     e.stopPropagation()
     // 创建一个自定义事件来通知添加分支
+    data.branchId = `branch-${Date.now()}`
+    console.log('CustomEvent handleAddBranch: data', data)
     const customEvent = new CustomEvent('flow-add-branch', {
       detail: {
         nodeId: data.id,
-        messageId: data.messageId
+        messageId: data.messageId,
+        branchId: data.branchId
       },
       bubbles: true
     })
@@ -517,23 +520,21 @@ const ChatFlowMap: FC<ChatFlowMapProps> = ({ conversationId }) => {
   // 添加分支事件监听
   useEffect(() => {
     const handleAddBranch = (e: CustomEvent) => {
-      const { messageId } = e.detail
+      console.log('rec: CustomEvent handleAddBranch: data', e)
+      const { messageId, branchId } = e.detail
 
       if (!currentAssistant || !currentTopic) {
         console.error('Failed to find current assistant or topic')
         return
       }
 
-      // 生成唯一的branchId
-      const branchId = `branch-${Date.now()}`
-
       // 创建新的消息块
       const { message: newMessage, blocks } = getUserMessage({
         assistant: currentAssistant,
         topic: currentTopic,
-        branchId,
-        parentMessageId: messageId, // 记录父节点ID
-        content: '' // 添加空内容
+        branchId: branchId,
+        parentMessageId: messageId,
+        content: ''
       })
 
       // 添加到store

@@ -19,7 +19,8 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { clearBranchInfo, setBranchInfo } from '@renderer/store/flow'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
@@ -96,8 +97,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
-  const [currentBranchId, setCurrentBranchId] = useState<string | undefined>()
-  const [currentMessageId, setCurrentMessageId] = useState<string | undefined>()
+  const { currentBranchId, currentMessageId } = useAppSelector((state) => state.flow)
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
@@ -209,8 +209,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setSelectedKnowledgeBases([])
       setMentionModels([])
       setTokenCount(0)
-      setCurrentBranchId(undefined)
-      setCurrentMessageId(undefined)
+
+      // 发送消息后清除分支信息
+      dispatch(clearBranchInfo())
     } catch (error) {
       console.error('Error sending message:', error)
     }
@@ -224,7 +225,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     selectedKnowledgeBases,
     mentionModels,
     activedMcpServers,
-    dispatch
+    dispatch,
+    currentBranchId,
+    currentMessageId
   ])
 
   const translate = useCallback(async () => {
@@ -713,10 +716,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           return newText
         })
         textareaRef.current?.focus()
+      }),
+      EventEmitter.on('flow-branch-updated', ({ branchId, messageId }) => {
+        console.log('Inputbar received branch update:', { branchId, messageId })
+        dispatch(setBranchInfo({ branchId, messageId }))
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+  }, [addNewTopic, resizeTextArea, dispatch])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -750,12 +757,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const unsubscribes = [
       EventEmitter.on('flow-add-branch', (event: CustomEvent) => {
         const { branchId, messageId } = event.detail
-        setCurrentBranchId(branchId)
-        setCurrentMessageId(messageId)
+        dispatch(setBranchInfo({ branchId, messageId }))
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [])
+  }, [dispatch])
 
   const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
 

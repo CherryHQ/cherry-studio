@@ -13,6 +13,7 @@ import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
+import { setBranchInfo } from '@renderer/store/flow'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -192,8 +193,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       }),
       EventEmitter.on('flow-add-branch', (event: CustomEvent) => {
         const { branchId, messageId } = event.detail
-        setCurrentBranchId(branchId)
-        setCurrentMessageId(messageId)
+        console.log('Received flow-add-branch event:', { branchId, messageId })
+        dispatch(setBranchInfo({ branchId, messageId }))
+        EventEmitter.emit('flow-branch-updated', { branchId, messageId })
       })
     ]
 

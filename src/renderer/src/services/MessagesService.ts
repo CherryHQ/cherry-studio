@@ -110,8 +110,8 @@ export function getUserMessage({
   knowledgeBaseIds,
   mentions,
   enabledMCPs,
-  branchId,
-  parentMessageId
+  branchId: paramBranchId,
+  parentMessageId: paramParentMessageId
 }: MessageInputBaseParams & {
   assistant: Assistant
   topic: Topic
@@ -126,12 +126,25 @@ export function getUserMessage({
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
-  const messageId = uuid() // Generate ID here
+  const messageId = uuid()
   const blocks: MessageBlock[] = []
   const blockIds: string[] = []
 
+  // 从全局状态获取分支信息
+  const state = store.getState()
+  const globalBranchId = state.flow?.currentBranchId
+  const globalParentMessageId = state.flow?.currentMessageId
+
+  // 优先使用参数传入的分支信息，如果没有则使用全局状态中的
+  const branchId = paramBranchId || globalBranchId
+  const parentMessageId = paramParentMessageId || globalParentMessageId
+
+  // 如果是分支消息，确保有 parentMessageId
+  if (branchId && !parentMessageId) {
+    console.warn('Branch message should have a parentMessageId')
+  }
+
   if (content?.trim()) {
-    // Pass messageId when creating blocks
     const textBlock = createMainTextBlock(messageId, content, {
       status: MessageBlockStatus.SUCCESS,
       knowledgeBaseIds
@@ -139,41 +152,48 @@ export function getUserMessage({
     blocks.push(textBlock)
     blockIds.push(textBlock.id)
   }
+
   if (files?.length) {
     files.forEach((file) => {
       if (file.type === FileTypes.IMAGE) {
-        const imgBlock = createImageBlock(messageId, { file, status: MessageBlockStatus.SUCCESS })
+        const imgBlock = createImageBlock(messageId, {
+          file,
+          status: MessageBlockStatus.SUCCESS
+        })
         blocks.push(imgBlock)
         blockIds.push(imgBlock.id)
       } else {
-        const fileBlock = createFileBlock(messageId, file, { status: MessageBlockStatus.SUCCESS })
+        const fileBlock = createFileBlock(messageId, file, {
+          status: MessageBlockStatus.SUCCESS
+        })
         blocks.push(fileBlock)
         blockIds.push(fileBlock.id)
       }
     })
   }
 
-  // 直接在createMessage中传入id
-  const message = createMessage(
-    'user',
-    topic.id, // topic.id已经是string类型
-    assistant.id,
-    {
-      id: messageId, // 直接传入ID，避免冲突
+  // 创建消息时包含分支信息
+  const message = createMessage('user', topic.id, assistant.id, {
+    id: messageId,
       modelId: model?.id,
       model: model,
       blocks: blockIds,
       mentions,
       enabledMCPs,
       type,
-      branchId,
-      parentMessageId:
-        parentMessageId || (topic.messages?.length ? topic.messages[topic.messages.length - 1]?.id : undefined)
-    }
-  )
+    branchId, // 使用合并后的分支ID
+    parentMessageId // 使用合并后的父消息ID
+  })
 
-  // 不再需要手动合并ID
-  console.log('branchId', branchId)
+  console.log('Creating message with branch info:', {
+    messageId,
+      branchId,
+    parentMessageId,
+    isBranch: !!branchId,
+    hasParent: !!parentMessageId,
+    source: paramBranchId ? 'parameter' : 'global'
+  })
+
   return { message, blocks }
 }
 

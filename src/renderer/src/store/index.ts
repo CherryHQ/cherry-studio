@@ -21,6 +21,7 @@ import runtime from './runtime'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import websearch from './websearch'
+import flowReducer from './flow'
 
 const rootReducer = combineReducers({
   assistants,
@@ -39,7 +40,8 @@ const rootReducer = combineReducers({
   copilot,
   // messages: messagesReducer,
   messages: newMessagesReducer,
-  messageBlocks: messageBlocksReducer
+  messageBlocks: messageBlocksReducer,
+  flow: flowReducer
 })
 
 const persistedReducer = persistReducer(
