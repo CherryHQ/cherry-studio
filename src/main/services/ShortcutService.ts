@@ -73,15 +73,10 @@ function handleZoom(delta: number) {
 
     if (newZoom !== currentZoom) {
       // 只有在实际改变时才更新
-      window.webContents.setZoomFactor(newZoom)
       configManager.setZoomFactor(newZoom)
       // 通知所有渲染进程更新 zoomFactor
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) => {
-        if (!win.isDestroyed()) {
-          win.webContents.send(IpcChannel.ZoomFactorUpdated, newZoom)
-        }
-      })
+      window.webContents.setZoomFactor(newZoom)
+      window.webContents.send(IpcChannel.ZoomFactorUpdated, newZoom)
     }
   }
 }

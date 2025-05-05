@@ -5,7 +5,6 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
-import { setZoomFactor as setZoomFactorAction } from '@renderer/store/settings'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -19,7 +18,17 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
+  const {
+    proxyUrl,
+    language,
+    windowStyle,
+    autoCheckUpdate,
+    proxyMode,
+    customCss,
+    enableDataCollection,
+    zoomFactor,
+    setZoomFactor
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -33,19 +42,13 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
-    // 从主进程获取初始缩放因子并同步到Redux状态
-    window.api.getZoomFactor().then((factor) => {
-      dispatch(setZoomFactorAction(factor))
-    })
-
     const removeZoomListener = window.api.onZoomFactorUpdate((factor) => {
-      dispatch(setZoomFactorAction(factor))
+      setZoomFactor(factor)
     })
-
     return () => {
       removeZoomListener()
     }
-  }, [dispatch])
+  }, [setZoomFactor])
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()

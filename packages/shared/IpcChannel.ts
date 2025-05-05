@@ -14,7 +14,6 @@ export enum IpcChannel {
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetZoomFactor = 'app:set-zoom-factor',
-  App_GetZoomFactor = 'app:get-zoom-factor',
   ZoomFactorUpdated = 'app:zoom-factor-updated',
 
   App_IsBinaryExist = 'app:is-binary-exist',
