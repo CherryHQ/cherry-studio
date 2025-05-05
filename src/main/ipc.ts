@@ -144,7 +144,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // zoom factor
   ipcMain.handle(IpcChannel.App_SetZoomFactor, (_, factor: number) => {
     configManager.setZoomFactor(factor)
-    mainWindow?.webContents.setZoomFactor(factor)
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.setZoomFactor(factor)
+      }
+    })
   })
 
   // clear cache
