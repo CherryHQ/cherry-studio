@@ -174,27 +174,22 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     }
 
     // 添加常规模型分组
-    providers
-      .filter((p) => {
-        const filtered = getFilteredModels(p)
-        return filtered.length > 0
+    providers.forEach((p) => {
+      const filteredModels = getFilteredModels(p).filter(
+        (m) => !pinnedModels.includes(getModelUniqId(m)) || searchText.length > 0
+      )
+
+      if (filteredModels.length === 0) return
+
+      // 添加 provider 分组标题
+      items.push({
+        key: `provider-${p.id}`,
+        type: 'group',
+        name: p.isSystem ? t(`provider.${p.id}`) : p.name
       })
-      .forEach((p) => {
-        const filteredModels = getFilteredModels(p).filter(
-          (m) => !pinnedModels.includes(getModelUniqId(m)) || searchText.length > 0
-        )
 
-        if (filteredModels.length === 0) return
-
-        // 添加 provider 分组标题
-        items.push({
-          key: `provider-${p.id}`,
-          type: 'group',
-          name: p.isSystem ? t(`provider.${p.id}`) : p.name
-        })
-
-        items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
-      })
+      items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
+    })
 
     // 移除第一个分组标题，使用 sticky group banner 替代，模拟 sticky 效果
     if (items.length > 0 && items[0].type === 'group') {
@@ -338,26 +333,29 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
   }, [listItems.length])
 
-  const handleVisibleChange = (visibleItems: FlatListItem[]) => {
-    const firstModelItem = visibleItems.find((item) => item.type === 'model')
-    if (!firstModelItem) {
-      setCurrentStickyGroup(null)
-      return
-    }
-    // 从 listItems 中找到此 model 之前的最近一个分组标题
-    const modelIndex = listItems.findIndex((item) => item.key === firstModelItem.key)
-
-    // 向前查找最近的分组标题
-    for (let i = modelIndex - 1; i >= 0; i--) {
-      if (listItems[i].type === 'group') {
-        setCurrentStickyGroup(listItems[i])
+  const handleVisibleChange = useCallback(
+    (visibleItems: FlatListItem[]) => {
+      const firstModelItem = visibleItems.find((item) => item.type === 'model')
+      if (!firstModelItem) {
+        setCurrentStickyGroup(null)
         return
       }
-    }
+      // 从 listItems 中找到此 model 之前的最近一个分组标题
+      const modelIndex = listItems.findIndex((item) => item.key === firstModelItem.key)
 
-    // 找不到则显示第一个分组标题
-    setCurrentStickyGroup(firstGroupRef.current ?? null)
-  }
+      // 向前查找最近的分组标题
+      for (let i = modelIndex - 1; i >= 0; i--) {
+        if (listItems[i].type === 'group') {
+          setCurrentStickyGroup(listItems[i])
+          return
+        }
+      }
+
+      // 找不到则显示第一个分组标题
+      setCurrentStickyGroup(firstGroupRef.current ?? null)
+    },
+    [listItems]
+  )
 
   const renderGroupItem = useCallback(
     (item: FlatListItem) => {
