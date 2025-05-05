@@ -8,7 +8,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isLinux, isMac, isWindows } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -421,7 +421,7 @@ const ButtonsGroup = styled.div`
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWindows ? '130px' : 0};
+    margin-right: ${isWindows || isLinux ? '130px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;
