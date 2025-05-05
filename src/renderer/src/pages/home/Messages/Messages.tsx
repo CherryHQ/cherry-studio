@@ -239,9 +239,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
-            <LoaderContainer $loading={isLoadingMore}>
-              <SvgSpinners180Ring color="var(--color-text-2)" />
-            </LoaderContainer>
+            {isLoadingMore && (
+              <LoaderContainer>
+                <SvgSpinners180Ring color="var(--color-text-2)" />
+              </LoaderContainer>
+            )}
             {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
@@ -296,14 +298,12 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
   return displayMessages
 }
 
-const LoaderContainer = styled.div<{ $loading: boolean }>`
+const LoaderContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 10px;
   width: 100%;
   background: var(--color-background);
-  opacity: ${(props) => (props.$loading ? 1 : 0)};
-  transition: opacity 0.3s ease;
   pointer-events: none;
 `
 
