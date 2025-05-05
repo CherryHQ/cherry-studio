@@ -34,24 +34,14 @@ export function useAppInit() {
 
   useEffect(() => {
     // 从主进程获取初始缩放因子并同步到Redux状态
-    window.api
-      .getZoomFactor()
-      .then((factor) => {
-        if (factor && typeof factor === 'number') {
-          dispatch(setZoomFactorAction(factor))
-        }
-      })
-      .catch((error) => {
-        console.error('Failed to get zoom factor:', error)
-      })
-
-    // 监听主进程的 zoom factor 更新 (例如通过快捷键更改)
-    const removeZoomListener = window.api.onZoomFactorUpdate((factor) => {
-      console.log('Received zoom factor update from main:', factor)
+    window.api.getZoomFactor().then((factor) => {
       dispatch(setZoomFactorAction(factor))
     })
 
-    // 组件卸载时清理监听器
+    const removeZoomListener = window.api.onZoomFactorUpdate((factor) => {
+      dispatch(setZoomFactorAction(factor))
+    })
+
     return () => {
       removeZoomListener()
     }

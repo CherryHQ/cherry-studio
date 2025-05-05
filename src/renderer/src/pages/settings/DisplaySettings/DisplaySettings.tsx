@@ -13,6 +13,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
+import { ZOOM_OPTIONS } from '@shared/config/constant'
 import { Button, Input, Segmented, Select, Switch } from 'antd'
 import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -99,29 +100,6 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
-  const zoomOptions = useMemo(
-    () => [
-      { value: 0.25, label: '25%' },
-      { value: 0.33, label: '33%' },
-      { value: 0.5, label: '50%' },
-      { value: 0.67, label: '67%' },
-      { value: 0.75, label: '75%' },
-      { value: 0.8, label: '80%' },
-      { value: 0.9, label: '90%' },
-      { value: 1, label: '100%' },
-      { value: 1.1, label: '110%' },
-      { value: 1.25, label: '125%' },
-      { value: 1.5, label: '150%' },
-      { value: 1.75, label: '175%' },
-      { value: 2, label: '200%' },
-      { value: 2.5, label: '250%' },
-      { value: 3, label: '300%' },
-      { value: 4, label: '400%' },
-      { value: 5, label: '500%' }
-    ],
-    []
-  )
-
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={theme}>
@@ -134,7 +112,7 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
-          <Select style={{ width: 120 }} value={zoomFactor} onChange={setZoomFactor} options={zoomOptions} />
+          <Select style={{ width: 120 }} value={zoomFactor} onChange={setZoomFactor} options={ZOOM_OPTIONS} />
         </SettingRow>
         {isMac && (
           <>
