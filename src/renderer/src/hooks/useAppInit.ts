@@ -26,8 +26,8 @@ export function useAppInit() {
     proxyMode,
     customCss,
     enableDataCollection,
-    zoomFactor,
-    setZoomFactor
+    setZoomFactor,
+    zoomFactor
   } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
@@ -49,6 +49,10 @@ export function useAppInit() {
       removeZoomListener()
     }
   }, [setZoomFactor])
+
+  useEffect(() => {
+    setZoomFactor(zoomFactor)
+  }, [setZoomFactor, zoomFactor])
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()

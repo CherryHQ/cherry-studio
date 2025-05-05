@@ -154,9 +154,7 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
-      const zoomFactor = configManager.getZoomFactor()
-      mainWindow.webContents.setZoomFactor(zoomFactor)
-      mainWindow.webContents.send(IpcChannel.ZoomFactorUpdated, zoomFactor)
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
 
       // show window only when laucn to tray not set
       const isLaunchToTray = configManager.getLaunchToTray()
