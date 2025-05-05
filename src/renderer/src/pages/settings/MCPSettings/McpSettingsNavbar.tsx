@@ -73,7 +73,7 @@ export const McpSettingsNavbar = () => {
   }))
 
   return (
-    <NavbarRight style={{ paddingRight: isWindows ? 150 : isLinux ? 130 : 12 }}>
+    <NavbarRight style={{ paddingRight: isWindows ? 150 : isLinux ? 120 : 12 }}>
       <HStack alignItems="center" gap={5}>
         <Button
           size="small"

@@ -421,7 +421,7 @@ const ButtonsGroup = styled.div`
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWindows || isLinux ? '130px' : 0};
+    margin-right: ${isWindows ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;
