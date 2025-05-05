@@ -1543,6 +1543,10 @@
       "any.language": "Any language",
       "button.translate": "Translate",
       "close": "Close",
+      "closed": "Translation closed",
+      "copied": "Translation content copied",
+      "empty": "Translation content is empty",
+      "not.found": "Translation content not found",
       "confirm": {
         "content": "Translation will replace the original text, continue?",
         "title": "Translation Confirmation"

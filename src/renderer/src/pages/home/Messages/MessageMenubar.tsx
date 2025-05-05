@@ -7,7 +7,9 @@ import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessag
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { RootState } from '@renderer/store'
+import { RootState, useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -369,6 +371,15 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, editMessage]
   )
 
+  const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
+  const dispatch = useAppDispatch()
+  const hasTranslationBlocks = useMemo(() => {
+    return message.blocks.some((blockId) => {
+      const block = blockEntities[blockId]
+      return block?.type === 'translation'
+    })
+  }, [message.blocks, blockEntities])
+
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
       {message.role === 'user' && (
@@ -424,13 +435,55 @@ const MessageMenubar: FC<Props> = (props) => {
                 label: item.emoji + ' ' + item.label,
                 key: item.value,
                 onClick: () => handleTranslate(item.value)
-              }))
-              // {
-              // TODO 删除翻译块可以放在翻译块内
-              //   label: '✖ ' + t('translate.close'),
-              //   key: 'translate-close',
-              //   onClick: () => editMessage(message.id, { translatedContent: undefined })
-              // }
+              })),
+              ...(hasTranslationBlocks
+                ? [
+                    { type: 'divider' as const },
+                    {
+                      label: '📋 ' + t('translate.copy'),
+                      key: 'translate-copy',
+                      onClick: () => {
+                        const translationBlocks = message.blocks
+                          .map((blockId) => blockEntities[blockId])
+                          .filter((block) => block?.type === 'translation')
+
+                        if (translationBlocks.length > 0) {
+                          const translationContent = translationBlocks
+                            .map((block) => block?.content || '')
+                            .join('\n\n')
+                            .trim()
+
+                          if (translationContent) {
+                            navigator.clipboard.writeText(translationContent)
+                            window.message.success({ content: t('translate.copied'), key: 'translate-copy' })
+                          } else {
+                            window.message.warning({ content: t('translate.empty'), key: 'translate-copy' })
+                          }
+                        }
+                      }
+                    },
+                    {
+                      label: '✖ ' + t('translate.close'),
+                      key: 'translate-close',
+                      onClick: () => {
+                        dispatch(
+                          updateMessageAndBlocksThunk(
+                            topic.id,
+                            {
+                              id: message.id,
+                              blocks: message.blocks.filter((blockId) => {
+                                const block = blockEntities[blockId]
+                                return block?.type !== 'translation'
+                              })
+                            },
+                            []
+                          )
+                        )
+                        window.message.success({ content: t('translate.closed'), key: 'translate-close' })
+                      }
+                    }
+                  ]
+                : [])
             ],
             onClick: (e) => e.domEvent.stopPropagation()
           }}

@@ -1541,6 +1541,10 @@
       "any.language": "任意語言",
       "button.translate": "翻譯",
       "close": "關閉",
+      "closed": "翻譯已關閉",
+      "copied": "翻譯內容已複製",
+      "empty": "翻譯內容為空",
+      "not.found": "未找到翻譯內容",
       "confirm": {
         "content": "翻譯後將覆蓋原文，是否繼續？",
         "title": "翻譯確認"

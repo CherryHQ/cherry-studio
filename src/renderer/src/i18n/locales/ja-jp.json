@@ -1543,6 +1543,10 @@
       "any.language": "任意の言語",
       "button.translate": "翻訳",
       "close": "閉じる",
+      "closed": "翻訳は閉じられました",
+      "copied": "翻訳内容がコピーされました",
+      "empty": "翻訳内容が空です",
+      "not.found": "翻訳内容が見つかりません",
       "confirm": {
         "content": "翻訳すると元のテキストが上書きされます。続行しますか？",
         "title": "翻訳確認"
