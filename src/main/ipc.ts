@@ -152,6 +152,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     })
   })
 
+  ipcMain.handle(IpcChannel.App_GetZoomFactor, () => {
+    return configManager.getZoomFactor()
+  })
+
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
