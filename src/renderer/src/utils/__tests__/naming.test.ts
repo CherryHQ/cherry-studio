@@ -130,19 +130,16 @@ describe('naming', () => {
       expect(getDefaultGroupName('foobar')).toBe('UNGROUPED')
     })
 
-    it('should use first delimiters for aihubmix provider', () => {
-      // provider 为 aihubmix 时，'-' 属于第一类分隔符，分割后取第0部分
-      expect(getDefaultGroupName('gpt-4.1-mini', 'aihubmix')).toBe('gpt')
-      expect(getDefaultGroupName('gpt-4.1', 'aihubmix')).toBe('gpt')
-      expect(getDefaultGroupName('Qwen/Qwen3-32B', 'aihubmix')).toBe('qwen')
-      expect(getDefaultGroupName('DeepSeek Chat', 'aihubmix')).toBe('deepseek')
-      expect(getDefaultGroupName('foo:bar', 'aihubmix')).toBe('foo')
-    })
-
-    it('should use first delimiters for silicon provider', () => {
-      // provider 为 silicon 时，'-' 属于第一类分隔符，分割后取第0部分
-      expect(getDefaultGroupName('gpt-4.1-mini', 'SILICON')).toBe('gpt')
-      expect(getDefaultGroupName('gpt-4.1', 'silicon')).toBe('gpt')
+    it('should use first delimiters for special providers', () => {
+      // 这些 provider 下，'-' 属于第一类分隔符，分割后取第0部分
+      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3']
+      specialProviders.forEach((provider) => {
+        expect(getDefaultGroupName('gpt-4.1-mini', provider)).toBe('gpt')
+        expect(getDefaultGroupName('gpt-4.1', provider)).toBe('gpt')
+        expect(getDefaultGroupName('Qwen/Qwen3-32B', provider)).toBe('qwen')
+        expect(getDefaultGroupName('DeepSeek Chat', provider)).toBe('deepseek')
+        expect(getDefaultGroupName('foo:bar', provider)).toBe('foo')
+      })
     })
 
     it('should use second delimiters for other providers', () => {
@@ -151,9 +148,12 @@ describe('naming', () => {
       expect(getDefaultGroupName('gpt-4.1', 'foobar')).toBe('gpt-4.1')
     })
 
-    it('should fallback to ungrouped if no delimiters', () => {
+    it('should fallback to UNGROUPED if no delimiters', () => {
       // 没有分隔符时返回 UNGROUPED
-      expect(getDefaultGroupName('foobar', 'aihubmix')).toBe('UNGROUPED')
+      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3']
+      specialProviders.forEach((provider) => {
+        expect(getDefaultGroupName('foobar', provider)).toBe('UNGROUPED')
+      })
       expect(getDefaultGroupName('foobar', 'openai')).toBe('UNGROUPED')
     })
   })

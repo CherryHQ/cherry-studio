@@ -23,7 +23,7 @@ export const getDefaultGroupName = (id: string, provider?: string) => {
   let firstDelimiters = ['/', ':', ' ']
   let secondDelimiters = ['-']
 
-  if (provider && ['aihubmix', 'silicon'].includes(provider.toLowerCase())) {
+  if (provider && ['aihubmix', 'silicon', 'ocoolai', 'o3'].includes(provider.toLowerCase())) {
     firstDelimiters = ['/', ':', ' ', '-']
     secondDelimiters = []
   }
