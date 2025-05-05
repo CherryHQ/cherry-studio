@@ -99,6 +99,25 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
         break
       case WebSearchSource.OPENAI:
         formattedCitations =
+          (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
+            let hostname: string | undefined
+            try {
+              hostname = result.title ? undefined : new URL(result.url).hostname
+            } catch {
+              hostname = result.url
+            }
+            return {
+              number: index + 1,
+              url: result.url,
+              title: result.title,
+              hostname: hostname,
+              showFavicon: true,
+              type: 'websearch'
+            }
+          }) || []
+        break
+      case WebSearchSource.OPENAI_COMPATIBLE:
+        formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation
             let hostname: string | undefined
