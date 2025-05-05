@@ -285,7 +285,7 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWindows ? 'windows' : ''}>
+        <ButtonsGroup className={isWindows || isLinux ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
