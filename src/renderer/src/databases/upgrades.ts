@@ -115,6 +115,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       if (oldMessage.reasoning_content?.trim()) {
         const block = createThinkingBlock(oldMessage.id, oldMessage.reasoning_content, {
           createdAt: oldMessage.createdAt,
+          thinking_millsec: oldMessage?.metrics?.time_thinking_millsec,
           status: MessageBlockStatus.SUCCESS // Thinking block is complete content
         })
         blocksToCreate.push(block)
