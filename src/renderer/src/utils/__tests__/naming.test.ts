@@ -115,14 +115,19 @@ describe('naming', () => {
       expect(getDefaultGroupName('group:model')).toBe('group')
     })
 
+    it('should extract group name from ID with space', () => {
+      // 验证从包含空格的 ID 中提取组名
+      expect(getDefaultGroupName('foo bar')).toBe('foo')
+    })
+
     it('should extract group name from ID with hyphen', () => {
       // 验证从包含连字符的 ID 中提取组名
       expect(getDefaultGroupName('group-subgroup-model')).toBe('group-subgroup')
     })
 
-    it('should return original ID if no separators', () => {
-      // 验证没有分隔符时返回原始 ID
-      expect(getDefaultGroupName('group')).toBe('group')
+    it('should return ungrouped if no separators', () => {
+      // 验证没有分隔符时返回 ungrouped
+      expect(getDefaultGroupName('foobar')).toBe('ungrouped')
     })
   })
 
