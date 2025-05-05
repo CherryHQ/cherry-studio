@@ -41,7 +41,7 @@ import {
 import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { addImageFileToContents } from '@renderer/utils/formats'
+import { addImageFileToContents, ThoughtProcessor } from '@renderer/utils/formats'
 import {
   convertLinks,
   convertLinksToHunyuan,
@@ -362,7 +362,6 @@ export default class OpenAIProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
     messages = addImageFileToContents(messages)
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
     if (isSupportedReasoningEffortOpenAIModel(model)) {
@@ -390,54 +389,23 @@ export default class OpenAIProvider extends BaseProvider {
       return streamOutput
     }
 
-    let hasReasoningContent = false
-    let lastChunk = ''
-    const isReasoningJustDone = (
-      delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
-        reasoning_content?: string
-        reasoning?: string
-        thinking?: string
-      }
-    ) => {
-      if (!delta?.content) return false
-
-      // 检查当前chunk和上一个chunk的组合是否形成###Response标记
-      const combinedChunks = lastChunk + delta.content
-      lastChunk = delta.content
-
-      // 检测思考结束
-      if (combinedChunks.includes('###Response') || delta.content === '</think>') {
-        return true
-      }
-
-      // 如果有reasoning_content或reasoning，说明是在思考中
-      if (delta?.reasoning_content || delta?.reasoning || delta?.thinking) {
-        hasReasoningContent = true
-      }
-
-      // 如果之前有reasoning_content或reasoning，现在有普通content，说明思考结束
-      if (hasReasoningContent && delta.content) {
-        return true
-      }
-
-      return false
+    const format = {
+      year: 'numeric' as const,
+      month: 'numeric' as const,
+      day: 'numeric' as const,
+      hour: 'numeric' as const,
+      minute: 'numeric' as const,
+      second: 'numeric' as const,
+      fractionalSecondDigits: 3 as const
     }
-
+    const start_time_millsec = new Date().getTime()
     let time_first_token_millsec = 0
     let time_first_token_millsec_delta = 0
     let time_first_content_millsec = 0
-    const start_time_millsec = new Date().getTime()
-    console.log(
-      `completions start_time_millsec ${new Date(start_time_millsec).toLocaleString(undefined, {
-        year: 'numeric',
-        month: 'numeric',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: 'numeric',
-        second: 'numeric',
-        fractionalSecondDigits: 3
-      })}`
-    )
+    let final_time_completion_millsec_delta = 0
+    let final_time_thinking_millsec_delta = 0
+
+    console.log(`Start time: ${new Date(start_time_millsec).toLocaleString(undefined, format)}`)
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
@@ -500,39 +468,268 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     const processStream = async (stream: any, idx: number) => {
-      // Handle non-streaming case (already returns early, no change needed here)
+      // Handle non-streaming case
       if (!isSupportStreamOutput()) {
         const time_completion_millsec = new Date().getTime() - start_time_millsec
-        // Calculate final metrics once
+        const finalUsage = stream.usage
         const finalMetrics = {
           completion_tokens: stream.usage?.completion_tokens,
           time_completion_millsec,
-          time_first_token_millsec: 0 // Non-streaming, first token time is not relevant
+          time_first_token_millsec: 0 // Not relevant for non-streaming
         }
 
-        // Create a synthetic usage object if stream.usage is undefined
-        const finalUsage = stream.usage
-        // Separate onChunk calls for text and usage/metrics
+        // Send text and usage data
         if (stream.choices[0].message?.content) {
           onChunk({ type: ChunkType.TEXT_COMPLETE, text: stream.choices[0].message.content })
         }
-
-        // Always send usage and metrics data
         onChunk({ type: ChunkType.BLOCK_COMPLETE, response: { usage: finalUsage, metrics: finalMetrics } })
         return
       }
 
-      let content = '' // Accumulate content for tool processing if needed
-      let thinkingContent = ''
-      // 记录最终的完成时间差
-      let final_time_completion_millsec_delta = 0
-      let final_time_thinking_millsec_delta = 0
-      // Variable to store the last received usage object
-      let lastUsage: Usage | undefined = undefined
-      // let isThinkingInContent: ThoughtProcessor | undefined = undefined
-      // const processThinkingChunk = this.handleThinkingTags()
-      let isFirstChunk = true
-      let isFirstThinkingChunk = true
+      // Stream processing state
+      let content = '' // Accumulated content for tool processing
+      let thinkingContent = '' // Accumulated thinking content
+      let lastUsage: Usage | undefined = undefined // Last received usage data
+      let isThinkingInContent: ThoughtProcessor | undefined = undefined // Current thinking processor if active
+      let isFirstThinkingChunk = true // First thinking chunk flag
+      let lastChunk = '' // Previous chunk content
+      let hasReasoningContent = false // Flag for reasoning content presence
+
+      /**
+       * Detects if reasoning has just completed
+       * @param delta - Current delta content
+       * @returns boolean indicating if reasoning just completed
+       */
+      const isReasoningJustDone = (
+        delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
+          reasoning_content?: string
+          reasoning?: string
+          thinking?: string
+        }
+      ): boolean => {
+        if (!delta?.content) return false
+
+        // Check combined text for completion markers
+        const combinedText = lastChunk + delta.content
+        lastChunk = delta.content
+
+        // Check various reasoning completion signals
+        if (combinedText.includes('###Response')) return true
+        if (delta.content === '</think>') return true
+        if (hasReasoningContent && delta.content && !delta.reasoning_content && !delta.reasoning && !delta.thinking) {
+          return true
+        }
+
+        return false
+      }
+
+      /**
+       * Records thinking start time and emits relevant events
+       * @param currentTime - Current timestamp
+       */
+      const recordThinkingStart = (currentTime: number): void => {
+        if (time_first_token_millsec === 0) {
+          time_first_token_millsec = currentTime
+          time_first_token_millsec_delta = currentTime - start_time_millsec
+          console.log(`Thinking started: ${formatTime(currentTime)}`)
+          isFirstThinkingChunk = false
+        }
+      }
+
+      /**
+       * Records thinking completion and emits completion event
+       * @param currentTime - Current timestamp
+       * @param completeText - Complete thinking content
+       */
+      const recordThinkingComplete = (currentTime: number, completeText: string): void => {
+        if (time_first_content_millsec === 0 && time_first_token_millsec > 0) {
+          time_first_content_millsec = currentTime
+          // Calculate and store total thinking time
+          final_time_thinking_millsec_delta = time_first_content_millsec - time_first_token_millsec
+
+          console.log(
+            `Thinking completed: ${formatTime(currentTime)}, duration: ${final_time_thinking_millsec_delta}ms`
+          )
+
+          onChunk({
+            type: ChunkType.THINKING_COMPLETE,
+            text: completeText,
+            thinking_millsec: final_time_thinking_millsec_delta
+          })
+
+          // Reset thinking state but preserve timing data
+          resetThinkingState(false)
+        }
+      }
+
+      /**
+       * Resets thinking-related state variables
+       * @param resetTimingData - Whether to reset timing data (default: true)
+       */
+      const resetThinkingState = (resetTimingData: boolean = true): void => {
+        // Reset processing state
+        thinkingContent = ''
+        isFirstThinkingChunk = true
+        hasReasoningContent = false
+        isThinkingInContent = undefined
+
+        // Only reset timing data if requested
+        if (resetTimingData) {
+          time_first_token_millsec = 0
+          time_first_content_millsec = 0
+          // Note: We don't reset final_time_thinking_millsec_delta as it's needed for metrics
+        }
+      }
+
+      /**
+       * Formats timestamp as readable string
+       * @param timestamp - Timestamp to format
+       * @returns Formatted time string
+       */
+      const formatTime = (timestamp: number): string => {
+        return new Date(timestamp).toLocaleString(undefined, format)
+      }
+
+      /**
+       * Processes thinking content from both tag-based and direct reasoning formats
+       * @param text - Current text
+       * @param currentTime - Current timestamp
+       * @param reasoningText - Direct reasoning content if available
+       * @returns Processed text
+       */
+      const processThinking = (text: string, currentTime: number, reasoningText?: string): string => {
+        // Detect tag-based thinking start
+        const isTagThinkingStart = text.includes('<think>') && !thinkingContent && !reasoningText
+
+        // Record thinking start time
+        if ((isFirstThinkingChunk && reasoningText) || isTagThinkingStart) {
+          recordThinkingStart(currentTime)
+        }
+
+        // Calculate thinking time
+        const thinking_time = time_first_token_millsec > 0 ? currentTime - time_first_token_millsec : 0
+
+        if (reasoningText) {
+          // Process direct reasoning content
+          thinkingContent += reasoningText
+          onChunk({ type: ChunkType.THINKING_DELTA, text: reasoningText, thinking_millsec: thinking_time })
+          return text
+        } else if (isThinkingInContent) {
+          // Process tag-based thinking content
+          const { reasoning, content: processedText } = isThinkingInContent.process(text)
+          const previousThinkingLength = thinkingContent.length
+
+          // Calculate incremental reasoning content
+          let deltaReasoning = ''
+          if (reasoning && reasoning.trim()) {
+            deltaReasoning = reasoning.startsWith(thinkingContent)
+              ? reasoning.substring(previousThinkingLength)
+              : reasoning
+
+            // Update accumulated thinking content
+            thinkingContent = reasoning
+          }
+
+          // Send thinking delta event
+          if (deltaReasoning) {
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: deltaReasoning,
+              thinking_millsec: thinking_time
+            })
+          }
+
+          // Check if thinking has completed
+          if (text.includes('</think>') && !text.endsWith('<think>')) {
+            if (reasoning) {
+              recordThinkingComplete(currentTime, reasoning)
+            }
+          }
+
+          return processedText || text
+        }
+
+        return text
+      }
+
+      /**
+       * Processes web search links in content
+       * @param delta - Current delta
+       * @param chunk - Current chunk
+       * @param isFirstChunk - Whether this is the first chunk
+       * @returns Processed content with links
+       */
+      const processWebSearchLinks = (delta: any, chunk: any, isFirstChunk: boolean): string => {
+        const content = delta.content || ''
+
+        if (delta?.annotations) {
+          return convertLinks(content, isFirstChunk)
+        } else if (assistant.model?.provider === 'openrouter') {
+          return convertLinksToOpenRouter(content, isFirstChunk)
+        } else if (isZhipuModel(assistant.model)) {
+          return convertLinksToZhipu(content, isFirstChunk)
+        } else if (isHunyuanSearchModel(assistant.model)) {
+          return convertLinksToHunyuan(content, chunk.search_info.search_results || [], isFirstChunk)
+        }
+
+        return content
+      }
+
+      /**
+       * Processes web search results and emits search result events
+       * @param delta - Current delta
+       * @param chunk - Current chunk
+       * @param finishReason - Completion reason
+       */
+      const processWebSearchResults = (delta: any, chunk: any, finishReason: string): void => {
+        // Handle OpenAI annotations
+        if (delta?.annotations) {
+          onChunk({
+            type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+            llm_web_search: {
+              results: delta.annotations,
+              source: WebSearchSource.OPENAI
+            }
+          } as LLMWebSearchCompleteChunk)
+        }
+
+        // Handle Perplexity citations
+        if (assistant.model?.provider === 'perplexity' && chunk.citations) {
+          onChunk({
+            type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+            llm_web_search: {
+              results: chunk.citations,
+              source: WebSearchSource.PERPLEXITY
+            }
+          } as LLMWebSearchCompleteChunk)
+        }
+
+        const hasWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
+
+        // Handle Zhipu web search
+        if (hasWebSearch && isZhipuModel(assistant.model) && finishReason === 'stop' && chunk?.web_search) {
+          onChunk({
+            type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+            llm_web_search: {
+              results: chunk.web_search,
+              source: WebSearchSource.ZHIPU
+            }
+          } as LLMWebSearchCompleteChunk)
+        }
+
+        // Handle Hunyuan search results
+        if (hasWebSearch && isHunyuanSearchModel(assistant.model) && chunk?.search_info?.search_results) {
+          onChunk({
+            type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+            llm_web_search: {
+              results: chunk.search_info.search_results,
+              source: WebSearchSource.HUNYUAN
+            }
+          } as LLMWebSearchCompleteChunk)
+        }
+      }
+
+      // Process streaming response
       for await (const chunk of stream) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
@@ -540,179 +737,79 @@ export default class OpenAIProvider extends BaseProvider {
 
         const delta = chunk.choices[0]?.delta
         const finishReason = chunk.choices[0]?.finish_reason
+        const currentTime = new Date().getTime()
 
-        // --- Incremental onChunk calls ---
-
-        // 1. Reasoning Content
+        // Process reasoning content
         const reasoningContent = delta?.reasoning_content || delta?.reasoning
-        const currentTime = new Date().getTime() // Get current time for each chunk
-
-        if (time_first_token_millsec === 0 && isFirstThinkingChunk && reasoningContent) {
-          // 记录第一个token的时间
-          time_first_token_millsec = currentTime
-          // 记录第一个token的时间差
-          time_first_token_millsec_delta = currentTime - start_time_millsec
-          console.log(
-            `completions time_first_token_millsec ${new Date(currentTime).toLocaleString(undefined, {
-              year: 'numeric',
-              month: 'numeric',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: 'numeric',
-              second: 'numeric',
-              fractionalSecondDigits: 3
-            })}`
-          )
-          isFirstThinkingChunk = false
-        }
         if (reasoningContent) {
-          thinkingContent += reasoningContent
-          hasReasoningContent = true // Keep track if reasoning occurred
-
-          // Calculate thinking time as time elapsed since start until this chunk
-          const thinking_time = currentTime - time_first_token_millsec
-          onChunk({ type: ChunkType.THINKING_DELTA, text: reasoningContent, thinking_millsec: thinking_time })
+          processThinking('', currentTime, reasoningContent)
+          hasReasoningContent = true
         }
 
+        // Check if reasoning has just completed
         if (isReasoningJustDone(delta)) {
-          if (time_first_content_millsec === 0) {
-            time_first_content_millsec = currentTime
-            final_time_thinking_millsec_delta = time_first_content_millsec - time_first_token_millsec
-            onChunk({
-              type: ChunkType.THINKING_COMPLETE,
-              text: thinkingContent,
-              thinking_millsec: final_time_thinking_millsec_delta
-            })
-
-            // FIXME: 临时方案，重置时间戳和思考内容
-            time_first_token_millsec = 0
-            time_first_content_millsec = 0
-            thinkingContent = ''
-            isFirstThinkingChunk = true
-            hasReasoningContent = false
-          }
+          recordThinkingComplete(currentTime, thinkingContent)
         }
 
-        // 2. Text Content
+        // Process text content
         if (delta?.content) {
+          // Process web search content if enabled
           if (assistant.enableWebSearch) {
-            if (delta?.annotations) {
-              delta.content = convertLinks(delta.content || '', isFirstChunk)
-            } else if (assistant.model?.provider === 'openrouter') {
-              delta.content = convertLinksToOpenRouter(delta.content || '', isFirstChunk)
-            } else if (isZhipuModel(assistant.model)) {
-              delta.content = convertLinksToZhipu(delta.content || '', isFirstChunk)
-            } else if (isHunyuanSearchModel(assistant.model)) {
-              delta.content = convertLinksToHunyuan(
-                delta.content || '',
-                chunk.search_info.search_results || [],
-                isFirstChunk
-              )
-            }
+            delta.content = processWebSearchLinks(delta, chunk, isFirstThinkingChunk)
           }
-          if (isFirstChunk) {
-            isFirstChunk = false
-          }
-          content += delta.content // Still accumulate for processToolUses
 
-          // isThinkingInContent = this.findThinkingProcessor(content, model)
-          // if (isThinkingInContent) {
-          //   processThinkingChunk(content, isThinkingInContent, onChunk)
-          onChunk({ type: ChunkType.TEXT_DELTA, text: delta.content })
-          // } else {
-          // }
+          // Update first chunk flag
+          if (isFirstThinkingChunk) {
+            isFirstThinkingChunk = false
+          }
+
+          // Accumulate content
+          content += delta.content
+
+          // Process thinking content in tags
+          isThinkingInContent = this.findThinkingProcessor(content, model)
+          if (isThinkingInContent) {
+            const processedContent = processThinking(content, currentTime)
+            if (processedContent && processedContent !== content) {
+              content = processedContent
+            }
+          } else {
+            onChunk({ type: ChunkType.TEXT_DELTA, text: delta.content })
+          }
         }
-        // console.log('delta?.finish_reason', delta?.finish_reason)
+
+        // Handle completion
         if (!isEmpty(finishReason)) {
           onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
           final_time_completion_millsec_delta = currentTime - start_time_millsec
-          console.log(
-            `completions final_time_completion_millsec ${new Date(currentTime).toLocaleString(undefined, {
-              year: 'numeric',
-              month: 'numeric',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: 'numeric',
-              second: 'numeric',
-              fractionalSecondDigits: 3
-            })}`
-          )
-          // 6. Usage (If provided per chunk) - Capture the last known usage
+          console.log(`Completion time: ${formatTime(currentTime)}`)
+
+          // Store usage data
           if (chunk.usage) {
-            // console.log('chunk.usage', chunk.usage)
-            lastUsage = chunk.usage // Update with the latest usage info
-            // Send incremental usage update if needed by UI (optional, keep if useful)
-            // onChunk({ type: 'block_in_progress', response: { usage: chunk.usage } })
+            lastUsage = chunk.usage
           }
 
-          // 3. Web Search
-          if (delta?.annotations) {
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: delta.annotations,
-                source: WebSearchSource.OPENAI
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
-
-          if (assistant.model?.provider === 'perplexity') {
-            const citations = chunk.citations
-            if (citations) {
-              onChunk({
-                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                llm_web_search: {
-                  results: citations,
-                  source: WebSearchSource.PERPLEXITY
-                }
-              } as LLMWebSearchCompleteChunk)
-            }
-          }
-          if (isEnabledWebSearch && isZhipuModel(model) && finishReason === 'stop' && chunk?.web_search) {
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: chunk.web_search,
-                source: WebSearchSource.ZHIPU
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
-          if (isEnabledWebSearch && isHunyuanSearchModel(model) && chunk?.search_info?.search_results) {
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: chunk.search_info.search_results,
-                source: WebSearchSource.HUNYUAN
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
+          // Process web search results
+          processWebSearchResults(delta, chunk, finishReason)
         }
+      }
 
-        // --- End of Incremental onChunk calls ---
-      } // End of for await loop
-
-      // Call processToolUses AFTER the loop finishes processing the main stream content
-      // Note: parseAndCallTools inside processToolUses should handle its own onChunk for tool responses
+      // Process tool calls with accumulated content
       await processToolUses(content, idx)
 
-      // Send the final block_complete chunk with accumulated data
+      // Send final metrics
       onChunk({
         type: ChunkType.BLOCK_COMPLETE,
         response: {
-          // Use the enhanced usage object
           usage: lastUsage,
           metrics: {
-            // Get completion tokens from the last usage object if available
             completion_tokens: lastUsage?.completion_tokens,
             time_completion_millsec: final_time_completion_millsec_delta,
             time_first_token_millsec: time_first_token_millsec_delta,
-            time_thinking_millsec: final_time_thinking_millsec_delta
+            time_thinking_millsec: final_time_thinking_millsec_delta || 0
           }
         }
       })
-
-      // OpenAI stream typically doesn't provide a final summary chunk easily.
-      // We are sending per-chunk usage if available.
     }
 
     console.debug('[completions] reqMessages before processing', model.id, reqMessages)
