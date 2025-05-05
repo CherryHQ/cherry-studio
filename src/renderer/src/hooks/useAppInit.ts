@@ -5,7 +5,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
-import { setZoomFactor } from '@renderer/store/settings'
+import { setZoomFactor as setZoomFactorAction } from '@renderer/store/settings'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -33,14 +33,28 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
-    // 从主进程获取缩放因子并同步到Redux状态
-    const getZoomFactor = async () => {
-      const factor = await window.api.getZoomFactor()
-      if (factor && typeof factor === 'number') {
-        dispatch(setZoomFactor(factor))
-      }
+    // 从主进程获取初始缩放因子并同步到Redux状态
+    window.api
+      .getZoomFactor()
+      .then((factor) => {
+        if (factor && typeof factor === 'number') {
+          dispatch(setZoomFactorAction(factor))
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to get zoom factor:', error)
+      })
+
+    // 监听主进程的 zoom factor 更新 (例如通过快捷键更改)
+    const removeZoomListener = window.api.onZoomFactorUpdate((factor) => {
+      console.log('Received zoom factor update from main:', factor)
+      dispatch(setZoomFactorAction(factor))
+    })
+
+    // 组件卸载时清理监听器
+    return () => {
+      removeZoomListener()
     }
-    getZoomFactor()
   }, [dispatch])
 
   useEffect(() => {
