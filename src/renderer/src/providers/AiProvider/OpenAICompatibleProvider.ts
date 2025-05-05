@@ -458,7 +458,8 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
               ...this.getCustomParameters(assistant)
             },
             {
-              signal
+              signal,
+              timeout: this.getTimeout(model)
             }
           )
         await processStream(newStream, idx + 1)
@@ -706,7 +707,8 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
           ...this.getCustomParameters(assistant)
         },
         {
-          signal
+          signal,
+          timeout: this.getTimeout(model)
         }
       )
 

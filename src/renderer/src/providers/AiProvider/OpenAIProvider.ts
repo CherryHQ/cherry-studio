@@ -160,6 +160,13 @@ export default class OpenAIProvider extends BaseProvider {
     return undefined
   }
 
+  protected getTimeout(model: Model) {
+    if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
+      return 15 * 1000 * 60
+    }
+    return undefined
+  }
+
   /**
    * Get the temperature for the assistant
    * @param assistant - The assistant
@@ -463,7 +470,8 @@ export default class OpenAIProvider extends BaseProvider {
             ...this.getCustomParameters(assistant)
           },
           {
-            signal
+            signal,
+            timeout: this.getTimeout(model)
           }
         )
         await processStream(newStream, idx + 1)
@@ -629,7 +637,10 @@ export default class OpenAIProvider extends BaseProvider {
         ...this.getResponseReasoningEffort(assistant, model),
         ...this.getCustomParameters(assistant)
       },
-      { signal }
+      {
+        signal,
+        timeout: this.getTimeout(model)
+      }
     )
 
     await processStream(stream, 0).finally(cleanup)
