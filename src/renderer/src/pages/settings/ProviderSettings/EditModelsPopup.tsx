@@ -22,7 +22,7 @@ import { Avatar, Button, Empty, Flex, Modal, Tabs, Tooltip, Typography } from 'a
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -83,39 +83,36 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     }
   })
 
-  const modelGroups =
-    provider.id === 'dashscope'
-      ? {
-          ...groupBy(
-            list.filter((model) => !model.id.startsWith('qwen')),
-            'group'
-          ),
-          ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
-        }
-      : groupBy(list, 'group')
+  const modelGroups = useMemo(
+    () =>
+      provider.id === 'dashscope'
+        ? {
+            ...groupBy(
+              list.filter((model) => !model.id.startsWith('qwen')),
+              'group'
+            ),
+            ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+          }
+        : groupBy(list, 'group'),
+    [list, provider.id]
+  )
 
-  const onOk = () => {
-    setOpen(false)
-  }
+  const onOk = useCallback(() => setOpen(false), [])
 
-  const onCancel = () => {
-    setOpen(false)
-  }
+  const onCancel = useCallback(() => setOpen(false), [])
 
-  const onClose = () => {
-    resolve({})
-  }
+  const onClose = useCallback(() => resolve({}), [resolve])
 
-  const onAddModel = (model: Model) => {
-    if (isEmpty(model.name)) {
-      return
-    }
-    addModel(model)
-  }
+  const onAddModel = useCallback(
+    (model: Model) => {
+      if (!isEmpty(model.name)) {
+        addModel(model)
+      }
+    },
+    [addModel]
+  )
 
-  const onRemoveModel = (model: Model) => {
-    removeModel(model)
-  }
+  const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -165,6 +162,36 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     )
   }
 
+  const renderGroupTools = useCallback(
+    (group: string) => {
+      const isAllInProvider = modelGroups[group].every((model) => isModelInProvider(provider, model.id))
+      return (
+        <Tooltip
+          destroyTooltipOnHide
+          title={
+            isAllInProvider
+              ? t(`settings.models.manage.remove_whole_group`)
+              : t(`settings.models.manage.add_whole_group`)
+          }
+          placement="top">
+          <Button
+            type="text"
+            icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (isAllInProvider) {
+                modelGroups[group].filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+              } else {
+                modelGroups[group].filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+              }
+            }}
+          />
+        </Tooltip>
+      )
+    },
+    [modelGroups, provider, onRemoveModel, onAddModel, t]
+  )
+
   return (
     <Modal
       title={<ModalHeader />}
@@ -206,7 +233,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       </SearchContainer>
       <ListContainer>
         {Object.keys(modelGroups).map((group, i) => {
-          const isAllInProvider = modelGroups[group].every((model) => isModelInProvider(provider, model.id))
           return (
             <CustomCollapse
               key={i}
@@ -220,31 +246,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                   </CustomTag>
                 </Flex>
               }
-              extra={
-                <Tooltip
-                  destroyTooltipOnHide
-                  title={
-                    isAllInProvider
-                      ? t(`settings.models.manage.remove_whole_group`)
-                      : t(`settings.models.manage.add_whole_group`)
-                  }
-                  placement="top">
-                  <Button
-                    type="text"
-                    icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isAllInProvider) {
-                        modelGroups[group]
-                          .filter((model) => isModelInProvider(provider, model.id))
-                          .forEach(onRemoveModel)
-                      } else {
-                        modelGroups[group].filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
-                      }
-                    }}
-                  />
-                </Tooltip>
-              }>
+              extra={renderGroupTools(group)}>
               <FlexColumn style={{ margin: '10px 0' }}>
                 {modelGroups[group].map((model) => (
                   <FileItem
