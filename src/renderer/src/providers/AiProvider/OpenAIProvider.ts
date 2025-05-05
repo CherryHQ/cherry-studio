@@ -526,6 +526,8 @@ export default class OpenAIProvider extends BaseProvider {
         return
       }
       let content = ''
+      let lastUsage: Usage | undefined = undefined
+      let final_time_completion_millsec_delta = 0
       for await (const chunk of stream as Stream<OpenAI.Responses.ResponseStreamEvent>) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
@@ -573,27 +575,18 @@ export default class OpenAIProvider extends BaseProvider {
             }
             break
           case 'response.completed': {
+            final_time_completion_millsec_delta = new Date().getTime() - start_time_millsec
             const completion_tokens =
               (chunk.response.usage?.output_tokens || 0) +
               (chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0)
             const total_tokens =
               (chunk.response.usage?.total_tokens || 0) +
               (chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0)
-            onChunk({
-              type: ChunkType.BLOCK_COMPLETE,
-              response: {
-                usage: {
-                  completion_tokens,
-                  prompt_tokens: chunk.response.usage?.input_tokens || 0,
-                  total_tokens
-                },
-                metrics: {
-                  completion_tokens,
-                  time_completion_millsec: new Date().getTime() - start_time_millsec,
-                  time_first_token_millsec: time_first_token_millsec - start_time_millsec
-                }
-              }
-            })
+            lastUsage = {
+              completion_tokens,
+              prompt_tokens: chunk.response.usage?.input_tokens || 0,
+              total_tokens
+            }
             break
           }
           case 'error':
@@ -609,6 +602,18 @@ export default class OpenAIProvider extends BaseProvider {
       }
 
       await processToolUses(content, idx)
+
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          usage: lastUsage,
+          metrics: {
+            completion_tokens: lastUsage?.completion_tokens,
+            time_completion_millsec: final_time_completion_millsec_delta,
+            time_first_token_millsec: time_first_token_millsec - start_time_millsec
+          }
+        }
+      })
     }
 
     const stream = await this.sdk.responses.create(
