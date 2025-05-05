@@ -20,11 +20,11 @@ export const getDefaultGroupName = (id: string, provider?: string) => {
   const str = id.toLowerCase()
 
   // 定义分隔符
-  let firstDelimiters = ['/', ':', ' ']
-  let secondDelimiters = ['-']
+  let firstDelimiters = ['/', ' ', ':']
+  let secondDelimiters = ['-', '_']
 
-  if (provider && ['aihubmix', 'silicon', 'ocoolai', 'o3'].includes(provider.toLowerCase())) {
-    firstDelimiters = ['/', ':', ' ', '-']
+  if (provider && ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi'].includes(provider.toLowerCase())) {
+    firstDelimiters = ['/', ' ', '-', '_', ':']
     secondDelimiters = []
   }
 

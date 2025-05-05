@@ -131,26 +131,30 @@ describe('naming', () => {
     })
 
     it('should use first delimiters for special providers', () => {
-      // 这些 provider 下，'-' 属于第一类分隔符，分割后取第0部分
-      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3']
+      // 这些 provider 下，'/', ' ', '-', '_', ':' 都属于第一类分隔符，分割后取第0部分
+      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
       specialProviders.forEach((provider) => {
+        expect(getDefaultGroupName('Qwen/Qwen3-32B', provider)).toBe('qwen')
         expect(getDefaultGroupName('gpt-4.1-mini', provider)).toBe('gpt')
         expect(getDefaultGroupName('gpt-4.1', provider)).toBe('gpt')
-        expect(getDefaultGroupName('Qwen/Qwen3-32B', provider)).toBe('qwen')
+        expect(getDefaultGroupName('gpt_4.1', provider)).toBe('gpt')
         expect(getDefaultGroupName('DeepSeek Chat', provider)).toBe('deepseek')
         expect(getDefaultGroupName('foo:bar', provider)).toBe('foo')
       })
     })
 
-    it('should use second delimiters for other providers', () => {
-      // provider 为其他值时，'-' 属于第二类分隔符，取前两个部分拼接
+    it('should use first and second delimiters for default providers', () => {
+      // 默认情况下，'/', ' ', ':' 属于第一类分隔符，'-' '_' 属于第二类
+      expect(getDefaultGroupName('Qwen/Qwen3-32B', 'foobar')).toBe('qwen')
       expect(getDefaultGroupName('gpt-4.1-mini', 'foobar')).toBe('gpt-4.1')
       expect(getDefaultGroupName('gpt-4.1', 'foobar')).toBe('gpt-4.1')
+      expect(getDefaultGroupName('DeepSeek Chat', 'foobar')).toBe('deepseek')
+      expect(getDefaultGroupName('foo:bar', 'foobar')).toBe('foo')
     })
 
     it('should fallback to UNGROUPED if no delimiters', () => {
       // 没有分隔符时返回 UNGROUPED
-      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3']
+      const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
       specialProviders.forEach((provider) => {
         expect(getDefaultGroupName('foobar', provider)).toBe('UNGROUPED')
       })
