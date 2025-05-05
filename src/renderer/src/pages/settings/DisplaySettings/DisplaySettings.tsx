@@ -133,7 +133,7 @@ const DisplaySettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.display.zoom.title')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <Select style={{ width: 120 }} value={zoomFactor} onChange={setZoomFactor} options={zoomOptions} />
         </SettingRow>
         {isMac && (
