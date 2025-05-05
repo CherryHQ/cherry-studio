@@ -443,31 +443,31 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
-      {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => setIsMouseOver(true)}>
-          {/* Sticky Group Banner，它会替换第一个分组名称 */}
-          <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
-          <VirtualList
-            ref={listRef}
-            data={listItems}
-            itemKey="key"
-            height={listHeight}
-            itemHeight={ITEM_HEIGHT}
-            overscan={4}
-            smoothScroll={true}
-            onVisibleChange={handleVisibleChange}
-            styles={{
-              verticalScrollBar: { background: 'transparent', width: 6 },
-              verticalScrollBarThumb: {
-                background: 'var(--color-scrollbar-thumb)',
-                borderRadius: 4
-              }
-            }}
-            style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
-            {(item) => (item.type === 'group' ? renderGroupItem(item) : renderModelItem(item))}
-          </VirtualList>
-        </ListContainer>
-      ) : (
+      <ListContainer onMouseMove={() => setIsMouseOver(true)}>
+        {/* Sticky Group Banner，它会替换第一个分组名称 */}
+        <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
+        <VirtualList
+          ref={listRef}
+          data={listItems}
+          itemKey="key"
+          height={listHeight}
+          itemHeight={ITEM_HEIGHT}
+          overscan={4}
+          smoothScroll={true}
+          onVisibleChange={handleVisibleChange}
+          styles={{
+            verticalScrollBar: { background: 'transparent', width: 6 },
+            verticalScrollBarThumb: {
+              background: 'var(--color-scrollbar-thumb)',
+              borderRadius: 4
+            }
+          }}
+          style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
+          {(item) => (item.type === 'group' ? renderGroupItem(item) : renderModelItem(item))}
+        </VirtualList>
+      </ListContainer>
+
+      {listItems.length === 0 && (
         <EmptyState>
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
         </EmptyState>
