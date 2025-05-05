@@ -162,6 +162,33 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     )
   }
 
+  const renderTopTools = useCallback(() => {
+    const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
+    return (
+      <Tooltip
+        destroyTooltipOnHide
+        title={
+          isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
+        }
+        placement="top">
+        <Button
+          type={isAllFilteredInProvider ? 'default' : 'primary'}
+          icon={isAllFilteredInProvider ? <MinusOutlined /> : <PlusOutlined />}
+          size="large"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isAllFilteredInProvider) {
+              list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+            } else {
+              list.filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+            }
+          }}
+          disabled={list.length === 0}
+        />
+      </Tooltip>
+    )
+  }, [list, provider, onAddModel, onRemoveModel, t])
+
   const renderGroupTools = useCallback(
     (group: string) => {
       const isAllInProvider = modelGroups[group].every((model) => isModelInProvider(provider, model.id))
@@ -207,14 +234,17 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       }}
       centered>
       <SearchContainer>
-        <Input
-          prefix={<Search size={14} />}
-          size="large"
-          ref={searchInputRef}
-          placeholder={t('settings.provider.search_placeholder')}
-          allowClear
-          onChange={(e) => setSearchText(e.target.value)}
-        />
+        <TopToolsWrapper>
+          <Input
+            prefix={<Search size={14} />}
+            size="large"
+            ref={searchInputRef}
+            placeholder={t('settings.provider.search_placeholder')}
+            allowClear
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          {renderTopTools()}
+        </TopToolsWrapper>
         <Tabs
           size={i18n.language.startsWith('zh') ? 'middle' : 'small'}
           defaultActiveKey="all"
@@ -325,6 +355,12 @@ const SearchContainer = styled.div`
     display: flex;
     flex-wrap: wrap;
   }
+`
+
+const TopToolsWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 const ListContainer = styled.div`
