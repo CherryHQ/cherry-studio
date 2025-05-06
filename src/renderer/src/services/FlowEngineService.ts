@@ -39,7 +39,6 @@ export const runWorkflow =
     let accumulatedContent = ''
     let lastBlockId: string | null = null
     let lastBlockType: MessageBlockType | null = null
-    let mainTextBlockId: string | null = null
     const workflowNodeIdToBlockIdMap = new Map<string, string>()
     const assistantMessage = createAssistantMessage(assistant.id, topicId)
     await saveMessageAndBlocksToDB(assistantMessage, [])
@@ -99,7 +98,6 @@ export const runWorkflow =
               status: MessageBlockStatus.STREAMING
             })
             handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
-            mainTextBlockId = newBlock.id
           }
         }
       },
