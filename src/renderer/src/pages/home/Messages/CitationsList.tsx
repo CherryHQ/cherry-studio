@@ -53,7 +53,6 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const hasCitations = citations.length > 0
   const count = citations.length
   const previewItems = citations.slice(0, 3)
-  const extraCount = count - previewItems.length
 
   if (!hasCitations) return null
 
@@ -78,9 +77,8 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
               )}
             </PreviewIcon>
           ))}
-          {extraCount > 0 && <MoreCount style={{ zIndex: 0 }}>+{extraCount}</MoreCount>}
         </PreviewIcons>
-        {t('message.citation')}
+        {t('message.citation', { count: count })}
       </OpenButton>
 
       <Drawer
@@ -186,20 +184,6 @@ const PreviewIcon = styled.div`
   &:first-child {
     margin-left: 0;
   }
-`
-
-const MoreCount = styled.span`
-  font-size: 12px;
-  color: var(--color-text-2);
-  background: #fff;
-  border: 1px solid #fff;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  margin-left: -8px;
 `
 
 const CitationLink = styled.a`

@@ -531,7 +531,7 @@
       "backup.start.success": "開始備份",
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
-      "citation": "檢視引用內容",
+      "citation": "{{count}} 個引用內容",
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
