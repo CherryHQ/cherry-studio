@@ -251,9 +251,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   useEffect(() => {
-    if (contentRef.current) {
-      contentRef.current.scrollTo({ index, align: 'auto' })
-    }
+    contentRef.current?.scrollTo({ index, align: 'auto' })
   }, [index])
 
   // 处理键盘事件

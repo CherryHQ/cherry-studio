@@ -62,11 +62,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
 
-  // 搜索文本改变时清除聚焦状态
-  useEffect(() => {
-    setFocusedItemKey('')
-  }, [searchText])
-
   // 加载置顶模型列表
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -224,19 +219,25 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return listItems.filter((item) => item.type === 'model')
   }, [listItems])
 
-  // 首次打开或列表变化时设置聚焦项
+  // 所选模型或搜索文本变化时允许自动滚动到中心
   useEffect(() => {
-    if (currentModelId && modelItems.length > 0) {
+    hasAutoScrolled.current = false
+  }, [currentModelId, searchText])
+
+  // 列表变化时设置聚焦项
+  useEffect(() => {
+    if (modelItems.length > 0) {
       const selectedItem = modelItems.find((item) => item.isSelected)
-      hasAutoScrolled.current = false
 
       if (selectedItem) {
         setFocusedItemKey(selectedItem.key)
       } else {
         setFocusedItemKey(modelItems[0].key)
       }
+    } else {
+      setFocusedItemKey('')
     }
-  }, [currentModelId, modelItems])
+  }, [modelItems])
 
   // 滚动到聚焦项
   useEffect(() => {
