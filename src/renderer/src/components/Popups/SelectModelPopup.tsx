@@ -225,14 +225,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   useEffect(() => {
     if (!focusedItemKey) return
 
-    const actualIndex = listItems.findIndex((item) => item.key === focusedItemKey)
-    if (actualIndex < 0) return
+    const index = listItems.findIndex((item) => item.key === focusedItemKey)
+    if (index < 0) return
 
     if (!hasAutoScrolled.current) {
-      listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
+      listRef.current?.scrollTo({ index, align: 'center' })
       hasAutoScrolled.current = true
     } else {
-      listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
+      listRef.current?.scrollTo({ index, align: 'auto' })
     }
   }, [focusedItemKey, listItems])
 
@@ -247,67 +247,80 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   )
 
   // 处理键盘导航
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (!open || listItems.length === 0) {
-        return
-      }
-
-      // 键盘操作时禁用鼠标 hover
-      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Escape'].includes(e.key)) {
-        setIsMouseOver(false)
-      }
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!open) return
 
       const selectableItems = getSelectableItems()
       if (selectableItems.length === 0) {
         return
       }
 
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      // 键盘操作时禁用鼠标 hover
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
         e.preventDefault()
-
-        const currentIndex = selectableItems.findIndex((item) => item.key === focusedItemKey)
-
-        let nextIndex: number
-        if (currentIndex === -1) {
-          nextIndex = e.key === 'ArrowDown' ? 0 : selectableItems.length - 1
-        } else {
-          nextIndex =
-            e.key === 'ArrowDown'
-              ? (currentIndex + 1) % selectableItems.length
-              : (currentIndex - 1 + selectableItems.length) % selectableItems.length
-        }
-
-        const nextItem = selectableItems[nextIndex]
-        setFocusedItemKey(nextItem.key)
-      } else if (e.key === 'Enter') {
-        if (focusedItemKey) {
-          e.preventDefault()
-          const selectedItem = selectableItems.find((item) => item.key === focusedItemKey)
-          if (selectedItem) {
-            resolve(selectedItem.model)
-            setOpen(false)
-          }
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault()
-        setOpen(false)
-        resolve(undefined)
+        e.stopPropagation()
+        setIsMouseOver(false)
       }
-    },
-    [open, listItems, focusedItemKey, getSelectableItems, resolve]
-  )
+
+      const getCurrentIndex = (currentKey: string) => {
+        const currentIndex = selectableItems.findIndex((item) => item.key === currentKey)
+        return currentIndex < 0 ? 0 : currentIndex
+      }
+
+      switch (e.key) {
+        case 'ArrowUp':
+          setFocusedItemKey((prev) => {
+            const currentIndex = getCurrentIndex(prev)
+            const nextIndex = (currentIndex - 1 + selectableItems.length) % selectableItems.length
+            return selectableItems[nextIndex].key
+          })
+          break
+        case 'ArrowDown':
+          setFocusedItemKey((prev) => {
+            const currentIndex = getCurrentIndex(prev)
+            const nextIndex = (currentIndex + 1) % selectableItems.length
+            return selectableItems[nextIndex].key
+          })
+          break
+        case 'PageUp':
+          setFocusedItemKey((prev) => {
+            const currentIndex = getCurrentIndex(prev)
+            const nextIndex = Math.max(currentIndex - PAGE_SIZE, 0)
+            return selectableItems[nextIndex].key
+          })
+          break
+        case 'PageDown':
+          setFocusedItemKey((prev) => {
+            const currentIndex = getCurrentIndex(prev)
+            const nextIndex = Math.min(currentIndex + PAGE_SIZE, selectableItems.length - 1)
+            return selectableItems[nextIndex].key
+          })
+          break
+        case 'Enter':
+          if (focusedItemKey) {
+            const selectedItem = selectableItems.find((item) => item.key === focusedItemKey)
+            if (selectedItem) {
+              handleItemClick(selectedItem)
+            }
+          }
+          break
+        case 'Escape':
+          e.preventDefault()
+          setOpen(false)
+          resolve(undefined)
+          break
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [focusedItemKey, getSelectableItems, handleItemClick, open, resolve])
 
   // 搜索文本改变时清除聚焦状态
   useEffect(() => {
     setFocusedItemKey('')
   }, [searchText])
-
-  // 全局事件监听
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
 
   const onCancel = useCallback(() => {
     setOpen(false)
