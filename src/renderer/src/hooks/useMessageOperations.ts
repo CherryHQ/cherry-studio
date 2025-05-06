@@ -1,5 +1,4 @@
 import { createSelector } from '@reduxjs/toolkit'
-import db from '@renderer/databases'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
@@ -14,8 +13,8 @@ import {
   regenerateAssistantResponseThunk,
   resendMessageThunk,
   resendUserMessageWithEditThunk,
-  throttledBlockDbUpdate,
-  updateMessageAndBlocksThunk
+  updateMessageAndBlocksThunk,
+  updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
@@ -264,7 +263,7 @@ export function useMessageOperations(topic: Topic) {
           }
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
-        await db.message_blocks.update(blockId, changes)
+        await dispatch(updateTranslationBlockThunk(blockId, '', false))
         console.log('[getTranslationUpdater] update existing translation block:', blockId)
       } else {
         blockId = await dispatch(
@@ -279,11 +278,7 @@ export function useMessageOperations(topic: Topic) {
       }
 
       return (accumulatedText: string, isComplete: boolean = false) => {
-        const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
-        const changes: Partial<MessageBlock> = { content: accumulatedText, status: status }
-
-        dispatch(updateOneBlock({ id: blockId!, changes }))
-        throttledBlockDbUpdate(blockId!, changes)
+        dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
       }
     },
     [dispatch, topic.id]
