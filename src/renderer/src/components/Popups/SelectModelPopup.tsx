@@ -6,6 +6,7 @@ import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
+import { classNames } from '@renderer/utils/style'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -374,12 +375,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     (item: FlatListItem) => {
       return (
         <ModelItem
+          className={classNames({
+            focused: item.key === focusedItemKey,
+            selected: item.isSelected
+          })}
           onClick={() => handleItemClick(item)}
-          $isFocused={item.key === focusedItemKey}
-          $isSelected={!!item.isSelected}
-          onMouseEnter={() => {
-            if (isMouseOver) setFocusedItemKey(item.key)
-          }}>
+          onMouseEnter={() => setFocusedItemKey(item.key)}>
           <ModelItemLeft>
             {item.icon}
             {item.name}
@@ -399,7 +400,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         </ModelItem>
       )
     },
-    [focusedItemKey, handleItemClick, isMouseOver, togglePin]
+    [focusedItemKey, handleItemClick, togglePin]
   )
 
   return (
@@ -506,7 +507,7 @@ const StickyGroupBanner = styled(GroupItem)`
   background: var(--modal-background);
 `
 
-const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
+const ModelItem = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -517,19 +518,24 @@ const ModelItem = styled.div<{ $isFocused: boolean; $isSelected: boolean }>`
   height: ${ITEM_HEIGHT - 2}px;
   border-radius: 8px;
   cursor: pointer;
-  transition: background-color 0.3s;
-  background-color: ${(props) => (props.$isFocused ? 'var(--color-background-mute)' : 'transparent')};
+  transition: background-color 0.1s ease;
 
-  &::before {
-    content: '';
-    display: ${(props) => (props.$isSelected ? 'block' : 'none')};
-    position: absolute;
-    left: -1px;
-    top: 13%;
-    width: 3px;
-    height: 74%;
-    background: var(--color-primary-soft);
-    border-radius: 8px;
+  &.focused {
+    background-color: var(--color-background-mute);
+  }
+
+  &.selected {
+    &::before {
+      content: '';
+      display: block;
+      position: absolute;
+      left: -1px;
+      top: 13%;
+      width: 3px;
+      height: 74%;
+      background: var(--color-primary-soft);
+      border-radius: 8px;
+    }
   }
 
   .pin-icon {
