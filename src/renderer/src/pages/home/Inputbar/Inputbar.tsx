@@ -860,6 +860,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const isExpended = expended || !!textareaHeight
+  const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
@@ -926,7 +927,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
               />
-              {(isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) && (
+              {showThinkingButton && (
                 <ThinkingButton
                   ref={thinkingButtonRef}
                   model={model}
