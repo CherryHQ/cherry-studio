@@ -26,9 +26,17 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
 
   const toggleTheme = () => {
     // 主题顺序是light, dark, auto, 所以需要先判断当前主题，然后取下一个主题
-    const nextTheme =
-      theme === ThemeMode.light ? ThemeMode.dark : theme === ThemeMode.dark ? ThemeMode.auto : ThemeMode.light
-    setTheme(nextTheme)
+    switch (theme) {
+      case ThemeMode.light:
+        setTheme(ThemeMode.dark)
+        break
+      case ThemeMode.dark:
+        setTheme(ThemeMode.auto)
+        break
+      case ThemeMode.auto:
+        setTheme(ThemeMode.light)
+        break
+    }
   }
 
   useEffect(() => {
