@@ -55,7 +55,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
       </Row>
       <Row align="middle" style={{ marginTop: 10 }}>
         <Segmented
-          value={assistant.knowledge_recognition}
+          value={assistant.knowledgeRecognition}
           options={[
             { label: t('assistants.settings.knowledge_base.recognition.off'), value: 'off' },
             { label: t('assistants.settings.knowledge_base.recognition.on'), value: 'on' },
@@ -64,7 +64,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
           onChange={(value) =>
             updateAssistant({
               ...assistant,
-              knowledge_recognition: value as 'auto' | 'off' | 'on'
+              knowledgeRecognition: value as 'auto' | 'off' | 'on'
             })
           }
         />
