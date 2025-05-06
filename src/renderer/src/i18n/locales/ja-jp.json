@@ -9,7 +9,6 @@
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
       "add.title": "エージェントを作成",
-      "import.title": "外部からインポート",
       "import": {
         "title": "外部からインポート",
         "type": {
@@ -78,7 +77,12 @@
       "settings.reasoning_effort.low": "少しの思考",
       "settings.reasoning_effort.medium": "普通の思考",
       "settings.reasoning_effort.default": "デフォルト",
-      "settings.more": "アシスタント設定"
+      "settings.more": "アシスタント設定",
+      "settings.knowledge_base.use.tip": "智能体は、大規模モデルの意図識別能力を呼び出し、知識ベースを呼び出して回答する必要があるかどうかを判断します。この機能はモデルの能力に依存します。",
+      "settings.knowledge_base.use": "知識ベースの呼び出し",
+      "settings.knowledge_base.use.off": "閉じる",
+      "settings.knowledge_base.use.on": "開始",
+      "settings.knowledge_base.use.auto": "自動"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -1536,7 +1540,6 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
-      "defaultAgent": "内蔵",
       "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {

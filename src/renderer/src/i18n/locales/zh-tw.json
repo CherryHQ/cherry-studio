@@ -77,7 +77,12 @@
       "settings.reasoning_effort.low": "稍微思考",
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
-      "settings.more": "助手設定"
+      "settings.more": "助手設定",
+      "settings.knowledge_base.use.tip": "智能體將呼叫大模型的意圖識別能力，判斷是否需要呼叫知識庫進行回答，該功能將依賴模型的能力。",
+      "settings.knowledge_base.use": "呼叫知識庫",
+      "settings.knowledge_base.use.off": "關閉",
+      "settings.knowledge_base.use.on": "開啟",
+      "settings.knowledge_base.use.auto": "自動"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",

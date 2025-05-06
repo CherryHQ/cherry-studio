@@ -23,7 +23,7 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
-  knowledgeRecognition?: 'off' | 'on' | 'auto'
+  knowledgeUse?: 'off' | 'on' | 'auto'
 }
 
 export type AssistantMessage = {

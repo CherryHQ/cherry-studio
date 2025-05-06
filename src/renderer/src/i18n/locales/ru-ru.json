@@ -9,7 +9,6 @@
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
       "add.title": "Создать агента",
-      "import.title": "Импорт из внешнего источника",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
       "edit.message.assistant.placeholder": "Введите сообщение ассистента",
@@ -78,7 +77,12 @@
       "settings.reasoning_effort.medium": "Среднее",
       "settings.reasoning_effort.default": "По умолчанию",
       "settings.more": "Настройки ассистента",
-      "settings.reasoning_effort": "Настройки размышлений"
+      "settings.reasoning_effort": "Настройки размышлений",
+      "settings.knowledge_base.use.tip": "Интеллектуальный агент будет использовать способности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели.",
+      "settings.knowledge_base.use": "Вызов базы знаний",
+      "settings.knowledge_base.use.off": "Закрыть",
+      "settings.knowledge_base.use.on": "Запуск",
+      "settings.knowledge_base.use.auto": "автоматический"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -1536,7 +1540,6 @@
         "title": "Настройки конфиденциальности",
         "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
-      "defaultAgent": "Встроенный",
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {

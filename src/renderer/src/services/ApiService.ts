@@ -46,7 +46,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'auto'
+  const knowledgeRecognition = assistant.knowledgeUse || 'auto'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null

@@ -9,7 +9,6 @@
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
       "add.title": "Create Agent",
-      "import.title": "Import from External",
       "import": {
         "title": "Import from External",
         "type": {
@@ -78,7 +77,12 @@
       "settings.reasoning_effort.low": "Think less",
       "settings.reasoning_effort.medium": "Think normally",
       "settings.reasoning_effort.default": "Default",
-      "settings.more": "Assistant Settings"
+      "settings.more": "Assistant Settings",
+      "settings.knowledge_base.use.tip": "The agent will utilize the intent recognition capabilities of the large model to determine whether to call the knowledge base for a response. This function will depend on the model's capabilities.",
+      "settings.knowledge_base.use": "Access the knowledge base",
+      "settings.knowledge_base.use.off": "Off",
+      "settings.knowledge_base.use.on": "On",
+      "settings.knowledge_base.use.auto": "Auto"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -1536,8 +1540,7 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
-      },
-      "defaultAgent": "Built-in"
+      }
     },
     "translate": {
       "any.language": "Any language",
