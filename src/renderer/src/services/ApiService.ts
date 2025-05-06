@@ -351,6 +351,25 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
   }
 }
 
+export async function fetchTextByPrompt({
+  prompt,
+  content,
+  assistant
+}: {
+  prompt: string
+  content: string
+  assistant: Assistant
+}): Promise<string> {
+  const provider = getAssistantProvider(assistant)
+  const AI = new AiProvider(provider)
+
+  try {
+    return await AI.generateText({ prompt, content, assistant })
+  } catch (error: any) {
+    return ''
+  }
+}
+
 export async function fetchSuggestions({
   messages,
   assistant

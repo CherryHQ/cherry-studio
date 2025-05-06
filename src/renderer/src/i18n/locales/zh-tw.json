@@ -77,7 +77,11 @@
       "settings.reasoning_effort.low": "稍微思考",
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
-      "settings.more": "助手設定"
+      "settings.more": "助手設定",
+      "settings.document_reader": "[to be translated]:文档阅读",
+      "settings.document_reader.title": "[to be translated]:关联文档",
+      "settings.document_reader.upload": "[to be translated]:点击选择",
+      "settings.document_reader.suggestion": "[to be translated]:输入建议"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -1575,6 +1579,14 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "document_reader": {
+      "index": "[to be translated]:目录",
+      "checked": "[to be translated]:已选择",
+      "unchecked": "[to be translated]:点击关联当前页",
+      "attaching": "[to be translated]:正在关联 ",
+      "page_num": "[to be translated]:第{{index}}",
+      "outline.empty": "[to be translated]:无可读目录"
     }
   }
 }

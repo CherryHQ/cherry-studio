@@ -77,6 +77,10 @@
       "settings.reasoning_effort.medium": "斟酌",
       "settings.reasoning_effort.high": "沉思",
       "settings.reasoning_effort.default": "默认",
+      "settings.document_reader": "文档阅读",
+      "settings.document_reader.title": "关联文档",
+      "settings.document_reader.upload": "点击选择",
+      "settings.document_reader.suggestion": "输入建议",
       "settings.more": "助手设置"
     },
     "auth": {
@@ -1575,6 +1579,14 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "document_reader": {
+      "index": "目录",
+      "checked": "已选择",
+      "unchecked": "点击关联当前页",
+      "attaching": "正在关联 ",
+      "page_num": "第{{index}}页",
+      "outline.empty": "无可读目录"
     }
   }
 }

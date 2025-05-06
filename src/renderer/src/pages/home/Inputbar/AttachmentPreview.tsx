@@ -1,3 +1,4 @@
+import { CloseOutlined } from '@ant-design/icons'
 import {
   FileExcelFilled,
   FileImageFilled,
@@ -14,16 +15,22 @@ import {
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import FileManager from '@renderer/services/FileManager'
-import { FileType } from '@renderer/types'
+import { Assistant, FileType, Topic } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Flex, Image, Tooltip } from 'antd'
-import { isEmpty } from 'lodash'
-import { FC, useState } from 'react'
+import { Flex, Image, Radio, Tag, Tooltip } from 'antd'
+import { filter, isEmpty, map } from 'lodash'
+import { FC, ReactNode, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
+  assistant: Assistant
+  updateAssistant: (assistant: Assistant) => void
   files: FileType[]
   setFiles: (files: FileType[]) => void
+  topic: Topic
+  setActiveTopic: (topic: Topic) => void
+  updateTopic: (topic: Topic) => void
 }
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
@@ -84,7 +91,19 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
   )
 }
 
-const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
+const AttachmentPreview: FC<Props> = ({
+  files,
+  setFiles,
+  topic,
+  setActiveTopic,
+  updateTopic,
+  assistant,
+  updateAssistant
+}) => {
+  const { attachedText, attachedPages } = topic
+  const { attachedDocument } = assistant
+  const { t } = useTranslation()
+
   const getFileIcon = (type?: string) => {
     if (!type) return <FileUnknownFilled />
 
@@ -133,32 +152,151 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
     return <FileUnknownFilled />
   }
 
-  if (isEmpty(files)) {
+  const handleRemoveAttachedText = () => {
+    updateAndSetActiveTopic({ ...topic, attachedText: undefined })
+  }
+
+  const handleRemoveAttachedPage = (index: number) => {
+    updateAndSetActiveTopic({
+      ...topic,
+      attachedPages: filter(attachedPages, (page) => page.index !== index)
+    })
+  }
+
+  const updateAndSetActiveTopic = (updatedTopic: Topic) => {
+    updateTopic(updatedTopic)
+    setActiveTopic(updatedTopic)
+  }
+
+  const onTriggerAttachedDocumentEnabled = () => {
+    if (attachedDocument) {
+      updateAssistant({
+        ...assistant,
+        attachedDocument: {
+          ...attachedDocument,
+          disabled: !attachedDocument.disabled
+        }
+      })
+    }
+  }
+
+  const Attachments = useMemo(() => {
+    const attachments: ReactNode[] = []
+
+    if (attachedDocument) {
+      attachments.push(
+        <RadioButton
+          key="attachedDocument"
+          checked={!attachedDocument.disabled}
+          onClick={onTriggerAttachedDocumentEnabled}>
+          {!attachedDocument.disabled && t('document_reader.attaching')}
+          {attachedDocument?.origin_name}
+        </RadioButton>
+      )
+    }
+
+    if (!isEmpty(attachedPages)) {
+      attachments.push(
+        <div key="attachedPages" className="attach-list">
+          {map(attachedPages, ({ index }) => (
+            <Tag
+              key={index}
+              closable
+              color="green"
+              onClose={(e) => {
+                e.preventDefault()
+                handleRemoveAttachedPage(index)
+              }}>
+              {t('document_reader.page_num', { index })}
+            </Tag>
+          ))}
+        </div>
+      )
+    }
+
+    if (attachedText) {
+      attachments.push(
+        <div key="attachedText" className="attach-text">
+          <div className="attach-text-content">{attachedText}</div>
+          <CloseOutlined className="close-icon" onClick={handleRemoveAttachedText} />
+        </div>
+      )
+    }
+
+    if (!isEmpty(files)) {
+      attachments.push(
+        <div className="attach-files">
+          {files.map((file) => (
+            <CustomTag
+              key={file.id}
+              icon={getFileIcon(file.ext)}
+              color="#37a5aa"
+              closable
+              onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
+              <FileNameRender file={file} />
+            </CustomTag>
+          ))}
+        </div>
+      )
+    }
+
+    return attachments
+  }, [files, attachedDocument, attachedText, attachedPages])
+
+  if (isEmpty(Attachments)) {
     return null
   }
 
-  return (
-    <ContentContainer>
-      {files.map((file) => (
-        <CustomTag
-          key={file.id}
-          icon={getFileIcon(file.ext)}
-          color="#37a5aa"
-          closable
-          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
-          <FileNameRender file={file} />
-        </CustomTag>
-      ))}
-    </ContentContainer>
-  )
+  return <ContentContainer>{Attachments}</ContentContainer>
 }
 
 const ContentContainer = styled.div`
   width: 100%;
-  padding: 5px 15px 5px 15px;
+  padding: 10px 15px 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 4px;
+  flex-direction: column;
+  gap: 4px;
+
+  .attach-text {
+    padding: 2px 6px;
+    color: var(--color-gray-1);
+    background-color: var(--color-background-mute);
+    border-radius: 4px;
+    display: flex;
+
+    .close-icon {
+      cursor: pointer;
+      &:hover {
+        opacity: 0.8;
+      }
+    }
+
+    .attach-text-content {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+
+  .attach-files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 4px;
+  }
+`
+
+const RadioButton = styled(Radio.Button)`
+  width: fit-content;
+  max-width: 240px;
+  border-radius: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
+  opacity: 0.6;
+  &.ant-radio-button-wrapper-checked {
+    opacity: 1;
+  }
 `
 
 const FileName = styled.span`

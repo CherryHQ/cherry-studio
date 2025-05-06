@@ -78,7 +78,11 @@
       "settings.reasoning_effort.medium": "Среднее",
       "settings.reasoning_effort.default": "По умолчанию",
       "settings.more": "Настройки ассистента",
-      "settings.reasoning_effort": "Настройки размышлений"
+      "settings.reasoning_effort": "Настройки размышлений",
+      "settings.document_reader": "[to be translated]:文档阅读",
+      "settings.document_reader.title": "[to be translated]:关联文档",
+      "settings.document_reader.upload": "[to be translated]:点击选择",
+      "settings.document_reader.suggestion": "[to be translated]:输入建议"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -1577,6 +1581,14 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "document_reader": {
+      "index": "[to be translated]:目录",
+      "checked": "[to be translated]:已选择",
+      "unchecked": "[to be translated]:点击关联当前页",
+      "attaching": "[to be translated]:正在关联 ",
+      "page_num": "[to be translated]:第{{index}}",
+      "outline.empty": "[to be translated]:无可读目录"
     }
   }
 }

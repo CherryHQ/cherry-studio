@@ -455,3 +455,28 @@ Example: [nytimes.com](https://nytimes.com/some-page).
 If have multiple citations, please directly list them like this:
 [www.nytimes.com](https://nytimes.com/some-page)[www.bbc.com](https://bbc.com/some-page)
 `
+
+export const BUILD_SUGGESTION_PROMPT = `
+你是一个建议助手，你需要根据用户和助手的最新对话，站在用户的角度，推测最多三个，用户可能期望问 AI 助手的问题。
+
+## 返回格式要求
+1. 返回为纯文本，不要使用其他格式
+2. 返回的文本只包含问题，不要包含其他内容，而且每个问题都是单句，不要包含换行符或标点符号
+3. 返回的文本中，多个问题之间使用逗号,分隔，不要使用中文逗号。
+
+## 输出示例：
+你能帮我做些什么？,帮我生成这些指标的ROE
+
+## 用户输入：
+
+{user}
+
+## 助手回复：
+
+{assistant}
+
+`
+
+export const ATTACHED_DOCUMENT_PROMPT = `以下是关联的文档内容：
+  {document_content}
+`

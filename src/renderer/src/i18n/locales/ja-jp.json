@@ -78,7 +78,11 @@
       "settings.reasoning_effort.low": "少しの思考",
       "settings.reasoning_effort.medium": "普通の思考",
       "settings.reasoning_effort.default": "デフォルト",
-      "settings.more": "アシスタント設定"
+      "settings.more": "アシスタント設定",
+      "settings.document_reader": "[to be translated]:文档阅读",
+      "settings.document_reader.title": "[to be translated]:关联文档",
+      "settings.document_reader.upload": "[to be translated]:点击选择",
+      "settings.document_reader.suggestion": "[to be translated]:输入建议"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -1577,6 +1581,14 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "document_reader": {
+      "index": "[to be translated]:目录",
+      "checked": "[to be translated]:已选择",
+      "unchecked": "[to be translated]:点击关联当前页",
+      "attaching": "[to be translated]:正在关联 ",
+      "page_num": "[to be translated]:第{{index}}",
+      "outline.empty": "[to be translated]:无可读目录"
     }
   }
 }
