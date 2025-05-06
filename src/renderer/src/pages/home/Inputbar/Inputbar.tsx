@@ -199,8 +199,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
       // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
 
-      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      console.log('baseUserMessage', baseUserMessage)
+      const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: currentText }
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -250,7 +249,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
     mentionModels,
     resizeTextArea,
     selectedKnowledgeBases,
-    text,
     topic
   ])
 
@@ -942,7 +940,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                   ToolbarButton={ToolbarButton}
                 />
               )}
-              <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
+              <WebSearchButton
+                ref={webSearchButtonRef}
+                assistant={assistant}
+                ToolbarButton={ToolbarButton}
+                disabled={isDisableToolsButton}
+              />
               {showKnowledgeIcon && (
                 <KnowledgeBaseButton
                   ref={knowledgeBaseButtonRef}
@@ -992,7 +995,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                 </ToolbarButton>
               </Tooltip>
               <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
-                <ToolbarButton type="text" onClick={onToggleExpended}>
+                <ToolbarButton
+                  type="text"
+                  onClick={onToggleExpended}
+                  disabled={isDisableToolsButton}
+                  className={isDisableToolsButton ? 'disabled' : ''}>
                   {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
                 </ToolbarButton>
               </Tooltip>
@@ -1021,7 +1028,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
 
                   const textArea = textareaRef.current?.resizableTextArea?.textArea
                   if (textArea) {
-                    resizeTextArea(150)
+                    resizeTextArea(200)
                     textArea.scrollTo(0, textArea.scrollHeight)
                   }
                 }}

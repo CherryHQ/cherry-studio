@@ -1,17 +1,25 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useTopicLoading, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import { Assistant, Message, Topic } from '@renderer/types'
+import { getAssistantMessage } from '@renderer/services/MessagesService'
+import { getUserMessage } from '@renderer/services/MessagesService'
+import store from '@renderer/store'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { Assistant, Topic } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import { isAbortError } from '@renderer/utils/error'
 import { Button, Col, Divider, Popover, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { throttle } from 'lodash'
 import { BotMessageSquare, CircleCheckBig, CircleHelp, CirclePause, CirclePlay, OctagonAlert, X } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -62,9 +70,7 @@ const AIDebatesButton: FC<Props> = ({
   /** the assistant which debates use */
   const runningAssistant = useRef<Assistant | null>(null)
 
-  const originalMessages = useTopicMessages(runningTopic.current || topic)
-  /** reverse messages role for AI Debates */
-  const reverseMessagesRef = useRef<Message[]>([])
+  // const defaultUserMessage = useRef<Message | null>(null)
 
   /** user selected assistant other than topic assistant */
   const [alterAssistant, setAlterAssistant] = useState<Assistant | null>(null)
@@ -81,17 +87,23 @@ const AIDebatesButton: FC<Props> = ({
   const runningStatus = useRef<RunningStatus>('finish')
   const runningId = useRef<string | undefined>(undefined)
 
+  const { language } = useSettings()
   const { t } = useTranslation()
 
   /** the assistant which debates use */
   const targetAssistant = runningAssistant.current || alterAssistant || assistant
 
-  /** reverse messages role for AI Debates */
-  useEffect(() => {
-    reverseMessagesRef.current = originalMessages.map((msg) => ({
+  /** get the reverse messages */
+  const getReverseMessages = () => {
+    const originalMessages = selectMessagesForTopic(store.getState(), runningTopic.current?.id || topic.id)
+
+    // Use the originalMessages that's already obtained at component level
+    // This avoids calling hooks inside regular functions
+    const reversedMessages = originalMessages.map((msg) => ({
       ...msg,
+      // Ensure the role is properly typed as one of the allowed values
       role: msg.role === 'assistant' ? 'user' : msg.role === 'user' ? 'assistant' : msg.role
-    }))
+    })) as Message[]
 
     /**
      * Since the user/assistant relationship will be filtered multiple times
@@ -99,30 +111,44 @@ const AIDebatesButton: FC<Props> = ({
      * we make a temporary fix here to preserve the user's original information
      */
     if (
-      reverseMessagesRef.current[0] &&
-      reverseMessagesRef.current[0].role === 'assistant' &&
-      reverseMessagesRef.current[1] &&
-      reverseMessagesRef.current[1].role === 'user'
+      reversedMessages[0] &&
+      reversedMessages[0].role === 'assistant' &&
+      reversedMessages[1] &&
+      reversedMessages[1].role === 'user'
     ) {
-      // Merge the content of the first message into the second message
-      reverseMessagesRef.current[1].content =
-        reverseMessagesRef.current[0].content + '\n\n' + reverseMessagesRef.current[1].content
-      // Remove the first message
-      reverseMessagesRef.current.shift()
+      const defaultUserMessage = getDefaultUserMessage('hi')
+      reversedMessages.unshift(defaultUserMessage)
     }
 
     /** if the messages are empty, add a nearly 'empty' user message */
-    if (reverseMessagesRef.current.length == 0) {
-      const userMessage = getUserMessage({
-        assistant: targetAssistant,
-        topic: runningTopic.current || topic,
-        type: 'text',
-        content: '...'
-      })
-
-      reverseMessagesRef.current.push(userMessage)
+    if (reversedMessages.length == 0) {
+      const defaultUserMessage = getDefaultUserMessage(`hi, any topics? Please response in ${language}.`)
+      reversedMessages.push(defaultUserMessage)
     }
-  }, [originalMessages, targetAssistant, topic])
+
+    return reversedMessages
+  }
+
+  /** generate the default user message used for AI Debates */
+  const getDefaultUserMessage = (prompt: string) => {
+    const defaultMessageId = 'ai-debates-default-user-message-id'
+    const defaultBlockId = 'ai-debates-default-block-id'
+
+    const { message, blocks } = getUserMessage({
+      assistant: targetAssistant,
+      topic: runningTopic.current || topic,
+      content: prompt
+    })
+
+    message.id = defaultMessageId
+    message.blocks[0] = defaultBlockId
+    blocks[0].id = defaultBlockId
+    blocks[0].messageId = defaultMessageId
+
+    store.dispatch(upsertManyBlocks(blocks))
+
+    return message
+  }
 
   /** set the running status and take related actions */
   const setRunningStatus = (status: RunningStatus) => {
@@ -136,14 +162,13 @@ const AIDebatesButton: FC<Props> = ({
         runningAssistant.current = targetAssistant
         break
       case 'finish':
-        /** delayed to set isRunning to remain the hints
-         *  set onRunning to inform the parent component to update the status
-         */
+        /** set onRunning to inform the parent component to update the status */
         onRunning(false)
         topicAssistant.current = null
         runningTopic.current = null
         runningAssistant.current = null
-        setTimeout(closeFinishPopover, 2000)
+        /** delayed to set isRunning to remain the hints */
+        setTimeout(closeFinishPopover, 3000)
         break
     }
     runningStatus.current = status
@@ -162,6 +187,18 @@ const AIDebatesButton: FC<Props> = ({
         return
       }
 
+      // /** if the current round is the last round,
+      //  *  set the status to finish earlier
+      //  */
+      // if (currentRound === totalRounds) {
+      //   setStatusHints({
+      //     type: 'finish',
+      //     message: t('chat.aidebates.hints.finish_automode')
+      //   })
+      //   setRunningStatus('finish')
+      //   return
+      // }
+
       setRunningStatus('generating')
 
       if (autoMode) {
@@ -178,6 +215,9 @@ const AIDebatesButton: FC<Props> = ({
         })
       }
 
+      // Update the reversed messages before proceeding
+      const reversedMessages = getReverseMessages()
+
       /** init assistant message */
       const assistantMessage = getAssistantMessage({
         assistant: runningAssistant.current as Assistant,
@@ -185,7 +225,7 @@ const AIDebatesButton: FC<Props> = ({
       })
 
       /** set Ids, in order to cancel those fetch task */
-      const lastUserMessage = reverseMessagesRef.current.findLast((m) => m.role === 'user')
+      const lastUserMessage = reversedMessages.findLast((m) => m.role === 'user')
       assistantMessage.askId = lastUserMessage?.id
       runningId.current = lastUserMessage?.id
 
@@ -198,18 +238,32 @@ const AIDebatesButton: FC<Props> = ({
         { trailing: true }
       )
 
+      let blockContent: string = ''
+
       await fetchChatCompletion({
-        message: assistantMessage,
-        messages: reverseMessagesRef.current,
+        messages: [...reversedMessages, assistantMessage],
         assistant: runningAssistant.current as Assistant,
-        onResponse: async (msg) => {
-          switch (msg.status) {
-            case 'pending':
-              throttledStreamContent(msg.content)
+        onChunkReceived: async (chunk: Chunk) => {
+          switch (chunk.type) {
+            case ChunkType.TEXT_DELTA:
+              blockContent += chunk.text
+              throttledStreamContent(blockContent)
               break
-            case 'success':
+            case ChunkType.TEXT_COMPLETE:
+              break
+            case ChunkType.THINKING_DELTA:
+              blockContent += chunk.text
+              throttledStreamContent(blockContent)
+              break
+            case ChunkType.THINKING_COMPLETE:
+              break
+            // onComplete
+            case ChunkType.BLOCK_COMPLETE:
               {
-                onStreamContent(msg.content)
+                // this means the user aborted the AI Debates
+                if (runningStatus.current === 'finish') {
+                  return
+                }
 
                 if (!autoMode) {
                   setStatusHints({
@@ -221,27 +275,16 @@ const AIDebatesButton: FC<Props> = ({
                 }
                 /** Below is in autoMode */
 
-                /** go on to send the generated message */
-                sendMessage()
-
-                /** if the current round is the last round,
-                 *  set the status to finish earlier
-                 */
-                if (currentRound === totalRounds) {
+                /** go on to send the generated message, leave time to let text state updated */
+                setTimeout(() => {
+                  sendMessage()
                   setStatusHints({
-                    type: 'finish',
-                    message: t('chat.aidebates.hints.finish_automode')
+                    type: 'info',
+                    message: t('chat.aidebates.hints.response_waiting'),
+                    round: currentRound,
+                    totalRounds: totalRounds
                   })
-                  setRunningStatus('finish')
-                  return
-                }
-
-                setStatusHints({
-                  type: 'info',
-                  message: t('chat.aidebates.hints.response_waiting'),
-                  round: currentRound,
-                  totalRounds: totalRounds
-                })
+                }, 300)
 
                 /** the callback when the reply message is received */
                 const receiveHandler = () => {
@@ -258,7 +301,7 @@ const AIDebatesButton: FC<Props> = ({
                   }, 500)
                 }
                 /** subscribe the receive message event */
-                const unsubscribe = EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, (msg) => {
+                const unsubscribe = EventEmitter.on(EVENT_NAMES.MESSAGE_COMPLETE, (msg) => {
                   /** make sure the message is from the current topic */
                   if (msg.topicId !== runningTopic.current?.id) {
                     return
@@ -279,7 +322,7 @@ const AIDebatesButton: FC<Props> = ({
                 })
               }
               break
-            case 'error':
+            case ChunkType.ERROR:
               setStatusHints({
                 type: 'error',
                 message: t('chat.aidebates.hints.error')
@@ -290,7 +333,13 @@ const AIDebatesButton: FC<Props> = ({
         }
       })
     } catch (error) {
-      console.error('AI Debates with Errors:', error)
+      /** user aborted */
+      if (isAbortError(error)) {
+        return
+      }
+
+      console.error('AI Debates Exited with Errors:', error)
+
       setStatusHints({
         type: 'error',
         message: t('chat.aidebates.hints.error')
@@ -330,7 +379,7 @@ const AIDebatesButton: FC<Props> = ({
 
     sendMessage()
 
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, (msg) => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.MESSAGE_COMPLETE, (msg) => {
       /** make sure the message is from the current topic */
       if (msg.topicId !== runningTopic.current?.id) {
         return

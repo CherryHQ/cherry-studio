@@ -19,9 +19,10 @@ interface Props {
   ref?: React.RefObject<WebSearchButtonRef | null>
   assistant: Assistant
   ToolbarButton: any
+  disabled?: boolean
 }
 
-const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
+const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton, disabled = false }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
@@ -113,7 +114,11 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   return (
     <Tooltip placement="top" title={t('chat.input.web_search')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+      <ToolbarButton
+        type="text"
+        onClick={handleOpenQuickPanel}
+        disabled={disabled}
+        className={disabled ? 'disabled' : ''}>
         <Globe
           size={18}
           style={{
