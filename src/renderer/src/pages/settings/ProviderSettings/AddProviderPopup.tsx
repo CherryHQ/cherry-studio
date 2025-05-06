@@ -16,7 +16,7 @@ interface Props {
 const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const [name, setName] = useState(provider?.name || '')
-  const [type, setType] = useState<ProviderType>(provider?.type || 'openai')
+  const [type, setType] = useState<ProviderType>(provider?.type || 'openai-compatible')
   const [logo, setLogo] = useState<string | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
@@ -52,7 +52,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const onCancel = () => {
     setOpen(false)
-    resolve({ name: '', type: 'openai' })
+    resolve({ name: '', type: 'openai-compatible' })
   }
 
   const onClose = () => {
@@ -188,7 +188,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             value={type}
             onChange={setType}
             options={[
-              { label: 'OpenAI', value: 'openai' },
+              { label: 'OpenAI-Compatible', value: 'openai-compatible' },
+              { label: 'OpenAI-Response', value: 'openai' },
               { label: 'Gemini', value: 'gemini' },
               { label: 'Anthropic', value: 'anthropic' },
               { label: 'Azure OpenAI', value: 'azure-openai' }

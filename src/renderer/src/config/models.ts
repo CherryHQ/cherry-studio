@@ -130,7 +130,6 @@ import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
@@ -2223,6 +2222,19 @@ export function isOpenAIReasoningModel(model: Model): boolean {
   return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
 }
 
+export function isOpenAILLMModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  if (isOpenAIReasoningModel(model)) {
+    return true
+  }
+  if (model.id.includes('gpt')) {
+    return true
+  }
+  return false
+}
+
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
@@ -2387,16 +2399,38 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (provider.type === 'openai') {
+    if (
+      isOpenAILLMModel(model) &&
+      !isTextToImageModel(model) &&
+      !isOpenAIReasoningModel(model) &&
+      !GENERATE_IMAGE_MODELS.includes(model.id)
+    ) {
+      return true
+    }
+
+    return false
+  }
+
   if (provider.id === 'perplexity') {
     return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
   }
 
   if (provider.id === 'aihubmix') {
+    if (
+      isOpenAILLMModel(model) &&
+      !isTextToImageModel(model) &&
+      !isOpenAIReasoningModel(model) &&
+      !GENERATE_IMAGE_MODELS.includes(model.id)
+    ) {
+      return true
+    }
+
     const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
     return models.includes(model?.id)
   }
 
-  if (provider?.type === 'openai') {
+  if (provider?.type === 'openai-compatible') {
     if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
       return true
     }
@@ -2450,9 +2484,6 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
-  if (WebSearchService.isWebSearchEnabled()) {
-    return {}
-  }
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
       const webSearchTools = getWebSearchTools(model)
@@ -2477,7 +2508,9 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
       }
 
       if (isOpenAIWebSearch(model)) {
-        return {}
+        return {
+          web_search_options: {}
+        }
       }
 
       return {

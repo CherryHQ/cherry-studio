@@ -131,6 +131,5 @@ const ImageBlockGroup = styled.div`
   > * {
     flex: 0 0 auto;
     min-width: 200px;
-    max-width: calc(33.33% - 8px);
   }
 `

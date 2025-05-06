@@ -5,6 +5,7 @@ import store from '@renderer/store'
 import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionMessageToolCall } from 'openai/resources'
 
 import { CompletionsParams } from '../providers/AiProvider'
@@ -401,11 +402,11 @@ export async function parseAndCallTools(
     toolCallId: string,
     resp: MCPCallToolResponse,
     isVisionModel: boolean
-  ) => ChatCompletionMessageParam | MessageParam | Content,
+  ) => ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.EasyInputMessage,
   mcpTools?: MCPTool[],
   isVisionModel: boolean = false
-): Promise<(ChatCompletionMessageParam | MessageParam | Content)[]> {
-  const toolResults: (ChatCompletionMessageParam | MessageParam | Content)[] = []
+): Promise<(ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.EasyInputMessage)[]> {
+  const toolResults: (ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.EasyInputMessage)[] = []
   // process tool use
   const tools = parseToolUse(content, mcpTools || [])
   if (!tools || tools.length === 0) {
@@ -448,7 +449,7 @@ export async function parseAndCallTools(
   return toolResults
 }
 
-export function mcpToolCallResponseToOpenAIMessage(
+export function mcpToolCallResponseToOpenAICompatibleMessage(
   toolCallId: string,
   resp: MCPCallToolResponse,
   isVisionModel: boolean = false
@@ -505,6 +506,62 @@ export function mcpToolCallResponseToOpenAIMessage(
     } else {
       content.push({
         type: 'text',
+        text: JSON.stringify(resp.content)
+      })
+    }
+
+    message.content = content
+  }
+
+  return message
+}
+
+export function mcpToolCallResponseToOpenAIMessage(
+  toolCallId: string,
+  resp: MCPCallToolResponse,
+  isVisionModel: boolean = false
+): OpenAI.Responses.EasyInputMessage {
+  const message = {
+    role: 'user'
+  } as OpenAI.Responses.EasyInputMessage
+
+  if (resp.isError) {
+    message.content = JSON.stringify(resp.content)
+  } else {
+    const content: OpenAI.Responses.ResponseInputContent[] = [
+      {
+        type: 'input_text',
+        text: `Here is the result of tool call ${toolCallId}:`
+      }
+    ]
+
+    if (isVisionModel) {
+      for (const item of resp.content) {
+        switch (item.type) {
+          case 'text':
+            content.push({
+              type: 'input_text',
+              text: item.text || 'no content'
+            })
+            break
+          case 'image':
+            content.push({
+              type: 'input_image',
+              image_url: `data:${item.mimeType};base64,${item.data}`,
+              detail: 'auto'
+            })
+            break
+          default:
+            content.push({
+              type: 'input_text',
+              text: `Unsupported type: ${item.type}`
+            })
+            break
+        }
+      }
+    } else {
+      content.push({
+        type: 'input_text',
         text: JSON.stringify(resp.content)
       })
     }
