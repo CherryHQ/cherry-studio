@@ -62,6 +62,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
 
+  // 搜索文本改变时清除聚焦状态
+  useEffect(() => {
+    setFocusedItemKey('')
+  }, [searchText])
+
   // 加载置顶模型列表
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -205,12 +210,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
 
   // 获取可选择的模型项（过滤掉分组标题）
-  const getSelectableItems = useCallback(() => {
-    const items = listItems.filter((item) => item.type === 'model')
-    return items
+  const modelItems = useMemo(() => {
+    return listItems.filter((item) => item.type === 'model')
   }, [listItems])
 
-  // 首次打开时设置聚焦项
+  // 首次打开或列表变化时设置聚焦项
   useEffect(() => {
     if (currentModelId && listItems.length > 0) {
       const selectedItem = listItems.find((item) => item.type === 'model' && item.isSelected)
@@ -218,9 +222,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       if (selectedItem) {
         setFocusedItemKey(selectedItem.key)
         hasAutoScrolled.current = false
+      } else {
+        if (modelItems.length > 0) {
+          setFocusedItemKey(modelItems[0].key)
+          hasAutoScrolled.current = false
+        }
       }
     }
-  }, [currentModelId, listItems])
+  }, [currentModelId, listItems, modelItems])
 
   // 滚动到聚焦项
   useEffect(() => {
@@ -252,8 +261,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!open) return
 
-      const selectableItems = getSelectableItems()
-      if (selectableItems.length === 0) {
+      if (modelItems.length === 0) {
         return
       }
 
@@ -265,7 +273,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       }
 
       const getCurrentIndex = (currentKey: string) => {
-        const currentIndex = selectableItems.findIndex((item) => item.key === currentKey)
+        const currentIndex = modelItems.findIndex((item) => item.key === currentKey)
         return currentIndex < 0 ? 0 : currentIndex
       }
 
@@ -273,34 +281,34 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         case 'ArrowUp':
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
-            const nextIndex = (currentIndex - 1 + selectableItems.length) % selectableItems.length
-            return selectableItems[nextIndex].key
+            const nextIndex = (currentIndex - 1 + modelItems.length) % modelItems.length
+            return modelItems[nextIndex].key
           })
           break
         case 'ArrowDown':
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
-            const nextIndex = (currentIndex + 1) % selectableItems.length
-            return selectableItems[nextIndex].key
+            const nextIndex = (currentIndex + 1) % modelItems.length
+            return modelItems[nextIndex].key
           })
           break
         case 'PageUp':
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
             const nextIndex = Math.max(currentIndex - PAGE_SIZE, 0)
-            return selectableItems[nextIndex].key
+            return modelItems[nextIndex].key
           })
           break
         case 'PageDown':
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
-            const nextIndex = Math.min(currentIndex + PAGE_SIZE, selectableItems.length - 1)
-            return selectableItems[nextIndex].key
+            const nextIndex = Math.min(currentIndex + PAGE_SIZE, modelItems.length - 1)
+            return modelItems[nextIndex].key
           })
           break
         case 'Enter':
           if (focusedItemKey) {
-            const selectedItem = selectableItems.find((item) => item.key === focusedItemKey)
+            const selectedItem = modelItems.find((item) => item.key === focusedItemKey)
             if (selectedItem) {
               handleItemClick(selectedItem)
             }
@@ -316,12 +324,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [focusedItemKey, getSelectableItems, handleItemClick, open, resolve])
-
-  // 搜索文本改变时清除聚焦状态
-  useEffect(() => {
-    setFocusedItemKey('')
-  }, [searchText])
+  }, [focusedItemKey, modelItems, handleItemClick, open, resolve])
 
   const onCancel = useCallback(() => {
     setOpen(false)
