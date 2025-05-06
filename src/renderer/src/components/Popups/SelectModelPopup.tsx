@@ -82,9 +82,15 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         await db.settings.put({ id: 'pinned:models', value: validPinnedModels })
       }
 
-      setPinnedModels(sortBy(validPinnedModels, ['group', 'name']))
+      setPinnedModels(sortBy(validPinnedModels))
     }
-    loadPinnedModels()
+
+    try {
+      loadPinnedModels()
+    } catch (error) {
+      console.error('Failed to load pinned models', error)
+      setPinnedModels([])
+    }
   }, [providers])
 
   const togglePin = useCallback(
@@ -93,8 +99,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         ? pinnedModels.filter((id) => id !== modelId)
         : [...pinnedModels, modelId]
 
-      await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
-      setPinnedModels(sortBy(newPinnedModels, ['group', 'name']))
+      try {
+        await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
+        setPinnedModels(sortBy(newPinnedModels))
+      } catch (error) {
+        console.error('Failed to update pinned models', error)
+      }
     },
     [pinnedModels]
   )
@@ -146,7 +156,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         ),
         icon: (
           <Avatar src={getModelLogo(model.id || '')} size={24}>
-            {first(model.name)}
+            {first(model.name) || 'M'}
           </Avatar>
         ),
         model,
@@ -216,20 +226,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
   // 首次打开或列表变化时设置聚焦项
   useEffect(() => {
-    if (currentModelId && listItems.length > 0) {
-      const selectedItem = listItems.find((item) => item.type === 'model' && item.isSelected)
+    if (currentModelId && modelItems.length > 0) {
+      const selectedItem = modelItems.find((item) => item.isSelected)
+      hasAutoScrolled.current = false
 
       if (selectedItem) {
         setFocusedItemKey(selectedItem.key)
-        hasAutoScrolled.current = false
       } else {
-        if (modelItems.length > 0) {
-          setFocusedItemKey(modelItems[0].key)
-          hasAutoScrolled.current = false
-        }
+        setFocusedItemKey(modelItems[0].key)
       }
     }
-  }, [currentModelId, listItems, modelItems])
+  }, [currentModelId, modelItems])
 
   // 滚动到聚焦项
   useEffect(() => {
