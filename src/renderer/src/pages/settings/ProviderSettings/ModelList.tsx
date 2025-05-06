@@ -291,7 +291,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                           placement="top">
                           <NameSpan>{model.name}</NameSpan>
                         </Tooltip>
-                        <ModelTagsWithLabel model={model} size={11} style={{ flex: 1 }} />
+                        <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
                       </ListItemName>
                     </HStack>
                     <Flex gap={4} align="center">
