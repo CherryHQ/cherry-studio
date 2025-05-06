@@ -293,7 +293,6 @@ const CacheText = styled(Typography.Text)`
   line-height: 16px;
   display: inline-block;
   vertical-align: middle;
-  vertical-align: middle;
   text-align: left;
 `
 
