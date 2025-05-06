@@ -51,15 +51,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const contentRef = useRef<ListRef>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
-  const scrollBlock = useRef<ScrollLogicalPosition>('nearest')
-
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
   const searchTextRef = useRef('')
-
-  // 解决长按上下键时滚动太慢问题
-  const keyPressCount = useRef<number>(0)
-  const scrollBehavior = useRef<'auto' | 'smooth'>('smooth')
 
   // 处理搜索，过滤列表
   const list = useMemo(() => {
@@ -271,14 +265,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         setIsAssistiveKeyPressed(true)
       }
 
-      // 处理上下翻页时，滚动太慢问题
-      if (['ArrowUp', 'ArrowDown'].includes(e.key)) {
-        keyPressCount.current++
-        if (keyPressCount.current > 5) {
-          scrollBehavior.current = 'auto'
-        }
-      }
-
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Escape'].includes(e.key)) {
         e.preventDefault()
         e.stopPropagation()
@@ -293,34 +279,29 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       switch (e.key) {
         case 'ArrowUp':
           if (isAssistiveKeyPressed) {
-            scrollBlock.current = 'start'
             setIndex((prev) => {
               const newIndex = prev - ctx.pageSize
               if (prev === 0) return list.length - 1
               return newIndex < 0 ? 0 : newIndex
             })
           } else {
-            scrollBlock.current = 'nearest'
             setIndex((prev) => (prev > 0 ? prev - 1 : list.length - 1))
           }
           break
 
         case 'ArrowDown':
           if (isAssistiveKeyPressed) {
-            scrollBlock.current = 'start'
             setIndex((prev) => {
               const newIndex = prev + ctx.pageSize
               if (prev + 1 === list.length) return 0
               return newIndex >= list.length ? list.length - 1 : newIndex
             })
           } else {
-            scrollBlock.current = 'nearest'
             setIndex((prev) => (prev < list.length - 1 ? prev + 1 : 0))
           }
           break
 
         case 'PageUp':
-          scrollBlock.current = 'start'
           setIndex((prev) => {
             const newIndex = prev - ctx.pageSize
             return newIndex < 0 ? 0 : newIndex
@@ -328,7 +309,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'PageDown':
-          scrollBlock.current = 'start'
           setIndex((prev) => {
             const newIndex = prev + ctx.pageSize
             return newIndex >= list.length ? list.length - 1 : newIndex
@@ -378,9 +358,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (isMac ? !e.metaKey : !e.ctrlKey) {
         setIsAssistiveKeyPressed(false)
       }
-
-      keyPressCount.current = 0
-      scrollBehavior.current = 'smooth'
     }
 
     const handleClickOutside = (e: MouseEvent) => {
