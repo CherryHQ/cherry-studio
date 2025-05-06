@@ -42,7 +42,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, ...props }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       centered>
       <Checkbox
         checked={isNotSupportArrayContent}

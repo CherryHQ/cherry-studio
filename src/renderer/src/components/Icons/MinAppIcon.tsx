@@ -5,11 +5,12 @@ import styled from 'styled-components'
 
 interface Props {
   app: MinAppType
+  sidebar?: boolean
   size?: number
   style?: React.CSSProperties
 }
 
-const MinAppIcon: FC<Props> = ({ app, size = 48, style }) => {
+const MinAppIcon: FC<Props> = ({ app, size = 48, style, sidebar = false }) => {
   const _app = DEFAULT_MIN_APPS.find((item) => item.id === app.id)
 
   if (!_app) {
@@ -24,7 +25,7 @@ const MinAppIcon: FC<Props> = ({ app, size = 48, style }) => {
         width: `${size}px`,
         height: `${size}px`,
         backgroundColor: _app.background,
-        ...app.style,
+        ...(sidebar ? {} : app.style),
         ...style
       }}
     />

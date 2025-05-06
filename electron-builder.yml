@@ -71,6 +71,11 @@ linux:
         - x64
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    entry:
+      StartupWMClass: CherryStudio
+  mimeTypes:
+    - x-scheme-handler/cherrystudio
 publish:
   # provider: generic
   # url: https://cherrystudio.ocool.online
@@ -83,6 +88,9 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    增加坚果云登录和数据同步
-    增加思源笔记导出功能
-    MCP 功能改进和优化
+    新增对 grok-2-image 和 gpt-4o-image 图像支持
+    支持 Windows 便携版使用 data 目录存储数据
+    MCP 界面改版，新增描述信息显示
+    Mermaid 渲染逻辑优化
+    支持关闭公示渲染
+    修复 OpenAI 类型渲染错误

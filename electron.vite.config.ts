@@ -1,4 +1,4 @@
-import viteReact from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
@@ -7,7 +7,7 @@ import fs from 'fs'
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
-// const viteReact = await import('@vitejs/plugin-react')
+
 export default defineConfig({
   main: {
     plugins: [
@@ -45,7 +45,7 @@ export default defineConfig({
             generateBundle(_, bundle) {
               // 遍历所有生成的文件
               for (const fileName in bundle) {
-                const chunk = bundle[fileName];
+                const chunk = bundle[fileName]
                 if (
                   chunk.type === 'chunk' &&
                   chunk.isEntry &&
@@ -76,20 +76,18 @@ export default defineConfig({
       'process.env.CUSTOM_APP_NAME': JSON.stringify(process.env.CUSTOM_APP_NAME)
     },
     plugins: [
-      viteReact({
-        babel: {
-          plugins: [
-            [
-              'styled-components',
-              {
-                displayName: true, // 开发环境下启用组件名称
-                fileName: false, // 不在类名中包含文件名
-                pure: true, // 优化性能
-                ssr: false // 不需要服务端渲染
-              }
-            ]
+      react({
+        plugins: [
+          [
+            '@swc/plugin-styled-components',
+            {
+              displayName: true, // 开发环境下启用组件名称
+              fileName: false, // 不在类名中包含文件名
+              pure: true, // 优化性能
+              ssr: false // 不需要服务端渲染
+            }
           ]
-        }
+        ]
       }),
       ...visualizerPlugin('renderer')
     ],

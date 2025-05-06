@@ -10,6 +10,10 @@ import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
 import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import {
+  StreamableHTTPClientTransport,
+  type StreamableHTTPClientTransportOptions
+} from '@modelcontextprotocol/sdk/client/streamableHttp'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 import { nanoid } from '@reduxjs/toolkit'
 import {
@@ -29,7 +33,6 @@ import { memoize } from 'lodash'
 import { CacheService } from './CacheService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
-import { StreamableHTTPClientTransport, type StreamableHTTPClientTransportOptions } from './MCPStreamableHttpClient'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -158,6 +161,9 @@ class McpService {
           return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
         } else if (server.type === 'sse') {
           const options: SSEClientTransportOptions = {
+            eventSourceInit: {
+              fetch: (url, init) => fetch(url, { ...init, headers: server.headers || {} })
+            },
             requestInit: {
               headers: server.headers || {}
             },
@@ -289,6 +295,7 @@ class McpService {
 
       // Store the new client in the cache
       this.clients.set(serverKey, client)
+      Logger.info(`[MCP] Activated server 6`)
 
       Logger.info(`[MCP] Activated server: ${server.name}`)
       return client
@@ -388,8 +395,17 @@ class McpService {
   ): Promise<MCPCallToolResponse> {
     try {
       Logger.info('[MCP] Calling:', server.name, name, args)
+      if (typeof args === 'string') {
+        try {
+          args = JSON.parse(args)
+        } catch (e) {
+          Logger.error('[MCP] args parse error', args)
+        }
+      }
       const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args })
+      const result = await client.callTool({ name, arguments: args }, undefined, {
+        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+      })
       return result as MCPCallToolResponse
     } catch (error) {
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
@@ -559,13 +575,26 @@ class McpService {
     return await cachedGetResource(server, uri)
   }
 
+  private findPowerShellExecutable() {
+    const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' // Standard WinPS path
+    const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
+
+    if (fs.existsSync(psPath)) {
+      return psPath
+    }
+    if (fs.existsSync(pwshPath)) {
+      return pwshPath
+    }
+    return 'powershell.exe'
+  }
+
   private getSystemPath = memoize(async (): Promise<string> => {
     return new Promise((resolve, reject) => {
       let command: string
       let shell: string
 
       if (process.platform === 'win32') {
-        shell = 'powershell.exe'
+        shell = this.findPowerShellExecutable()
         command = '$env:PATH'
       } else {
         // 尝试获取当前用户的默认 shell
@@ -615,6 +644,10 @@ class McpService {
 
       child.stderr.on('data', (data: Buffer) => {
         console.error('Error getting PATH:', data.toString())
+      })
+
+      child.on('error', (error: Error) => {
+        reject(new Error(`Failed to get system PATH, ${error.message}`))
       })
 
       child.on('close', (code: number) => {

@@ -1,4 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
+import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -9,7 +10,7 @@ import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
-import { Form, Input, Modal, Select } from 'antd'
+import { Form, Input, Modal, Select, Slider } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
 import { useRef, useState } from 'react'
@@ -23,6 +24,7 @@ interface FormData {
   name: string
   model: string
   rerankModel: string | undefined
+  documentCount: number | undefined
 }
 
 interface Props extends ShowParams {
@@ -113,6 +115,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           model: selectedModel,
           rerankModel: selectedRerankModel,
           dimensions,
+          documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
           items: [],
           created_at: Date.now(),
           updated_at: Date.now(),
@@ -177,6 +180,19 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             provider: SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
           })}
         </SettingHelpText>
+        <Form.Item
+          name="documentCount"
+          label={t('knowledge.document_count')}
+          initialValue={DEFAULT_KNOWLEDGE_DOCUMENT_COUNT} // 设置初始值
+          tooltip={{ title: t('knowledge.document_count_help') }}>
+          <Slider
+            style={{ width: '100%' }}
+            min={1}
+            max={30}
+            step={1}
+            marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
+          />
+        </Form.Item>
       </Form>
     </Modal>
   )

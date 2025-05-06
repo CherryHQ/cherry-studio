@@ -6,9 +6,10 @@ if (!globalThis.fetch) {
 }
 
 if (!globalThis.Request) {
-  const { Request, Headers } = require('node-fetch')
+  const { Request, Headers, Response } = require('node-fetch')
   globalThis.Request = Request
   globalThis.Headers = Headers
+  globalThis.Response = Response
 }
 // fix for node_modules/undici/lib/web/fetch/webidl.js
 if (!globalThis.Blob) {
@@ -17,10 +18,11 @@ if (!globalThis.Blob) {
 }
 
 // fix for node_modules/undici/lib/web/fetch/webidl.js
-if (!globalThis.ReadableStream) {
-  const { ReadableStream } = require('web-streams-polyfill')
+if (!globalThis.ReadableStream || !globalThis.TransformStream) {
+  const { ReadableStream, TransformStream } = require('web-streams-polyfill')
   globalThis.ReadableStream = ReadableStream
-  console.log('ReadableStream', ReadableStream)
+  globalThis.TransformStream = TransformStream
+  console.log('Stream Polyfills injected:', { ReadableStream, TransformStream })
 }
 
 if (!globalThis.DOMException) {

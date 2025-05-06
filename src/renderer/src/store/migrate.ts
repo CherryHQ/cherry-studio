@@ -1221,9 +1221,6 @@ const migrateConfig = {
       // @ts-ignore eslint-disable-next-line
       delete state.settings.showAssistantIcon
       state.settings.enableBackspaceDeleteModel = true
-      if (state.websearch) {
-        state.websearch.enhanceMode = true
-      }
       return state
     } catch (error) {
       return state

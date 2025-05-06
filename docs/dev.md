@@ -37,6 +37,12 @@ yarn install
 yarn dev
 ```
 
+### Test
+
+```bash
+yarn test
+```
+
 ### Build
 
 ```bash
