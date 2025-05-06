@@ -7,6 +7,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
+import { getFolderSizeBin } from "go-get-folder-size"
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
@@ -32,6 +33,7 @@ import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
+import path = require('node:path')
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -161,6 +163,19 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       log.error('Failed to clear cache:', error)
       return { success: false, error: error.message }
     }
+  })
+
+  // get cache size
+  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
+    const cachePath = path.join(app.getPath('userData'), 'Cache')
+    const size = await getFolderSizeBin(cachePath, true, {
+      // ignore files that we can't access
+      loose: true
+    }).catch((err) => {
+      log.error('Failed to get cache size:', err)
+    })
+
+    return size || '0MB'
   })
 
   // check for update
