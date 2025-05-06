@@ -31,6 +31,7 @@ interface FlatListItem {
   tags?: React.ReactNode
   model?: Model
   isPinned?: boolean
+  isSelected?: boolean
 }
 
 interface Props {
@@ -51,11 +52,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const searchText = useDeferredValue(_searchText)
   const [isMouseOver, setIsMouseOver] = useState(false)
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
-  const [selectedItemKey, setSelectedItemKey] = useState<string>('')
-  const [focusedItemKey, setFocusedItemKey] = useState<string>('')
+  const [_focusedItemKey, setFocusedItemKey] = useState<string>('')
+  const focusedItemKey = useDeferredValue(_focusedItemKey)
   const [currentStickyGroup, setCurrentStickyGroup] = useState<FlatListItem | null>(null)
   const firstGroupRef = useRef<FlatListItem | null>(null)
-  const hasAutoSelected = useRef(false)
   const hasAutoScrolled = useRef(false)
 
   // 当前选中的模型ID
@@ -122,11 +122,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const createModelItem = useCallback(
     (model: Model, provider: any, isPinned: boolean): FlatListItem => {
       const modelId = getModelUniqId(model)
-      const key = isPinned ? `${modelId}_pinned` : modelId
       const groupName = provider.isSystem ? t(`provider.${provider.id}`) : provider.name
 
       return {
-        key,
+        key: isPinned ? `${modelId}_pinned` : modelId,
         type: 'model',
         name: (
           <ModelName>
@@ -145,10 +144,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           </Avatar>
         ),
         model,
-        isPinned
+        isPinned,
+        isSelected: modelId === currentModelId
       }
     },
-    [t]
+    [t, currentModelId]
   )
 
   // 构建扁平化列表数据
@@ -166,7 +166,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         items.push({
           key: 'pinned-group',
           type: 'group',
-          name: t('models.pinned')
+          name: t('models.pinned'),
+          isSelected: false
         })
 
         items.push(...pinnedItems)
@@ -185,7 +186,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       items.push({
         key: `provider-${p.id}`,
         type: 'group',
-        name: p.isSystem ? t(`provider.${p.id}`) : p.name
+        name: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        isSelected: false
       })
 
       items.push(...filteredModels.map((m) => createModelItem(m, p, pinnedModels.includes(getModelUniqId(m)))))
@@ -207,17 +209,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return items
   }, [listItems])
 
-  // 找到当前模型在列表中的索引（只在首次打开时设置）
+  // 首次打开时设置聚焦项
   useEffect(() => {
-    if (!hasAutoSelected.current && currentModelId && listItems.length > 0) {
-      const index = listItems.findIndex(
-        (item) => item.type === 'model' && getModelUniqId(item.model as Model) === currentModelId
-      )
+    if (currentModelId && listItems.length > 0) {
+      const selectedItem = listItems.find((item) => item.type === 'model' && item.isSelected)
 
-      if (index >= 0) {
-        setSelectedItemKey(listItems[index].key)
-        setFocusedItemKey(listItems[index].key)
-        hasAutoSelected.current = true
+      if (selectedItem) {
+        setFocusedItemKey(selectedItem.key)
+        hasAutoScrolled.current = false
       }
     }
   }, [currentModelId, listItems])
@@ -230,10 +229,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     if (actualIndex < 0) return
 
     if (!hasAutoScrolled.current) {
-      requestAnimationFrame(() => {
-        listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
-        hasAutoScrolled.current = true
-      })
+      listRef.current?.scrollTo({ index: actualIndex, align: 'center' })
+      hasAutoScrolled.current = true
     } else {
       listRef.current?.scrollTo({ index: actualIndex, align: 'auto' })
     }
@@ -301,13 +298,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     [open, listItems, focusedItemKey, getSelectableItems, resolve]
   )
 
-  // 搜索文本改变时
+  // 搜索文本改变时清除聚焦状态
   useEffect(() => {
-    // 清除聚焦状态，但保留选中状态
     setFocusedItemKey('')
-
-    // 根据新的搜索条件，重新找选中项
-    hasAutoSelected.current = false
   }, [searchText])
 
   // 全局事件监听
@@ -370,7 +363,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         <ModelItem
           onClick={() => handleItemClick(item)}
           $isFocused={item.key === focusedItemKey}
-          $isSelected={item.key === selectedItemKey}
+          $isSelected={!!item.isSelected}
           onMouseEnter={() => {
             if (isMouseOver) setFocusedItemKey(item.key)
           }}>
@@ -393,7 +386,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         </ModelItem>
       )
     },
-    [focusedItemKey, handleItemClick, isMouseOver, selectedItemKey, togglePin]
+    [focusedItemKey, handleItemClick, isMouseOver, togglePin]
   )
 
   return (
