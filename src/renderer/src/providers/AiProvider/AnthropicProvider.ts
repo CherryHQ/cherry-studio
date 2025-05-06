@@ -1,16 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam } from '@anthropic-ai/sdk/resources'
+import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { isReasoningModel, isVisionModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import FileManager from '@renderer/services/FileManager'
 import {
   filterContextMessages,
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, EFFORT_RATIO, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -22,8 +23,6 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-type ReasoningEffort = 'high' | 'medium' | 'low'
 
 interface ReasoningConfig {
   type: 'enabled' | 'disabled'
@@ -78,12 +77,23 @@ export default class AnthropicProvider extends BaseProvider {
           }
         })
       }
-
-      // Get and process file blocks
-      const fileBlocks = findFileBlocks(message)
-      for (const fileBlock of fileBlocks) {
-        const file = fileBlock.file
-        if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+    }
+    // Get and process file blocks
+    const fileBlocks = findFileBlocks(message)
+    for (const fileBlock of fileBlocks) {
+      const { file } = fileBlock
+      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+        if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
+          const base64Data = await FileManager.readBase64File(file)
+          parts.push({
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64Data
+            }
+          })
+        } else {
           const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
           parts.push({
             type: 'text',
@@ -92,6 +102,7 @@ export default class AnthropicProvider extends BaseProvider {
         }
       }
     }
+
     return {
       role: message.role === 'system' ? 'user' : message.role,
       content: parts
@@ -124,32 +135,23 @@ export default class AnthropicProvider extends BaseProvider {
    * @param model - The model
    * @returns The reasoning effort
    */
-  private getReasoningEffort(assistant: Assistant, model: Model): ReasoningConfig | undefined {
+  private getBudgetToken(assistant: Assistant, model: Model): ReasoningConfig | undefined {
     if (!isReasoningModel(model)) {
       return undefined
     }
+    const { maxTokens } = getAssistantSettings(assistant)
 
-    const effortRatios: Record<ReasoningEffort, number> = {
-      high: 0.8,
-      medium: 0.5,
-      low: 0.2
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+
+    if (reasoningEffort === undefined) {
+      return {
+        type: 'disabled'
+      }
     }
 
-    const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-    const effortRatio = effortRatios[effort]
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    if (!effortRatio) {
-      return undefined
-    }
-
-    const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
-
-    if (!isClaude37Sonnet) {
-      return undefined
-    }
-
-    const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-    const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
+    const budgetTokens = Math.floor((maxTokens || DEFAULT_MAX_TOKENS) * effortRatio * 0.8)
 
     return {
       type: 'enabled',
@@ -191,6 +193,14 @@ export default class AnthropicProvider extends BaseProvider {
       systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
     }
 
+    let systemMessage: TextBlockParam | undefined = undefined
+    if (systemPrompt) {
+      systemMessage = {
+        type: 'text',
+        text: systemPrompt
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -198,9 +208,9 @@ export default class AnthropicProvider extends BaseProvider {
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
-      system: systemPrompt,
+      system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
-      thinking: this.getReasoningEffort(assistant, model),
+      thinking: this.getBudgetToken(assistant, model),
       ...this.getCustomParameters(assistant)
     }
 
@@ -255,27 +265,25 @@ export default class AnthropicProvider extends BaseProvider {
         onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
         let hasThinkingContent = false
         this.sdk.messages
-          .stream({ ...body, stream: true }, { signal })
+          .stream({ ...body, stream: true }, { signal, timeout: 5 * 60 * 1000 })
           .on('text', (text) => {
             if (hasThinkingContent && !checkThinkingContent) {
               checkThinkingContent = true
               onChunk({
                 type: ChunkType.THINKING_COMPLETE,
                 text: thinking_content,
-                thinking_millsec: time_first_content_millsec - time_first_token_millsec
+                thinking_millsec: new Date().getTime() - time_first_content_millsec
               })
-              // FIXME: 临时方案，重置时间戳和思考内容
-              time_first_token_millsec = 0
-              time_first_content_millsec = 0
-              thinking_content = ''
-              checkThinkingContent = false
-              hasThinkingContent = false
             }
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = new Date().getTime() - start_time_millsec
+              time_first_token_millsec = new Date().getTime()
             }
 
-            if (hasThinkingContent && time_first_content_millsec === 0) {
+            thinking_content = ''
+            checkThinkingContent = false
+            hasThinkingContent = false
+
+            if (!hasThinkingContent && time_first_content_millsec === 0) {
               time_first_content_millsec = new Date().getTime()
             }
 
@@ -286,7 +294,7 @@ export default class AnthropicProvider extends BaseProvider {
             const currentTime = new Date().getTime() // Get current time for each chunk
 
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = currentTime - start_time_millsec
+              time_first_token_millsec = currentTime
             }
 
             // Set time_first_content_millsec ONLY when the first content (thinking or text) arrives
@@ -296,7 +304,6 @@ export default class AnthropicProvider extends BaseProvider {
 
             // Calculate thinking time as time elapsed since start until this chunk
             const thinking_time = currentTime - time_first_content_millsec
-
             onChunk({
               type: ChunkType.THINKING_DELTA,
               text: thinking,
@@ -343,11 +350,13 @@ export default class AnthropicProvider extends BaseProvider {
                 metrics: {
                   completion_tokens: message.usage.output_tokens,
                   time_completion_millsec,
-                  time_first_token_millsec
+                  time_first_token_millsec: time_first_token_millsec - start_time_millsec
                 }
               }
             })
-
+            // FIXME: 临时方案，重置时间戳和思考内容
+            time_first_token_millsec = 0
+            time_first_content_millsec = 0
             resolve()
           })
           .on('error', (error) => reject(error))

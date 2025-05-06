@@ -9,6 +9,22 @@
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
       "add.title": "创建智能体",
+      "import": {
+        "title": "从外部导入",
+        "type": {
+          "url": "URL",
+          "file": "文件"
+        },
+        "url_placeholder": "输入 JSON URL",
+        "select_file": "选择文件",
+        "button": "导入",
+        "file_filter": "JSON 文件",
+        "error": {
+          "url_required": "请输入 URL",
+          "fetch_failed": "从 URL 获取数据失败",
+          "invalid_format": "无效的代理格式：缺少必填字段"
+        }
+      },
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
       "edit.message.assistant.placeholder": "输入助手消息",
@@ -56,11 +72,11 @@
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
       "settings.reasoning_effort": "思维链长度",
-      "settings.reasoning_effort.high": "长",
-      "settings.reasoning_effort.low": "短",
-      "settings.reasoning_effort.medium": "中",
-      "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series、Anthropic、Grok 推理模型",
+      "settings.reasoning_effort.off": "关闭",
+      "settings.reasoning_effort.low": "浮想",
+      "settings.reasoning_effort.medium": "斟酌",
+      "settings.reasoning_effort.high": "沉思",
+      "settings.reasoning_effort.default": "默认",
       "settings.more": "助手设置"
     },
     "auth": {
@@ -133,6 +149,13 @@
       "input.translating": "翻译中...",
       "input.send": "发送",
       "input.settings": "设置",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "默认",
+      "input.thinking.mode.default.tip": "模型会自动确定思考的 token 数",
+      "input.thinking.mode.custom": "自定义",
+      "input.thinking.mode.custom.tip": "模型最多可以思考的 token 数。需要考虑模型的上下文限制，否则会报错",
+      "input.thinking.mode.tokens.tip": "设置思考的 token 数",
+      "input.thinking.budget_exceeds_max": "思考预算超过最大 token 数",
       "input.topics": " 话题 ",
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
@@ -492,6 +515,10 @@
       "title": "Mermaid 图表"
     },
     "message": {
+      "agents": {
+        "imported": "导入成功",
+        "import.error": "导入失败"
+      },
       "api.check.model.title": "请选择要检测的模型",
       "api.connection.failed": "连接失败",
       "api.connection.success": "连接成功",
@@ -702,7 +729,7 @@
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
       "learn_more": "了解更多",
-      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 “双引号” 包裹",
+      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",

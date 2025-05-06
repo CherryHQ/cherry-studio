@@ -9,6 +9,22 @@
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
       "add.title": "建立智慧代理人",
+      "import": {
+        "title": "從外部導入",
+        "type": {
+          "url": "URL",
+          "file": "檔案"
+        },
+        "url_placeholder": "輸入 JSON URL",
+        "select_file": "選擇檔案",
+        "button": "導入",
+        "file_filter": "JSON 檔案",
+        "error": {
+          "url_required": "請輸入 URL",
+          "fetch_failed": "從 URL 獲取資料失敗",
+          "invalid_format": "無效的代理人格式：缺少必填欄位"
+        }
+      },
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.message.add.title": "新增",
       "edit.message.assistant.placeholder": "輸入助手訊息",
@@ -56,11 +72,11 @@
       "settings.preset_messages": "預設訊息",
       "settings.prompt": "提示詞設定",
       "settings.reasoning_effort": "思維鏈長度",
-      "settings.reasoning_effort.high": "長",
-      "settings.reasoning_effort.low": "短",
-      "settings.reasoning_effort.medium": "中",
-      "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series、Anthropic 和 Grok 推理模型",
+      "settings.reasoning_effort.off": "關閉",
+      "settings.reasoning_effort.high": "盡力思考",
+      "settings.reasoning_effort.low": "稍微思考",
+      "settings.reasoning_effort.medium": "正常思考",
+      "settings.reasoning_effort.default": "預設",
       "settings.more": "助手設定"
     },
     "auth": {
@@ -250,7 +266,14 @@
       "input.upload.upload_from_local": "上傳本地文件...",
       "input.web_search.builtin": "模型內置",
       "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
-      "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能"
+      "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "預設",
+      "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",
+      "input.thinking.mode.custom": "自定義",
+      "input.thinking.mode.custom.tip": "模型最多可以思考的 token 數。需要考慮模型的上下文限制，否則會報錯",
+      "input.thinking.mode.tokens.tip": "設置思考的 token 數",
+      "input.thinking.budget_exceeds_max": "思考預算超過最大 token 數"
     },
     "code_block": {
       "collapse": "折疊",
@@ -492,6 +515,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "agents": {
+        "imported": "匯入成功",
+        "import.error": "匯入失敗"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",

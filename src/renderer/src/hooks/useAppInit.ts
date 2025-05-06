@@ -91,16 +91,16 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    const oldCustomCss = document.getElementById('user-defined-custom-css')
-    if (oldCustomCss) {
-      oldCustomCss.remove()
+    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
+    if (customCssElement) {
+      customCssElement.remove()
     }
 
     if (customCss) {
-      const style = document.createElement('style')
-      style.id = 'user-defined-custom-css'
-      style.textContent = customCss
-      document.head.appendChild(style)
+      customCssElement = document.createElement('style')
+      customCssElement.id = 'user-defined-custom-css'
+      customCssElement.textContent = customCss
+      document.head.appendChild(customCssElement)
     }
   }, [customCss])
 

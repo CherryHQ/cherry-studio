@@ -3,6 +3,7 @@ import { useDispatch, useSelector, useStore } from 'react-redux'
 import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
 import storage from 'redux-persist/lib/storage'
 
+import storeSyncService from '../services/StoreSyncService'
 import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
@@ -45,12 +46,27 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 97,
+    version: 98,
     blacklist: ['runtime', 'messages', 'messageBlocks'],
     migrate
   },
   rootReducer
 )
+
+/**
+ * Configures the store sync service to synchronize specific state slices across all windows.
+ * For detailed implementation, see @renderer/services/StoreSyncService.ts
+ *
+ * Usage:
+ * - 'xxxx/' - Synchronizes the entire state slice
+ * - 'xxxx/sliceName' - Synchronizes a specific slice within the state
+ *
+ * To listen for store changes in a window:
+ * Call storeSyncService.subscribe() in the window's entryPoint.tsx
+ */
+storeSyncService.setOptions({
+  syncList: ['assistants/', 'settings/', 'llm/']
+})
 
 const store = configureStore({
   // @ts-ignore store type is unknown
@@ -60,7 +76,7 @@ const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER]
       }
-    })
+    }).concat(storeSyncService.createMiddleware())
   },
   devTools: true
 })
@@ -72,7 +88,6 @@ export const persistor = persistStore(store)
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()
-
 window.store = store
 
 export default store

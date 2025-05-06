@@ -190,7 +190,6 @@ const DisplaySettings: FC = () => {
           value={customCss}
           onChange={(e) => {
             dispatch(setCustomCss(e.target.value))
-            window.api.setCustomCss(e.target.value)
           }}
           placeholder={t('settings.display.custom.css.placeholder')}
           style={{

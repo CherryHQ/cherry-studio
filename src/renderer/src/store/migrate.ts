@@ -1240,6 +1240,18 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '98': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.type === 'openai' && provider.id !== 'openai') {
+          provider.type = 'openai-compatible'
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

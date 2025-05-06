@@ -53,7 +53,7 @@
       "settings.reasoning_effort.medium": "Moyen",
       "settings.reasoning_effort.off": "Off",
       "settings.reasoning_effort.tip": "Prise en charge uniquement des modèles de raisonnement OpenAI o-series et Anthropic",
-      "title": "Aides"
+      "title": "Agent"
     },
     "auth": {
       "error": "Échec de l'obtention automatique de la clé, veuillez la récupérer manuellement",

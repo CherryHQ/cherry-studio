@@ -247,6 +247,9 @@ export async function fetchChatCompletion({
   console.log('[DEBUG] Got assistant provider:', provider.id)
   const AI = new AiProvider(provider)
 
+  // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
+  messages = filterContextMessages(messages)
+
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
   if (!lastUserMessage) {
@@ -258,7 +261,7 @@ export async function fetchChatCompletion({
   // They will be retrieved and used by the messageThunk later to create CitationBlocks.
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
 
-  const filteredMessages = filterUsefulMessages(filterContextMessages(messages))
+  const filteredMessages = filterUsefulMessages(messages)
 
   // --- Call AI Completions ---
   console.log('[DEBUG] Calling AI.completions')

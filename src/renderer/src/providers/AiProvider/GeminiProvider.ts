@@ -14,7 +14,8 @@ import {
   ToolListUnion
 } from '@google/genai'
 import {
-  isGemini25ReasoningModel,
+  findTokenLimit,
+  isGeminiReasoningModel,
   isGemmaModel,
   isGenerateImageModel,
   isVisionModel,
@@ -31,6 +32,7 @@ import {
 } from '@renderer/services/MessagesService'
 import {
   Assistant,
+  EFFORT_RATIO,
   FileType,
   FileTypes,
   MCPToolResponse,
@@ -40,7 +42,7 @@ import {
   Usage,
   WebSearchSource
 } from '@renderer/types'
-import { BlockCompleteChunk, ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { BlockCompleteChunk, Chunk, ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 import type { Message, Response } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
@@ -53,8 +55,6 @@ import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-type ReasoningEffort = 'low' | 'medium' | 'high'
 
 export default class GeminiProvider extends BaseProvider {
   private sdk: GoogleGenAI
@@ -122,8 +122,11 @@ export default class GeminiProvider extends BaseProvider {
     // Add any generated images from previous responses
     const imageBlocks = findImageBlocks(message)
     for (const imageBlock of imageBlocks) {
-      if (imageBlock.metadata?.generateImage?.images && imageBlock.metadata.generateImage.images.length > 0) {
-        for (const imageUrl of imageBlock.metadata.generateImage.images) {
+      if (
+        imageBlock.metadata?.generateImageResponse?.images &&
+        imageBlock.metadata.generateImageResponse.images.length > 0
+      ) {
+        for (const imageUrl of imageBlock.metadata.generateImageResponse.images) {
           if (imageUrl && imageUrl.startsWith('data:')) {
             // Extract base64 data and mime type from the data URL
             const matches = imageUrl.match(/^data:(.+);base64,(.*)$/)
@@ -213,32 +216,36 @@ export default class GeminiProvider extends BaseProvider {
    * @param model - The model
    * @returns The reasoning effort
    */
-  private getReasoningEffort(assistant: Assistant, model: Model) {
-    if (isGemini25ReasoningModel(model)) {
-      const effortRatios: Record<ReasoningEffort, number> = {
-        high: 1,
-        medium: 0.5,
-        low: 0.2
-      }
-      const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-      const effortRatio = effortRatios[effort]
-      const maxBudgetToken = 24576 // https://ai.google.dev/gemini-api/docs/thinking
-      const budgetTokens = Math.max(1024, Math.trunc(maxBudgetToken * effortRatio))
-      if (!effortRatio) {
+  private getBudgetToken(assistant: Assistant, model: Model) {
+    if (isGeminiReasoningModel(model)) {
+      const reasoningEffort = assistant?.settings?.reasoning_effort
+
+      // 如果thinking_budget是undefined，不思考
+      if (reasoningEffort === undefined) {
         return {
           thinkingConfig: {
-            thinkingBudget: 0
+            includeThoughts: false
           } as ThinkingConfig
         }
       }
 
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
+
+      if (effortRatio > 1) {
+        return {}
+      }
+
+      const { max } = findTokenLimit(model.id) || { max: 0 }
+
+      // 如果thinking_budget是明确设置的值（包括0），使用该值
       return {
         thinkingConfig: {
-          thinkingBudget: budgetTokens,
+          thinkingBudget: Math.floor(max * effortRatio),
           includeThoughts: true
         } as ThinkingConfig
       }
     }
+
     return {}
   }
 
@@ -310,7 +317,7 @@ export default class GeminiProvider extends BaseProvider {
       topP: assistant?.settings?.topP,
       maxOutputTokens: maxTokens,
       tools: tools,
-      ...this.getReasoningEffort(assistant, model),
+      ...this.getBudgetToken(assistant, model),
       ...this.getCustomParameters(assistant)
     }
 
@@ -448,7 +455,7 @@ export default class GeminiProvider extends BaseProvider {
         }
 
         // 4. Image Generation
-        const generateImage = this.processGeminiImageResponse(chunk)
+        const generateImage = this.processGeminiImageResponse(chunk, onChunk)
         if (generateImage?.images?.length) {
           onChunk({ type: ChunkType.IMAGE_COMPLETE, image: generateImage })
         }
@@ -715,7 +722,10 @@ export default class GeminiProvider extends BaseProvider {
    * @param response - Gemini响应
    * @param onChunk - 处理生成块的回调
    */
-  private processGeminiImageResponse(chunk: GenerateContentResponse): { type: 'base64'; images: string[] } | undefined {
+  private processGeminiImageResponse(
+    chunk: GenerateContentResponse,
+    onChunk: (chunk: Chunk) => void
+  ): { type: 'base64'; images: string[] } | undefined {
     const parts = chunk.candidates?.[0]?.content?.parts
     if (!parts) {
       return
@@ -727,6 +737,10 @@ export default class GeminiProvider extends BaseProvider {
         if (!part.inlineData) {
           return null
         }
+        // onChunk的位置需要更改
+        onChunk({
+          type: ChunkType.IMAGE_CREATED
+        })
         const dataPrefix = `data:${part.inlineData.mimeType || 'image/png'};base64,`
         return part.inlineData.data?.startsWith('data:') ? part.inlineData.data : dataPrefix + part.inlineData.data
       })
