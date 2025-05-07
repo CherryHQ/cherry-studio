@@ -9,6 +9,22 @@
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
       "add.title": "建立智慧代理人",
+      "import": {
+        "title": "從外部導入",
+        "type": {
+          "url": "URL",
+          "file": "檔案"
+        },
+        "url_placeholder": "輸入 JSON URL",
+        "select_file": "選擇檔案",
+        "button": "導入",
+        "file_filter": "JSON 檔案",
+        "error": {
+          "url_required": "請輸入 URL",
+          "fetch_failed": "從 URL 獲取資料失敗",
+          "invalid_format": "無效的代理人格式：缺少必填欄位"
+        }
+      },
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.message.add.title": "新增",
       "edit.message.assistant.placeholder": "輸入助手訊息",
@@ -56,12 +72,16 @@
       "settings.preset_messages": "預設訊息",
       "settings.prompt": "提示詞設定",
       "settings.reasoning_effort": "思維鏈長度",
-      "settings.reasoning_effort.high": "長",
-      "settings.reasoning_effort.low": "短",
-      "settings.reasoning_effort.medium": "中",
-      "settings.reasoning_effort.off": "關",
-      "settings.reasoning_effort.tip": "僅支援 OpenAI o-series、Anthropic 和 Grok 推理模型",
-      "settings.more": "助手設定"
+      "settings.reasoning_effort.off": "關閉",
+      "settings.reasoning_effort.high": "盡力思考",
+      "settings.reasoning_effort.low": "稍微思考",
+      "settings.reasoning_effort.medium": "正常思考",
+      "settings.reasoning_effort.default": "預設",
+      "settings.more": "助手設定",
+      "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
+      "settings.knowledge_base.recognition": "調用知識庫",
+      "settings.knowledge_base.recognition.off": "強制檢索",
+      "settings.knowledge_base.recognition.on": "意圖識別"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -100,7 +120,7 @@
       "artifacts.button.preview": "預覽",
       "artifacts.preview.openExternal.error.content": "外部瀏覽器開啟出錯",
       "assistant.search.placeholder": "搜尋",
-      "deeply_thought": "已深度思考（用時 {{secounds}} 秒）",
+      "deeply_thought": "已深度思考（用時 {{seconds}} 秒）",
       "default.description": "你好，我是預設助手。你可以立即開始與我聊天。",
       "default.name": "預設助手",
       "default.topic.name": "預設話題",
@@ -185,7 +205,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "模型生成文字的隨機程度。值越小，AI 生成的內容越單調，也越容易理解；值越大，AI 回覆的詞彙範圍越大，越多樣化",
       "suggestions.title": "建議的問題",
-      "thinking": "思考中",
+      "thinking": "思考中（用時 {{seconds}} 秒）",
       "topics.auto_rename": "自動重新命名",
       "topics.clear.title": "清空訊息",
       "topics.copy.image": "複製為圖片",
@@ -250,7 +270,16 @@
       "input.upload.upload_from_local": "上傳本地文件...",
       "input.web_search.builtin": "模型內置",
       "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
-      "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能"
+      "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
+      "input.web_search.no_web_search": "關閉網路搜尋",
+      "input.web_search.no_web_search.description": "關閉網路搜尋",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "預設",
+      "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",
+      "input.thinking.mode.custom": "自定義",
+      "input.thinking.mode.custom.tip": "模型最多可以思考的 token 數。需要考慮模型的上下文限制，否則會報錯",
+      "input.thinking.mode.tokens.tip": "設置思考的 token 數",
+      "input.thinking.budget_exceeds_max": "思考預算超過最大 token 數"
     },
     "code_block": {
       "collapse": "折疊",
@@ -287,6 +316,7 @@
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
       "knowledge_base": "知識庫",
       "language": "語言",
+      "loading": "加載中...",
       "model": "模型",
       "models": "模型",
       "more": "更多",
@@ -335,7 +365,8 @@
         "title": "渲染錯誤"
       },
       "user_message_not_found": "無法找到原始用戶訊息",
-      "unknown": "未知錯誤"
+      "unknown": "未知錯誤",
+      "pause_placeholder": "回應已暫停"
     },
     "export": {
       "assistant": "助手",
@@ -490,6 +521,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "agents": {
+        "imported": "匯入成功",
+        "import.error": "匯入失敗"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",
@@ -502,7 +537,8 @@
       "backup.start.success": "開始備份",
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
-      "citations": "參考文獻",
+      "citation": "{{count}} 個引用內容",
+      "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
       "copy.success": "已複製！",

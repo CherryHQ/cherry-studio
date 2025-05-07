@@ -1,7 +1,7 @@
 {
   "translation": {
     "agents": {
-      "add.button": "Добавить к ассистенту",
+      "add.button": "Добавить в ассистента",
       "add.knowledge_base": "База знаний",
       "add.knowledge_base.placeholder": "Выберите базу знаний",
       "add.name": "Имя",
@@ -29,7 +29,23 @@
       "tag.default": "По умолчанию",
       "tag.new": "Новый",
       "tag.system": "Система",
-      "title": "Агенты"
+      "title": "Агенты",
+      "import": {
+        "title": "Импорт из внешнего источника",
+        "type": {
+          "url": "URL",
+          "file": "Файл"
+        },
+        "url_placeholder": "Введите URL JSON",
+        "select_file": "Выбрать файл",
+        "button": "Импорт",
+        "file_filter": "JSON файлы",
+        "error": {
+          "url_required": "Пожалуйста, введите URL",
+          "fetch_failed": "Не удалось получить данные по URL",
+          "invalid_format": "Неверный формат агента: отсутствуют обязательные поля"
+        }
+      }
     },
     "assistants": {
       "title": "Ассистенты",
@@ -55,13 +71,17 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
-      "settings.reasoning_effort": "Длина цепочки рассуждений",
-      "settings.reasoning_effort.high": "Длинная",
-      "settings.reasoning_effort.low": "Короткая",
-      "settings.reasoning_effort.medium": "Средняя",
-      "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Поддерживается только моделями рассуждений OpenAI o-series, Anthropic и Grok",
-      "settings.more": "Настройки ассистента"
+      "settings.reasoning_effort.off": "Выключить",
+      "settings.reasoning_effort.high": "Стараюсь думать",
+      "settings.reasoning_effort.low": "Меньше думать",
+      "settings.reasoning_effort.medium": "Среднее",
+      "settings.reasoning_effort.default": "По умолчанию",
+      "settings.more": "Настройки ассистента",
+      "settings.reasoning_effort": "Настройки размышлений",
+      "settings.knowledge_base.recognition.tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели",
+      "settings.knowledge_base.recognition": "Использование базы знаний",
+      "settings.knowledge_base.recognition.off": "Принудительный поиск",
+      "settings.knowledge_base.recognition.on": "Распознавание намерений"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -100,7 +120,7 @@
       "artifacts.button.preview": "Предпросмотр",
       "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой",
       "assistant.search.placeholder": "Поиск",
-      "deeply_thought": "Мыслим ({{secounds}} секунд)",
+      "deeply_thought": "Мыслим ({{seconds}} секунд)",
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
@@ -185,7 +205,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Значение по умолчанию 1, чем меньше значение, тем меньше вариативности в ответах, тем проще понять, чем больше значение, тем больше вариативности в ответах, тем больше разнообразие",
       "suggestions.title": "Предложенные вопросы",
-      "thinking": "Мыслим",
+      "thinking": "Мыслим ({{seconds}} секунд)",
       "topics.auto_rename": "Автопереименование",
       "topics.clear.title": "Очистить сообщения",
       "topics.copy.image": "Скопировать как изображение",
@@ -250,7 +270,16 @@
       "input.upload.upload_from_local": "Загрузить локальный файл...",
       "input.web_search.builtin": "Модель встроена",
       "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
-      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск"
+      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
+      "input.web_search.no_web_search": "Отключить веб-поиск",
+      "input.web_search.no_web_search.description": "Отключить веб-поиск",
+      "input.thinking": "Мыслим",
+      "input.thinking.mode.default": "По умолчанию",
+      "input.thinking.mode.default.tip": "Модель автоматически определяет количество токенов для размышления",
+      "input.thinking.mode.custom": "Пользовательский",
+      "input.thinking.mode.custom.tip": "Модель может максимально размышлять количество токенов. Необходимо учитывать ограничение контекста модели, иначе будет ошибка",
+      "input.thinking.mode.tokens.tip": "Установите количество токенов для размышления",
+      "input.thinking.budget_exceeds_max": "Бюджет размышления превышает максимальное количество токенов"
     },
     "code_block": {
       "collapse": "Свернуть",
@@ -287,6 +316,7 @@
       "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
       "knowledge_base": "База знаний",
       "language": "Язык",
+      "loading": "Загрузка...",
       "model": "Модель",
       "models": "Модели",
       "more": "Ещё",
@@ -335,7 +365,8 @@
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
-      "unknown": "Неизвестная ошибка"
+      "unknown": "Неизвестная ошибка",
+      "pause_placeholder": "Получение ответа приостановлено"
     },
     "export": {
       "assistant": "Ассистент",
@@ -490,6 +521,10 @@
       "title": "Диаграмма Mermaid"
     },
     "message": {
+      "agents": {
+        "imported": "Импорт успешно выполнен",
+        "import.error": "Импорт не выполнен"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -502,7 +537,8 @@
       "backup.start.success": "Создание резервной копии начато",
       "backup.success": "Резервная копия успешно создана",
       "chat.completion.paused": "Завершение чата приостановлено",
-      "citations": "Источники",
+      "citation": "{{count}} цитат",
+      "citations": "Содержание цитат",
       "copied": "Скопировано!",
       "copy.failed": "Не удалось скопировать",
       "copy.success": "Скопировано!",
@@ -1504,10 +1540,10 @@
         "multiple": "Множественный выбор"
       },
       "privacy": {
-        "title": "Настройки приватности",
-        "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
+        "title": "Настройки конфиденциальности",
+        "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
-      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
+      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {
       "any.language": "Любой язык",

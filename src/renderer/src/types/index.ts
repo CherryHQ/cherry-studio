@@ -26,6 +26,7 @@ export type Assistant = {
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   workflow?: Flow
+  knowledgeRecognition?: 'off' | 'on'
 }
 
 export type AssistantMessage = {
@@ -39,6 +40,16 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
+export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
+export type EffortRatio = Record<ReasoningEffortOptions, number>
+
+export const EFFORT_RATIO: EffortRatio = {
+  low: 0.2,
+  medium: 0.5,
+  high: 0.8,
+  auto: 2
+}
+
 export type AssistantSettings = {
   contextCount: number
   temperature: number
@@ -49,7 +60,7 @@ export type AssistantSettings = {
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: 'low' | 'medium' | 'high'
+  reasoning_effort?: ReasoningEffortOptions
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -90,7 +101,7 @@ export type LegacyMessage = {
     // Zhipu or Hunyuan
     webSearchInfo?: any[]
     // Web search
-    webSearch?: WebSearchResponse
+    webSearch?: WebSearchProviderResponse
     // MCP Tools
     mcpTools?: MCPToolResponse[]
     // Generate Image
@@ -150,7 +161,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -441,11 +452,13 @@ export type WebSearchResults =
   | WebSearchProviderResponse
   | GroundingMetadata
   | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
+  | OpenAI.Responses.ResponseOutputText.URLCitation[]
   | any[]
 
 export enum WebSearchSource {
   WEBSEARCH = 'websearch',
   OPENAI = 'openai',
+  OPENAI_COMPATIBLE = 'openai-compatible',
   OPENROUTER = 'openrouter',
   GEMINI = 'gemini',
   PERPLEXITY = 'perplexity',
@@ -622,3 +635,12 @@ export interface Citation {
 }
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+
+export interface StoreSyncAction {
+  type: string
+  payload: any
+  meta?: {
+    fromSync?: boolean
+    source?: string
+  }
+}

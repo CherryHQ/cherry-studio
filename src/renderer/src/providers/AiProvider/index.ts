@@ -31,7 +31,6 @@ export default class AiProvider {
     onChunk,
     onFilterMessages
   }: CompletionsParams): Promise<void> {
-    console.log('[DEBUG] AiProvider.completions called')
     return this.sdk.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
   }
 
@@ -59,8 +58,8 @@ export default class AiProvider {
     return this.sdk.generateText({ prompt, content })
   }
 
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
-    return this.sdk.check(model)
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
+    return this.sdk.check(model, stream)
   }
 
   public async models(): Promise<OpenAI.Models.Model[]> {

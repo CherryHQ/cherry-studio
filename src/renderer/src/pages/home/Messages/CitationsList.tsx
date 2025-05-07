@@ -1,8 +1,9 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
-import { Collapse, theme } from 'antd'
-import { FileSearch, Info } from 'lucide-react'
-import React, { useMemo } from 'react'
+import { fetchWebContent } from '@renderer/utils/fetch'
+import { Button, Drawer } from 'antd'
+import { FileSearch } from 'lucide-react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -18,134 +19,204 @@ export interface Citation {
 
 interface CitationsListProps {
   citations: Citation[]
-  hideTitle?: boolean
+}
+
+/**
+ * 限制文本长度
+ * @param text
+ * @param maxLength
+ */
+const truncateText = (text: string, maxLength = 100) => {
+  if (!text) return ''
+  return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
+}
+
+/**
+ * 清理Markdown内容
+ * @param text
+ */
+const cleanMarkdownContent = (text: string): string => {
+  if (!text) return ''
+  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '')
+  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1')
+  cleaned = cleaned.replace(/https?:\/\/\S+/g, '')
+  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ')
+  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '')
+  cleaned = cleaned.replace(/\s+/g, ' ').trim()
+  return cleaned
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
 
-  const { token } = theme.useToken()
-  const items = useMemo(() => {
-    return !citations || citations.length === 0
-      ? []
-      : [
-          {
-            key: '1',
-            label: (
-              <CitationsTitle>
-                <span>{t('message.citations')}</span>
-                <Info size={14} style={{ opacity: 0.6 }} />
-              </CitationsTitle>
-            ),
-            style: {
-              backgroundColor: token.colorFillAlter
-            },
-            children: (
-              <>
-                {citations.map((citation) => (
-                  <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 13, color: 'var(--color-text-2)' }}>{citation.number}.</span>
-                    {citation.type === 'websearch' ? (
-                      <WebSearchCitation citation={citation} />
-                    ) : (
-                      <KnowledgeCitation citation={citation} />
-                    )}
-                  </HStack>
-                ))}
-              </>
-            )
-          }
-        ]
-  }, [citations, t])
+  const hasCitations = citations.length > 0
+  const count = citations.length
+  const previewItems = citations.slice(0, 3)
 
-  if (!citations || citations.length === 0) return null
+  if (!hasCitations) return null
+
+  const handleOpen = () => {
+    setOpen(true)
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+  }
 
   return (
-    <CitationsContainer>
-      <Collapse items={items} size="small" bordered={false} style={{ background: token.colorBgContainer }} />
-    </CitationsContainer>
+    <>
+      <OpenButton type="text" onClick={handleOpen}>
+        <PreviewIcons>
+          {previewItems.map((c, i) => (
+            <PreviewIcon key={i} style={{ zIndex: previewItems.length - i }}>
+              {c.type === 'websearch' && c.url ? (
+                <Favicon hostname={new URL(c.url).hostname} alt={''} />
+              ) : (
+                <FileSearch width={16} />
+              )}
+            </PreviewIcon>
+          ))}
+        </PreviewIcons>
+        {t('message.citation', { count: count })}
+      </OpenButton>
+
+      <Drawer
+        title={t('message.citations')}
+        placement="right"
+        onClose={handleClose}
+        open={open}
+        width={680}
+        destroyOnClose
+        styles={{
+          body: {
+            padding: 16,
+            height: 'calc(100% - 55px)'
+          }
+        }}>
+        {citations.map((citation) => (
+          <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            {citation.type === 'websearch' ? (
+              <WebSearchCitation citation={citation} />
+            ) : (
+              <KnowledgeCitation citation={citation} />
+            )}
+          </HStack>
+        ))}
+      </Drawer>
+    </>
   )
 }
 
 const handleLinkClick = (url: string, event: React.MouseEvent) => {
-  if (!url) return
-
   event.preventDefault()
-
-  // 检查是否是网络URL
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    window.open(url, '_blank', 'noopener,noreferrer')
-  } else {
-    try {
-      window.api.file.openPath(url)
-    } catch (error) {
-      console.error('打开本地文件失败:', error)
-    }
-  }
+  if (url.startsWith('http')) window.open(url, '_blank', 'noopener,noreferrer')
+  else window.api.file.openPath(url)
 }
 
-// 网络搜索引用组件
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+  const { t } = useTranslation()
+  const [fetchedContent, setFetchedContent] = React.useState('')
+  const [isLoading, setIsLoading] = React.useState(false)
+  React.useEffect(() => {
+    if (citation.url) {
+      setIsLoading(true)
+      fetchWebContent(citation.url, 'markdown')
+        .then((res) => {
+          const cleaned = cleanMarkdownContent(res.content)
+          setFetchedContent(truncateText(cleaned, 100))
+        })
+        .finally(() => setIsLoading(false))
+    }
+  }, [citation.url])
+
   return (
-    <>
-      {citation.showFavicon && citation.url && (
-        <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
-      )}
-      <CitationLink href={citation.url} className="text-nowrap" onClick={(e) => handleLinkClick(citation.url, e)}>
-        {citation.title ? citation.title : <span className="hostname">{citation.hostname}</span>}
-      </CitationLink>
-    </>
+    <WebSearchCard>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        {citation.showFavicon && citation.url && (
+          <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
+        )}
+        <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+          {citation.title || <span className="hostname">{citation.hostname}</span>}
+        </CitationLink>
+      </div>
+      {isLoading ? <div>{t('common.loading')}</div> : fetchedContent}
+    </WebSearchCard>
   )
 }
 
-// 知识库引用组件
-const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
-  return (
-    <>
-      {citation.showFavicon && citation.url && <FileSearch width={16} />}
-      <CitationLink href={citation.url} className="text-nowrap" onClick={(e) => handleLinkClick(citation.url, e)}>
-        {citation.title}
-      </CitationLink>
-    </>
-  )
-}
+const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
+  <>
+    {citation.showFavicon && <FileSearch width={16} />}
+    <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+      {citation.title}
+    </CitationLink>
+  </>
+)
 
-const CitationsContainer = styled.div`
-  background-color: rgb(242, 247, 253);
-  border-radius: 10px;
-  padding: 8px 12px;
-  margin: 12px 0;
-  display: inline-block;
-  /* display: flex; */
-  /* flex-direction: column; */
-  gap: 4px;
-
-  body[theme-mode='dark'] & {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-`
-
-const CitationsTitle = styled.div`
-  font-weight: 500;
-  margin-bottom: 4px;
-  color: var(--color-text-1);
+const OpenButton = styled(Button)`
   display: flex;
   align-items: center;
-  gap: 6px;
+  padding: 2px 6px;
+  margin-bottom: 8px;
+  align-self: flex-start;
+  font-size: 12px;
+`
+
+const PreviewIcons = styled.div`
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+`
+
+const PreviewIcon = styled.div`
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #fff;
+  margin-left: -8px;
+
+  &:first-child {
+    margin-left: 0;
+  }
 `
 
 const CitationLink = styled.a`
   font-size: 14px;
   line-height: 1.6;
-  text-decoration: none;
   color: var(--color-text-1);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
 
   .hostname {
     color: var(--color-link);
   }
+`
+
+const WebSearchCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-2);
+  transition: all 0.3s ease;
 
   &:hover {
-    text-decoration: underline;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: var(--color-bg-3);
+    border-color: var(--color-primary-light);
+    transform: translateY(-2px);
   }
 `
 
