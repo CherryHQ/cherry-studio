@@ -60,7 +60,13 @@ const MiniAppSettings: FC = () => {
       await window.api.file.writeWithId('customMiniAPP', customMiniAppContent)
       messageApi.success(t('settings.miniapps.custom.save_success'))
       // 重新加载应用列表
-      window.location.reload()
+      console.log('Reloading mini app list...')
+      const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
+        return [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
+      })
+      console.log('Reloaded mini app list:', reloadedApps)
+      updateMinapps(reloadedApps)
+      // window.location.reload()
     } catch (error) {
       messageApi.error(t('settings.miniapps.custom.save_error'))
       console.error('Failed to save custom mini app config:', error)

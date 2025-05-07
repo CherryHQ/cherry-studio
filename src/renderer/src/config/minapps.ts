@@ -82,7 +82,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
 }
 
 // 初始化默认小应用
-let DEFAULT_MIN_APPS: MinAppType[] = [
+let ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
     name: 'ChatGPT',
@@ -451,10 +451,10 @@ let DEFAULT_MIN_APPS: MinAppType[] = [
 ]
 
 // 加载自定义小应用并合并到默认应用中
-DEFAULT_MIN_APPS = [...DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
 if (process.env.NODE_ENV === 'development') {
   console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
 }
 
-export { DEFAULT_MIN_APPS }
+export { DEFAULT_MIN_APPS, ORIGIN_DEFAULT_MIN_APPS, loadCustomMiniApp }
