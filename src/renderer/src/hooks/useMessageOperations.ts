@@ -63,7 +63,7 @@ export function useMessageOperations(topic: Topic) {
     async (id: string) => {
       await dispatch(deleteSingleMessageThunk(topic.id, id))
     },
-    [dispatch, topic.id]
+    [dispatch, topic.id] // Use topic.id directly
   )
 
   /**
@@ -320,12 +320,10 @@ export function useMessageOperations(topic: Topic) {
   }
 }
 
-export const useTopicMessages = (topicId: string) => {
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  return messages
+export const useTopicMessages = (topic: Topic) => {
+  return useAppSelector((state) => selectMessagesForTopic(state, topic.id))
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectNewTopicLoading(state, topic.id))
-  return loading
+  return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
 }

@@ -16,8 +16,7 @@ import type {
   PlaceholderMessageBlock,
   ToolMessageBlock
 } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType, Response } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
 import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
@@ -289,7 +288,7 @@ const fetchAndProcessAssistantResponseImpl = async (
 
     const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
 
-    let messagesForContext: Message[] = []
+    let messagesForContext: Message[]
     const userMessageId = assistantMessage.askId
     const userMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === userMessageId)
 
@@ -585,8 +584,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           autoRenameTopic(assistant, topicId)
 
           if (response && !response.usage) {
-            const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
-            response.usage = usage
+            response.usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
           }
         }
         if (response && response.metrics) {

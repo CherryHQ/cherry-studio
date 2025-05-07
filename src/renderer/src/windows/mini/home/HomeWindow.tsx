@@ -4,6 +4,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
@@ -12,12 +13,14 @@ import { newMessagesActions } from '@renderer/store/newMessage'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Divider } from 'antd'
+import { Button, Divider, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
+import { CirclePause, SendIcon } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +40,7 @@ const HomeWindow: FC = () => {
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
@@ -44,9 +48,11 @@ const HomeWindow: FC = () => {
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
+  const topicIdRef = useRef<string>(topic.id)
+  const askIdRef = useRef<string | null>(null)
+
   const featureMenusRef = useRef<FeatureMenusRef>(null)
   const referenceText = selectedText || clipboardText || text
-
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const readClipboard = useCallback(async () => {
@@ -81,6 +87,17 @@ const HomeWindow: FC = () => {
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
+
+  useEffect(() => {
+    const handleMessageEnd = () => {
+      setGenerating(false)
+    }
+
+    EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, handleMessageEnd)
+    return () => {
+      EventEmitter.off(EVENT_NAMES.RECEIVE_MESSAGE, handleMessageEnd)
+    }
+  }, [])
 
   const onCloseWindow = () => window.api.miniWindow.hide()
 
@@ -152,10 +169,11 @@ const HomeWindow: FC = () => {
 
   const onSendMessage = useCallback(
     async (prompt?: string) => {
-      if (isEmpty(content)) {
+      if (isEmpty(content) || generating) {
         return
       }
-
+      setGenerating(true)
+      topicIdRef.current = topic.id
       const messageParams = {
         role: 'user',
         content: prompt ? `${prompt}\n\n${content}` : content,
@@ -176,47 +194,55 @@ const HomeWindow: FC = () => {
 
       const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
       store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-
-      fetchChatCompletion({
-        messages: [userMessage],
-        assistant: { ...assistant, model: getDefaultModel() },
-        onChunkReceived: (chunk: Chunk) => {
-          if (chunk.type === ChunkType.TEXT_DELTA) {
-            blockContent += chunk.text
-            if (!blockId) {
-              const block = createMainTextBlock(assistantMessage.id, chunk.text, {
-                status: MessageBlockStatus.STREAMING
-              })
-              blockId = block.id
+      askIdRef.current = assistantMessage.id
+      console.log('!!!', assistantMessage)
+      try {
+        await fetchChatCompletion({
+          messages: [userMessage],
+          assistant: { ...assistant, model: getDefaultModel() },
+          onChunkReceived: (chunk: Chunk) => {
+            if (chunk.type === ChunkType.TEXT_DELTA) {
+              blockContent += chunk.text
+              if (!blockId) {
+                const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                  status: MessageBlockStatus.STREAMING
+                })
+                blockId = block.id
+                store.dispatch(
+                  newMessagesActions.updateMessage({
+                    topicId,
+                    messageId: assistantMessage.id,
+                    updates: { blockInstruction: { id: block.id } }
+                  })
+                )
+                store.dispatch(upsertOneBlock(block))
+              } else {
+                store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+              }
+            }
+            if (chunk.type === ChunkType.TEXT_COMPLETE) {
+              blockId &&
+                store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
               store.dispatch(
                 newMessagesActions.updateMessage({
                   topicId,
                   messageId: assistantMessage.id,
-                  updates: { blockInstruction: { id: block.id } }
+                  updates: { status: AssistantMessageStatus.SUCCESS }
                 })
               )
-              store.dispatch(upsertOneBlock(block))
-            } else {
-              store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
             }
           }
-          if (chunk.type === ChunkType.TEXT_COMPLETE) {
-            blockId && store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
-            store.dispatch(
-              newMessagesActions.updateMessage({
-                topicId,
-                messageId: assistantMessage.id,
-                updates: { status: AssistantMessageStatus.SUCCESS }
-              })
-            )
-          }
-        }
-      })
+        })
+      } catch (err) {
+        console.error('Error while sending message:', err)
+      } finally {
+        setGenerating(false)
+      }
 
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant, topic]
+    [content, defaultAssistant, generating, topic]
   )
 
   const clearClipboard = () => {
@@ -225,13 +251,32 @@ const HomeWindow: FC = () => {
     focusInput()
   }
 
+  const stopMessageGeneration = () => {
+    if (generating && askIdRef.current) {
+      abortCompletion(askIdRef.current)
+    }
+    setGenerating(false)
+  }
+
+  const onPause = async () => {
+    stopMessageGeneration()
+  }
+
   // If the input is focused, the `Esc` callback will not be triggered here.
   useHotkeys('esc', () => {
     if (route === 'home') {
       onCloseWindow()
     } else {
+      stopMessageGeneration()
+      setGenerating(false)
       setRoute('home')
       setText('')
+    }
+  })
+
+  useHotkeys('ctrl+c', () => {
+    if (generating) {
+      stopMessageGeneration()
     }
   })
 
@@ -270,15 +315,41 @@ const HomeWindow: FC = () => {
       <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
-            <InputBar
-              text={text}
-              model={model}
-              referenceText={referenceText}
-              placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
-              handleKeyDown={handleKeyDown}
-              handleChange={handleChange}
-              ref={inputBarRef}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ flex: 1, marginRight: 10 }}>
+                <InputBar
+                  text={text}
+                  model={model}
+                  referenceText={referenceText}
+                  placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
+                  handleKeyDown={handleKeyDown}
+                  handleChange={handleChange}
+                  disabled={generating}
+                  ref={inputBarRef}
+                />
+              </div>
+              <ToolbarMenu>
+                {generating && (
+                  <Tooltip placement="top" title={t('chat.input.pause')} arrow>
+                    <ToolbarButton type="text" onClick={onPause}>
+                      <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
+                {!generating && (
+                  <Tooltip placement="top" title={t('chat.input.send')} arrow>
+                    <ToolbarButton
+                      type="text"
+                      onClick={() => onSendMessage()}
+                      disabled={generating || isEmpty(content)}>
+                      <SendIcon
+                        style={{ color: 'var(--color-primary)', fontSize: 14, verticalAlign: 'middle', marginLeft: 2 }}
+                      />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
+              </ToolbarMenu>
+            </div>
             <Divider style={{ margin: '10px 0' }} />
           </>
         )}
@@ -317,6 +388,7 @@ const HomeWindow: FC = () => {
         }
         handleKeyDown={handleKeyDown}
         handleChange={handleChange}
+        disabled={false}
         ref={inputBarRef}
       />
       <Divider style={{ margin: '10px 0' }} />
@@ -355,6 +427,53 @@ const Main = styled.main`
 
   flex: 1;
   overflow: hidden;
+`
+
+const ToolbarMenu = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+`
+const ToolbarButton = styled(Button)`
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  color: var(--color-icon);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  &.anticon,
+  &.iconfont {
+    transition: all 0.3s ease;
+    color: var(--color-icon);
+  }
+  .icon-a-addchat {
+    font-size: 18px;
+    margin-bottom: -2px;
+  }
+  &:hover {
+    background-color: var(--color-background-soft);
+    .anticon,
+    .iconfont {
+      color: var(--color-text-1);
+    }
+  }
+  &.active {
+    background-color: var(--color-primary) !important;
+    .anticon,
+    .iconfont {
+      color: var(--color-white-soft);
+    }
+    &:hover {
+      background-color: var(--color-primary);
+    }
+  }
 `
 
 export default HomeWindow
