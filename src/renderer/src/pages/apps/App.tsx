@@ -1,10 +1,11 @@
+import { PlusOutlined } from '@ant-design/icons'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
-import { Dropdown } from 'antd'
-import { FC } from 'react'
+import { Button, Dropdown, Form, Input, message, Modal } from 'antd'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -12,52 +13,122 @@ interface Props {
   app: MinAppType
   onClick?: () => void
   size?: number
+  isLast?: boolean
 }
 
-const App: FC<Props> = ({ app, onClick, size = 60 }) => {
+const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
   const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
+  const [isModalVisible, setIsModalVisible] = useState(false)
+  const [form] = Form.useForm()
 
   const handleClick = () => {
+    if (isLast) {
+      setIsModalVisible(true)
+      return
+    }
     openMinappKeepAlive(app)
     onClick?.()
   }
 
-  const menuItems: MenuProps['items'] = [
-    {
-      key: 'togglePin',
-      label: isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title'),
-      onClick: () => {
-        const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
-        updatePinnedMinapps(newPinned)
+  const handleAddCustomApp = async (values: any) => {
+    try {
+      const content = await window.api.file.read('customMiniAPP')
+      const customApps = JSON.parse(content)
+      const newApp = {
+        id: values.id,
+        name: values.name,
+        url: values.url,
+        logo: values.logo || '',
+        type: 'Custom',
+        addTime: new Date().toISOString()
       }
-    },
-    {
-      key: 'hide',
-      label: t('minapp.sidebar.hide.title'),
-      onClick: () => {
-        const newMinapps = minapps.filter((item) => item.id !== app.id)
-        updateMinapps(newMinapps)
-        const newDisabled = [...(disabled || []), app]
-        updateDisabledMinapps(newDisabled)
-        const newPinned = pinned.filter((item) => item.id !== app.id)
-        updatePinnedMinapps(newPinned)
-      }
+      customApps.push(newApp)
+      await window.api.file.writeWithId('customMiniAPP', JSON.stringify(customApps, null, 2))
+      message.success(t('settings.miniapps.custom.save_success'))
+      setIsModalVisible(false)
+      form.resetFields()
+      // 重新加载应用列表
+      const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
+        return [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
+      })
+      updateMinapps(reloadedApps)
+    } catch (error) {
+      message.error(t('settings.miniapps.custom.save_error'))
+      console.error('Failed to save custom mini app:', error)
     }
-  ]
+  }
 
-  if (!isVisible) return null
+  const menuItems: MenuProps['items'] = isLast
+    ? []
+    : [
+        {
+          key: 'togglePin',
+          label: isPinned ? t('minapp.sidebar.remove.title') : t('minapp.sidebar.add.title'),
+          onClick: () => {
+            const newPinned = isPinned ? pinned.filter((item) => item.id !== app.id) : [...(pinned || []), app]
+            updatePinnedMinapps(newPinned)
+          }
+        },
+        {
+          key: 'hide',
+          label: t('minapp.sidebar.hide.title'),
+          onClick: () => {
+            const newMinapps = minapps.filter((item) => item.id !== app.id)
+            updateMinapps(newMinapps)
+            const newDisabled = [...(disabled || []), app]
+            updateDisabledMinapps(newDisabled)
+            const newPinned = pinned.filter((item) => item.id !== app.id)
+            updatePinnedMinapps(newPinned)
+          }
+        }
+      ]
+
+  if (!isVisible && !isLast) return null
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleClick}>
-        <MinAppIcon size={size} app={app} />
-        <AppTitle>{app.name}</AppTitle>
-      </Container>
-    </Dropdown>
+    <>
+      <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
+        <Container onClick={handleClick}>
+          {isLast ? (
+            <AddButton>
+              <PlusOutlined />
+            </AddButton>
+          ) : (
+            <MinAppIcon size={size} app={app} />
+          )}
+          <AppTitle>{isLast ? t('settings.miniapps.custom.title') : app.name}</AppTitle>
+        </Container>
+      </Dropdown>
+      <Modal
+        title={t('settings.miniapps.custom.edit_title')}
+        open={isModalVisible}
+        onCancel={() => setIsModalVisible(false)}
+        footer={null}>
+        <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
+          <Form.Item name="id" label="ID" rules={[{ required: true, message: '请输入小程序ID' }]}>
+            <Input placeholder="请输入小程序ID" />
+          </Form.Item>
+          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入小程序名称' }]}>
+            <Input placeholder="请输入小程序名称" />
+          </Form.Item>
+          <Form.Item name="url" label="URL" rules={[{ required: true, message: '请输入小程序URL' }]}>
+            <Input placeholder="请输入小程序URL" />
+          </Form.Item>
+          <Form.Item name="logo" label="Logo URL">
+            <Input placeholder="请输入Logo URL（可选）" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit">
+              {t('settings.miniapps.custom.save')}
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
   )
 }
 
@@ -77,6 +148,27 @@ const AppTitle = styled.div`
   text-align: center;
   user-select: none;
   white-space: nowrap;
+`
+
+const AddButton = styled.div`
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background-soft);
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-soft);
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--color-background);
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
 `
 
 export default App
