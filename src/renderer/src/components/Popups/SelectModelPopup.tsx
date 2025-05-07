@@ -345,31 +345,23 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     open && setTimeout(() => inputRef.current?.focus(), 0)
   }, [open])
 
-  const listHeight = useMemo(() => {
-    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
-  }, [listItems.length])
+  useEffect(() => {
+    if (firstGroupRef.current) {
+      setCurrentStickyGroup(firstGroupRef.current)
+    }
+  }, [listItems])
 
   const handleItemsRendered = useCallback(
-    ({ visibleStartIndex, visibleStopIndex }: { visibleStartIndex: number; visibleStopIndex: number }) => {
-      const firstModelItem = listItems
-        .slice(visibleStartIndex, visibleStopIndex + 1)
-        .find((item) => item.type === 'model')
-      if (!firstModelItem) {
-        setCurrentStickyGroup(null)
-        return
-      }
-      // 从 listItems 中找到此 model 之前的最近一个分组标题
-      const modelIndex = listItems.findIndex((item) => item.key === firstModelItem.key)
-
-      // 向前查找最近的分组标题
-      for (let i = modelIndex - 1; i >= 0; i--) {
-        if (listItems[i].type === 'group') {
+    ({ visibleStartIndex }: { visibleStartIndex: number; visibleStopIndex: number }) => {
+      // 从可见区域的起始位置向前查找最近的分组标题
+      for (let i = visibleStartIndex - 1; i >= 0; i--) {
+        if (listItems[i]?.type === 'group') {
           setCurrentStickyGroup(listItems[i])
           return
         }
       }
 
-      // 找不到则显示第一个分组标题
+      // 找不到则使用第一个分组标题
       setCurrentStickyGroup(firstGroupRef.current ?? null)
     },
     [listItems]
@@ -386,6 +378,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     }),
     [currentStickyGroup, focusedItemKey, handleItemClick, listItems, togglePin]
   )
+
+  const listHeight = useMemo(() => {
+    return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
+  }, [listItems.length])
 
   return (
     <Modal
@@ -440,11 +436,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
           <FixedSizeList
             ref={listRef}
+            height={listHeight}
+            width="100%"
             itemCount={listItems.length}
             itemSize={ITEM_HEIGHT}
             itemData={RowData}
-            height={listHeight}
-            width="100%"
+            itemKey={(index, data) => data.listItems[index].key}
             overscanCount={4}
             onItemsRendered={handleItemsRendered}
             style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
@@ -478,7 +475,7 @@ const VirtualizedRow = React.memo(
 
     const item = listItems[index]
 
-    if (!item || (item.type === 'group' && item.key === currentStickyGroup?.key)) {
+    if (!item) {
       return <div style={style} />
     }
 
