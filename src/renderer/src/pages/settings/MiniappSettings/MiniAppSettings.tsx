@@ -9,7 +9,7 @@ import {
   setMinappsOpenLinkExternal,
   setShowOpenedMinappsInSidebar
 } from '@renderer/store/settings'
-import { Button, message, Slider, Switch, Tooltip } from 'antd'
+import { Button, Input, message, Slider, Switch, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,6 +31,41 @@ const MiniAppSettings: FC = () => {
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
   const [messageApi, contextHolder] = message.useMessage()
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [customMiniAppContent, setCustomMiniAppContent] = useState('[]')
+
+  // 加载自定义小应用配置
+  useEffect(() => {
+    const loadCustomMiniApp = async () => {
+      try {
+        const content = await window.api.file.read('customMiniAPP')
+        setCustomMiniAppContent(content)
+      } catch (error) {
+        console.error('Failed to load custom mini app config:', error)
+        setCustomMiniAppContent('[]')
+      }
+    }
+    loadCustomMiniApp()
+  }, [])
+
+  // 保存自定义小应用配置
+  const handleSaveCustomMiniApp = useCallback(async () => {
+    try {
+      // 验证 JSON 格式
+      const parsedContent = JSON.parse(customMiniAppContent)
+      // 确保是数组
+      if (!Array.isArray(parsedContent)) {
+        throw new Error('Content must be an array')
+      }
+      // 保存文件
+      await window.api.file.writeWithId('customMiniAPP', customMiniAppContent)
+      messageApi.success(t('settings.miniapps.custom.save_success'))
+      // 重新加载应用列表
+      window.location.reload()
+    } catch (error) {
+      messageApi.error(t('settings.miniapps.custom.save_error'))
+      console.error('Failed to save custom mini app config:', error)
+    }
+  }, [customMiniAppContent, messageApi, t])
 
   const handleResetMinApps = useCallback(() => {
     setVisibleMiniApps(DEFAULT_MIN_APPS)
@@ -77,6 +112,35 @@ const MiniAppSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
         <SettingDivider />
+
+        {/* 自定义小应用编辑区域 */}
+        <SettingTitle>{t('settings.miniapps.custom.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingLabelGroup>
+            <SettingRowTitle>{t('settings.miniapps.custom.edit_title')}</SettingRowTitle>
+            <SettingDescription>{t('settings.miniapps.custom.edit_description')}</SettingDescription>
+          </SettingLabelGroup>
+        </SettingRow>
+        <CustomEditorContainer>
+          <Input.TextArea
+            value={customMiniAppContent}
+            onChange={(e) => setCustomMiniAppContent(e.target.value)}
+            placeholder={t('settings.miniapps.custom.placeholder')}
+            style={{
+              minHeight: 200,
+              fontFamily: 'monospace',
+              backgroundColor: 'var(--color-bg-2)',
+              color: 'var(--color-text)',
+              borderColor: 'var(--color-border)'
+            }}
+          />
+          <Button type="primary" onClick={handleSaveCustomMiniApp} style={{ marginTop: 8 }}>
+            {t('settings.miniapps.custom.save')}
+          </Button>
+        </CustomEditorContainer>
+        <SettingDivider />
+
         <SettingTitle
           style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{t('settings.miniapps.display_title')}</span>
@@ -227,6 +291,19 @@ const BorderedContainer = styled.div`
   padding: 8px;
   margin: 8px 0 8px;
   background-color: var(--color-bg-1);
+`
+
+// 新增自定义编辑器容器样式
+const CustomEditorContainer = styled.div`
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background-color: var(--color-bg-1);
+
+  .ant-input {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  }
 `
 
 export default MiniAppSettings

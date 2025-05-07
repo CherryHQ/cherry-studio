@@ -53,7 +53,36 @@ import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
 import { MinAppType } from '@renderer/types'
-export const DEFAULT_MIN_APPS: MinAppType[] = [
+
+// 加载自定义小应用
+const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
+  try {
+    let content: string
+    try {
+      content = await window.api.file.read('customMiniAPP')
+    } catch (error) {
+      // 如果文件不存在，创建一个空的 JSON 数组
+      content = '[]'
+      await window.api.file.writeWithId('customMiniAPP', content)
+    }
+
+    const customApps = JSON.parse(content)
+    const now = new Date().toISOString()
+
+    return customApps.map((app: any) => ({
+      ...app,
+      type: 'Custom',
+      logo: app.logo || OpenAiProviderLogo,
+      addTime: app.addTime || now
+    }))
+  } catch (error) {
+    console.error('Failed to load custom mini apps:', error)
+    return []
+  }
+}
+
+// 初始化默认小应用
+let DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
     name: 'ChatGPT',
@@ -420,3 +449,10 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     }
   }
 ]
+
+// 加载自定义小应用并合并到默认应用中
+loadCustomMiniApp().then((customApps) => {
+  DEFAULT_MIN_APPS = [...DEFAULT_MIN_APPS, ...customApps]
+})
+
+export { DEFAULT_MIN_APPS }
