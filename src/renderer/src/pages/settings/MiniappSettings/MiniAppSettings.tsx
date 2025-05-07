@@ -113,34 +113,6 @@ const MiniAppSettings: FC = () => {
         <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
         <SettingDivider />
 
-        {/* 自定义小应用编辑区域 */}
-        <SettingTitle>{t('settings.miniapps.custom.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingLabelGroup>
-            <SettingRowTitle>{t('settings.miniapps.custom.edit_title')}</SettingRowTitle>
-            <SettingDescription>{t('settings.miniapps.custom.edit_description')}</SettingDescription>
-          </SettingLabelGroup>
-        </SettingRow>
-        <CustomEditorContainer>
-          <Input.TextArea
-            value={customMiniAppContent}
-            onChange={(e) => setCustomMiniAppContent(e.target.value)}
-            placeholder={t('settings.miniapps.custom.placeholder')}
-            style={{
-              minHeight: 200,
-              fontFamily: 'monospace',
-              backgroundColor: 'var(--color-bg-2)',
-              color: 'var(--color-text)',
-              borderColor: 'var(--color-border)'
-            }}
-          />
-          <Button type="primary" onClick={handleSaveCustomMiniApp} style={{ marginTop: 8 }}>
-            {t('settings.miniapps.custom.save')}
-          </Button>
-        </CustomEditorContainer>
-        <SettingDivider />
-
         <SettingTitle
           style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{t('settings.miniapps.display_title')}</span>
@@ -207,6 +179,30 @@ const MiniAppSettings: FC = () => {
             onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
           />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingLabelGroup>
+            <SettingRowTitle>{t('settings.miniapps.custom.edit_title')}</SettingRowTitle>
+            <SettingDescription>{t('settings.miniapps.custom.edit_description')}</SettingDescription>
+          </SettingLabelGroup>
+        </SettingRow>
+        <CustomEditorContainer>
+          <Input.TextArea
+            value={customMiniAppContent}
+            onChange={(e) => setCustomMiniAppContent(e.target.value)}
+            placeholder={t('settings.miniapps.custom.placeholder')}
+            style={{
+              minHeight: 200,
+              fontFamily: 'monospace',
+              backgroundColor: 'var(--color-bg-2)',
+              color: 'var(--color-text)',
+              borderColor: 'var(--color-border)'
+            }}
+          />
+          <Button type="primary" onClick={handleSaveCustomMiniApp} style={{ marginTop: 8 }}>
+            {t('settings.miniapps.custom.save')}
+          </Button>
+        </CustomEditorContainer>
       </SettingGroup>
     </SettingContainer>
   )
