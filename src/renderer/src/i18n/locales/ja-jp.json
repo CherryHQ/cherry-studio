@@ -78,11 +78,10 @@
       "settings.reasoning_effort.medium": "普通の思考",
       "settings.reasoning_effort.default": "デフォルト",
       "settings.more": "アシスタント設定",
-      "settings.knowledge_base.use.tip": "智能体は、大規模モデルの意図識別能力を呼び出し、知識ベースを呼び出して回答する必要があるかどうかを判断します。この機能はモデルの能力に依存します。",
-      "settings.knowledge_base.use": "知識ベースの呼び出し",
-      "settings.knowledge_base.use.off": "閉じる",
-      "settings.knowledge_base.use.on": "開始",
-      "settings.knowledge_base.use.auto": "自動"
+      "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
+      "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
+      "settings.knowledge_base.recognition.off": "強制検索",
+      "settings.knowledge_base.recognition.on": "意図認識"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",

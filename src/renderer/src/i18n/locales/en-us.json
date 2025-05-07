@@ -78,11 +78,10 @@
       "settings.reasoning_effort.medium": "Think normally",
       "settings.reasoning_effort.default": "Default",
       "settings.more": "Assistant Settings",
-      "settings.knowledge_base.use.tip": "The agent will utilize the intent recognition capabilities of the large model to determine whether to call the knowledge base for a response. This function will depend on the model's capabilities.",
-      "settings.knowledge_base.use": "Access the knowledge base",
-      "settings.knowledge_base.use.off": "Off",
-      "settings.knowledge_base.use.on": "On",
-      "settings.knowledge_base.use.auto": "Auto"
+      "settings.knowledge_base.recognition.tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities",
+      "settings.knowledge_base.recognition": "Use Knowledge Base",
+      "settings.knowledge_base.recognition.off": "Force Search",
+      "settings.knowledge_base.recognition.on": "Intent Recognition"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",

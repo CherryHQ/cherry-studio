@@ -48,30 +48,29 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         }
       />
       <Row align="middle" style={{ marginTop: 10 }}>
-        <Label>{t('assistants.settings.knowledge_base.use')}</Label>
+        <Label>{t('assistants.settings.knowledge_base.recognition')}</Label>
       </Row>
       <Row align="middle" style={{ marginTop: 10 }}>
         <Segmented
-          value={assistant.knowledgeUse ?? 'auto'}
+          value={assistant.knowledgeRecognition ?? 'off'}
           options={[
-            { label: t('assistants.settings.knowledge_base.use.off'), value: 'off' },
-            { label: t('assistants.settings.knowledge_base.use.on'), value: 'on' },
+            { label: t('assistants.settings.knowledge_base.recognition.off'), value: 'off' },
             {
               label: (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {t('assistants.settings.knowledge_base.use.auto')}
-                  <Tooltip title={t('assistants.settings.knowledge_base.use.tip')}>
+                  {t('assistants.settings.knowledge_base.recognition.on')}
+                  <Tooltip title={t('assistants.settings.knowledge_base.recognition.tip')}>
                     <QuestionIcon size={15} />
                   </Tooltip>
                 </div>
               ),
-              value: 'auto'
+              value: 'on'
             }
           ]}
           onChange={(value) =>
             updateAssistant({
               ...assistant,
-              knowledgeUse: value as 'auto' | 'off' | 'on'
+              knowledgeRecognition: value as 'off' | 'on'
             })
           }
         />

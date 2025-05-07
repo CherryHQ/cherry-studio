@@ -46,11 +46,11 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeUse || 'auto'
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
-  const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition !== 'off'
+  const shouldKnowledgeSearch = hasKnowledgeBase
 
   // 在工具链开始时发送进度通知
   const willUseTools = shouldWebSearch || shouldKnowledgeSearch
@@ -64,7 +64,7 @@ async function fetchExternalTool(
 
     // 根据配置决定是否需要提取
     const needWebExtract = shouldWebSearch
-    const needKnowledgeExtract = hasKnowledgeBase && knowledgeRecognition === 'auto'
+    const needKnowledgeExtract = hasKnowledgeBase && knowledgeRecognition === 'on'
 
     if (!needWebExtract && !needKnowledgeExtract) return undefined
 
@@ -157,11 +157,11 @@ async function fetchExternalTool(
   const searchKnowledgeBase = async (
     extractResults: ExtractResults | undefined
   ): Promise<KnowledgeReference[] | undefined> => {
-    if (!hasKnowledgeBase || knowledgeRecognition === 'off') return
+    if (!hasKnowledgeBase) return
 
     // 知识库搜索条件
     let searchCriteria: { question: string[]; rewrite: string }
-    if (knowledgeRecognition === 'on') {
+    if (knowledgeRecognition === 'off') {
       const directContent = getMainTextContent(lastUserMessage)
       searchCriteria = { question: [directContent || 'search'], rewrite: directContent }
     } else {
@@ -199,7 +199,7 @@ async function fetchExternalTool(
 
   try {
     // 根据配置决定是否需要提取
-    if (shouldWebSearch || (hasKnowledgeBase && knowledgeRecognition === 'auto')) {
+    if (shouldWebSearch || hasKnowledgeBase) {
       extractResults = await extract()
       console.log('Extraction results:', extractResults)
     }
