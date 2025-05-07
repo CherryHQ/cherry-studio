@@ -69,7 +69,8 @@ const MiniAppSettings: FC = () => {
       // 重新加载应用列表
       console.log('Reloading mini app list...')
       const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
-        return [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
+        module.DEFAULT_MIN_APPS = [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
+        return module.DEFAULT_MIN_APPS
       })
       console.log('Reloaded mini app list:', reloadedApps)
       updateMinapps(reloadedApps)

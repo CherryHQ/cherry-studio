@@ -1,3 +1,4 @@
+import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
 import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
@@ -72,7 +73,7 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
     return customApps.map((app: any) => ({
       ...app,
       type: 'Custom',
-      logo: app.logo || OpenAiProviderLogo,
+      logo: app.logo && app.logo !== '' ? app.logo : ApplicationLogo,
       addTime: app.addTime || now
     }))
   } catch (error) {
@@ -451,7 +452,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
 ]
 
 // 加载自定义小应用并合并到默认应用中
-const DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
 if (process.env.NODE_ENV === 'development') {
   console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)

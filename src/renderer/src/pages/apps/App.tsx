@@ -58,7 +58,8 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       setFileList([])
       // 重新加载应用列表
       const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
-        return [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
+        module.DEFAULT_MIN_APPS = [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
+        return module.DEFAULT_MIN_APPS
       })
       updateMinapps(reloadedApps)
     } catch (error) {
@@ -159,7 +160,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           <Form.Item label="Logo">
             <Radio.Group value={logoType} onChange={handleLogoTypeChange}>
               <Radio value="url">URL</Radio>
-              {/* <Radio value="file">文件</Radio> */}
+              <Radio value="file">文件</Radio>
             </Radio.Group>
           </Form.Item>
           {logoType === 'url' ? (
