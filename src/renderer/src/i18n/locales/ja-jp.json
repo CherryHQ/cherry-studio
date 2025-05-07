@@ -1511,7 +1511,7 @@
         "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
       },
       "general.auto_check_update.title": "自動更新",
-      "general.beta_testing.title": "ベータに参加",
+      "general.early_access.title": "早期アクセス",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",

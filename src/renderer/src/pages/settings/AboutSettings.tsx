@@ -25,7 +25,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, betaTesting, setBetaTesting } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -159,8 +159,8 @@ const AboutSettings: FC = () => {
             </SettingRow>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.general.beta_testing.title')}</SettingRowTitle>
-              <Switch value={betaTesting} onChange={(v) => setBetaTesting(v)} />
+              <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
+              <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
             </SettingRow>
           </>
         )}

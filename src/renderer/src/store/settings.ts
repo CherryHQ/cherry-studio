@@ -48,7 +48,7 @@ export interface SettingsState {
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
-  betaTesting: boolean
+  earlyAccess: boolean
   renderInputMessageAsMarkdown: boolean
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
@@ -160,7 +160,7 @@ export const initialState: SettingsState = {
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
-  betaTesting: false,
+  earlyAccess: false,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
   codeCollapsible: false,
@@ -320,8 +320,8 @@ const settingsSlice = createSlice({
     setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
       state.autoCheckUpdate = action.payload
     },
-    setBetaTesting: (state, action: PayloadAction<boolean>) => {
-      state.betaTesting = action.payload
+    setEarlyAccess: (state, action: PayloadAction<boolean>) => {
+      state.earlyAccess = action.payload
     },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
@@ -543,7 +543,7 @@ export const {
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
-  setBetaTesting,
+  setEarlyAccess,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
   setWebdavHost,
