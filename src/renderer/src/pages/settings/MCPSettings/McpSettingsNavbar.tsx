@@ -1,6 +1,6 @@
 import { NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import { isWindows } from '@renderer/config/constant'
+import { isLinux, isWindows } from '@renderer/config/constant'
 import { Button, Dropdown, Menu, type MenuProps } from 'antd'
 import { ChevronDown, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -73,7 +73,7 @@ export const McpSettingsNavbar = () => {
   }))
 
   return (
-    <NavbarRight style={{ paddingRight: isWindows ? 150 : 12 }}>
+    <NavbarRight style={{ paddingRight: isWindows ? 150 : isLinux ? 120 : 12 }}>
       <HStack alignItems="center" gap={5}>
         <Button
           size="small"
