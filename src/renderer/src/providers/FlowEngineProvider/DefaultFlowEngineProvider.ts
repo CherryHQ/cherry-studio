@@ -3,7 +3,7 @@ import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
 
 export default class DefaultFlowEngineProvider extends BaseFlowEngineProvider {
-  runWorkflow(): Promise<void> {
+  workflowCompletion(): Promise<void> {
     throw new Error('Method not implemented.')
   }
   getAppParameters(): Promise<IUserInputForm[]> {
@@ -12,7 +12,7 @@ export default class DefaultFlowEngineProvider extends BaseFlowEngineProvider {
   uploadFile(): Promise<IUploadFileResponse> {
     throw new Error('Method not implemented.')
   }
-  completion(): Promise<void> {
+  chatflowCompletion(): Promise<void> {
     throw new Error('Method not implemented.')
   }
   check(): Promise<{ valid: boolean; error: Error | null }> {

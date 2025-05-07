@@ -1,6 +1,7 @@
 import { IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { Chatflow, Flow, FlowEngine } from '@renderer/types'
 import { Chunk } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
 
 export default abstract class BaseFlowEngineProvider {
   protected provider: FlowEngine
@@ -9,7 +10,7 @@ export default abstract class BaseFlowEngineProvider {
     this.provider = provider
   }
 
-  abstract completion(flow: Flow): Promise<void>
+  abstract chatflowCompletion(flow: Flow, message: Message, onChunk: (chunk: Chunk) => void): Promise<void>
 
   abstract check(flow: Flow): Promise<{ valid: boolean; error: Error | null }>
 
@@ -17,7 +18,11 @@ export default abstract class BaseFlowEngineProvider {
 
   abstract uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse>
 
-  abstract runWorkflow(flow: Flow, inputs: Record<string, string>, onChunk: (chunk: Chunk) => void): Promise<void>
+  abstract workflowCompletion(
+    flow: Flow,
+    inputs: Record<string, string>,
+    onChunk: (chunk: Chunk) => void
+  ): Promise<void>
 
   public isChatflow(workflow: Flow): workflow is Chatflow {
     return workflow.type === 'chatflow'

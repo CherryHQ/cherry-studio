@@ -1,6 +1,9 @@
-import { createDifyApiInstance, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
+import { createDifyApiInstance, IFile, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
+import { getFileTypeByName } from '@renderer/components/Dify/FileUpload'
 import { EventEnum, Flow, FlowEngine } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { FileMessageBlock, ImageMessageBlock, Message } from '@renderer/types/newMessage'
+import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import XStream from '@renderer/utils/stream'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -11,8 +14,69 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     super(provider)
   }
 
-  public async completion(flow: Flow): Promise<void> {
-    return
+  private async getFiles(flow: Flow, message: Message): Promise<IFile[]> {
+    const fileBlocks = findFileBlocks(message)
+    const imageBlocks = findImageBlocks(message)
+
+    const files: IFile[] = []
+    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
+      return []
+    }
+    const processBlock = async (block: ImageMessageBlock | FileMessageBlock) => {
+      if (!block.file) return
+      const fileData = await window.api.file.readAsFile(block.file.path, block.file.origin_name)
+      const file = new File([fileData.buffer], fileData.name, { type: fileData.type })
+      // const response = await this.uploadFile(flow, file)
+      const response = {
+        id: '3f8c7d51-7866-4e7b-a283-f3b4e841db6c',
+        name: 'image-1746779433348-0.png',
+        size: 72459,
+        extension: 'png',
+        mime_type: 'image/png',
+        created_by: '3d574994-6349-4df0-aab8-1fdf17eba25c',
+        created_at: 1746779492,
+        preview_url: null
+      }
+
+      files.push({
+        type: getFileTypeByName(response.name),
+        transfer_method: 'local_file',
+        upload_file_id: response.id
+      })
+    }
+
+    for (const fileBlock of fileBlocks) {
+      await processBlock(fileBlock)
+    }
+
+    for (const imageBlock of imageBlocks) {
+      await processBlock(imageBlock)
+    }
+    return files
+  }
+
+  public async chatflowCompletion(flow: Flow, message: Message, onChunk: (chunk: Chunk) => void): Promise<void> {
+    const query = getMainTextContent(message)
+    const files = await this.getFiles(flow, message)
+
+    try {
+      const difyApi = createDifyApiInstance({
+        user: uuidv4(),
+        apiKey: flow.apiKey,
+        apiBase: flow.apiHost
+      })
+
+      const response = await difyApi.sendMessage({
+        inputs: {},
+        files: files,
+        user: uuidv4(),
+        response_mode: 'streaming',
+        query: query
+      })
+      await this.processStream(response, onChunk)
+    } catch (error) {
+      console.error('DifyFlowEngineProvider completion error', error)
+    }
   }
 
   public async check(flow: Flow): Promise<{ valid: boolean; error: Error | null }> {
@@ -66,7 +130,11 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     }
   }
 
-  public async runWorkflow(flow: Flow, inputs: Record<string, string>, onChunk: (chunk: Chunk) => void): Promise<void> {
+  public async workflowCompletion(
+    flow: Flow,
+    inputs: Record<string, string>,
+    onChunk: (chunk: Chunk) => void
+  ): Promise<void> {
     try {
       const difyApi = createDifyApiInstance({
         user: uuidv4(),
@@ -88,39 +156,6 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         }
       })
 
-      // const processStream = async (stream: any, idx: number) => {
-      //   const decoder = new TextDecoder()
-      //   let fullText = ''
-
-      //   for await (const chunk of stream) {
-      //     // 将 Uint8Array 转换为文本
-      //     const text = decoder.decode(chunk, { stream: true })
-
-      //     // 尝试解析为 JSON
-      //     try {
-      //       // 一个 chunk 可能包含多个 JSON 对象，按行分割
-      //       const lines = text.split('\n').filter((line) => line.trim())
-
-      //       for (const line of lines) {
-      //         // 有些流式响应使用 data: 前缀
-      //         const jsonStr = line.startsWith('data: ') ? line.slice(5) : line
-
-      //         if (jsonStr && jsonStr !== '[DONE]') {
-      //           console.log('原始文本:', jsonStr)
-      //           const jsonData = JSON.parse(jsonStr)
-      //           if (jsonData && jsonData.event === 'text_chunk') {
-      //             const textChunk = jsonData.data.text
-      //             fullText += textChunk
-      //           }
-      //         }
-      //       }
-      //     } catch (e) {
-      //       console.error('解析 JSON 失败:', e, 'Raw text:', text)
-      //     }
-      //     console.log('完整文本:', fullText)
-      //   }
-      // }
-
       await this.processStream(response, onChunk)
 
       return
@@ -129,6 +164,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       throw new Error('运行工作流失败')
     }
   }
+
   private async processStream(response: Response, onChunk: (chunk: Chunk) => void): Promise<void> {
     const readableStream = XStream({
       readableStream: response.body as NonNullable<ReadableStream>
@@ -171,6 +207,12 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
               onChunk({ type: ChunkType.TEXT_DELTA, text: textChunk })
               break
             }
+            case EventEnum.MESSAGE: {
+              const textChunk = parsedData.answer
+              text += textChunk
+              onChunk({ type: ChunkType.TEXT_DELTA, text: textChunk })
+              break
+            }
             case EventEnum.WORKFLOW_NODE_FINISHED:
               onChunk({
                 type: ChunkType.WORKFLOW_NODE_FINISHED,
@@ -194,7 +236,6 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         continue
       }
     }
-    console.log('完整文本:', text)
     onChunk({ type: ChunkType.TEXT_COMPLETE, text: text })
   }
 }

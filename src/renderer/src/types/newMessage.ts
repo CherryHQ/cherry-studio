@@ -189,6 +189,7 @@ export type Message = {
   askId?: string // 关联的问题消息ID
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
+  flow?: Flow
 
   usage?: Usage
   metrics?: Metrics

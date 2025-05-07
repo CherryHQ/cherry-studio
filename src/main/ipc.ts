@@ -190,6 +190,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile)
   ipcMain.handle(IpcChannel.File_Clear, fileManager.clear)
   ipcMain.handle(IpcChannel.File_Read, fileManager.readFile)
+  ipcMain.handle(IpcChannel.File_Read_As_File, fileManager.readFileAsFile)
   ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile)
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile)
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)

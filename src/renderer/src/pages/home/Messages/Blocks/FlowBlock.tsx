@@ -22,6 +22,7 @@ const getTypeIcon = (type?: string) => {
       return <Bot size={16} />
     // 添加更多类型及其对应的图标
     case 'end':
+    case 'answer':
       return <LandPlot size={16} />
     default:
       return null

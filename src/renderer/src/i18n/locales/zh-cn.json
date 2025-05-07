@@ -1573,7 +1573,8 @@
         "workflow":"工作流",
         "chatflow":"对话流",
         "checkSuccess":"工作流检查成功",
-        "checkError":"工作流检查失败"
+        "checkError":"工作流检查失败",
+        "trigger":"触发词"
       }
     },
     "translate": {

@@ -52,6 +52,8 @@ const api = {
     upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
+    readAsFile: (filePath: string, fileName: string) =>
+      ipcRenderer.invoke(IpcChannel.File_Read_As_File, filePath, fileName),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     create: (fileName: string) => ipcRenderer.invoke(IpcChannel.File_Create, fileName),

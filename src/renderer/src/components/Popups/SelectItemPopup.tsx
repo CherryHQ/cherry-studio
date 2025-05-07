@@ -6,7 +6,7 @@ import db from '@renderer/databases'
 import { useFlowEngineProviders } from '@renderer/hooks/useFlowEngineProvider'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { isModel, Model, ModelOrFlowItem } from '@renderer/types'
+import { isModel, Model, ModelOrChatflowItem } from '@renderer/types'
 import { Avatar, Divider, Empty, Input, InputRef, Menu, MenuProps, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -20,11 +20,11 @@ import Scrollbar from '../Scrollbar'
 type MenuItem = Required<MenuProps>['items'][number]
 
 interface Props {
-  item?: ModelOrFlowItem
+  item?: ModelOrChatflowItem
 }
 
 interface PopupContainerProps extends Props {
-  resolve: (value: ModelOrFlowItem | undefined) => void
+  resolve: (value: ModelOrChatflowItem | undefined) => void
 }
 
 const PopupContainer: React.FC<PopupContainerProps> = ({ item, resolve }) => {
@@ -272,34 +272,35 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ item, resolve }) => {
   const flowMenuItems: MenuItem[] = flowEngineProviders
     .filter((f) => f.flows && f.flows.length > 0)
     .map((f) => {
-      const filteredFlows = getFilteredFlows(f).map((f) => ({
-        key: f.id,
-        label: (
-          <Item>
-            <NameRow>
-              <span>{f?.name}</span>
-            </NameRow>
-            <PinIcon
-              onClick={(e) => {
-                e.stopPropagation()
-                togglePinFlow(f.id)
-              }}
-              // change to pinned items
-              isPinned={pinnedFlows.includes(f.id)}>
-              <PushpinOutlined />
-            </PinIcon>
-          </Item>
-        ),
-        icon: (
-          <Avatar src={getFlowEngineProviderLogo(f.providerId)} size={24}>
-            {first(f?.name)}
-          </Avatar>
-        ),
-        onClick: () => {
-          resolve(f)
-          setOpen(false)
-        }
-      }))
+      const filteredFlows = getFilteredFlows(f)
+        .filter((f) => f.type === 'chatflow') // Only keep chatflow items
+        .map((f) => ({
+          key: f.id,
+          label: (
+            <Item>
+              <NameRow>
+                <span>{f?.name}</span>
+              </NameRow>
+              <PinIcon
+                onClick={(e) => {
+                  e.stopPropagation()
+                  togglePinFlow(f.id)
+                }}
+                isPinned={pinnedFlows.includes(f.id)}>
+                <PushpinOutlined />
+              </PinIcon>
+            </Item>
+          ),
+          icon: (
+            <Avatar src={getFlowEngineProviderLogo(f.providerId)} size={24}>
+              {first(f?.name)}
+            </Avatar>
+          ),
+          onClick: () => {
+            resolve(f)
+            setOpen(false)
+          }
+        }))
       return filteredFlows.length > 0
         ? {
             key: f.id,
@@ -687,7 +688,7 @@ export default class SelectItemPopup {
     TopView.hide('SelectItemPopup')
   }
   static show(params: Props) {
-    return new Promise<ModelOrFlowItem | undefined>((resolve) => {
+    return new Promise<ModelOrChatflowItem | undefined>((resolve) => {
       TopView.show(<PopupContainer {...params} resolve={resolve} />, 'SelectItemPopup')
     })
   }

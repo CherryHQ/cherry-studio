@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
-import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { Assistant, AssistantSettings, Chatflow, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
 
 export interface AssistantsState {
@@ -129,6 +129,16 @@ const assistantsSlice = createSlice({
             }
           : assistant
       )
+    },
+    setChatflow: (state, action: PayloadAction<{ assistantId: string; chatflow: Chatflow }>) => {
+      state.assistants = state.assistants.map((assistant) =>
+        assistant.id === action.payload.assistantId
+          ? {
+              ...assistant,
+              chatflow: action.payload.chatflow
+            }
+          : assistant
+      )
     }
   }
 })
@@ -145,6 +155,7 @@ export const {
   updateTopics,
   removeAllTopics,
   setModel,
+  setChatflow,
   updateAssistantSettings
 } = assistantsSlice.actions
 

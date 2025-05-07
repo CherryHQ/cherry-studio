@@ -32,6 +32,7 @@ const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEnginePro
       id: nanoid(),
       type: 'workflow',
       providerId: flowEngineProvider.id,
+      trigger: '',
       name: t('settings.workflow.newWorkflow'),
       description: '',
       apiKey: '',

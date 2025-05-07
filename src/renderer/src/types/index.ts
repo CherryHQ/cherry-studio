@@ -3,7 +3,7 @@ import type OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
 
-import { Flow } from './flow'
+import { Chatflow, Workflow } from './flow'
 export * from './flow'
 import type { Message } from './newMessage'
 
@@ -25,7 +25,8 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
-  workflow?: Flow
+  workflow?: Workflow
+  chatflow?: Chatflow
   knowledgeRecognition?: 'off' | 'on'
 }
 
@@ -617,13 +618,13 @@ export interface QuickPhrase {
   order?: number
 }
 
-export type ModelOrFlowItem = Model | Flow
+export type ModelOrChatflowItem = Model | Chatflow
 
-export function isFlow(item: ModelOrFlowItem): item is Flow {
-  return 'type' in item && (item.type === 'chatflow' || item.type === 'workflow')
+export function isFlow(item: ModelOrChatflowItem): item is Chatflow {
+  return 'type' in item && item.type === 'chatflow'
 }
 
-export function isModel(item: ModelOrFlowItem): item is Model {
+export function isModel(item: ModelOrChatflowItem): item is Model {
   return !isFlow(item)
 }
 export interface Citation {

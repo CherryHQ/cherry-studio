@@ -2,8 +2,9 @@ import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@dify-chat/
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import i18n from '@renderer/i18n'
-import { runWorkflow, uploadFile } from '@renderer/services/FlowEngineService'
+import { uploadFile } from '@renderer/services/FlowEngineService'
 import { useAppDispatch } from '@renderer/store'
+import { fetchAndProcessWorkflowResponseImpl } from '@renderer/store/thunk/messageThunk'
 import { Workflow } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { Button, Card, Form, Input, InputNumber, Select } from 'antd'
@@ -82,8 +83,8 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
 
   const handleFinish = async (values: any) => {
     console.log('Form values:', values)
-    // await runWorkflow(flowEngineProvider, workflow, values)
-    await dispatch(runWorkflow(message.topicId, flowEngineProvider, workflow, values, assistant))
+    // await dispatch(workflowCompletion(message.topicId, flowEngineProvider, workflow, values, assistant))
+    await dispatch(fetchAndProcessWorkflowResponseImpl(message.topicId, assistant, workflow, values))
   }
 
   // 处理可能是数组或Record的情况

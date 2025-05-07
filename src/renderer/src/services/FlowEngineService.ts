@@ -12,11 +12,54 @@ import {
   throttledBlockUpdate
 } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Flow, FlowEngine } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
-import { FlowMessageBlock, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
+import {
+  FlowMessageBlock,
+  Message,
+  MessageBlock,
+  MessageBlockStatus,
+  MessageBlockType
+} from '@renderer/types/newMessage'
 import { createAssistantMessage, createFlowBlock, createMainTextBlock } from '@renderer/utils/messageUtils/create'
 
+import { getAssistantFlowProvider } from './AssistantService'
 import { createStreamProcessor, StreamProcessorCallbacks } from './StreamProcessingService'
+
+export async function fetchChatflowCompletion({
+  assistant,
+  message,
+  onChunkReceived
+}: {
+  assistant: Assistant
+  message: Message
+  onChunkReceived: (chunk: Chunk) => void
+}) {
+  if (!assistant.chatflow) {
+    return
+  }
+  const provider = getAssistantFlowProvider(assistant.chatflow)
+  const flowEngineProvider = new FlowEngineProvider(provider)
+
+  await flowEngineProvider.chatflowCompletion(assistant.chatflow, message, onChunkReceived)
+}
+
+export async function fetchWorkflowCompletion({
+  assistant,
+  inputs,
+  onChunkReceived
+}: {
+  assistant: Assistant
+  inputs: Record<string, string>
+  onChunkReceived: (chunk: Chunk) => void
+}) {
+  if (!assistant.workflow) {
+    return
+  }
+  const provider = getAssistantFlowProvider(assistant.workflow)
+  const flowEngineProvider = new FlowEngineProvider(provider)
+
+  await flowEngineProvider.workflowCompletion(assistant.workflow, inputs, onChunkReceived)
+}
 
 export async function check(provider: FlowEngine, workflow: Flow) {
   const flowEngineProvider = new FlowEngineProvider(provider)
@@ -33,7 +76,7 @@ export async function uploadFile(provider: FlowEngine, workflow: Flow, file: Fil
   return await flowEngineProvider.uploadFile(workflow, file)
 }
 
-export const runWorkflow =
+export const workflowCompletion =
   (topicId: string, provider: FlowEngine, workflow: Flow, inputs: Record<string, string>, assistant: Assistant) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     let accumulatedContent = ''
@@ -155,7 +198,7 @@ export const runWorkflow =
     try {
       const streamProcessorCallbacks = createStreamProcessor(callbacks)
       const flowEngineProvider = new FlowEngineProvider(provider)
-      return await flowEngineProvider.runWorkflow(workflow, inputs, streamProcessorCallbacks)
+      return await flowEngineProvider.workflowCompletion(workflow, inputs, streamProcessorCallbacks)
     } catch (error) {
       console.error(`[runWorkflowThunk] Error running workflow:`, error)
       throw error

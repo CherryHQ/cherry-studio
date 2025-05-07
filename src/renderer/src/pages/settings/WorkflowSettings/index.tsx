@@ -53,7 +53,7 @@ const WorkflowProviderList: FC = () => {
     }
   }
 
-  const getDropdownMenus = (provider: FlowEngine): MenuProps['items'] => {
+  const getDropdownMenus = (): MenuProps['items'] => {
     // console.log('getDropdownMenus', provider)
     const menus = []
 
@@ -118,7 +118,7 @@ const WorkflowProviderList: FC = () => {
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
                             style={{ ...provided.draggableProps.style, marginBottom: 5 }}>
-                            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
+                            <Dropdown menu={{ items: getDropdownMenus() }} trigger={['contextMenu']}>
                               <ProviderListItem
                                 key={JSON.stringify(provider)}
                                 className={provider.id === selectedProvider?.id ? 'active' : ''}
