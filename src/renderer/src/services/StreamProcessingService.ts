@@ -40,7 +40,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   // The returned function processes a single chunk or a final signal
   return (chunk: Chunk) => {
     try {
-      console.log(`[${new Date().toLocaleString()}] createStreamProcessor ${chunk.type}`, chunk)
+      // console.log(`[${new Date().toLocaleString()}] createStreamProcessor ${chunk.type}`, chunk)
       // 1. Handle the manual final signal first
       if (chunk?.type === ChunkType.BLOCK_COMPLETE) {
         callbacks.onComplete?.(AssistantMessageStatus.SUCCESS, chunk?.response)

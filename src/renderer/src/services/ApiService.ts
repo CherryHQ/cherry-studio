@@ -120,11 +120,9 @@ async function fetchExternalTool(
     // Pass the guaranteed model to the check function
     const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
     if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model)) {
-      console.log('Using built-in OpenAI web search, skipping external search.')
       return
     }
 
-    console.log('Performing external web search...')
     try {
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
@@ -151,7 +149,6 @@ async function fetchExternalTool(
 
     if (!shouldSearch) return
 
-    console.log('Performing knowledge base search...')
     try {
       // Attempt to get knowledgeBaseIds from the main text block
       // NOTE: This assumes knowledgeBaseIds are ONLY on the main text block
@@ -170,7 +167,6 @@ async function fetchExternalTool(
 
   // --- Execute Extraction and Searches ---
   const extractResults = await extract()
-  // console.log('extractResults', extractResults)
   // Run searches potentially in parallel
 
   let webSearchResponseFromSearch: WebSearchResponse | undefined
@@ -242,9 +238,7 @@ export async function fetchChatCompletion({
   // TODO
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
-  console.log('[DEBUG] fetchChatCompletion started')
   const provider = getAssistantProvider(assistant)
-  console.log('[DEBUG] Got assistant provider:', provider.id)
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
@@ -264,7 +258,6 @@ export async function fetchChatCompletion({
   const filteredMessages = filterUsefulMessages(messages)
 
   // --- Call AI Completions ---
-  console.log('[DEBUG] Calling AI.completions')
   await AI.completions({
     messages: filteredMessages,
     assistant,
@@ -272,7 +265,6 @@ export async function fetchChatCompletion({
     onChunk: onChunkReceived,
     mcpTools: mcpTools
   })
-  console.log('[DEBUG] AI.completions call finished')
 }
 
 interface FetchTranslateProps {
