@@ -454,8 +454,12 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
 // 加载自定义小应用并合并到默认应用中
 let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
+function updateDefaultMinApps(param) {
+  DEFAULT_MIN_APPS = param
+}
+
 if (process.env.NODE_ENV === 'development') {
   console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
 }
 
-export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS }
+export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps }

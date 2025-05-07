@@ -1,5 +1,6 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
+import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
@@ -57,10 +58,8 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       form.resetFields()
       setFileList([])
       // 重新加载应用列表
-      const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
-        module.DEFAULT_MIN_APPS = [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
-        return module.DEFAULT_MIN_APPS
-      })
+      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      updateDefaultMinApps(reloadedApps)
       updateMinapps(reloadedApps)
     } catch (error) {
       message.error(t('settings.miniapps.custom.save_error'))

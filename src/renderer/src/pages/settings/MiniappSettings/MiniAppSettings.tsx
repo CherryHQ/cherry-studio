@@ -1,5 +1,10 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import {
+  DEFAULT_MIN_APPS,
+  loadCustomMiniApp,
+  ORIGIN_DEFAULT_MIN_APPS,
+  updateDefaultMinApps
+} from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -68,10 +73,8 @@ const MiniAppSettings: FC = () => {
       messageApi.success(t('settings.miniapps.custom.save_success'))
       // 重新加载应用列表
       console.log('Reloading mini app list...')
-      const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
-        module.DEFAULT_MIN_APPS = [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
-        return module.DEFAULT_MIN_APPS
-      })
+      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      updateDefaultMinApps(reloadedApps)
       console.log('Reloaded mini app list:', reloadedApps)
       updateMinapps(reloadedApps)
       // window.location.reload()
