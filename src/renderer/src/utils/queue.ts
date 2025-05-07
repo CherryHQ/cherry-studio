@@ -9,15 +9,7 @@ const requestQueues: { [topicId: string]: PQueue } = {}
  * @returns A PQueue instance for the topic
  */
 export const getTopicQueue = (topicId: string, options = {}): PQueue => {
-  console.log(`[DEBUG] getTopicQueue called for topic ${topicId}`)
-  if (!requestQueues[topicId]) {
-    console.log(`[DEBUG] Creating new queue for topic ${topicId}`)
-    requestQueues[topicId] = new PQueue(options)
-  } else {
-    console.log(
-      `[DEBUG] Using existing queue for topic ${topicId}, size: ${requestQueues[topicId].size}, pending: ${requestQueues[topicId].pending}`
-    )
-  }
+  if (!requestQueues[topicId]) requestQueues[topicId] = new PQueue(options)
   return requestQueues[topicId]
 }
 
@@ -68,7 +60,6 @@ export const getTopicPendingRequestCount = (topicId: string): number => {
  * @param topicId The ID of the topic
  */
 export const waitForTopicQueue = async (topicId: string): Promise<void> => {
-  console.log('waitForTopicQueue', requestQueues[topicId])
   if (requestQueues[topicId]) {
     await requestQueues[topicId].onIdle()
   }
