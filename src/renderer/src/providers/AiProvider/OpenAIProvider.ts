@@ -36,7 +36,6 @@ import { convertLinks } from '@renderer/utils/linkConverter'
 import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { asyncGeneratorToReadableStream, readableStreamAsyncIterable } from '@renderer/utils/stream'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
@@ -45,11 +44,6 @@ import { FileLike, toFile } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
-
-// 1. 定义联合类型
-export type OpenAIStreamChunk =
-  | { type: 'reasoning' | 'text-delta'; textDelta: string }
-  | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
 
 export default class OpenAIProvider extends BaseProvider {
   protected sdk: OpenAI
