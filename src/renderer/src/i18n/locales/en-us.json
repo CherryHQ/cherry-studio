@@ -1552,7 +1552,8 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
-      }
+      },
+      "defaultAgent": "Built-in"
     },
     "translate": {
       "any.language": "Any language",

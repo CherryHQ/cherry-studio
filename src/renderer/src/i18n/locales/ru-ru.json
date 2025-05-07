@@ -9,6 +9,7 @@
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
       "add.title": "Создать агента",
+      "import.title": "Импорт из внешнего источника",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
       "edit.message.assistant.placeholder": "Введите сообщение ассистента",
@@ -1543,6 +1544,7 @@
         "title": "Настройки конфиденциальности",
         "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
+      "defaultAgent": "Встроенный",
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {
