@@ -187,14 +187,29 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
   // 3. Handle Knowledge Base References
   if (block.knowledge && block.knowledge.length > 0) {
     formattedCitations.push(
-      ...block.knowledge.map((result, index) => ({
-        number: index + 1,
-        url: result.sourceUrl,
-        title: result.sourceUrl,
-        content: result.content,
-        showFavicon: true,
-        type: 'knowledge'
-      }))
+      ...block.knowledge.map((result, index) => {
+        const filePattern = /\[(.*?)]\(http:\/\/file\/(.*?)\)/
+        const fileMatch = result.sourceUrl.match(filePattern)
+
+        let url = result.sourceUrl
+        let title = result.sourceUrl
+        let showFavicon = true
+
+        // 如果匹配文件链接格式 [filename](http://file/xxx)
+        if (fileMatch) {
+          title = fileMatch[1]
+          url = `http://file/${fileMatch[2]}`
+        }
+
+        return {
+          number: index + 1,
+          url: url,
+          title: title,
+          content: result.content,
+          showFavicon: showFavicon,
+          type: 'knowledge'
+        }
+      })
     )
   }
   // 4. Deduplicate by URL and Renumber Sequentially

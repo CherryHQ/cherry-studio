@@ -9,6 +9,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Transaction } from 'dexie'
+import { isEmpty } from 'lodash'
 
 import {
   createCitationBlock,
@@ -258,12 +259,14 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 
       // 10. Error Block (Status is ERROR)
       if (oldMessage.error && typeof oldMessage.error === 'object' && Object.keys(oldMessage.error).length > 0) {
-        const block = createErrorBlock(oldMessage.id, oldMessage.error, {
-          createdAt: oldMessage.createdAt,
-          status: MessageBlockStatus.ERROR // Error block status is ERROR
-        })
-        blocksToCreate.push(block)
-        messageBlockIds.push(block.id)
+        if (isEmpty(oldMessage.content)) {
+          const block = createErrorBlock(oldMessage.id, oldMessage.error, {
+            createdAt: oldMessage.createdAt,
+            status: MessageBlockStatus.ERROR // Error block status is ERROR
+          })
+          blocksToCreate.push(block)
+          messageBlockIds.push(block.id)
+        }
       }
 
       // 11. Create the New Message reference object (Add usage/metrics assignment)
