@@ -43,6 +43,13 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     try {
       const content = await window.api.file.read('customMiniAPP')
       const customApps = JSON.parse(content)
+
+      // Check for duplicate ID
+      if (customApps.some((app: MinAppType) => app.id === values.id)) {
+        message.error(t('settings.miniapps.custom.duplicate_id_error'))
+        return
+      }
+
       const newApp = {
         id: values.id,
         name: values.name,
