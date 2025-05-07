@@ -146,12 +146,15 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 }
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
-  <>
-    {citation.showFavicon && <FileSearch width={16} />}
-    <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-      {citation.title}
-    </CitationLink>
-  </>
+  <WebSearchCard>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      {citation.showFavicon && <FileSearch width={16} />}
+      <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+        {citation.title}
+      </CitationLink>
+    </div>
+    {citation.content && truncateText(citation.content, 100)}
+  </WebSearchCard>
 )
 
 const OpenButton = styled(Button)`
@@ -177,9 +180,10 @@ const PreviewIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  border: 1px solid #fff;
+  background: #f0f2f5;
+  border: 1px solid #e1e4e8;
   margin-left: -8px;
+  color: var(--color-text-2);
 
   &:first-child {
     margin-left: 0;
