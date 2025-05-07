@@ -3,14 +3,14 @@
  * 规则如下：
  * 1. 第一类分隔规则：以第一个出现的分隔符分割，取第 0 个部分作为组名。
  * 2. 第二类分隔规则：取前两个部分拼接（如 'a-b-c' 得到 'a-b'）。
- * 3. 其他情况返回 'UNGROUPED'。
+ * 3. 其他情况返回 id。
  *
  * 例如：
  * - 'gpt-3.5-turbo-16k-0613' => 'gpt-3.5'
  * - 'qwen3:32b' => 'qwen3'
  * - 'Qwen/Qwen3-32b' => 'qwen'
  * - 'deepseek-r1' => 'deepseek-r1'
- * - 'foobar' => 'UNGROUPED'
+ * - 'o3' => 'o3'
  *
  * @param id 模型 ID 字符串
  * @param provider 提供商 ID 字符串
@@ -43,7 +43,7 @@ export const getDefaultGroupName = (id: string, provider?: string) => {
     }
   }
 
-  return 'UNGROUPED'
+  return str
 }
 
 /**

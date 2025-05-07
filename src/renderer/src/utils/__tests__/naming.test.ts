@@ -125,11 +125,6 @@ describe('naming', () => {
       expect(getDefaultGroupName('group-subgroup-model')).toBe('group-subgroup')
     })
 
-    it('should return ungrouped if no separators', () => {
-      // 验证没有分隔符时返回 UNGROUPED
-      expect(getDefaultGroupName('foobar')).toBe('UNGROUPED')
-    })
-
     it('should use first delimiters for special providers', () => {
       // 这些 provider 下，'/', ' ', '-', '_', ':' 都属于第一类分隔符，分割后取第0部分
       const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
@@ -152,13 +147,13 @@ describe('naming', () => {
       expect(getDefaultGroupName('foo:bar', 'foobar')).toBe('foo')
     })
 
-    it('should fallback to UNGROUPED if no delimiters', () => {
-      // 没有分隔符时返回 UNGROUPED
+    it('should fallback to id if no delimiters', () => {
+      // 没有分隔符时返回 id
       const specialProviders = ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi']
       specialProviders.forEach((provider) => {
-        expect(getDefaultGroupName('foobar', provider)).toBe('UNGROUPED')
+        expect(getDefaultGroupName('o3', provider)).toBe('o3')
       })
-      expect(getDefaultGroupName('foobar', 'openai')).toBe('UNGROUPED')
+      expect(getDefaultGroupName('o3', 'openai')).toBe('o3')
     })
   })
 
