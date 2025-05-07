@@ -41,7 +41,7 @@ asarUnpack:
   - '**/*.{metal,exp,lib}'
 win:
   signtoolOptions:
-    - publisherName: 'cherry-ai'
+    publisherName: 'cherry-ai'
   verifyUpdateCodeSignature: true
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
