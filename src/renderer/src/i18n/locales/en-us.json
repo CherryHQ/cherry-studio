@@ -1111,6 +1111,15 @@
       "display.topic.title": "Topic Settings",
       "miniapps": {
         "title": "Mini Apps Settings",
+        "custom": {
+          "title": "Custom Mini Apps",
+          "edit_title": "Edit Custom Mini Apps",
+          "edit_description": "You can add custom mini app configurations here. Each mini app should include id, name, url, and optional logo fields.",
+          "placeholder": "Please enter mini app configuration in JSON format",
+          "save": "Save",
+          "save_success": "Saved successfully",
+          "save_error": "Save failed, please check JSON format"
+        },
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
         "visible": "Visible Mini Apps",

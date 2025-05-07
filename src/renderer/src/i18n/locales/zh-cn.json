@@ -1117,6 +1117,15 @@
         "open_link_external": {
           "title": "在浏览器中打开新窗口链接"
         },
+        "custom": {
+          "title": "自定义小程序",
+          "edit_title": "编辑自定义小程序",
+          "edit_description": "您可以在这里添加自定义的小程序配置。每个小程序需要包含 id、name、url 和可选的 logo 字段。",
+          "placeholder": "请输入 JSON 格式的小程序配置",
+          "save": "保存",
+          "save_success": "保存成功",
+          "save_error": "保存失败，请检查 JSON 格式"
+        },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",
         "cache_description": "设置同时保持活跃状态的小程序最大数量",
