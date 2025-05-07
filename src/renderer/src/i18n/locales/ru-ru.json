@@ -630,11 +630,26 @@
         "open_link_external_on": "Текущий: Открыть ссылки в браузере",
         "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию"
       },
-      "sidebar.add.title": "Добавить в боковую панель",
-      "sidebar.remove.title": "Удалить из боковой панели",
-      "sidebar.close.title": "Закрыть",
-      "sidebar.closeall.title": "Закрыть все",
-      "sidebar.hide.title": "Скрыть приложение",
+      "sidebar": {
+        "add": {
+          "title": "Добавить в боковую панель"
+        },
+        "remove": {
+          "title": "Удалить из боковой панели"
+        },
+        "remove_custom": {
+          "title": "Удалить пользовательское приложение"
+        },
+        "hide": {
+          "title": "Скрыть"
+        },
+        "close": {
+          "title": "Закрыть"
+        },
+        "closeall": {
+          "title": "Закрыть все"
+        }
+      },
       "title": "Встроенные приложения"
     },
     "miniwindow": {

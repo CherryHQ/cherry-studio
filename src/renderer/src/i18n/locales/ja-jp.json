@@ -629,11 +629,26 @@
         "open_link_external_on": "現在：ブラウザで開く",
         "open_link_external_off": "現在：デフォルトのウィンドウで開く"
       },
-      "sidebar.add.title": "サイドバーに追加",
-      "sidebar.remove.title": "サイドバーから削除",
-      "sidebar.close.title": "閉じる",
-      "sidebar.closeall.title": "すべて閉じる",
-      "sidebar.hide.title": "ミニアプリを隠す",
+      "sidebar": {
+        "add": {
+          "title": "サイドバーに追加"
+        },
+        "remove": {
+          "title": "サイドバーから削除"
+        },
+        "remove_custom": {
+          "title": "カスタムアプリを削除"
+        },
+        "hide": {
+          "title": "非表示"
+        },
+        "close": {
+          "title": "閉じる"
+        },
+        "closeall": {
+          "title": "すべて閉じる"
+        }
+      },
       "title": "ミニアプリ"
     },
     "miniwindow": {

@@ -629,11 +629,26 @@
         "open_link_external_on": "Current: Open links in browser",
         "open_link_external_off": "Current: Open links in default window"
       },
-      "sidebar.add.title": "Add to sidebar",
-      "sidebar.remove.title": "Remove from sidebar",
-      "sidebar.close.title": "Close",
-      "sidebar.closeall.title": "Close All",
-      "sidebar.hide.title": "Hide MinApp",
+      "sidebar": {
+        "add": {
+          "title": "Add to Sidebar"
+        },
+        "remove": {
+          "title": "Remove from Sidebar"
+        },
+        "remove_custom": {
+          "title": "Delete Custom App"
+        },
+        "hide": {
+          "title": "Hide"
+        },
+        "close": {
+          "title": "Close"
+        },
+        "closeall": {
+          "title": "Close All"
+        }
+      },
       "title": "MinApp"
     },
     "miniwindow": {

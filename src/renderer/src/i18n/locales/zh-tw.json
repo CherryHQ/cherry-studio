@@ -629,11 +629,26 @@
         "open_link_external_on": "当前：在瀏覽器中開啟連結",
         "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
-      "sidebar.add.title": "新增到側邊欄",
-      "sidebar.remove.title": "從側邊欄移除",
-      "sidebar.close.title": "關閉",
-      "sidebar.closeall.title": "全部關閉",
-      "sidebar.hide.title": "隱藏小工具",
+      "sidebar": {
+        "add": {
+          "title": "添加到側邊欄"
+        },
+        "remove": {
+          "title": "從側邊欄移除"
+        },
+        "remove_custom": {
+          "title": "刪除自定義應用"
+        },
+        "hide": {
+          "title": "隱藏"
+        },
+        "close": {
+          "title": "關閉"
+        },
+        "closeall": {
+          "title": "關閉所有"
+        }
+      },
       "title": "小工具"
     },
     "miniwindow": {
