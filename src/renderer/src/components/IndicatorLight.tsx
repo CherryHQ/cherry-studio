@@ -4,15 +4,25 @@ import styled from 'styled-components'
 
 interface IndicatorLightProps {
   color: string
+  size?: number
+  shadow?: boolean
+  style?: React.CSSProperties
+  animation?: boolean
 }
 
-const Light = styled.div<{ color: string }>`
-  width: 8px;
-  height: 8px;
+const Light = styled.div<{
+  color: string
+  size: number
+  shadow?: boolean
+  style?: React.CSSProperties
+  animation?: boolean
+}>`
+  width: ${({ size }) => size}px;
+  height: ${({ size }) => size}px;
   border-radius: 50%;
   background-color: ${({ color }) => color};
-  box-shadow: 0 0 6px ${({ color }) => color};
-  animation: pulse 2s infinite;
+  box-shadow: ${({ shadow, color }) => (shadow ? `0 0 6px ${color}` : 'none')};
+  animation: ${({ animation }) => (animation ? 'pulse 2s infinite' : 'none')};
 
   @keyframes pulse {
     0% {
@@ -27,9 +37,9 @@ const Light = styled.div<{ color: string }>`
   }
 `
 
-const IndicatorLight: React.FC<IndicatorLightProps> = ({ color }) => {
+const IndicatorLight: React.FC<IndicatorLightProps> = ({ color, size = 8, shadow = true, style, animation = true }) => {
   const actualColor = color === 'green' ? '#22c55e' : color
-  return <Light color={actualColor} />
+  return <Light color={actualColor} size={size} shadow={shadow} style={style} animation={animation} />
 }
 
 export default IndicatorLight

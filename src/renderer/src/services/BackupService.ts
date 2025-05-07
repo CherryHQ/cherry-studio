@@ -1,8 +1,10 @@
 import db from '@renderer/databases'
+import { upgradeToV7 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { setWebDAVSyncState } from '@renderer/store/runtime'
+import { setWebDAVSyncState } from '@renderer/store/backup'
 import dayjs from 'dayjs'
+import Logger from 'electron-log'
 
 export async function backup() {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
@@ -59,16 +61,40 @@ export async function reset() {
 }
 
 // 备份到 webdav
-export async function backupToWebdav({ showMessage = false }: { showMessage?: boolean } = {}) {
+/**
+ * @param autoBackupProcess
+ * if call in auto backup process, not show any message, any error will be thrown
+ */
+export async function backupToWebdav({
+  showMessage = false,
+  customFileName = '',
+  autoBackupProcess = false
+}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
   if (isManualBackupRunning) {
-    console.log('[Backup] Manual backup already in progress')
+    Logger.log('[Backup] Manual backup already in progress')
     return
   }
+  // force set showMessage to false when auto backup process
+  if (autoBackupProcess) {
+    showMessage = false
+  }
+
+  isManualBackupRunning = true
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
-
+  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups } = store.getState().settings
+  let deviceType = 'unknown'
+  let hostname = 'unknown'
+  try {
+    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    hostname = (await window.api.system.getHostname()) || 'unknown'
+  } catch (error) {
+    Logger.error('[Backup] Failed to get device type or hostname:', error)
+  }
+  const timestamp = dayjs().format('YYYYMMDDHHmmss')
+  const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
+  const finalFileName = backupFileName.endsWith('.zip') ? backupFileName : `${backupFileName}.zip`
   const backupData = await getBackupData()
 
   // 上传文件
@@ -77,43 +103,104 @@ export async function backupToWebdav({ showMessage = false }: { showMessage?: bo
       webdavHost,
       webdavUser,
       webdavPass,
-      webdavPath
+      webdavPath,
+      fileName: finalFileName
     })
     if (success) {
       store.dispatch(
         setWebDAVSyncState({
-          lastSyncTime: Date.now(),
           lastSyncError: null
         })
       )
-      showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      if (showMessage && !autoBackupProcess) {
+        window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
+      }
+
+      // 清理旧备份文件
+      if (webdavMaxBackups > 0) {
+        try {
+          // 获取所有备份文件
+          const files = await window.api.backup.listWebdavFiles({
+            webdavHost,
+            webdavUser,
+            webdavPass,
+            webdavPath
+          })
+
+          // 筛选当前设备的备份文件
+          const currentDeviceFiles = files.filter((file) => {
+            // 检查文件名是否包含当前设备的标识信息
+            return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
+          })
+
+          // 如果当前设备的备份文件数量超过最大保留数量，删除最旧的文件
+          if (currentDeviceFiles.length > webdavMaxBackups) {
+            // 文件已按修改时间降序排序，所以最旧的文件在末尾
+            const filesToDelete = currentDeviceFiles.slice(webdavMaxBackups)
+
+            for (const file of filesToDelete) {
+              try {
+                await window.api.backup.deleteWebdavFile(file.fileName, {
+                  webdavHost,
+                  webdavUser,
+                  webdavPass,
+                  webdavPath
+                })
+                Logger.log(`[Backup] Deleted old backup file: ${file.fileName}`)
+              } catch (error) {
+                Logger.error(`[Backup] Failed to delete old backup file: ${file.fileName}`, error)
+              }
+            }
+          }
+        } catch (error) {
+          Logger.error('[Backup] Failed to clean up old backup files:', error)
+        }
+      }
     } else {
+      // if auto backup process, throw error
+      if (autoBackupProcess) {
+        throw new Error(i18n.t('message.backup.failed'))
+      }
+
       store.dispatch(setWebDAVSyncState({ lastSyncError: 'Backup failed' }))
       showMessage && window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
     }
   } catch (error: any) {
+    // if auto backup process, throw error
+    if (autoBackupProcess) {
+      throw error
+    }
+
     store.dispatch(setWebDAVSyncState({ lastSyncError: error.message }))
-    console.error('[backup] backupToWebdav: Error uploading file to WebDAV:', error)
+    console.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
     showMessage &&
       window.modal.error({
         title: i18n.t('message.backup.failed'),
         content: error.message
       })
+    throw error
   } finally {
-    store.dispatch(setWebDAVSyncState({ syncing: false }))
+    if (!autoBackupProcess) {
+      store.dispatch(
+        setWebDAVSyncState({
+          lastSyncTime: Date.now(),
+          syncing: false
+        })
+      )
+    }
     isManualBackupRunning = false
   }
 }
 
 // 从 webdav 恢复
-export async function restoreFromWebdav() {
+export async function restoreFromWebdav(fileName?: string) {
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
   let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath })
+    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
   } catch (error: any) {
-    console.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
+    console.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
     window.modal.error({
       title: i18n.t('message.restore.failed'),
       content: error.message
@@ -123,7 +210,7 @@ export async function restoreFromWebdav() {
   try {
     await handleData(JSON.parse(data))
   } catch (error) {
-    console.error('[backup] Error downloading file from WebDAV:', error)
+    console.error('[Backup] Error downloading file from WebDAV:', error)
     window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
   }
 }
@@ -133,7 +220,7 @@ let syncTimeout: NodeJS.Timeout | null = null
 let isAutoBackupRunning = false
 let isManualBackupRunning = false
 
-export function startAutoSync() {
+export function startAutoSync(immediate = false) {
   if (autoSyncStarted) {
     return
   }
@@ -149,15 +236,22 @@ export function startAutoSync() {
 
   stopAutoSync()
 
-  scheduleNextBackup()
+  scheduleNextBackup(immediate ? 'immediate' : 'fromLastSyncTime')
 
-  function scheduleNextBackup() {
+  /**
+   * @param type 'immediate' | 'fromLastSyncTime' | 'fromNow'
+   *  'immediate', first backup right now
+   *  'fromLastSyncTime', schedule next backup from last sync time
+   *  'fromNow', schedule next backup from now
+   */
+  function scheduleNextBackup(type: 'immediate' | 'fromLastSyncTime' | 'fromNow' = 'fromLastSyncTime') {
     if (syncTimeout) {
       clearTimeout(syncTimeout)
       syncTimeout = null
     }
 
     const { webdavSyncInterval } = store.getState().settings
+    const { webdavSync } = store.getState().backup
 
     if (webdavSyncInterval <= 0) {
       console.log('[AutoSync] Invalid sync interval, auto sync disabled')
@@ -165,9 +259,26 @@ export function startAutoSync() {
       return
     }
 
-    syncTimeout = setTimeout(performAutoBackup, webdavSyncInterval * 60 * 1000)
+    // 用户指定的自动备份时间间隔（毫秒）
+    const requiredInterval = webdavSyncInterval * 60 * 1000
 
-    console.log(`[AutoSync] Next sync scheduled in ${webdavSyncInterval} minutes`)
+    let timeUntilNextSync = 1000 //also immediate
+    switch (type) {
+      case 'fromLastSyncTime': // 如果存在最后一次同步WebDAV的时间，以它为参考计算下一次同步的时间
+        timeUntilNextSync = Math.max(1000, (webdavSync?.lastSyncTime || 0) + requiredInterval - Date.now())
+        break
+      case 'fromNow':
+        timeUntilNextSync = requiredInterval
+        break
+    }
+
+    syncTimeout = setTimeout(performAutoBackup, timeUntilNextSync)
+
+    console.log(
+      `[AutoSync] Next sync scheduled in ${Math.floor(timeUntilNextSync / 1000 / 60)} minutes ${Math.floor(
+        (timeUntilNextSync / 1000) % 60
+      )} seconds`
+    )
   }
 
   async function performAutoBackup() {
@@ -178,14 +289,62 @@ export function startAutoSync() {
     }
 
     isAutoBackupRunning = true
-    try {
-      console.log('[AutoSync] Performing auto backup...')
-      await backupToWebdav({ showMessage: false })
-    } catch (error) {
-      console.error('[AutoSync] Auto backup failed:', error)
-    } finally {
-      isAutoBackupRunning = false
-      scheduleNextBackup()
+    const maxRetries = 4
+    let retryCount = 0
+
+    while (retryCount < maxRetries) {
+      try {
+        console.log(`[AutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
+
+        await backupToWebdav({ autoBackupProcess: true })
+
+        store.dispatch(
+          setWebDAVSyncState({
+            lastSyncError: null,
+            lastSyncTime: Date.now(),
+            syncing: false
+          })
+        )
+
+        isAutoBackupRunning = false
+        scheduleNextBackup()
+
+        break
+      } catch (error: any) {
+        retryCount++
+        if (retryCount === maxRetries) {
+          console.error('[AutoSync] Auto backup failed after all retries:', error)
+
+          store.dispatch(
+            setWebDAVSyncState({
+              lastSyncError: 'Auto backup failed',
+              lastSyncTime: Date.now(),
+              syncing: false
+            })
+          )
+
+          //only show 1 time error modal, and autoback stopped until user click ok
+          await window.modal.error({
+            title: i18n.t('message.backup.failed'),
+            content: `[WebDAV Auto Backup] ${new Date().toLocaleString()} ` + error.message
+          })
+
+          scheduleNextBackup('fromNow')
+          isAutoBackupRunning = false
+        } else {
+          //Exponential Backoff with Base 2： 7s、17s、37s
+          const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
+          console.log(`[AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
+
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay))
+
+          //in case auto backup is stopped by user
+          if (!isAutoBackupRunning) {
+            console.log('[AutoSync] retry cancelled by user, exit')
+            break
+          }
+        }
+      }
     }
   }
 }
@@ -200,17 +359,17 @@ export function stopAutoSync() {
   autoSyncStarted = false
 }
 
-async function getBackupData() {
+export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
-    version: 3,
+    version: 4,
     localStorage,
     indexedDB: await backupDatabase()
   })
 }
 
 /************************************* Backup Utils ************************************** */
-async function handleData(data: Record<string, any>) {
+export async function handleData(data: Record<string, any>) {
   if (data.version === 1) {
     await clearDatabase()
 
@@ -232,6 +391,14 @@ async function handleData(data: Record<string, any>) {
   if (data.version >= 2) {
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     await restoreDatabase(data.indexedDB)
+
+    if (data.version === 3) {
+      await db.transaction('rw', db.tables, async (tx) => {
+        await db.table('message_blocks').clear()
+        await upgradeToV7(tx)
+      })
+    }
+
     window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
     setTimeout(() => window.api.reload(), 1000)
     return

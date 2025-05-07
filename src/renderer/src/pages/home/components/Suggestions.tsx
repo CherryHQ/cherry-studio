@@ -1,11 +1,12 @@
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { fetchSuggestions } from '@renderer/services/ApiService'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Message, Suggestion } from '@renderer/types'
-import { uuid } from '@renderer/utils'
-import dayjs from 'dayjs'
+import { getUserMessage } from '@renderer/services/MessagesService'
+import { useAppDispatch } from '@renderer/store'
+import { sendMessage } from '@renderer/store/thunk/messageThunk'
+import { Assistant, Suggestion } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { last } from 'lodash'
-import { FC, useEffect, useState } from 'react'
-import BeatLoader from 'react-spinners/BeatLoader'
+import { FC, memo, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -16,40 +17,44 @@ interface Props {
 const suggestionsMap = new Map<string, Suggestion[]>()
 
 const Suggestions: FC<Props> = ({ assistant, messages }) => {
+  const dispatch = useAppDispatch()
+
   const [suggestions, setSuggestions] = useState<Suggestion[]>(
     suggestionsMap.get(messages[messages.length - 1]?.id) || []
   )
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
-  const onClick = (s: Suggestion) => {
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: s.content,
-      assistantId: assistant.id,
-      topicId: assistant.topics[0].id || uuid(),
-      createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-      type: 'text',
-      status: 'success'
-    }
+  const handleSuggestionClick = async (content: string) => {
+    const { message: userMessage, blocks } = getUserMessage({
+      assistant,
+      topic: assistant.topics[0],
+      content
+    })
 
-    EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
+    await dispatch(sendMessage(userMessage, blocks, assistant, assistant.topics[0].id))
+  }
+
+  const suggestionsHandle = async () => {
+    if (loadingSuggestions) return
+    try {
+      setLoadingSuggestions(true)
+      const _suggestions = await fetchSuggestions({
+        assistant,
+        messages
+      })
+      if (_suggestions.length) {
+        setSuggestions(_suggestions)
+        suggestionsMap.set(messages[messages.length - 1].id, _suggestions)
+      }
+    } finally {
+      setLoadingSuggestions(false)
+    }
   }
 
   useEffect(() => {
-    const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.RECEIVE_MESSAGE, async (msg: Message) => {
-        setLoadingSuggestions(true)
-        const _suggestions = await fetchSuggestions({ assistant, messages: [...messages, msg] })
-        if (_suggestions.length) {
-          setSuggestions(_suggestions)
-          suggestionsMap.set(msg.id, _suggestions)
-        }
-        setLoadingSuggestions(false)
-      })
-    ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [assistant, messages])
+    suggestionsHandle()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     setSuggestions(suggestionsMap.get(messages[messages.length - 1]?.id) || [])
@@ -58,11 +63,10 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   if (last(messages)?.status !== 'success') {
     return null
   }
-
   if (loadingSuggestions) {
     return (
       <Container>
-        <BeatLoader color="var(--color-text-2)" size="10" />
+        <SvgSpinners180Ring color="var(--color-text-2)" />
       </Container>
     )
   }
@@ -75,7 +79,7 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
     <Container>
       <SuggestionsContainer>
         {suggestions.map((s, i) => (
-          <SuggestionItem key={i} onClick={() => onClick(s)}>
+          <SuggestionItem key={i} onClick={() => handleSuggestionClick(s.content)}>
             {s.content} →
           </SuggestionItem>
         ))}
@@ -117,4 +121,4 @@ const SuggestionItem = styled.div`
   }
 `
 
-export default Suggestions
+export default memo(Suggestions)

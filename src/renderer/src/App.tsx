@@ -17,11 +17,11 @@ import AppsPage from './pages/apps/AppsPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
-import PaintingsPage from './pages/paintings/PaintingsPage'
+import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
-function App(): JSX.Element {
+function App(): React.ReactElement {
   return (
     <Provider store={store}>
       <StyleSheetManager>
@@ -36,7 +36,7 @@ function App(): JSX.Element {
                     <Routes>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/agents" element={<AgentsPage />} />
-                      <Route path="/paintings" element={<PaintingsPage />} />
+                      <Route path="/paintings/*" element={<PaintingsRoutePage />} />
                       <Route path="/translate" element={<TranslatePage />} />
                       <Route path="/files" element={<FilesPage />} />
                       <Route path="/knowledge" element={<KnowledgePage />} />

@@ -1,12 +1,12 @@
 import { SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import {
+  AssistantIconType,
   DEFAULT_SIDEBAR_ICONS,
+  setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
   setShowTopicTime,
@@ -19,7 +19,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-import MiniAppIconsManager from './MiniAppIconsManager'
 import SidebarIconsManager from './SidebarIconsManager'
 
 const DisplaySettings: FC = () => {
@@ -34,20 +33,15 @@ const DisplaySettings: FC = () => {
     showTopicTime,
     customCss,
     sidebarIcons,
-    showAssistantIcon,
-    setShowAssistantIcon
+    assistantIconType
   } = useSettings()
-  const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
-  const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
-  const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
 
-  // 使用useCallback优化回调函数
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
       setWindowStyle(checked ? 'transparent' : 'opaque')
@@ -60,13 +54,6 @@ const DisplaySettings: FC = () => {
     setDisabledIcons([])
     dispatch(setSidebarIcons({ visible: DEFAULT_SIDEBAR_ICONS, disabled: [] }))
   }, [dispatch])
-
-  const handleResetMinApps = useCallback(() => {
-    setVisibleMiniApps(DEFAULT_MIN_APPS)
-    setDisabledMiniApps([])
-    updateMinapps(DEFAULT_MIN_APPS)
-    updateDisabledMinapps([])
-  }, [updateDisabledMinapps, updateMinapps])
 
   const themeOptions = useMemo(
     () => [
@@ -101,6 +88,15 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
+  const assistantIconTypeOptions = useMemo(
+    () => [
+      { value: 'model', label: t('settings.assistant.icon.type.model') },
+      { value: 'emoji', label: t('settings.assistant.icon.type.emoji') },
+      { value: 'none', label: t('settings.assistant.icon.type.none') }
+    ],
+    [t]
+  )
+
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={theme}>
@@ -108,7 +104,7 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Segmented value={theme} onChange={setTheme} options={themeOptions} />
+          <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
         </SettingRow>
         {isMac && (
           <>
@@ -119,14 +115,6 @@ const DisplaySettings: FC = () => {
             </SettingRow>
           </>
         )}
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.show.icon')}</SettingRowTitle>
-          <Switch checked={showAssistantIcon} onChange={(checked) => setShowAssistantIcon(checked)} />
-        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
@@ -162,6 +150,19 @@ const DisplaySettings: FC = () => {
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
+          <Segmented
+            value={assistantIconType}
+            shape="round"
+            onChange={(value) => dispatch(setAssistantIconType(value as AssistantIconType))}
+            options={assistantIconTypeOptions}
+          />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
         <SettingTitle
           style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{t('settings.display.sidebar.title')}</span>
@@ -178,27 +179,18 @@ const DisplaySettings: FC = () => {
         />
       </SettingGroup>
       <SettingGroup theme={theme}>
-        <SettingTitle
-          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t('settings.display.minApp.title')}</span>
-          <ResetButtonWrapper>
-            <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
-          </ResetButtonWrapper>
+        <SettingTitle>
+          {t('settings.display.custom.css')}
+          <TitleExtra onClick={() => window.api.openWebsite('https://cherrycss.com/')}>
+            {t('settings.display.custom.css.cherrycss')}
+          </TitleExtra>
         </SettingTitle>
-        <SettingDivider />
-        <MiniAppIconsManager
-          visibleMiniApps={visibleMiniApps}
-          disabledMiniApps={disabledMiniApps}
-          setVisibleMiniApps={setVisibleMiniApps}
-          setDisabledMiniApps={setDisabledMiniApps}
-        />
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.custom.css')}</SettingTitle>
         <SettingDivider />
         <Input.TextArea
           value={customCss}
-          onChange={(e) => dispatch(setCustomCss(e.target.value))}
+          onChange={(e) => {
+            dispatch(setCustomCss(e.target.value))
+          }}
           placeholder={t('settings.display.custom.css.placeholder')}
           style={{
             minHeight: 200,
@@ -210,6 +202,12 @@ const DisplaySettings: FC = () => {
   )
 }
 
+const TitleExtra = styled.div`
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  opacity: 0.7;
+`
 const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;

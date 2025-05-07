@@ -4,7 +4,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { Assistant } from '@renderer/types'
-import { FC, useCallback, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -27,19 +27,22 @@ const Assistants: FC<AssistantsTabProps> = ({
   const [dragging, setDragging] = useState(false)
   const { addAgent } = useAgents()
   const { t } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
-      const newActive = remaining[remaining.length - 1]
-      newActive ? setActiveAssistant(newActive) : onCreateDefaultAssistant()
+      if (assistant.id === activeAssistant?.id) {
+        const newActive = remaining[remaining.length - 1]
+        newActive ? setActiveAssistant(newActive) : onCreateDefaultAssistant()
+      }
       removeAssistant(assistant.id)
     },
-    [assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
+    [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
   return (
-    <Container className="assistants-tab">
+    <Container className="assistants-tab" ref={containerRef}>
       <DragableList
         list={assistants}
         onUpdate={updateAssistants}
@@ -72,12 +75,11 @@ const Assistants: FC<AssistantsTabProps> = ({
   )
 }
 
-// 样式组件（只定义一次）
+// 样式组件
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding-top: 11px;
-  user-select: none;
+  padding: 10px;
 `
 
 const AssistantAddItem = styled.div`
@@ -86,7 +88,6 @@ const AssistantAddItem = styled.div`
   justify-content: space-between;
   padding: 7px 12px;
   position: relative;
-  margin: 0 10px;
   padding-right: 35px;
   font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);

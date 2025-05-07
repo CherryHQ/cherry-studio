@@ -7,6 +7,7 @@ import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
 import BoltAppLogo from '@renderer/assets/images/apps/bolt.svg?url'
 import CiciAppLogo from '@renderer/assets/images/apps/cici.webp?url'
 import CozeAppLogo from '@renderer/assets/images/apps/coze.webp?url'
+import DangbeiLogo from '@renderer/assets/images/apps/dangbei.jpg?url'
 import DevvAppLogo from '@renderer/assets/images/apps/devv.png?url'
 import DifyAppLogo from '@renderer/assets/images/apps/dify.svg?url'
 import DoubaoAppLogo from '@renderer/assets/images/apps/doubao.png?url'
@@ -17,6 +18,7 @@ import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
+import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
@@ -41,6 +43,7 @@ import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
+import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
@@ -49,9 +52,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
-import MinApp from '@renderer/components/MinApp'
 import { MinAppType } from '@renderer/types'
-
 export const DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
@@ -291,6 +292,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true
   },
   {
+    id: 'grok-x',
+    name: 'Grok / X',
+    logo: GrokXAppLogo,
+    url: 'https://x.com/i/grok',
+    bodered: true
+  },
+  {
     id: 'qwenlm',
     name: 'QwenLM',
     logo: QwenlmAppLogo,
@@ -393,10 +401,22 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
     bodered: true
+  },
+  {
+    id: 'dangbei',
+    name: '当贝AI',
+    logo: DangbeiLogo,
+    url: 'https://ai.dangbei.com/',
+    bodered: true
+  },
+  {
+    id: `zai`,
+    name: `Z.ai`,
+    logo: ZaiAppLogo,
+    url: `https://chat.z.ai/`,
+    bodered: true,
+    style: {
+      padding: 10
+    }
   }
 ]
-
-export function startMinAppById(id: string) {
-  const app = DEFAULT_MIN_APPS.find((app) => app?.id === id)
-  app && MinApp.start(app)
-}

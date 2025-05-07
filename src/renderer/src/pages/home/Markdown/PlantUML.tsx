@@ -86,6 +86,7 @@ type PlantUMLServerImageProps = {
   format: 'png' | 'svg'
   diagram: string
   onClick?: React.MouseEventHandler<HTMLDivElement>
+  className?: string
 }
 
 function getPlantUMLImageUrl(format: 'png' | 'svg', diagram: string, isDark?: boolean) {
@@ -96,13 +97,13 @@ function getPlantUMLImageUrl(format: 'png' | 'svg', diagram: string, isDark?: bo
   return `${PlantUMLServer}/${format}/${encodedDiagram}`
 }
 
-const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagram, onClick }) => {
+const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagram, onClick, className }) => {
   const [loading, setLoading] = useState(true)
   const { theme } = useTheme()
   const isDark = theme === 'dark'
   const url = getPlantUMLImageUrl(format, diagram, isDark)
   return (
-    <StyledPlantUML onClick={onClick}>
+    <StyledPlantUML onClick={onClick} className={className}>
       <Spin
         spinning={loading}
         indicator={
@@ -136,7 +137,7 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
     png: false,
     svg: false
   })
-
+  const [scale, setScale] = useState(1)
   const [activeTab, setActiveTab] = useState('preview')
   const { t } = useTranslation()
 
@@ -151,6 +152,51 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
   const onClose = () => {
     resolve({})
   }
+
+  const handleZoom = (delta: number) => {
+    const newScale = Math.max(0.1, Math.min(3, scale + delta))
+    setScale(newScale)
+
+    const container = document.querySelector('.plantuml-image-container')
+    if (container) {
+      const img = container.querySelector('img')
+      if (img) {
+        img.style.transformOrigin = 'top left'
+        img.style.transform = `scale(${newScale})`
+      }
+    }
+  }
+
+  const handleCopyImage = async () => {
+    try {
+      const imageElement = document.querySelector('.plantuml-image-container img')
+      if (!imageElement) return
+
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = imageElement as HTMLImageElement
+
+      if (!img.complete) {
+        await new Promise((resolve) => {
+          img.onload = resolve
+        })
+      }
+
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+
+      if (ctx) {
+        ctx.drawImage(img, 0, 0)
+        const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'))
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+        window.message.success(t('message.copy.success'))
+      }
+    } catch (error) {
+      console.error('Copy failed:', error)
+      window.message.error(t('message.copy.failed'))
+    }
+  }
+
   const handleDownload = (format: 'svg' | 'png') => {
     const timestamp = Date.now()
     const url = `${PlantUMLServer}/${format}/${encodedDiagram}`
@@ -188,6 +234,9 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
           )}
           {activeTab === 'preview' && (
             <>
+              <Button onClick={() => handleZoom(0.1)}>{t('mermaid.resize.zoom-in')}</Button>
+              <Button onClick={() => handleZoom(-0.1)}>{t('mermaid.resize.zoom-out')}</Button>
+              <Button onClick={handleCopyImage}>{t('common.copy')}</Button>
               <Button onClick={() => handleDownload('svg')} loading={downloading.svg}>
                 {t('plantuml.download.svg')}
               </Button>
@@ -205,7 +254,7 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
           {
             key: 'preview',
             label: t('plantuml.tabs.preview'),
-            children: <PlantUMLServerImage format="svg" diagram={diagram} />
+            children: <PlantUMLServerImage format="svg" diagram={diagram} className="plantuml-image-container" />
           },
           {
             key: 'source',
@@ -268,6 +317,7 @@ const StyledPlantUML = styled.div`
     min-height: 100px;
     background: var(--color-code-background);
     cursor: pointer;
+    transition: transform 0.2s ease;
   }
 `
 async function downloadUrl(url: string, filename: string) {

@@ -2,48 +2,75 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
-import { Assistant, Message, Model, Topic } from '@renderer/types'
-import { getTitleFromString, uuid } from '@renderer/utils'
+import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import type { Assistant, FileType, MCPServer, Model, Topic } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { uuid } from '@renderer/utils'
+import { getTitleFromString } from '@renderer/utils/export'
+import {
+  createAssistantMessage,
+  createFileBlock,
+  createImageBlock,
+  createMainTextBlock,
+  createMessage,
+  resetMessage
+} from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import dayjs from 'dayjs'
-import { isEmpty, remove, takeRight } from 'lodash'
+import { t } from 'i18next'
+import { takeRight } from 'lodash'
 import { NavigateFunction } from 'react-router'
 
-import { getAssistantById, getDefaultModel } from './AssistantService'
+import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
 import FileManager from './FileManager'
 
-export const filterMessages = (messages: Message[]) => {
-  return messages
-    .filter((message) => !['@', 'clear'].includes(message.type!))
-    .filter((message) => !isEmpty(message.content.trim()))
-}
-
-export function filterContextMessages(messages: Message[]): Message[] {
-  const clearIndex = messages.findLastIndex((message) => message.type === 'clear')
-
-  if (clearIndex === -1) {
-    return messages
-  }
-
-  return messages.slice(clearIndex + 1)
-}
+export {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterMessages,
+  filterUsefulMessages,
+  filterUserRoleStartMessages,
+  getGroupedMessages
+} from '@renderer/utils/messageUtils/filters'
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
-  const contextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const _messages = takeRight(messages, contextCount)
-  const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
-  const messagesCount = _messages.length
+  const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
+  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
 
+  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
+
+  const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
+
+  let currentContextCount = 0
   if (clearIndex === -1) {
-    return contextCount
+    currentContextCount = _messages.length
+  } else {
+    currentContextCount = _messages.length - (clearIndex + 1)
   }
 
-  return messagesCount - (clearIndex + 1)
+  return {
+    current: currentContextCount,
+    max: rawContextCount
+  }
 }
 
 export function deleteMessageFiles(message: Message) {
-  message.files && FileManager.deleteFiles(message.files)
+  const state = store.getState()
+  message.blocks?.forEach((blockId) => {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
+      const fileData = (block as any).file as FileType | undefined
+      if (fileData) {
+        FileManager.deleteFiles([fileData])
+      }
+    }
+  })
 }
 
 export function isGenerating() {
@@ -67,88 +94,91 @@ export async function locateToMessage(navigate: NavigateFunction, message: Messa
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
 }
 
+/**
+ * Creates a user message object and associated blocks based on input.
+ * This is a pure function and does not dispatch to the store.
+ *
+ * @param params - The parameters for creating the message.
+ * @returns An object containing the created message and its blocks.
+ */
 export function getUserMessage({
   assistant,
   topic,
   type,
-  content
+  content,
+  files,
+  // Keep other potential params if needed by createMessage
+  knowledgeBaseIds,
+  mentions,
+  enabledMCPs
 }: {
   assistant: Assistant
   topic: Topic
-  type: Message['type']
+  type?: Message['type']
   content?: string
-}): Message {
+  files?: FileType[]
+  knowledgeBaseIds?: string[]
+  mentions?: Model[]
+  enabledMCPs?: MCPServer[]
+}): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
+  const messageId = uuid() // Generate ID here
+  const blocks: MessageBlock[] = []
+  const blockIds: string[] = []
 
-  return {
-    id: uuid(),
-    role: 'user',
-    content: content || '',
-    assistantId: assistant.id,
-    topicId: topic.id,
-    model,
-    createdAt: new Date().toISOString(),
-    type,
-    status: 'success'
+  if (content?.trim()) {
+    // Pass messageId when creating blocks
+    const textBlock = createMainTextBlock(messageId, content, {
+      status: MessageBlockStatus.SUCCESS,
+      knowledgeBaseIds
+    })
+    blocks.push(textBlock)
+    blockIds.push(textBlock.id)
   }
+  if (files?.length) {
+    files.forEach((file) => {
+      if (file.type === FileTypes.IMAGE) {
+        const imgBlock = createImageBlock(messageId, { file, status: MessageBlockStatus.SUCCESS })
+        blocks.push(imgBlock)
+        blockIds.push(imgBlock.id)
+      } else {
+        const fileBlock = createFileBlock(messageId, file, { status: MessageBlockStatus.SUCCESS })
+        blocks.push(fileBlock)
+        blockIds.push(fileBlock.id)
+      }
+    })
+  }
+
+  // 直接在createMessage中传入id
+  const message = createMessage(
+    'user',
+    topic.id, // topic.id已经是string类型
+    assistant.id,
+    {
+      id: messageId, // 直接传入ID，避免冲突
+      modelId: model?.id,
+      model: model,
+      blocks: blockIds,
+      // 移除knowledgeBaseIds
+      mentions,
+      enabledMCPs,
+      type
+    }
+  )
+
+  // 不再需要手动合并ID
+  return { message, blocks }
 }
 
 export function getAssistantMessage({ assistant, topic }: { assistant: Assistant; topic: Topic }): Message {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
 
-  return {
-    id: uuid(),
-    role: 'assistant',
-    content: '',
-    assistantId: assistant.id,
-    topicId: topic.id,
-    model,
-    createdAt: new Date().toISOString(),
-    type: 'text',
-    status: 'sending'
-  }
-}
-
-export function filterUsefulMessages(messages: Message[]): Message[] {
-  const _messages = messages
-  const groupedMessages = getGroupedMessages(messages)
-
-  Object.entries(groupedMessages).forEach(([key, messages]) => {
-    if (key.startsWith('assistant')) {
-      const usefulMessage = messages.find((m) => m.useful === true)
-      if (usefulMessage) {
-        messages.forEach((m) => {
-          if (m.id !== usefulMessage.id) {
-            remove(_messages, (o) => o.id === m.id)
-          }
-        })
-      } else {
-        messages?.slice(0, -1).forEach((m) => {
-          remove(_messages, (o) => o.id === m.id)
-        })
-      }
-    }
+  return createAssistantMessage(assistant.id, topic.id, {
+    modelId: model?.id,
+    model: model
   })
-
-  while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
-    _messages.pop()
-  }
-
-  return _messages
-}
-
-export function getGroupedMessages(messages: Message[]): { [key: string]: (Message & { index: number })[] } {
-  const groups: { [key: string]: (Message & { index: number })[] } = {}
-  messages.forEach((message, index) => {
-    const key = message.askId ? 'assistant' + message.askId : 'user' + message.id
-    if (key && !groups[key]) {
-      groups[key] = []
-    }
-    groups[key].unshift({ ...message, index })
-  })
-  return groups
 }
 
 export function getMessageModelId(message: Message) {
@@ -156,26 +186,93 @@ export function getMessageModelId(message: Message) {
 }
 
 export function resetAssistantMessage(message: Message, model?: Model): Message {
+  const blockIdsToRemove = message.blocks
+  if (blockIdsToRemove.length > 0) {
+    store.dispatch(removeManyBlocks(blockIdsToRemove))
+  }
+
   return {
     ...message,
     model: model || message.model,
-    content: '',
-    status: 'sending',
-    translatedContent: undefined,
-    reasoning_content: undefined,
-    usage: undefined,
-    metrics: undefined,
-    metadata: undefined,
-    useful: undefined
+    modelId: model?.id || message.modelId,
+    status: AssistantMessageStatus.PENDING,
+    useful: undefined,
+    askId: undefined,
+    mentions: undefined,
+    enabledMCPs: undefined,
+    blocks: [],
+    createdAt: new Date().toISOString()
   }
 }
 
-export function getMessageTitle(message: Message, length = 30) {
-  let title = getTitleFromString(message.content, length)
+export async function getMessageTitle(message: Message, length = 30): Promise<string> {
+  const content = getMainTextContent(message)
+
+  if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
+    try {
+      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
+
+      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
+      const tempMessage = resetMessage(message, {
+        status: AssistantMessageStatus.SUCCESS,
+        blocks: [tempTextBlock.id]
+      })
+
+      const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+
+      // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
+
+      // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
+
+      if (title) {
+        window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
+        return title
+      }
+    } catch (e) {
+      window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
+      console.error('Failed to generate title using topic naming, downgraded to default logic', e)
+    }
+  }
+
+  let title = getTitleFromString(content, length)
 
   if (!title) {
     title = dayjs(message.createdAt).format('YYYYMMDDHHmm')
   }
 
   return title
+}
+
+export function checkRateLimit(assistant: Assistant): boolean {
+  const provider = getAssistantProvider(assistant)
+
+  if (!provider.rateLimit) {
+    return false
+  }
+
+  const topicId = assistant.topics[0].id
+  const messages = selectMessagesForTopic(store.getState(), topicId)
+
+  if (!messages || messages.length <= 1) {
+    return false
+  }
+
+  const now = Date.now()
+  const lastMessage = messages[messages.length - 1]
+  const lastMessageTime = new Date(lastMessage.createdAt).getTime()
+  const timeDiff = now - lastMessageTime
+  const rateLimitMs = provider.rateLimit * 1000
+
+  if (timeDiff < rateLimitMs) {
+    const waitTimeSeconds = Math.ceil((rateLimitMs - timeDiff) / 1000)
+
+    window.message.warning({
+      content: t('message.warning.rate.limit', { seconds: waitTimeSeconds }),
+      duration: 5,
+      key: 'rate-limit-message'
+    })
+    return true
+  }
+
+  return false
 }

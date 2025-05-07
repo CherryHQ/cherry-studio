@@ -1,15 +1,18 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
-import React, { createContext, PropsWithChildren, useContext, useEffect, useState } from 'react'
+import { IpcChannel } from '@shared/IpcChannel'
+import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
 interface ThemeContextType {
   theme: ThemeMode
+  settingTheme: ThemeMode
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: ThemeMode.light,
+  theme: ThemeMode.auto,
+  settingTheme: ThemeMode.auto,
   toggleTheme: () => {}
 })
 
@@ -19,35 +22,45 @@ interface ThemeProviderProps extends PropsWithChildren {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme }) => {
   const { theme, setTheme } = useSettings()
-  const [_theme, _setTheme] = useState(theme)
+  const [effectiveTheme, setEffectiveTheme] = useState(theme)
 
   const toggleTheme = () => {
-    setTheme(theme === ThemeMode.dark ? ThemeMode.light : ThemeMode.dark)
+    // 主题顺序是light, dark, auto, 所以需要先判断当前主题，然后取下一个主题
+    switch (theme) {
+      case ThemeMode.light:
+        setTheme(ThemeMode.dark)
+        break
+      case ThemeMode.dark:
+        setTheme(ThemeMode.auto)
+        break
+      case ThemeMode.auto:
+        setTheme(ThemeMode.light)
+        break
+    }
   }
 
-  useEffect((): any => {
-    if (theme === ThemeMode.auto || defaultTheme === ThemeMode.auto) {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      _setTheme(mediaQuery.matches ? ThemeMode.dark : ThemeMode.light)
-      const handleChange = (e: MediaQueryListEvent) => _setTheme(e.matches ? ThemeMode.dark : ThemeMode.light)
-      mediaQuery.addEventListener('change', handleChange)
-      return () => mediaQuery.removeEventListener('change', handleChange)
-    } else {
-      _setTheme(theme)
-    }
+  useEffect(() => {
+    window.api?.setTheme(defaultTheme || theme)
   }, [defaultTheme, theme])
 
   useEffect(() => {
-    document.body.setAttribute('theme-mode', _theme)
-    // 移除迷你窗口的条件判断，让所有窗口都能设置主题
-    window.api?.setTheme(_theme === ThemeMode.dark ? 'dark' : 'light')
-  }, [_theme])
+    document.body.setAttribute('theme-mode', effectiveTheme)
+  }, [effectiveTheme])
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-  }, [])
+    const themeChangeListenerRemover = window.electron.ipcRenderer.on(
+      IpcChannel.ThemeChange,
+      (_, realTheam: ThemeMode) => {
+        setEffectiveTheme(realTheam)
+      }
+    )
+    return () => {
+      themeChangeListenerRemover()
+    }
+  })
 
-  return <ThemeContext.Provider value={{ theme: _theme, toggleTheme }}>{children}</ThemeContext.Provider>
+  return <ThemeContext value={{ theme: effectiveTheme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }
 
-export const useTheme = () => useContext(ThemeContext)
+export const useTheme = () => use(ThemeContext)

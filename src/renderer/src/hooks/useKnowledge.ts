@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { db } from '@renderer/databases/index'
+import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import FileManager from '@renderer/services/FileManager'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
@@ -19,9 +19,9 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { FileType, KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { KnowledgeItem } from '@renderer/types'
+import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { v4 as uuidv4 } from 'uuid'
@@ -208,7 +208,7 @@ export const useKnowledge = (baseId: string) => {
       }
 
       const cleanup = window.electron.ipcRenderer.on(
-        'directory-processing-percent',
+        IpcChannel.DirectoryProcessingPercent,
         (_, { itemId: id, percent }: { itemId: string; percent: number }) => {
           if (itemId === id) {
             setPercent(percent)

@@ -1,5 +1,5 @@
 import { throttle } from 'lodash'
-import { FC, forwardRef, useCallback, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
@@ -7,37 +7,35 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
   ref?: any
 }
 
-const Scrollbar: FC<Props> = forwardRef<HTMLDivElement, Props>((props, ref) => {
+const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleScroll = useCallback(
-    throttle(() => {
-      setIsScrolling(true)
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true)
 
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
+    }
 
-      timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500) // 增加到 2 秒
-    }, 200),
-    []
-  )
+    timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500)
+  }, [])
+
+  const throttledHandleScroll = throttle(handleScroll, 200)
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+      timeoutRef.current && clearTimeout(timeoutRef.current)
+      throttledHandleScroll.cancel()
     }
-  }, [])
+  }, [throttledHandleScroll])
 
   return (
-    <Container {...props} isScrolling={isScrolling} onScroll={handleScroll} ref={ref}>
+    <Container {...props} isScrolling={isScrolling} onScroll={throttledHandleScroll} ref={ref}>
       {props.children}
     </Container>
   )
-})
+}
 
 const Container = styled.div<{ isScrolling: boolean; right?: boolean }>`
   overflow-y: auto;

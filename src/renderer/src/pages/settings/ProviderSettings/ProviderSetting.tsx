@@ -1,33 +1,22 @@
-import {
-  CheckOutlined,
-  EditOutlined,
-  ExportOutlined,
-  LoadingOutlined,
-  MinusCircleOutlined,
-  PlusOutlined,
-  SettingOutlined
-} from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
-import ModelTags from '@renderer/components/ModelTags'
-import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { getModelLogo } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useProvider } from '@renderer/hooks/useProvider'
+import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
-import { isOpenAIProvider } from '@renderer/providers/ProviderFactory'
-import { checkApi } from '@renderer/services/ApiService'
-import { isProviderSupportAuth, isProviderSupportCharge } from '@renderer/services/ProviderService'
-import { useAppDispatch } from '@renderer/store'
-import { setModel } from '@renderer/store/assistants'
-import { Model, Provider } from '@renderer/types'
+import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
+import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
+import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
-import { providerCharge } from '@renderer/utils/oauth'
-import { Avatar, Button, Card, Divider, Flex, Input, Space, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
-import { FC, useEffect, useState } from 'react'
+import { debounce, isEmpty } from 'lodash'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -39,13 +28,15 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import AddModelPopup from './AddModelPopup'
 import ApiCheckPopup from './ApiCheckPopup'
-import EditModelsPopup from './EditModelsPopup'
-import GraphRAGSettings from './GraphRAGSettings'
+import GithubCopilotSettings from './GithubCopilotSettings'
+import GPUStackSettings from './GPUStackSettings'
+import HealthCheckPopup from './HealthCheckPopup'
 import LMStudioSettings from './LMStudioSettings'
-import ModelEditContent from './ModelEditContent'
-import OllamSettings from './OllamaSettings'
+import ModelList, { ModelStatus } from './ModelList'
+import ModelListSearchBar from './ModelListSearchBar'
+import ProviderOAuth from './ProviderOAuth'
+import ProviderSettingsPopup from './ProviderSettingsPopup'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 
 interface Props {
@@ -54,35 +45,52 @@ interface Props {
 
 const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { provider } = useProvider(_provider.id)
+  const allProviders = useAllProviders()
+  const { updateProviders } = useProviders()
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const [apiValid, setApiValid] = useState(false)
   const [apiChecking, setApiChecking] = useState(false)
-  const { updateProvider, models, removeModel } = useProvider(provider.id)
-  const { assistants } = useAssistants()
+  const [modelSearchText, setModelSearchText] = useState('')
+  const deferredModelSearchText = useDeferredValue(modelSearchText)
+  const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-
-  const { defaultModel, setDefaultModel } = useDefaultModel()
-
-  const modelGroups = groupBy(models, 'group')
-  const sortedModelGroups = sortBy(toPairs(modelGroups), [0]).reduce((acc, [key, value]) => {
-    acc[key] = value
-    return acc
-  }, {})
+  const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
-  const docsWebsite = providerConfig?.websites?.docs
-  const modelsWebsite = providerConfig?.websites?.models
   const configedApiHost = providerConfig?.api?.url
 
-  const [editingModel, setEditingModel] = useState<Model | null>(null)
+  const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
+  const [isHealthChecking, setIsHealthChecking] = useState(false)
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const debouncedSetApiKey = useCallback(
+    debounce((value) => {
+      setApiKey(formatApiKeys(value))
+    }, 100),
+    []
+  )
+
+  const moveProviderToTop = useCallback(
+    (providerId: string) => {
+      const reorderedProviders = [...allProviders]
+      const index = reorderedProviders.findIndex((p) => p.id === providerId)
+
+      if (index !== -1) {
+        const updatedProvider = { ...reorderedProviders[index], enabled: true }
+        reorderedProviders.splice(index, 1)
+        reorderedProviders.unshift(updatedProvider)
+        updateProviders(reorderedProviders)
+      }
+    },
+    [allProviders, updateProviders]
+  )
 
   const onUpdateApiKey = () => {
     if (apiKey !== provider.apiKey) {
@@ -99,16 +107,107 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }
 
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
-  const onManageModel = () => EditModelsPopup.show({ provider })
-  const onAddModel = () => AddModelPopup.show({ title: t('settings.models.add.add_model'), provider })
 
-  const onCheckApi = async () => {
-    if (isEmpty(models)) {
+  const onHealthCheck = async () => {
+    const modelsToCheck = models.filter((model) => !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
       window.message.error({
         key: 'no-models',
         style: { marginTop: '3vh' },
         duration: 5,
-        content: t('settings.provider.no_models')
+        content: t('settings.provider.no_models_for_check')
+      })
+      return
+    }
+
+    const keys = apiKey
+      .split(',')
+      .map((k) => k.trim())
+      .filter((k) => k)
+
+    // Add an empty key to enable health checks for local models.
+    // Error messages will be shown for each model if a valid key is needed.
+    if (keys.length === 0) {
+      keys.push('')
+    }
+
+    // Show configuration dialog to get health check parameters
+    const result = await HealthCheckPopup.show({
+      title: t('settings.models.check.title'),
+      provider: { ...provider, apiHost },
+      apiKeys: keys
+    })
+
+    if (result.cancelled) {
+      return
+    }
+
+    // Prepare the list of models to be checked
+    const initialStatuses = modelsToCheck.map((model) => ({
+      model,
+      checking: true,
+      status: undefined
+    }))
+    setModelStatuses(initialStatuses)
+    setIsHealthChecking(true)
+
+    const checkResults = await checkModelsHealth(
+      {
+        provider: { ...provider, apiHost },
+        models: modelsToCheck,
+        apiKeys: result.apiKeys,
+        isConcurrent: result.isConcurrent
+      },
+      (checkResult, index) => {
+        setModelStatuses((current) => {
+          const updated = [...current]
+          if (updated[index]) {
+            updated[index] = {
+              ...updated[index],
+              checking: false,
+              status: checkResult.status,
+              error: checkResult.error,
+              keyResults: checkResult.keyResults,
+              latency: checkResult.latency
+            }
+          }
+          return updated
+        })
+      }
+    )
+
+    // Show summary of results after checking
+    const failedModels = checkResults.filter((result) => result.status === ModelCheckStatus.FAILED)
+    const partialModels = checkResults.filter((result) => result.status === ModelCheckStatus.PARTIAL)
+    const successModels = checkResults.filter((result) => result.status === ModelCheckStatus.SUCCESS)
+
+    // Display statistics of all model check results
+    window.message.info({
+      key: 'health-check-summary',
+      style: { marginTop: '3vh' },
+      duration: 10,
+      content: t('settings.models.check.model_status_summary', {
+        provider: provider.name,
+        count_passed: successModels.length + partialModels.length,
+        count_partial: partialModels.length,
+        count_failed: failedModels.length
+      })
+    })
+
+    // Reset health check status
+    setIsHealthChecking(false)
+  }
+
+  const onCheckApi = async () => {
+    const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
+
+    if (isEmpty(modelsToCheck)) {
+      window.message.error({
+        key: 'no-models',
+        style: { marginTop: '3vh' },
+        duration: 5,
+        content: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -122,15 +221,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
     if (apiKey.includes(',')) {
       const keys = apiKey
-        .split(',')
+        .split(/(?<!\\),/)
         .map((k) => k.trim())
+        .map((k) => k.replace(/\\,/g, ','))
         .filter((k) => k)
 
       const result = await ApiCheckPopup.show({
         title: t('settings.provider.check_multiple_keys'),
         provider: { ...provider, apiHost },
         model,
-        apiKeys: keys
+        apiKeys: keys,
+        type: 'provider'
       })
 
       if (result?.validKeys) {
@@ -168,46 +269,19 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
-
-    return formatApiHost(apiHost) + 'chat/completions'
-  }
-
-  const onUpdateModel = (updatedModel: Model) => {
-    const updatedModels = models.map((m) => {
-      if (m.id === updatedModel.id) {
-        return updatedModel
-      }
-      return m
-    })
-
-    updateProvider({ ...provider, models: updatedModels })
-
-    // Update assistants using this model
-    assistants.forEach((assistant) => {
-      if (assistant?.model?.id === updatedModel.id && assistant.model.provider === provider.id) {
-        dispatch(
-          setModel({
-            assistantId: assistant.id,
-            model: updatedModel
-          })
-        )
-      }
-    })
-
-    // Update default model if needed
-    if (defaultModel?.id === updatedModel.id && defaultModel?.provider === provider.id) {
-      setDefaultModel(updatedModel)
+    if (provider.type === 'openai-compatible') {
+      return formatApiHost(apiHost) + 'chat/completions'
     }
-  }
-
-  const formatApiKeys = (value: string) => {
-    return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+    return formatApiHost(apiHost) + 'responses'
   }
 
   useEffect(() => {
+    if (provider.id === 'copilot') {
+      return
+    }
     setApiKey(provider.apiKey)
     setApiHost(provider.apiHost)
-  }, [provider.apiKey, provider.apiHost])
+  }, [provider.apiKey, provider.apiHost, provider.id])
 
   // Save apiKey to provider when unmount
   useEffect(() => {
@@ -219,35 +293,65 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }, [apiKey, provider, updateProvider])
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex align="center" gap={5}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
-          {officialWebsite! && (
-            <Link target="_blank" href={providerConfig.websites.official}>
-              <ExportOutlined style={{ color: 'var(--color-text)', fontSize: '12px' }} />
+          {officialWebsite && (
+            <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
+              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
+          )}
+          {!provider.isSystem && (
+            <Button
+              type="text"
+              size="small"
+              onClick={() => ProviderSettingsPopup.show({ provider })}
+              icon={<Settings2 size={14} />}
+            />
           )}
         </Flex>
         <Switch
           value={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => updateProvider({ ...provider, apiKey, apiHost, enabled })}
+          onChange={(enabled) => {
+            updateProvider({ ...provider, apiKey, apiHost, enabled })
+            if (enabled) {
+              moveProviderToTop(provider.id)
+            }
+          }}
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
+      {isProviderSupportAuth(provider) && (
+        <ProviderOAuth
+          provider={provider}
+          setApiKey={(v) => {
+            setApiKey(v)
+            setInputValue(v)
+            updateProvider({ ...provider, apiKey: v })
+          }}
+        />
+      )}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
-          value={apiKey}
+          value={inputValue}
           placeholder={t('settings.provider.api_key')}
-          onChange={(e) => setApiKey(formatApiKeys(e.target.value))}
-          onBlur={onUpdateApiKey}
+          onChange={(e) => {
+            setInputValue(e.target.value)
+            debouncedSetApiKey(e.target.value)
+          }}
+          onBlur={() => {
+            const formattedValue = formatApiKeys(inputValue)
+            setInputValue(formattedValue)
+            setApiKey(formattedValue)
+            onUpdateApiKey()
+          }}
           spellCheck={false}
-          type="password"
-          autoFocus={provider.enabled && apiKey === ''}
+          autoFocus={provider.enabled && apiKey === '' && !isProviderSupportAuth(provider)}
+          disabled={provider.id === 'copilot'}
         />
-        {isProviderSupportAuth(provider) && <OAuthButton provider={provider} onSuccess={setApiKey} />}
         <Button
           type={apiValid ? 'primary' : 'default'}
           ghost={apiValid}
@@ -258,15 +362,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack gap={5}>
+          <HStack>
             <SettingHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </SettingHelpLink>
-            {isProviderSupportCharge(provider) && (
-              <SettingHelpLink onClick={() => providerCharge(provider.id)}>
-                {t('settings.provider.charge')}
-              </SettingHelpLink>
-            )}
           </HStack>
           <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
         </SettingHelpTextRow>
@@ -287,8 +386,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </Space.Compact>
       {isOpenAIProvider(provider) && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText style={{ marginLeft: 6 }}>{hostPreview()}</SettingHelpText>
-          <SettingHelpText>{t('settings.provider.api.url.tip')}</SettingHelpText>
+          <SettingHelpText
+            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+            {hostPreview()}
+          </SettingHelpText>
+          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
       {isAzureOpenAI && (
@@ -304,113 +406,37 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </Space.Compact>
         </>
       )}
-      {provider.id === 'ollama' && <OllamSettings />}
       {provider.id === 'lmstudio' && <LMStudioSettings />}
-      {provider.id === 'graphrag-kylin-mountain' && provider.models.length > 0 && (
-        <GraphRAGSettings provider={provider} />
-      )}
-      <SettingSubtitle style={{ marginBottom: 5 }}>{t('common.models')}</SettingSubtitle>
-      {Object.keys(sortedModelGroups).map((group) => (
-        <Card
-          key={group}
-          type="inner"
-          title={group}
-          style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}
-          size="small">
-          {sortedModelGroups[group].map((model) => (
-            <ModelListItem key={model.id}>
-              <ModelListHeader>
-                <Avatar src={getModelLogo(model.id)} size={22} style={{ marginRight: '8px' }}>
-                  {model?.name?.[0]?.toUpperCase()}
-                </Avatar>
-                <ModelNameRow>
-                  <span>{model?.name}</span>
-                  <ModelTags model={model} />
-                </ModelNameRow>
-                <SettingIcon onClick={() => setEditingModel(model)} />
-              </ModelListHeader>
-              <RemoveIcon onClick={() => removeModel(model)} />
-            </ModelListItem>
-          ))}
-        </Card>
-      ))}
-      {docsWebsite && (
-        <SettingHelpTextRow>
-          <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-          <SettingHelpLink target="_blank" href={docsWebsite}>
-            {t(`provider.${provider.id}`) + ' '}
-            {t('common.docs')}
-          </SettingHelpLink>
-          <SettingHelpText>{t('common.and')}</SettingHelpText>
-          <SettingHelpLink target="_blank" href={modelsWebsite}>
-            {t('common.models')}
-          </SettingHelpLink>
-          <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
-        </SettingHelpTextRow>
-      )}
-      <Flex gap={10} style={{ marginTop: '10px' }}>
-        <Button type="primary" onClick={onManageModel} icon={<EditOutlined />}>
-          {t('button.manage')}
-        </Button>
-        <Button type="default" onClick={onAddModel} icon={<PlusOutlined />}>
-          {t('button.add')}
-        </Button>
-      </Flex>
-      {models.map((model) => (
-        <ModelEditContent
-          model={model}
-          onUpdateModel={onUpdateModel}
-          open={editingModel?.id === model.id}
-          onClose={() => setEditingModel(null)}
-          key={model.id}
-        />
-      ))}
+      {provider.id === 'gpustack' && <GPUStackSettings />}
+      {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
+      <SettingSubtitle style={{ marginBottom: 5 }}>
+        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+          <HStack alignItems="center" gap={5}>
+            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
+            {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
+          </HStack>
+          {!isEmpty(models) && (
+            <Tooltip title={t('settings.models.check.button_caption')} mouseEnterDelay={0.5}>
+              <Button
+                type="text"
+                size="small"
+                icon={<StreamlineGoodHealthAndWellBeing />}
+                onClick={onHealthCheck}
+                loading={isHealthChecking}
+              />
+            </Tooltip>
+          )}
+        </Space>
+      </SettingSubtitle>
+      <ModelList providerId={provider.id} modelStatuses={modelStatuses} searchText={deferredModelSearchText} />
     </SettingContainer>
   )
 }
 
-const ModelListItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0;
-`
-
-const ModelListHeader = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-`
-
-const ModelNameRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-`
-
-const RemoveIcon = styled(MinusCircleOutlined)`
-  font-size: 18px;
-  margin-left: 10px;
-  color: var(--color-error);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-`
-
-const SettingIcon = styled(SettingOutlined)`
-  margin-left: 2px;
-  color: var(--color-text);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  &:hover {
-    color: var(--color-text-2);
-  }
-`
-
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
+  margin-right: -2px;
 `
 
 export default ProviderSetting

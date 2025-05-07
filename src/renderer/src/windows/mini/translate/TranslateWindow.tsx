@@ -5,8 +5,8 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Message } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
+import { Assistant } from '@renderer/types'
+import { runAsyncFunction } from '@renderer/utils'
 import { Select, Space } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
@@ -39,19 +39,19 @@ const Translate: FC<Props> = ({ text }) => {
 
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       const assistant: Assistant = getDefaultTranslateAssistant(targetLang?.value || targetLanguage, text)
-      const message: Message = {
-        id: uuid(),
-        role: 'user',
-        content: '',
-        assistantId: assistant.id,
-        topicId: uuid(),
-        model: translateModel,
-        createdAt: new Date().toISOString(),
-        type: 'text',
-        status: 'sending'
-      }
+      // const message: Message = {
+      //   id: uuid(),
+      //   role: 'user',
+      //   content: '',
+      //   assistantId: assistant.id,
+      //   topicId: uuid(),
+      //   model: translateModel,
+      //   createdAt: new Date().toISOString(),
+      //   type: 'text',
+      //   status: 'sending'
+      // }
 
-      await fetchTranslate({ message, assistant, onResponse: setResult })
+      await fetchTranslate({ content: text, assistant, onResponse: setResult })
 
       translatingRef.current = false
     } catch (error) {
@@ -74,6 +74,7 @@ const Translate: FC<Props> = ({ text }) => {
 
   useHotkeys('c', () => {
     navigator.clipboard.writeText(result)
+    window.message.success(t('message.copy.success'))
   })
 
   return (
@@ -82,7 +83,7 @@ const Translate: FC<Props> = ({ text }) => {
         <Select
           showSearch
           value="any"
-          style={{ width: 200 }}
+          style={{ maxWidth: 200, minWidth: 100, flex: 1 }}
           optionFilterProp="label"
           disabled
           options={[{ label: t('translate.any.language'), value: 'any' }]}
@@ -91,7 +92,7 @@ const Translate: FC<Props> = ({ text }) => {
         <Select
           showSearch
           value={targetLanguage}
-          style={{ width: 200 }}
+          style={{ maxWidth: 200, minWidth: 130, flex: 1 }}
           optionFilterProp="label"
           options={TranslateLanguageOptions}
           onChange={async (value) => {
@@ -126,7 +127,7 @@ const Container = styled.div`
   flex-direction: column;
   flex: 1;
   padding: 12px;
-  padding-right: 0;
+  /* padding-right: 0; */
   overflow: hidden;
   -webkit-app-region: none;
 `
@@ -151,8 +152,10 @@ const LoadingText = styled.div`
 
 const MenuContainer = styled.div`
   display: flex;
+  width: 100%;
   flex-direction: row;
   align-items: center;
+  justify-content: center;
   margin-bottom: 15px;
   gap: 20px;
 `

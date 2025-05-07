@@ -1,9 +1,10 @@
-import type { ExtractChunkData } from '@llm-tools/embedjs-interfaces'
+import { CopyOutlined } from '@ant-design/icons'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getFileFromUrl, getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { FileType, KnowledgeBase } from '@renderer/types'
-import { Input, List, Modal, Spin, Typography } from 'antd'
+import { Input, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -41,8 +42,16 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
         search: value,
         base: getKnowledgeBaseParams(base)
       })
+      let rerankResult = searchResults
+      if (base.rerankModel) {
+        rerankResult = await window.api.knowledgeBase.rerank({
+          search: value,
+          base: getKnowledgeBaseParams(base),
+          results: searchResults
+        })
+      }
       const results = await Promise.all(
-        searchResults.map(async (item) => {
+        rerankResult.map(async (item) => {
           const file = await getFileFromUrl(item.metadata.source)
           return { ...item, file }
         })
@@ -85,6 +94,16 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     )
   }
 
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      message.success(t('message.copied'))
+    } catch (error) {
+      console.error('Failed to copy text:', error)
+      message.error(t('message.copyError') || 'Failed to copy text')
+    }
+  }
+
   return (
     <Modal
       title={t('knowledge.search')}
@@ -96,7 +115,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       width={800}
       footer={null}
       centered
-      transitionName="ant-move-down">
+      transitionName="animation-move-down">
       <SearchContainer>
         <Search
           placeholder={t('knowledge.search_placeholder')}
@@ -117,8 +136,15 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
               renderItem={(item) => (
                 <List.Item>
                   <ResultItem>
-                    <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>
-                    <Paragraph>{highlightText(item.pageContent)}</Paragraph>
+                    <TagContainer>
+                      <ScoreTag>Score: {(item.score * 100).toFixed(1)}%</ScoreTag>
+                      <Tooltip title={t('common.copy')}>
+                        <CopyButton onClick={() => handleCopy(item.pageContent)}>
+                          <CopyOutlined />
+                        </CopyButton>
+                      </Tooltip>
+                    </TagContainer>
+                    <Paragraph style={{ userSelect: 'text' }}>{highlightText(item.pageContent)}</Paragraph>
                     <MetadataContainer>
                       <Text type="secondary">
                         {t('knowledge.source')}:{' '}
@@ -168,10 +194,16 @@ const ResultItem = styled.div`
   border-radius: 8px;
 `
 
-const ScoreTag = styled.div`
+const TagContainer = styled.div`
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const ScoreTag = styled.div`
   padding: 2px 8px;
   background: var(--color-primary);
   color: white;
@@ -179,10 +211,29 @@ const ScoreTag = styled.div`
   font-size: 12px;
 `
 
+const CopyButton = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--color-background);
+  color: var(--color-text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: var(--color-primary);
+    color: white;
+  }
+`
+
 const MetadataContainer = styled.div`
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--color-border);
+  user-select: text;
 `
 
 const TopViewKey = 'KnowledgeSearchPopup'
