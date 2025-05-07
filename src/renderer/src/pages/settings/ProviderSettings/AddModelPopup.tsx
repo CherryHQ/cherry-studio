@@ -88,20 +88,18 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
 
   useEffect(() => {
     runAsyncFunction(async () => {
-      if (provider.id === 'aihubmix') {
-        try {
-          setLoading(true)
-          const models = await fetchModels(provider)
-          setModelOptions(
-            models.map((model) => ({
-              label: model.id,
-              value: model.id
-            }))
-          )
-          setLoading(false)
-        } catch (error) {
-          setLoading(false)
-        }
+      try {
+        setLoading(true)
+        const models = await fetchModels(provider)
+        setModelOptions(
+          models.map((model) => ({
+            label: model.id,
+            value: model.id
+          }))
+        )
+        setLoading(false)
+      } catch (error) {
+        setLoading(false)
       }
     })
   }, [provider])
