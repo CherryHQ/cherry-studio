@@ -1511,7 +1511,7 @@
         "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷。"
       },
       "general.auto_check_update.title": "自動更新",
-      "general.beta_participation.title": "參與內測",
+      "general.beta_testing.title": "參與內測",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",

@@ -1511,7 +1511,7 @@
         "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
       "general.auto_check_update.title": "Автоматическое обновление",
-      "general.beta_participation.title": "Участие в бета-версии",
+      "general.beta_testing.title": "Участие в бета-версии",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
