@@ -86,14 +86,14 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         reader.onload = (event) => {
           const base64Data = event.target?.result
           if (typeof base64Data === 'string') {
-            message.success('Logo uploaded successfully')
+            message.success(t('settings.miniapps.custom.logo_upload_success'))
             form.setFieldValue('logo', base64Data)
           }
         }
         reader.readAsDataURL(file)
       } catch (error) {
         console.error('Failed to read file:', error)
-        message.error('读取文件失败')
+        message.error(t('settings.miniapps.custom.logo_upload_error'))
       }
     }
   }
@@ -148,34 +148,43 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         }}
         footer={null}>
         <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
-          <Form.Item name="id" label="ID" rules={[{ required: true, message: '请输入小程序ID' }]}>
-            <Input placeholder="请输入小程序ID" />
+          <Form.Item
+            name="id"
+            label={t('settings.miniapps.custom.id')}
+            rules={[{ required: true, message: t('settings.miniapps.custom.id_error') }]}>
+            <Input placeholder={t('settings.miniapps.custom.id_placeholder')} />
           </Form.Item>
-          <Form.Item name="name" label="名称" rules={[{ required: true, message: '请输入小程序名称' }]}>
-            <Input placeholder="请输入小程序名称" />
+          <Form.Item
+            name="name"
+            label={t('settings.miniapps.custom.name')}
+            rules={[{ required: true, message: t('settings.miniapps.custom.name_error') }]}>
+            <Input placeholder={t('settings.miniapps.custom.name_placeholder')} />
           </Form.Item>
-          <Form.Item name="url" label="URL" rules={[{ required: true, message: '请输入小程序URL' }]}>
-            <Input placeholder="请输入小程序URL" />
+          <Form.Item
+            name="url"
+            label={t('settings.miniapps.custom.url')}
+            rules={[{ required: true, message: t('settings.miniapps.custom.url_error') }]}>
+            <Input placeholder={t('settings.miniapps.custom.url_placeholder')} />
           </Form.Item>
-          <Form.Item label="Logo">
+          <Form.Item label={t('settings.miniapps.custom.logo')}>
             <Radio.Group value={logoType} onChange={handleLogoTypeChange}>
-              <Radio value="url">URL</Radio>
-              <Radio value="file">文件</Radio>
+              <Radio value="url">{t('settings.miniapps.custom.logo_url')}</Radio>
+              <Radio value="file">{t('settings.miniapps.custom.logo_file')}</Radio>
             </Radio.Group>
           </Form.Item>
           {logoType === 'url' ? (
-            <Form.Item name="logo" label="Logo URL">
-              <Input placeholder="请输入Logo URL（可选）" />
+            <Form.Item name="logo" label={t('settings.miniapps.custom.logo_url_label')}>
+              <Input placeholder={t('settings.miniapps.custom.logo_url_placeholder')} />
             </Form.Item>
           ) : (
-            <Form.Item label="上传Logo">
+            <Form.Item label={t('settings.miniapps.custom.logo_upload_label')}>
               <Upload
                 accept="image/*"
                 maxCount={1}
                 fileList={fileList}
                 onChange={handleFileChange}
                 beforeUpload={() => false}>
-                <Button icon={<UploadOutlined />}>选择图片</Button>
+                <Button icon={<UploadOutlined />}>{t('settings.miniapps.custom.logo_upload_button')}</Button>
               </Upload>
             </Form.Item>
           )}
