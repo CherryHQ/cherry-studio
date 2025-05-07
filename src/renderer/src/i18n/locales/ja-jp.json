@@ -9,7 +9,6 @@
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
       "add.title": "エージェントを作成",
-      "import.title": "外部からインポート",
       "import": {
         "title": "外部からインポート",
         "type": {
@@ -78,7 +77,11 @@
       "settings.reasoning_effort.low": "少しの思考",
       "settings.reasoning_effort.medium": "普通の思考",
       "settings.reasoning_effort.default": "デフォルト",
-      "settings.more": "アシスタント設定"
+      "settings.more": "アシスタント設定",
+      "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
+      "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
+      "settings.knowledge_base.recognition.off": "強制検索",
+      "settings.knowledge_base.recognition.on": "意図認識"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -313,6 +316,7 @@
       "fullscreen": "全画面モードに入りました。F11キーで終了します",
       "knowledge_base": "ナレッジベース",
       "language": "言語",
+      "loading": "読み込み中...",
       "model": "モデル",
       "models": "モデル",
       "more": "もっと",
@@ -533,7 +537,8 @@
       "backup.start.success": "バックアップを開始しました",
       "backup.success": "バックアップに成功しました",
       "chat.completion.paused": "チャットの完了が一時停止されました",
-      "citations": "参考文献",
+      "citation": "{{count}}個の引用内容",
+      "citations": "引用内容",
       "copied": "コピーしました！",
       "copy.failed": "コピーに失敗しました",
       "copy.success": "コピーしました！",
@@ -1538,7 +1543,6 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
-      "defaultAgent": "内蔵",
       "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {
