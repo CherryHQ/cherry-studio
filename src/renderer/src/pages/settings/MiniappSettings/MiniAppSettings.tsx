@@ -38,7 +38,14 @@ const MiniAppSettings: FC = () => {
     const loadCustomMiniApp = async () => {
       try {
         const content = await window.api.file.read('customMiniAPP')
-        setCustomMiniAppContent(content)
+        let validContent = '[]'
+        try {
+          const parsed = JSON.parse(content)
+          validContent = JSON.stringify(parsed)
+        } catch (e) {
+          console.error('Invalid JSON format in custom mini app config:', e)
+        }
+        setCustomMiniAppContent(validContent)
       } catch (error) {
         console.error('Failed to load custom mini app config:', error)
         setCustomMiniAppContent('[]')
