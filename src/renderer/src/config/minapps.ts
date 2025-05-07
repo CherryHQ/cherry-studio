@@ -453,6 +453,8 @@ let DEFAULT_MIN_APPS: MinAppType[] = [
 // 加载自定义小应用并合并到默认应用中
 DEFAULT_MIN_APPS = [...DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
 
-console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
+if (process.env.NODE_ENV === 'development') {
+  console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
+}
 
 export { DEFAULT_MIN_APPS }
