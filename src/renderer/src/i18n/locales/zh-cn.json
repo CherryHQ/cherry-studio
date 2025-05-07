@@ -9,6 +9,22 @@
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
       "add.title": "创建智能体",
+      "import": {
+        "title": "从外部导入",
+        "type": {
+          "url": "URL",
+          "file": "文件"
+        },
+        "url_placeholder": "输入 JSON URL",
+        "select_file": "选择文件",
+        "button": "导入",
+        "file_filter": "JSON 文件",
+        "error": {
+          "url_required": "请输入 URL",
+          "fetch_failed": "从 URL 获取数据失败",
+          "invalid_format": "无效的代理格式：缺少必填字段"
+        }
+      },
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
       "edit.message.assistant.placeholder": "输入助手消息",
@@ -52,6 +68,10 @@
       "settings.mcp.description": "默认启用的 MCP 服务器",
       "settings.default_model": "默认模型",
       "settings.knowledge_base": "知识库设置",
+      "settings.knowledge_base.recognition.tip": "智能体将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力",
+      "settings.knowledge_base.recognition": "调用知识库",
+      "settings.knowledge_base.recognition.off": "强制检索",
+      "settings.knowledge_base.recognition.on": "意图识别",
       "settings.model": "模型设置",
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
@@ -152,6 +172,8 @@
       "input.web_search.builtin": "模型内置",
       "input.web_search.builtin.enabled_content": "使用模型内置的网络搜索功能",
       "input.web_search.builtin.disabled_content": "当前模型不支持网络搜索功能",
+      "input.web_search.no_web_search": "不使用网络",
+      "input.web_search.no_web_search.description": "不启用网络搜索功能",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -294,6 +316,7 @@
       "fullscreen": "已进入全屏模式，按 F11 退出",
       "knowledge_base": "知识库",
       "language": "语言",
+      "loading": "加载中...",
       "model": "模型",
       "models": "模型",
       "more": "更多",
@@ -498,6 +521,10 @@
       "title": "Mermaid 图表"
     },
     "message": {
+      "agents": {
+        "imported": "导入成功",
+        "import.error": "导入失败"
+      },
       "api.check.model.title": "请选择要检测的模型",
       "api.connection.failed": "连接失败",
       "api.connection.success": "连接成功",
@@ -510,6 +537,7 @@
       "backup.start.success": "开始备份",
       "backup.success": "备份成功",
       "chat.completion.paused": "会话已停止",
+      "citation": "{{count}}个引用内容",
       "citations": "引用内容",
       "copied": "已复制",
       "copy.failed": "复制失败",
@@ -707,7 +735,7 @@
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
       "learn_more": "了解更多",
-      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 “双引号” 包裹",
+      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",

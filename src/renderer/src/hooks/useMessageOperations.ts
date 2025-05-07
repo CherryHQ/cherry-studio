@@ -1,8 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { updateOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import {
   appendAssistantResponseThunk,
@@ -13,9 +12,10 @@ import {
   initiateTranslationThunk,
   regenerateAssistantResponseThunk,
   resendMessageThunk,
-  resendUserMessageWithEditThunk
+  resendUserMessageWithEditThunk,
+  updateMessageAndBlocksThunk,
+  updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import { throttledBlockDbUpdate } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -62,7 +62,7 @@ export function useMessageOperations(topic: Topic) {
     async (id: string) => {
       await dispatch(deleteSingleMessageThunk(topic.id, id))
     },
-    [dispatch, topic.id] // Use topic.id directly
+    [dispatch, topic.id]
   )
 
   /**
@@ -81,18 +81,26 @@ export function useMessageOperations(topic: Topic) {
    * 使用 newMessagesActions.updateMessage.
    */
   const editMessage = useCallback(
-    async (messageId: string, updates: Partial<Message>) => {
-      // Basic update remains the same
-      await dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId, updates }))
-      // TODO: Add token recalculation logic here if necessary
-      // if ('content' in updates or other relevant fields change) {
-      //   const state = store.getState(); // Need store or selector access
-      //   const message = state.messages.messagesByTopic[topic.id]?.find(m => m.id === messageId);
-      //   if (message) {
-      //      const updatedUsage = await estimateTokenUsage(...); // Call estimation service
-      //      await dispatch(newMessagesActions.updateMessage({ topicId: topic.id, messageId, updates: { usage: updatedUsage } }));
-      //   }
-      // }
+    async (messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
+      if (!topic?.id) {
+        console.error('[editMessage] Topic prop is not valid.')
+        return
+      }
+      console.log(`[useMessageOperations] Editing message ${messageId} with updates:`, updates)
+
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
+        ...updates
+      }
+
+      // Call the thunk with topic.id and only message updates
+      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
+
+      if (success) {
+        console.log(`[useMessageOperations] Successfully edited message ${messageId} properties.`)
+      } else {
+        console.error(`[useMessageOperations] Failed to edit message ${messageId} properties.`)
+      }
     },
     [dispatch, topic.id]
   )
@@ -105,7 +113,7 @@ export function useMessageOperations(topic: Topic) {
     async (message: Message, assistant: Assistant) => {
       await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id] // topic object needed by thunk
+    [dispatch, topic.id]
   )
 
   /**
@@ -122,7 +130,7 @@ export function useMessageOperations(topic: Topic) {
 
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, mainTextBlockId, editedContent, assistant))
     },
-    [dispatch, topic.id] // topic object needed by thunk
+    [dispatch, topic.id]
   )
 
   /**
@@ -150,20 +158,16 @@ export function useMessageOperations(topic: Topic) {
    * 暂停当前主题正在进行的消息生成。 / Pauses ongoing message generation for the current topic.
    */
   const pauseMessages = useCallback(async () => {
-    // Use selector if preferred, but direct access is okay in callback
     const state = store.getState()
     const topicMessages = selectMessagesForTopic(state, topic.id)
     if (!topicMessages) return
 
-    // Find messages currently in progress (adjust statuses if needed)
     const streamingMessages = topicMessages.filter((m) => m.status === 'processing' || m.status === 'pending')
-
     const askIds = [...new Set(streamingMessages?.map((m) => m.askId).filter((id) => !!id) as string[])]
 
     for (const askId of askIds) {
       abortCompletion(askId)
     }
-    // Ensure loading state is set to false
     dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 
@@ -172,10 +176,9 @@ export function useMessageOperations(topic: Topic) {
    */
   const resumeMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      // Directly call the resendMessage function from this hook
       return resendMessage(message, assistant)
     },
-    [resendMessage] // Dependency is the resendMessage function itself
+    [resendMessage]
   )
 
   /**
@@ -190,7 +193,7 @@ export function useMessageOperations(topic: Topic) {
       }
       await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id] // topic object needed by thunk
+    [dispatch, topic.id]
   )
 
   /**
@@ -209,7 +212,7 @@ export function useMessageOperations(topic: Topic) {
       }
       await dispatch(appendAssistantResponseThunk(topic.id, existingAssistantMessage.id, newModel, assistant))
     },
-    [dispatch, topic.id] // Dependencies
+    [dispatch, topic.id]
   )
 
   /**
@@ -229,33 +232,53 @@ export function useMessageOperations(topic: Topic) {
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id) return null
 
-      // 1. Initiate the block and get its ID
-      const blockId = await dispatch(
-        initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
-      )
-
-      if (!blockId) {
-        console.error('[getTranslationUpdater] Failed to initiate translation block.')
+      const state = store.getState()
+      const message = state.messages.entities[messageId]
+      if (!message) {
+        console.error('[getTranslationUpdater] cannot find message:', messageId)
         return null
       }
 
-      // 2. Return the updater function
-      // TODO:下面这个逻辑也可以放在thunk中
-      return (accumulatedText: string, isComplete: boolean = false) => {
-        const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
-        const changes: Partial<MessageBlock> = { content: accumulatedText, status: status } // Use Partial<MessageBlock>
+      let existingTranslationBlockId: string | undefined
+      if (message.blocks && message.blocks.length > 0) {
+        for (const blockId of message.blocks) {
+          const block = state.messageBlocks.entities[blockId]
+          if (block && block.type === MessageBlockType.TRANSLATION) {
+            existingTranslationBlockId = blockId
+            break
+          }
+        }
+      }
 
-        // Dispatch update to Redux store
+      let blockId: string | undefined
+      if (existingTranslationBlockId) {
+        blockId = existingTranslationBlockId
+        const changes: Partial<MessageBlock> = {
+          content: '',
+          status: MessageBlockStatus.STREAMING,
+          metadata: {
+            targetLanguage,
+            sourceBlockId,
+            sourceLanguage
+          }
+        }
         dispatch(updateOneBlock({ id: blockId, changes }))
+        await dispatch(updateTranslationBlockThunk(blockId, '', false))
+        console.log('[getTranslationUpdater] update existing translation block:', blockId)
+      } else {
+        blockId = await dispatch(
+          initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
+        )
+        console.log('[getTranslationUpdater] create new translation block:', blockId)
+      }
 
-        // Throttle update to DB
-        throttledBlockDbUpdate(blockId, changes) // Use the throttled function
+      if (!blockId) {
+        console.error('[getTranslationUpdater] Failed to create translation block.')
+        return null
+      }
 
-        // if (isComplete) {
-        //   console.log(`[TranslationUpdater] Final update for block ${blockId}.`)
-        //   // Ensure the throttled function flushes if needed, or call an immediate save
-        //   // For simplicity, we rely on the throttle's trailing call for now.
-        // }
+      return (accumulatedText: string, isComplete: boolean = false) => {
+        dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
       }
     },
     [dispatch, topic.id]
@@ -277,6 +300,38 @@ export function useMessageOperations(topic: Topic) {
     [dispatch]
   )
 
+  /**
+   * Updates properties of specific message blocks (e.g., content).
+   * Uses the generalized thunk for persistence.
+   */
+  const editMessageBlocks = useCallback(
+    // messageId?: string
+    async (blockUpdatesListRaw: Partial<MessageBlock>[]) => {
+      if (!topic?.id) {
+        console.error('[editMessageBlocks] Topic prop is not valid.')
+        return
+      }
+      if (!blockUpdatesListRaw || blockUpdatesListRaw.length === 0) {
+        console.warn('[editMessageBlocks] Received empty block updates list.')
+        return
+      }
+
+      const blockUpdatesListProcessed = blockUpdatesListRaw.map((update) => ({
+        ...update,
+        updatedAt: new Date().toISOString()
+      }))
+
+      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, null, blockUpdatesListProcessed))
+
+      if (success) {
+        // console.log(`[useMessageOperations] Successfully processed block updates for message ${messageId}.`)
+      } else {
+        // console.error(`[useMessageOperations] Failed to process block updates for message ${messageId}.`)
+      }
+    },
+    [dispatch, topic.id]
+  )
+
   return {
     displayCount,
     deleteMessage,
@@ -291,16 +346,15 @@ export function useMessageOperations(topic: Topic) {
     pauseMessages,
     resumeMessage,
     getTranslationUpdater,
-    createTopicBranch
+    createTopicBranch,
+    editMessageBlocks
   }
 }
 
-export const useTopicMessages = (topic: Topic) => {
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, topic.id))
-  return messages
+export const useTopicMessages = (topicId: string) => {
+  return useAppSelector((state) => selectMessagesForTopic(state, topicId))
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectNewTopicLoading(state, topic.id))
-  return loading
+  return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
 }

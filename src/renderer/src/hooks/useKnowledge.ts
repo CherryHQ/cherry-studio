@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/rules-of-hooks */
-import { db } from '@renderer/databases/index'
+import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import FileManager from '@renderer/services/FileManager'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'

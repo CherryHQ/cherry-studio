@@ -99,6 +99,25 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
         break
       case WebSearchSource.OPENAI:
         formattedCitations =
+          (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
+            let hostname: string | undefined
+            try {
+              hostname = result.title ? undefined : new URL(result.url).hostname
+            } catch {
+              hostname = result.url
+            }
+            return {
+              number: index + 1,
+              url: result.url,
+              title: result.title,
+              hostname: hostname,
+              showFavicon: true,
+              type: 'websearch'
+            }
+          }) || []
+        break
+      case WebSearchSource.OPENAI_COMPATIBLE:
+        formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation
             let hostname: string | undefined
@@ -168,14 +187,29 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
   // 3. Handle Knowledge Base References
   if (block.knowledge && block.knowledge.length > 0) {
     formattedCitations.push(
-      ...block.knowledge.map((result, index) => ({
-        number: index + 1,
-        url: result.sourceUrl,
-        title: result.sourceUrl,
-        content: result.content,
-        showFavicon: true,
-        type: 'knowledge'
-      }))
+      ...block.knowledge.map((result, index) => {
+        const filePattern = /\[(.*?)]\(http:\/\/file\/(.*?)\)/
+        const fileMatch = result.sourceUrl.match(filePattern)
+
+        let url = result.sourceUrl
+        let title = result.sourceUrl
+        let showFavicon = true
+
+        // 如果匹配文件链接格式 [filename](http://file/xxx)
+        if (fileMatch) {
+          title = fileMatch[1]
+          url = `http://file/${fileMatch[2]}`
+        }
+
+        return {
+          number: index + 1,
+          url: url,
+          title: title,
+          content: result.content,
+          showFavicon: showFavicon,
+          type: 'knowledge'
+        }
+      })
     )
   }
   // 4. Deduplicate by URL and Renumber Sequentially

@@ -23,6 +23,7 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  knowledgeRecognition?: 'off' | 'on'
 }
 
 export type AssistantMessage = {
@@ -42,7 +43,7 @@ export type EffortRatio = Record<ReasoningEffortOptions, number>
 export const EFFORT_RATIO: EffortRatio = {
   low: 0.2,
   medium: 0.5,
-  high: 1,
+  high: 0.8,
   auto: 2
 }
 
@@ -157,7 +158,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -448,11 +449,13 @@ export type WebSearchResults =
   | WebSearchProviderResponse
   | GroundingMetadata
   | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
+  | OpenAI.Responses.ResponseOutputText.URLCitation[]
   | any[]
 
 export enum WebSearchSource {
   WEBSEARCH = 'websearch',
   OPENAI = 'openai',
+  OPENAI_COMPATIBLE = 'openai-compatible',
   OPENROUTER = 'openrouter',
   GEMINI = 'gemini',
   PERPLEXITY = 'perplexity',

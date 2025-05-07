@@ -18,6 +18,7 @@ import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
+import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
@@ -288,6 +289,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Grok',
     logo: GrokAppLogo,
     url: 'https://grok.com',
+    bodered: true
+  },
+  {
+    id: 'grok-x',
+    name: 'Grok / X',
+    logo: GrokXAppLogo,
+    url: 'https://x.com/i/grok',
     bodered: true
   },
   {

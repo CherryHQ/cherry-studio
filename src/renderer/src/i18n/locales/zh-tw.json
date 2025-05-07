@@ -9,6 +9,22 @@
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
       "add.title": "建立智慧代理人",
+      "import": {
+        "title": "從外部導入",
+        "type": {
+          "url": "URL",
+          "file": "檔案"
+        },
+        "url_placeholder": "輸入 JSON URL",
+        "select_file": "選擇檔案",
+        "button": "導入",
+        "file_filter": "JSON 檔案",
+        "error": {
+          "url_required": "請輸入 URL",
+          "fetch_failed": "從 URL 獲取資料失敗",
+          "invalid_format": "無效的代理人格式：缺少必填欄位"
+        }
+      },
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.message.add.title": "新增",
       "edit.message.assistant.placeholder": "輸入助手訊息",
@@ -61,7 +77,11 @@
       "settings.reasoning_effort.low": "稍微思考",
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
-      "settings.more": "助手設定"
+      "settings.more": "助手設定",
+      "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
+      "settings.knowledge_base.recognition": "調用知識庫",
+      "settings.knowledge_base.recognition.off": "強制檢索",
+      "settings.knowledge_base.recognition.on": "意圖識別"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -251,6 +271,8 @@
       "input.web_search.builtin": "模型內置",
       "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
       "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
+      "input.web_search.no_web_search": "關閉網路搜尋",
+      "input.web_search.no_web_search.description": "關閉網路搜尋",
       "input.thinking": "思考",
       "input.thinking.mode.default": "預設",
       "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",
@@ -294,6 +316,7 @@
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
       "knowledge_base": "知識庫",
       "language": "語言",
+      "loading": "加載中...",
       "model": "模型",
       "models": "模型",
       "more": "更多",
@@ -498,6 +521,10 @@
       "title": "Mermaid 圖表"
     },
     "message": {
+      "agents": {
+        "imported": "匯入成功",
+        "import.error": "匯入失敗"
+      },
       "api.check.model.title": "請選擇要偵測的模型",
       "api.connection.failed": "連接失敗",
       "api.connection.success": "連接成功",
@@ -510,7 +537,8 @@
       "backup.start.success": "開始備份",
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
-      "citations": "參考文獻",
+      "citation": "{{count}} 個引用內容",
+      "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
       "copy.success": "已複製！",
