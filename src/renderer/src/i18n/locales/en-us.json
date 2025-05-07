@@ -268,6 +268,8 @@
       "input.web_search.builtin": "Model Built-in",
       "input.web_search.builtin.enabled_content": "Use the built-in web search function of the model",
       "input.web_search.builtin.disabled_content": "The current model does not support web search",
+      "input.web_search.no_web_search": "Disable Web Search",
+      "input.web_search.no_web_search.description": "Do not enable web search",
       "input.thinking": "Thinking",
       "input.thinking.mode.default": "Default",
       "input.thinking.mode.default.tip": "The model will automatically determine the number of tokens to think",

@@ -268,6 +268,8 @@
       "input.web_search.builtin": "モデル内蔵",
       "input.web_search.builtin.enabled_content": "モデル内蔵のウェブ検索機能を使用",
       "input.web_search.builtin.disabled_content": "現在のモデルはウェブ検索をサポートしていません",
+      "input.web_search.no_web_search": "ウェブ検索を無効にする",
+      "input.web_search.no_web_search.description": "ウェブ検索を無効にする",
       "input.thinking": "思考",
       "input.thinking.mode.default": "デフォルト",
       "input.thinking.mode.custom": "カスタム",
