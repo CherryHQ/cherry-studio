@@ -119,8 +119,28 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
             const newPinned = pinned.filter((item) => item.id !== app.id)
             updatePinnedMinapps(newPinned)
           }
+        },
+        app.type === 'Custom' && {
+          key: 'removeCustom',
+          label: t('minapp.sidebar.remove_custom.title'),
+          danger: true,
+          onClick: async () => {
+            try {
+              const content = await window.api.file.read('customMiniAPP')
+              const customApps = JSON.parse(content)
+              const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
+              await window.api.file.writeWithId('customMiniAPP', JSON.stringify(updatedApps, null, 2))
+              message.success(t('settings.miniapps.custom.remove_success'))
+              const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+              updateDefaultMinApps(reloadedApps)
+              updateMinapps(reloadedApps)
+            } catch (error) {
+              message.error(t('settings.miniapps.custom.remove_error'))
+              console.error('Failed to remove custom mini app:', error)
+            }
+          }
         }
-      ]
+      ].filter(Boolean)
 
   if (!isVisible && !isLast) return null
 

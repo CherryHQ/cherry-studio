@@ -257,6 +257,8 @@ export type MinAppType = {
   bodered?: boolean
   background?: string
   style?: React.CSSProperties
+  addTime?: string
+  type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
 export interface FileType {
