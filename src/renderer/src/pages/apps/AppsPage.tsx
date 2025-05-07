@@ -1,8 +1,7 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
-import { useWorkflows } from '@renderer/hooks/useFlowEngineProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { Divider, Empty, Input } from 'antd'
+import { Empty, Input } from 'antd'
 import { isEmpty } from 'lodash'
 import { Search } from 'lucide-react'
 import React, { FC, useState } from 'react'
@@ -10,27 +9,17 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import App from './App'
-import WorkflowApp from './WorkflowApp'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const { minapps } = useMinapps()
-  const { workflows } = useWorkflows()
 
   const filteredApps = search
     ? minapps.filter(
         (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
       )
     : minapps
-  console.log('filteredApps', filteredApps)
-
-  const filteredWorkflows = search
-    ? workflows.filter(
-        (app) => app.name.toLowerCase().includes(search.toLowerCase()) || app.url.includes(search.toLowerCase())
-      )
-    : workflows
-  console.log('filteredWorkflows', filteredWorkflows)
 
   // Calculate the required number of lines
   const itemsPerRow = Math.floor(930 / 115) // Maximum width divided by the width of each item (including spacing)
@@ -67,21 +56,11 @@ const AppsPage: FC = () => {
             <Empty />
           </Center>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', maxWidth: '930px' }}>
-            <ContainerTitle>{t('minapp.title')}</ContainerTitle>
-            <AppsContainer style={{ height: containerHeight }}>
-              {filteredApps.map((app) => (
-                <App key={app.id} app={app} />
-              ))}
-            </AppsContainer>
-            <AppDivider />
-            <ContainerTitle>{t('workflow.title')}</ContainerTitle>
-            <AppsContainer style={{ height: containerHeight }}>
-              {filteredWorkflows.map((workflow) => (
-                <WorkflowApp key={workflow.id} workflowApp={workflow.miniAppConfig} />
-              ))}
-            </AppsContainer>
-          </div>
+          <AppsContainer style={{ height: containerHeight }}>
+            {filteredApps.map((app) => (
+              <App key={app.id} app={app} />
+            ))}
+          </AppsContainer>
         )}
       </ContentContainer>
     </Container>
@@ -115,18 +94,4 @@ const AppsContainer = styled.div`
   justify-content: center;
 `
 
-const AppDivider = styled(Divider)`
-  margin: 10px 0;
-  border-block-start: 0.5px solid var(--color-border);
-`
-
-const ContainerTitle = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  user-select: none;
-  font-size: 14px;
-  font-weight: bold;
-`
 export default AppsPage
