@@ -1,4 +1,3 @@
-import VirtualList from '@alephpiece/rc-virtual-list'
 import { CopyOutlined, DeleteOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import Ellipsis from '@renderer/components/Ellipsis'
@@ -15,6 +14,7 @@ import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@sh
 import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
+import VirtualList from 'rc-virtual-list'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'

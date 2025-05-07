@@ -56,7 +56,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@alephpiece/rc-virtual-list": "^3.19.13",
     "@cherrystudio/embedjs": "^0.1.28",
     "@cherrystudio/embedjs-libsql": "^0.1.28",
     "@cherrystudio/embedjs-loader-csv": "^0.1.28",
@@ -96,6 +95,8 @@
     "officeparser": "^4.1.1",
     "os-proxy-config": "^1.1.2",
     "proxy-agent": "^6.5.0",
+    "rc-virtual-list": "^3.18.6",
+    "react-window": "^1.8.11",
     "tar": "^7.4.3",
     "turndown": "^7.2.0",
     "turndown-plugin-gfm": "^1.0.2",
@@ -140,6 +141,7 @@
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
+    "@types/react-window": "^1",
     "@types/tinycolor2": "^1",
     "@types/ws": "^8",
     "@vitejs/plugin-react-swc": "^3.9.0",

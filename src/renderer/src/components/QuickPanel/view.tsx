@@ -1,4 +1,3 @@
-import VirtualList, { ListRef } from '@alephpiece/rc-virtual-list'
 import { RightOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
@@ -8,11 +7,14 @@ import Color from 'color'
 import { t } from 'i18next'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { FixedSizeList } from 'react-window'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
 import { QuickPanelContext } from './provider'
 import { QuickPanelCallBackOptions, QuickPanelCloseAction, QuickPanelListItem, QuickPanelOpenOptions } from './types'
+
+const ITEM_HEIGHT = 31
 
 interface Props {
   setInputText: React.Dispatch<React.SetStateAction<string>>
@@ -48,7 +50,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const [historyPanel, setHistoryPanel] = useState<QuickPanelOpenOptions[]>([])
 
   const bodyRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<ListRef>(null)
+  const listRef = useRef<FixedSizeList>(null)
   const footerRef = useRef<HTMLDivElement>(null)
 
   const [_searchText, setSearchText] = useState('')
@@ -94,10 +96,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
     setIndex(newList.length > 0 ? ctx.defaultIndex || 0 : -1)
 
-    return newList.map((item, i) => ({
-      ...item,
-      id: i // 添加id，用于虚拟列表的key
-    }))
+    return newList
   }, [ctx.defaultIndex, ctx.isVisible, ctx.list, ctx.symbol, searchText])
 
   const canForwardAndBackward = useMemo(() => {
@@ -251,7 +250,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   useEffect(() => {
-    contentRef.current?.scrollTo({ index, align: 'auto' })
+    if (index >= 0) {
+      listRef.current?.scrollToItem(index, 'auto')
+    }
   }, [index])
 
   // 处理键盘事件
@@ -393,8 +394,18 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   const listHeight = useMemo(() => {
-    return Math.min(ctx.pageSize, list.length) * 31
+    return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
+
+  const RowData = useMemo(
+    (): VirtualizedRowData => ({
+      list,
+      focusedIndex: index,
+      handleItemAction,
+      setIndex
+    }),
+    [list, index, handleItemAction, setIndex]
+  )
 
   return (
     <QuickPanelContainer
@@ -403,58 +414,20 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $selectedColorHover={selectedColorHover}
       className={ctx.isVisible ? 'visible' : ''}>
       <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver(true)}>
-        <VirtualList
-          ref={contentRef}
-          data={list}
-          itemKey="id"
+        <FixedSizeList
+          ref={listRef}
+          itemCount={list.length}
+          itemSize={ITEM_HEIGHT}
+          itemData={RowData}
           height={listHeight}
-          itemHeight={31}
-          overscan={6}
-          smoothScroll={true}
-          styles={{
-            verticalScrollBar: { background: 'transparent', width: 3 },
-            verticalScrollBarThumb: {
-              background: 'var(--color-scrollbar-thumb)',
-              borderRadius: 4
-            }
-          }}
+          width="100%"
+          overscanCount={4}
           style={{
             padding: '0 5px',
             pointerEvents: isMouseOver ? 'auto' : 'none'
           }}>
-          {(item, i) => (
-            <QuickPanelItem
-              className={classNames({
-                focused: i === index,
-                selected: item.isSelected,
-                disabled: item.disabled
-              })}
-              data-id={item.id}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleItemAction(item, 'click')
-              }}
-              onMouseEnter={() => setIndex(i)}>
-              <QuickPanelItemLeft>
-                <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
-                <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
-              </QuickPanelItemLeft>
-
-              <QuickPanelItemRight>
-                {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
-                <QuickPanelItemSuffixIcon>
-                  {item.suffix ? (
-                    item.suffix
-                  ) : item.isSelected ? (
-                    <Check />
-                  ) : (
-                    item.isMenu && !item.disabled && <RightOutlined />
-                  )}
-                </QuickPanelItemSuffixIcon>
-              </QuickPanelItemRight>
-            </QuickPanelItem>
-          )}
-        </VirtualList>
+          {VirtualizedRow}
+        </FixedSizeList>
         <QuickPanelFooter ref={footerRef}>
           <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
           <QuickPanelFooterTips $footerWidth={footerWidth}>
@@ -503,6 +476,58 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   )
 }
 
+interface VirtualizedRowData {
+  list: QuickPanelListItem[]
+  focusedIndex: number
+  handleItemAction: (item: QuickPanelListItem, action?: QuickPanelCloseAction) => void
+  setIndex: (index: number) => void
+}
+
+/**
+ * 虚拟化列表行组件，用于避免重新渲染
+ */
+const VirtualizedRow = React.memo(
+  ({ data, index, style }: { data: VirtualizedRowData; index: number; style: React.CSSProperties }) => {
+    const { list, focusedIndex, handleItemAction, setIndex } = data
+    const item = list[index]
+    if (!item) return null
+
+    return (
+      <QuickPanelItem
+        style={style}
+        className={classNames({
+          focused: index === focusedIndex,
+          selected: item.isSelected,
+          disabled: item.disabled
+        })}
+        data-id={index}
+        onClick={(e) => {
+          e.stopPropagation()
+          handleItemAction(item, 'click')
+        }}
+        onMouseEnter={() => setIndex(index)}>
+        <QuickPanelItemLeft>
+          <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
+          <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
+        </QuickPanelItemLeft>
+
+        <QuickPanelItemRight>
+          {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
+          <QuickPanelItemSuffixIcon>
+            {item.suffix ? (
+              item.suffix
+            ) : item.isSelected ? (
+              <Check />
+            ) : (
+              item.isMenu && !item.disabled && <RightOutlined />
+            )}
+          </QuickPanelItemSuffixIcon>
+        </QuickPanelItemRight>
+      </QuickPanelItem>
+    )
+  }
+)
+
 const QuickPanelContainer = styled.div<{
   $pageSize: number
   $selectedColor: string
@@ -526,7 +551,7 @@ const QuickPanelContainer = styled.div<{
 
   &.visible {
     pointer-events: auto;
-    max-height: ${(props) => props.$pageSize * 31 + 100}px;
+    max-height: ${(props) => props.$pageSize * ITEM_HEIGHT + 100}px;
   }
   body[theme-mode='dark'] & {
     --focused-color: rgba(255, 255, 255, 0.1);

@@ -1,4 +1,3 @@
-import VirtualList, { ListRef } from '@alephpiece/rc-virtual-list'
 import { PushpinOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -11,7 +10,9 @@ import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
+import { FixedSizeList } from 'react-window'
 import styled from 'styled-components'
 
 import { HStack } from '../Layout'
@@ -48,7 +49,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const { providers } = useProviders()
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
-  const listRef = useRef<ListRef>(null)
+  const listRef = useRef<FixedSizeList>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
   const [isMouseOver, setIsMouseOver] = useState(false)
@@ -247,10 +248,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     if (index < 0) return
 
     if (!hasAutoScrolled.current) {
-      listRef.current?.scrollTo({ index, align: 'center' })
+      listRef.current?.scrollToItem(index, 'center')
       hasAutoScrolled.current = true
     } else {
-      listRef.current?.scrollTo({ index, align: 'auto' })
+      listRef.current?.scrollToItem(index, 'auto')
     }
   }, [focusedItemKey, listItems])
 
@@ -351,9 +352,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
   }, [listItems.length])
 
-  const handleVisibleChange = useCallback(
-    (visibleItems: FlatListItem[]) => {
-      const firstModelItem = visibleItems.find((item) => item.type === 'model')
+  const handleItemsRendered = useCallback(
+    ({ visibleStartIndex, visibleStopIndex }: { visibleStartIndex: number; visibleStopIndex: number }) => {
+      const firstModelItem = listItems
+        .slice(visibleStartIndex, visibleStopIndex + 1)
+        .find((item) => item.type === 'model')
       if (!firstModelItem) {
         setCurrentStickyGroup(null)
         return
@@ -375,43 +378,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     [listItems]
   )
 
-  const renderGroupItem = useCallback(
-    (item: FlatListItem) => {
-      return <GroupItem $isSticky={item.key === currentStickyGroup?.key}>{item.name}</GroupItem>
-    },
-    [currentStickyGroup]
-  )
-
-  const renderModelItem = useCallback(
-    (item: FlatListItem) => {
-      return (
-        <ModelItem
-          className={classNames({
-            focused: item.key === focusedItemKey,
-            selected: item.isSelected
-          })}
-          onClick={() => handleItemClick(item)}
-          onMouseEnter={() => setFocusedItemKey(item.key)}>
-          <ModelItemLeft>
-            {item.icon}
-            {item.name}
-            {item.tags}
-          </ModelItemLeft>
-          <PinIconWrapper
-            onClick={(e) => {
-              e.stopPropagation()
-              if (item.model) {
-                togglePin(getModelUniqId(item.model))
-              }
-            }}
-            data-pinned={item.isPinned}
-            $isPinned={item.isPinned}>
-            <PushpinOutlined />
-          </PinIconWrapper>
-        </ModelItem>
-      )
-    },
-    [focusedItemKey, handleItemClick, togglePin]
+  const RowData = useMemo(
+    (): VirtualizedRowData => ({
+      listItems,
+      focusedItemKey,
+      setFocusedItemKey,
+      currentStickyGroup,
+      handleItemClick,
+      togglePin
+    }),
+    [currentStickyGroup, focusedItemKey, handleItemClick, listItems, togglePin]
   )
 
   return (
@@ -461,31 +437,24 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
-      <ListContainer onMouseMove={() => setIsMouseOver(true)}>
-        {/* Sticky Group Banner，它会替换第一个分组名称 */}
-        <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
-        <VirtualList
-          ref={listRef}
-          data={listItems}
-          itemKey="key"
-          height={listHeight}
-          itemHeight={ITEM_HEIGHT}
-          overscan={4}
-          smoothScroll={true}
-          onVisibleChange={handleVisibleChange}
-          styles={{
-            verticalScrollBar: { background: 'transparent', width: 6 },
-            verticalScrollBarThumb: {
-              background: 'var(--color-scrollbar-thumb)',
-              borderRadius: 4
-            }
-          }}
-          style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
-          {(item) => (item.type === 'group' ? renderGroupItem(item) : renderModelItem(item))}
-        </VirtualList>
-      </ListContainer>
-
-      {listItems.length === 0 && (
+      {listItems.length > 0 ? (
+        <ListContainer onMouseMove={() => setIsMouseOver(true)}>
+          {/* Sticky Group Banner，它会替换第一个分组名称 */}
+          <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
+          <FixedSizeList
+            ref={listRef}
+            itemCount={listItems.length}
+            itemSize={ITEM_HEIGHT}
+            itemData={RowData}
+            height={listHeight}
+            width="100%"
+            overscanCount={4}
+            onItemsRendered={handleItemsRendered}
+            style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
+            {VirtualizedRow}
+          </FixedSizeList>
+        </ListContainer>
+      ) : (
         <EmptyState>
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
         </EmptyState>
@@ -493,6 +462,68 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     </Modal>
   )
 }
+
+interface VirtualizedRowData {
+  listItems: FlatListItem[]
+  focusedItemKey: string
+  setFocusedItemKey: (key: string) => void
+  currentStickyGroup: FlatListItem | null
+  handleItemClick: (item: FlatListItem) => void
+  togglePin: (modelId: string) => void
+}
+
+/**
+ * 虚拟化列表行组件，用于避免重新渲染
+ */
+const VirtualizedRow = React.memo(
+  ({ data, index, style }: { data: VirtualizedRowData; index: number; style: React.CSSProperties }) => {
+    const { listItems, focusedItemKey, setFocusedItemKey, handleItemClick, togglePin, currentStickyGroup } = data
+
+    const item = listItems[index]
+    if (!item) return <div style={style} />
+
+    const isHidden = item.type === 'group' && item.key === currentStickyGroup?.key
+
+    if (isHidden) {
+      return <div style={style} />
+    }
+
+    return (
+      <div style={style}>
+        {item.type === 'group' ? (
+          <GroupItem $isSticky={item.key === currentStickyGroup?.key}>{item.name}</GroupItem>
+        ) : (
+          <ModelItem
+            className={classNames({
+              focused: item.key === focusedItemKey,
+              selected: item.isSelected
+            })}
+            onClick={() => handleItemClick(item)}
+            onMouseEnter={() => setFocusedItemKey(item.key)}>
+            <ModelItemLeft>
+              {item.icon}
+              {item.name}
+              {item.tags}
+            </ModelItemLeft>
+            <PinIconWrapper
+              onClick={(e) => {
+                e.stopPropagation()
+                if (item.model) {
+                  togglePin(getModelUniqId(item.model))
+                }
+              }}
+              data-pinned={item.isPinned}
+              $isPinned={item.isPinned}>
+              <PushpinOutlined />
+            </PinIconWrapper>
+          </ModelItem>
+        )}
+      </div>
+    )
+  }
+)
+
+VirtualizedRow.displayName = 'VirtualizedRow'
 
 const ListContainer = styled.div`
   position: relative;

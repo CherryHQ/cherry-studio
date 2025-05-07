@@ -1,9 +1,9 @@
-import VirtualList from '@alephpiece/rc-virtual-list'
 import FileManager from '@renderer/services/FileManager'
 import { FileType, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
+import VirtualList from 'rc-virtual-list'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 

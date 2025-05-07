@@ -1,4 +1,3 @@
-import VirtualList from '@alephpiece/rc-virtual-list'
 import {
   DragDropContext,
   Draggable,
@@ -10,6 +9,7 @@ import {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
+import VirtualList from 'rc-virtual-list'
 import { FC } from 'react'
 
 interface Props<T> {
