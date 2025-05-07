@@ -1470,6 +1470,7 @@
       "theme.dark": "Темная",
       "theme.light": "Светлая",
       "theme.title": "Тема",
+      "theme.color_primary": "Цвет темы",
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",

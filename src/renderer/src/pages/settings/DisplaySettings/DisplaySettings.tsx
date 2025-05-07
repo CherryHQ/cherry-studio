@@ -2,6 +2,7 @@ import { SyncOutlined } from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
   AssistantIconType,
@@ -13,7 +14,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
+import { Button, ColorPicker, Input, Segmented, Switch } from 'antd'
 import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -33,11 +34,13 @@ const DisplaySettings: FC = () => {
     showTopicTime,
     customCss,
     sidebarIcons,
-    assistantIconType
+    assistantIconType,
+    userTheme
   } = useSettings()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { setUserTheme } = useUserTheme()
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
@@ -47,6 +50,16 @@ const DisplaySettings: FC = () => {
       setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
+  )
+
+  const handleColorPrimaryChange = useCallback(
+    (colorHex: string) => {
+      setUserTheme({
+        ...userTheme,
+        colorPrimary: colorHex
+      })
+    },
+    [setUserTheme, userTheme]
   )
 
   const handleReset = useCallback(() => {
@@ -105,6 +118,22 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
           <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
+          <ColorPicker
+            className="color-picker"
+            value={userTheme.colorPrimary}
+            onChange={(color) => handleColorPrimaryChange(color.toHexString())}
+            showText
+            presets={[
+              {
+                label: 'Presets',
+                colors: ['#007BFF', '#F74F9E', '#FF5257', '#F7821B', '#FFC600', '#62BA46', '#000000']
+              }
+            ]}
+          />
         </SettingRow>
         {isMac && (
           <>
