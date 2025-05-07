@@ -1,10 +1,11 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Form, Input, message, Modal } from 'antd'
+import { Button, Dropdown, Form, Input, message, Modal, Radio, Upload } from 'antd'
+import type { UploadFile } from 'antd/es/upload/interface'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -24,6 +25,8 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const isVisible = minapps.some((m) => m.id === app.id)
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [form] = Form.useForm()
+  const [logoType, setLogoType] = useState<'url' | 'file'>('url')
+  const [fileList, setFileList] = useState<UploadFile[]>([])
 
   const handleClick = () => {
     if (isLast) {
@@ -35,6 +38,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   }
 
   const handleAddCustomApp = async (values: any) => {
+    console.log('values', values)
     try {
       const content = await window.api.file.read('customMiniAPP')
       const customApps = JSON.parse(content)
@@ -42,7 +46,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         id: values.id,
         name: values.name,
         url: values.url,
-        logo: values.logo || '',
+        logo: form.getFieldValue('logo') || '',
         type: 'Custom',
         addTime: new Date().toISOString()
       }
@@ -51,6 +55,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       message.success(t('settings.miniapps.custom.save_success'))
       setIsModalVisible(false)
       form.resetFields()
+      setFileList([])
       // 重新加载应用列表
       const reloadedApps = await import('@renderer/config/minapps').then(async (module) => {
         return [...module.ORIGIN_DEFAULT_MIN_APPS, ...(await module.loadCustomMiniApp())]
@@ -59,6 +64,36 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
     } catch (error) {
       message.error(t('settings.miniapps.custom.save_error'))
       console.error('Failed to save custom mini app:', error)
+    }
+  }
+
+  const handleLogoTypeChange = (e: any) => {
+    setLogoType(e.target.value)
+    form.setFieldValue('logo', '')
+    setFileList([])
+  }
+
+  const handleFileChange = async (info: any) => {
+    console.log(info)
+    const file = info.fileList[info.fileList.length - 1]?.originFileObj
+    console.log(file)
+    setFileList(info.fileList.slice(-1))
+
+    if (file) {
+      try {
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          const base64Data = event.target?.result
+          if (typeof base64Data === 'string') {
+            message.success('Logo uploaded successfully')
+            form.setFieldValue('logo', base64Data)
+          }
+        }
+        reader.readAsDataURL(file)
+      } catch (error) {
+        console.error('Failed to read file:', error)
+        message.error('读取文件失败')
+      }
     }
   }
 
@@ -106,7 +141,10 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       <Modal
         title={t('settings.miniapps.custom.edit_title')}
         open={isModalVisible}
-        onCancel={() => setIsModalVisible(false)}
+        onCancel={() => {
+          setIsModalVisible(false)
+          setFileList([])
+        }}
         footer={null}>
         <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
           <Form.Item name="id" label="ID" rules={[{ required: true, message: '请输入小程序ID' }]}>
@@ -118,9 +156,28 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           <Form.Item name="url" label="URL" rules={[{ required: true, message: '请输入小程序URL' }]}>
             <Input placeholder="请输入小程序URL" />
           </Form.Item>
-          <Form.Item name="logo" label="Logo URL">
-            <Input placeholder="请输入Logo URL（可选）" />
+          <Form.Item label="Logo">
+            <Radio.Group value={logoType} onChange={handleLogoTypeChange}>
+              <Radio value="url">URL</Radio>
+              {/* <Radio value="file">文件</Radio> */}
+            </Radio.Group>
           </Form.Item>
+          {logoType === 'url' ? (
+            <Form.Item name="logo" label="Logo URL">
+              <Input placeholder="请输入Logo URL（可选）" />
+            </Form.Item>
+          ) : (
+            <Form.Item label="上传Logo">
+              <Upload
+                accept="image/*"
+                maxCount={1}
+                fileList={fileList}
+                onChange={handleFileChange}
+                beforeUpload={() => false}>
+                <Button icon={<UploadOutlined />}>选择图片</Button>
+              </Upload>
+            </Form.Item>
+          )}
           <Form.Item>
             <Button type="primary" htmlType="submit">
               {t('settings.miniapps.custom.save')}
