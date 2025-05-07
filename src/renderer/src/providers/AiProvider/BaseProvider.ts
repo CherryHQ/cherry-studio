@@ -15,7 +15,6 @@ import type { Message } from '@renderer/types/newMessage'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { glmZeroPreviewProcessor, thinkTagProcessor, ThoughtProcessor } from '@renderer/utils/formats'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
@@ -229,16 +228,5 @@ export default abstract class BaseProvider {
       abortController,
       cleanup
     }
-  }
-
-  /**
-   * Finds the appropriate thinking processor for a given text chunk and model.
-   * Returns the processor if found, otherwise undefined.
-   */
-  protected findThinkingProcessor(chunkText: string, model: Model | undefined): ThoughtProcessor | undefined {
-    if (!model) return undefined
-
-    const processors: ThoughtProcessor[] = [thinkTagProcessor, glmZeroPreviewProcessor]
-    return processors.find((p) => p.canProcess(chunkText, model))
   }
 }
