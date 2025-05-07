@@ -61,6 +61,10 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
+  public setUpdateChannel(channel: string) {
+    autoUpdater.setFeedURL(channel)
+  }
+
   public async checkForUpdates() {
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {

@@ -4,6 +4,7 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setBetaTesting as _setBetaTesting,
   setLaunchOnBoot,
   setLaunchToTray,
   setSendMessageShortcut as _setSendMessageShortcut,
@@ -54,6 +55,13 @@ export function useSettings() {
     setAutoCheckUpdate(isAutoUpdate: boolean) {
       dispatch(_setAutoCheckUpdate(isAutoUpdate))
       window.api.setAutoUpdate(isAutoUpdate)
+    },
+
+    setBetaTesting(isBetaTesting: boolean) {
+      dispatch(_setBetaTesting(isBetaTesting))
+      if (window.api.setUpdateChannel) {
+        window.api.setUpdateChannel(isBetaTesting ? 'https://github.com/test' : 'https://cherry-ai.com/release')
+      }
     },
 
     setTheme(theme: ThemeMode) {
