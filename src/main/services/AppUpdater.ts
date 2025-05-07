@@ -61,8 +61,8 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  public setUpdateChannel(channel: string) {
-    autoUpdater.setFeedURL(channel)
+  public setFeedUrl(feedUrl: string) {
+    autoUpdater.setFeedURL(feedUrl)
   }
 
   public async checkForUpdates() {
