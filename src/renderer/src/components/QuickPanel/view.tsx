@@ -423,7 +423,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           width="100%"
           overscanCount={4}
           style={{
-            padding: '0 5px',
             pointerEvents: isMouseOver ? 'auto' : 'none'
           }}>
           {VirtualizedRow}
@@ -493,37 +492,38 @@ const VirtualizedRow = React.memo(
     if (!item) return null
 
     return (
-      <QuickPanelItem
-        style={style}
-        className={classNames({
-          focused: index === focusedIndex,
-          selected: item.isSelected,
-          disabled: item.disabled
-        })}
-        data-id={index}
-        onClick={(e) => {
-          e.stopPropagation()
-          handleItemAction(item, 'click')
-        }}
-        onMouseEnter={() => setIndex(index)}>
-        <QuickPanelItemLeft>
-          <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
-          <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
-        </QuickPanelItemLeft>
+      <div style={style}>
+        <QuickPanelItem
+          className={classNames({
+            focused: index === focusedIndex,
+            selected: item.isSelected,
+            disabled: item.disabled
+          })}
+          data-id={index}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleItemAction(item, 'click')
+          }}
+          onMouseEnter={() => setIndex(index)}>
+          <QuickPanelItemLeft>
+            <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
+            <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
+          </QuickPanelItemLeft>
 
-        <QuickPanelItemRight>
-          {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
-          <QuickPanelItemSuffixIcon>
-            {item.suffix ? (
-              item.suffix
-            ) : item.isSelected ? (
-              <Check />
-            ) : (
-              item.isMenu && !item.disabled && <RightOutlined />
-            )}
-          </QuickPanelItemSuffixIcon>
-        </QuickPanelItemRight>
-      </QuickPanelItem>
+          <QuickPanelItemRight>
+            {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
+            <QuickPanelItemSuffixIcon>
+              {item.suffix ? (
+                item.suffix
+              ) : item.isSelected ? (
+                <Check />
+              ) : (
+                item.isMenu && !item.disabled && <RightOutlined />
+              )}
+            </QuickPanelItemSuffixIcon>
+          </QuickPanelItemRight>
+        </QuickPanelItem>
+      </div>
     )
   }
 )
@@ -579,6 +579,10 @@ const QuickPanelBody = styled.div`
       background-color: rgba(40, 40, 40, 0.4);
     }
   }
+
+  ::-webkit-scrollbar {
+    width: 3px;
+  }
 `
 
 const QuickPanelFooter = styled.div`
@@ -614,11 +618,11 @@ const QuickPanelItem = styled.div`
   align-items: center;
   gap: 20px;
   justify-content: space-between;
+  margin: 0 5px 1px 5px;
   padding: 5px;
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.1s ease;
-  margin-bottom: 1px;
   font-family: Ubuntu;
   &.selected {
     background-color: var(--selected-color);

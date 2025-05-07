@@ -550,7 +550,7 @@ const ModelItem = styled.div`
   position: relative;
   font-size: 14px;
   padding: 0 8px;
-  margin: 1px 12px 1px 8px;
+  margin: 1px 8px;
   height: ${ITEM_HEIGHT - 2}px;
   border-radius: 8px;
   cursor: pointer;
