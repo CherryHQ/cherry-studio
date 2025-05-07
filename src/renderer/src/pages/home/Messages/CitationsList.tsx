@@ -62,7 +62,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
-  const previewItems = useMemo(() => citations.slice(0, 3), [citations])
+  const previewItems = citations.slice(0, 3)
   const count = citations.length
   if (!count) return null
 
