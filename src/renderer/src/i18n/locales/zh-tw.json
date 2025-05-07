@@ -267,6 +267,8 @@
       "input.web_search.builtin": "模型內置",
       "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
       "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
+      "input.web_search.no_web_search": "關閉網路搜尋",
+      "input.web_search.no_web_search.description": "關閉網路搜尋",
       "input.thinking": "思考",
       "input.thinking.mode.default": "預設",
       "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",

@@ -268,6 +268,8 @@
       "input.web_search.builtin": "Модель встроена",
       "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
       "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
+      "input.web_search.no_web_search": "Отключить веб-поиск",
+      "input.web_search.no_web_search.description": "Отключить веб-поиск",
       "input.thinking": "Мыслим",
       "input.thinking.mode.default": "По умолчанию",
       "input.thinking.mode.default.tip": "Модель автоматически определяет количество токенов для размышления",

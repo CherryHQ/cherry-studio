@@ -1,6 +1,7 @@
 import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
@@ -598,6 +599,13 @@ const fetchAndProcessAssistantResponseImpl = async (
         dispatch(newMessagesActions.updateMessage({ topicId, messageId: assistantMsgId, updates: messageErrorUpdate }))
 
         saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, [])
+
+        EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+          id: assistantMsgId,
+          topicId,
+          status: isAbortError(error) ? 'pause' : 'error',
+          error: error.message
+        })
       },
       onComplete: async (status: AssistantMessageStatus, response?: Response) => {
         const finalStateOnComplete = getState()
@@ -641,6 +649,8 @@ const fetchAndProcessAssistantResponseImpl = async (
         )
 
         saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+
+        EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       }
     }
 
