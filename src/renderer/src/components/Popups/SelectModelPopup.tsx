@@ -9,7 +9,7 @@ import { classNames } from '@renderer/utils/style'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { FixedSizeList } from 'react-window'
@@ -220,38 +220,35 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return listItems.filter((item) => item.type === 'model')
   }, [listItems])
 
-  // 所选模型或搜索文本变化时允许自动滚动到中心
+  // 搜索文本变化时清空聚焦项
   useEffect(() => {
-    hasAutoScrolled.current = false
-  }, [currentModelId, searchText])
+    setFocusedItemKey('')
+  }, [searchText])
 
-  // 列表变化时设置聚焦项
+  // 设置初始聚焦项
   useEffect(() => {
-    if (modelItems.length > 0) {
-      const selectedItem = modelItems.find((item) => item.isSelected)
+    if (modelItems.length === 0 || hasAutoScrolled.current) return
 
-      if (selectedItem) {
-        setFocusedItemKey(selectedItem.key)
-      } else {
-        setFocusedItemKey(modelItems[0].key)
-      }
+    const selectedItem = modelItems.find((item) => item.isSelected)
+    if (selectedItem) {
+      setFocusedItemKey(selectedItem.key)
     } else {
-      setFocusedItemKey('')
+      setFocusedItemKey(modelItems[0].key)
     }
   }, [modelItems])
 
   // 滚动到聚焦项
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!focusedItemKey) return
 
     const index = listItems.findIndex((item) => item.key === focusedItemKey)
     if (index < 0) return
 
-    if (!hasAutoScrolled.current) {
+    if (hasAutoScrolled.current) {
+      listRef.current?.scrollToItem(index, 'auto')
+    } else {
       listRef.current?.scrollToItem(index, 'center')
       hasAutoScrolled.current = true
-    } else {
-      listRef.current?.scrollToItem(index, 'auto')
     }
   }, [focusedItemKey, listItems])
 
@@ -480,11 +477,8 @@ const VirtualizedRow = React.memo(
     const { listItems, focusedItemKey, setFocusedItemKey, handleItemClick, togglePin, currentStickyGroup } = data
 
     const item = listItems[index]
-    if (!item) return <div style={style} />
 
-    const isHidden = item.type === 'group' && item.key === currentStickyGroup?.key
-
-    if (isHidden) {
+    if (!item || (item.type === 'group' && item.key === currentStickyGroup?.key)) {
       return <div style={style} />
     }
 
