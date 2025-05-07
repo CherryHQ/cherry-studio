@@ -451,8 +451,8 @@ let DEFAULT_MIN_APPS: MinAppType[] = [
 ]
 
 // 加载自定义小应用并合并到默认应用中
-loadCustomMiniApp().then((customApps) => {
-  DEFAULT_MIN_APPS = [...DEFAULT_MIN_APPS, ...customApps]
-})
+DEFAULT_MIN_APPS = [...DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+
+console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
 
 export { DEFAULT_MIN_APPS }
