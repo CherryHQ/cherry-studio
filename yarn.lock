@@ -2759,6 +2759,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opendal/lib-darwin-arm64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-arm64@npm:0.47.11"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-darwin-x64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-x64@npm:0.47.11"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-musl@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-musl@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-x64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-x64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-arm64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-arm64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-x64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-x64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@parcel/watcher-android-arm64@npm:2.5.1":
   version: 2.5.1
   resolution: "@parcel/watcher-android-arm64@npm:2.5.1"
@@ -4407,6 +4456,7 @@ __metadata:
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
+    opendal: "npm:^0.47.11"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
@@ -12876,7 +12926,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"opendal@npm:0.47.11":
+"opendal@npm:^0.47.11":
   version: 0.47.11
   resolution: "opendal@npm:0.47.11"
   dependencies:
