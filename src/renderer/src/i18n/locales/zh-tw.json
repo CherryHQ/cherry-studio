@@ -78,6 +78,17 @@
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
       "settings.more": "助手設定",
+      "settings.regular_prompts": {
+        "title": "常用提示詞",
+        "add": "添加提示詞",
+        "edit": "編輯提示詞",
+        "delete": "刪除提示詞",
+        "deleteConfirm": "確定要刪除這個提示詞嗎？",
+        "titleLabel": "標題",
+        "titlePlaceholder": "輸入標題",
+        "contentLabel": "內容",
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。"
+      },
       "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",

@@ -78,6 +78,17 @@
       "settings.reasoning_effort.medium": "普通の思考",
       "settings.reasoning_effort.default": "デフォルト",
       "settings.more": "アシスタント設定",
+      "settings.regular_prompts": {
+        "title": "定型プロンプト",
+        "add": "プロンプトを追加",
+        "edit": "プロンプトを編集",
+        "delete": "プロンプトを削除",
+        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
+        "titleLabel": "タイトル",
+        "titlePlaceholder": "タイトルを入力",
+        "contentLabel": "内容",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。"
+      },
       "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
       "settings.knowledge_base.recognition.off": "強制検索",

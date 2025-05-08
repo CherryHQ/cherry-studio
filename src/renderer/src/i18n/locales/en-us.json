@@ -81,7 +81,18 @@
       "settings.knowledge_base.recognition.tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities",
       "settings.knowledge_base.recognition": "Use Knowledge Base",
       "settings.knowledge_base.recognition.off": "Force Search",
-      "settings.knowledge_base.recognition.on": "Intent Recognition"
+      "settings.knowledge_base.recognition.on": "Intent Recognition",
+      "settings.regular_prompts": {
+        "title": "Regular Prompts",
+        "add": "Add Prompt",
+        "edit": "Edit Prompt",
+        "delete": "Delete Prompt",
+        "deleteConfirm": "Are you sure to delete this prompt?",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter title",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      }
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",

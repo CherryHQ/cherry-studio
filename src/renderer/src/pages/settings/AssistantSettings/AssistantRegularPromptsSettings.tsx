@@ -82,7 +82,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
     <SettingContainer style={{ padding: 0, background: "#0000" }}>
       <SettingGroup style={{ marginBottom: 0, padding: 0, border: 'none' }}>
         <SettingTitle>
-          {t('settings.regularPrompts.title', 'Regular Prompts')}
+          {t('assistants.settings.regular_prompts.title', 'Regular Prompts')}
           <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
         </SettingTitle>
         <SettingDivider />
@@ -105,9 +105,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                       <Flex gap={4} style={{ opacity: 0.6 }}>
                         <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(prompt)} />
                         <Popconfirm
-                          title={t('settings.regularPrompts.delete', 'Delete Prompt')}
+                          title={t('assistants.settings.regular_prompts.delete', 'Delete Prompt')}
                           description={t(
-                            'settings.regularPrompts.deleteConfirm',
+                            'assistants.settings.regular_prompts.deleteConfirm',
                             'Are you sure to delete this prompt?'
                           )}
                           okText={t('common.confirm')}
@@ -129,8 +129,8 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       <Modal
         title={
           editingPrompt
-            ? t('settings.regularPrompts.edit', 'Edit Prompt')
-            : t('settings.regularPrompts.add', 'Add Prompt')
+            ? t('assistants.settings.regular_prompts.edit', 'Edit Prompt')
+            : t('assistants.settings.regular_prompts.add', 'Add Prompt')
         }
         open={isModalOpen}
         onOk={handleModalOk}
@@ -138,17 +138,17 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
         width={520}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Label>{t('settings.regularPrompts.titleLabel', 'Title')}</Label>
+            <Label>{t('assistants.settings.regular_prompts.titleLabel', 'Title')}</Label>
             <Input
-              placeholder={t('settings.regularPrompts.titlePlaceholder', 'Enter title')}
+              placeholder={t('assistants.settings.regular_prompts.titlePlaceholder', 'Enter title')}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
           <div>
-            <Label>{t('settings.regularPrompts.contentLabel', 'Content')}</Label>
+            <Label>{t('assistants.settings.regular_prompts.contentLabel', 'Content')}</Label>
             <TextArea
-              placeholder={t('settings.regularPrompts.contentPlaceholder', 'Enter content')}
+              placeholder={t('assistants.settings.regular_prompts.contentPlaceholder', 'Enter content')}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               rows={6}

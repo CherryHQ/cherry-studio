@@ -81,7 +81,18 @@
       "settings.reasoning_effort.medium": "斟酌",
       "settings.reasoning_effort.high": "沉思",
       "settings.reasoning_effort.default": "默认",
-      "settings.more": "助手设置"
+      "settings.more": "助手设置",
+      "settings.regular_prompts": {
+        "title": "常用提示词",
+        "add": "添加提示词",
+        "edit": "编辑提示词",
+        "delete": "删除提示词",
+        "deleteConfirm": "确定要删除这个提示词吗？",
+        "titleLabel": "标题",
+        "titlePlaceholder": "输入标题",
+        "contentLabel": "内容",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。"
+      }
     },
     "auth": {
       "error": "自动获取密钥失败，请手动获取",

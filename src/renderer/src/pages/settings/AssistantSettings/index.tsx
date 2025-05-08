@@ -77,7 +77,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     },
     {
       key: 'regular_prompts',
-      label: t('assistants.settings.regular_prompts', 'Regular Prompts')
+      label: t('assistants.settings.regular_prompts.title', 'Regular Prompts')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
