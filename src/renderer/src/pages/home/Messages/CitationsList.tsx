@@ -5,7 +5,7 @@ import { Button, Drawer } from 'antd'
 import { FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { QueryClient, QueryClientProvider } from 'react-query'
+import { QueryClient, QueryClientProvider, useQuery } from 'react-query'
 import styled from 'styled-components'
 
 export interface Citation {
@@ -90,8 +90,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           onClose={() => setOpen(false)}
           open={open}
           width={680}
-          destroyOnClose={true} // unmount on close
-        >
+          destroyOnClose={false}>
           {open &&
             citations.map((citation) => (
               <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -116,19 +115,19 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const { t } = useTranslation()
-  const [fetchedContent, setFetchedContent] = React.useState('')
-  const [isLoading, setIsLoading] = React.useState(false)
-  React.useEffect(() => {
-    if (citation.url) {
-      setIsLoading(true)
-      fetchWebContent(citation.url, 'markdown')
-        .then((res) => {
-          const cleaned = cleanMarkdownContent(res.content)
-          setFetchedContent(truncateText(cleaned, 100))
-        })
-        .finally(() => setIsLoading(false))
+
+  const { data: fetchedContent, isLoading } = useQuery(
+    ['webContent', citation.url],
+    async () => {
+      if (!citation.url) return ''
+      const res = await fetchWebContent(citation.url, 'markdown')
+      return cleanMarkdownContent(res.content)
+    },
+    {
+      enabled: Boolean(citation.url),
+      select: (content) => truncateText(content, 100)
     }
-  }, [citation.url])
+  )
 
   return (
     <WebSearchCard>
@@ -180,7 +179,7 @@ const PreviewIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-bg-2);
+  background: var(--color-background-soft);
   border: 1px solid var(--color-border);
   margin-left: -8px;
   color: var(--color-text-2);
@@ -213,13 +212,13 @@ const WebSearchCard = styled.div`
   margin-bottom: 8px;
   border-radius: 8px;
   border: 1px solid var(--color-border);
-  background-color: var(--color-bg-1);
+  background-color: var(--color-background);
   transition: all 0.3s ease;
 
   &:hover {
-    box-shadow: 0 4px 12px var(--color-shadow);
-    background-color: var(--color-bg-hover);
-    border-color: var(--color-primary-light);
+    box-shadow: 0 4px 12px var(--color-border-soft);
+    background-color: var(--color-hover);
+    border-color: var(--color-primary-soft);
     transform: translateY(-2px);
   }
 `
