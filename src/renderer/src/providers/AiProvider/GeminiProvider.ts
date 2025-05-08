@@ -182,9 +182,10 @@ export default class GeminiProvider extends BaseProvider {
    * @returns The safety settings
    */
   private getSafetySettings(modelId: string): SafetySetting[] {
-    const safetyThreshold = modelId.includes('gemini-2.0-flash-exp')
-      ? ('OFF' as HarmBlockThreshold)
-      : HarmBlockThreshold.BLOCK_NONE
+    // const safetyThreshold = modelId.includes('gemini-2.0-flash-exp')
+    //   ? ('OFF' as HarmBlockThreshold)
+    //   : HarmBlockThreshold.BLOCK_NONE
+    const safetyThreshold = 'OFF' as HarmBlockThreshold
 
     return [
       {
@@ -204,8 +205,8 @@ export default class GeminiProvider extends BaseProvider {
         threshold: safetyThreshold
       },
       {
-        category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory,
-        threshold: safetyThreshold
+        category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+        threshold: HarmBlockThreshold.BLOCK_NONE
       }
     ]
   }
