@@ -480,6 +480,12 @@ const fetchAndProcessAssistantResponseImpl = async (
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
       },
+      onLLMWebSearchInProgress: () => {
+        const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
+        citationBlockId = citationBlock.id
+        handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
+      },
       onLLMWebSearchComplete(llmWebSearchResult) {
         if (citationBlockId) {
           const changes: Partial<CitationMessageBlock> = {
@@ -1071,25 +1077,25 @@ export const initiateTranslationThunk =
 // --- Thunk to update the translation block with new content ---
 export const updateTranslationBlockThunk =
   (blockId: string, accumulatedText: string, isComplete: boolean = false) =>
-    async (dispatch: AppDispatch) => {
-      console.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
-      try {
-        const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
-        const changes: Partial<MessageBlock> = {
-          content: accumulatedText,
-          status: status
-        }
-
-        // 更新Redux状态
-        dispatch(updateOneBlock({ id: blockId, changes }))
-
-        // 更新数据库
-        await db.message_blocks.update(blockId, changes)
-        console.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
-      } catch (error) {
-        console.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
+  async (dispatch: AppDispatch) => {
+    console.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
+    try {
+      const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
+      const changes: Partial<MessageBlock> = {
+        content: accumulatedText,
+        status: status
       }
+
+      // 更新Redux状态
+      dispatch(updateOneBlock({ id: blockId, changes }))
+
+      // 更新数据库
+      await db.message_blocks.update(blockId, changes)
+      console.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
+    } catch (error) {
+      console.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
     }
+  }
 
 /**
  * Thunk to append a new assistant response (using a potentially different model)

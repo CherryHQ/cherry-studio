@@ -7,6 +7,7 @@ import { MessageBlockType } from '@renderer/types/newMessage'
 import type OpenAI from 'openai'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
+import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 
 // 1. 创建实体适配器 (Entity Adapter)
 // 我们使用块的 `id` 作为唯一标识符。
@@ -130,6 +131,26 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
               number: index + 1,
               url: urlCitation.url,
               title: urlCitation.title,
+              hostname: hostname,
+              showFavicon: true,
+              type: 'websearch'
+            }
+          }) || []
+        break
+      case WebSearchSource.ANTHROPIC:
+        formattedCitations =
+          (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
+            const url = result.url
+            let hostname: string | undefined
+            try {
+              hostname = new URL(url).hostname
+            } catch {
+              hostname = url
+            }
+            return {
+              number: index + 1,
+              url: url,
+              title: result.title,
               hostname: hostname,
               showFavicon: true,
               type: 'websearch'
