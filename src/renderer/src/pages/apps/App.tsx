@@ -46,7 +46,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
       // Check for duplicate ID
       if (customApps.some((app: MinAppType) => app.id === values.id)) {
-        message.error(t('settings.miniapps.custom.duplicate_id_error'))
+        message.error(t('settings.miniapps.custom.duplicate_ids'))
         return
       }
 

@@ -71,6 +71,42 @@ const MiniAppSettings: FC = () => {
       if (!Array.isArray(parsedContent)) {
         throw new Error('Content must be an array')
       }
+
+      // 检查自定义应用中的重复ID
+      const customIds = new Set<string>()
+      const duplicateIds = new Set<string>()
+      parsedContent.forEach((app: any) => {
+        if (app.id) {
+          if (customIds.has(app.id)) {
+            duplicateIds.add(app.id)
+          }
+          customIds.add(app.id)
+        }
+      })
+
+      // 检查与默认应用的ID重复
+      const defaultIds = new Set(ORIGIN_DEFAULT_MIN_APPS.map((app) => app.id))
+      const conflictingIds = new Set<string>()
+      customIds.forEach((id) => {
+        if (defaultIds.has(id)) {
+          conflictingIds.add(id)
+        }
+      })
+
+      // 如果有重复ID，显示错误信息
+      if (duplicateIds.size > 0 || conflictingIds.size > 0) {
+        let errorMessage = ''
+        if (duplicateIds.size > 0) {
+          errorMessage += t('settings.miniapps.custom.duplicate_ids', { ids: Array.from(duplicateIds).join(', ') })
+        }
+        if (conflictingIds.size > 0) {
+          if (errorMessage) errorMessage += '\n'
+          errorMessage += t('settings.miniapps.custom.conflicting_ids', { ids: Array.from(conflictingIds).join(', ') })
+        }
+        messageApi.error(errorMessage)
+        return
+      }
+
       // 保存文件
       await window.api.file.writeWithId('customMiniAPP', customMiniAppContent)
       messageApi.success(t('settings.miniapps.custom.save_success'))
@@ -80,7 +116,6 @@ const MiniAppSettings: FC = () => {
       updateDefaultMinApps(reloadedApps)
       console.log('Reloaded mini app list:', reloadedApps)
       updateMinapps(reloadedApps)
-      // window.location.reload()
     } catch (error) {
       messageApi.error(t('settings.miniapps.custom.save_error'))
       console.error('Failed to save custom mini app config:', error)

@@ -1167,7 +1167,9 @@
           "logo_upload_button": "アップロード",
           "save": "保存",
           "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリにはid、name、url、logoフィールドが必要です。",
-          "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）"
+          "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）",
+          "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
+          "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}"
         }
       },
       "font_size.title": "メッセージのフォントサイズ",

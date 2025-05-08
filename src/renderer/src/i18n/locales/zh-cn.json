@@ -1159,7 +1159,9 @@
           "logo_upload_button": "上传",
           "save": "保存",
           "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段。",
-          "placeholder": "请输入自定义小程序配置（JSON格式）"
+          "placeholder": "请输入自定义小程序配置（JSON格式）",
+          "duplicate_ids": "发现重复的ID: {{ids}}",
+          "conflicting_ids": "与默认应用ID冲突: {{ids}}"
         },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",

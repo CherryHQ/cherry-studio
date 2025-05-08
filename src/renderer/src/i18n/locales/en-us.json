@@ -1153,7 +1153,9 @@
           "logo_upload_button": "Upload",
           "save": "Save",
           "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
-          "placeholder": "Enter custom mini app configuration (JSON format)"
+          "placeholder": "Enter custom mini app configuration (JSON format)",
+          "duplicate_ids": "Duplicate IDs found: {{ids}}",
+          "conflicting_ids": "Conflicting IDs with default apps: {{ids}}"
         },
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
