@@ -5,6 +5,7 @@ import { Button, Drawer } from 'antd'
 import { FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { QueryClient, QueryClientProvider } from 'react-query'
 import styled from 'styled-components'
 
 export interface Citation {
@@ -20,6 +21,17 @@ export interface Citation {
 interface CitationsListProps {
   citations: Citation[]
 }
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: Infinity,
+      cacheTime: Infinity,
+      refetchOnWindowFocus: false,
+      retry: false
+    }
+  }
+})
 
 /**
  * 限制文本长度
@@ -50,61 +62,49 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
 
-  const hasCitations = citations.length > 0
-  const count = citations.length
   const previewItems = citations.slice(0, 3)
-
-  if (!hasCitations) return null
-
-  const handleOpen = () => {
-    setOpen(true)
-  }
-
-  const handleClose = () => {
-    setOpen(false)
-  }
+  const count = citations.length
+  if (!count) return null
 
   return (
-    <>
-      <OpenButton type="text" onClick={handleOpen}>
-        <PreviewIcons>
-          {previewItems.map((c, i) => (
-            <PreviewIcon key={i} style={{ zIndex: previewItems.length - i }}>
-              {c.type === 'websearch' && c.url ? (
-                <Favicon hostname={new URL(c.url).hostname} alt={''} />
-              ) : (
-                <FileSearch width={16} />
-              )}
-            </PreviewIcon>
-          ))}
-        </PreviewIcons>
-        {t('message.citation', { count: count })}
-      </OpenButton>
+    <QueryClientProvider client={queryClient}>
+      <>
+        <OpenButton type="text" onClick={() => setOpen(true)}>
+          <PreviewIcons>
+            {previewItems.map((c, i) => (
+              <PreviewIcon key={i} style={{ zIndex: previewItems.length - i }}>
+                {c.type === 'websearch' && c.url ? (
+                  <Favicon hostname={new URL(c.url).hostname} alt={c.title || ''} />
+                ) : (
+                  <FileSearch width={16} />
+                )}
+              </PreviewIcon>
+            ))}
+          </PreviewIcons>
+          {t('message.citation', { count })}
+        </OpenButton>
 
-      <Drawer
-        title={t('message.citations')}
-        placement="right"
-        onClose={handleClose}
-        open={open}
-        width={680}
-        destroyOnClose
-        styles={{
-          body: {
-            padding: 16,
-            height: 'calc(100% - 55px)'
-          }
-        }}>
-        {citations.map((citation) => (
-          <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            {citation.type === 'websearch' ? (
-              <WebSearchCitation citation={citation} />
-            ) : (
-              <KnowledgeCitation citation={citation} />
-            )}
-          </HStack>
-        ))}
-      </Drawer>
-    </>
+        <Drawer
+          title={t('message.citations')}
+          placement="right"
+          onClose={() => setOpen(false)}
+          open={open}
+          width={680}
+          destroyOnClose={true} // unmount on close
+        >
+          {open &&
+            citations.map((citation) => (
+              <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                {citation.type === 'websearch' ? (
+                  <WebSearchCitation citation={citation} />
+                ) : (
+                  <KnowledgeCitation citation={citation} />
+                )}
+              </HStack>
+            ))}
+        </Drawer>
+      </>
+    </QueryClientProvider>
   )
 }
 
@@ -212,14 +212,14 @@ const WebSearchCard = styled.div`
   padding: 12px;
   margin-bottom: 8px;
   border-radius: 8px;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-bg-2);
+  border: 1px solid #e5e6eb;
+  background-color: #f8f9fa;
   transition: all 0.3s ease;
 
   &:hover {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    background-color: var(--color-bg-3);
-    border-color: var(--color-primary-light);
+    background-color: #f1f3f5;
+    border-color: rgba(24, 144, 255, 0.1);
     transform: translateY(-2px);
   }
 `

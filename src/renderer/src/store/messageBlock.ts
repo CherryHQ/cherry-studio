@@ -193,7 +193,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
 
         let url = result.sourceUrl
         let title = result.sourceUrl
-        let showFavicon = true
+        const showFavicon = true
 
         // 如果匹配文件链接格式 [filename](http://file/xxx)
         if (fileMatch) {
