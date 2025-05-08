@@ -21,6 +21,7 @@ const api = {
   setFeedUrl: (feedUrl: string) => ipcRenderer.invoke(IpcChannel.App_SetFeedUrl, feedUrl),
   restartTray: () => ipcRenderer.invoke(IpcChannel.App_RestartTray),
   setTheme: (theme: 'light' | 'dark' | 'auto') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  setZoomFactor: (factor: number) => ipcRenderer.invoke(IpcChannel.App_SetZoomFactor, factor),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
@@ -191,6 +192,17 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
+  },
+  // 新增：监听主进程的 zoom factor 更新
+  onZoomFactorUpdate: (callback: (factor: number) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, factor: number) => {
+      callback(factor)
+    }
+    ipcRenderer.on(IpcChannel.ZoomFactorUpdated, listener)
+    // 返回一个移除监听器的函数
+    return () => {
+      ipcRenderer.removeListener(IpcChannel.ZoomFactorUpdated, listener)
+    }
   }
 }
 

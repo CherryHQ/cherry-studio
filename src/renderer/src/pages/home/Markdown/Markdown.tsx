@@ -66,13 +66,12 @@ const Markdown: FC<Props> = ({ block }) => {
   }, [mathEngine, messageContent])
 
   const components = useMemo(() => {
-    const baseComponents = {
+    return {
       a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
       code: CodeBlock,
       img: ImagePreview,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
     } as Partial<Components>
-    return baseComponents
   }, [])
 
   // if (role === 'user' && !renderInputMessageAsMarkdown) {
