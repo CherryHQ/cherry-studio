@@ -1163,7 +1163,8 @@
           "logo_url_placeholder": "ロゴURLを入力してください",
           "logo_upload_label": "ロゴをアップロード",
           "logo_upload_button": "アップロード",
-          "save": "保存"
+          "save": "保存",
+          "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリには id、name、url、logo フィールドが必要です。"
         }
       },
       "font_size.title": "メッセージのフォントサイズ",

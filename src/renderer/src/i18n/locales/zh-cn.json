@@ -1155,7 +1155,8 @@
           "logo_url_placeholder": "请输入 Logo URL",
           "logo_upload_label": "上传 Logo",
           "logo_upload_button": "上传",
-          "save": "保存"
+          "save": "保存",
+          "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段。"
         },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",

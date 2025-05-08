@@ -1149,7 +1149,8 @@
           "logo_url_placeholder": "Enter logo URL",
           "logo_upload_label": "Upload Logo",
           "logo_upload_button": "Upload",
-          "save": "Save"
+          "save": "Save",
+          "edit_description": "Edit custom mini app configurations here. Each app should include id, name, url, and logo fields."
         },
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
