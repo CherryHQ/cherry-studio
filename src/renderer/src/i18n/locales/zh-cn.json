@@ -629,11 +629,26 @@
         "open_link_external_on": "当前：在浏览器中打开链接",
         "open_link_external_off": "当前：使用默认窗口打开链接"
       },
-      "sidebar.add.title": "添加到侧边栏",
-      "sidebar.remove.title": "从侧边栏移除",
-      "sidebar.close.title": "关闭",
-      "sidebar.closeall.title": "全部关闭",
-      "sidebar.hide.title": "隐藏小程序",
+      "sidebar": {
+        "add": {
+          "title": "添加到侧边栏"
+        },
+        "remove": {
+          "title": "从侧边栏移除"
+        },
+        "remove_custom": {
+          "title": "删除自定义应用"
+        },
+        "hide": {
+          "title": "隐藏"
+        },
+        "close": {
+          "title": "关闭"
+        },
+        "closeall": {
+          "title": "关闭所有"
+        }
+      },
       "title": "小程序"
     },
     "miniwindow": {
@@ -1116,6 +1131,37 @@
         "visible": "显示的小程序",
         "open_link_external": {
           "title": "在浏览器中打开新窗口链接"
+        },
+        "custom": {
+          "title": "自定义小程序",
+          "edit_title": "编辑自定义小程序",
+          "save_success": "自定义小程序保存成功。",
+          "save_error": "自定义小程序保存失败。",
+          "remove_success": "自定义小程序删除成功。",
+          "remove_error": "自定义小程序删除失败。",
+          "logo_upload_success": "Logo 上传成功。",
+          "logo_upload_error": "Logo 上传失败。",
+          "id": "ID",
+          "id_error": "ID 是必填项。",
+          "id_placeholder": "请输入 ID",
+          "name": "名称",
+          "name_error": "名称是必填项。",
+          "name_placeholder": "请输入名称",
+          "url": "URL",
+          "url_error": "URL 是必填项。",
+          "url_placeholder": "请输入 URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "上传 Logo 文件",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "请输入 Logo URL",
+          "logo_upload_label": "上传 Logo",
+          "logo_upload_button": "上传",
+          "save": "保存",
+          "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段。",
+          "placeholder": "请输入自定义小程序配置（JSON格式）",
+          "duplicate_ids": "发现重复的ID: {{ids}}",
+          "conflicting_ids": "与默认应用ID冲突: {{ids}}"
         },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",

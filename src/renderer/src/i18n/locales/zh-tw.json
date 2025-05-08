@@ -629,11 +629,26 @@
         "open_link_external_on": "当前：在瀏覽器中開啟連結",
         "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
-      "sidebar.add.title": "新增到側邊欄",
-      "sidebar.remove.title": "從側邊欄移除",
-      "sidebar.close.title": "關閉",
-      "sidebar.closeall.title": "全部關閉",
-      "sidebar.hide.title": "隱藏小工具",
+      "sidebar": {
+        "add": {
+          "title": "添加到側邊欄"
+        },
+        "remove": {
+          "title": "從側邊欄移除"
+        },
+        "remove_custom": {
+          "title": "刪除自定義應用"
+        },
+        "hide": {
+          "title": "隱藏"
+        },
+        "close": {
+          "title": "關閉"
+        },
+        "closeall": {
+          "title": "關閉所有"
+        }
+      },
       "title": "小工具"
     },
     "miniwindow": {
@@ -1116,6 +1131,37 @@
         "visible": "顯示的小程式",
         "open_link_external": {
           "title": "在瀏覽器中打開新視窗連結"
+        },
+        "custom": {
+          "duplicate_ids": "發現重複的ID: {{ids}}",
+          "conflicting_ids": "與預設應用ID衝突: {{ids}}",
+          "title": "自定義小程序",
+          "edit_title": "編輯自定義小程序",
+          "save_success": "自定義小程序保存成功。",
+          "save_error": "自定義小程序保存失敗。",
+          "remove_success": "自定義小程序刪除成功。",
+          "remove_error": "自定義小程序刪除失敗。",
+          "logo_upload_success": "Logo 上傳成功。",
+          "logo_upload_error": "Logo 上傳失敗。",
+          "id": "ID",
+          "id_error": "ID 是必填項。",
+          "id_placeholder": "請輸入 ID",
+          "name": "名稱",
+          "name_error": "名稱是必填項。",
+          "name_placeholder": "請輸入名稱",
+          "url": "URL",
+          "url_error": "URL 是必填項。",
+          "url_placeholder": "請輸入 URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "上傳 Logo 文件",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "請輸入 Logo URL",
+          "logo_upload_label": "上傳 Logo",
+          "logo_upload_button": "上傳",
+          "save": "保存",
+          "placeholder": "請輸入自定義小程序配置（JSON格式）",
+          "edit_description": "編輯自定義小程序配置"
         },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",

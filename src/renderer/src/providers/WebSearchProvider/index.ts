@@ -7,11 +7,16 @@ import WebSearchProviderFactory from './WebSearchProviderFactory'
 
 export default class WebSearchEngineProvider {
   private sdk: BaseWebSearchProvider
+
   constructor(provider: WebSearchProvider) {
     this.sdk = WebSearchProviderFactory.create(provider)
   }
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
-    const result = await this.sdk.search(query, websearch)
+  public async search(
+    query: string,
+    websearch: WebSearchState,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchProviderResponse> {
+    const result = await this.sdk.search(query, websearch, httpOptions)
     const filteredResult = await filterResultWithBlacklist(result, websearch)
 
     return filteredResult

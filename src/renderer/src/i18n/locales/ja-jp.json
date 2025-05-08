@@ -629,11 +629,26 @@
         "open_link_external_on": "現在：ブラウザで開く",
         "open_link_external_off": "現在：デフォルトのウィンドウで開く"
       },
-      "sidebar.add.title": "サイドバーに追加",
-      "sidebar.remove.title": "サイドバーから削除",
-      "sidebar.close.title": "閉じる",
-      "sidebar.closeall.title": "すべて閉じる",
-      "sidebar.hide.title": "ミニアプリを隠す",
+      "sidebar": {
+        "add": {
+          "title": "サイドバーに追加"
+        },
+        "remove": {
+          "title": "サイドバーから削除"
+        },
+        "remove_custom": {
+          "title": "カスタムアプリを削除"
+        },
+        "hide": {
+          "title": "非表示"
+        },
+        "close": {
+          "title": "閉じる"
+        },
+        "closeall": {
+          "title": "すべて閉じる"
+        }
+      },
       "title": "ミニアプリ"
     },
     "miniwindow": {
@@ -1124,7 +1139,38 @@
         "display_title": "ミニアプリ表示設定",
         "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
         "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます"
+        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
+        "custom": {
+          "title": "カスタムミニアプリ",
+          "edit_title": "カスタムミニアプリの編集",
+          "save_success": "カスタムミニアプリの保存に成功しました。",
+          "save_error": "カスタムミニアプリの保存に失敗しました。",
+          "remove_success": "カスタムミニアプリの削除に成功しました。",
+          "remove_error": "カスタムミニアプリの削除に失敗しました。",
+          "logo_upload_success": "ロゴのアップロードに成功しました。",
+          "logo_upload_error": "ロゴのアップロードに失敗しました。",
+          "id": "ID",
+          "id_error": "IDは必須項目です。",
+          "id_placeholder": "IDを入力してください",
+          "name": "名前",
+          "name_error": "名前は必須項目です。",
+          "name_placeholder": "名前を入力してください",
+          "url": "URL",
+          "url_error": "URLは必須項目です。",
+          "url_placeholder": "URLを入力してください",
+          "logo": "ロゴ",
+          "logo_url": "ロゴURL",
+          "logo_file": "ロゴファイルをアップロード",
+          "logo_url_label": "ロゴURL",
+          "logo_url_placeholder": "ロゴURLを入力してください",
+          "logo_upload_label": "ロゴをアップロード",
+          "logo_upload_button": "アップロード",
+          "save": "保存",
+          "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリにはid、name、url、logoフィールドが必要です。",
+          "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）",
+          "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
+          "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}"
+        }
       },
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",

@@ -230,6 +230,12 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
   'i'
 )
+
+export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+))\\b`,
+  'i'
+)
+
 export function isFunctionCallingModel(model: Model): boolean {
   if (model.type?.includes('function_calling')) {
     return true
@@ -2397,6 +2403,10 @@ export function isWebSearchModel(model: Model): boolean {
 
   if (isEmbedding) {
     return false
+  }
+
+  if (model.id.includes('claude')) {
+    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
   }
 
   if (provider.type === 'openai') {
