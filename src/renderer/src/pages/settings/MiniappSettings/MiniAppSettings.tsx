@@ -100,6 +100,7 @@ const MiniAppSettings: FC = () => {
           errorMessage += t('settings.miniapps.custom.duplicate_ids', { ids: Array.from(duplicateIds).join(', ') })
         }
         if (conflictingIds.size > 0) {
+          console.log('conflictingIds', Array.from(conflictingIds))
           if (errorMessage) errorMessage += '\n'
           errorMessage += t('settings.miniapps.custom.conflicting_ids', { ids: Array.from(conflictingIds).join(', ') })
         }
@@ -120,7 +121,7 @@ const MiniAppSettings: FC = () => {
       messageApi.error(t('settings.miniapps.custom.save_error'))
       console.error('Failed to save custom mini app config:', error)
     }
-  }, [customMiniAppContent, messageApi, t])
+  }, [customMiniAppContent, messageApi, t, updateMinapps])
 
   const handleResetMinApps = useCallback(() => {
     setVisibleMiniApps(DEFAULT_MIN_APPS)

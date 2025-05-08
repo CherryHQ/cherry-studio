@@ -39,18 +39,17 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   }
 
   const handleAddCustomApp = async (values: any) => {
-    console.log('values', values)
     try {
       const content = await window.api.file.read('customMiniAPP')
       const customApps = JSON.parse(content)
 
       // Check for duplicate ID
       if (customApps.some((app: MinAppType) => app.id === values.id)) {
-        message.error(t('settings.miniapps.custom.duplicate_ids'))
+        message.error(t('settings.miniapps.custom.duplicate_ids', { ids: values.id }))
         return
       }
       if (ORIGIN_DEFAULT_MIN_APPS.some((app: MinAppType) => app.id === values.id)) {
-        message.error(t('settings.miniapps.custom.conflicting_ids'))
+        message.error(t('settings.miniapps.custom.conflicting_ids', { ids: values.id }))
         return
       }
 
