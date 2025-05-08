@@ -24,6 +24,7 @@ export type Assistant = {
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
+  regularPrompts?: QuickPhrase[] // Added for regular prompts
 }
 
 export type AssistantMessage = {

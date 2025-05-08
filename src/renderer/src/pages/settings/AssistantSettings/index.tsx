@@ -14,13 +14,14 @@ import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantMessagesSettings from './AssistantMessagesSettings'
 import AssistantModelSettings from './AssistantModelSettings'
 import AssistantPromptSettings from './AssistantPromptSettings'
+import AssistantRegularPromptsSettings from './AssistantRegularPromptsSettings'
 
 interface AssistantSettingPopupShowParams {
   assistant: Assistant
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp'
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_prompts'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -73,6 +74,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'mcp',
       label: t('assistants.settings.mcp')
+    },
+    {
+      key: 'regular_prompts',
+      label: t('assistants.settings.regular_prompts', 'Regular Prompts')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -141,6 +146,9 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
             />
+          )}
+          {menu === 'regular_prompts' && (
+            <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
           )}
         </Settings>
       </HStack>
