@@ -1,4 +1,5 @@
 import n8nLogo from '@renderer/assets/images/apps/n8n.ico?url'
+import ParateraLogo from '@renderer/assets/images/apps/paratera.ico?url'
 import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
@@ -439,6 +440,12 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
     bodered: true
+  },
+  {
+    id: 'paratera',
+    name: '并行AI',
+    logo: ParateraLogo,
+    url: 'https://ai.paratera.com/'
   },
   {
     id: `zai`,
