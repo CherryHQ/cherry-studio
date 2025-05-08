@@ -63,6 +63,9 @@ const MiniAppSettings: FC = () => {
   const handleSaveCustomMiniApp = useCallback(async () => {
     try {
       // 验证 JSON 格式
+      if (customMiniAppContent === '') {
+        setCustomMiniAppContent('[]')
+      }
       const parsedContent = JSON.parse(customMiniAppContent)
       // 确保是数组
       if (!Array.isArray(parsedContent)) {
