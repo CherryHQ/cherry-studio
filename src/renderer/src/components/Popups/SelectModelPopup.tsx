@@ -61,7 +61,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const focusedItemKey = useDeferredValue(_focusedItemKey)
   const [currentStickyGroup, setCurrentStickyGroup] = useState<FlatListItem | null>(null)
   const firstGroupRef = useRef<FlatListItem | null>(null)
-  const [scrollTrigger, setScrollTrigger] = useState<ScrollTrigger>('initial')
+  const scrollTriggerRef = useRef<ScrollTrigger>('initial')
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
@@ -102,7 +102,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
         await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
         setPinnedModels(sortBy(newPinnedModels))
         // Pin操作不触发滚动
-        setScrollTrigger('none')
+        scrollTriggerRef.current = 'none'
       } catch (error) {
         console.error('Failed to update pinned models', error)
       }
@@ -225,50 +225,49 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return listItems.filter((item) => item.type === 'model')
   }, [listItems])
 
-  // 搜索文本变化时清空聚焦项，并设置滚动来源
+  // 搜索文本变化时设置滚动来源
   useEffect(() => {
-    setFocusedItemKey('')
     if (searchText.trim() !== '') {
-      setScrollTrigger('search')
+      scrollTriggerRef.current = 'search'
+      setFocusedItemKey('')
     }
   }, [searchText])
 
+  // 设置初始聚焦项以触发滚动
+  useEffect(() => {
+    if (scrollTriggerRef.current === 'initial' || scrollTriggerRef.current === 'search') {
+      const selectedItem = modelItems.find((item) => item.isSelected)
+      if (selectedItem) {
+        setFocusedItemKey(selectedItem.key)
+      } else if (scrollTriggerRef.current === 'initial' && modelItems.length > 0) {
+        setFocusedItemKey(modelItems[0].key)
+      }
+      // 其余情况不设置focusedItemKey
+    }
+  }, [modelItems])
+
   // 滚动到聚焦项
-  const scrollToFocusedItem = useCallback(() => {
-    if (scrollTrigger === 'none' || !focusedItemKey) return
+  useEffect(() => {
+    if (scrollTriggerRef.current === 'none' || !focusedItemKey) return
 
     const index = listItems.findIndex((item) => item.key === focusedItemKey)
     if (index < 0) return
 
     // 根据触发源决定滚动对齐方式
-    const alignment = scrollTrigger === 'keyboard' ? 'auto' : 'center'
+    const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'center'
     listRef.current?.scrollToItem(index, alignment)
 
+    console.log('focusedItemKey', focusedItemKey)
+    console.log('scrollToFocusedItem', index, alignment)
+
     // 滚动后重置触发器
-    setScrollTrigger('none')
-  }, [focusedItemKey, listItems, scrollTrigger])
-
-  // 设置初始聚焦项以触发滚动
-  useEffect(() => {
-    if (scrollTrigger === 'initial' || scrollTrigger === 'search') {
-      const selectedItem = modelItems.find((item) => item.isSelected)
-      if (selectedItem) {
-        setFocusedItemKey(selectedItem.key)
-      } else if (scrollTrigger === 'initial' && modelItems.length > 0) {
-        setFocusedItemKey(modelItems[0].key)
-      }
-      // 其余情况不设置focusedItemKey
-    }
-  }, [modelItems, scrollTrigger])
-
-  // 执行滚动
-  useEffect(() => {
-    focusedItemKey && scrollToFocusedItem()
-  }, [focusedItemKey, scrollToFocusedItem])
+    scrollTriggerRef.current = 'none'
+  }, [focusedItemKey, listItems])
 
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
       if (item.type === 'model') {
+        scrollTriggerRef.current = 'none'
         resolve(item.model)
         setOpen(false)
       }
@@ -299,7 +298,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
       switch (e.key) {
         case 'ArrowUp':
-          setScrollTrigger('keyboard')
+          scrollTriggerRef.current = 'keyboard'
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
             const nextIndex = (currentIndex - 1 + modelItems.length) % modelItems.length
@@ -307,7 +306,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           })
           break
         case 'ArrowDown':
-          setScrollTrigger('keyboard')
+          scrollTriggerRef.current = 'keyboard'
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
             const nextIndex = (currentIndex + 1) % modelItems.length
@@ -315,7 +314,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           })
           break
         case 'PageUp':
-          setScrollTrigger('keyboard')
+          scrollTriggerRef.current = 'keyboard'
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
             const nextIndex = Math.max(currentIndex - PAGE_SIZE, 0)
@@ -323,7 +322,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           })
           break
         case 'PageDown':
-          setScrollTrigger('keyboard')
+          scrollTriggerRef.current = 'keyboard'
           setFocusedItemKey((prev) => {
             const currentIndex = getCurrentIndex(prev)
             const nextIndex = Math.min(currentIndex + PAGE_SIZE, modelItems.length - 1)
@@ -340,6 +339,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           break
         case 'Escape':
           e.preventDefault()
+          scrollTriggerRef.current = 'none'
           setOpen(false)
           resolve(undefined)
           break
@@ -351,10 +351,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   }, [focusedItemKey, modelItems, handleItemClick, open, resolve])
 
   const onCancel = useCallback(() => {
+    scrollTriggerRef.current = 'none'
     setOpen(false)
   }, [])
 
   const onClose = useCallback(async () => {
+    scrollTriggerRef.current = 'none'
     resolve(undefined)
     SelectModelPopup.hide()
   }, [resolve])
@@ -362,7 +364,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   useEffect(() => {
     if (!open) return
     setTimeout(() => inputRef.current?.focus(), 0)
-    setScrollTrigger('initial')
+    scrollTriggerRef.current = 'initial'
   }, [open])
 
   // 初始化sticky分组标题
