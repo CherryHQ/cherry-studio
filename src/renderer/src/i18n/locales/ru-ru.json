@@ -9,7 +9,6 @@
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
       "add.title": "Создать агента",
-      "import.title": "Импорт из внешнего источника",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
       "edit.message.assistant.placeholder": "Введите сообщение ассистента",
@@ -78,7 +77,11 @@
       "settings.reasoning_effort.medium": "Среднее",
       "settings.reasoning_effort.default": "По умолчанию",
       "settings.more": "Настройки ассистента",
-      "settings.reasoning_effort": "Настройки размышлений"
+      "settings.reasoning_effort": "Настройки размышлений",
+      "settings.knowledge_base.recognition.tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели",
+      "settings.knowledge_base.recognition": "Использование базы знаний",
+      "settings.knowledge_base.recognition.off": "Принудительный поиск",
+      "settings.knowledge_base.recognition.on": "Распознавание намерений"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -269,6 +272,8 @@
       "input.web_search.builtin": "Модель встроена",
       "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
       "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
+      "input.web_search.no_web_search": "Отключить веб-поиск",
+      "input.web_search.no_web_search.description": "Отключить веб-поиск",
       "input.thinking": "Мыслим",
       "input.thinking.mode.default": "По умолчанию",
       "input.thinking.mode.default.tip": "Модель автоматически определяет количество токенов для размышления",
@@ -312,6 +317,7 @@
       "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
       "knowledge_base": "База знаний",
       "language": "Язык",
+      "loading": "Загрузка...",
       "model": "Модель",
       "models": "Модели",
       "more": "Ещё",
@@ -532,7 +538,8 @@
       "backup.start.success": "Создание резервной копии начато",
       "backup.success": "Резервная копия успешно создана",
       "chat.completion.paused": "Завершение чата приостановлено",
-      "citations": "Источники",
+      "citation": "{{count}} цитат",
+      "citations": "Содержание цитат",
       "copied": "Скопировано!",
       "copy.failed": "Не удалось скопировать",
       "copy.success": "Скопировано!",
@@ -1467,6 +1474,7 @@
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
+      "zoom.title": "Масштаб страницы",
       "title": "Настройки",
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
@@ -1537,7 +1545,6 @@
         "title": "Настройки конфиденциальности",
         "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
-      "defaultAgent": "Встроенный",
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {

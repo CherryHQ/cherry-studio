@@ -1,4 +1,5 @@
 import db from '@renderer/databases'
+import { upgradeToV7 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
@@ -361,7 +362,7 @@ export function stopAutoSync() {
 export async function getBackupData() {
   return JSON.stringify({
     time: new Date().getTime(),
-    version: 3,
+    version: 4,
     localStorage,
     indexedDB: await backupDatabase()
   })
@@ -390,6 +391,14 @@ export async function handleData(data: Record<string, any>) {
   if (data.version >= 2) {
     localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     await restoreDatabase(data.indexedDB)
+
+    if (data.version === 3) {
+      await db.transaction('rw', db.tables, async (tx) => {
+        await db.table('message_blocks').clear()
+        await upgradeToV7(tx)
+      })
+    }
+
     window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
     setTimeout(() => window.api.reload(), 1000)
     return

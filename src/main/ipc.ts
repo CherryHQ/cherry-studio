@@ -141,6 +141,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     notifyThemeChange()
   })
 
+  // zoom factor
+  ipcMain.handle(IpcChannel.App_SetZoomFactor, (_, factor: number) => {
+    configManager.setZoomFactor(factor)
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.setZoomFactor(factor)
+      }
+    })
+  })
+
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
