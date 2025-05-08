@@ -1,6 +1,7 @@
 import { Readability } from '@mozilla/readability'
 import { nanoid } from '@reduxjs/toolkit'
 import { WebSearchProviderResult } from '@renderer/types'
+import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import TurndownService from 'turndown'
 
@@ -54,12 +55,19 @@ export async function fetchWebContent(
       throw new Error(`Invalid URL format: ${url}`)
     }
 
-    // const controller = new AbortController()
-    // const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
     let html: string
     if (usingBrowser) {
-      html = await window.api.searchService.openUrlInSearchWindow(`search-window-${nanoid()}`, url)
+      const windowApiPromise = window.api.searchService.openUrlInSearchWindow(`search-window-${nanoid()}`, url)
+
+      const promisesToRace: [Promise<string>] = [windowApiPromise]
+
+      if (httpOptions?.signal) {
+        const signal = httpOptions.signal
+        const abortPromise = createAbortPromise(signal, windowApiPromise)
+        promisesToRace.push(abortPromise)
+      }
+
+      html = await Promise.race(promisesToRace)
     } else {
       const response = await fetch(url, {
         headers: {
