@@ -1,6 +1,7 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { useShikiWithMarkdownIt } from '@renderer/utils/shiki'
 import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +25,17 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   }, [messageFont])
 
   const toolResponse = blocks.metadata?.rawMcpToolResponse
+
+  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(
+    `\`\`\`json\n${JSON.stringify(
+      {
+        params: toolResponse?.tool?.inputSchema,
+        response: toolResponse?.response
+      },
+      null,
+      2
+    )}\n`
+  )
 
   if (!toolResponse) {
     return null
@@ -107,7 +119,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
       ),
       children: isDone && result && (
         <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
-          <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
+          <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
         </ToolResponseContainer>
       )
     })
@@ -183,13 +195,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                 {
                   key: 'raw',
                   label: t('message.tools.raw'),
-                  children: (
-                    <CodeBlock>
-                      {typeof expandedResponse.content === 'string'
-                        ? expandedResponse.content
-                        : JSON.stringify(expandedResponse.content, null, 2)}
-                    </CodeBlock>
-                  )
+                  children: <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
                 }
               ]}
             />
@@ -300,9 +306,7 @@ const CollapsibleIcon = styled.i`
 `
 
 const ToolResponseContainer = styled.div`
-  background: var(--color-bg-1);
   border-radius: 0 0 4px 4px;
-  padding: 12px 16px;
   overflow: auto;
   max-height: 300px;
   border-top: none;
@@ -315,14 +319,6 @@ const PreviewBlock = styled.div`
   word-break: break-word;
   color: var(--color-text);
   user-select: text;
-`
-
-const CodeBlock = styled.pre`
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--color-text);
-  font-family: ubuntu;
 `
 
 const ExpandedResponseContainer = styled.div`
