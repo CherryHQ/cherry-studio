@@ -1,3 +1,4 @@
+import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
@@ -7,7 +8,6 @@ import { MessageBlockType } from '@renderer/types/newMessage'
 import type OpenAI from 'openai'
 
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
-import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 
 // 1. 创建实体适配器 (Entity Adapter)
 // 我们使用块的 `id` 作为唯一标识符。
