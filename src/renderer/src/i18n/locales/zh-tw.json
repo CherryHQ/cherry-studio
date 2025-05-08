@@ -1125,7 +1125,6 @@
       "display.title": "顯示設定",
       "display.topic.title": "話題設定",
       "miniapps": {
-        "edit_description": "在這裡編輯自定義小應用的配置。每個應用需要包含 id、name、url 和 logo 欄位。",
         "title": "小程式設置",
         "disabled": "隱藏的小程式",
         "empty": "把要隱藏的小程式從左側拖拽到這裡",
@@ -1161,7 +1160,8 @@
           "logo_upload_label": "上傳 Logo",
           "logo_upload_button": "上傳",
           "save": "保存",
-          "placeholder": "請輸入自定義小程序配置（JSON格式）"
+          "placeholder": "請輸入自定義小程序配置（JSON格式）",
+          "edit_description": "編輯自定義小程序配置"
         },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
