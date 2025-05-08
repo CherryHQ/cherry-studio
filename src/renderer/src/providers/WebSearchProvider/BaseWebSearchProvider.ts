@@ -10,7 +10,11 @@ export default abstract class BaseWebSearchProvider {
     this.provider = provider
     this.apiKey = this.getApiKey()
   }
-  abstract search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse>
+  abstract search(
+    query: string,
+    websearch: WebSearchState,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchProviderResponse>
 
   public getApiKey() {
     const keys = this.provider.apiKey?.split(',').map((key) => key.trim()) || []
