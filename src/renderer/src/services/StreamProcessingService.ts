@@ -56,8 +56,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         callbacks.onTextChunk(data.text)
       }
       if (data.type === ChunkType.TEXT_COMPLETE && callbacks.onTextComplete) {
-        // 消除工具使用对信息流的影响
-        callbacks.onTextComplete(data.text.replace(/<tool_use>([\s\S]*?)<\/tool_use>/g, ''))
+        callbacks.onTextComplete(data.text)
       }
       if (data.type === ChunkType.THINKING_DELTA && callbacks.onThinkingChunk) {
         callbacks.onThinkingChunk(data.text, data.thinking_millsec)
