@@ -15,7 +15,6 @@ import type { Message } from '@renderer/types/newMessage'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { glmZeroPreviewProcessor, thinkTagProcessor, ThoughtProcessor } from '@renderer/utils/formats'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
@@ -228,53 +227,6 @@ export default abstract class BaseProvider {
     return {
       abortController,
       cleanup
-    }
-  }
-
-  /**
-   * Finds the appropriate thinking processor for a given text chunk and model.
-   * Returns the processor if found, otherwise undefined.
-   */
-  protected findThinkingProcessor(chunkText: string, model: Model | undefined): ThoughtProcessor | undefined {
-    if (!model) return undefined
-
-    const processors: ThoughtProcessor[] = [thinkTagProcessor, glmZeroPreviewProcessor]
-    return processors.find((p) => p.canProcess(chunkText, model))
-  }
-
-  /**
-   * Returns a function closure that handles incremental reasoning text for a specific stream.
-   * The returned function processes a chunk, emits THINKING_DELTA for new reasoning,
-   * and returns the associated content part.
-   */
-  protected handleThinkingTags() {
-    let memoizedReasoning = ''
-    // Returns a function that handles a single chunk potentially containing thinking tags
-    return (chunkText: string, processor: ThoughtProcessor, onChunk: (chunk: any) => void): string => {
-      // Returns the processed content part
-      const { reasoning, content } = processor.process(chunkText)
-      let deltaReasoning = ''
-
-      if (reasoning && reasoning.trim()) {
-        // Check if the new reasoning starts with the previous one
-        if (reasoning.startsWith(memoizedReasoning)) {
-          deltaReasoning = reasoning.substring(memoizedReasoning.length)
-        } else {
-          // If not a continuation, send the whole new reasoning
-          deltaReasoning = reasoning
-          // console.warn("Thinking content did not start with previous memoized version. Sending full content.")
-        }
-        memoizedReasoning = reasoning // Update memoized state
-      } else {
-        // If no reasoning, reset memoized state? Let's reset.
-        memoizedReasoning = ''
-      }
-
-      if (deltaReasoning) {
-        onChunk({ type: ChunkType.THINKING_DELTA, text: deltaReasoning })
-      }
-
-      return content // Return the content part for TEXT_DELTA emission
     }
   }
 }
