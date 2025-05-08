@@ -145,8 +145,8 @@ async function fetchExternalTool(
         source: WebSearchSource.WEBSEARCH
       }
     } catch (error) {
-      console.error('Web search failed:', error)
       if (isAbortError(error)) throw error
+      console.error('Web search failed:', error)
       return
     }
   }
@@ -251,8 +251,8 @@ async function fetchExternalTool(
 
     return { mcpTools }
   } catch (error) {
-    console.error('Tool execution failed:', error)
     if (isAbortError(error)) throw error
+    console.error('Tool execution failed:', error)
 
     // 发送错误状态
     if (willUseTools) {
