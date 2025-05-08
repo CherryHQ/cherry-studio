@@ -1,5 +1,10 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
-import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
+import {
+  DEFAULT_MIN_APPS,
+  loadCustomMiniApp,
+  ORIGIN_DEFAULT_MIN_APPS,
+  updateDefaultMinApps
+} from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -9,7 +14,7 @@ import {
   setMinappsOpenLinkExternal,
   setShowOpenedMinappsInSidebar
 } from '@renderer/store/settings'
-import { Button, message, Slider, Switch, Tooltip } from 'antd'
+import { Button, Input, message, Slider, Switch, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -31,6 +36,92 @@ const MiniAppSettings: FC = () => {
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
   const [messageApi, contextHolder] = message.useMessage()
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const [customMiniAppContent, setCustomMiniAppContent] = useState('[]')
+
+  // 加载自定义小应用配置
+  useEffect(() => {
+    const loadCustomMiniApp = async () => {
+      try {
+        const content = await window.api.file.read('customMiniAPP')
+        let validContent = '[]'
+        try {
+          const parsed = JSON.parse(content)
+          validContent = JSON.stringify(parsed)
+        } catch (e) {
+          console.error('Invalid JSON format in custom mini app config:', e)
+        }
+        setCustomMiniAppContent(validContent)
+      } catch (error) {
+        console.error('Failed to load custom mini app config:', error)
+        setCustomMiniAppContent('[]')
+      }
+    }
+    loadCustomMiniApp()
+  }, [])
+
+  // 保存自定义小应用配置
+  const handleSaveCustomMiniApp = useCallback(async () => {
+    try {
+      // 验证 JSON 格式
+      if (customMiniAppContent === '') {
+        setCustomMiniAppContent('[]')
+      }
+      const parsedContent = JSON.parse(customMiniAppContent)
+      // 确保是数组
+      if (!Array.isArray(parsedContent)) {
+        throw new Error('Content must be an array')
+      }
+
+      // 检查自定义应用中的重复ID
+      const customIds = new Set<string>()
+      const duplicateIds = new Set<string>()
+      parsedContent.forEach((app: any) => {
+        if (app.id) {
+          if (customIds.has(app.id)) {
+            duplicateIds.add(app.id)
+          }
+          customIds.add(app.id)
+        }
+      })
+
+      // 检查与默认应用的ID重复
+      const defaultIds = new Set(ORIGIN_DEFAULT_MIN_APPS.map((app) => app.id))
+      const conflictingIds = new Set<string>()
+      customIds.forEach((id) => {
+        if (defaultIds.has(id)) {
+          conflictingIds.add(id)
+        }
+      })
+
+      // 如果有重复ID，显示错误信息
+      if (duplicateIds.size > 0 || conflictingIds.size > 0) {
+        let errorMessage = ''
+        if (duplicateIds.size > 0) {
+          errorMessage += t('settings.miniapps.custom.duplicate_ids', { ids: Array.from(duplicateIds).join(', ') })
+        }
+        if (conflictingIds.size > 0) {
+          console.log('conflictingIds', Array.from(conflictingIds))
+          if (errorMessage) errorMessage += '\n'
+          errorMessage += t('settings.miniapps.custom.conflicting_ids', { ids: Array.from(conflictingIds).join(', ') })
+        }
+        messageApi.error(errorMessage)
+        return
+      }
+
+      // 保存文件
+      await window.api.file.writeWithId('customMiniAPP', customMiniAppContent)
+      messageApi.success(t('settings.miniapps.custom.save_success'))
+      // 重新加载应用列表
+      console.log('Reloading mini app list...')
+      const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+      updateDefaultMinApps(reloadedApps)
+      console.log('Reloaded mini app list:', reloadedApps)
+      updateMinapps(reloadedApps)
+    } catch (error) {
+      messageApi.error(t('settings.miniapps.custom.save_error'))
+      console.error('Failed to save custom mini app config:', error)
+    }
+  }, [customMiniAppContent, messageApi, t, updateMinapps])
 
   const handleResetMinApps = useCallback(() => {
     setVisibleMiniApps(DEFAULT_MIN_APPS)
@@ -77,6 +168,7 @@ const MiniAppSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
         <SettingDivider />
+
         <SettingTitle
           style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{t('settings.miniapps.display_title')}</span>
@@ -143,6 +235,30 @@ const MiniAppSettings: FC = () => {
             onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
           />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingLabelGroup>
+            <SettingRowTitle>{t('settings.miniapps.custom.edit_title')}</SettingRowTitle>
+            <SettingDescription>{t('settings.miniapps.custom.edit_description')}</SettingDescription>
+          </SettingLabelGroup>
+        </SettingRow>
+        <CustomEditorContainer>
+          <Input.TextArea
+            value={customMiniAppContent}
+            onChange={(e) => setCustomMiniAppContent(e.target.value)}
+            placeholder={t('settings.miniapps.custom.placeholder')}
+            style={{
+              minHeight: 200,
+              fontFamily: 'monospace',
+              backgroundColor: 'var(--color-bg-2)',
+              color: 'var(--color-text)',
+              borderColor: 'var(--color-border)'
+            }}
+          />
+          <Button type="primary" onClick={handleSaveCustomMiniApp} style={{ marginTop: 8 }}>
+            {t('settings.miniapps.custom.save')}
+          </Button>
+        </CustomEditorContainer>
       </SettingGroup>
     </SettingContainer>
   )
@@ -227,6 +343,19 @@ const BorderedContainer = styled.div`
   padding: 8px;
   margin: 8px 0 8px;
   background-color: var(--color-bg-1);
+`
+
+// 新增自定义编辑器容器样式
+const CustomEditorContainer = styled.div`
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background-color: var(--color-bg-1);
+
+  .ant-input {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+  }
 `
 
 export default MiniAppSettings

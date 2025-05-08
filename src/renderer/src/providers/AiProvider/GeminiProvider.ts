@@ -178,13 +178,10 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * Get the safety settings
-   * @param modelId - The model ID
    * @returns The safety settings
    */
-  private getSafetySettings(modelId: string): SafetySetting[] {
-    const safetyThreshold = modelId.includes('gemini-2.0-flash-exp')
-      ? ('OFF' as HarmBlockThreshold)
-      : HarmBlockThreshold.BLOCK_NONE
+  private getSafetySettings(): SafetySetting[] {
+    const safetyThreshold = 'OFF' as HarmBlockThreshold
 
     return [
       {
@@ -204,8 +201,8 @@ export default class GeminiProvider extends BaseProvider {
         threshold: safetyThreshold
       },
       {
-        category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory,
-        threshold: safetyThreshold
+        category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+        threshold: HarmBlockThreshold.BLOCK_NONE
       }
     ]
   }
@@ -310,7 +307,7 @@ export default class GeminiProvider extends BaseProvider {
     const generateContentConfig: GenerateContentConfig = {
       responseModalities: canGenerateImage ? [Modality.TEXT, Modality.IMAGE] : undefined,
       responseMimeType: canGenerateImage ? 'text/plain' : undefined,
-      safetySettings: this.getSafetySettings(model.id),
+      safetySettings: this.getSafetySettings(),
       // generate image don't need system instruction
       systemInstruction: isGemmaModel(model) || canGenerateImage ? undefined : systemInstruction,
       temperature: assistant?.settings?.temperature,

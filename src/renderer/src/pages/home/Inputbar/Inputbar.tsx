@@ -1,7 +1,13 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isGenerateImageModel, isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  isGenerateImageModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -864,6 +870,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
   }
 
   const isExpended = expended || !!textareaHeight
+  const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
@@ -932,7 +939,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, setActiveA
                 ToolbarButton={ToolbarButton}
                 disabled={isDisableToolsButton}
               />
-              {isReasoningModel(model) && (
+              {showThinkingButton && (
                 <ThinkingButton
                   ref={thinkingButtonRef}
                   model={model}

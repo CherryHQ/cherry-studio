@@ -1,6 +1,7 @@
 import { KnowledgeBaseParams } from '@types'
 
 import BaseReranker from './BaseReranker'
+import DashscopeReranker from './DashscopeReranker'
 import DefaultReranker from './DefaultReranker'
 import JinaReranker from './JinaReranker'
 import SiliconFlowReranker from './SiliconFlowReranker'
@@ -14,6 +15,8 @@ export default class RerankerFactory {
       return new JinaReranker(base)
     } else if (base.rerankModelProvider === 'voyageai') {
       return new VoyageReranker(base)
+    } else if (base.rerankModelProvider === 'dashscope') {
+      return new DashscopeReranker(base)
     }
     return new DefaultReranker(base)
   }

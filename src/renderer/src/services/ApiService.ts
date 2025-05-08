@@ -46,22 +46,32 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
+
+  const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
+  const shouldKnowledgeSearch = hasKnowledgeBase
+
+  // 在工具链开始时发送进度通知
+  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
+  if (willUseTools) {
+    onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
+  }
 
   // --- Keyword/Question Extraction Function ---
   const extract = async (): Promise<ExtractResults | undefined> => {
     if (!lastUserMessage) return undefined
-    // 如果都不需要搜索，则直接返回，不意图识别
-    if (!shouldWebSearch && !hasKnowledgeBase) return undefined
 
-    // Notify UI that extraction/searching is starting
-    onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
+    // 根据配置决定是否需要提取
+    const needWebExtract = shouldWebSearch
+    const needKnowledgeExtract = hasKnowledgeBase && knowledgeRecognition === 'on'
 
-    let prompt = ''
+    if (!needWebExtract && !needKnowledgeExtract) return undefined
 
-    if (shouldWebSearch && !hasKnowledgeBase) {
+    let prompt: string
+    if (needWebExtract && !needKnowledgeExtract) {
       prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
-    } else if (!shouldWebSearch && hasKnowledgeBase) {
+    } else if (!needWebExtract && needKnowledgeExtract) {
       prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
     } else {
       prompt = SEARCH_SUMMARY_PROMPT
@@ -71,29 +81,20 @@ async function fetchExternalTool(
     summaryAssistant.model = assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
-    const getFallbackResult = (): ExtractResults => {
-      const fallbackContent = getMainTextContent(lastUserMessage)
-      return {
-        websearch: shouldWebSearch
-          ? {
-              question: [fallbackContent || 'search']
-            }
-          : undefined,
-        knowledge: hasKnowledgeBase
-          ? {
-              question: [fallbackContent || 'search']
-            }
-          : undefined
-      } as ExtractResults
-    }
-
     try {
       const keywords = await fetchSearchSummary({
         messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
         assistant: summaryAssistant
       })
 
-      return keywords ? extractInfoFromXML(keywords) : getFallbackResult()
+      if (!keywords) return getFallbackResult()
+
+      const extracted = extractInfoFromXML(keywords)
+      // 根据需求过滤结果
+      return {
+        websearch: needWebExtract ? extracted?.websearch : undefined,
+        knowledge: needKnowledgeExtract ? extracted?.knowledge : undefined
+      }
     } catch (e: any) {
       console.error('extract error', e)
       if (isAbortError(e)) throw e
@@ -101,15 +102,28 @@ async function fetchExternalTool(
     }
   }
 
+  const getFallbackResult = (): ExtractResults => {
+    const fallbackContent = getMainTextContent(lastUserMessage)
+    return {
+      websearch: shouldWebSearch ? { question: [fallbackContent || 'search'] } : undefined,
+      knowledge: shouldKnowledgeSearch
+        ? {
+            question: [fallbackContent || 'search'],
+            rewrite: fallbackContent
+          }
+        : undefined
+    }
+  }
+
   // --- Web Search Function ---
-  const searchTheWeb = async (): Promise<WebSearchResponse | undefined> => {
+  const searchTheWeb = async (extractResults: ExtractResults | undefined): Promise<WebSearchResponse | undefined> => {
+    if (!shouldWebSearch) return
+
     // Add check for extractResults existence early
     if (!extractResults?.websearch) {
       console.warn('searchTheWeb called without valid extractResults.websearch')
       return
     }
-
-    if (!shouldWebSearch) return
 
     // Add check for assistant.model before using it
     if (!assistant.model) {
@@ -120,11 +134,9 @@ async function fetchExternalTool(
     // Pass the guaranteed model to the check function
     const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
     if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model)) {
-      console.log('Using built-in OpenAI web search, skipping external search.')
       return
     }
 
-    console.log('Performing external web search...')
     try {
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
@@ -133,102 +145,128 @@ async function fetchExternalTool(
         source: WebSearchSource.WEBSEARCH
       }
     } catch (error) {
-      console.error('Web search failed:', error)
       if (isAbortError(error)) throw error
+      console.error('Web search failed:', error)
       return
     }
   }
 
   // --- Knowledge Base Search Function ---
-  const searchKnowledgeBase = async (): Promise<KnowledgeReference[] | undefined> => {
-    // Add check for extractResults existence early
-    if (!extractResults?.knowledge) {
-      console.warn('searchKnowledgeBase called without valid extractResults.knowledge')
-      return
+  const searchKnowledgeBase = async (
+    extractResults: ExtractResults | undefined
+  ): Promise<KnowledgeReference[] | undefined> => {
+    if (!hasKnowledgeBase) return
+
+    // 知识库搜索条件
+    let searchCriteria: { question: string[]; rewrite: string }
+    if (knowledgeRecognition === 'off') {
+      const directContent = getMainTextContent(lastUserMessage)
+      searchCriteria = { question: [directContent || 'search'], rewrite: directContent }
+    } else {
+      // auto mode
+      if (!extractResults?.knowledge) {
+        console.warn('searchKnowledgeBase: No valid search criteria in auto mode')
+        return
+      }
+      searchCriteria = extractResults.knowledge
     }
 
-    const shouldSearch = hasKnowledgeBase && extractResults.knowledge.question[0] !== 'not_needed'
+    if (searchCriteria.question[0] === 'not_needed') return
 
-    if (!shouldSearch) return
-
-    console.log('Performing knowledge base search...')
     try {
+      const tempExtractResults: ExtractResults = {
+        websearch: undefined,
+        knowledge: searchCriteria
+      }
       // Attempt to get knowledgeBaseIds from the main text block
       // NOTE: This assumes knowledgeBaseIds are ONLY on the main text block
       // NOTE: processKnowledgeSearch needs to handle undefined ids gracefully
       // const mainTextBlock = mainTextBlocks
       //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
       //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(extractResults, knowledgeBaseIds)
+      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
     } catch (error) {
       console.error('Knowledge base search failed:', error)
       return
     }
   }
 
-  const shouldWebSearch = !!assistant.webSearchProviderId
-
   // --- Execute Extraction and Searches ---
-  const extractResults = await extract()
-  // console.log('extractResults', extractResults)
-  // Run searches potentially in parallel
+  let extractResults: ExtractResults | undefined
 
-  let webSearchResponseFromSearch: WebSearchResponse | undefined
-  let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
-  const isWebSearchValid = extractResults?.websearch && assistant.model
-  const isKnowledgeSearchValid = extractResults?.knowledge
-  const isAllValidSearch = lastUserMessage && (isKnowledgeSearchValid || isWebSearchValid)
+  try {
+    // 根据配置决定是否需要提取
+    if (shouldWebSearch || hasKnowledgeBase) {
+      extractResults = await extract()
+      console.log('Extraction results:', extractResults)
+    }
 
-  if (isAllValidSearch) {
-    // TODO: 应该在这写search开始
-    if (isKnowledgeSearchValid && isWebSearchValid) {
+    let webSearchResponseFromSearch: WebSearchResponse | undefined
+    let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
+
+    // 并行执行搜索
+    if (shouldWebSearch || shouldKnowledgeSearch) {
       ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
-        searchTheWeb(),
-        searchKnowledgeBase()
+        searchTheWeb(extractResults),
+        searchKnowledgeBase(extractResults)
       ])
-    } else if (isKnowledgeSearchValid) {
-      knowledgeReferencesFromSearch = await searchKnowledgeBase()
-    } else if (isWebSearchValid) {
-      webSearchResponseFromSearch = await searchTheWeb()
     }
-    // Search判断很准确了，可以在这写search结束
-    onChunkReceived({
-      type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-      external_tool: {
-        webSearch: webSearchResponseFromSearch,
-        knowledge: knowledgeReferencesFromSearch
+
+    // 存储搜索结果
+    if (lastUserMessage) {
+      if (webSearchResponseFromSearch) {
+        window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
       }
-    })
-  }
-
-  // --- Prepare for AI Completion ---
-  // Store results temporarily (e.g., using window.keyv like before)
-  if (lastUserMessage) {
-    if (webSearchResponseFromSearch) {
-      window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
+      if (knowledgeReferencesFromSearch) {
+        window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
+      }
     }
-    if (knowledgeReferencesFromSearch) {
-      window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
-    }
-  }
 
-  // Get MCP tools (Fix duplicate declaration)
-  let mcpTools: MCPTool[] = [] // Initialize as empty array
-  const enabledMCPs = lastUserMessage?.enabledMCPs
-  if (enabledMCPs && enabledMCPs.length > 0) {
-    try {
-      const toolPromises = enabledMCPs.map(async (mcpServer) => {
-        const tools = await window.api.mcp.listTools(mcpServer)
-        return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+    // 发送工具执行完成通知
+    if (willUseTools) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: webSearchResponseFromSearch,
+          knowledge: knowledgeReferencesFromSearch
+        }
       })
-      const results = await Promise.all(toolPromises)
-      mcpTools = results.flat() // Flatten the array of arrays
-    } catch (toolError) {
-      console.error('Error fetching MCP tools:', toolError)
     }
-  }
 
-  return { mcpTools }
+    // Get MCP tools (Fix duplicate declaration)
+    let mcpTools: MCPTool[] = [] // Initialize as empty array
+    const enabledMCPs = lastUserMessage?.enabledMCPs
+    if (enabledMCPs && enabledMCPs.length > 0) {
+      try {
+        const toolPromises = enabledMCPs.map(async (mcpServer) => {
+          const tools = await window.api.mcp.listTools(mcpServer)
+          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        })
+        const results = await Promise.all(toolPromises)
+        mcpTools = results.flat() // Flatten the array of arrays
+      } catch (toolError) {
+        console.error('Error fetching MCP tools:', toolError)
+      }
+    }
+
+    return { mcpTools }
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    console.error('Tool execution failed:', error)
+
+    // 发送错误状态
+    if (willUseTools) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: undefined,
+          knowledge: undefined
+        }
+      })
+    }
+
+    return { mcpTools: [] }
+  }
 }
 
 export async function fetchChatCompletion({
@@ -242,10 +280,11 @@ export async function fetchChatCompletion({
   // TODO
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
-  console.log('[DEBUG] fetchChatCompletion started')
   const provider = getAssistantProvider(assistant)
-  console.log('[DEBUG] Got assistant provider:', provider.id)
   const AI = new AiProvider(provider)
+
+  // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
+  messages = filterContextMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -258,10 +297,9 @@ export async function fetchChatCompletion({
   // They will be retrieved and used by the messageThunk later to create CitationBlocks.
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
 
-  const filteredMessages = filterUsefulMessages(filterContextMessages(messages))
+  const filteredMessages = filterUsefulMessages(messages)
 
   // --- Call AI Completions ---
-  console.log('[DEBUG] Calling AI.completions')
   await AI.completions({
     messages: filteredMessages,
     assistant,
@@ -269,7 +307,6 @@ export async function fetchChatCompletion({
     onChunk: onChunkReceived,
     mcpTools: mcpTools
   })
-  console.log('[DEBUG] AI.completions call finished')
 }
 
 interface FetchTranslateProps {

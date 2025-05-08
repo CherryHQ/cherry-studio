@@ -9,7 +9,6 @@
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
       "add.title": "Создать агента",
-      "import.title": "Импорт из внешнего источника",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
       "edit.message.assistant.placeholder": "Введите сообщение ассистента",
@@ -78,7 +77,11 @@
       "settings.reasoning_effort.medium": "Среднее",
       "settings.reasoning_effort.default": "По умолчанию",
       "settings.more": "Настройки ассистента",
-      "settings.reasoning_effort": "Настройки размышлений"
+      "settings.reasoning_effort": "Настройки размышлений",
+      "settings.knowledge_base.recognition.tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели",
+      "settings.knowledge_base.recognition": "Использование базы знаний",
+      "settings.knowledge_base.recognition.off": "Принудительный поиск",
+      "settings.knowledge_base.recognition.on": "Распознавание намерений"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -268,6 +271,8 @@
       "input.web_search.builtin": "Модель встроена",
       "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
       "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
+      "input.web_search.no_web_search": "Отключить веб-поиск",
+      "input.web_search.no_web_search.description": "Отключить веб-поиск",
       "input.thinking": "Мыслим",
       "input.thinking.mode.default": "По умолчанию",
       "input.thinking.mode.default.tip": "Модель автоматически определяет количество токенов для размышления",
@@ -341,6 +346,7 @@
       "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
       "knowledge_base": "База знаний",
       "language": "Язык",
+      "loading": "Загрузка...",
       "model": "Модель",
       "models": "Модели",
       "more": "Ещё",
@@ -561,7 +567,8 @@
       "backup.start.success": "Создание резервной копии начато",
       "backup.success": "Резервная копия успешно создана",
       "chat.completion.paused": "Завершение чата приостановлено",
-      "citations": "Источники",
+      "citation": "{{count}} цитат",
+      "citations": "Содержание цитат",
       "copied": "Скопировано!",
       "copy.failed": "Не удалось скопировать",
       "copy.success": "Скопировано!",
@@ -652,11 +659,26 @@
         "open_link_external_on": "Текущий: Открыть ссылки в браузере",
         "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию"
       },
-      "sidebar.add.title": "Добавить в боковую панель",
-      "sidebar.remove.title": "Удалить из боковой панели",
-      "sidebar.close.title": "Закрыть",
-      "sidebar.closeall.title": "Закрыть все",
-      "sidebar.hide.title": "Скрыть приложение",
+      "sidebar": {
+        "add": {
+          "title": "Добавить в боковую панель"
+        },
+        "remove": {
+          "title": "Удалить из боковой панели"
+        },
+        "remove_custom": {
+          "title": "Удалить пользовательское приложение"
+        },
+        "hide": {
+          "title": "Скрыть"
+        },
+        "close": {
+          "title": "Закрыть"
+        },
+        "closeall": {
+          "title": "Закрыть все"
+        }
+      },
       "title": "Встроенные приложения"
     },
     "miniwindow": {
@@ -1147,7 +1169,38 @@
         "display_title": "Настройки отображения мини-приложений",
         "sidebar_title": "Отображение активных мини-приложений в боковой панели",
         "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
-        "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения"
+        "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
+        "custom": {
+          "save_success": "Пользовательское мини-приложение успешно сохранено.",
+          "save_error": "Не удалось сохранить пользовательское мини-приложение.",
+          "logo_upload_success": "Логотип успешно загружен.",
+          "logo_upload_error": "Не удалось загрузить логотип.",
+          "title": "Пользовательские мини-приложения",
+          "edit_title": "Редактировать пользовательское мини-приложение",
+          "id": "ID",
+          "remove_success": "Мини-приложение успешно удалено.",
+          "remove_error": "Не удалось удалить мини-приложение.",
+          "id_error": "ID обязателен.",
+          "id_placeholder": "Введите ID",
+          "name": "Имя",
+          "name_error": "Имя обязательно.",
+          "name_placeholder": "Введите имя",
+          "url": "URL",
+          "url_error": "URL обязателен.",
+          "url_placeholder": "Введите URL",
+          "logo": "Логотип",
+          "logo_url": "URL логотипа",
+          "logo_file": "Загрузить файл логотипа",
+          "logo_url_label": "URL логотипа",
+          "logo_url_placeholder": "Введите URL логотипа",
+          "logo_upload_label": "Загрузить логотип",
+          "logo_upload_button": "Загрузить",
+          "save": "Сохранить",
+          "edit_description": "Здесь вы можете редактировать конфигурации пользовательских мини-приложений. Каждое приложение должно содержать поля id, name, url и logo.",
+          "placeholder": "Введите конфигурацию мини-приложения (формат JSON)",
+          "duplicate_ids": "Найдены повторяющиеся ID: {{ids}}",
+          "conflicting_ids": "Конфликт ID с приложениями по умолчанию: {{ids}}"
+        }
       },
       "font_size.title": "Размер шрифта сообщений",
       "general": "Общие настройки",
@@ -1364,6 +1417,8 @@
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
       "models.enable_topic_naming": "Автоматическое переименование топика",
+      "models.manage.add_listed": "Добавить в список",
+      "models.manage.remove_listed": "Удалить из списка",
       "models.manage.add_whole_group": "Добавить всю группу",
       "models.manage.remove_whole_group": "Удалить всю группу",
       "models.topic_naming_model": "Модель именования топика",
@@ -1496,6 +1551,7 @@
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
+      "zoom.title": "Масштаб страницы",
       "title": "Настройки",
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
@@ -1566,7 +1622,6 @@
         "title": "Настройки конфиденциальности",
         "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
-      "defaultAgent": "Встроенный",
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {

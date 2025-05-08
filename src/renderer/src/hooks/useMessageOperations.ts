@@ -1,8 +1,7 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { updateOneBlock } from '@renderer/store/messageBlock'
+import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import {
   appendAssistantResponseThunk,
@@ -14,9 +13,9 @@ import {
   regenerateAssistantResponseThunk,
   resendMessageThunk,
   resendUserMessageWithEditThunk,
-  updateMessageAndBlocksThunk
+  updateMessageAndBlocksThunk,
+  updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import { throttledBlockDbUpdate } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -233,21 +232,53 @@ export function useMessageOperations(topic: Topic) {
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id) return null
 
-      const blockId = await dispatch(
-        initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
-      )
+      const state = store.getState()
+      const message = state.messages.entities[messageId]
+      if (!message) {
+        console.error('[getTranslationUpdater] cannot find message:', messageId)
+        return null
+      }
+
+      let existingTranslationBlockId: string | undefined
+      if (message.blocks && message.blocks.length > 0) {
+        for (const blockId of message.blocks) {
+          const block = state.messageBlocks.entities[blockId]
+          if (block && block.type === MessageBlockType.TRANSLATION) {
+            existingTranslationBlockId = blockId
+            break
+          }
+        }
+      }
+
+      let blockId: string | undefined
+      if (existingTranslationBlockId) {
+        blockId = existingTranslationBlockId
+        const changes: Partial<MessageBlock> = {
+          content: '',
+          status: MessageBlockStatus.STREAMING,
+          metadata: {
+            targetLanguage,
+            sourceBlockId,
+            sourceLanguage
+          }
+        }
+        dispatch(updateOneBlock({ id: blockId, changes }))
+        await dispatch(updateTranslationBlockThunk(blockId, '', false))
+        console.log('[getTranslationUpdater] update existing translation block:', blockId)
+      } else {
+        blockId = await dispatch(
+          initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
+        )
+        console.log('[getTranslationUpdater] create new translation block:', blockId)
+      }
 
       if (!blockId) {
-        console.error('[getTranslationUpdater] Failed to initiate translation block.')
+        console.error('[getTranslationUpdater] Failed to create translation block.')
         return null
       }
 
       return (accumulatedText: string, isComplete: boolean = false) => {
-        const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
-        const changes: Partial<MessageBlock> = { content: accumulatedText, status: status }
-
-        dispatch(updateOneBlock({ id: blockId, changes }))
-        throttledBlockDbUpdate(blockId, changes)
+        dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
       }
     },
     [dispatch, topic.id]
@@ -321,11 +352,9 @@ export function useMessageOperations(topic: Topic) {
 }
 
 export const useTopicMessages = (topicId: string) => {
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  return messages
+  return useAppSelector((state) => selectMessagesForTopic(state, topicId))
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectNewTopicLoading(state, topic.id))
-  return loading
+  return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
 }

@@ -77,7 +77,11 @@
       "settings.reasoning_effort.low": "稍微思考",
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
-      "settings.more": "助手設定"
+      "settings.more": "助手設定",
+      "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
+      "settings.knowledge_base.recognition": "調用知識庫",
+      "settings.knowledge_base.recognition.off": "強制檢索",
+      "settings.knowledge_base.recognition.on": "意圖識別"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -267,6 +271,8 @@
       "input.web_search.builtin": "模型內置",
       "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
       "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
+      "input.web_search.no_web_search": "關閉網路搜尋",
+      "input.web_search.no_web_search.description": "關閉網路搜尋",
       "input.thinking": "思考",
       "input.thinking.mode.default": "預設",
       "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",
@@ -340,6 +346,7 @@
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
       "knowledge_base": "知識庫",
       "language": "語言",
+      "loading": "加載中...",
       "model": "模型",
       "models": "模型",
       "more": "更多",
@@ -560,7 +567,8 @@
       "backup.start.success": "開始備份",
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
-      "citations": "參考文獻",
+      "citation": "{{count}} 個引用內容",
+      "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
       "copy.success": "已複製！",
@@ -651,11 +659,26 @@
         "open_link_external_on": "当前：在瀏覽器中開啟連結",
         "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
-      "sidebar.add.title": "新增到側邊欄",
-      "sidebar.remove.title": "從側邊欄移除",
-      "sidebar.close.title": "關閉",
-      "sidebar.closeall.title": "全部關閉",
-      "sidebar.hide.title": "隱藏小工具",
+      "sidebar": {
+        "add": {
+          "title": "添加到側邊欄"
+        },
+        "remove": {
+          "title": "從側邊欄移除"
+        },
+        "remove_custom": {
+          "title": "刪除自定義應用"
+        },
+        "hide": {
+          "title": "隱藏"
+        },
+        "close": {
+          "title": "關閉"
+        },
+        "closeall": {
+          "title": "關閉所有"
+        }
+      },
       "title": "小工具"
     },
     "miniwindow": {
@@ -1139,6 +1162,37 @@
         "open_link_external": {
           "title": "在瀏覽器中打開新視窗連結"
         },
+        "custom": {
+          "duplicate_ids": "發現重複的ID: {{ids}}",
+          "conflicting_ids": "與預設應用ID衝突: {{ids}}",
+          "title": "自定義小程序",
+          "edit_title": "編輯自定義小程序",
+          "save_success": "自定義小程序保存成功。",
+          "save_error": "自定義小程序保存失敗。",
+          "remove_success": "自定義小程序刪除成功。",
+          "remove_error": "自定義小程序刪除失敗。",
+          "logo_upload_success": "Logo 上傳成功。",
+          "logo_upload_error": "Logo 上傳失敗。",
+          "id": "ID",
+          "id_error": "ID 是必填項。",
+          "id_placeholder": "請輸入 ID",
+          "name": "名稱",
+          "name_error": "名稱是必填項。",
+          "name_placeholder": "請輸入名稱",
+          "url": "URL",
+          "url_error": "URL 是必填項。",
+          "url_placeholder": "請輸入 URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "上傳 Logo 文件",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "請輸入 Logo URL",
+          "logo_upload_label": "上傳 Logo",
+          "logo_upload_button": "上傳",
+          "save": "保存",
+          "placeholder": "請輸入自定義小程序配置（JSON格式）",
+          "edit_description": "編輯自定義小程序配置"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
@@ -1364,6 +1418,8 @@
       "models.default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "models.empty": "找不到模型",
       "models.enable_topic_naming": "話題自動重新命名",
+      "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.add_whole_group": "新增整個分組",
       "models.manage.remove_whole_group": "移除整個分組",
       "models.topic_naming_model": "話題命名模型",
@@ -1496,6 +1552,7 @@
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
+      "zoom.title": "頁面縮放",
       "title": "設定",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
