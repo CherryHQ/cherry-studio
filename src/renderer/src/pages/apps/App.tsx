@@ -49,6 +49,10 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         message.error(t('settings.miniapps.custom.duplicate_ids'))
         return
       }
+      if (ORIGIN_DEFAULT_MIN_APPS.some((app: MinAppType) => app.id === values.id)) {
+        message.error(t('settings.miniapps.custom.conflicting_ids'))
+        return
+      }
 
       const newApp = {
         id: values.id,
