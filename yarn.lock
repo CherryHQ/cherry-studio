@@ -176,9 +176,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anthropic-ai/sdk@npm:^0.38.0":
-  version: 0.38.0
-  resolution: "@anthropic-ai/sdk@npm:0.38.0"
+"@anthropic-ai/sdk@npm:^0.41.0":
+  version: 0.41.0
+  resolution: "@anthropic-ai/sdk@npm:0.41.0"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -187,7 +187,7 @@ __metadata:
     form-data-encoder: "npm:1.7.2"
     formdata-node: "npm:^4.3.2"
     node-fetch: "npm:^2.6.7"
-  checksum: 10c0/accd003cbe314d32d4d36f5fd7fd743c32e2a896c9ea57190966eda20b8c46e00f542bf03ec3603d1274a7ac18e902bed4158ff5980e4e248a6d5c75e3fd891a
+  checksum: 10c0/b57df42df33f29f3baa682da663d7411624f511384f84c790a936b505c5074d9676749ce05d45b1caa9af7077a20013889efb65f3e25f979e7ab2fa245e2a444
   languageName: node
   linkType: hard
 
@@ -1485,13 +1485,6 @@ __metadata:
     zod: "npm:^3.22.4"
     zod-to-json-schema: "npm:^3.22.4"
   checksum: 10c0/b520e6154bd9cefa725f897ee521e97c59c287d23031a36c946385eef409e411d34dd8e43d5a7c618e3572ea5fd5bef86474585ba936d5b42f7655e03b83290b
-  languageName: node
-  linkType: hard
-
-"@google/generative-ai@npm:^0.24.1":
-  version: 0.24.1
-  resolution: "@google/generative-ai@npm:0.24.1"
-  checksum: 10c0/8da77fc648b04fc2ecef53e75230e2ee67a8fd29a34b6b8874e77a7332b2a1e4b51d44dd9eb604fb063ed8ea46d293aac5b1e2a955ae2435e2582a265f2cb80d
   languageName: node
   linkType: hard
 
@@ -4378,7 +4371,7 @@ __metadata:
     "@agentic/searxng": "npm:^7.3.3"
     "@agentic/tavily": "npm:^7.3.3"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
-    "@anthropic-ai/sdk": "npm:^0.38.0"
+    "@anthropic-ai/sdk": "npm:^0.41.0"
     "@cherrystudio/embedjs": "npm:^0.1.28"
     "@cherrystudio/embedjs-libsql": "npm:^0.1.28"
     "@cherrystudio/embedjs-loader-csv": "npm:^0.1.28"
