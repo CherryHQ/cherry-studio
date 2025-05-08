@@ -46,6 +46,11 @@
   --color-active: rgba(55, 55, 55, 1);
   --color-frame-border: #333;
   --color-group-background: var(--color-background-soft);
+  --color-bg-1: #2c2c2c;
+  --color-bg-2: #323232;
+  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-bg-hover: #3a3a3a;
+  --color-primary-light: rgba(0, 185, 107, 0.2);
 
   --color-reference: #404040;
   --color-reference-text: #ffffff;
@@ -118,6 +123,12 @@ body[theme-mode='light'] {
   --color-active: var(--color-white-soft);
   --color-frame-border: #ddd;
   --color-group-background: var(--color-white);
+
+  --color-bg-1: #f8f9fa;
+  --color-bg-2: #f0f2f5;
+  --color-shadow: rgba(0, 0, 0, 0.1);
+  --color-bg-hover: #f1f3f5;
+  --color-primary-light: rgba(0, 185, 107, 0.1);
 
   --color-reference: #cfe1ff;
   --color-reference-text: #000000;

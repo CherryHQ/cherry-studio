@@ -180,8 +180,8 @@ const PreviewIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f2f5;
-  border: 1px solid #e1e4e8;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
   margin-left: -8px;
   color: var(--color-text-2);
 
@@ -212,14 +212,14 @@ const WebSearchCard = styled.div`
   padding: 12px;
   margin-bottom: 8px;
   border-radius: 8px;
-  border: 1px solid #e5e6eb;
-  background-color: #f8f9fa;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-1);
   transition: all 0.3s ease;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    background-color: #f1f3f5;
-    border-color: rgba(24, 144, 255, 0.1);
+    box-shadow: 0 4px 12px var(--color-shadow);
+    background-color: var(--color-bg-hover);
+    border-color: var(--color-primary-light);
     transform: translateY(-2px);
   }
 `
