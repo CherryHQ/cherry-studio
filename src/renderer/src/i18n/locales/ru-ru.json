@@ -1387,6 +1387,8 @@
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
       "models.enable_topic_naming": "Автоматическое переименование топика",
+      "models.manage.add_listed": "Добавить в список",
+      "models.manage.remove_listed": "Удалить из списка",
       "models.manage.add_whole_group": "Добавить всю группу",
       "models.manage.remove_whole_group": "Удалить всю группу",
       "models.topic_naming_model": "Модель именования топика",

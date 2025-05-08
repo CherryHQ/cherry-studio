@@ -1389,6 +1389,8 @@
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",
       "models.enable_topic_naming": "Topic Auto Naming",
+      "models.manage.add_listed": "Add models to the list",
+      "models.manage.remove_listed": "Remove models from the list",
       "models.manage.add_whole_group": "Add the whole group",
       "models.manage.remove_whole_group": "Remove the whole group",
       "models.topic_naming_model": "Topic Naming Model",

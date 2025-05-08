@@ -1387,6 +1387,8 @@
       "models.default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "models.empty": "モデルが見つかりません",
       "models.enable_topic_naming": "トピックの自動命名",
+      "models.manage.add_listed": "リストにモデルを追加",
+      "models.manage.remove_listed": "リストからモデルを削除",
       "models.manage.add_whole_group": "グループ全体を追加",
       "models.manage.remove_whole_group": "グループ全体を削除",
       "models.topic_naming_model": "トピック命名モデル",

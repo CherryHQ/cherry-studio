@@ -1388,6 +1388,8 @@
       "models.default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "models.empty": "找不到模型",
       "models.enable_topic_naming": "話題自動重新命名",
+      "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.add_whole_group": "新增整個分組",
       "models.manage.remove_whole_group": "移除整個分組",
       "models.topic_naming_model": "話題命名模型",
