@@ -1158,7 +1158,8 @@
           "logo_url_placeholder": "請輸入 Logo URL",
           "logo_upload_label": "上傳 Logo",
           "logo_upload_button": "上傳",
-          "save": "保存"
+          "save": "保存",
+          "placeholder": "請輸入自定義小程序配置（JSON格式）"
         },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
