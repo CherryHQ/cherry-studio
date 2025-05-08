@@ -2,13 +2,17 @@ import { ContentBlockParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/re
 import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part } from '@google/genai'
 import store from '@renderer/store'
+import { addMCPServer } from '@renderer/store/mcp'
 import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionMessageToolCall } from 'openai/resources'
 
 import { CompletionsParams } from '../providers/AiProvider'
+
+const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 
 // const ensureValidSchema = (obj: Record<string, any>) => {
 //   // Filter out unsupported keys for Gemini
@@ -219,6 +223,23 @@ export async function callMCPTool(tool: MCPTool): Promise<MCPCallToolResponse> {
       name: tool.name,
       args: tool.inputSchema
     })
+    if (tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
+      if (resp.data) {
+        const mcpServer: MCPServer = {
+          id: `f${nanoid()}`,
+          name: resp.data.name,
+          description: resp.data.description,
+          baseUrl: resp.data.baseUrl,
+          command: resp.data.command,
+          args: resp.data.args,
+          env: resp.data.env,
+          registryUrl: '',
+          isActive: false,
+          provider: 'CherryAI'
+        }
+        store.dispatch(addMCPServer(mcpServer))
+      }
+    }
 
     console.log(`[MCP] Tool called: ${tool.serverName} ${tool.name}`, resp)
     return resp

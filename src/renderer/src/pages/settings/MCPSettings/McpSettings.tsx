@@ -250,7 +250,7 @@ const McpSettings: React.FC = () => {
       }
 
       // set stdio or sse server
-      if (values.serverType === 'sse' || server.type === 'streamableHttp') {
+      if (values.serverType === 'sse' || values.serverType === 'streamableHttp') {
         mcpServer.baseUrl = values.baseUrl
       } else {
         mcpServer.command = values.command

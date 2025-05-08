@@ -1,3 +1,4 @@
+import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
@@ -130,6 +131,26 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
               number: index + 1,
               url: urlCitation.url,
               title: urlCitation.title,
+              hostname: hostname,
+              showFavicon: true,
+              type: 'websearch'
+            }
+          }) || []
+        break
+      case WebSearchSource.ANTHROPIC:
+        formattedCitations =
+          (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
+            const {url} = result
+            let hostname: string | undefined
+            try {
+              hostname = new URL(url).hostname
+            } catch {
+              hostname = url
+            }
+            return {
+              number: index + 1,
+              url: url,
+              title: result.title,
               hostname: hostname,
               showFavicon: true,
               type: 'websearch'
