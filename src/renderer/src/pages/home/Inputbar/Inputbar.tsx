@@ -970,6 +970,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
                 ToolbarButton={ToolbarButton}
+                assistantObj={assistant}
               />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <ToolbarButton type="text" onClick={clearTopic}>

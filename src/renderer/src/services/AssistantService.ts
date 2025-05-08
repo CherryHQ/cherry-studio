@@ -17,7 +17,8 @@ export function getDefaultAssistant(): Assistant {
     prompt: '',
     topics: [getDefaultTopic('default')],
     messages: [],
-    type: 'assistant'
+    type: 'assistant',
+    regularPrompts: [] // Added regularPrompts
   }
 }
 
@@ -170,7 +171,8 @@ export async function createAssistantFromAgent(agent: Agent) {
     emoji: agent.emoji,
     topics: [topic],
     model: agent.defaultModel,
-    type: 'assistant'
+    type: 'assistant',
+    regularPrompts: agent.regularPrompts || [] // Ensured regularPrompts
   }
 
   store.dispatch(addAssistant(assistant))

@@ -1,9 +1,11 @@
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
+import { useAppSelector } from '@renderer/store'
 import { QuickPhrase } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { Plus, Zap } from 'lucide-react'
+import { Plus, Zap, BotMessageSquare } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -17,22 +19,31 @@ interface Props {
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   ToolbarButton: any
+  assistantObj: any
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantObj }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-
   const navigate = useNavigate()
+  useAppSelector((state) => console.log('state: ', state))
+  const activeAssistantId = useAppSelector(
+    (state) =>
+      state.assistants.assistants.find((a) => a.id === assistantObj.id)?.id || state.assistants.defaultAssistant.id
+  )
+  const { assistant } = useAssistant(activeAssistantId)
+  console.log('activeAssistantId:', activeAssistantId)
+  console.log('assistant:', assistant)
 
   useEffect(() => {
     const loadQuickListPhrases = async () => {
       const phrases = await QuickPhraseService.getAll()
-      setQuickPhrasesList(phrases.reverse())
+      const assistantPrompts = assistant.regularPrompts || []
+      setQuickPhrasesList([...assistantPrompts, ...phrases])
     }
     loadQuickListPhrases()
-  }, [])
+  }, [assistant])
 
   const handlePhraseSelect = useCallback(
     (phrase: QuickPhrase) => {
@@ -57,19 +68,20 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
   )
 
   const phraseItems = useMemo(() => {
-    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase) => ({
+    const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase, index) => ({
       label: phrase.title,
       description: phrase.content,
-      icon: <Zap />,
+      icon: index < (assistant.regularPrompts?.length || 0) ? <BotMessageSquare /> : <Zap />,
       action: () => handlePhraseSelect(phrase)
     }))
+
     newList.push({
       label: t('settings.quickPhrase.add') + '...',
       icon: <Plus />,
       action: () => navigate('/settings/quickPhrase')
     })
     return newList
-  }, [quickPhrasesList, t, handlePhraseSelect, navigate])
+  }, [quickPhrasesList, t, handlePhraseSelect, navigate, assistant])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
