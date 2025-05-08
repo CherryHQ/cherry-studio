@@ -1138,6 +1138,8 @@
           "edit_title": "編輯自定義小程序",
           "save_success": "自定義小程序保存成功。",
           "save_error": "自定義小程序保存失敗。",
+          "remove_success": "自定義小程序刪除成功。",
+          "remove_error": "自定義小程序刪除失敗。",
           "logo_upload_success": "Logo 上傳成功。",
           "logo_upload_error": "Logo 上傳失敗。",
           "id": "ID",

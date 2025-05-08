@@ -1127,10 +1127,12 @@
       "miniapps": {
         "title": "Mini Apps Settings",
         "custom": {
-          "title": "Custom Mini Apps",
+          "title": "Custom Mini App",
           "edit_title": "Edit Custom Mini App",
           "save_success": "Custom mini app saved successfully.",
           "save_error": "Failed to save custom mini app.",
+          "remove_success": "Custom mini app deleted successfully.",
+          "remove_error": "Failed to delete custom mini app.",
           "logo_upload_success": "Logo uploaded successfully.",
           "logo_upload_error": "Failed to upload logo.",
           "id": "ID",
