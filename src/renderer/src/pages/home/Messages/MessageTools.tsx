@@ -26,16 +26,21 @@ const MessageTools: FC<Props> = ({ blocks }) => {
 
   const toolResponse = blocks.metadata?.rawMcpToolResponse
 
-  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(
-    `\`\`\`json\n${JSON.stringify(
-      {
-        params: toolResponse?.tool?.inputSchema,
-        response: toolResponse?.response
-      },
-      null,
-      2
-    )}\n`
-  )
+  const resultString = useMemo(() => {
+    try {
+      return JSON.stringify(
+        {
+          params: toolResponse?.tool?.inputSchema,
+          response: toolResponse?.response
+        },
+        null,
+        2
+      )
+    } catch (e) {
+      return 'Invalid Result'
+    }
+  }, [toolResponse])
+  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(`\`\`\`json\n${resultString}\n\`\`\``)
 
   if (!toolResponse) {
     return null
