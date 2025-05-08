@@ -1,11 +1,11 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { fetchWebContent } from '@renderer/utils/fetch'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Button, Drawer } from 'antd'
 import { FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { QueryClient, QueryClientProvider, useQuery } from 'react-query'
 import styled from 'styled-components'
 
 export interface Citation {
@@ -26,7 +26,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: Infinity,
-      cacheTime: Infinity,
+      gcTime: Infinity,
       refetchOnWindowFocus: false,
       retry: false
     }
@@ -116,18 +116,16 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const { t } = useTranslation()
 
-  const { data: fetchedContent, isLoading } = useQuery(
-    ['webContent', citation.url],
-    async () => {
+  const { data: fetchedContent, isLoading } = useQuery({
+    queryKey: ['webContent', citation.url],
+    queryFn: async () => {
       if (!citation.url) return ''
       const res = await fetchWebContent(citation.url, 'markdown')
       return cleanMarkdownContent(res.content)
     },
-    {
-      enabled: Boolean(citation.url),
-      select: (content) => truncateText(content, 100)
-    }
-  )
+    enabled: Boolean(citation.url),
+    select: (content) => truncateText(content, 100)
+  })
 
   return (
     <WebSearchCard>
