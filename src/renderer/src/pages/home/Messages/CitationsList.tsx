@@ -1,11 +1,11 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { fetchWebContent } from '@renderer/utils/fetch'
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { Button, Drawer } from 'antd'
 import { FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { QueryClient, QueryClientProvider } from 'react-query'
 import styled from 'styled-components'
 
 export interface Citation {
@@ -26,7 +26,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: Infinity,
-      cacheTime: Infinity,
+      gcTime: Infinity,
       refetchOnWindowFocus: false,
       retry: false
     }
@@ -90,8 +90,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           onClose={() => setOpen(false)}
           open={open}
           width={680}
-          destroyOnClose={true} // unmount on close
-        >
+          destroyOnClose={false}>
           {open &&
             citations.map((citation) => (
               <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
@@ -116,19 +115,17 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const { t } = useTranslation()
-  const [fetchedContent, setFetchedContent] = React.useState('')
-  const [isLoading, setIsLoading] = React.useState(false)
-  React.useEffect(() => {
-    if (citation.url) {
-      setIsLoading(true)
-      fetchWebContent(citation.url, 'markdown')
-        .then((res) => {
-          const cleaned = cleanMarkdownContent(res.content)
-          setFetchedContent(truncateText(cleaned, 100))
-        })
-        .finally(() => setIsLoading(false))
-    }
-  }, [citation.url])
+
+  const { data: fetchedContent, isLoading } = useQuery({
+    queryKey: ['webContent', citation.url],
+    queryFn: async () => {
+      if (!citation.url) return ''
+      const res = await fetchWebContent(citation.url, 'markdown')
+      return cleanMarkdownContent(res.content)
+    },
+    enabled: Boolean(citation.url),
+    select: (content) => truncateText(content, 100)
+  })
 
   return (
     <WebSearchCard>
@@ -180,8 +177,8 @@ const PreviewIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f2f5;
-  border: 1px solid #e1e4e8;
+  background: var(--color-background-soft);
+  border: 1px solid var(--color-border);
   margin-left: -8px;
   color: var(--color-text-2);
 
@@ -212,14 +209,14 @@ const WebSearchCard = styled.div`
   padding: 12px;
   margin-bottom: 8px;
   border-radius: 8px;
-  border: 1px solid #e5e6eb;
-  background-color: #f8f9fa;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-background);
   transition: all 0.3s ease;
 
   &:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    background-color: #f1f3f5;
-    border-color: rgba(24, 144, 255, 0.1);
+    box-shadow: 0 4px 12px var(--color-border-soft);
+    background-color: var(--color-hover);
+    border-color: var(--color-primary-soft);
     transform: translateY(-2px);
   }
 `

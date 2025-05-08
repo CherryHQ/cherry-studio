@@ -206,6 +206,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
   ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
