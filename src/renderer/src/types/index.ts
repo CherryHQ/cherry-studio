@@ -1,3 +1,4 @@
+import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
@@ -257,6 +258,8 @@ export type MinAppType = {
   bodered?: boolean
   background?: string
   style?: React.CSSProperties
+  addTime?: string
+  type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
 export interface FileType {
@@ -450,6 +453,7 @@ export type WebSearchResults =
   | GroundingMetadata
   | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
   | OpenAI.Responses.ResponseOutputText.URLCitation[]
+  | WebSearchResultBlock[]
   | any[]
 
 export enum WebSearchSource {
@@ -457,6 +461,7 @@ export enum WebSearchSource {
   OPENAI = 'openai',
   OPENAI_COMPATIBLE = 'openai-compatible',
   OPENROUTER = 'openrouter',
+  ANTHROPIC = 'anthropic',
   GEMINI = 'gemini',
   PERPLEXITY = 'perplexity',
   QWEN = 'qwen',

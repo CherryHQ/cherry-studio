@@ -2,7 +2,6 @@ import {
   findTokenLimit,
   getOpenAIWebSearchParams,
   isHunyuanSearchModel,
-  isOpenAILLMModel,
   isOpenAIReasoningModel,
   isOpenAIWebSearch,
   isReasoningModel,
@@ -331,10 +330,6 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
 
-    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
-      await super.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
-      return
-    }
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
     messages = addImageFileToContents(messages)
@@ -693,9 +688,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
   async translate(content: string, assistant: Assistant, onResponse?: (text: string, isComplete: boolean) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
-      return await super.translate(content, assistant, onResponse)
-    }
+
     const messagesForApi = content
       ? [
           { role: 'system', content: assistant.prompt },
@@ -770,10 +763,6 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
-      return await super.summaries(messages, assistant)
-    }
-
     const userMessages = takeRight(messages, 5)
       .filter((message) => !message.isPreset)
       .map((message) => ({
@@ -822,10 +811,6 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
    */
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     const model = assistant.model || getDefaultModel()
-
-    if (assistant.model?.provider === 'aihubmix' && isOpenAILLMModel(model)) {
-      return await super.summaryForSearch(messages, assistant)
-    }
 
     const systemMessage = {
       role: 'system',
@@ -938,9 +923,7 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-    if (model.provider === 'aihubmix' && isOpenAILLMModel(model)) {
-      return await super.check(model, stream)
-    }
+
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],

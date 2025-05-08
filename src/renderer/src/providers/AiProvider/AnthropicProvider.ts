@@ -1,7 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
+import {
+  MessageCreateParamsNonStreaming,
+  MessageParam,
+  TextBlockParam,
+  ToolUnion,
+  WebSearchResultBlock,
+  WebSearchTool20250305,
+  WebSearchToolResultError
+} from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isReasoningModel, isVisionModel } from '@renderer/config/models'
+import { isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -11,7 +19,16 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, EFFORT_RATIO, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import {
+  Assistant,
+  EFFORT_RATIO,
+  FileTypes,
+  MCPToolResponse,
+  Model,
+  Provider,
+  Suggestion,
+  WebSearchSource
+} from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
@@ -109,6 +126,18 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
+  private async getWebSearchParams(model: Model): Promise<WebSearchTool20250305 | undefined> {
+    if (!isWebSearchModel(model)) {
+      return undefined
+    }
+
+    return {
+      type: 'web_search_20250305',
+      name: 'web_search',
+      max_uses: 5
+    } as WebSearchTool20250305
+  }
+
   /**
    * Get the temperature
    * @param assistant - The assistant
@@ -201,6 +230,17 @@ export default class AnthropicProvider extends BaseProvider {
       }
     }
 
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+
+    const tools: ToolUnion[] = []
+
+    if (isEnabledBuiltinWebSearch) {
+      const webSearchTool = await this.getWebSearchParams(model)
+      if (webSearchTool) {
+        tools.push(webSearchTool)
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
@@ -211,6 +251,7 @@ export default class AnthropicProvider extends BaseProvider {
       system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
       thinking: this.getBudgetToken(assistant, model),
+      tools: tools,
       ...this.getCustomParameters(assistant)
     }
 
@@ -288,6 +329,34 @@ export default class AnthropicProvider extends BaseProvider {
             }
 
             onChunk({ type: ChunkType.TEXT_DELTA, text })
+          })
+          .on('contentBlock', (block) => {
+            if (block.type === 'server_tool_use' && block.name === 'web_search') {
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+              })
+            } else if (block.type === 'web_search_tool_result') {
+              if (
+                block.content &&
+                (block.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
+              ) {
+                onChunk({
+                  type: ChunkType.ERROR,
+                  error: {
+                    code: (block.content as WebSearchToolResultError).error_code,
+                    message: (block.content as WebSearchToolResultError).error_code
+                  }
+                })
+              } else {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: block.content as Array<WebSearchResultBlock>,
+                    source: WebSearchSource.ANTHROPIC
+                  }
+                })
+              }
+            }
           })
           .on('thinking', (thinking) => {
             hasThinkingContent = true

@@ -629,11 +629,26 @@
         "open_link_external_on": "Current: Open links in browser",
         "open_link_external_off": "Current: Open links in default window"
       },
-      "sidebar.add.title": "Add to sidebar",
-      "sidebar.remove.title": "Remove from sidebar",
-      "sidebar.close.title": "Close",
-      "sidebar.closeall.title": "Close All",
-      "sidebar.hide.title": "Hide MinApp",
+      "sidebar": {
+        "add": {
+          "title": "Add to Sidebar"
+        },
+        "remove": {
+          "title": "Remove from Sidebar"
+        },
+        "remove_custom": {
+          "title": "Delete Custom App"
+        },
+        "hide": {
+          "title": "Hide"
+        },
+        "close": {
+          "title": "Close"
+        },
+        "closeall": {
+          "title": "Close All"
+        }
+      },
       "title": "MinApp"
     },
     "miniwindow": {
@@ -1111,6 +1126,37 @@
       "display.topic.title": "Topic Settings",
       "miniapps": {
         "title": "Mini Apps Settings",
+        "custom": {
+          "title": "Custom Mini App",
+          "edit_title": "Edit Custom Mini App",
+          "save_success": "Custom mini app saved successfully.",
+          "save_error": "Failed to save custom mini app.",
+          "remove_success": "Custom mini app removed successfully.",
+          "remove_error": "Failed to remove custom mini app.",
+          "logo_upload_success": "Logo uploaded successfully.",
+          "logo_upload_error": "Failed to upload logo.",
+          "id": "ID",
+          "id_error": "ID is required.",
+          "id_placeholder": "Enter ID",
+          "name": "Name",
+          "name_error": "Name is required.",
+          "name_placeholder": "Enter name",
+          "url": "URL",
+          "url_error": "URL is required.",
+          "url_placeholder": "Enter URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "Upload Logo File",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "Enter logo URL",
+          "logo_upload_label": "Upload Logo",
+          "logo_upload_button": "Upload",
+          "save": "Save",
+          "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+          "placeholder": "Enter custom mini app configuration (JSON format)",
+          "duplicate_ids": "Duplicate IDs found: {{ids}}",
+          "conflicting_ids": "Conflicting IDs with default apps: {{ids}}"
+        },
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
         "visible": "Visible Mini Apps",

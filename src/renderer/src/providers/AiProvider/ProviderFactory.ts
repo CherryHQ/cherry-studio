@@ -11,11 +11,11 @@ export default class ProviderFactory {
   static create(provider: Provider): BaseProvider {
     switch (provider.type) {
       case 'openai':
+        return new OpenAIProvider(provider)
+      case 'openai-compatible':
         if (provider.id === 'aihubmix') {
           return new AihubmixProvider(provider)
         }
-        return new OpenAIProvider(provider)
-      case 'openai-compatible':
         return new OpenAICompatibleProvider(provider)
       case 'anthropic':
         return new AnthropicProvider(provider)
