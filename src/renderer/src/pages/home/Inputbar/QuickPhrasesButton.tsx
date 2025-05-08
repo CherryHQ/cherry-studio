@@ -9,6 +9,7 @@ import { Plus, Zap, BotMessageSquare } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
+import { Assistant } from '@renderer/types'
 
 export interface QuickPhrasesButtonRef {
   openQuickPanel: () => void
@@ -19,7 +20,7 @@ interface Props {
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   ToolbarButton: any
-  assistantObj: any
+  assistantObj: Assistant
 }
 
 const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantObj }: Props) => {
@@ -27,14 +28,11 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const navigate = useNavigate()
-  useAppSelector((state) => console.log('state: ', state))
   const activeAssistantId = useAppSelector(
     (state) =>
       state.assistants.assistants.find((a) => a.id === assistantObj.id)?.id || state.assistants.defaultAssistant.id
   )
   const { assistant } = useAssistant(activeAssistantId)
-  console.log('activeAssistantId:', activeAssistantId)
-  console.log('assistant:', assistant)
 
   useEffect(() => {
     const loadQuickListPhrases = async () => {
