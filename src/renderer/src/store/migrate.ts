@@ -1126,7 +1126,7 @@ const migrateConfig = {
   '88': (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
-        const hasAutoInstall = state.mcp.servers.some((server) => server.name === 'mcp-auto-install')
+        const hasAutoInstall = state.mcp.servers.some((server) => server.name === '@cherry/mcp-auto-install')
         if (!hasAutoInstall) {
           const defaultServer = mcpSlice.getInitialState().servers[0]
           state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
