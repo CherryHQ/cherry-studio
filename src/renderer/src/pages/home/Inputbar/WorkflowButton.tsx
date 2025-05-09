@@ -26,9 +26,13 @@ const WorkflowButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { updateAssistant } = useAssistant(assistant.id)
 
   const updateSelectedWorkflow = useCallback(
-    (workflow: Workflow) => {
+    (workflow: Workflow | undefined) => {
       setTimeout(() => {
-        updateAssistant({ ...assistant, workflow: workflow })
+        if (assistant.workflow === workflow) {
+          updateAssistant({ ...assistant, workflow: undefined })
+        } else {
+          updateAssistant({ ...assistant, workflow: workflow })
+        }
       }, 200)
     },
     [assistant, updateAssistant]
