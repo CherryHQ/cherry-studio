@@ -36,12 +36,21 @@ export const scrollReducer = (state: ScrollState, action: ScrollAction): ScrollS
 
     case 'FOCUS_NEXT_ITEM': {
       const { modelItems, step } = action.payload
+
+      if (modelItems.length === 0) {
+        return {
+          ...state,
+          focusedItemKey: '',
+          scrollTrigger: 'keyboard'
+        }
+      }
+
       const currentIndex = modelItems.findIndex((item) => item.key === state.focusedItemKey)
       const nextIndex = (currentIndex < 0 ? 0 : currentIndex + step + modelItems.length) % modelItems.length
 
       return {
         ...state,
-        focusedItemKey: modelItems.length > 0 ? modelItems[nextIndex].key : '',
+        focusedItemKey: modelItems[nextIndex].key,
         scrollTrigger: 'keyboard'
       }
     }
