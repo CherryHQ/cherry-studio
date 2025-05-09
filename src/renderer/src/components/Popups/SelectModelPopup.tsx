@@ -257,9 +257,6 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'center'
     listRef.current?.scrollToItem(index, alignment)
 
-    console.log('focusedItemKey', focusedItemKey)
-    console.log('scrollToFocusedItem', index, alignment)
-
     // 滚动后重置触发器
     scrollTriggerRef.current = 'none'
   }, [focusedItemKey, listItems])
