@@ -1542,8 +1542,8 @@
         "delete": "删除短语",
         "deleteConfirm": "删除短语后将无法恢复，是否继续？",
         "locationLabel": "添加位置",
-        "global": "全局快速短语",
-        "assistant": "助手提示词"
+        "global": "全局短语",
+        "assistant": "助手短语"
       },
       "quickPanel": {
         "title": "快捷菜单",

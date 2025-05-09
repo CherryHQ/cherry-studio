@@ -1542,8 +1542,8 @@
         "delete": "Delete Phrase",
         "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
         "locationLabel": "Add Location",
-        "global": "Global Quick Phrases",
-        "assistant": "Assistant Prompts"
+        "global": "Global Phrases",
+        "assistant": "Assistant Phrases"
       },
       "quickPanel": {
         "title": "Quick Menu",
