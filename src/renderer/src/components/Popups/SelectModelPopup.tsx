@@ -645,14 +645,26 @@ const PinIconWrapper = styled.div.attrs({ className: 'pin-icon' })<{ $isPinned?:
   }
 `
 
+const TopViewKey = 'SelectModelPopup'
+
 export default class SelectModelPopup {
+  static topviewId = 0
   static hide() {
-    TopView.hide('SelectModelPopup')
+    TopView.hide(TopViewKey)
   }
 
   static show(params: Props) {
     return new Promise<Model | undefined>((resolve) => {
-      TopView.show(<PopupContainer {...params} resolve={resolve} />, 'SelectModelPopup')
+      TopView.show(
+        <PopupContainer
+          {...params}
+          resolve={(v) => {
+            resolve(v)
+            TopView.hide(TopViewKey)
+          }}
+        />,
+        TopViewKey
+      )
     })
   }
 }
