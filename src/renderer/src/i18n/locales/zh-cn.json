@@ -702,8 +702,6 @@
       "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "search": "搜索模型...",
       "stream_output": "流式输出",
-      "qwen3_think_mode": "Qwen3 模型-思考模式",
-      "qwen3_think_mode_tip": "禁用时防止模型生成思维内容",
       "type": {
         "embedding": "嵌入",
         "free": "免费",
