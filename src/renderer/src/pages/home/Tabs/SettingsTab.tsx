@@ -70,7 +70,6 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [qwenThinkMode, setQwenThinkMode] = useState(assistant?.settings?.qwenThinkMode ?? true)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -138,8 +137,7 @@ const SettingsTab: FC<Props> = (props) => {
         maxTokens: DEFAULT_MAX_TOKENS,
         streamOutput: true,
         hideMessages: false,
-        customParameters: [],
-        qwenThinkMode: true
+        customParameters: []
       }
     })
   }
@@ -150,7 +148,6 @@ const SettingsTab: FC<Props> = (props) => {
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
-    setQwenThinkMode(assistant?.settings?.qwenThinkMode ?? true)
   }, [assistant])
 
   const formatSliderTooltip = (value?: number) => {
@@ -268,22 +265,6 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
         )}
-        <SettingRow>
-          <SettingRowTitleSmall>
-            {t('models.qwen3_think_mode')}
-            <Tooltip title={t('models.qwen3_think_mode_tip')}>
-              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-            </Tooltip>
-          </SettingRowTitleSmall>
-          <Switch
-            size="small"
-            checked={qwenThinkMode}
-            onChange={(checked) => {
-              setQwenThinkMode(checked)
-              onUpdateAssistantSettings({ qwenThinkMode: checked })
-            }}
-          />
-        </SettingRow>
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
