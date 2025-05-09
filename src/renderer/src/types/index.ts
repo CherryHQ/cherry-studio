@@ -6,6 +6,12 @@ import { BuiltinTheme } from 'shiki'
 
 import type { Message } from './newMessage'
 
+export interface Group {
+  id: string
+  name: string
+  members: string[] // 存放助手ID数组
+}
+
 export type Assistant = {
   id: string
   name: string
