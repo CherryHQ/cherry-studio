@@ -79,6 +79,20 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: true,
       system: false
+    },
+    {
+      key: 'toggle_model_selection',
+      shortcut: ['Alt', 'M'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'toggle_web_search',
+      shortcut: ['Alt', 'W'],
+      editable: true,
+      enabled: true,
+      system: false
     }
   ]
 }
