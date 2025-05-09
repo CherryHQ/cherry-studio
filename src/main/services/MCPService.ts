@@ -1,15 +1,13 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isLinux, isMac, isWin } from '@main/constant'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
-import { getDefaultEnvironment, StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
   StreamableHTTPClientTransport,
   type StreamableHTTPClientTransportOptions
@@ -33,6 +31,7 @@ import { memoize } from 'lodash'
 import { CacheService } from './CacheService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
+import getLoginShellEnvironment from './mcp/shell-env'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -162,7 +161,23 @@ class McpService {
         } else if (server.type === 'sse') {
           const options: SSEClientTransportOptions = {
             eventSourceInit: {
-              fetch: (url, init) => fetch(url, { ...init, headers: server.headers || {} })
+              fetch: async (url, init) => {
+                const headers = { ...(server.headers || {}), ...(init?.headers || {}) }
+
+                // Get tokens from authProvider to make sure using the latest tokens
+                if (authProvider && typeof authProvider.tokens === 'function') {
+                  try {
+                    const tokens = await authProvider.tokens()
+                    if (tokens && tokens.access_token) {
+                      headers['Authorization'] = `Bearer ${tokens.access_token}`
+                    }
+                  } catch (error) {
+                    Logger.error('Failed to fetch tokens:', error)
+                  }
+                }
+
+                return fetch(url, { ...init, headers })
+              }
             },
             requestInit: {
               headers: server.headers || {}
@@ -183,7 +198,7 @@ class McpService {
           // add -x to args if args exist
           if (args && args.length > 0) {
             if (!args.includes('-y')) {
-              !args.includes('-y') && args.unshift('-y')
+              args.unshift('-y')
             }
             if (!args.includes('x')) {
               args.unshift('x')
@@ -215,13 +230,12 @@ class McpService {
 
         Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
         // Logger.info(`[MCP] Environment variables for server:`, server.env)
-
+        const loginShellEnv = await this.getLoginShellEnv()
         const stdioTransport = new StdioClientTransport({
           command: cmd,
           args,
           env: {
-            ...getDefaultEnvironment(),
-            PATH: await this.getEnhancedPath(process.env.PATH || ''),
+            ...loginShellEnv,
             ...server.env
           },
           stderr: 'pipe'
@@ -429,13 +443,12 @@ class McpService {
     const client = await this.initClient(server)
     try {
       const { prompts } = await client.listPrompts()
-      const serverPrompts = prompts.map((prompt: any) => ({
+      return prompts.map((prompt: any) => ({
         ...prompt,
         id: `p${nanoid()}`,
         serverId: server.id,
         serverName: server.name
       }))
-      return serverPrompts
     } catch (error) {
       Logger.error(`[MCP] Failed to list prompts for server: ${server.name}`, error)
       return []
@@ -574,163 +587,19 @@ class McpService {
     return await cachedGetResource(server, uri)
   }
 
-  private findPowerShellExecutable() {
-    const psPath = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' // Standard WinPS path
-    const pwshPath = 'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
-
-    if (fs.existsSync(psPath)) {
-      return psPath
-    }
-    if (fs.existsSync(pwshPath)) {
-      return pwshPath
-    }
-    return 'powershell.exe'
-  }
-
-  private getSystemPath = memoize(async (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      let command: string
-      let shell: string
-
-      if (process.platform === 'win32') {
-        shell = this.findPowerShellExecutable()
-        command = '$env:PATH'
-      } else {
-        // 尝试获取当前用户的默认 shell
-
-        let userShell = process.env.SHELL
-        if (!userShell) {
-          if (fs.existsSync('/bin/zsh')) {
-            userShell = '/bin/zsh'
-          } else if (fs.existsSync('/bin/bash')) {
-            userShell = '/bin/bash'
-          } else if (fs.existsSync('/bin/fish')) {
-            userShell = '/bin/fish'
-          } else {
-            userShell = '/bin/sh'
-          }
-        }
-        shell = userShell
-
-        // 根据不同的 shell 构建不同的命令
-        if (userShell.includes('zsh')) {
-          command =
-            'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
-        } else if (userShell.includes('bash')) {
-          command =
-            'source /etc/profile 2>/dev/null || true; source ~/.bash_profile 2>/dev/null || true; source ~/.bash_login 2>/dev/null || true; source ~/.profile 2>/dev/null || true; source ~/.bashrc 2>/dev/null || true; echo $PATH'
-        } else if (userShell.includes('fish')) {
-          command =
-            'source /etc/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.fish 2>/dev/null || true; source ~/.config/fish/config.local.fish 2>/dev/null || true; echo $PATH'
-        } else {
-          // 默认使用 zsh
-          shell = '/bin/zsh'
-          command =
-            'source /etc/zshenv 2>/dev/null || true; source ~/.zshenv 2>/dev/null || true; source /etc/zprofile 2>/dev/null || true; source ~/.zprofile 2>/dev/null || true; source /etc/zshrc 2>/dev/null || true; source ~/.zshrc 2>/dev/null || true; source /etc/zlogin 2>/dev/null || true; source ~/.zlogin 2>/dev/null || true; echo $PATH'
-        }
-      }
-
-      console.log(`Using shell: ${shell} with command: ${command}`)
-      const child = require('child_process').spawn(shell, ['-c', command], {
-        env: { ...process.env },
-        cwd: app.getPath('home')
-      })
-
-      let path = ''
-      child.stdout.on('data', (data: Buffer) => {
-        path += data.toString()
-      })
-
-      child.stderr.on('data', (data: Buffer) => {
-        console.error('Error getting PATH:', data.toString())
-      })
-
-      child.on('error', (error: Error) => {
-        reject(new Error(`Failed to get system PATH, ${error.message}`))
-      })
-
-      child.on('close', (code: number) => {
-        if (code === 0) {
-          const trimmedPath = path.trim()
-          resolve(trimmedPath)
-        } else {
-          reject(new Error(`Failed to get system PATH, exit code: ${code}`))
-        }
-      })
-    })
-  })
-
-  /**
-   * Get enhanced PATH including common tool locations
-   */
-  private async getEnhancedPath(originalPath: string): Promise<string> {
-    let systemPath = ''
+  private getLoginShellEnv = memoize(async (): Promise<Record<string, string>> => {
     try {
-      systemPath = await this.getSystemPath()
+      const loginEnv = await getLoginShellEnvironment()
+      const pathSeparator = process.platform === 'win32' ? ';' : ':'
+      const cherryBinPath = path.join(os.homedir(), '.cherrystudio', 'bin')
+      loginEnv.PATH = `${loginEnv.PATH}${pathSeparator}${cherryBinPath}`
+      Logger.info('[MCP] Successfully fetched login shell environment variables:', loginEnv)
+      return loginEnv
     } catch (error) {
-      Logger.error('[MCP] Failed to get system PATH:', error)
+      Logger.error('[MCP] Failed to fetch login shell environment variables:', error)
+      return {}
     }
-    // 将原始 PATH 按分隔符分割成数组
-    const pathSeparator = process.platform === 'win32' ? ';' : ':'
-    const existingPaths = new Set(
-      [...systemPath.split(pathSeparator), ...originalPath.split(pathSeparator)].filter(Boolean)
-    )
-    const homeDir = process.env.HOME || process.env.USERPROFILE || ''
-
-    // 定义要添加的新路径
-    const newPaths: string[] = []
-
-    if (isMac) {
-      newPaths.push(
-        '/bin',
-        '/usr/bin',
-        '/usr/local/bin',
-        '/usr/local/sbin',
-        '/opt/homebrew/bin',
-        '/opt/homebrew/sbin',
-        '/usr/local/opt/node/bin',
-        `${homeDir}/.nvm/current/bin`,
-        `${homeDir}/.npm-global/bin`,
-        `${homeDir}/.yarn/bin`,
-        `${homeDir}/.cargo/bin`,
-        `${homeDir}/.cherrystudio/bin`,
-        '/opt/local/bin'
-      )
-    }
-
-    if (isLinux) {
-      newPaths.push(
-        '/bin',
-        '/usr/bin',
-        '/usr/local/bin',
-        `${homeDir}/.nvm/current/bin`,
-        `${homeDir}/.npm-global/bin`,
-        `${homeDir}/.yarn/bin`,
-        `${homeDir}/.cargo/bin`,
-        `${homeDir}/.cherrystudio/bin`,
-        '/snap/bin'
-      )
-    }
-
-    if (isWin) {
-      newPaths.push(
-        `${process.env.APPDATA}\\npm`,
-        `${homeDir}\\AppData\\Local\\Yarn\\bin`,
-        `${homeDir}\\.cargo\\bin`,
-        `${homeDir}\\.cherrystudio\\bin`
-      )
-    }
-
-    // 只添加不存在的路径
-    newPaths.forEach((path) => {
-      if (path && !existingPaths.has(path)) {
-        existingPaths.add(path)
-      }
-    })
-
-    // 转换回字符串
-    return Array.from(existingPaths).join(pathSeparator)
-  }
+  })
 }
 
 const mcpService = new McpService()

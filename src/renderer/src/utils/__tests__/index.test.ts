@@ -29,7 +29,10 @@ describe('Unclassified Utils', () => {
       const start = Date.now()
       await delay(0.01)
       const end = Date.now()
-      expect(end - start).toBeGreaterThanOrEqual(10)
+      // In JavaScript, the delay time of setTimeout is not always precise
+      // and may be slightly shorter than specified. Make it more lenient:
+      const lenientRatio = 0.8
+      expect(end - start).toBeGreaterThanOrEqual(10 * lenientRatio)
     })
 
     it('should resolve immediately for zero delay', async () => {

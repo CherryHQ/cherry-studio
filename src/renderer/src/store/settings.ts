@@ -104,6 +104,7 @@ export interface SettingsState {
   joplinToken: string | null
   joplinUrl: string | null
   defaultObsidianVault: string | null
+  defaultAgent: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
   siyuanToken: string | null
@@ -128,6 +129,7 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
   }
+  zoomFactor: number
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -210,6 +212,7 @@ export const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
+  defaultAgent: null,
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
@@ -231,7 +234,8 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
-  }
+  },
+  zoomFactor: 1
 }
 
 const settingsSlice = createSlice({
@@ -465,6 +469,15 @@ const settingsSlice = createSlice({
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
     },
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
+    },
+    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
+      state.defaultObsidianVault = action.payload
+    },
+    setDefaultAgent: (state, action: PayloadAction<string>) => {
+      state.defaultAgent = action.payload
+    },
     setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
       state.siyuanApiUrl = action.payload
     },
@@ -476,12 +489,6 @@ const settingsSlice = createSlice({
     },
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
-    },
-    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
-      state.messageNavigation = action.payload
-    },
-    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
-      state.defaultObsidianVault = action.payload
     },
     setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
       state.maxKeepAliveMinapps = action.payload
@@ -503,6 +510,9 @@ const settingsSlice = createSlice({
     },
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
+    },
+    setZoomFactor: (state, action: PayloadAction<number>) => {
+      state.zoomFactor = action.payload
     }
   }
 })
@@ -584,6 +594,7 @@ export const {
   setJoplinUrl,
   setMessageNavigation,
   setDefaultObsidianVault,
+  setDefaultAgent,
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
@@ -594,7 +605,8 @@ export const {
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
-  setEnableBackspaceDeleteModel
+  setEnableBackspaceDeleteModel,
+  setZoomFactor
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

@@ -12,7 +12,7 @@ import type {
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
@@ -53,7 +53,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
-  const groupedBlocks = filterImageBlockGroups(renderedBlocks)
+  const groupedBlocks = useMemo(() => filterImageBlockGroups(renderedBlocks), [renderedBlocks])
 
   return (
     <>
@@ -131,6 +131,5 @@ const ImageBlockGroup = styled.div`
   > * {
     flex: 0 0 auto;
     min-width: 200px;
-    max-width: calc(33.33% - 8px);
   }
 `

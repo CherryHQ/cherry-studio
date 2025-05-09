@@ -12,6 +12,7 @@ import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/s
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -49,7 +50,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
-  const messages = useTopicMessages(topic)
+  const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
@@ -147,6 +148,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
 
           const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
           dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
+          await saveMessageAndBlocksToDB(clearMessage, [])
 
           scrollToBottom()
         } finally {
@@ -237,9 +239,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
-            <LoaderContainer $loading={isLoadingMore}>
-              <SvgSpinners180Ring color="var(--color-text-2)" />
-            </LoaderContainer>
             {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
@@ -248,6 +247,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 hidePresetMessages={assistant.settings?.hideMessages}
               />
             ))}
+            {isLoadingMore && (
+              <LoaderContainer>
+                <SvgSpinners180Ring color="var(--color-text-2)" />
+              </LoaderContainer>
+            )}
           </ScrollContainer>
         </InfiniteScroll>
         <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
@@ -294,21 +298,18 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
   return displayMessages
 }
 
-const LoaderContainer = styled.div<{ $loading: boolean }>`
+const LoaderContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 10px;
   width: 100%;
   background: var(--color-background);
-  opacity: ${(props) => (props.$loading ? 1 : 0)};
-  transition: opacity 0.3s ease;
   pointer-events: none;
 `
 
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  margin-bottom: -20px; // 添加负的底部外边距来减少空间
 `
 
 interface ContainerProps {

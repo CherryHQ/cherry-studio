@@ -141,6 +141,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     notifyThemeChange()
   })
 
+  // zoom factor
+  ipcMain.handle(IpcChannel.App_SetZoomFactor, (_, factor: number) => {
+    configManager.setZoomFactor(factor)
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.setZoomFactor(factor)
+      }
+    })
+  })
+
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
@@ -195,8 +206,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)

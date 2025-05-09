@@ -10,7 +10,7 @@ import {
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -36,34 +36,35 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   style
 }) => {
   const { t } = useTranslation()
-  const [_showLabel, _setShowLabel] = useState(showLabel)
+  const [shouldShowLabel, setShouldShowLabel] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const resizeObserver = useRef<ResizeObserver>(null)
+  const resizeObserver = useRef<ResizeObserver | null>(null)
 
-  useEffect(() => {
-    if (!showLabel) return
+  const maxWidth = useMemo(() => (i18n.language.startsWith('zh') ? 300 : 350), [])
 
-    if (containerRef.current) {
-      const currentElement = containerRef.current
+  useLayoutEffect(() => {
+    const currentElement = containerRef.current
+    if (!showLabel || !currentElement) return
+
+    setShouldShowLabel(currentElement.offsetWidth >= maxWidth)
+
+    if (currentElement) {
       resizeObserver.current = new ResizeObserver((entries) => {
-        const maxWidth = i18n.language.startsWith('zh') ? 300 : 350
-
         for (const entry of entries) {
           const { width } = entry.contentRect
-          _setShowLabel(width >= maxWidth)
+          setShouldShowLabel(width >= maxWidth)
         }
       })
       resizeObserver.current.observe(currentElement)
-
-      return () => {
-        if (resizeObserver.current) {
-          resizeObserver.current.unobserve(currentElement)
-        }
+    }
+    return () => {
+      if (resizeObserver.current && currentElement) {
+        resizeObserver.current.unobserve(currentElement)
+        resizeObserver.current.disconnect()
+        resizeObserver.current = null
       }
     }
-
-    return undefined
-  }, [showLabel])
+  }, [maxWidth, showLabel])
 
   return (
     <Container ref={containerRef} style={style}>
@@ -73,7 +74,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           color="#00b96b"
           icon={<EyeOutlined style={{ fontSize: size }} />}
           tooltip={t('models.type.vision')}>
-          {_showLabel ? t('models.type.vision') : ''}
+          {shouldShowLabel ? t('models.type.vision') : ''}
         </CustomTag>
       )}
       {isWebSearchModel(model) && (
@@ -82,7 +83,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           color="#1677ff"
           icon={<GlobalOutlined style={{ fontSize: size }} />}
           tooltip={t('models.type.websearch')}>
-          {_showLabel ? t('models.type.websearch') : ''}
+          {shouldShowLabel ? t('models.type.websearch') : ''}
         </CustomTag>
       )}
       {showReasoning && isReasoningModel(model) && (
@@ -91,7 +92,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           color="#6372bd"
           icon={<i className="iconfont icon-thinking" />}
           tooltip={t('models.type.reasoning')}>
-          {_showLabel ? t('models.type.reasoning') : ''}
+          {shouldShowLabel ? t('models.type.reasoning') : ''}
         </CustomTag>
       )}
       {showToolsCalling && isFunctionCallingModel(model) && (
@@ -100,7 +101,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           color="#f18737"
           icon={<ToolOutlined style={{ fontSize: size }} />}
           tooltip={t('models.type.function_calling')}>
-          {_showLabel ? t('models.type.function_calling') : ''}
+          {shouldShowLabel ? t('models.type.function_calling') : ''}
         </CustomTag>
       )}
       {isEmbeddingModel(model) && (
@@ -128,4 +129,4 @@ const Container = styled.div`
   }
 `
 
-export default ModelTagsWithLabel
+export default memo(ModelTagsWithLabel)

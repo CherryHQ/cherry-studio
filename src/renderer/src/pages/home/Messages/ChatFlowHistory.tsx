@@ -167,7 +167,7 @@ interface ChatFlowHistoryProps {
 }
 
 // 定义节点和边的类型
-type FlowNode = Node<any, string>
+type FlowNode = Node<any>
 type FlowEdge = Edge<any>
 
 // 统一的边样式
@@ -616,6 +616,4 @@ const NodeContent = styled.div`
 `
 
 // 确保组件使用React.memo包装以减少不必要的重渲染
-export default memo(ChatFlowHistory, (prevProps, nextProps) => {
-  return prevProps.conversationId === nextProps.conversationId
-})
+export default memo(ChatFlowHistory)

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageItem from './Message'
+
 interface Props {
   assistant: Assistant
   route: string
@@ -20,7 +21,7 @@ interface ContainerProps {
 
 const Messages: FC<Props> = ({ assistant, route }) => {
   // const [messages, setMessages] = useState<Message[]>([])
-  const messages = useTopicMessages(assistant.topics[0])
+  const messages = useTopicMessages(assistant.topics[0].id)
   const containerRef = useRef<HTMLDivElement>(null)
   const messagesRef = useRef(messages)
 
@@ -33,7 +34,6 @@ const Messages: FC<Props> = ({ assistant, route }) => {
   //     setMessages((prev) => {
   // const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
   // store.dispatch(newMessagesActions.addMessage({ topicId: assistant.topics[0].id, message: assistantMessage }))
-
   //       const messages = prev.concat([message, assistantMessage])
   //       return messages
   //     })

@@ -31,7 +31,6 @@ export default class AiProvider {
     onChunk,
     onFilterMessages
   }: CompletionsParams): Promise<void> {
-    console.log('[DEBUG] AiProvider.completions called')
     return this.sdk.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
   }
 

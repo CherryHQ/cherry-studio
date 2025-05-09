@@ -130,7 +130,6 @@ import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
 
@@ -231,6 +230,12 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
   `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
   'i'
 )
+
+export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+))\\b`,
+  'i'
+)
+
 export function isFunctionCallingModel(model: Model): boolean {
   if (model.type?.includes('function_calling')) {
     return true
@@ -2223,6 +2228,19 @@ export function isOpenAIReasoningModel(model: Model): boolean {
   return model.id.includes('o1') || model.id.includes('o3') || model.id.includes('o4')
 }
 
+export function isOpenAILLMModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  if (isOpenAIReasoningModel(model)) {
+    return true
+  }
+  if (model.id.includes('gpt')) {
+    return true
+  }
+  return false
+}
+
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
@@ -2312,7 +2330,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   return (
-    model.id.includes('qwen3') ||
+    model.id.toLowerCase().includes('qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2320,7 +2338,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
-    ].includes(model.id)
+    ].includes(model.id.toLowerCase())
   )
 }
 
@@ -2387,16 +2405,42 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  if (model.id.includes('claude')) {
+    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
+  }
+
+  if (provider.type === 'openai') {
+    if (
+      isOpenAILLMModel(model) &&
+      !isTextToImageModel(model) &&
+      !isOpenAIReasoningModel(model) &&
+      !GENERATE_IMAGE_MODELS.includes(model.id)
+    ) {
+      return true
+    }
+
+    return false
+  }
+
   if (provider.id === 'perplexity') {
     return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
   }
 
   if (provider.id === 'aihubmix') {
+    if (
+      isOpenAILLMModel(model) &&
+      !isTextToImageModel(model) &&
+      !isOpenAIReasoningModel(model) &&
+      !GENERATE_IMAGE_MODELS.includes(model.id)
+    ) {
+      return true
+    }
+
     const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
     return models.includes(model?.id)
   }
 
-  if (provider?.type === 'openai') {
+  if (provider?.type === 'openai-compatible') {
     if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
       return true
     }
@@ -2450,9 +2494,6 @@ export function isGenerateImageModel(model: Model): boolean {
 }
 
 export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
-  if (WebSearchService.isWebSearchEnabled()) {
-    return {}
-  }
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
       const webSearchTools = getWebSearchTools(model)
@@ -2477,7 +2518,9 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
       }
 
       if (isOpenAIWebSearch(model)) {
-        return {}
+        return {
+          web_search_options: {}
+        }
       }
 
       return {
