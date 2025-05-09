@@ -1,5 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -20,6 +21,7 @@ import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import { findFileBlocks } from '@renderer/utils/messageUtils/find'
 import { useCallback } from 'react'
 
 const findMainTextBlockId = (message: Message): string | undefined => {
@@ -127,6 +129,12 @@ export function useMessageOperations(topic: Topic) {
         console.error('Cannot resend edited message: Main text block not found.')
         return
       }
+
+      const files = findFileBlocks(message).map((block) => block.file)
+
+      const usage = await estimateUserPromptUsage({ content: editedContent, files })
+
+      await dispatch(updateMessageAndBlocksThunk(topic.id, { id: message.id, usage }, []))
 
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, mainTextBlockId, editedContent, assistant))
     },

@@ -51,6 +51,8 @@
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
+  --modal-background: #1f1f1f;
+
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
 
@@ -122,6 +124,8 @@ body[theme-mode='light'] {
   --color-reference: #cfe1ff;
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
+
+  --modal-background: var(--color-white);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
   --navbar-background: rgba(244, 244, 244);

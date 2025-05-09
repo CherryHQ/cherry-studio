@@ -20,3 +20,23 @@ export const abortCompletion = (id: string) => {
     }
   }
 }
+
+export function createAbortPromise(signal: AbortSignal, finallyPromise: Promise<string>) {
+  return new Promise<string>((_resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Operation aborted', 'AbortError'))
+      return
+    }
+
+    const abortHandler = (e: Event) => {
+      console.log('abortHandler', e)
+      reject(new DOMException('Operation aborted', 'AbortError'))
+    }
+
+    signal.addEventListener('abort', abortHandler, { once: true })
+
+    finallyPromise.finally(() => {
+      signal.removeEventListener('abort', abortHandler)
+    })
+  })
+}

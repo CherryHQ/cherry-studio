@@ -1,3 +1,4 @@
+import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
@@ -136,6 +137,26 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
             }
           }) || []
         break
+      case WebSearchSource.ANTHROPIC:
+        formattedCitations =
+          (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
+            const {url} = result
+            let hostname: string | undefined
+            try {
+              hostname = new URL(url).hostname
+            } catch {
+              hostname = url
+            }
+            return {
+              number: index + 1,
+              url: url,
+              title: result.title,
+              hostname: hostname,
+              showFavicon: true,
+              type: 'websearch'
+            }
+          }) || []
+        break
       case WebSearchSource.OPENROUTER:
       case WebSearchSource.PERPLEXITY:
         formattedCitations =
@@ -187,14 +208,29 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
   // 3. Handle Knowledge Base References
   if (block.knowledge && block.knowledge.length > 0) {
     formattedCitations.push(
-      ...block.knowledge.map((result, index) => ({
-        number: index + 1,
-        url: result.sourceUrl,
-        title: result.sourceUrl,
-        content: result.content,
-        showFavicon: true,
-        type: 'knowledge'
-      }))
+      ...block.knowledge.map((result, index) => {
+        const filePattern = /\[(.*?)]\(http:\/\/file\/(.*?)\)/
+        const fileMatch = result.sourceUrl.match(filePattern)
+
+        let url = result.sourceUrl
+        let title = result.sourceUrl
+        const showFavicon = true
+
+        // 如果匹配文件链接格式 [filename](http://file/xxx)
+        if (fileMatch) {
+          title = fileMatch[1]
+          url = `http://file/${fileMatch[2]}`
+        }
+
+        return {
+          number: index + 1,
+          url: url,
+          title: title,
+          content: result.content,
+          showFavicon: showFavicon,
+          type: 'knowledge'
+        }
+      })
     )
   }
   // 4. Deduplicate by URL and Renumber Sequentially

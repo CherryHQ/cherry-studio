@@ -152,9 +152,7 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
         isCodeWrappable={codeWrappable}
         // dangerouslySetInnerHTML={{ __html: html }}
         style={{
-          border: '0.5px solid var(--color-code-background)',
-          borderTopLeftRadius: 0,
-          borderTopRightRadius: 0,
+          padding: '1px',
           marginTop: 0,
           fontSize: fontSize - 1,
           maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none',

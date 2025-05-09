@@ -256,7 +256,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     let mainTextBlockId: string | null = null
     const toolCallIdToBlockIdMap = new Map<string, string>()
 
-    const handleBlockTransition = (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
+    const handleBlockTransition = async (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
       lastBlockId = newBlock.id
       lastBlockType = newBlockType
       if (newBlockType !== MessageBlockType.MAIN_TEXT) {
@@ -284,9 +284,12 @@ const fetchAndProcessAssistantResponseImpl = async (
       const currentState = getState()
       const updatedMessage = currentState.messages.entities[assistantMsgId]
       if (updatedMessage) {
-        saveUpdatesToDB(assistantMsgId, topicId, { blocks: updatedMessage.blocks, status: updatedMessage.status }, [
-          newBlock
-        ])
+        await saveUpdatesToDB(
+          assistantMsgId,
+          topicId,
+          { blocks: updatedMessage.blocks, status: updatedMessage.status },
+          [newBlock]
+        )
       } else {
         console.error(`[handleBlockTransition] Failed to get updated message ${assistantMsgId} from state for DB save.`)
       }
@@ -425,7 +428,17 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onToolCallInProgress: (toolResponse: MCPToolResponse) => {
-        if (toolResponse.status === 'invoking') {
+        if (lastBlockType === MessageBlockType.UNKNOWN && lastBlockId) {
+          lastBlockType = MessageBlockType.TOOL
+          const changes = {
+            type: MessageBlockType.TOOL,
+            status: MessageBlockStatus.PROCESSING,
+            metadata: { rawMcpToolResponse: toolResponse }
+          }
+          dispatch(updateOneBlock({ id: lastBlockId, changes }))
+          saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          toolCallIdToBlockIdMap.set(toolResponse.id, lastBlockId)
+        } else if (toolResponse.status === 'invoking') {
           const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
             toolName: toolResponse.tool.name,
             status: MessageBlockStatus.PROCESSING,
@@ -485,6 +498,12 @@ const fetchAndProcessAssistantResponseImpl = async (
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
       },
+      onLLMWebSearchInProgress: () => {
+        const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
+        citationBlockId = citationBlock.id
+        handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
+      },
       onLLMWebSearchComplete(llmWebSearchResult) {
         if (citationBlockId) {
           const changes: Partial<CitationMessageBlock> = {
@@ -535,10 +554,11 @@ const fetchAndProcessAssistantResponseImpl = async (
           console.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
         }
       },
-      onError: (error) => {
+      onError: async (error) => {
         console.dir(error, { depth: null })
+        const isErrorTypeAbort = isAbortError(error)
         let pauseErrorLanguagePlaceholder = ''
-        if (isAbortError(error)) {
+        if (isErrorTypeAbort) {
           pauseErrorLanguagePlaceholder = 'pause_placeholder'
         }
 
@@ -553,16 +573,16 @@ const fetchAndProcessAssistantResponseImpl = async (
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR
           const changes: Partial<MessageBlock> = {
-            status: MessageBlockStatus.ERROR
+            status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
           }
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
           saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
         }
 
         const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
-        handleBlockTransition(errorBlock, MessageBlockType.ERROR)
+        await handleBlockTransition(errorBlock, MessageBlockType.ERROR)
         const messageErrorUpdate = {
-          status: isAbortError(error) ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+          status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
         }
         dispatch(newMessagesActions.updateMessage({ topicId, messageId: assistantMsgId, updates: messageErrorUpdate }))
 
@@ -571,7 +591,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
           id: assistantMsgId,
           topicId,
-          status: isAbortError(error) ? 'pause' : 'error',
+          status: isErrorTypeAbort ? 'pause' : 'error',
           error: error.message
         })
       },
@@ -871,14 +891,18 @@ export const resendMessageThunk =
         (m) => m.askId === userMessageToResend.id && m.role === 'assistant'
       )
 
+      const resetDataList: Message[] = []
+
       if (assistantMessagesToReset.length === 0) {
-        console.warn(
-          `[resendMessageThunk] No assistant responses found for user message ${userMessageToResend.id}. Nothing to regenerate.`
-        )
-        return
+        // 没有用户消息,就创建一个
+        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+          askId: userMessageToResend.id,
+          model: assistant.model
+        })
+        resetDataList.push(assistantMessage)
+        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
       }
 
-      const resetDataList: { resetMsg: Message }[] = []
       const allBlockIdsToDelete: string[] = []
       const messagesToUpdateInRedux: { topicId: string; messageId: string; updates: Partial<Message> }[] = []
 
@@ -889,7 +913,7 @@ export const resendMessageThunk =
           ...(assistantMessagesToReset.length === 1 ? { model: assistant.model } : {})
         })
 
-        resetDataList.push({ resetMsg })
+        resetDataList.push(resetMsg)
         allBlockIdsToDelete.push(...blockIdsToDelete)
         messagesToUpdateInRedux.push({ topicId, messageId: resetMsg.id, updates: resetMsg })
       }
@@ -910,7 +934,7 @@ export const resendMessageThunk =
       }
 
       const queue = getTopicQueue(topicId)
-      for (const { resetMsg } of resetDataList) {
+      for (const resetMsg of resetDataList) {
         const assistantConfigForThisRegen = {
           ...assistant,
           ...(resetMsg.model ? { model: resetMsg.model } : {})

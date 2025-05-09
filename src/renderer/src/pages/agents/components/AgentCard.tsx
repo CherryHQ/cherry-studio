@@ -1,4 +1,11 @@
-import { DeleteOutlined, EditOutlined, EllipsisOutlined, PlusOutlined, SortAscendingOutlined } from '@ant-design/icons'
+import {
+  DeleteOutlined,
+  EditOutlined,
+  EllipsisOutlined,
+  ExportOutlined,
+  PlusOutlined,
+  SortAscendingOutlined
+} from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
@@ -35,6 +42,23 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     [removeAgent]
   )
 
+  const exportAgent = useCallback(async () => {
+    const result = {
+      name: agent.name,
+      emoji: agent.emoji,
+      group: agent.group,
+      prompt: agent.prompt,
+      description: agent.description,
+      type: 'agent'
+    }
+
+    const resultStr = JSON.stringify(result, null, 2)
+
+    await window.api.file.save(`${agent.name}.json`, new TextEncoder().encode(resultStr), {
+      filters: [{ name: t('agents.import.file_filter'), extensions: ['json'] }]
+    })
+  }, [agent])
+
   const menuItems = [
     {
       key: 'edit',
@@ -61,6 +85,15 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
         ManageAgentsPopup.show()
+      }
+    },
+    {
+      key: 'export',
+      label: t('agents.export.agent'),
+      icon: <ExportOutlined />,
+      onClick: (e: any) => {
+        e.domEvent.stopPropagation()
+        exportAgent()
       }
     },
     {

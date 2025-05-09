@@ -197,9 +197,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anthropic-ai/sdk@npm:^0.38.0":
-  version: 0.38.0
-  resolution: "@anthropic-ai/sdk@npm:0.38.0"
+"@anthropic-ai/sdk@npm:^0.41.0":
+  version: 0.41.0
+  resolution: "@anthropic-ai/sdk@npm:0.41.0"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -208,7 +208,7 @@ __metadata:
     form-data-encoder: "npm:1.7.2"
     formdata-node: "npm:^4.3.2"
     node-fetch: "npm:^2.6.7"
-  checksum: 10c0/accd003cbe314d32d4d36f5fd7fd743c32e2a896c9ea57190966eda20b8c46e00f542bf03ec3603d1274a7ac18e902bed4158ff5980e4e248a6d5c75e3fd891a
+  checksum: 10c0/b57df42df33f29f3baa682da663d7411624f511384f84c790a936b505c5074d9676749ce05d45b1caa9af7077a20013889efb65f3e25f979e7ab2fa245e2a444
   languageName: node
   linkType: hard
 
@@ -392,6 +392,13 @@ __metadata:
   peerDependencies:
     "@babel/core": ^7.0.0-0
   checksum: 10c0/851fef9f58be60a80f46cc0ce1e46a6f7346a6f9d50fa9e0fa79d46ec205320069d0cc157db213e2bea88ef5b7d9bd7618bb83f0b1996a836e2426c3a3a1f622
+  languageName: node
+  linkType: hard
+
+"@babel/runtime@npm:^7.0.0":
+  version: 7.27.1
+  resolution: "@babel/runtime@npm:7.27.1"
+  checksum: 10c0/530a7332f86ac5a7442250456823a930906911d895c0b743bf1852efc88a20a016ed4cd26d442d0ca40ae6d5448111e02a08dd638a4f1064b47d080e2875dc05
   languageName: node
   linkType: hard
 
@@ -1527,15 +1534,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google/genai@npm:^0.10.0":
-  version: 0.10.0
-  resolution: "@google/genai@npm:0.10.0"
+"@google/genai@npm:^0.13.0":
+  version: 0.13.0
+  resolution: "@google/genai@npm:0.13.0"
   dependencies:
     google-auth-library: "npm:^9.14.2"
     ws: "npm:^8.18.0"
     zod: "npm:^3.22.4"
     zod-to-json-schema: "npm:^3.22.4"
-  checksum: 10c0/89a80eebdd053f2643fb977b939c3de1ece6889549f7d030b81a21dae0e0e0750233e453dafe665f8d337c642b4ba7a2f19b06bc270f3e2de8aeb803af1851d1
+  checksum: 10c0/b520e6154bd9cefa725f897ee521e97c59c287d23031a36c946385eef409e411d34dd8e43d5a7c618e3572ea5fd5bef86474585ba936d5b42f7655e03b83290b
   languageName: node
   linkType: hard
 
@@ -2818,6 +2825,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@opendal/lib-darwin-arm64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-arm64@npm:0.47.11"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-darwin-x64@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-darwin-x64@npm:0.47.11"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-arm64-musl@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-arm64-musl@npm:0.47.11"
+  conditions: os=linux & cpu=arm64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-linux-x64-gnu@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-linux-x64-gnu@npm:0.47.11"
+  conditions: os=linux & cpu=x64 & libc=glibc
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-arm64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-arm64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@opendal/lib-win32-x64-msvc@npm:0.47.11":
+  version: 0.47.11
+  resolution: "@opendal/lib-win32-x64-msvc@npm:0.47.11"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@parcel/watcher-android-arm64@npm:2.5.1":
   version: 2.5.1
   resolution: "@parcel/watcher-android-arm64@npm:2.5.1"
@@ -3559,6 +3615,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tanstack/query-core@npm:5.75.5":
+  version: 5.75.5
+  resolution: "@tanstack/query-core@npm:5.75.5"
+  checksum: 10c0/3627f9580df5b4a032ff830c1b1f6fa55ae754962a6aaab4ee79607917c9fbd98ce8f7302cc4c88e5b19fd6378689163eb42f32a83c05fe2dc81e7899c94d0df
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query@npm:^5.27.0":
+  version: 5.75.5
+  resolution: "@tanstack/react-query@npm:5.75.5"
+  dependencies:
+    "@tanstack/query-core": "npm:5.75.5"
+  peerDependencies:
+    react: ^18 || ^19
+  checksum: 10c0/658e6b36577c531659e19da19ce46005ae36e17517409f4105c4e9181b7ec2ac21bd6d1e2415b8e16004fdd4f7c51b724af1327834b16f1d037edabeaf9b1cbc
+  languageName: node
+  linkType: hard
+
 "@tavily/core@npm:0.3.1":
   version: 0.3.1
   resolution: "@tavily/core@npm:0.3.1"
@@ -3949,6 +4023,15 @@ __metadata:
   dependencies:
     react-infinite-scroll-component: "npm:*"
   checksum: 10c0/257e7b2fc6ebf200ada409a5c21415c1a56157807636405f3329521cf36344a81afa87f992497747534453e48145b0d4f32ccee80814548b466a0d83dfa23eec
+  languageName: node
+  linkType: hard
+
+"@types/react-window@npm:^1":
+  version: 1.8.8
+  resolution: "@types/react-window@npm:1.8.8"
+  dependencies:
+    "@types/react": "npm:*"
+  checksum: 10c0/2170a3957752603e8b994840c5d31b72ddf94c427c0f42b0175b343cc54f50fe66161d8871e11786ec7a59906bd33861945579a3a8f745455a3744268ec1069f
   languageName: node
   linkType: hard
 
@@ -4359,7 +4442,7 @@ __metadata:
     "@agentic/tavily": "npm:^7.3.3"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@ant-design/x": "npm:^1.1.0"
-    "@anthropic-ai/sdk": "npm:^0.38.0"
+    "@anthropic-ai/sdk": "npm:^0.41.0"
     "@cherrystudio/embedjs": "npm:^0.1.28"
     "@cherrystudio/embedjs-libsql": "npm:^0.1.28"
     "@cherrystudio/embedjs-loader-csv": "npm:^0.1.28"
@@ -4381,7 +4464,7 @@ __metadata:
     "@emotion/is-prop-valid": "npm:^1.3.1"
     "@eslint-react/eslint-plugin": "npm:^1.36.1"
     "@eslint/js": "npm:^9.22.0"
-    "@google/genai": "npm:^0.10.0"
+    "@google/genai": "npm:^0.13.0"
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@iconify-json/svg-spinners": "npm:^1.2.2"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
@@ -4393,6 +4476,7 @@ __metadata:
     "@shikijs/markdown-it": "npm:^3.2.2"
     "@strongtz/win32-arm64-msvc": "npm:^0.4.7"
     "@swc/plugin-styled-components": "npm:^7.1.3"
+    "@tanstack/react-query": "npm:^5.27.0"
     "@tavily/core": "patch:@tavily/core@npm%3A0.3.1#~/.yarn/patches/@tavily-core-npm-0.3.1-fe69bf2bea.patch"
     "@tryfabric/martian": "npm:^1.2.4"
     "@types/adm-zip": "npm:^0"
@@ -4406,6 +4490,7 @@ __metadata:
     "@types/react": "npm:^19.0.12"
     "@types/react-dom": "npm:^19.0.4"
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
+    "@types/react-window": "npm:^1"
     "@types/tinycolor2": "npm:^1"
     "@types/ws": "npm:^8"
     "@vitejs/plugin-react-swc": "npm:^3.9.0"
@@ -4463,11 +4548,12 @@ __metadata:
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
+    opendal: "npm:^0.47.11"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
-    rc-virtual-list: "npm:^3.18.5"
+    rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     react-hotkeys-hook: "npm:^4.6.1"
@@ -4478,6 +4564,7 @@ __metadata:
     react-router: "npm:6"
     react-router-dom: "npm:6"
     react-spinners: "npm:^0.14.1"
+    react-window: "npm:^1.8.11"
     redux: "npm:^5.0.1"
     redux-persist: "npm:^6.0.0"
     rehype-katex: "npm:^7.0.1"
@@ -11618,6 +11705,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"memoize-one@npm:>=3.1.1 <6":
+  version: 5.2.1
+  resolution: "memoize-one@npm:5.2.1"
+  checksum: 10c0/fd22dbe9a978a2b4f30d6a491fc02fb90792432ad0dab840dc96c1734d2bd7c9cdeb6a26130ec60507eb43230559523615873168bcbe8fafab221c30b11d54c1
+  languageName: node
+  linkType: hard
+
 "memoize-one@npm:^6.0.0":
   version: 6.0.0
   resolution: "memoize-one@npm:6.0.0"
@@ -13147,6 +13241,36 @@ __metadata:
   version: 12.1.3
   resolution: "openapi-types@npm:12.1.3"
   checksum: 10c0/4ad4eb91ea834c237edfa6ab31394e87e00c888fc2918009763389c00d02342345195d6f302d61c3fd807f17723cd48df29b47b538b68375b3827b3758cd520f
+  languageName: node
+  linkType: hard
+
+"opendal@npm:^0.47.11":
+  version: 0.47.11
+  resolution: "opendal@npm:0.47.11"
+  dependencies:
+    "@opendal/lib-darwin-arm64": "npm:0.47.11"
+    "@opendal/lib-darwin-x64": "npm:0.47.11"
+    "@opendal/lib-linux-arm64-gnu": "npm:0.47.11"
+    "@opendal/lib-linux-arm64-musl": "npm:0.47.11"
+    "@opendal/lib-linux-x64-gnu": "npm:0.47.11"
+    "@opendal/lib-win32-arm64-msvc": "npm:0.47.11"
+    "@opendal/lib-win32-x64-msvc": "npm:0.47.11"
+  dependenciesMeta:
+    "@opendal/lib-darwin-arm64":
+      optional: true
+    "@opendal/lib-darwin-x64":
+      optional: true
+    "@opendal/lib-linux-arm64-gnu":
+      optional: true
+    "@opendal/lib-linux-arm64-musl":
+      optional: true
+    "@opendal/lib-linux-x64-gnu":
+      optional: true
+    "@opendal/lib-win32-arm64-msvc":
+      optional: true
+    "@opendal/lib-win32-x64-msvc":
+      optional: true
+  checksum: 10c0/0783da2651bb27ac693ce38938d12b00124530fb965364517eef3de17b3ff898cdecf06260a79a7d70745d57c2ba952a753a4bab52e0831aa7232c3a69120225
   languageName: node
   linkType: hard
 
@@ -14702,7 +14826,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.18.5, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
+"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
   version: 3.18.5
   resolution: "rc-virtual-list@npm:3.18.5"
   dependencies:
@@ -14714,6 +14838,21 @@ __metadata:
     react: ">=16.9.0"
     react-dom: ">=16.9.0"
   checksum: 10c0/1d6e0baba24cebcbf59a55cce196fffc575dceeec8b429fe4c82ac258b47a6ff23ce605b2e22a9803a5849363f4d4ebd279d4597e67fdd17cb8b5ca9125b9ed9
+  languageName: node
+  linkType: hard
+
+"rc-virtual-list@npm:^3.18.6":
+  version: 3.18.6
+  resolution: "rc-virtual-list@npm:3.18.6"
+  dependencies:
+    "@babel/runtime": "npm:^7.20.0"
+    classnames: "npm:^2.2.6"
+    rc-resize-observer: "npm:^1.0.0"
+    rc-util: "npm:^5.36.0"
+  peerDependencies:
+    react: ">=16.9.0"
+    react-dom: ">=16.9.0"
+  checksum: 10c0/689f22ea64827c65d9fa32e1b6d52affcebdfb556dc27913b9d839600683aca327d2f5a1f18f11d16a2dee9029d991e69d2d3e87652c2c6d3ca804a64a8e61f9
   languageName: node
   linkType: hard
 
@@ -14906,6 +15045,19 @@ __metadata:
     react: ^16.0.0 || ^17.0.0 || ^18.0.0
     react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0
   checksum: 10c0/5b3c101f789716331a0b6afad156293fb9aa05620e65494753001afcdb611788057f379b5979b34d570d527fa978003293266b59db505bf2d243ebab899ceeda
+  languageName: node
+  linkType: hard
+
+"react-window@npm:^1.8.11":
+  version: 1.8.11
+  resolution: "react-window@npm:1.8.11"
+  dependencies:
+    "@babel/runtime": "npm:^7.0.0"
+    memoize-one: "npm:>=3.1.1 <6"
+  peerDependencies:
+    react: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/5ae8da1bc5c47d8f0a428b28a600256e2db511975573e52cb65a9b27ed1a0e5b9f7b3bee5a54fb0da93956d782c24010be434be451072f46ba5a89159d2b3944
   languageName: node
   linkType: hard
 

@@ -1,7 +1,19 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { MessageCreateParamsNonStreaming, MessageParam, TextBlockParam } from '@anthropic-ai/sdk/resources'
+import {
+  Base64ImageSource,
+  ImageBlockParam,
+  MessageCreateParamsNonStreaming,
+  MessageParam,
+  TextBlockParam,
+  ToolResultBlockParam,
+  ToolUnion,
+  ToolUseBlock,
+  WebSearchResultBlock,
+  WebSearchTool20250305,
+  WebSearchToolResultError
+} from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isReasoningModel, isVisionModel } from '@renderer/config/models'
+import { isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -11,11 +23,28 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { Assistant, EFFORT_RATIO, FileTypes, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
+import {
+  Assistant,
+  EFFORT_RATIO,
+  FileTypes,
+  MCPCallToolResponse,
+  MCPTool,
+  MCPToolResponse,
+  Model,
+  Provider,
+  Suggestion,
+  ToolCallResponse,
+  WebSearchSource
+} from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { mcpToolCallResponseToAnthropicMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import {
+  anthropicToolUseToMcpTool,
+  mcpToolCallResponseToAnthropicMessage,
+  mcpToolsToAnthropicTools,
+  parseAndCallTools
+} from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { first, flatten, sum, takeRight } from 'lodash'
@@ -109,6 +138,18 @@ export default class AnthropicProvider extends BaseProvider {
     }
   }
 
+  private async getWebSearchParams(model: Model): Promise<WebSearchTool20250305 | undefined> {
+    if (!isWebSearchModel(model)) {
+      return undefined
+    }
+
+    return {
+      type: 'web_search_20250305',
+      name: 'web_search',
+      max_uses: 5
+    } as WebSearchTool20250305
+  }
+
   /**
    * Get the temperature
    * @param assistant - The assistant
@@ -170,7 +211,7 @@ export default class AnthropicProvider extends BaseProvider {
   public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
 
@@ -186,10 +227,16 @@ export default class AnthropicProvider extends BaseProvider {
 
     const userMessages = flatten(userMessagesParams)
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    // const tools = mcpTools ? mcpToolsToAnthropicTools(mcpTools) : undefined
 
     let systemPrompt = assistant.prompt
-    if (mcpTools && mcpTools.length > 0) {
+
+    const { tools } = this.setupToolsConfig<ToolUnion>({
+      model,
+      mcpTools,
+      enableToolUse
+    })
+
+    if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
       systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
     }
 
@@ -201,16 +248,25 @@ export default class AnthropicProvider extends BaseProvider {
       }
     }
 
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+
+    if (isEnabledBuiltinWebSearch) {
+      const webSearchTool = await this.getWebSearchParams(model)
+      if (webSearchTool) {
+        tools.push(webSearchTool)
+      }
+    }
+
     const body: MessageCreateParamsNonStreaming = {
       model: model.id,
       messages: userMessages,
-      // tools: isEmpty(tools) ? undefined : tools,
       max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
       temperature: this.getTemperature(assistant, model),
       top_p: this.getTopP(assistant, model),
       system: systemMessage ? [systemMessage] : undefined,
       // @ts-ignore thinking
       thinking: this.getBudgetToken(assistant, model),
+      tools: tools,
       ...this.getCustomParameters(assistant)
     }
 
@@ -262,7 +318,7 @@ export default class AnthropicProvider extends BaseProvider {
     const processStream = (body: MessageCreateParamsNonStreaming, idx: number) => {
       return new Promise<void>((resolve, reject) => {
         // 等待接口返回流
-        onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+        const toolCalls: ToolUseBlock[] = []
         let hasThinkingContent = false
         this.sdk.messages
           .stream({ ...body, stream: true }, { signal, timeout: 5 * 60 * 1000 })
@@ -289,6 +345,34 @@ export default class AnthropicProvider extends BaseProvider {
 
             onChunk({ type: ChunkType.TEXT_DELTA, text })
           })
+          .on('contentBlock', (block) => {
+            if (block.type === 'server_tool_use' && block.name === 'web_search') {
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+              })
+            } else if (block.type === 'web_search_tool_result') {
+              if (
+                block.content &&
+                (block.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
+              ) {
+                onChunk({
+                  type: ChunkType.ERROR,
+                  error: {
+                    code: (block.content as WebSearchToolResultError).error_code,
+                    message: (block.content as WebSearchToolResultError).error_code
+                  }
+                })
+              } else {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: block.content as Array<WebSearchResultBlock>,
+                    source: WebSearchSource.ANTHROPIC
+                  }
+                })
+              }
+            }
+          })
           .on('thinking', (thinking) => {
             hasThinkingContent = true
             const currentTime = new Date().getTime() // Get current time for each chunk
@@ -311,30 +395,70 @@ export default class AnthropicProvider extends BaseProvider {
             })
             thinking_content += thinking
           })
+          .on('contentBlock', (content) => {
+            if (content.type === 'tool_use') {
+              toolCalls.push(content)
+            }
+          })
           .on('finalMessage', async (message) => {
+            const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+            // tool call
+            if (toolCalls.length > 0) {
+              const mcpToolResponses = toolCalls
+                .map((toolCall) => {
+                  const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
+                  if (!mcpTool) {
+                    return undefined
+                  }
+                  return {
+                    id: toolCall.id,
+                    toolCallId: toolCall.id,
+                    tool: mcpTool,
+                    arguments: toolCall.input as Record<string, unknown>,
+                    status: 'pending'
+                  } as ToolCallResponse
+                })
+                .filter((t) => typeof t !== 'undefined')
+              toolResults.push(
+                ...(await parseAndCallTools(
+                  mcpToolResponses,
+                  toolResponses,
+                  onChunk,
+                  this.mcpToolCallResponseToMessage,
+                  model,
+                  mcpTools
+                ))
+              )
+            }
+
+            // tool use
             const content = message.content[0]
             if (content && content.type === 'text') {
               onChunk({ type: ChunkType.TEXT_COMPLETE, text: content.text })
-              const toolResults = await parseAndCallTools(
-                content.text,
-                toolResponses,
-                onChunk,
-                idx,
-                mcpToolCallResponseToAnthropicMessage,
-                mcpTools,
-                isVisionModel(model)
+              toolResults.push(
+                ...(await parseAndCallTools(
+                  content.text,
+                  toolResponses,
+                  onChunk,
+                  this.mcpToolCallResponseToMessage,
+                  model,
+                  mcpTools
+                ))
               )
-              if (toolResults.length > 0) {
-                userMessages.push({
-                  role: message.role,
-                  content: message.content
-                })
+            }
 
-                toolResults.forEach((ts) => userMessages.push(ts as MessageParam))
-                const newBody = body
-                newBody.messages = userMessages
-                await processStream(newBody, idx + 1)
-              }
+            userMessages.push({
+              role: message.role,
+              content: message.content
+            })
+
+            if (toolResults.length > 0) {
+              toolResults.forEach((ts) => userMessages.push(ts as MessageParam))
+              const newBody = body
+              newBody.messages = userMessages
+
+              onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+              await processStream(newBody, idx + 1)
             }
 
             const time_completion_millsec = new Date().getTime() - start_time_millsec
@@ -365,7 +489,7 @@ export default class AnthropicProvider extends BaseProvider {
           })
       })
     }
-
+    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     await processStream(body, 0).finally(cleanup)
   }
 
@@ -613,5 +737,48 @@ export default class AnthropicProvider extends BaseProvider {
 
   public async getEmbeddingDimensions(): Promise<number> {
     return 0
+  }
+
+  public convertMcpTools<T>(mcpTools: MCPTool[]): T[] {
+    return mcpToolsToAnthropicTools(mcpTools) as T[]
+  }
+
+  public mcpToolCallResponseToMessage = (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => {
+    if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
+      return mcpToolCallResponseToAnthropicMessage(mcpToolResponse, resp, model)
+    } else if ('toolCallId' in mcpToolResponse) {
+      return {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: mcpToolResponse.toolCallId!,
+            content: resp.content
+              .map((item) => {
+                if (item.type === 'text') {
+                  return {
+                    type: 'text',
+                    text: item.text || ''
+                  } satisfies TextBlockParam
+                }
+                if (item.type === 'image') {
+                  return {
+                    type: 'image',
+                    source: {
+                      data: item.data || '',
+                      media_type: (item.mimeType || 'image/png') as Base64ImageSource['media_type'],
+                      type: 'base64'
+                    }
+                  } satisfies ImageBlockParam
+                }
+                return
+              })
+              .filter((n) => typeof n !== 'undefined'),
+            is_error: resp.isError
+          } satisfies ToolResultBlockParam
+        ]
+      }
+    }
+    return
   }
 }

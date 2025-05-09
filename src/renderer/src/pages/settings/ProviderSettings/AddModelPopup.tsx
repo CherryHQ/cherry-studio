@@ -104,7 +104,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
             maxLength={200}
             onChange={(e) => {
               form.setFieldValue('name', e.target.value)
-              form.setFieldValue('group', getDefaultGroupName(e.target.value))
+              form.setFieldValue('group', getDefaultGroupName(e.target.value, provider.id))
             }}
           />
         </Form.Item>
