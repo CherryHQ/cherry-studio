@@ -68,6 +68,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
 
+  // 搜索文本变化时设置滚动来源
+  useEffect(() => {
+    scrollTriggerRef.current = searchText.trim() ? 'initial' : 'search'
+  }, [searchText])
+
   // 加载置顶模型列表
   useEffect(() => {
     const loadPinnedModels = async () => {
@@ -222,6 +227,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return items
   }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
 
+  // 获取可选择的模型项（过滤掉分组标题）
+  const modelItems = useMemo(() => {
+    return listItems.filter((item) => item.type === 'model')
+  }, [listItems])
+
   // 基于滚动位置更新sticky分组标题
   const updateStickyGroup = useCallback(
     (scrollOffset?: number) => {
@@ -261,29 +271,17 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     [updateStickyGroup]
   )
 
-  // 获取可选择的模型项（过滤掉分组标题）
-  const modelItems = useMemo(() => {
-    return listItems.filter((item) => item.type === 'model')
-  }, [listItems])
-
-  // 搜索文本变化时设置滚动来源
-  useEffect(() => {
-    if (searchText.trim() !== '') {
-      scrollTriggerRef.current = 'search'
-      setFocusedItemKey('')
-    }
-  }, [searchText])
-
   // 设置初始聚焦项以触发滚动
   useEffect(() => {
     if (scrollTriggerRef.current === 'initial' || scrollTriggerRef.current === 'search') {
       const selectedItem = modelItems.find((item) => item.isSelected)
       if (selectedItem) {
         setFocusedItemKey(selectedItem.key)
-      } else if (scrollTriggerRef.current === 'initial' && modelItems.length > 0) {
+      } else if (modelItems.length > 0) {
         setFocusedItemKey(modelItems[0].key)
+      } else {
+        setFocusedItemKey('')
       }
-      // 其余情况不设置focusedItemKey
     }
   }, [modelItems])
 
@@ -305,7 +303,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
       if (item.type === 'model') {
-        scrollTriggerRef.current = 'none'
+        scrollTriggerRef.current = 'initial'
         resolve(item.model)
         setOpen(false)
       }
@@ -389,12 +387,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   }, [focusedItemKey, modelItems, handleItemClick, open, resolve])
 
   const onCancel = useCallback(() => {
-    scrollTriggerRef.current = 'none'
+    scrollTriggerRef.current = 'initial'
     setOpen(false)
   }, [])
 
   const onClose = useCallback(async () => {
-    scrollTriggerRef.current = 'none'
+    scrollTriggerRef.current = 'initial'
     resolve(undefined)
     SelectModelPopup.hide()
   }, [resolve])
