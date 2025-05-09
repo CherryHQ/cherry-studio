@@ -844,7 +844,6 @@ const migrateConfig = {
       addProvider(state, 'perplexity')
       addProvider(state, 'infini')
       addProvider(state, 'dmxapi')
-      addProvider(state, 'paratera')
 
       state.llm.settings.lmstudio = {
         keepAliveTime: 5
@@ -1249,6 +1248,15 @@ const migrateConfig = {
           provider.type = 'openai-compatible'
         }
       })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '99': (state: RootState) => {
+    try {
+      addProvider(state, 'paratera')
+
       return state
     } catch (error) {
       return state
