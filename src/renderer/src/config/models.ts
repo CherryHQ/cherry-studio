@@ -2099,6 +2099,36 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'paratera',
       name: 'DeepSeek-R1',
       group: 'DeepSeek'
+    },
+    {
+      id: 'QwQ-N011-32B',
+      provider: 'paratera',
+      name: 'QwQ-N011-32B',
+      group: 'Qwen'
+    },
+    {
+      id: 'GLM-Embedding-2-P002',
+      provider: 'paratera',
+      name: 'GLM-Embedding-2-P002',
+      group: 'GLM'
+    },
+    {
+      id: 'GLM-Embedding-3-P002',
+      provider: 'paratera',
+      name: 'GLM-Embedding-3-P002',
+      group: 'GLM'
+    },
+    {
+      id: 'Doubao-Embedding-Text-P001',
+      provider: 'paratera',
+      name: 'Doubao-Embedding-Text-P001',
+      group: 'Doubao'
+    },
+    {
+      id: 'Doubao-Embedding-Large-Text-P001',
+      provider: 'paratera',
+      name: 'Doubao-Embedding-Large-Text-P001',
+      group: 'Doubao'
     }
   ]
 }
