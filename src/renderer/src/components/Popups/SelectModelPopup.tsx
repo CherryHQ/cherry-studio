@@ -59,9 +59,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const [_focusedItemKey, setFocusedItemKey] = useState<string>('')
   const focusedItemKey = useDeferredValue(_focusedItemKey)
-  const [currentStickyGroup, setCurrentStickyGroup] = useState<FlatListItem | null>(null)
+  const [_stickyGroup, setStickyGroup] = useState<FlatListItem | null>(null)
+  const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
   const scrollTriggerRef = useRef<ScrollTrigger>('initial')
+  const lastScrollOffsetRef = useRef(0)
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
@@ -220,6 +222,45 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     return items
   }, [providers, getFilteredModels, pinnedModels, searchText, t, createModelItem])
 
+  // 基于滚动位置更新sticky分组标题
+  const updateStickyGroup = useCallback(
+    (scrollOffset?: number) => {
+      if (listItems.length === 0) {
+        setStickyGroup(null)
+        return
+      }
+
+      // 基于滚动位置计算当前可见的第一个项的索引
+      const estimatedIndex = Math.floor((scrollOffset ?? lastScrollOffsetRef.current) / ITEM_HEIGHT)
+
+      // 从该索引向前查找最近的分组标题
+      for (let i = estimatedIndex - 1; i >= 0; i--) {
+        if (i < listItems.length && listItems[i]?.type === 'group') {
+          setStickyGroup(listItems[i])
+          return
+        }
+      }
+
+      // 找不到则使用第一个分组标题
+      setStickyGroup(firstGroupRef.current ?? null)
+    },
+    [listItems]
+  )
+
+  // 在listItems变化时更新sticky group
+  useEffect(() => {
+    updateStickyGroup()
+  }, [listItems, updateStickyGroup])
+
+  // 处理列表滚动事件，更新lastScrollOffset并更新sticky分组
+  const handleScroll = useCallback(
+    ({ scrollOffset }) => {
+      lastScrollOffsetRef.current = scrollOffset
+      updateStickyGroup(scrollOffset)
+    },
+    [updateStickyGroup]
+  )
+
   // 获取可选择的模型项（过滤掉分组标题）
   const modelItems = useMemo(() => {
     return listItems.filter((item) => item.type === 'model')
@@ -362,41 +403,19 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     if (!open) return
     setTimeout(() => inputRef.current?.focus(), 0)
     scrollTriggerRef.current = 'initial'
+    lastScrollOffsetRef.current = 0
   }, [open])
-
-  // 初始化sticky分组标题
-  useEffect(() => {
-    if (firstGroupRef.current) {
-      setCurrentStickyGroup(firstGroupRef.current)
-    }
-  }, [listItems])
-
-  const handleItemsRendered = useCallback(
-    ({ visibleStartIndex }: { visibleStartIndex: number; visibleStopIndex: number }) => {
-      // 从可见区域的起始位置向前查找最近的分组标题
-      for (let i = visibleStartIndex - 1; i >= 0; i--) {
-        if (listItems[i]?.type === 'group') {
-          setCurrentStickyGroup(listItems[i])
-          return
-        }
-      }
-
-      // 找不到则使用第一个分组标题
-      setCurrentStickyGroup(firstGroupRef.current ?? null)
-    },
-    [listItems]
-  )
 
   const RowData = useMemo(
     (): VirtualizedRowData => ({
       listItems,
       focusedItemKey,
       setFocusedItemKey,
-      currentStickyGroup,
+      stickyGroup,
       handleItemClick,
       togglePin
     }),
-    [currentStickyGroup, focusedItemKey, handleItemClick, listItems, togglePin]
+    [stickyGroup, focusedItemKey, handleItemClick, listItems, togglePin]
   )
 
   const listHeight = useMemo(() => {
@@ -453,7 +472,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
       {listItems.length > 0 ? (
         <ListContainer onMouseMove={() => setIsMouseOver(true)}>
           {/* Sticky Group Banner，它会替换第一个分组名称 */}
-          <StickyGroupBanner>{currentStickyGroup?.name}</StickyGroupBanner>
+          <StickyGroupBanner>{stickyGroup?.name}</StickyGroupBanner>
           <FixedSizeList
             ref={listRef}
             height={listHeight}
@@ -463,7 +482,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
             itemData={RowData}
             itemKey={(index, data) => data.listItems[index].key}
             overscanCount={4}
-            onItemsRendered={handleItemsRendered}
+            onScroll={handleScroll}
             style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
             {VirtualizedRow}
           </FixedSizeList>
@@ -481,7 +500,7 @@ interface VirtualizedRowData {
   listItems: FlatListItem[]
   focusedItemKey: string
   setFocusedItemKey: (key: string) => void
-  currentStickyGroup: FlatListItem | null
+  stickyGroup: FlatListItem | null
   handleItemClick: (item: FlatListItem) => void
   togglePin: (modelId: string) => void
 }
@@ -491,7 +510,7 @@ interface VirtualizedRowData {
  */
 const VirtualizedRow = React.memo(
   ({ data, index, style }: { data: VirtualizedRowData; index: number; style: React.CSSProperties }) => {
-    const { listItems, focusedItemKey, setFocusedItemKey, handleItemClick, togglePin, currentStickyGroup } = data
+    const { listItems, focusedItemKey, setFocusedItemKey, handleItemClick, togglePin, stickyGroup } = data
 
     const item = listItems[index]
 
@@ -502,7 +521,7 @@ const VirtualizedRow = React.memo(
     return (
       <div style={style}>
         {item.type === 'group' ? (
-          <GroupItem $isSticky={item.key === currentStickyGroup?.key}>{item.name}</GroupItem>
+          <GroupItem $isSticky={item.key === stickyGroup?.key}>{item.name}</GroupItem>
         ) : (
           <ModelItem
             className={classNames({
