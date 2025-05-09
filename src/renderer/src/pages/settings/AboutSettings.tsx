@@ -12,7 +12,7 @@ import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
 import { debounce } from 'lodash'
-import { FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -24,6 +24,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
+  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false)
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
   const { theme } = useTheme()
@@ -69,6 +70,14 @@ const AboutSettings: FC = () => {
     onOpenWebsite(url)
   }
 
+  const debug = async () => {
+    await window.api.devTools.toggle()
+    setTimeout(async () => {
+      const isOpen = await window.api.devTools.getOpen()
+      setIsDevToolsOpen(isOpen)
+    }, 500)
+  }
+
   const showLicense = async () => {
     const { appPath } = await window.api.getAppInfo()
     openMinapp({
@@ -96,6 +105,9 @@ const AboutSettings: FC = () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
+
+      const isOpen = await window.api.devTools.getOpen()
+      setIsDevToolsOpen(isOpen)
     })
   }, [])
 
@@ -218,6 +230,16 @@ const AboutSettings: FC = () => {
             {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            <Bug size={18} />
+            {t('settings.about.debug.title')}
+          </SettingRowTitle>
+          <Button onClick={debug}>
+            {isDevToolsOpen ? t('settings.about.debug.close') : t('settings.about.debug.open')}
+          </Button>
         </SettingRow>
       </SettingGroup>
     </SettingContainer>
