@@ -702,6 +702,8 @@
       "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
       "search": "Search models...",
       "stream_output": "Stream output",
+      "qwen3_think_mode": "Qwen3 Model - Think Mode",
+      "qwen3_think_mode_tip": "When disabled, prevent the model from generating thinking content",
       "type": {
         "embedding": "Embedding",
         "free": "Free",

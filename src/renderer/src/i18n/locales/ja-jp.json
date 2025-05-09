@@ -702,6 +702,8 @@
       "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
       "search": "モデルを検索...",
       "stream_output": "ストリーム出力",
+      "qwen3_think_mode": "Qwen3 モデル - 思考モード",
+      "qwen3_think_mode_tip": "無効化時、モデルの思考内容の生成を防ぎます",
       "type": {
         "embedding": "埋め込み",
         "free": "無料",
