@@ -442,12 +442,6 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true
   },
   {
-    id: 'paratera',
-    name: '并行AI',
-    logo: ParateraLogo,
-    url: 'https://ai.paratera.com/'
-  },
-  {
     id: `zai`,
     name: `Z.ai`,
     logo: ZaiAppLogo,
@@ -456,6 +450,12 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 10
     }
+  },
+  {
+    id: 'paratera',
+    name: 'ParateraAI',
+    logo: ParateraLogo,
+    url: 'https://ai.paratera.com/'
   },
   {
     id: 'n8n',
