@@ -13,6 +13,7 @@ const QuickPanelContext = createContext<QuickPanelContextType | null>(null)
 export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [isVisible, setIsVisible] = useState(false)
   const [symbol, setSymbol] = useState<string>('')
+  const [tips, setTips] = useState<string | undefined>()
 
   const [list, setList] = useState<QuickPanelListItem[]>([])
   const [title, setTitle] = useState<string | undefined>()
@@ -32,6 +33,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setPageSize(options.pageSize ?? 7)
     setMultiple(options.multiple ?? false)
     setSymbol(options.symbol)
+    setTips(options.tips)
 
     setOnClose(() => options.onClose)
     setBeforeAction(() => options.beforeAction)
@@ -64,6 +66,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
 
       isVisible,
       symbol,
+      tips,
 
       list,
       title,
@@ -74,7 +77,21 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       beforeAction,
       afterAction
     }),
-    [open, close, isVisible, symbol, list, title, defaultIndex, pageSize, multiple, onClose, beforeAction, afterAction]
+    [
+      open,
+      close,
+      isVisible,
+      symbol,
+      list,
+      title,
+      defaultIndex,
+      pageSize,
+      multiple,
+      onClose,
+      beforeAction,
+      afterAction,
+      tips
+    ]
   )
 
   return <QuickPanelContext value={value}>{children}</QuickPanelContext>

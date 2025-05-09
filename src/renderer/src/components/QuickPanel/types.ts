@@ -8,6 +8,8 @@ export type QuickPanelCallBackOptions = {
   searchText?: string
   /** 是否处于多选状态 */
   multiple?: boolean
+  /** 是否处于shift键状态 */
+  shiftKey?: boolean
 }
 
 export type QuickPanelOpenOptions = {
@@ -21,6 +23,7 @@ export type QuickPanelOpenOptions = {
   pageSize?: number
   /** 是否支持按住cmd/ctrl键多选，default: false */
   multiple?: boolean
+  tips?: string
   /**
    * 用于标识是哪个快捷面板，不是用于触发显示
    * 可以是/@#符号，也可以是其他字符串
@@ -41,7 +44,7 @@ export type QuickPanelListItem = {
    */
   filterText?: string
   icon: React.ReactNode | string
-  suffix?: React.ReactNode | string
+  suffix?: (isFocused: boolean) => React.ReactNode
   isSelected?: boolean
   isMenu?: boolean
   disabled?: boolean
@@ -59,6 +62,7 @@ export interface QuickPanelContextType {
   readonly defaultIndex: number
   readonly pageSize: number
   readonly multiple: boolean
+  readonly tips?: string
 
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void

@@ -38,6 +38,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   const ASSISTIVE_KEY = isMac ? '⌘' : 'Ctrl'
   const [isAssistiveKeyPressed, setIsAssistiveKeyPressed] = useState(false)
+  const [isShiftKeyPressed, setIsShiftKeyPressed] = useState(false)
 
   // 避免上下翻页时，鼠标干扰
   const [isMouseOver, setIsMouseOver] = useState(false)
@@ -89,7 +90,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           const regex = new RegExp(pattern, 'ig')
           return regex.test(pinyinText)
         } catch (error) {
-          return true
+          return false
         }
       } else {
         const regex = new RegExp(pattern, 'ig')
@@ -165,7 +166,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         action,
         item,
         searchText: searchText,
-        multiple: isAssistiveKeyPressed
+        multiple: isAssistiveKeyPressed,
+        shiftKey: isShiftKeyPressed
       }
 
       ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -196,7 +198,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       handleClose(action)
     },
-    [ctx, searchText, isAssistiveKeyPressed, handleClose, clearSearchText, index]
+    [ctx, searchText, isAssistiveKeyPressed, isShiftKeyPressed, handleClose, clearSearchText, index]
   )
 
   useEffect(() => {
@@ -273,6 +275,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isMac ? e.metaKey : e.ctrlKey) {
         setIsAssistiveKeyPressed(true)
+      }
+
+      if (e.shiftKey) {
+        setIsShiftKeyPressed(true)
       }
 
       // 处理上下翻页时，滚动太慢问题
@@ -382,6 +388,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (isMac ? !e.metaKey : !e.ctrlKey) {
         setIsAssistiveKeyPressed(false)
       }
+      if (!e.shiftKey) {
+        setIsShiftKeyPressed(false)
+      }
 
       keyPressCount.current = 0
       scrollBehavior.current = 'smooth'
@@ -451,7 +460,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 {item.description && <QuickPanelItemDescription>{item.description}</QuickPanelItemDescription>}
                 <QuickPanelItemSuffixIcon>
                   {item.suffix ? (
-                    item.suffix
+                    item.suffix(i === index)
                   ) : item.isSelected ? (
                     <Check />
                   ) : (
@@ -503,6 +512,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 + ↩︎ {t('settings.quickPanel.multiple')}
               </Flex>
             )}
+
+            {ctx.tips && ctx.tips}
           </QuickPanelFooterTips>
         </QuickPanelFooter>
       </QuickPanelBody>

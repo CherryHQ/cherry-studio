@@ -2,8 +2,8 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { QuickPhrase } from '@renderer/types'
-import { Tooltip } from 'antd'
-import { Plus, Zap } from 'lucide-react'
+import { Button, Tooltip } from 'antd'
+import { Plus, Send, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -17,9 +17,10 @@ interface Props {
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   ToolbarButton: any
+  sendMessage: (content: string) => void
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, sendMessage }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -61,7 +62,35 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
       label: phrase.title,
       description: phrase.content,
       icon: <Zap />,
-      action: () => handlePhraseSelect(phrase)
+      suffix: (isFocused: boolean) => {
+        return isFocused ? (
+          <Tooltip title={t('settings.quickPhrase.send')}>
+            <Button
+              color="primary"
+              variant="link"
+              size="small"
+              icon={
+                <Send
+                  size={12}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    quickPanel.close()
+                    setTimeout(() => {
+                      sendMessage(phrase.content)
+                    }, 200)
+                  }}
+                />
+              }></Button>
+          </Tooltip>
+        ) : null
+      },
+      action: (options) => {
+        if (options.shiftKey) {
+          sendMessage(phrase.content)
+        } else {
+          handlePhraseSelect(phrase)
+        }
+      }
     }))
     newList.push({
       label: t('settings.quickPhrase.add') + '...',
@@ -69,13 +98,14 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton 
       action: () => navigate('/settings/quickPhrase')
     })
     return newList
-  }, [quickPhrasesList, t, handlePhraseSelect, navigate])
+  }, [quickPhrasesList, t, handlePhraseSelect, navigate, sendMessage, quickPanel])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
       title: t('settings.quickPhrase.title'),
       list: phraseItems,
-      symbol: 'quick-phrases'
+      symbol: 'quick-phrases',
+      tips: 'Shift + ↩︎ ' + t('settings.quickPhrase.send')
     }),
     [phraseItems, t]
   )
