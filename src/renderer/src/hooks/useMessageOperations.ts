@@ -1,6 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { estimateUserMessageUsage } from '@renderer/services/TokenService'
+import { estimateInputContentUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -132,7 +132,7 @@ export function useMessageOperations(topic: Topic) {
 
       const files = findFileBlocks(message).map((block) => block.file)
 
-      const usage = await estimateUserMessageUsage({ content: editedContent, files })
+      const usage = await estimateInputContentUsage({ content: editedContent, files })
 
       await dispatch(updateMessageAndBlocksThunk(topic.id, { id: message.id, usage }, []))
 
