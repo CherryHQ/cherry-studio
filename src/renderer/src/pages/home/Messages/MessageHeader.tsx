@@ -1,6 +1,7 @@
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
+import { getFlowEngineProviderLogo } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -35,15 +36,25 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
 
-  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
+  // 需要兼容 flow icon
+  const avatarSource = useMemo(
+    () =>
+      assistant.chatflow
+        ? getFlowEngineProviderLogo(assistant.chatflow.providerId)
+        : getAvatarSource(isLocalAi, getMessageModelId(message)),
+    [message, assistant.chatflow]
+  )
 
   const getUserName = useCallback(() => {
     if (isLocalAi && message.role !== 'user') {
       return APP_NAME
     }
 
+    // 需要兼容 flow name
     if (message.role === 'assistant') {
-      return getModelName(model) || getMessageModelId(message) || ''
+      return assistant.chatflow
+        ? `${assistant.chatflow.name} | ${assistant.chatflow.providerId}`
+        : getModelName(model) || getMessageModelId(message) || ''
     }
 
     return userName || t('common.you')

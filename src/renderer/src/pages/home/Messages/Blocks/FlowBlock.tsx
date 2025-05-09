@@ -4,7 +4,7 @@ import { Workflow } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { FlowMessageBlock, Message, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Typography } from 'antd'
-import { Bot, Check, House, LandPlot, X } from 'lucide-react'
+import { Bot, Check, House, Info, LandPlot, Wrench, X } from 'lucide-react'
 import React from 'react'
 import styled from 'styled-components'
 
@@ -25,7 +25,7 @@ const getTypeIcon = (type?: string) => {
     case 'answer':
       return <LandPlot size={16} />
     default:
-      return null
+      return <Wrench size={16} />
   }
 }
 
@@ -39,7 +39,7 @@ const getStatusIcon = (status?: MessageBlockStatus) => {
     case MessageBlockStatus.ERROR:
       return <X style={{ color: 'red' }} size={16} />
     default:
-      return null // 或者一个默认图标
+      return <Info style={{ color: 'blue' }} size={16} />
   }
 }
 
