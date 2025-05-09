@@ -151,9 +151,9 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
+  const formatSliderTooltip = () => {
+    if (contextCount === undefined) return ''
+    return contextCount === 20 ? '∞' : contextCount.toString()
   }
 
   return (
