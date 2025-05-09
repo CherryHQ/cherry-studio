@@ -67,7 +67,7 @@ export function estimateImageTokens(file: FileType) {
  * @param {FileType[]} [params.files] - 用户上传的文件列表（支持图片和文本）
  * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
  */
-export async function estimateInputContentUsage({
+export async function estimateUserPromptUsage({
   content,
   files
 }: {
