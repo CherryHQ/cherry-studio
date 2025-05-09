@@ -5842,6 +5842,7 @@ __metadata:
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
+    pyodide: "npm:^0.27.5"
     rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
@@ -15841,6 +15842,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pyodide@npm:^0.27.5":
+  version: 0.27.5
+  resolution: "pyodide@npm:0.27.5"
+  dependencies:
+    ws: "npm:^8.5.0"
+  checksum: 10c0/86e242031a315bb8f55c778b8555c55397662f3f927e8afc4f1b9bdcb0c93cef7de708c01f63ed19d7151de6088aa555952cd1513756b9ac26bc599286452bd8
+  languageName: node
+  linkType: hard
+
 "qs@npm:^6.14.0":
   version: 6.14.0
   resolution: "qs@npm:6.14.0"
@@ -19860,6 +19870,21 @@ __metadata:
     utf-8-validate:
       optional: true
   checksum: 10c0/e498965d6938c63058c4310ffb6967f07d4fa06789d3364829028af380d299fe05762961742971c764973dce3d1f6a2633fe8b2d9410c9b52e534b4b882a99fa
+  languageName: node
+  linkType: hard
+
+"ws@npm:^8.5.0":
+  version: 8.18.2
+  resolution: "ws@npm:8.18.2"
+  peerDependencies:
+    bufferutil: ^4.0.1
+    utf-8-validate: ">=5.0.2"
+  peerDependenciesMeta:
+    bufferutil:
+      optional: true
+    utf-8-validate:
+      optional: true
+  checksum: 10c0/4b50f67931b8c6943c893f59c524f0e4905bbd183016cfb0f2b8653aa7f28dad4e456b9d99d285bbb67cca4fedd9ce90dfdfaa82b898a11414ebd66ee99141e4
   languageName: node
   linkType: hard
 
