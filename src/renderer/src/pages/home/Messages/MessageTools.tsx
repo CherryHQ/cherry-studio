@@ -30,7 +30,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
     try {
       return JSON.stringify(
         {
-          params: toolResponse?.tool?.inputSchema,
+          params: toolResponse?.arguments,
           response: toolResponse?.response
         },
         null,

@@ -230,17 +230,4 @@ const BorderedContainer = styled.div`
   background-color: var(--color-bg-1);
 `
 
-// 新增自定义编辑器容器样式
-const CustomEditorContainer = styled.div`
-  margin: 8px 0;
-  padding: 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background-color: var(--color-bg-1);
-
-  .ant-input {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
-  }
-`
-
 export default MiniAppSettings

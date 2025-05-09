@@ -140,7 +140,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
       case WebSearchSource.ANTHROPIC:
         formattedCitations =
           (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
-            const {url} = result
+            const { url } = result
             let hostname: string | undefined
             try {
               hostname = new URL(url).hostname
