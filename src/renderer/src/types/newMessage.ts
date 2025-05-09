@@ -173,6 +173,8 @@ export type Message = {
   askId?: string // 关联的问题消息ID
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
+  branchId?: string // 分支ID，用于标识消息属于哪个分支
+  parentMessageId?: string // 父节点消息ID，用于记录分支关系
 
   usage?: Usage
   metrics?: Metrics
@@ -201,10 +203,12 @@ export type ResponseError = Record<string, any>
 export interface MessageInputBaseParams {
   assistant: Assistant
   topic: Topic
-  content?: string
+  content: string
+  branchId?: string
+  parentMessageId?: string
   files?: FileType[]
   knowledgeBaseIds?: string[]
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
-  usage?: CompletionUsage
+  metadata?: Record<string, any>
 }

@@ -131,6 +131,7 @@ export type Topic = {
   createdAt: string
   updatedAt: string
   messages: Message[]
+  currentBranchId?: string
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean

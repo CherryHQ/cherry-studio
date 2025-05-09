@@ -96,6 +96,11 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
+          <Tooltip title={t('navbar.expand_dialog_map')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={() => EventEmitter.emit(EVENT_NAMES.SHOW_DIALOG_MAP)}>
+              <i className="iconfont icon-chat"></i>
+            </NarrowIcon>
+          </Tooltip>
           {sidebarIcons.visible.includes('minapp') && (
             <MinAppsPopover>
               <Tooltip title={t('minapp.title')} mouseEnterDelay={0.8}>

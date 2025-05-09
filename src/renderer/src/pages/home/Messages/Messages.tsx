@@ -13,6 +13,7 @@ import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
+import { setBranchInfo } from '@renderer/store/flow'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import {
@@ -50,6 +51,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [currentBranchId, setCurrentBranchId] = useState<string | undefined>()
+  const [currentMessageId, setCurrentMessageId] = useState<string | undefined>()
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
@@ -146,7 +149,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
             return
           }
 
-          const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
+          const { message: clearMessage } = getUserMessage({
+            assistant,
+            topic,
+            type: 'clear',
+            content: '',
+            branchId: currentBranchId,
+            parentMessageId: currentMessageId
+          })
           dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
           await saveMessageAndBlocksToDB(clearMessage, [])
 
@@ -177,18 +187,21 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           // 4. Trigger auto-rename for the new topic
           autoRenameTopic(assistant, newTopic.id)
         } else {
-          // Optional: Handle cloning failure (e.g., show an error message)
-          // You might want to remove the added topic if cloning fails
-          // removeTopic(newTopic.id); // Assuming you have a removeTopic function
           console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
-          window.message.error(t('message.branch.error')) // Example error message
+          window.message.error(t('message.branch.error'))
         }
+      }),
+      EventEmitter.on('flow-add-branch', (event: CustomEvent) => {
+        const { branchId, messageId } = event.detail
+        console.log('Received flow-add-branch event:', { branchId, messageId })
+        dispatch(setBranchInfo({ branchId, messageId }))
+        EventEmitter.emit('flow-branch-updated', { branchId, messageId })
       })
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext])
+  }, [assistant, dispatch, scrollToBottom, topic, isProcessingContext, currentBranchId, currentMessageId])
 
   useEffect(() => {
     runAsyncFunction(async () => {
