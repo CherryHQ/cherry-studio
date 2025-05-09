@@ -1,7 +1,7 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import db from '@renderer/databases'
+import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
@@ -50,12 +50,12 @@ interface PopupContainerProps extends Props {
 const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const { pinnedModels, togglePinnedModel } = usePinnedModels()
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
   const listRef = useRef<FixedSizeList>(null)
   const [searchText, setSearchText] = useState('')
   const [isMouseOver, setIsMouseOver] = useState(false)
-  const [pinnedModels, setPinnedModels] = useState<string[]>([])
   const [focusedItemKey, setFocusedItemKey] = useState<string>('')
   const [_stickyGroup, setStickyGroup] = useState<FlatListItem | null>(null)
   const stickyGroup = useDeferredValue(_stickyGroup)
@@ -71,48 +71,12 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
     scrollTriggerRef.current = searchText ? 'initial' : 'search'
   }, [searchText])
 
-  // 加载置顶模型列表
-  useEffect(() => {
-    const loadPinnedModels = async () => {
-      const setting = await db.settings.get('pinned:models')
-      const savedPinnedModels = setting?.value || []
-
-      // Filter out invalid pinned models
-      const allModelIds = providers.flatMap((p) => p.models || []).map((m) => getModelUniqId(m))
-      const validPinnedModels = savedPinnedModels.filter((id) => allModelIds.includes(id))
-
-      // Update storage if there were invalid models
-      if (validPinnedModels.length !== savedPinnedModels.length) {
-        await db.settings.put({ id: 'pinned:models', value: validPinnedModels })
-      }
-
-      setPinnedModels(sortBy(validPinnedModels))
-    }
-
-    try {
-      loadPinnedModels()
-    } catch (error) {
-      console.error('Failed to load pinned models', error)
-      setPinnedModels([])
-    }
-  }, [providers])
-
   const togglePin = useCallback(
     async (modelId: string) => {
-      const newPinnedModels = pinnedModels.includes(modelId)
-        ? pinnedModels.filter((id) => id !== modelId)
-        : [...pinnedModels, modelId]
-
-      try {
-        await db.settings.put({ id: 'pinned:models', value: newPinnedModels })
-        setPinnedModels(sortBy(newPinnedModels))
-        // Pin操作不触发滚动
-        scrollTriggerRef.current = 'none'
-      } catch (error) {
-        console.error('Failed to update pinned models', error)
-      }
+      await togglePinnedModel(modelId)
+      scrollTriggerRef.current = 'none' // pin 操作不触发滚动
     },
-    [pinnedModels]
+    [togglePinnedModel]
   )
 
   // 根据输入的文本筛选模型
