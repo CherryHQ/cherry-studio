@@ -369,6 +369,65 @@ export default class OpenAICompatibleProvider extends OpenAIProvider {
     const { signal } = abortController
     await this.checkIsCopilot()
 
+    const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+    if (lastUserMsg) {
+      const postsuffix = '/no_think'
+      // qwenThinkMode === true 表示思考模式啓用，此時不應添加 /no_think，如果存在則移除
+      const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+      const currentContent = lastUserMsg.content // content 類型：string | ChatCompletionContentPart[] | null
+
+      if (typeof currentContent === 'string') {
+        if (qwenThinkModeEnabled) {
+          // 思考模式启用，移除 postsuffix
+          if (currentContent.endsWith(postsuffix)) {
+            lastUserMsg.content = currentContent.substring(0, currentContent.length - postsuffix.length).trimEnd()
+          }
+        } else {
+          // 思考模式未启用，添加 postsuffix
+          if (!currentContent.endsWith(postsuffix)) {
+            lastUserMsg.content = currentContent + postsuffix
+          }
+        }
+      } else if (Array.isArray(currentContent)) {
+        let lastTextPartIndex = -1
+        for (let i = currentContent.length - 1; i >= 0; i--) {
+          if (currentContent[i].type === 'text') {
+            lastTextPartIndex = i
+            break
+          }
+        }
+
+        if (lastTextPartIndex !== -1) {
+          const textPart = currentContent[lastTextPartIndex] as OpenAI.Chat.Completions.ChatCompletionContentPartText
+          if (qwenThinkModeEnabled) {
+            // 思考模式启用，移除 postsuffix
+            if (textPart.text.endsWith(postsuffix)) {
+              textPart.text = textPart.text.substring(0, textPart.text.length - postsuffix.length).trimEnd()
+              // 可選：如果 textPart.text 變為空，可以考慮是否移除該 part
+            }
+          } else {
+            // 思考模式未启用，添加 postsuffix
+            if (!textPart.text.endsWith(postsuffix)) {
+              textPart.text += postsuffix
+            }
+          }
+        } else {
+          // 數組中沒有文本部分
+          if (!qwenThinkModeEnabled) {
+            // 思考模式未啓用，需要添加 postsuffix
+            // 如果沒有文本部分，則添加一個新的文本部分
+            currentContent.push({ type: 'text', text: postsuffix })
+          }
+        }
+      } else {
+        // currentContent 是 null
+        if (!qwenThinkModeEnabled) {
+          // 思考模式未启用，需要添加 postsuffix
+          lastUserMsg.content = postsuffix
+        }
+      }
+    }
+
     //当 systemMessage 内容为空时不发送 systemMessage
     let reqMessages: ChatCompletionMessageParam[]
     if (!systemMessage.content) {
