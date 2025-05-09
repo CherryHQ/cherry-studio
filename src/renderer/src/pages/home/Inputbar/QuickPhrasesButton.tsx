@@ -184,8 +184,14 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
             <Radio.Group
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}>
-              <Radio value="global">{t('settings.quickPhrase.global', '全局快速短语')}</Radio>
-              <Radio value="assistant">{t('settings.quickPhrase.assistant', '助手提示词')}</Radio>
+              <Radio value="global">
+                <Zap size={18} style={{ paddingRight: '4px', verticalAlign: 'middle' }} />
+                {t('settings.quickPhrase.global', '全局快速短语')}
+              </Radio>
+              <Radio value="assistant">
+                <BotMessageSquare size={18} style={{ paddingRight: '4px', verticalAlign: 'middle' }} />
+                {t('settings.quickPhrase.assistant', '助手提示词')}
+              </Radio>
             </Radio.Group>
           </div>
         </Space>
