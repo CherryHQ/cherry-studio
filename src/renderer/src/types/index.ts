@@ -50,6 +50,7 @@ export const EFFORT_RATIO: EffortRatio = {
 
 export type AssistantSettings = {
   contextCount: number
+  enableMaxContexts: boolean
   temperature: number
   topP: number
   maxTokens: number | undefined
