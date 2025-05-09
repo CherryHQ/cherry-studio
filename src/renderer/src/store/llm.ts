@@ -476,6 +476,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.voyageai,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'paratera',
+    name: 'Paratera AI',
+    type: 'openai-compatible',
+    apiKey: '',
+    apiHost: 'https://llmapi.paratera.com',
+    models: SYSTEM_MODELS.paratera,
+    isSystem: true,
+    enabled: false
   }
 ]
 

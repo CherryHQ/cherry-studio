@@ -42,6 +42,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import ParateraLogo from '@renderer/assets/images/apps/paratera.ico'
 
 const PROVIDER_LOGO_MAP = {
   openai: OpenAiProviderLogo,
@@ -88,7 +89,8 @@ const PROVIDER_LOGO_MAP = {
   gpustack: GPUStackProviderLogo,
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
-  qiniu: QiniuProviderLogo
+  qiniu: QiniuProviderLogo,
+  paratera: ParateraLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -582,6 +584,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq',
       docs: 'https://developer.qiniu.com/aitokenapi',
       models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
+    }
+  },
+  paratera: {
+    api: {
+      url: 'https://llmapi.paratera.com'
+    },
+    websites: {
+      official: 'https://ai.paratera.com/',
+      apiKey: 'https://ai.paratera.com/#/lms/api',
+      docs: 'https://ai.paratera.com/document/llm/quickStart/useApi',
+      models: 'https://ai.paratera.com/#/lms/model'
     }
   }
 }

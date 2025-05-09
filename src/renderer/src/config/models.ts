@@ -2074,6 +2074,32 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'Qwen2.5 72B Instruct',
       group: 'Qwen'
     }
+  ],
+  paratera: [
+    {
+      id: 'GLM-Z1-Flash-P002',
+      provider: 'paratera',
+      name: 'GLM-Z1-Flash-P002',
+      group: 'GLM'
+    },
+    {
+      id: 'GLM-Z1-AirX-P002',
+      provider: 'paratera',
+      name: 'GLM-Z1-AirX-P002',
+      group: 'GLM'
+    },
+    {
+      id: 'DeepSeek-V3-250324-P001',
+      provider: 'paratera',
+      name: 'DeepSeek-V3-250324-P001',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1',
+      provider: 'paratera',
+      name: 'DeepSeek-R1',
+      group: 'DeepSeek'
+    }
   ]
 }
 
