@@ -23,8 +23,11 @@ import { FlatListItem } from './types'
 const PAGE_SIZE = 9
 const ITEM_HEIGHT = 36
 
-interface Props {
+interface PopupParams {
   model?: Model
+}
+
+interface Props extends PopupParams {
   resolve: (value: Model | undefined) => void
 }
 
@@ -632,7 +635,7 @@ export class SelectModelPopup {
     TopView.hide(TopViewKey)
   }
 
-  static show(params: Props) {
+  static show(params: PopupParams) {
     return new Promise<Model | undefined>((resolve) => {
       TopView.show(
         <PopupContainer
