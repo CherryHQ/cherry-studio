@@ -78,7 +78,7 @@
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
       "settings.more": "助手設定",
-      "settings.regular_prompts": {
+      "settings.regular_phrases": {
         "title": "常用短语",
         "add": "添加短语",
         "edit": "編輯短语",

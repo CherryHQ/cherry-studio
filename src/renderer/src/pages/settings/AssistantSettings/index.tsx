@@ -21,7 +21,7 @@ interface AssistantSettingPopupShowParams {
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_prompts'
+type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -76,8 +76,8 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       label: t('assistants.settings.mcp')
     },
     {
-      key: 'regular_prompts',
-      label: t('assistants.settings.regular_prompts.title', 'Regular Prompts')
+      key: 'regular_phrases',
+      label: t('assistants.settings.regular_phrases.title', 'Regular Prompts')
     }
   ].filter(Boolean) as { key: string; label: string }[]
 
@@ -147,7 +147,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
-          {menu === 'regular_prompts' && (
+          {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
           )}
         </Settings>

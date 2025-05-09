@@ -78,7 +78,7 @@
       "settings.reasoning_effort.medium": "普通の思考",
       "settings.reasoning_effort.default": "デフォルト",
       "settings.more": "アシスタント設定",
-      "settings.regular_prompts": {
+      "settings.regular_phrases": {
         "title": "定型プロンプト",
         "add": "プロンプトを追加",
         "edit": "プロンプトを編集",

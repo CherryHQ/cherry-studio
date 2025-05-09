@@ -82,7 +82,7 @@
       "settings.reasoning_effort.high": "沉思",
       "settings.reasoning_effort.default": "默认",
       "settings.more": "助手设置",
-      "settings.regular_prompts": {
+      "settings.regular_phrases": {
         "title": "常用短语",
         "add": "添加短语",
         "edit": "编辑短语",

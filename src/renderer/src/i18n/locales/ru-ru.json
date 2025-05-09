@@ -82,7 +82,7 @@
       "settings.knowledge_base.recognition": "Использование базы знаний",
       "settings.knowledge_base.recognition.off": "Принудительный поиск",
       "settings.knowledge_base.recognition.on": "Распознавание намерений",
-      "settings.regular_prompts": {
+      "settings.regular_phrases": {
         "title": "Регулярные подсказки",
         "add": "Добавить подсказку",
         "edit": "Редактировать подсказку",

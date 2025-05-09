@@ -26,8 +26,8 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
   const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
-    setPromptsList(assistant.regularPrompts || [])
-  }, [assistant.regularPrompts])
+    setPromptsList(assistant.regularPhrases || [])
+  }, [assistant.regularPhrases])
 
   const handleAdd = () => {
     setEditingPrompt(null)
@@ -44,7 +44,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
   const handleDelete = async (id: string) => {
     const updatedPrompts = promptsList.filter((prompt) => prompt.id !== id)
     setPromptsList(updatedPrompts)
-    updateAssistant({ ...assistant, regularPrompts: updatedPrompts })
+    updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
   }
 
   const handleModalOk = async () => {
@@ -67,22 +67,22 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       updatedPrompts = [...promptsList, newPrompt]
     }
     setPromptsList(updatedPrompts)
-    updateAssistant({ ...assistant, regularPrompts: updatedPrompts })
+    updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
     setIsModalOpen(false)
   }
 
   const handleUpdateOrder = async (newPrompts: QuickPhrase[]) => {
     setPromptsList(newPrompts)
-    updateAssistant({ ...assistant, regularPrompts: newPrompts })
+    updateAssistant({ ...assistant, regularPhrases: newPrompts })
   }
 
   const reversedPrompts = [...promptsList].reverse()
 
   return (
-    <SettingContainer style={{ padding: 0, background: "#0000" }}>
+    <SettingContainer style={{ padding: 0, background: '#0000' }}>
       <SettingGroup style={{ marginBottom: 0, padding: 0, border: 'none' }}>
         <SettingTitle>
-          {t('assistants.settings.regular_prompts.title', 'Regular Prompts')}
+          {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
           <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
         </SettingTitle>
         <SettingDivider />
@@ -105,9 +105,9 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                       <Flex gap={4} style={{ opacity: 0.6 }}>
                         <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(prompt)} />
                         <Popconfirm
-                          title={t('assistants.settings.regular_prompts.delete', 'Delete Prompt')}
+                          title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
                           description={t(
-                            'assistants.settings.regular_prompts.deleteConfirm',
+                            'assistants.settings.regular_phrases.deleteConfirm',
                             'Are you sure to delete this prompt?'
                           )}
                           okText={t('common.confirm')}
@@ -129,8 +129,8 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
       <Modal
         title={
           editingPrompt
-            ? t('assistants.settings.regular_prompts.edit', 'Edit Prompt')
-            : t('assistants.settings.regular_prompts.add', 'Add Prompt')
+            ? t('assistants.settings.regular_phrases.edit', 'Edit Prompt')
+            : t('assistants.settings.regular_phrases.add', 'Add Prompt')
         }
         open={isModalOpen}
         onOk={handleModalOk}
@@ -138,17 +138,17 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
         width={520}>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
-            <Label>{t('assistants.settings.regular_prompts.titleLabel', 'Title')}</Label>
+            <Label>{t('assistants.settings.regular_phrases.titleLabel', 'Title')}</Label>
             <Input
-              placeholder={t('assistants.settings.regular_prompts.titlePlaceholder', 'Enter title')}
+              placeholder={t('assistants.settings.regular_phrases.titlePlaceholder', 'Enter title')}
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
             />
           </div>
           <div>
-            <Label>{t('assistants.settings.regular_prompts.contentLabel', 'Content')}</Label>
+            <Label>{t('assistants.settings.regular_phrases.contentLabel', 'Content')}</Label>
             <TextArea
-              placeholder={t('assistants.settings.regular_prompts.contentPlaceholder', 'Enter content')}
+              placeholder={t('assistants.settings.regular_phrases.contentPlaceholder', 'Enter content')}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
               rows={6}

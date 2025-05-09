@@ -35,13 +35,13 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   )
   const { assistant, updateAssistant } = useAssistant(activeAssistantId)
 
-  const loadQuickListPhrases = async (regularPrompts: QuickPhrase[] = []) => {
+  const loadQuickListPhrases = async (regularPhrases: QuickPhrase[] = []) => {
     const phrases = await QuickPhraseService.getAll()
-    if (regularPrompts.length) {
-      setQuickPhrasesList([...regularPrompts, ...phrases])
+    if (regularPhrases.length) {
+      setQuickPhrasesList([...regularPhrases, ...phrases])
       return
     }
-    const assistantPrompts = assistant.regularPrompts || []
+    const assistantPrompts = assistant.regularPhrases || []
     setQuickPhrasesList([...assistantPrompts, ...phrases])
   }
 
@@ -77,7 +77,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
     }
 
     const updatedPrompts = [
-      ...(assistant.regularPrompts || []),
+      ...(assistant.regularPhrases || []),
       {
         id: crypto.randomUUID(),
         title: formData.title,
@@ -87,8 +87,8 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
       }
     ]
     if (formData.location === 'assistant') {
-      // 添加到助手的 regularPrompts
-      await updateAssistant({ ...assistant, regularPrompts: updatedPrompts })
+      // 添加到助手的 regularPhrases
+      await updateAssistant({ ...assistant, regularPhrases: updatedPrompts })
     } else {
       // 添加到全局 Quick Phrases
       await QuickPhraseService.add(formData)
@@ -106,7 +106,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
     const newList: QuickPanelListItem[] = quickPhrasesList.map((phrase, index) => ({
       label: phrase.title,
       description: phrase.content,
-      icon: index < (assistant.regularPrompts?.length || 0) ? <BotMessageSquare /> : <Zap />,
+      icon: index < (assistant.regularPhrases?.length || 0) ? <BotMessageSquare /> : <Zap />,
       action: () => handlePhraseSelect(phrase)
     }))
 
