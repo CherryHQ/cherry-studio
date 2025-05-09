@@ -1540,7 +1540,10 @@
         "titlePlaceholder": "Please enter phrase title",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
-        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?"
+        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+        "locationLabel": "Add Location",
+        "global": "Global Quick Phrases",
+        "assistant": "Assistant Prompts"
       },
       "quickPanel": {
         "title": "Quick Menu",

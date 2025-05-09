@@ -1539,7 +1539,10 @@
         "titlePlaceholder": "フレーズのタイトルを入力してください",
         "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
         "delete": "フレーズを削除",
-        "deleteConfirm": "削除後は復元できません。続行しますか？"
+        "deleteConfirm": "削除後は復元できません。続行しますか？",
+        "locationLabel": "追加場所",
+        "global": "グローバルクイックフレーズ",
+        "assistant": "アシスタントプロンプト"
       },
       "quickPanel": {
         "title": "クイックメニュー",

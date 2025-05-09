@@ -1540,7 +1540,10 @@
         "titlePlaceholder": "請輸入短語標題",
         "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
         "delete": "刪除短語",
-        "deleteConfirm": "刪除後無法復原，是否繼續？"
+        "deleteConfirm": "刪除後無法復原，是否繼續？",
+        "locationLabel": "添加位置",
+        "global": "全局快速短語",
+        "assistant": "助手提示詞"
       },
       "quickPanel": {
         "title": "快捷選單",
