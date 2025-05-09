@@ -53,12 +53,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
   const listRef = useRef<FixedSizeList>(null)
-  const [_searchText, setSearchText] = useState('')
-  const searchText = useDeferredValue(_searchText)
+  const [searchText, setSearchText] = useState('')
   const [isMouseOver, setIsMouseOver] = useState(false)
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
-  const [_focusedItemKey, setFocusedItemKey] = useState<string>('')
-  const focusedItemKey = useDeferredValue(_focusedItemKey)
+  const [focusedItemKey, setFocusedItemKey] = useState<string>('')
   const [_stickyGroup, setStickyGroup] = useState<FlatListItem | null>(null)
   const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
@@ -70,7 +68,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
 
   // 搜索文本变化时设置滚动来源
   useEffect(() => {
-    scrollTriggerRef.current = searchText.trim() ? 'initial' : 'search'
+    scrollTriggerRef.current = searchText ? 'initial' : 'search'
   }, [searchText])
 
   // 加载置顶模型列表
@@ -449,7 +447,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ model, resolve }) => {
           }
           ref={inputRef}
           placeholder={t('models.search')}
-          value={_searchText} // 使用 _searchText，需要实时更新
+          value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           allowClear
           autoFocus
