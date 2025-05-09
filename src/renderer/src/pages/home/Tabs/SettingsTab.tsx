@@ -66,7 +66,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [enableInfContext, setEnableInfContext] = useState(assistant?.settings?.enableMaxContexts ?? false)
+  const [enableMaxContexts, setEnableMaxContexts] = useState(assistant?.settings?.enableMaxContexts ?? false)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
