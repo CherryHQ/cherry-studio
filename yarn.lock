@@ -374,6 +374,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@babel/runtime@npm:^7.0.0":
+  version: 7.27.1
+  resolution: "@babel/runtime@npm:7.27.1"
+  checksum: 10c0/530a7332f86ac5a7442250456823a930906911d895c0b743bf1852efc88a20a016ed4cd26d442d0ca40ae6d5448111e02a08dd638a4f1064b47d080e2875dc05
+  languageName: node
+  linkType: hard
+
 "@babel/runtime@npm:^7.10.1, @babel/runtime@npm:^7.10.4, @babel/runtime@npm:^7.11.1, @babel/runtime@npm:^7.11.2, @babel/runtime@npm:^7.12.1, @babel/runtime@npm:^7.16.7, @babel/runtime@npm:^7.18.0, @babel/runtime@npm:^7.18.3, @babel/runtime@npm:^7.20.0, @babel/runtime@npm:^7.20.7, @babel/runtime@npm:^7.21.0, @babel/runtime@npm:^7.22.5, @babel/runtime@npm:^7.23.2, @babel/runtime@npm:^7.23.6, @babel/runtime@npm:^7.23.9, @babel/runtime@npm:^7.24.1, @babel/runtime@npm:^7.24.4, @babel/runtime@npm:^7.24.7, @babel/runtime@npm:^7.24.8, @babel/runtime@npm:^7.25.7, @babel/runtime@npm:^7.26.0, @babel/runtime@npm:^7.7.2, @babel/runtime@npm:^7.9.2":
   version: 7.27.0
   resolution: "@babel/runtime@npm:7.27.0"
@@ -3951,6 +3958,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/react-window@npm:^1":
+  version: 1.8.8
+  resolution: "@types/react-window@npm:1.8.8"
+  dependencies:
+    "@types/react": "npm:*"
+  checksum: 10c0/2170a3957752603e8b994840c5d31b72ddf94c427c0f42b0175b343cc54f50fe66161d8871e11786ec7a59906bd33861945579a3a8f745455a3744268ec1069f
+  languageName: node
+  linkType: hard
+
 "@types/react@npm:*, @types/react@npm:^19.0.12":
   version: 19.1.2
   resolution: "@types/react@npm:19.1.2"
@@ -4418,6 +4434,7 @@ __metadata:
     "@types/react": "npm:^19.0.12"
     "@types/react-dom": "npm:^19.0.4"
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
+    "@types/react-window": "npm:^1"
     "@types/tinycolor2": "npm:^1"
     "@types/ws": "npm:^8"
     "@vitejs/plugin-react-swc": "npm:^3.9.0"
@@ -4480,7 +4497,7 @@ __metadata:
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
-    rc-virtual-list: "npm:^3.18.5"
+    rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     react-hotkeys-hook: "npm:^4.6.1"
@@ -4491,6 +4508,7 @@ __metadata:
     react-router: "npm:6"
     react-router-dom: "npm:6"
     react-spinners: "npm:^0.14.1"
+    react-window: "npm:^1.8.11"
     redux: "npm:^5.0.1"
     redux-persist: "npm:^6.0.0"
     rehype-katex: "npm:^7.0.1"
@@ -11530,6 +11548,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"memoize-one@npm:>=3.1.1 <6":
+  version: 5.2.1
+  resolution: "memoize-one@npm:5.2.1"
+  checksum: 10c0/fd22dbe9a978a2b4f30d6a491fc02fb90792432ad0dab840dc96c1734d2bd7c9cdeb6a26130ec60507eb43230559523615873168bcbe8fafab221c30b11d54c1
+  languageName: node
+  linkType: hard
+
 "memoize-one@npm:^6.0.0":
   version: 6.0.0
   resolution: "memoize-one@npm:6.0.0"
@@ -14487,7 +14512,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.18.5, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
+"rc-virtual-list@npm:^3.14.2, rc-virtual-list@npm:^3.5.1, rc-virtual-list@npm:^3.5.2":
   version: 3.18.5
   resolution: "rc-virtual-list@npm:3.18.5"
   dependencies:
@@ -14499,6 +14524,21 @@ __metadata:
     react: ">=16.9.0"
     react-dom: ">=16.9.0"
   checksum: 10c0/1d6e0baba24cebcbf59a55cce196fffc575dceeec8b429fe4c82ac258b47a6ff23ce605b2e22a9803a5849363f4d4ebd279d4597e67fdd17cb8b5ca9125b9ed9
+  languageName: node
+  linkType: hard
+
+"rc-virtual-list@npm:^3.18.6":
+  version: 3.18.6
+  resolution: "rc-virtual-list@npm:3.18.6"
+  dependencies:
+    "@babel/runtime": "npm:^7.20.0"
+    classnames: "npm:^2.2.6"
+    rc-resize-observer: "npm:^1.0.0"
+    rc-util: "npm:^5.36.0"
+  peerDependencies:
+    react: ">=16.9.0"
+    react-dom: ">=16.9.0"
+  checksum: 10c0/689f22ea64827c65d9fa32e1b6d52affcebdfb556dc27913b9d839600683aca327d2f5a1f18f11d16a2dee9029d991e69d2d3e87652c2c6d3ca804a64a8e61f9
   languageName: node
   linkType: hard
 
@@ -14684,6 +14724,19 @@ __metadata:
     react: ^16.0.0 || ^17.0.0 || ^18.0.0
     react-dom: ^16.0.0 || ^17.0.0 || ^18.0.0
   checksum: 10c0/5b3c101f789716331a0b6afad156293fb9aa05620e65494753001afcdb611788057f379b5979b34d570d527fa978003293266b59db505bf2d243ebab899ceeda
+  languageName: node
+  linkType: hard
+
+"react-window@npm:^1.8.11":
+  version: 1.8.11
+  resolution: "react-window@npm:1.8.11"
+  dependencies:
+    "@babel/runtime": "npm:^7.0.0"
+    memoize-one: "npm:>=3.1.1 <6"
+  peerDependencies:
+    react: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 10c0/5ae8da1bc5c47d8f0a428b28a600256e2db511975573e52cb65a9b27ed1a0e5b9f7b3bee5a54fb0da93956d782c24010be434be451072f46ba5a89159d2b3944
   languageName: node
   linkType: hard
 

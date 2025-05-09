@@ -3,7 +3,6 @@ import {
   CloseCircleFilled,
   ExclamationCircleFilled,
   LoadingOutlined,
-  MinusCircleOutlined,
   MinusOutlined,
   PlusOutlined
 } from '@ant-design/icons'
@@ -244,77 +243,81 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
     <>
       <Flex gap={12} vertical>
         {Object.keys(sortedModelGroups).map((group, i) => (
-          <CustomCollapse
-            defaultActiveKey={i <= 5 ? ['1'] : []}
-            key={group}
-            label={
-              <Flex align="center" gap={10}>
-                <span style={{ fontWeight: 600 }}>{group}</span>
-              </Flex>
-            }
-            extra={
-              <Tooltip title={t('settings.models.manage.remove_whole_group')}>
-                <HoveredRemoveIcon
-                  onClick={() =>
-                    modelGroups[group]
-                      .filter((model) => provider.models.some((m) => m.id === model.id))
-                      .forEach((model) => removeModel(model))
-                  }
-                />
-              </Tooltip>
-            }>
-            <Flex gap={10} vertical style={{ marginTop: 10 }}>
-              {sortedModelGroups[group].map((model) => {
-                const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
-                const isChecking = modelStatus?.checking === true
+          <CustomCollapseWrapper key={group}>
+            <CustomCollapse
+              defaultActiveKey={i <= 5 ? ['1'] : []}
+              label={
+                <Flex align="center" gap={10}>
+                  <span style={{ fontWeight: 600 }}>{group}</span>
+                </Flex>
+              }
+              extra={
+                <Tooltip title={t('settings.models.manage.remove_whole_group')}>
+                  <Button
+                    type="text"
+                    className="toolbar-item"
+                    icon={<MinusOutlined />}
+                    onClick={() =>
+                      modelGroups[group]
+                        .filter((model) => provider.models.some((m) => m.id === model.id))
+                        .forEach((model) => removeModel(model))
+                    }
+                  />
+                </Tooltip>
+              }>
+              <Flex gap={10} vertical style={{ marginTop: 10 }}>
+                {sortedModelGroups[group].map((model) => {
+                  const modelStatus = modelStatuses.find((status) => status.model.id === model.id)
+                  const isChecking = modelStatus?.checking === true
 
-                return (
-                  <ListItem key={model.id}>
-                    <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
-                      <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
-                        {model?.name?.[0]?.toUpperCase()}
-                      </Avatar>
-                      <ListItemName>
-                        <Tooltip
-                          styles={{
-                            root: {
-                              width: 'auto',
-                              maxWidth: '500px'
+                  return (
+                    <ListItem key={model.id}>
+                      <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
+                        <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
+                          {model?.name?.[0]?.toUpperCase()}
+                        </Avatar>
+                        <ListItemName>
+                          <Tooltip
+                            styles={{
+                              root: {
+                                width: 'auto',
+                                maxWidth: '500px'
+                              }
+                            }}
+                            destroyTooltipOnHide
+                            title={
+                              <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
+                                {model.id}
+                              </Typography.Text>
                             }
-                          }}
-                          destroyTooltipOnHide
-                          title={
-                            <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-                              {model.id}
-                            </Typography.Text>
-                          }
-                          placement="top">
-                          <NameSpan>{model.name}</NameSpan>
-                        </Tooltip>
-                        <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
-                      </ListItemName>
-                    </HStack>
-                    <Flex gap={4} align="center">
-                      {renderLatencyText(modelStatus)}
-                      {renderStatusIndicator(modelStatus)}
-                      <Button
-                        type="text"
-                        onClick={() => !isChecking && onEditModel(model)}
-                        disabled={isChecking}
-                        icon={<Bolt size={16} />}
-                      />
-                      <Button
-                        type="text"
-                        onClick={() => !isChecking && removeModel(model)}
-                        disabled={isChecking}
-                        icon={<MinusOutlined />}
-                      />
-                    </Flex>
-                  </ListItem>
-                )
-              })}
-            </Flex>
-          </CustomCollapse>
+                            placement="top">
+                            <NameSpan>{model.name}</NameSpan>
+                          </Tooltip>
+                          <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
+                        </ListItemName>
+                      </HStack>
+                      <Flex gap={4} align="center">
+                        {renderLatencyText(modelStatus)}
+                        {renderStatusIndicator(modelStatus)}
+                        <Button
+                          type="text"
+                          onClick={() => !isChecking && onEditModel(model)}
+                          disabled={isChecking}
+                          icon={<Bolt size={16} />}
+                        />
+                        <Button
+                          type="text"
+                          onClick={() => !isChecking && removeModel(model)}
+                          disabled={isChecking}
+                          icon={<MinusOutlined />}
+                        />
+                      </Flex>
+                    </ListItem>
+                  )
+                })}
+              </Flex>
+            </CustomCollapse>
+          </CustomCollapseWrapper>
         ))}
         {docsWebsite && (
           <SettingHelpTextRow>
@@ -352,6 +355,19 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
   )
 }
 
+const CustomCollapseWrapper = styled.div`
+  .toolbar-item {
+    margin-top: 2px;
+    transform: translateZ(0);
+    will-change: opacity;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  &:hover .toolbar-item {
+    opacity: 1;
+  }
+`
+
 const ListItem = styled.div`
   display: flex;
   flex-direction: row;
@@ -385,24 +401,6 @@ const NameSpan = styled.span`
   font-family: 'Ubuntu';
   line-height: 30px;
   font-size: 14px;
-`
-
-const RemoveIcon = styled(MinusCircleOutlined)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--color-error);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-`
-
-const HoveredRemoveIcon = styled(RemoveIcon)`
-  opacity: 0;
-  margin-top: 2px;
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const StatusIndicator = styled.div<{ type: string }>`

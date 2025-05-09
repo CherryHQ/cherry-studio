@@ -438,8 +438,8 @@ export async function parseAndCallTools(
     upsertMCPToolResponse(toolResponses, { id: `${tool.id}-${idx}-${i}`, tool: tool.tool, status: 'invoking' }, onChunk)
   }
 
-  const images: string[] = []
   const toolPromises = tools.map(async (tool, i) => {
+    const images: string[] = []
     const toolCallResponse = await callMCPTool(tool.tool)
     upsertMCPToolResponse(
       toolResponses,
@@ -454,6 +454,9 @@ export async function parseAndCallTools(
     }
 
     if (images.length) {
+      onChunk({
+        type: ChunkType.IMAGE_CREATED
+      })
       onChunk({
         type: ChunkType.IMAGE_COMPLETE,
         image: {

@@ -22,7 +22,7 @@ import { Avatar, Button, Empty, Flex, Modal, Tabs, Tooltip, Typography } from 'a
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -83,39 +83,36 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     }
   })
 
-  const modelGroups =
-    provider.id === 'dashscope'
-      ? {
-          ...groupBy(
-            list.filter((model) => !model.id.startsWith('qwen')),
-            'group'
-          ),
-          ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
-        }
-      : groupBy(list, 'group')
+  const modelGroups = useMemo(
+    () =>
+      provider.id === 'dashscope'
+        ? {
+            ...groupBy(
+              list.filter((model) => !model.id.startsWith('qwen')),
+              'group'
+            ),
+            ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
+          }
+        : groupBy(list, 'group'),
+    [list, provider.id]
+  )
 
-  const onOk = () => {
-    setOpen(false)
-  }
+  const onOk = useCallback(() => setOpen(false), [])
 
-  const onCancel = () => {
-    setOpen(false)
-  }
+  const onCancel = useCallback(() => setOpen(false), [])
 
-  const onClose = () => {
-    resolve({})
-  }
+  const onClose = useCallback(() => resolve({}), [resolve])
 
-  const onAddModel = (model: Model) => {
-    if (isEmpty(model.name)) {
-      return
-    }
-    addModel(model)
-  }
+  const onAddModel = useCallback(
+    (model: Model) => {
+      if (!isEmpty(model.name)) {
+        addModel(model)
+      }
+    },
+    [addModel]
+  )
 
-  const onRemoveModel = (model: Model) => {
-    removeModel(model)
-  }
+  const onRemoveModel = useCallback((model: Model) => removeModel(model), [removeModel])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -129,7 +126,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               // @ts-ignore name
               name: model.name || model.id,
               provider: _provider.id,
-              group: getDefaultGroupName(model.id),
+              group: getDefaultGroupName(model.id, _provider.id),
               // @ts-ignore name
               description: model?.description,
               owned_by: model?.owned_by
@@ -165,6 +162,63 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     )
   }
 
+  const renderTopTools = useCallback(() => {
+    const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
+    return (
+      <Tooltip
+        destroyTooltipOnHide
+        title={
+          isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
+        }
+        placement="top">
+        <Button
+          type={isAllFilteredInProvider ? 'default' : 'primary'}
+          icon={isAllFilteredInProvider ? <MinusOutlined /> : <PlusOutlined />}
+          size="large"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isAllFilteredInProvider) {
+              list.filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+            } else {
+              list.filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+            }
+          }}
+          disabled={list.length === 0}
+        />
+      </Tooltip>
+    )
+  }, [list, provider, onAddModel, onRemoveModel, t])
+
+  const renderGroupTools = useCallback(
+    (group: string) => {
+      const isAllInProvider = modelGroups[group].every((model) => isModelInProvider(provider, model.id))
+      return (
+        <Tooltip
+          destroyTooltipOnHide
+          title={
+            isAllInProvider
+              ? t(`settings.models.manage.remove_whole_group`)
+              : t(`settings.models.manage.add_whole_group`)
+          }
+          placement="top">
+          <Button
+            type="text"
+            icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
+            onClick={(e) => {
+              e.stopPropagation()
+              if (isAllInProvider) {
+                modelGroups[group].filter((model) => isModelInProvider(provider, model.id)).forEach(onRemoveModel)
+              } else {
+                modelGroups[group].filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
+              }
+            }}
+          />
+        </Tooltip>
+      )
+    },
+    [modelGroups, provider, onRemoveModel, onAddModel, t]
+  )
+
   return (
     <Modal
       title={<ModalHeader />}
@@ -180,14 +234,17 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       }}
       centered>
       <SearchContainer>
-        <Input
-          prefix={<Search size={14} />}
-          size="large"
-          ref={searchInputRef}
-          placeholder={t('settings.provider.search_placeholder')}
-          allowClear
-          onChange={(e) => setSearchText(e.target.value)}
-        />
+        <TopToolsWrapper>
+          <Input
+            prefix={<Search size={14} />}
+            size="large"
+            ref={searchInputRef}
+            placeholder={t('settings.provider.search_placeholder')}
+            allowClear
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          {renderTopTools()}
+        </TopToolsWrapper>
         <Tabs
           size={i18n.language.startsWith('zh') ? 'middle' : 'small'}
           defaultActiveKey="all"
@@ -206,7 +263,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       </SearchContainer>
       <ListContainer>
         {Object.keys(modelGroups).map((group, i) => {
-          const isAllInProvider = modelGroups[group].every((model) => isModelInProvider(provider, model.id))
           return (
             <CustomCollapse
               key={i}
@@ -220,31 +276,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                   </CustomTag>
                 </Flex>
               }
-              extra={
-                <Tooltip
-                  destroyTooltipOnHide
-                  title={
-                    isAllInProvider
-                      ? t(`settings.models.manage.remove_whole_group`)
-                      : t(`settings.models.manage.add_whole_group`)
-                  }
-                  placement="top">
-                  <Button
-                    type="text"
-                    icon={isAllInProvider ? <MinusOutlined /> : <PlusOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isAllInProvider) {
-                        modelGroups[group]
-                          .filter((model) => isModelInProvider(provider, model.id))
-                          .forEach(onRemoveModel)
-                      } else {
-                        modelGroups[group].filter((model) => !isModelInProvider(provider, model.id)).forEach(onAddModel)
-                      }
-                    }}
-                  />
-                </Tooltip>
-              }>
+              extra={renderGroupTools(group)}>
               <FlexColumn style={{ margin: '10px 0' }}>
                 {modelGroups[group].map((model) => (
                   <FileItem
@@ -323,6 +355,12 @@ const SearchContainer = styled.div`
     display: flex;
     flex-wrap: wrap;
   }
+`
+
+const TopToolsWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 const ListContainer = styled.div`

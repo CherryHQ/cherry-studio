@@ -25,6 +25,9 @@
           "invalid_format": "无效的代理格式：缺少必填字段"
         }
       },
+      "export": {
+        "agent": "导出智能体"
+      },
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
       "edit.message.assistant.placeholder": "输入助手消息",
@@ -1389,6 +1392,8 @@
       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "models.empty": "没有模型",
       "models.enable_topic_naming": "话题自动重命名",
+      "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.add_whole_group": "添加整个分组",
       "models.manage.remove_whole_group": "移除整个分组",
       "models.topic_naming_model": "话题命名模型",
