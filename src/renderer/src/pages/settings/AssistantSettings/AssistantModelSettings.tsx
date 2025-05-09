@@ -21,6 +21,7 @@ interface Props {
 const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateAssistantSettings }) => {
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [enableMaxContexts, setEnableMaxContexts] = useState(assistant?.settings?.enableMaxContexts ?? false)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
@@ -179,9 +180,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
+  const formatSliderTooltip = () => {
+    if (contextCount === undefined) return ''
+    return contextCount.toString()
   }
 
   return (
@@ -296,7 +297,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
+            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: '20' }}
             step={1}
             tooltip={{ formatter: formatSliderTooltip }}
           />
@@ -304,7 +305,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <InputNumber
             min={0}
-            max={20}
+            max={100}
             step={1}
             value={contextCount}
             changeOnBlur
@@ -318,6 +319,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           />
         </Col>
       </Row>
+      <Divider style={{ margin: '10px 0' }} />
+      <SettingRow style={{ minHeight: 30 }}>
+        <HStack alignItems="center">
+          <Label>{t('chat.settings.max_contexts')}</Label>
+        </HStack>
+        <Switch
+          checked={enableMaxContexts}
+          onChange={(checked) => {
+            setEnableMaxContexts(checked)
+            updateAssistantSettings({ enableMaxContexts: checked })
+          }}
+        />
+      </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
         <HStack alignItems="center">
