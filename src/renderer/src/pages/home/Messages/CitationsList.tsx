@@ -16,6 +16,7 @@ export interface Citation {
   content?: string
   showFavicon?: boolean
   type?: string
+  metadata?: Record<string, any>
 }
 
 interface CitationsListProps {
@@ -207,9 +208,7 @@ const WebSearchCard = styled.div`
   flex-direction: column;
   width: 100%;
   padding: 12px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
+  border-radius: var(--list-item-border-radius);
   background-color: var(--color-background);
   transition: all 0.3s ease;
 `

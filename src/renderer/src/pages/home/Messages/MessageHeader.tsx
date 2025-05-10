@@ -102,7 +102,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
-          <MessageTime>{dayjs(message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+          <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
         </UserWrap>
       </AvatarWrapper>
     </Container>

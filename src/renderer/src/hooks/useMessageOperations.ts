@@ -79,7 +79,7 @@ export function useMessageOperations(topic: Topic) {
   )
 
   /**
-   * 编辑消息。（目前仅更新 Redux state）。 / Edits a message. (Currently only updates Redux state).
+   * 编辑消息。 / Edits a message.
    * 使用 newMessagesActions.updateMessage.
    */
   const editMessage = useCallback(
@@ -92,17 +92,12 @@ export function useMessageOperations(topic: Topic) {
 
       const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
         id: messageId,
+        updatedAt: new Date().toISOString(),
         ...updates
       }
 
       // Call the thunk with topic.id and only message updates
-      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
-
-      if (success) {
-        console.log(`[useMessageOperations] Successfully edited message ${messageId} properties.`)
-      } else {
-        console.error(`[useMessageOperations] Failed to edit message ${messageId} properties.`)
-      }
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
     [dispatch, topic.id]
   )
@@ -133,9 +128,16 @@ export function useMessageOperations(topic: Topic) {
       const files = findFileBlocks(message).map((block) => block.file)
 
       const usage = await estimateUserPromptUsage({ content: editedContent, files })
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: message.id,
+        updatedAt: new Date().toISOString(),
+        usage
+      }
 
-      await dispatch(updateMessageAndBlocksThunk(topic.id, { id: message.id, usage }, []))
-
+      await dispatch(
+        newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates })
+      )
+      // 对于message的修改会在下面的thunk中保存
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, mainTextBlockId, editedContent, assistant))
     },
     [dispatch, topic.id]
@@ -313,29 +315,23 @@ export function useMessageOperations(topic: Topic) {
    * Uses the generalized thunk for persistence.
    */
   const editMessageBlocks = useCallback(
-    // messageId?: string
-    async (blockUpdatesListRaw: Partial<MessageBlock>[]) => {
+    async (messageId: string, updates: Partial<MessageBlock>) => {
       if (!topic?.id) {
         console.error('[editMessageBlocks] Topic prop is not valid.')
         return
       }
-      if (!blockUpdatesListRaw || blockUpdatesListRaw.length === 0) {
-        console.warn('[editMessageBlocks] Received empty block updates list.')
-        return
+
+      const blockUpdatesListProcessed = {
+        updatedAt: new Date().toISOString(),
+        ...updates
       }
 
-      const blockUpdatesListProcessed = blockUpdatesListRaw.map((update) => ({
-        ...update,
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
         updatedAt: new Date().toISOString()
-      }))
-
-      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, null, blockUpdatesListProcessed))
-
-      if (success) {
-        // console.log(`[useMessageOperations] Successfully processed block updates for message ${messageId}.`)
-      } else {
-        // console.error(`[useMessageOperations] Failed to process block updates for message ${messageId}.`)
       }
+
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, [blockUpdatesListProcessed]))
     },
     [dispatch, topic.id]
   )

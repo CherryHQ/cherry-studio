@@ -147,9 +147,9 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
       </StickyWrapper>
       <CodeContent
         ref={codeContentRef}
-        isShowLineNumbers={codeShowLineNumbers}
-        isUnwrapped={isUnwrapped}
-        isCodeWrappable={codeWrappable}
+        $isShowLineNumbers={codeShowLineNumbers}
+        $isUnwrapped={isUnwrapped}
+        $isCodeWrappable={codeWrappable}
         // dangerouslySetInnerHTML={{ __html: html }}
         style={{
           padding: '1px',
@@ -272,7 +272,7 @@ const CodeBlockWrapper = styled.div`
   position: relative;
 `
 
-const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolean; isCodeWrappable: boolean }>`
+const CodeContent = styled.div<{ $isShowLineNumbers: boolean; $isUnwrapped: boolean; $isCodeWrappable: boolean }>`
   transition: opacity 0.3s ease;
   .shiki {
     padding: 1em;
@@ -285,13 +285,13 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
       .line {
         display: block;
         min-height: 1.3rem;
-        padding-left: ${(props) => (props.isShowLineNumbers ? '2rem' : '0')};
+        padding-left: ${(props) => (props.$isShowLineNumbers ? '2rem' : '0')};
       }
     }
   }
 
   ${(props) =>
-    props.isShowLineNumbers &&
+    props.$isShowLineNumbers &&
     `
       code {
         counter-reset: step;
@@ -311,8 +311,8 @@ const CodeContent = styled.div<{ isShowLineNumbers: boolean; isUnwrapped: boolea
     `}
 
   ${(props) =>
-    props.isCodeWrappable &&
-    !props.isUnwrapped &&
+    props.$isCodeWrappable &&
+    !props.$isUnwrapped &&
     `
       code .line * {
         word-wrap: break-word;

@@ -304,6 +304,7 @@
       "confirm": "确认",
       "copied": "已复制",
       "copy": "复制",
+      "inspect": "检查",
       "cut": "剪切",
       "default": "默认",
       "delete": "删除",
@@ -619,7 +620,9 @@
       "error.siyuan.no_config": "未配置思源笔记API地址或令牌",
       "success.siyuan.export": "导出到思源笔记成功",
       "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
-      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
+      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!",
+      "download.success": "下载成功",
+      "download.failed": "下载失败"
     },
     "minapp": {
       "popup": {
@@ -702,6 +705,7 @@
       "pinned": "已固定",
       "rerank_model": "重排模型",
       "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
+      "rerank_model_not_support_provider": "目前重排序模型不支持该服务商 ({{provider}})",
       "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "search": "搜索模型...",
       "stream_output": "流式输出",

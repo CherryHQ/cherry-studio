@@ -304,6 +304,7 @@
       "confirm": "確認",
       "copied": "コピーされました",
       "copy": "コピー",
+      "inspect": "検査",
       "cut": "切り取り",
       "default": "デフォルト",
       "delete": "削除",
@@ -619,7 +620,9 @@
       "success.siyuan.export": "思源ノートへのエクスポートに成功しました",
       "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
       "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
-      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
+      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません",
+      "download.success": "ダウンロードに成功しました",
+      "download.failed": "ダウンロードに失敗しました"
     },
     "minapp": {
       "popup": {
@@ -716,7 +719,8 @@
         "text": "テキスト",
         "vision": "画像",
         "websearch": "ウェブ検索"
-      }
+      },
+      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。"
     },
     "navbar": {
       "expand": "ダイアログを展開",
