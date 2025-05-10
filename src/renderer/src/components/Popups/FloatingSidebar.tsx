@@ -1,11 +1,8 @@
-import { PlusOutlined } from '@ant-design/icons'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { Center } from '@renderer/components/Layout'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
-import { useShowAssistants } from '@renderer/hooks/useStore'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { Assistant } from '@renderer/types'
-import { uuid } from '@renderer/utils'
 import { Popover } from 'antd'
 import { Empty } from 'antd'
 import { isEmpty } from 'lodash'
@@ -24,9 +21,7 @@ interface Props {
 
 const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssistant }) => {
   const [open, setOpen] = useState(false)
-  const { assistants, addAssistant } = useAssistants()
-  const { defaultAssistant } = useDefaultAssistant()
-  const { toggleShowAssistants } = useShowAssistants()
+  const { assistants } = useAssistants()
   const { t } = useTranslation()
 
   useHotkeys('esc', () => {
@@ -59,13 +54,6 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
     handleClose()
   }
 
-  const onCreateDefaultAssistant = () => {
-    const assistant = { ...defaultAssistant, id: uuid() }
-    addAssistant(assistant)
-    setActiveAssistant(assistant)
-    handleClose()
-  }
-
   const handleSwitchAssistant = (assistant: Assistant) => {
     setActiveAssistant(assistant)
     handleClose()
@@ -94,12 +82,6 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </Center>
         )}
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
       </AssistantsList>
     </PopoverContent>
   )
@@ -144,17 +126,6 @@ const SidebarTitle = styled.div`
   font-weight: 500;
   font-size: 14px;
   color: var(--color-text-1);
-`
-
-const ExpandButton = styled.div`
-  font-size: 12px;
-  color: var(--color-primary);
-  cursor: pointer;
-  transition: opacity 0.2s;
-
-  &:hover {
-    opacity: 0.8;
-  }
 `
 
 const AssistantsList = styled.div`
