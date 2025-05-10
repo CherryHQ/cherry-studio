@@ -22,8 +22,7 @@ export function useScrollState() {
         dispatch({ type: 'FOCUS_PAGE', payload: { modelItems, currentIndex, step } }),
       searchChanged: (searchText: string) => dispatch({ type: 'SEARCH_CHANGED', payload: { searchText } }),
       updateOnListChange: (modelItems: FlatListItem[]) =>
-        dispatch({ type: 'UPDATE_ON_LIST_CHANGE', payload: { modelItems } }),
-      initScroll: () => dispatch({ type: 'INIT_SCROLL' })
+        dispatch({ type: 'UPDATE_ON_LIST_CHANGE', payload: { modelItems } })
     }),
     []
   )

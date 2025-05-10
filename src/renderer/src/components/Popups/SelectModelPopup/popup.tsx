@@ -34,7 +34,7 @@ interface Props extends PopupParams {
 const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { pinnedModels, togglePinnedModel, loading: loadingPinnedModels } = usePinnedModels()
+  const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
   const listRef = useRef<FixedSizeList>(null)
@@ -59,20 +59,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     focusNextItem,
     focusPage,
     searchChanged,
-    updateOnListChange,
-    initScroll
+    updateOnListChange
   } = useScrollState()
 
   const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
-
-  const togglePin = useCallback(
-    async (modelId: string) => {
-      await togglePinnedModel(modelId)
-      setScrollTrigger('none') // pin操作不触发滚动
-    },
-    [togglePinnedModel, setScrollTrigger]
-  )
 
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
@@ -219,11 +210,6 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     [listItems, lastScrollOffset, setStickyGroup]
   )
 
-  // 在listItems变化时更新sticky group
-  useEffect(() => {
-    updateStickyGroup()
-  }, [listItems, updateStickyGroup])
-
   // 处理列表滚动事件，更新lastScrollOffset并更新sticky分组
   const handleScroll = useCallback(
     ({ scrollOffset }) => {
@@ -235,8 +221,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 在列表项更新时，更新焦点项
   useEffect(() => {
+    if (loading) return
     updateOnListChange(modelItems)
-  }, [modelItems, updateOnListChange])
+    updateStickyGroup()
+  }, [modelItems, updateOnListChange, loading, updateStickyGroup])
 
   // 滚动到聚焦项
   useEffect(() => {
@@ -339,10 +327,16 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 初始化焦点和滚动位置
   useEffect(() => {
-    if (!open || loadingPinnedModels) return
+    if (!open) return
     setTimeout(() => inputRef.current?.focus(), 0)
-    initScroll()
-  }, [open, initScroll, loadingPinnedModels])
+  }, [open])
+
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      await togglePinnedModel(modelId)
+    },
+    [togglePinnedModel]
+  )
 
   const RowData = useMemo(
     (): VirtualizedRowData => ({
@@ -456,6 +450,8 @@ const VirtualizedRow = React.memo(
       return <div style={style} />
     }
 
+    const isFocused = item.key === focusedItemKey
+
     return (
       <div style={style}>
         {item.type === 'group' ? (
@@ -463,11 +459,11 @@ const VirtualizedRow = React.memo(
         ) : (
           <ModelItem
             className={classNames({
-              focused: item.key === focusedItemKey,
+              focused: isFocused,
               selected: item.isSelected
             })}
             onClick={() => handleItemClick(item)}
-            onMouseEnter={() => setFocusedItemKey(item.key)}>
+            onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
             <ModelItemLeft>
               {item.icon}
               {item.name}

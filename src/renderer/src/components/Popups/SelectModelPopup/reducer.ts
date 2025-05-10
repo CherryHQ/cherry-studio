@@ -96,13 +96,6 @@ export const scrollReducer = (state: ScrollState, action: ScrollAction): ScrollS
       }
     }
 
-    case 'INIT_SCROLL':
-      return {
-        ...state,
-        scrollTrigger: 'initial',
-        lastScrollOffset: 0
-      }
-
     default:
       return state
   }
