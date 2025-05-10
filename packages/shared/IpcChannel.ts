@@ -13,6 +13,7 @@ export enum IpcChannel {
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
+  App_SetFeedUrl = 'app:set-feed-url',
   App_SetZoomFactor = 'app:set-zoom-factor',
   ZoomFactorUpdated = 'app:zoom-factor-updated',
 
