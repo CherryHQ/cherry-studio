@@ -4,6 +4,7 @@ import type {
   Assistant,
   FileType,
   Flow,
+  FlowNode,
   GenerateImageResponse,
   KnowledgeReference,
   MCPServer,
@@ -137,11 +138,7 @@ export interface FlowMessageBlock extends BaseMessageBlock {
   // form data
   chunkType: ChunkType
   workflow: Flow
-  metadata?: BaseMessageBlock['metadata'] & {
-    id?: string
-    title?: string
-    type?: string
-  }
+  nodes?: FlowNode[]
 }
 
 // MessageBlock 联合类型

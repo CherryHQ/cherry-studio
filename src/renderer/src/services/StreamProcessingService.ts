@@ -34,6 +34,7 @@ export interface StreamProcessorCallbacks {
   // Called when the entire stream processing is signaled as complete (success or failure)
   onComplete?: (status: AssistantMessageStatus, response?: Response) => void
   // Called when workflow work
+  onWorkflowStarted?: (chunk: Chunk) => void
   onWorkflowNodeInProgress?: (chunk: Chunk) => void
   onWorkflowNodeComplete?: (chunk: Chunk) => void
 }
@@ -90,6 +91,9 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
       }
       if (data.type === ChunkType.IMAGE_COMPLETE && callbacks.onImageGenerated) {
         callbacks.onImageGenerated(data.image)
+      }
+      if (data.type === ChunkType.WORKFLOW_STARTED && callbacks.onWorkflowStarted) {
+        callbacks.onWorkflowStarted(data)
       }
       if (data.type === ChunkType.WORKFLOW_NODE_STARTED && callbacks.onWorkflowNodeInProgress) {
         callbacks.onWorkflowNodeInProgress(data)

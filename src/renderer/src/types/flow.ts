@@ -1,5 +1,7 @@
 import { IUserInputForm } from '@dify-chat/api'
 
+import { MessageBlockStatus } from './newMessage'
+
 export type FlowType = 'workflow' | 'chatflow'
 
 /**
@@ -118,4 +120,11 @@ export enum EventEnum {
    * 工作流文本事件，代表工作流中的文本信息
    */
   WORKFLOW_TEXT_CHUNK = 'text_chunk'
+}
+
+export interface FlowNode {
+  status: MessageBlockStatus
+  id: string
+  title: string
+  type: string
 }

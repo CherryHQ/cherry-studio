@@ -27,16 +27,6 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       const fileData = await window.api.file.readAsFile(block.file.path, block.file.origin_name)
       const file = new File([fileData.buffer], fileData.name, { type: fileData.type })
       const response = await this.uploadFile(flow, file)
-      // const response = {
-      //   id: '3f8c7d51-7866-4e7b-a283-f3b4e841db6c',
-      //   name: 'image-1746779433348-0.png',
-      //   size: 72459,
-      //   extension: 'png',
-      //   mime_type: 'image/png',
-      //   created_by: '3d574994-6349-4df0-aab8-1fdf17eba25c',
-      //   created_at: 1746779492,
-      //   preview_url: null
-      // }
 
       files.push({
         type: getFileTypeByName(response.name),
@@ -188,18 +178,15 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
           const event = parsedData.event
           switch (event) {
             case EventEnum.WORKFLOW_STARTED:
-              // onChunk({
-              //   type: ChunkType.WORKFLOW_STARTED,
-              //   metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
-              // })
-              console.log('工作流开始')
+              onChunk({
+                type: ChunkType.WORKFLOW_STARTED
+              })
               break
             case EventEnum.WORKFLOW_NODE_STARTED:
               onChunk({
                 type: ChunkType.WORKFLOW_NODE_STARTED,
                 metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
               })
-              console.log('工作流节点开始')
               break
             case EventEnum.WORKFLOW_TEXT_CHUNK: {
               const textChunk = parsedData.data.text
@@ -218,7 +205,6 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
                 type: ChunkType.WORKFLOW_NODE_FINISHED,
                 metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
               })
-              console.log('工作流节点完成')
               break
             case EventEnum.WORKFLOW_FINISHED:
               // onChunk({

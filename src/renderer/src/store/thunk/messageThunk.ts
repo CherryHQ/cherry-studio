@@ -6,7 +6,16 @@ import { fetchChatflowCompletion, fetchWorkflowCompletion } from '@renderer/serv
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
-import type { Assistant, ExternalToolResult, FileType, Flow, MCPToolResponse, Model, Topic } from '@renderer/types'
+import type {
+  Assistant,
+  ExternalToolResult,
+  FileType,
+  Flow,
+  FlowNode,
+  MCPToolResponse,
+  Model,
+  Topic
+} from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import type {
@@ -1476,7 +1485,7 @@ function getCommonStreamLogic(
     accumulatedContent: string
     lastBlockId: string | null
     lastBlockType: MessageBlockType | null
-    workflowNodeIdToBlockIdMap: Map<string, string>
+    flowBlockId: string | null
   }
 ) {
   const handleBlockTransition = (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
@@ -1550,36 +1559,55 @@ function getCommonStreamLogic(
     }
   }
 
-  const onWorkflowNodeInProgress = (chunk: Chunk, logPrefix: string) => {
-    if (chunk.type === ChunkType.WORKFLOW_NODE_STARTED && flowDefinition) {
+  const onWorkflowStarted = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.WORKFLOW_STARTED && flowDefinition) {
       const overrides = {
-        status: MessageBlockStatus.PROCESSING,
-        metadata: {
-          id: chunk.metadata.id,
-          title: chunk.metadata.title ?? '',
-          type: chunk.metadata.type ?? ''
-        }
+        status: MessageBlockStatus.PROCESSING
       }
       const flowBlock = createFlowBlock(assistantMessage.id, chunk.type, flowDefinition, overrides)
+      streamState.flowBlockId = flowBlock.id
+      console.log('[onWorkflowStarted] Flow block created:', flowBlock)
       handleBlockTransition(flowBlock, MessageBlockType.FLOW)
-      streamState.workflowNodeIdToBlockIdMap.set(chunk.metadata.id, flowBlock.id)
-      console.log(`${logPrefix} Workflow started block ${flowBlock.id} added.`)
     }
   }
 
-  const onWorkflowNodeComplete = (chunk: Chunk, logPrefix: string) => {
-    if (chunk.type === ChunkType.WORKFLOW_NODE_FINISHED) {
-      const existingBlockId = streamState.workflowNodeIdToBlockIdMap.get(chunk.metadata.id)
-      if (!existingBlockId) {
-        console.error(`${logPrefix} No block found for workflow node ID ${chunk.metadata.id}.`)
+  const onWorkflowNodeInProgress = (chunk: Chunk) => {
+    if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_NODE_STARTED && flowDefinition) {
+      const node: FlowNode = {
+        status: MessageBlockStatus.PROCESSING,
+        id: chunk.metadata.id,
+        title: chunk.metadata.title,
+        type: chunk.metadata.type
+      }
+      const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
+      const changes = {
+        nodes: [...(currentFlowBlock?.nodes || []), node]
+      }
+      dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+    }
+  }
+
+  const onWorkflowNodeComplete = (chunk: Chunk) => {
+    if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_NODE_FINISHED) {
+      console.log('[onWorkflowNodeComplete] Workflow node completed:', chunk, streamState.lastBlockId)
+      const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
+      if (!currentFlowBlock.nodes) {
         return
       }
       const changes: Partial<FlowMessageBlock> = {
-        status: MessageBlockStatus.SUCCESS,
-        metadata: { id: chunk.metadata.id, title: chunk.metadata.title ?? '', type: chunk.metadata.type ?? '' }
+        nodes: currentFlowBlock.nodes.map((node) => {
+          if (node.id === chunk.metadata.id) {
+            return {
+              ...node,
+              status: MessageBlockStatus.SUCCESS
+            }
+          }
+          return node
+        })
       }
-      dispatch(updateOneBlock({ id: existingBlockId, changes }))
-      saveUpdatedBlockToDB(existingBlockId, assistantMessage.id, topicId, getState)
+      dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
     }
   }
 
@@ -1625,6 +1653,7 @@ function getCommonStreamLogic(
   return {
     onTextChunk,
     onTextComplete,
+    onWorkflowStarted,
     onWorkflowNodeInProgress,
     onWorkflowNodeComplete,
     handleBlockTransition,
@@ -1660,7 +1689,7 @@ const fetchAndProcessChatflowResponseImpl = async (
     accumulatedContent: '',
     lastBlockId: null as string | null,
     lastBlockType: null as MessageBlockType | null,
-    workflowNodeIdToBlockIdMap: new Map<string, string>()
+    flowBlockId: null as string | null
   }
 
   const commonLogic = getCommonStreamLogic(
@@ -1677,8 +1706,9 @@ const fetchAndProcessChatflowResponseImpl = async (
     callbacks = {
       onTextChunk: commonLogic.onTextChunk,
       onTextComplete: (finalText) => commonLogic.onTextComplete(finalText, '[Chatflow onTextComplete]'),
-      onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk, '[Chatflow onWorkflowChunk]'),
-      onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk, '[Chatflow onWorkflowChunk]'),
+      onWorkflowStarted: (chunk) => commonLogic.onWorkflowStarted(chunk),
+      onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk),
+      onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk),
       onError: (error) => commonLogic.onError(error)
     }
 
@@ -1711,7 +1741,7 @@ export const fetchAndProcessWorkflowResponseImpl =
       accumulatedContent: '',
       lastBlockId: null as string | null,
       lastBlockType: null as MessageBlockType | null,
-      workflowNodeIdToBlockIdMap: new Map<string, string>()
+      flowBlockId: null as string | null
     }
 
     const commonLogic = getCommonStreamLogic(dispatch, getState, topicId, assistantMessage, workflow, streamState)
@@ -1721,8 +1751,9 @@ export const fetchAndProcessWorkflowResponseImpl =
       callbacks = {
         onTextChunk: commonLogic.onTextChunk,
         onTextComplete: (finalText) => commonLogic.onTextComplete(finalText, '[Workflow onTextComplete]'),
-        onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk, '[Workflow onWorkflowChunk]'),
-        onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk, '[Workflow onWorkflowChunk]'),
+        onWorkflowStarted: (chunk) => commonLogic.onWorkflowStarted(chunk),
+        onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk),
+        onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk),
         onError: (error) => commonLogic.onError(error)
       }
       const streamProcessorCallbacks = createStreamProcessor(callbacks)
