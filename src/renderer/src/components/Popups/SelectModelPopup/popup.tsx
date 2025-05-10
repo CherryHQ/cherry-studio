@@ -66,14 +66,6 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
 
-  const togglePin = useCallback(
-    async (modelId: string) => {
-      await togglePinnedModel(modelId)
-      setScrollTrigger('none') // pin操作不触发滚动
-    },
-    [togglePinnedModel, setScrollTrigger]
-  )
-
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
     (provider) => {
@@ -344,6 +336,13 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     initScroll()
   }, [open, initScroll, loadingPinnedModels])
 
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      await togglePinnedModel(modelId)
+    },
+    [togglePinnedModel]
+  )
+
   const RowData = useMemo(
     (): VirtualizedRowData => ({
       listItems,
@@ -456,6 +455,8 @@ const VirtualizedRow = React.memo(
       return <div style={style} />
     }
 
+    const isFocused = item.key === focusedItemKey
+
     return (
       <div style={style}>
         {item.type === 'group' ? (
@@ -463,11 +464,11 @@ const VirtualizedRow = React.memo(
         ) : (
           <ModelItem
             className={classNames({
-              focused: item.key === focusedItemKey,
+              focused: isFocused,
               selected: item.isSelected
             })}
             onClick={() => handleItemClick(item)}
-            onMouseEnter={() => setFocusedItemKey(item.key)}>
+            onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
             <ModelItemLeft>
               {item.icon}
               {item.name}
