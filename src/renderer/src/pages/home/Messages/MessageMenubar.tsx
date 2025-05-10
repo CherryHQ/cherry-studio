@@ -7,9 +7,8 @@ import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessag
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { RootState, useAppDispatch } from '@renderer/store'
+import { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import { updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -24,7 +23,12 @@ import {
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findImageBlocks, findMainTextBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  findImageBlocks,
+  findMainTextBlocks,
+  findTranslationBlocks,
+  getMainTextContent
+} from '@renderer/utils/messageUtils/find'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
@@ -64,7 +68,8 @@ const MessageMenubar: FC<Props> = (props) => {
     resendUserMessageWithEdit,
     getTranslationUpdater,
     appendAssistantResponse,
-    editMessageBlocks
+    editMessageBlocks,
+    removeMessageBlock
   } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
 
@@ -380,14 +385,11 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, editMessage]
   )
 
-  const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
-  const dispatch = useAppDispatch()
+  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
-    return message.blocks.some((blockId) => {
-      const block = blockEntities[blockId]
-      return block?.type === 'translation'
-    })
-  }, [message.blocks, blockEntities])
+    const translationBlocks = findTranslationBlocks(message)
+    return translationBlocks.length > 0
+  }, [message])
 
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
@@ -449,7 +451,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 ? [
                     { type: 'divider' as const },
                     {
-                      label: '📋 ' + t('translate.copy'),
+                      label: '📋 ' + t('common.copy'),
                       key: 'translate-copy',
                       onClick: () => {
                         const translationBlocks = message.blocks
@@ -475,20 +477,17 @@ const MessageMenubar: FC<Props> = (props) => {
                       label: '✖ ' + t('translate.close'),
                       key: 'translate-close',
                       onClick: () => {
-                        dispatch(
-                          updateMessageAndBlocksThunk(
-                            topic.id,
-                            {
-                              id: message.id,
-                              blocks: message.blocks.filter((blockId) => {
-                                const block = blockEntities[blockId]
-                                return block?.type !== 'translation'
-                              })
-                            },
-                            []
-                          )
-                        )
-                        window.message.success({ content: t('translate.closed'), key: 'translate-close' })
+                        const translationBlocks = message.blocks
+                          .map((blockId) => blockEntities[blockId])
+                          .filter((block) => block?.type === 'translation')
+                          .map((block) => block?.id)
+
+                        if (translationBlocks.length > 0) {
+                          translationBlocks.forEach((blockId) => {
+                            if (blockId) removeMessageBlock(message.id, blockId)
+                          })
+                          window.message.success({ content: t('translate.closed'), key: 'translate-close' })
+                        }
                       }
                     }
                   ]
