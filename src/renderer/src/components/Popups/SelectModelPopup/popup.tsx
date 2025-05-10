@@ -34,7 +34,7 @@ interface Props extends PopupParams {
 const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { pinnedModels, togglePinnedModel, loading: loadingPinnedModels } = usePinnedModels()
+  const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
   const listRef = useRef<FixedSizeList>(null)
@@ -59,8 +59,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     focusNextItem,
     focusPage,
     searchChanged,
-    updateOnListChange,
-    initScroll
+    updateOnListChange
   } = useScrollState()
 
   const stickyGroup = useDeferredValue(_stickyGroup)
@@ -227,8 +226,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 在列表项更新时，更新焦点项
   useEffect(() => {
+    if (loading) return
     updateOnListChange(modelItems)
-  }, [modelItems, updateOnListChange])
+  }, [modelItems, updateOnListChange, loading])
 
   // 滚动到聚焦项
   useEffect(() => {
@@ -331,10 +331,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 初始化焦点和滚动位置
   useEffect(() => {
-    if (!open || loadingPinnedModels) return
+    if (!open) return
     setTimeout(() => inputRef.current?.focus(), 0)
-    initScroll()
-  }, [open, initScroll, loadingPinnedModels])
+  }, [open])
 
   const togglePin = useCallback(
     async (modelId: string) => {
