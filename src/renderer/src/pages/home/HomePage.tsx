@@ -1,6 +1,7 @@
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { Assistant } from '@renderer/types'
 import { FC, useEffect, useState } from 'react'
@@ -35,6 +36,19 @@ const HomePage: FC = () => {
     state?.topic && setActiveTopic(state?.topic)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state])
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.SWITCH_ASSISTANT, (assistantId: string) => {
+      const newAssistant = assistants.find((a) => a.id === assistantId)
+      if (newAssistant) {
+        setActiveAssistant(newAssistant)
+      }
+    })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [assistants, setActiveAssistant])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics

@@ -1,0 +1,217 @@
+import { PlusOutlined } from '@ant-design/icons'
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import { Center } from '@renderer/components/Layout'
+import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
+import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useShowAssistants } from '@renderer/hooks/useStore'
+import { Assistant } from '@renderer/types'
+import { uuid } from '@renderer/utils'
+import { Popover } from 'antd'
+import { Empty } from 'antd'
+import { isEmpty } from 'lodash'
+import { FC, useEffect, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+import Scrollbar from '../Scrollbar'
+
+interface Props {
+  children: React.ReactNode
+  activeAssistant: Assistant
+  setActiveAssistant: (assistant: Assistant) => void
+}
+
+const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssistant }) => {
+  const [open, setOpen] = useState(false)
+  const { assistants, addAssistant } = useAssistants()
+  const { defaultAssistant } = useDefaultAssistant()
+  const { toggleShowAssistants } = useShowAssistants()
+  const { t } = useTranslation()
+
+  useHotkeys('esc', () => {
+    setOpen(false)
+  })
+
+  const handleClose = () => {
+    setOpen(false)
+  }
+
+  const [maxHeight, setMaxHeight] = useState(window.innerHeight - 100)
+
+  useEffect(() => {
+    const handleResize = () => {
+      setMaxHeight(window.innerHeight - 100)
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
+  const onCreateAssistant = async () => {
+    const assistant = await AddAssistantPopup.show()
+    if (assistant) {
+      setActiveAssistant(assistant)
+    }
+    handleClose()
+  }
+
+  const onCreateDefaultAssistant = () => {
+    const assistant = { ...defaultAssistant, id: uuid() }
+    addAssistant(assistant)
+    setActiveAssistant(assistant)
+    handleClose()
+  }
+
+  const handleSwitchAssistant = (assistant: Assistant) => {
+    setActiveAssistant(assistant)
+    handleClose()
+  }
+
+  const content = (
+    <PopoverContent maxHeight={maxHeight}>
+      <SidebarHeader>
+        <SidebarTitle>{t('assistants.title')}</SidebarTitle>
+      </SidebarHeader>
+
+      <AssistantsList>
+        {assistants.map((assistant) => (
+          <AssistantItem
+            key={assistant.id}
+            active={assistant.id === activeAssistant.id}
+            onClick={() => handleSwitchAssistant(assistant)}>
+            <AssistantAvatar>
+              <EmojiIcon emoji={assistant.emoji || ''} />
+            </AssistantAvatar>
+            <AssistantName>{assistant.name}</AssistantName>
+          </AssistantItem>
+        ))}
+        {isEmpty(assistants) && (
+          <Center>
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          </Center>
+        )}
+        <AssistantAddItem onClick={onCreateAssistant}>
+          <AssistantName>
+            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+            {t('chat.add.assistant.title')}
+          </AssistantName>
+        </AssistantAddItem>
+      </AssistantsList>
+    </PopoverContent>
+  )
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      content={content}
+      trigger="hover"
+      placement="rightTop"
+      arrow={false}
+      styles={{
+        body: {
+          padding: 0,
+          background: 'var(--color-background)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px',
+          boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12)'
+        }
+      }}>
+      {children}
+    </Popover>
+  )
+}
+
+const PopoverContent = styled(Scrollbar)<{ maxHeight: number }>`
+  max-height: ${(props) => props.maxHeight}px;
+  overflow-y: auto;
+  width: 240px;
+`
+
+const SidebarHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 12px 6px 12px;
+  border-bottom: 0.5px solid var(--color-border);
+`
+
+const SidebarTitle = styled.div`
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--color-text-1);
+`
+
+const ExpandButton = styled.div`
+  font-size: 12px;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`
+
+const AssistantsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  gap: 4px;
+`
+
+const AssistantItem = styled.div<{ active: boolean }>`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: var(--list-item-border-radius);
+  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
+  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+  }
+`
+
+const AssistantAvatar = styled.div`
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+`
+
+const AssistantName = styled.div`
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  flex: 1;
+`
+
+const AssistantAddItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: var(--list-item-border-radius);
+  border: 0.5px solid transparent;
+  cursor: pointer;
+  margin-top: 4px;
+
+  &:hover {
+    background-color: var(--color-background-soft);
+  }
+`
+
+export default FloatingSidebar
