@@ -132,7 +132,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
               ] as ModelType[]
 
               // 合并现有选择和默认类型
-              const selectedTypes = model.type ? model.type : defaultTypes
+              const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
 
               const showTypeConfirmModal = (type: string) => {
                 window.modal.confirm({
@@ -165,23 +165,28 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                   options={[
                     {
                       label: t('models.type.vision'),
-                      value: 'vision'
+                      value: 'vision',
+                      disabled: isVisionModel(model) && !selectedTypes.includes('vision')
                     },
                     {
                       label: t('models.type.websearch'),
-                      value: 'web_search'
+                      value: 'web_search',
+                      disabled: isWebSearchModel(model) && !selectedTypes.includes('web_search')
                     },
                     {
                       label: t('models.type.embedding'),
-                      value: 'embedding'
+                      value: 'embedding',
+                      disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
                     },
                     {
                       label: t('models.type.reasoning'),
-                      value: 'reasoning'
+                      value: 'reasoning',
+                      disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
                     },
                     {
                       label: t('models.type.function_calling'),
-                      value: 'function_calling'
+                      value: 'function_calling',
+                      disabled: isFunctionCallingModel(model) && !selectedTypes.includes('function_calling')
                     }
                   ]}
                 />
