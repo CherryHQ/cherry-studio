@@ -2,14 +2,26 @@ import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { fetchChatflowCompletion, fetchWorkflowCompletion } from '@renderer/services/FlowEngineService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
-import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
+import type {
+  Assistant,
+  ExternalToolResult,
+  FileType,
+  Flow,
+  FlowNode,
+  MCPToolResponse,
+  Model,
+  Topic
+} from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
+  FlowMessageBlock,
   ImageMessageBlock,
   Message,
   MessageBlock,
@@ -25,6 +37,7 @@ import {
   createBaseMessageBlock,
   createCitationBlock,
   createErrorBlock,
+  createFlowBlock,
   createImageBlock,
   createMainTextBlock,
   createThinkingBlock,
@@ -32,15 +45,16 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
-import { throttle } from 'lodash'
+import { findLast, throttle } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
-const handleChangeLoadingOfTopic = async (topicId: string) => {
+export const handleChangeLoadingOfTopic = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
 }
@@ -106,7 +120,7 @@ const updateExistingMessageAndBlocksInDB = async (
 }
 
 // 更新单个块的逻辑，用于更新消息中的单个块
-const throttledBlockUpdate = throttle((id, blockUpdate) => {
+export const throttledBlockUpdate = throttle((id, blockUpdate) => {
   const state = store.getState()
   const block = state.messageBlocks.entities[id]
   // throttle是异步函数,可能会在complete事件触发后才执行
@@ -146,7 +160,7 @@ export const throttledBlockDbUpdate = throttle(
 )
 
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
-const saveUpdatesToDB = async (
+export const saveUpdatesToDB = async (
   messageId: string,
   topicId: string,
   messageUpdates: Partial<Message>, // 需要更新的消息字段
@@ -165,7 +179,7 @@ const saveUpdatesToDB = async (
 }
 
 // 新增: 辅助函数，用于获取并保存单个更新后的 Block 到数据库
-const saveUpdatedBlockToDB = async (
+export const saveUpdatedBlockToDB = async (
   blockId: string | null,
   messageId: string,
   topicId: string,
@@ -678,6 +692,34 @@ export const sendMessage =
 
       if (mentionedModels && mentionedModels.length > 0) {
         await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+      } else if (assistant.workflow) {
+        const content = getMainTextContent(userMessage)
+        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+          askId: userMessage.id,
+          flow: assistant.workflow
+        })
+        // trigger workflow
+        if (content === assistant.workflow.trigger) {
+          console.log('[DEBUG] Workflow trigger detected')
+
+          const flowBlock = createFlowBlock(assistantMessage.id, ChunkType.WORKFLOW_INIT, assistant.workflow)
+          await saveMessageAndBlocksToDB(assistantMessage, [flowBlock])
+          dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+          dispatch(upsertOneBlock(flowBlock))
+          dispatch(
+            newMessagesActions.upsertBlockReference({
+              messageId: assistantMessage.id,
+              blockId: flowBlock.id,
+              status: flowBlock.status
+            })
+          )
+        }
+      }
+      // trigger chatflow
+      else if (assistant.chatflow) {
+        queue.add(async () => {
+          await fetchAndProcessChatflowResponseImpl(dispatch, getState, topicId, assistant)
+        })
       } else {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
@@ -1430,5 +1472,299 @@ export const updateMessageAndBlocksThunk =
     } catch (error) {
       console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
       return false
+    }
+  }
+
+function getCommonStreamLogic(
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  assistantMessage: Message,
+  flowDefinition: Flow,
+  streamState: {
+    accumulatedContent: string
+    lastBlockId: string | null
+    lastBlockType: MessageBlockType | null
+    flowBlockId: string | null
+  }
+) {
+  const handleBlockTransition = (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
+    streamState.lastBlockId = newBlock.id
+    streamState.lastBlockType = newBlockType
+    if (newBlockType !== MessageBlockType.MAIN_TEXT) {
+      streamState.accumulatedContent = ''
+    }
+    dispatch(
+      newMessagesActions.updateMessage({
+        topicId,
+        messageId: assistantMessage.id,
+        updates: { blockInstruction: { id: newBlock.id } }
+      })
+    )
+    dispatch(upsertOneBlock(newBlock))
+    dispatch(
+      newMessagesActions.upsertBlockReference({
+        messageId: assistantMessage.id,
+        blockId: newBlock.id,
+        status: newBlock.status
+      })
+    )
+    const currentState = getState()
+    const updatedMsgState = currentState.messages.entities[assistantMessage.id]
+    if (updatedMsgState) {
+      saveUpdatesToDB(
+        assistantMessage.id,
+        topicId,
+        { blocks: updatedMsgState.blocks, status: updatedMsgState.status },
+        [newBlock]
+      )
+    } else {
+      console.error(
+        `[CommonLogic handleBlockTransition] Failed to get updated message ${assistantMessage.id} for DB save.`
+      )
+    }
+  }
+
+  const onTextChunk = (text: string) => {
+    streamState.accumulatedContent += text
+    if (!streamState.lastBlockId || streamState.lastBlockType !== MessageBlockType.MAIN_TEXT) {
+      const newBlock = createMainTextBlock(assistantMessage.id, streamState.accumulatedContent, {
+        status: MessageBlockStatus.STREAMING
+      })
+      handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
+    } else {
+      // Existing main text block that is not null
+      const blockChanges: Partial<MessageBlock> = {
+        content: streamState.accumulatedContent,
+        status: MessageBlockStatus.STREAMING
+      }
+      throttledBlockUpdate(streamState.lastBlockId!, blockChanges)
+      throttledBlockDbUpdate(streamState.lastBlockId!, blockChanges)
+    }
+  }
+
+  const onTextComplete = (finalText: string, logPrefix: string) => {
+    if (streamState.lastBlockType === MessageBlockType.MAIN_TEXT && streamState.lastBlockId) {
+      const changes = {
+        content: finalText,
+        status: MessageBlockStatus.SUCCESS
+      }
+      dispatch(updateOneBlock({ id: streamState.lastBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+      console.log(`${logPrefix} Final text for block ${streamState.lastBlockId}:`, finalText)
+    } else {
+      console.warn(
+        `${logPrefix} Received text.complete but last block was not MAIN_TEXT (was ${streamState.lastBlockType}) or lastBlockId is null.`
+      )
+    }
+  }
+
+  const onWorkflowStarted = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.WORKFLOW_STARTED && flowDefinition) {
+      const overrides = {
+        status: MessageBlockStatus.PROCESSING
+      }
+      const flowBlock = createFlowBlock(assistantMessage.id, chunk.type, flowDefinition, overrides)
+      streamState.flowBlockId = flowBlock.id
+      console.log('[onWorkflowStarted] Flow block created:', flowBlock)
+      handleBlockTransition(flowBlock, MessageBlockType.FLOW)
+    }
+  }
+
+  const onWorkflowNodeInProgress = (chunk: Chunk) => {
+    if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_NODE_STARTED && flowDefinition) {
+      const node: FlowNode = {
+        status: MessageBlockStatus.PROCESSING,
+        id: chunk.metadata.id,
+        title: chunk.metadata.title,
+        type: chunk.metadata.type
+      }
+      const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
+      const changes = {
+        nodes: [...(currentFlowBlock?.nodes || []), node]
+      }
+      dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+    }
+  }
+
+  const onWorkflowNodeComplete = (chunk: Chunk) => {
+    if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_NODE_FINISHED) {
+      console.log('[onWorkflowNodeComplete] Workflow node completed:', chunk, streamState.lastBlockId)
+      const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
+      if (!currentFlowBlock.nodes) {
+        return
+      }
+      const changes: Partial<FlowMessageBlock> = {
+        nodes: currentFlowBlock.nodes.map((node) => {
+          if (node.id === chunk.metadata.id) {
+            return {
+              ...node,
+              status: MessageBlockStatus.SUCCESS
+            }
+          }
+          return node
+        })
+      }
+      dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+    }
+  }
+
+  const onError = (error) => {
+    console.dir(error, { depth: null })
+    let pauseErrorLanguagePlaceholder = ''
+    if (isAbortError(error)) {
+      pauseErrorLanguagePlaceholder = 'pause_placeholder'
+    }
+
+    const serializableError = {
+      name: error.name,
+      message: pauseErrorLanguagePlaceholder || error.message || 'Stream processing error',
+      originalMessage: error.message,
+      stack: error.stack,
+      status: error.status,
+      requestId: error.request_id
+    }
+    if (streamState.lastBlockId) {
+      const changes: Partial<MessageBlock> = {
+        status: MessageBlockStatus.ERROR
+      }
+      dispatch(updateOneBlock({ id: streamState.lastBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+    }
+
+    const errorBlock = createErrorBlock(assistantMessage.id, serializableError, { status: MessageBlockStatus.SUCCESS })
+    handleBlockTransition(errorBlock, MessageBlockType.ERROR)
+    const messageErrorUpdate = {
+      status: isAbortError(error) ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+    }
+    dispatch(newMessagesActions.updateMessage({ topicId, messageId: assistantMessage.id, updates: messageErrorUpdate }))
+
+    saveUpdatesToDB(assistantMessage.id, topicId, messageErrorUpdate, [])
+
+    EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+      id: assistantMessage.id,
+      topicId,
+      status: isAbortError(error) ? 'pause' : 'error',
+      error: error.message
+    })
+  }
+  return {
+    onTextChunk,
+    onTextComplete,
+    onWorkflowStarted,
+    onWorkflowNodeInProgress,
+    onWorkflowNodeComplete,
+    handleBlockTransition,
+    onError
+  }
+}
+
+const fetchAndProcessChatflowResponseImpl = async (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  assistant: Assistant
+) => {
+  const assistantMessage = createAssistantMessage(assistant.id, topicId)
+  await saveMessageAndBlocksToDB(assistantMessage, [])
+  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+  const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
+  const lastUserMessage = findLast(allMessagesForTopic, (m) => m.role === 'user')
+  if (!lastUserMessage) {
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    return
+  }
+
+  if (!assistant.chatflow) {
+    console.error('Assistant chatflow configuration is missing.')
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    return
+  }
+
+  const streamState = {
+    accumulatedContent: '',
+    lastBlockId: null as string | null,
+    lastBlockType: null as MessageBlockType | null,
+    flowBlockId: null as string | null
+  }
+
+  const commonLogic = getCommonStreamLogic(
+    dispatch,
+    getState,
+    topicId,
+    assistantMessage,
+    assistant.chatflow,
+    streamState
+  )
+  let callbacks: StreamProcessorCallbacks = {}
+
+  try {
+    callbacks = {
+      onTextChunk: commonLogic.onTextChunk,
+      onTextComplete: (finalText) => commonLogic.onTextComplete(finalText, '[Chatflow onTextComplete]'),
+      onWorkflowStarted: (chunk) => commonLogic.onWorkflowStarted(chunk),
+      onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk),
+      onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk),
+      onError: (error) => commonLogic.onError(error)
+    }
+
+    const streamProcessorCallbacks = createStreamProcessor(callbacks)
+
+    await fetchChatflowCompletion({
+      assistant: assistant,
+      message: lastUserMessage,
+      onChunkReceived: streamProcessorCallbacks
+    })
+  } catch (error: any) {
+    console.error(`Error in processChatflowResponseThunk for message ${assistantMessage.id}:`, error)
+    if (callbacks && callbacks.onError) {
+      callbacks.onError(error)
+    }
+  } finally {
+    handleChangeLoadingOfTopic(topicId)
+  }
+}
+
+export const fetchAndProcessWorkflowResponseImpl =
+  (topicId: string, assistant: Assistant, workflow: Flow, inputs: Record<string, string>) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    const assistantMessage = createAssistantMessage(assistant.id, topicId)
+    await saveMessageAndBlocksToDB(assistantMessage, [])
+    dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+    const streamState = {
+      accumulatedContent: '',
+      lastBlockId: null as string | null,
+      lastBlockType: null as MessageBlockType | null,
+      flowBlockId: null as string | null
+    }
+
+    const commonLogic = getCommonStreamLogic(dispatch, getState, topicId, assistantMessage, workflow, streamState)
+    let callbacks: StreamProcessorCallbacks = {}
+
+    try {
+      callbacks = {
+        onTextChunk: commonLogic.onTextChunk,
+        onTextComplete: (finalText) => commonLogic.onTextComplete(finalText, '[Workflow onTextComplete]'),
+        onWorkflowStarted: (chunk) => commonLogic.onWorkflowStarted(chunk),
+        onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk),
+        onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk),
+        onError: (error) => commonLogic.onError(error)
+      }
+      const streamProcessorCallbacks = createStreamProcessor(callbacks)
+
+      await fetchWorkflowCompletion({ assistant: assistant, inputs: inputs, onChunkReceived: streamProcessorCallbacks })
+    } catch (error: any) {
+      console.error(`Error processing workflow response for message ${assistantMessage.id}:`, error)
+      if (callbacks && callbacks.onError) {
+        callbacks.onError(error)
+      }
+    } finally {
+      handleChangeLoadingOfTopic(topicId)
     }
   }

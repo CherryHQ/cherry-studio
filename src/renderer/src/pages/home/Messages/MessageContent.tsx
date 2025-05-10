@@ -37,7 +37,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
   // }
   // const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
 
-  // console.log('message', message)
+  console.log('message', message)
 
   return (
     <>

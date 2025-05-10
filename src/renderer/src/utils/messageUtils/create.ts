@@ -1,11 +1,13 @@
-import type { Assistant, FileType, Topic } from '@renderer/types'
+import type { Assistant, FileType, Flow, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
+import { ChunkType } from '@renderer/types/chunk'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
   CodeMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
+  FlowMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
@@ -266,6 +268,29 @@ export function createCitationBlock(
     response,
     knowledge
   }
+}
+
+/**
+ * Creates a Workflow Block.
+ * @param messageId - The ID of the parent message.
+ * @param workflowId - The ID of the workflow.
+ * @param overrides - Optional properties to override the defaults.
+ * @returns A WorkflowBlock object.
+ */
+export function createFlowBlock(
+  messageId: string,
+  chunkType: ChunkType,
+  workflow: Flow,
+  overrides: Partial<Omit<FlowMessageBlock, 'id' | 'messageId' | 'type' | 'workflowId'>> = {}
+): FlowMessageBlock {
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.FLOW, {
+    status: MessageBlockStatus.SUCCESS,
+    chunkType: chunkType,
+    workflow: workflow,
+    ...overrides
+  })
+  console.log('createFlowBlock_baseBlock', baseBlock)
+  return baseBlock as FlowMessageBlock
 }
 
 /**

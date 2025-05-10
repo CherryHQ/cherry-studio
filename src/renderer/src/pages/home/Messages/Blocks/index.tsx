@@ -3,6 +3,7 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type {
   ErrorMessageBlock,
   FileMessageBlock,
+  FlowMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
@@ -19,6 +20,7 @@ import styled from 'styled-components'
 import CitationBlock from './CitationBlock'
 import ErrorBlock from './ErrorBlock'
 import FileBlock from './FileBlock'
+import FlowBlock from './FlowBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
@@ -55,6 +57,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
   const groupedBlocks = useMemo(() => filterImageBlockGroups(renderedBlocks), [renderedBlocks])
 
+  console.log('Rendered blocks:', renderedBlocks)
   return (
     <>
       {groupedBlocks.map((block) => {
@@ -108,6 +111,8 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           //   return <CodeBlock key={block.id} block={block as CodeMessageBlock} />
           case MessageBlockType.TRANSLATION:
             return <TranslationBlock key={block.id} block={block as TranslationMessageBlock} />
+          case MessageBlockType.FLOW:
+            return <FlowBlock key={block.id} block={block as FlowMessageBlock} message={message} />
           default:
             // Cast block to any for console.warn to fix linter error
             console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)

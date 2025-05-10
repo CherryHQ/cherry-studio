@@ -4,6 +4,7 @@ import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import {
   Cloud,
   Command,
+  GitCompare,
   Globe,
   HardDrive,
   Info,
@@ -33,6 +34,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import ShortcutSettings from './ShortcutSettings'
 import WebSearchSettings from './WebSearchSettings'
+import WorkflowProviderList from './WorkflowSettings'
 
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
@@ -60,6 +62,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/model')}>
               <Package size={18} />
               {t('settings.model')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/workflow">
+            <MenuItem className={isRoute('/settings/workflow')}>
+              <GitCompare size={18} />
+              {t('settings.workflow.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/web-search">
@@ -128,6 +136,7 @@ const SettingsPage: FC = () => {
         <SettingContent>
           <Routes>
             <Route path="provider" element={<ProvidersList />} />
+            <Route path="workflow" element={<WorkflowProviderList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />

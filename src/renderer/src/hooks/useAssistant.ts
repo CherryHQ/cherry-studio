@@ -7,6 +7,7 @@ import {
   removeAllTopics,
   removeAssistant,
   removeTopic,
+  setChatflow,
   setModel,
   updateAssistant,
   updateAssistants,
@@ -16,7 +17,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { Assistant, AssistantSettings, Chatflow, Model, Topic } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 
 import { TopicManager } from './useTopic'
@@ -50,9 +51,12 @@ export function useAssistant(id: string) {
 
   const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
 
+  const chatflow = useMemo(() => assistant.chatflow, [assistant])
+
   return {
     assistant: assistantWithModel,
     model,
+    chatflow,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {
       TopicManager.removeTopic(topic.id)
@@ -84,7 +88,11 @@ export function useAssistant(id: string) {
     updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
     updateAssistantSettings: (settings: Partial<AssistantSettings>) => {
       dispatch(updateAssistantSettings({ assistantId: assistant.id, settings }))
-    }
+    },
+    setChatflow: useCallback(
+      (chatflow: Chatflow) => assistant && dispatch(setChatflow({ assistantId: assistant?.id, chatflow })),
+      [assistant, dispatch]
+    )
   }
 }
 

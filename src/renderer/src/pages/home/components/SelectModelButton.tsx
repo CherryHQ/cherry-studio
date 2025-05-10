@@ -1,10 +1,11 @@
+import ChatflowAvatar from '@renderer/components/Avatar/ChatflowAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
+import SelectItemPopup from '@renderer/components/Popups/SelectItemPopup'
 import { isLocalAi } from '@renderer/config/env'
 import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { Assistant } from '@renderer/types'
+import { Assistant, isFlow, isModel, ModelOrChatflowItem } from '@renderer/types'
 import { Button } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,38 +15,63 @@ interface Props {
   assistant: Assistant
 }
 
-const SelectModelButton: FC<Props> = ({ assistant }) => {
-  const { model, updateAssistant } = useAssistant(assistant.id)
+const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
+  const { model, chatflow, setModel, setChatflow, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
 
   if (isLocalAi) {
     return null
   }
 
-  const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
+  const onSelectModelOrFlow = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
-    const selectedModel = await SelectModelPopup.show({ model })
-    if (selectedModel) {
+    const selectedItem: ModelOrChatflowItem | undefined = await SelectItemPopup.show({ item: model })
+    console.log('Selected item:', selectedItem)
+
+    if (selectedItem === undefined) return
+
+    if (isModel(selectedItem)) {
+      setModel(selectedItem)
       // 避免更新数据造成关闭弹框的卡顿
       setTimeout(() => {
-        const enabledWebSearch = isWebSearchModel(selectedModel)
+        const enabledWebSearch = isWebSearchModel(selectedItem)
         updateAssistant({
           ...assistant,
-          model: selectedModel,
+          model: selectedItem,
+          chatflow: undefined, // Clear chatflow when a model is selected
           enableWebSearch: enabledWebSearch && assistant.enableWebSearch
         })
       }, 200)
     }
+    if (isFlow(selectedItem)) {
+      setChatflow(selectedItem)
+      // 避免更新数据造成关闭弹框的卡顿
+      setTimeout(() => {
+        updateAssistant({
+          // Use the latest assistant state from the hook as base
+          ...assistant,
+          model: undefined, // Clear model when a flow is selected
+          chatflow: selectedItem, // selectedItem is Flow
+          enableWebSearch: false // Model-based web search is not applicable
+        })
+      }, 200) // Using 0 for minimal delay
+    }
   }
 
-  const providerName = getProviderName(model?.provider)
+  const displayName = chatflow ? chatflow.name : model ? model.name : t('button.select_model')
+
+  const providerOrFlowType = chatflow ? chatflow.providerId : model ? getProviderName(model.provider) : ''
 
   return (
-    <DropdownButton size="small" type="text" onClick={onSelectModel}>
+    <DropdownButton size="small" type="text" onClick={onSelectModelOrFlow}>
       <ButtonContent>
-        <ModelAvatar model={model} size={20} />
+        {chatflow ? (
+          <ChatflowAvatar chatflow={chatflow} size={20} /> // Placeholder/generic avatar for Flow
+        ) : (
+          <ModelAvatar model={model} size={20} />
+        )}
         <ModelName>
-          {model ? model.name : t('button.select_model')} {providerName ? '| ' + providerName : ''}
+          {displayName} {providerOrFlowType ? `| ${providerOrFlowType}` : ''}
         </ModelName>
       </ButtonContent>
     </DropdownButton>
@@ -72,4 +98,4 @@ const ModelName = styled.span`
   font-weight: 500;
 `
 
-export default SelectModelButton
+export default SelectModelOrFlowButton

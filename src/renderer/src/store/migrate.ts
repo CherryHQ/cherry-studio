@@ -11,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { INITIAL_FLOW_ENGINE_PROVIDERS } from './flow'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -59,6 +60,17 @@ function addWebSearchProvider(state: RootState, id: string) {
       const provider = defaultWebSearchProviders.find((p) => p.id === id)
       if (provider) {
         state.websearch.providers.push(provider)
+      }
+    }
+  }
+}
+
+function addFlowEngineProvider(state: RootState, id: string) {
+  if (state.flow && state.flow.providers) {
+    if (!state.flow.providers.find((p) => p.id === id)) {
+      const _provider = INITIAL_FLOW_ENGINE_PROVIDERS.find((p) => p.id === id)
+      if (_provider) {
+        state.flow.providers.push(_provider)
       }
     }
   }
@@ -1243,6 +1255,7 @@ const migrateConfig = {
   },
   '98': (state: RootState) => {
     try {
+      addFlowEngineProvider(state, 'dify')
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'openai' && provider.id !== 'openai') {
           provider.type = 'openai-compatible'
