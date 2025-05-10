@@ -2613,7 +2613,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
   for (const [pattern, limits] of Object.entries(THINKING_TOKEN_MAP)) {
-    if (new RegExp(pattern).test(modelId)) {
+    if (new RegExp(pattern).test(modelId.toLowerCase())) {
       return limits
     }
   }
