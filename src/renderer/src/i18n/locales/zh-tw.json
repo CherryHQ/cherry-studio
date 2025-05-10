@@ -717,7 +717,8 @@
         "text": "文字",
         "vision": "視覺",
         "websearch": "網路搜尋"
-      }
+      },
+      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）"
     },
     "navbar": {
       "expand": "伸縮對話框",

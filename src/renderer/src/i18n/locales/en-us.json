@@ -703,6 +703,7 @@
       "pinned": "Pinned",
       "rerank_model": "Reordering Model",
       "rerank_model_support_provider": "Currently, the reordering model only supports some providers ({{provider}})",
+      "rerank_model_not_support_provider": "Currently, the reordering model does not support this provider ({{provider}})",
       "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
       "search": "Search models...",
       "stream_output": "Stream output",

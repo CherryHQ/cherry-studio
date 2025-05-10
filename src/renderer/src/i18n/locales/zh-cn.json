@@ -703,7 +703,7 @@
       "pinned": "已固定",
       "rerank_model": "重排模型",
       "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
-      "rerank_model_not_support_provider":"目前重排序模型不支持该服务商 ({{provider}})",
+      "rerank_model_not_support_provider": "目前重排序模型不支持该服务商 ({{provider}})",
       "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "search": "搜索模型...",
       "stream_output": "流式输出",

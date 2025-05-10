@@ -717,7 +717,8 @@
         "text": "テキスト",
         "vision": "画像",
         "websearch": "ウェブ検索"
-      }
+      },
+      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。"
     },
     "navbar": {
       "expand": "ダイアログを展開",
