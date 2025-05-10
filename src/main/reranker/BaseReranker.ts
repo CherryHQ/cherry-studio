@@ -38,13 +38,14 @@ export default abstract class BaseReranker {
   protected getRerankRequestBody(query: string, searchResults: ExtractChunkData[]) {
     const provider = this.base.rerankModelProvider
     const documents = searchResults.map((doc) => doc.pageContent)
+    const topN = this.base.topN || 5
 
     if (provider === 'voyageai') {
       return {
         model: this.base.rerankModel,
         query,
         documents,
-        top_k: this.base.topN || 5
+        top_k: topN
       }
     } else if (provider === 'dashscope') {
       return {
@@ -54,7 +55,7 @@ export default abstract class BaseReranker {
           documents
         },
         parameters: {
-          top_n: this.base.topN || 5
+          top_n: topN
         }
       }
     } else {
@@ -62,7 +63,7 @@ export default abstract class BaseReranker {
         model: this.base.rerankModel,
         query,
         documents,
-        top_n: this.base.topN || 5
+        top_n: topN
       }
     }
   }
