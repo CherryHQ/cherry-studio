@@ -35,19 +35,22 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   )
   const { assistant, updateAssistant } = useAssistant(activeAssistantId)
 
-  const loadQuickListPhrases = async (regularPhrases: QuickPhrase[] = []) => {
-    const phrases = await QuickPhraseService.getAll()
-    if (regularPhrases.length) {
-      setQuickPhrasesList([...regularPhrases, ...phrases])
-      return
-    }
-    const assistantPrompts = assistant.regularPhrases || []
-    setQuickPhrasesList([...assistantPrompts, ...phrases])
-  }
+  const loadQuickListPhrases = useCallback(
+    async (regularPhrases: QuickPhrase[] = []) => {
+      const phrases = await QuickPhraseService.getAll()
+      if (regularPhrases.length) {
+        setQuickPhrasesList([...regularPhrases, ...phrases])
+        return
+      }
+      const assistantPrompts = assistant.regularPhrases || []
+      setQuickPhrasesList([...assistantPrompts, ...phrases])
+    },
+    [assistant]
+  )
 
   useEffect(() => {
     loadQuickListPhrases()
-  }, [assistant, quickPhrasesList])
+  }, [loadQuickListPhrases])
 
   const handlePhraseSelect = useCallback(
     (phrase: QuickPhrase) => {
@@ -185,11 +188,14 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}>
               <Radio value="global">
-                <Zap size={18} style={{ paddingRight: '4px', verticalAlign: 'middle' }} />
+                <Zap size={20} style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }} />
                 {t('settings.quickPhrase.global', '全局快速短语')}
               </Radio>
               <Radio value="assistant">
-                <BotMessageSquare size={18} style={{ paddingRight: '4px', verticalAlign: 'middle' }} />
+                <BotMessageSquare
+                  size={20}
+                  style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }}
+                />
                 {t('settings.quickPhrase.assistant', '助手提示词')}
               </Radio>
             </Radio.Group>
