@@ -125,6 +125,8 @@ async function fetchExternalTool(
       return
     }
 
+    if (extractResults.websearch.question[0] === 'not_needed') return
+
     // Add check for assistant.model before using it
     if (!assistant.model) {
       console.warn('searchTheWeb called without assistant.model')
