@@ -384,7 +384,7 @@ export function resetMessage(
  */
 export const resetAssistantMessage = (
   originalMessage: Message,
-  updates?: Partial<Pick<Message, 'status'>> // Primarily allow updating status
+  updates?: Partial<Pick<Message, 'status' | 'updatedAt'>> // Primarily allow updating status
 ): Message => {
   // Ensure we are only resetting assistant messages
   if (originalMessage.role !== 'assistant') {

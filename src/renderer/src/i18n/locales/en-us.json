@@ -9,7 +9,6 @@
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
       "add.title": "Create Agent",
-      "import.title": "Import from External",
       "import": {
         "title": "Import from External",
         "type": {
@@ -25,6 +24,9 @@
           "fetch_failed": "Failed to fetch from URL",
           "invalid_format": "Invalid agent format: missing required fields"
         }
+      },
+      "export": {
+        "agent": "Export Agent"
       },
       "delete.popup.content": "Are you sure you want to delete this agent?",
       "edit.message.add.title": "Add",
@@ -78,7 +80,22 @@
       "settings.reasoning_effort.low": "Think less",
       "settings.reasoning_effort.medium": "Think normally",
       "settings.reasoning_effort.default": "Default",
-      "settings.more": "Assistant Settings"
+      "settings.more": "Assistant Settings",
+      "settings.knowledge_base.recognition.tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities",
+      "settings.knowledge_base.recognition": "Use Knowledge Base",
+      "settings.knowledge_base.recognition.off": "Force Search",
+      "settings.knowledge_base.recognition.on": "Intent Recognition",
+      "settings.regular_phrases": {
+        "title": "Regular Phrase",
+        "add": "Add Phrase",
+        "edit": "Edit Phrase",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "Are you sure to delete this phrase?",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter title",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      }
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -268,6 +285,8 @@
       "input.web_search.builtin": "Model Built-in",
       "input.web_search.builtin.enabled_content": "Use the built-in web search function of the model",
       "input.web_search.builtin.disabled_content": "The current model does not support web search",
+      "input.web_search.no_web_search": "Disable Web Search",
+      "input.web_search.no_web_search.description": "Do not enable web search",
       "input.thinking": "Thinking",
       "input.thinking.mode.default": "Default",
       "input.thinking.mode.default.tip": "The model will automatically determine the number of tokens to think",
@@ -296,6 +315,7 @@
       "confirm": "Confirm",
       "copied": "Copied",
       "copy": "Copy",
+      "inspect": "Inspect",
       "cut": "Cut",
       "default": "Default",
       "delete": "Delete",
@@ -311,6 +331,7 @@
       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
       "knowledge_base": "Knowledge Base",
       "language": "Language",
+      "loading": "Loading...",
       "model": "Model",
       "models": "Models",
       "more": "More",
@@ -531,6 +552,7 @@
       "backup.start.success": "Backup started",
       "backup.success": "Backup successful",
       "chat.completion.paused": "Chat completion paused",
+      "citation": "{{count}} citations",
       "citations": "References",
       "copied": "Copied!",
       "copy.failed": "Copy failed",
@@ -609,7 +631,9 @@
       "error.siyuan.no_config": "Siyuan Note API address or token is not configured",
       "success.siyuan.export": "Successfully exported to Siyuan Note",
       "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
-      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
+      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!",
+      "download.success": "Download successfully",
+      "download.failed": "Download failed"
     },
     "minapp": {
       "popup": {
@@ -622,11 +646,26 @@
         "open_link_external_on": "Current: Open links in browser",
         "open_link_external_off": "Current: Open links in default window"
       },
-      "sidebar.add.title": "Add to sidebar",
-      "sidebar.remove.title": "Remove from sidebar",
-      "sidebar.close.title": "Close",
-      "sidebar.closeall.title": "Close All",
-      "sidebar.hide.title": "Hide MinApp",
+      "sidebar": {
+        "add": {
+          "title": "Add to Sidebar"
+        },
+        "remove": {
+          "title": "Remove from Sidebar"
+        },
+        "remove_custom": {
+          "title": "Delete Custom App"
+        },
+        "hide": {
+          "title": "Hide"
+        },
+        "close": {
+          "title": "Close"
+        },
+        "closeall": {
+          "title": "Close All"
+        }
+      },
       "title": "MinApp"
     },
     "miniwindow": {
@@ -677,9 +716,11 @@
       "pinned": "Pinned",
       "rerank_model": "Reordering Model",
       "rerank_model_support_provider": "Currently, the reordering model only supports some providers ({{provider}})",
+      "rerank_model_not_support_provider": "Currently, the reordering model does not support this provider ({{provider}})",
       "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
       "search": "Search models...",
       "stream_output": "Stream output",
+      "enable_tool_use": "Enable Tool Use",
       "type": {
         "embedding": "Embedding",
         "free": "Free",
@@ -1104,6 +1145,37 @@
       "display.topic.title": "Topic Settings",
       "miniapps": {
         "title": "Mini Apps Settings",
+        "custom": {
+          "title": "Custom Mini App",
+          "edit_title": "Edit Custom Mini App",
+          "save_success": "Custom mini app saved successfully.",
+          "save_error": "Failed to save custom mini app.",
+          "remove_success": "Custom mini app removed successfully.",
+          "remove_error": "Failed to remove custom mini app.",
+          "logo_upload_success": "Logo uploaded successfully.",
+          "logo_upload_error": "Failed to upload logo.",
+          "id": "ID",
+          "id_error": "ID is required.",
+          "id_placeholder": "Enter ID",
+          "name": "Name",
+          "name_error": "Name is required.",
+          "name_placeholder": "Enter name",
+          "url": "URL",
+          "url_error": "URL is required.",
+          "url_placeholder": "Enter URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "Upload Logo File",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "Enter logo URL",
+          "logo_upload_label": "Upload Logo",
+          "logo_upload_button": "Upload",
+          "save": "Save",
+          "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+          "placeholder": "Enter custom mini app configuration (JSON format)",
+          "duplicate_ids": "Duplicate IDs found: {{ids}}",
+          "conflicting_ids": "Conflicting IDs with default apps: {{ids}}"
+        },
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
         "visible": "Visible Mini Apps",
@@ -1283,6 +1355,7 @@
         "providerPlaceholder": "Provider name",
         "advancedSettings": "Advanced Settings"
       },
+      "messages.prompt": "Show prompt",
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
@@ -1336,6 +1409,8 @@
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",
       "models.enable_topic_naming": "Topic Auto Naming",
+      "models.manage.add_listed": "Add models to the list",
+      "models.manage.remove_listed": "Remove models from the list",
       "models.manage.add_whole_group": "Add the whole group",
       "models.manage.remove_whole_group": "Remove the whole group",
       "models.topic_naming_model": "Topic Naming Model",
@@ -1468,6 +1543,7 @@
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
+      "zoom.title": "Page Zoom",
       "title": "Settings",
       "topic.position": "Topic position",
       "topic.position.left": "Left",
@@ -1521,7 +1597,10 @@
         "titlePlaceholder": "Please enter phrase title",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
-        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?"
+        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+        "locationLabel": "Add Location",
+        "global": "Global Phrases",
+        "assistant": "Assistant Phrases"
       },
       "quickPanel": {
         "title": "Quick Menu",
@@ -1536,8 +1615,7 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
-      },
-      "defaultAgent": "Built-in"
+      }
     },
     "translate": {
       "any.language": "Any language",

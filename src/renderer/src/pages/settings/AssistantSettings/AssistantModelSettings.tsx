@@ -8,7 +8,7 @@ import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -24,6 +24,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [enableToolUse, setEnableToolUse] = useState(assistant?.settings?.enableToolUse ?? false)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
@@ -160,8 +161,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     })
   }
 
-  const onSelectModel = async () => {
-    const selectedModel = await SelectModelPopup.show({ model: assistant?.model })
+  const onSelectModel = useCallback(async () => {
+    const currentModel = defaultModel ? assistant?.model : undefined
+    const selectedModel = await SelectModelPopup.show({ model: currentModel })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({
@@ -170,7 +172,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         defaultModel: selectedModel
       })
     }
-  }
+  }, [assistant, defaultModel, updateAssistant])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -372,6 +374,17 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           onChange={(checked) => {
             setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
+          }}
+        />
+      </SettingRow>
+      <Divider style={{ margin: '10px 0' }} />
+      <SettingRow style={{ minHeight: 30 }}>
+        <Label>{t('models.enable_tool_use')}</Label>
+        <Switch
+          checked={enableToolUse}
+          onChange={(checked) => {
+            setEnableToolUse(checked)
+            updateAssistantSettings({ enableToolUse: checked })
           }}
         />
       </SettingRow>

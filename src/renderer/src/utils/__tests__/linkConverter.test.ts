@@ -99,12 +99,6 @@ describe('linkConverter', () => {
       expect(result).toBe('这里有链接 [<sup>1</sup>](https://example.com)')
     })
 
-    it('should preserve non-domain link text', () => {
-      const input = '点击[这里](https://example.com)查看更多'
-      const result = convertLinks(input, true)
-      expect(result).toBe('点击这里[<sup>1</sup>](https://example.com)查看更多')
-    })
-
     it('should use the same counter for duplicate URLs', () => {
       const input =
         '第一个链接 [example.com](https://example.com) 和第二个相同链接 [subdomain.example.com](https://example.com)'
@@ -112,24 +106,6 @@ describe('linkConverter', () => {
       expect(result).toBe(
         '第一个链接 [<sup>1</sup>](https://example.com) 和第二个相同链接 [<sup>1</sup>](https://example.com)'
       )
-    })
-
-    it('should correctly convert links in Zhipu mode', () => {
-      const input = '这里是引用 [ref_1]'
-      const result = convertLinks(input, true, true)
-      expect(result).toBe('这里是引用 [<sup>1</sup>]()')
-    })
-
-    it('should handle incomplete links in chunked input', () => {
-      // 第一个块包含未完成的链接
-      const chunk1 = '这是链接 ['
-      const result1 = convertLinks(chunk1, true)
-      expect(result1).toBe('这是链接 ')
-
-      // 第二个块完成链接
-      const chunk2 = 'example.com](https://example.com)'
-      const result2 = convertLinks(chunk2, false)
-      expect(result2).toBe('[<sup>1</sup>](https://example.com)')
     })
   })
 

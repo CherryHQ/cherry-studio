@@ -12,7 +12,10 @@ export default class ExaProvider extends BaseWebSearchProvider {
     if (!this.apiKey) {
       throw new Error('API key is required for Exa provider')
     }
-    this.exa = new ExaClient({ apiKey: this.apiKey })
+    if (!this.apiHost) {
+      throw new Error('API host is required for Exa provider')
+    }
+    this.exa = new ExaClient({ apiKey: this.apiKey, apiBaseUrl: this.apiHost })
   }
 
   public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {

@@ -264,22 +264,22 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         key: 'export',
         icon: <UploadOutlined />,
         children: [
-          exportMenuOptions.image !== false && {
+          exportMenuOptions.image && {
             label: t('chat.topics.export.image'),
             key: 'image',
             onClick: () => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)
           },
-          exportMenuOptions.markdown !== false && {
+          exportMenuOptions.markdown && {
             label: t('chat.topics.export.md'),
             key: 'markdown',
             onClick: () => exportTopicAsMarkdown(topic)
           },
-          exportMenuOptions.markdown_reason !== false && {
+          exportMenuOptions.markdown_reason && {
             label: t('chat.topics.export.md.reason'),
             key: 'markdown_reason',
             onClick: () => exportTopicAsMarkdown(topic, true)
           },
-          exportMenuOptions.docx !== false && {
+          exportMenuOptions.docx && {
             label: t('chat.topics.export.word'),
             key: 'word',
             onClick: async () => {
@@ -287,14 +287,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
             }
           },
-          exportMenuOptions.notion !== false && {
+          exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
             onClick: async () => {
               exportTopicToNotion(topic)
             }
           },
-          exportMenuOptions.yuque !== false && {
+          exportMenuOptions.yuque && {
             label: t('chat.topics.export.yuque'),
             key: 'yuque',
             onClick: async () => {
@@ -302,7 +302,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               exportMarkdownToYuque(topic.name, markdown)
             }
           },
-          exportMenuOptions.obsidian !== false && {
+          exportMenuOptions.obsidian && {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
@@ -310,7 +310,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
             }
           },
-          exportMenuOptions.joplin !== false && {
+          exportMenuOptions.joplin && {
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
@@ -318,7 +318,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               exportMarkdownToJoplin(topic.name, markdown)
             }
           },
-          exportMenuOptions.siyuan !== false && {
+          exportMenuOptions.siyuan && {
             label: t('chat.topics.export.siyuan'),
             key: 'siyuan',
             onClick: async () => {

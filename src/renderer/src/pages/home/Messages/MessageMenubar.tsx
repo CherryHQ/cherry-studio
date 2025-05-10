@@ -28,6 +28,7 @@ import { findImageBlocks, findMainTextBlocks, getMainTextContent } from '@render
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
+import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -166,7 +167,7 @@ const MessageMenubar: FC<Props> = (props) => {
       if (resendMessage) {
         resendUserMessageWithEdit(message, editedText, assistant)
       } else {
-        editMessageBlocks([{ ...findMainTextBlocks(message)[0], content: editedText }])
+        editMessageBlocks(message.id, { id: findMainTextBlocks(message)[0].id, content: editedText })
       }
       // // 更新消息内容，保留图片信息
       // await editMessage(message.id, {
@@ -223,6 +224,10 @@ const MessageMenubar: FC<Props> = (props) => {
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
 
+  const isEditable = useMemo(() => {
+    return findMainTextBlocks(message).length === 1
+  }, [message])
+
   const dropdownItems = useMemo(
     () => [
       {
@@ -234,12 +239,16 @@ const MessageMenubar: FC<Props> = (props) => {
           window.api.file.save(fileName, mainTextContent)
         }
       },
-      // {
-      //   label: t('common.edit'),
-      //   key: 'edit',
-      //   icon: <FilePenLine size={16} />,
-      //   onClick: onEdit
-      // },
+      ...(isEditable
+        ? [
+            {
+              label: t('common.edit'),
+              key: 'edit',
+              icon: <FilePenLine size={16} />,
+              onClick: onEdit
+            }
+          ]
+        : []),
       {
         label: t('chat.message.new.branch'),
         key: 'new-branch',
@@ -340,7 +349,7 @@ const MessageMenubar: FC<Props> = (props) => {
         ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
+    [message, messageContainerRef, isEditable, onEdit, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {

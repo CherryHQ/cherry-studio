@@ -38,7 +38,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: 'aihubmix',
     name: 'AiHubMix',
-    type: 'openai',
+    type: 'openai-compatible',
     apiKey: '',
     apiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
@@ -68,7 +68,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: 'openrouter',
     name: 'OpenRouter',
-    type: 'openai',
+    type: 'openai-compatible',
     apiKey: '',
     apiHost: 'https://openrouter.ai/api/v1/',
     models: SYSTEM_MODELS.openrouter,

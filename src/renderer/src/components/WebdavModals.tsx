@@ -76,7 +76,8 @@ export function WebdavBackupModal({
       open={isModalVisible}
       onOk={handleBackup}
       onCancel={handleCancel}
-      okButtonProps={{ loading: backuping }}>
+      okButtonProps={{ loading: backuping }}
+      centered>
       <Input
         value={customFileName}
         onChange={(e) => setCustomFileName(e.target.value)}
@@ -206,7 +207,8 @@ export function WebdavRestoreModal({
       onOk={handleRestore}
       onCancel={handleCancel}
       okButtonProps={{ loading: restoring }}
-      width={600}>
+      width={600}
+      centered>
       <div style={{ position: 'relative' }}>
         <Select
           style={{ width: '100%' }}

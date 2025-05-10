@@ -12,14 +12,14 @@ import CitationsList from '../CitationsList'
 
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const formattedCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, block.id))
+  const hasGeminiBlock = block.response?.source === WebSearchSource.GEMINI
   const hasCitations = useMemo(() => {
-    const hasGeminiBlock = block.response?.source === WebSearchSource.GEMINI
     return (
       (formattedCitations && formattedCitations.length > 0) ||
       hasGeminiBlock ||
       (block.knowledge && block.knowledge.length > 0)
     )
-  }, [formattedCitations, block.response, block.knowledge])
+  }, [formattedCitations, block.knowledge, hasGeminiBlock])
 
   if (block.status === MessageBlockStatus.PROCESSING) {
     return <Spinner text="message.searching" />
@@ -29,12 +29,10 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
     return null
   }
 
-  const isGemini = block.response?.source === WebSearchSource.GEMINI
-
   return (
     <>
       {block.status === MessageBlockStatus.SUCCESS &&
-        (isGemini ? (
+        (hasGeminiBlock ? (
           <>
             <CitationsList citations={formattedCitations} />
             <SearchEntryPoint

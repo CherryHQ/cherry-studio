@@ -155,7 +155,7 @@ export const processKnowledgeSearch = async (
         })
       )
 
-      const references = await Promise.all(
+      return await Promise.all(
         processdResults.map(async (item, index) => {
           // const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
           return {
@@ -166,7 +166,6 @@ export const processKnowledgeSearch = async (
           } as KnowledgeReference
         })
       )
-      return references
     } catch (error) {
       console.error(`Error searching knowledge base ${base.name}:`, error)
       return []
@@ -177,9 +176,8 @@ export const processKnowledgeSearch = async (
 
   const allReferencesRaw = resultsPerBase.flat().filter((ref): ref is KnowledgeReference => !!ref)
   // 重新为引用分配ID
-  const references = allReferencesRaw.map((ref, index) => ({
+  return allReferencesRaw.map((ref, index) => ({
     ...ref,
     id: index + 1
   }))
-  return references
 }

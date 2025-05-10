@@ -1,5 +1,6 @@
 import { Provider } from '@renderer/types'
 
+import AihubmixProvider from './AihubmixProvider'
 import AnthropicProvider from './AnthropicProvider'
 import BaseProvider from './BaseProvider'
 import GeminiProvider from './GeminiProvider'
@@ -12,6 +13,9 @@ export default class ProviderFactory {
       case 'openai':
         return new OpenAIProvider(provider)
       case 'openai-compatible':
+        if (provider.id === 'aihubmix') {
+          return new AihubmixProvider(provider)
+        }
         return new OpenAICompatibleProvider(provider)
       case 'anthropic':
         return new AnthropicProvider(provider)

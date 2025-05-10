@@ -25,6 +25,9 @@
           "invalid_format": "無效的代理人格式：缺少必填欄位"
         }
       },
+      "export": {
+        "agent": "匯出智慧代理人"
+      },
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
       "edit.message.add.title": "新增",
       "edit.message.assistant.placeholder": "輸入助手訊息",
@@ -77,7 +80,22 @@
       "settings.reasoning_effort.low": "稍微思考",
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
-      "settings.more": "助手設定"
+      "settings.more": "助手設定",
+      "settings.regular_phrases": {
+        "title": "常用短语",
+        "add": "添加短语",
+        "edit": "編輯短语",
+        "delete": "刪除短语",
+        "deleteConfirm": "確定要刪除這個短语嗎？",
+        "titleLabel": "標題",
+        "titlePlaceholder": "輸入標題",
+        "contentLabel": "內容",
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。"
+      },
+      "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
+      "settings.knowledge_base.recognition": "調用知識庫",
+      "settings.knowledge_base.recognition.off": "強制檢索",
+      "settings.knowledge_base.recognition.on": "意圖識別"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -267,6 +285,8 @@
       "input.web_search.builtin": "模型內置",
       "input.web_search.builtin.enabled_content": "使用模型內置的網路搜尋功能",
       "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
+      "input.web_search.no_web_search": "關閉網路搜尋",
+      "input.web_search.no_web_search.description": "關閉網路搜尋",
       "input.thinking": "思考",
       "input.thinking.mode.default": "預設",
       "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",
@@ -295,6 +315,7 @@
       "confirm": "確認",
       "copied": "已複製",
       "copy": "複製",
+      "inspect": "檢查",
       "cut": "剪下",
       "default": "預設",
       "delete": "刪除",
@@ -310,6 +331,7 @@
       "fullscreen": "已進入全螢幕模式，按 F11 結束",
       "knowledge_base": "知識庫",
       "language": "語言",
+      "loading": "加載中...",
       "model": "模型",
       "models": "模型",
       "more": "更多",
@@ -530,7 +552,8 @@
       "backup.start.success": "開始備份",
       "backup.success": "備份成功",
       "chat.completion.paused": "聊天完成已暫停",
-      "citations": "參考文獻",
+      "citation": "{{count}} 個引用內容",
+      "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
       "copy.success": "已複製！",
@@ -608,7 +631,9 @@
       "error.siyuan.no_config": "未配置思源筆記API地址或令牌",
       "success.siyuan.export": "導出到思源筆記成功",
       "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
-      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
+      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！",
+      "download.success": "下載成功",
+      "download.failed": "下載失敗"
     },
     "minapp": {
       "popup": {
@@ -621,11 +646,26 @@
         "open_link_external_on": "当前：在瀏覽器中開啟連結",
         "open_link_external_off": "当前：使用預設視窗開啟連結"
       },
-      "sidebar.add.title": "新增到側邊欄",
-      "sidebar.remove.title": "從側邊欄移除",
-      "sidebar.close.title": "關閉",
-      "sidebar.closeall.title": "全部關閉",
-      "sidebar.hide.title": "隱藏小工具",
+      "sidebar": {
+        "add": {
+          "title": "添加到側邊欄"
+        },
+        "remove": {
+          "title": "從側邊欄移除"
+        },
+        "remove_custom": {
+          "title": "刪除自定義應用"
+        },
+        "hide": {
+          "title": "隱藏"
+        },
+        "close": {
+          "title": "關閉"
+        },
+        "closeall": {
+          "title": "關閉所有"
+        }
+      },
       "title": "小工具"
     },
     "miniwindow": {
@@ -679,6 +719,7 @@
       "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加",
       "search": "搜尋模型...",
       "stream_output": "串流輸出",
+      "enable_tool_use": "工具調用",
       "type": {
         "embedding": "嵌入",
         "free": "免費",
@@ -689,7 +730,8 @@
         "text": "文字",
         "vision": "視覺",
         "websearch": "網路搜尋"
-      }
+      },
+      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -1109,6 +1151,37 @@
         "open_link_external": {
           "title": "在瀏覽器中打開新視窗連結"
         },
+        "custom": {
+          "duplicate_ids": "發現重複的ID: {{ids}}",
+          "conflicting_ids": "與預設應用ID衝突: {{ids}}",
+          "title": "自定義小程序",
+          "edit_title": "編輯自定義小程序",
+          "save_success": "自定義小程序保存成功。",
+          "save_error": "自定義小程序保存失敗。",
+          "remove_success": "自定義小程序刪除成功。",
+          "remove_error": "自定義小程序刪除失敗。",
+          "logo_upload_success": "Logo 上傳成功。",
+          "logo_upload_error": "Logo 上傳失敗。",
+          "id": "ID",
+          "id_error": "ID 是必填項。",
+          "id_placeholder": "請輸入 ID",
+          "name": "名稱",
+          "name_error": "名稱是必填項。",
+          "name_placeholder": "請輸入名稱",
+          "url": "URL",
+          "url_error": "URL 是必填項。",
+          "url_placeholder": "請輸入 URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "上傳 Logo 文件",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "請輸入 Logo URL",
+          "logo_upload_label": "上傳 Logo",
+          "logo_upload_button": "上傳",
+          "save": "保存",
+          "placeholder": "請輸入自定義小程序配置（JSON格式）",
+          "edit_description": "編輯自定義小程序配置"
+        },
         "cache_settings": "緩存設置",
         "cache_title": "小程式緩存數量",
         "cache_description": "設置同時保持活躍狀態的小程式最大數量",
@@ -1281,6 +1354,7 @@
         "providerPlaceholder": "提供者名稱",
         "advancedSettings": "高級設定"
       },
+      "messages.prompt": "提示詞顯示",
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
@@ -1334,6 +1408,8 @@
       "models.default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "models.empty": "找不到模型",
       "models.enable_topic_naming": "話題自動重新命名",
+      "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.add_whole_group": "新增整個分組",
       "models.manage.remove_whole_group": "移除整個分組",
       "models.topic_naming_model": "話題命名模型",
@@ -1466,6 +1542,7 @@
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
+      "zoom.title": "頁面縮放",
       "title": "設定",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
@@ -1520,7 +1597,10 @@
         "titlePlaceholder": "請輸入短語標題",
         "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
         "delete": "刪除短語",
-        "deleteConfirm": "刪除後無法復原，是否繼續？"
+        "deleteConfirm": "刪除後無法復原，是否繼續？",
+        "locationLabel": "添加位置",
+        "global": "全局快速短語",
+        "assistant": "助手提示詞"
       },
       "quickPanel": {
         "title": "快捷選單",

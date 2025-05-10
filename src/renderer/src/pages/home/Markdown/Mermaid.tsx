@@ -43,6 +43,7 @@ const Mermaid: React.FC<Props> = ({ chart }) => {
 
   useEffect(() => {
     setTimeout(renderMermaidBase, 0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

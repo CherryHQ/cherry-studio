@@ -13,7 +13,8 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
+import { ZOOM_OPTIONS } from '@shared/config/constant'
+import { Button, Input, Segmented, Select, Switch } from 'antd'
 import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -33,7 +34,9 @@ const DisplaySettings: FC = () => {
     showTopicTime,
     customCss,
     sidebarIcons,
-    assistantIconType
+    assistantIconType,
+    zoomFactor,
+    setZoomFactor
   } = useSettings()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
@@ -105,6 +108,11 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
           <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
+          <Select style={{ width: 120 }} value={zoomFactor} onChange={setZoomFactor} options={ZOOM_OPTIONS} />
         </SettingRow>
         {isMac && (
           <>

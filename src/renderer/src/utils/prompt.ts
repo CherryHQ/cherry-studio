@@ -147,7 +147,7 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = (userSystemPrompt: string, tools: MCPTool[]): string => {
+export const buildSystemPrompt = (userSystemPrompt: string, tools?: MCPTool[]): string => {
   if (tools && tools.length > 0) {
     return SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt)
       .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)

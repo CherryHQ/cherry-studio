@@ -1,6 +1,7 @@
 import {
   Content,
   File,
+  FunctionCall,
   GenerateContentConfig,
   GenerateContentResponse,
   GoogleGenAI,
@@ -11,8 +12,9 @@ import {
   PartUnion,
   SafetySetting,
   ThinkingConfig,
-  ToolListUnion
+  Tool
 } from '@google/genai'
+import { nanoid } from '@reduxjs/toolkit'
 import {
   findTokenLimit,
   isGeminiReasoningModel,
@@ -35,17 +37,25 @@ import {
   EFFORT_RATIO,
   FileType,
   FileTypes,
+  MCPCallToolResponse,
+  MCPTool,
   MCPToolResponse,
   Model,
   Provider,
   Suggestion,
+  ToolCallResponse,
   Usage,
   WebSearchSource
 } from '@renderer/types'
 import { BlockCompleteChunk, Chunk, ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 import type { Message, Response } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { mcpToolCallResponseToGeminiMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import {
+  geminiFunctionCallToMcpTool,
+  mcpToolCallResponseToGeminiMessage,
+  mcpToolsToGeminiTools,
+  parseAndCallTools
+} from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
@@ -178,13 +188,10 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * Get the safety settings
-   * @param modelId - The model ID
    * @returns The safety settings
    */
-  private getSafetySettings(modelId: string): SafetySetting[] {
-    const safetyThreshold = modelId.includes('gemini-2.0-flash-exp')
-      ? ('OFF' as HarmBlockThreshold)
-      : HarmBlockThreshold.BLOCK_NONE
+  private getSafetySettings(): SafetySetting[] {
+    const safetyThreshold = 'OFF' as HarmBlockThreshold
 
     return [
       {
@@ -204,8 +211,8 @@ export default class GeminiProvider extends BaseProvider {
         threshold: safetyThreshold
       },
       {
-        category: 'HARM_CATEGORY_CIVIC_INTEGRITY' as HarmCategory,
-        threshold: safetyThreshold
+        category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+        threshold: HarmBlockThreshold.BLOCK_NONE
       }
     ]
   }
@@ -266,7 +273,7 @@ export default class GeminiProvider extends BaseProvider {
   }: CompletionsParams): Promise<void> {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
 
     const userMessages = filterUserRoleStartMessages(
       filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
@@ -283,12 +290,16 @@ export default class GeminiProvider extends BaseProvider {
 
     let systemInstruction = assistant.prompt
 
-    if (mcpTools && mcpTools.length > 0) {
+    const { tools } = this.setupToolsConfig<Tool>({
+      mcpTools,
+      model,
+      enableToolUse
+    })
+
+    if (this.useSystemPromptForTools) {
       systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
     }
 
-    // const tools = mcpToolsToGeminiTools(mcpTools)
-    const tools: ToolListUnion = []
     const toolResponses: MCPToolResponse[] = []
 
     if (assistant.enableWebSearch && isWebSearchModel(model)) {
@@ -310,7 +321,7 @@ export default class GeminiProvider extends BaseProvider {
     const generateContentConfig: GenerateContentConfig = {
       responseModalities: canGenerateImage ? [Modality.TEXT, Modality.IMAGE] : undefined,
       responseMimeType: canGenerateImage ? 'text/plain' : undefined,
-      safetySettings: this.getSafetySettings(model.id),
+      safetySettings: this.getSafetySettings(),
       // generate image don't need system instruction
       systemInstruction: isGemmaModel(model) || canGenerateImage ? undefined : systemInstruction,
       temperature: assistant?.settings?.temperature,
@@ -354,6 +365,224 @@ export default class GeminiProvider extends BaseProvider {
 
     const { cleanup, abortController } = this.createAbortController(userLastMessage?.id, true)
 
+    const processToolResults = async (toolResults: Awaited<ReturnType<typeof parseAndCallTools>>, idx: number) => {
+      if (toolResults.length === 0) return
+      const newChat = this.sdk.chats.create({
+        model: model.id,
+        config: generateContentConfig,
+        history: history as Content[]
+      })
+
+      const newStream = await newChat.sendMessageStream({
+        message: flatten(toolResults.map((ts) => (ts as Content).parts)) as PartUnion,
+        config: {
+          ...generateContentConfig,
+          abortSignal: abortController.signal
+        }
+      })
+      await processStream(newStream, idx + 1)
+    }
+
+    const processToolCalls = async (toolCalls: FunctionCall[]) => {
+      const mcpToolResponses: ToolCallResponse[] = toolCalls
+        .map((toolCall) => {
+          const mcpTool = geminiFunctionCallToMcpTool(mcpTools, toolCall)
+          if (!mcpTool) return undefined
+
+          const parsedArgs = (() => {
+            try {
+              return typeof toolCall.args === 'string' ? JSON.parse(toolCall.args) : toolCall.args
+            } catch {
+              return toolCall.args
+            }
+          })()
+
+          return {
+            id: toolCall.id || nanoid(),
+            toolCallId: toolCall.id,
+            tool: mcpTool,
+            arguments: parsedArgs,
+            status: 'pending'
+          } as ToolCallResponse
+        })
+        .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
+
+      return await parseAndCallTools(
+        mcpToolResponses,
+        toolResponses,
+        onChunk,
+        this.mcpToolCallResponseToMessage,
+        model,
+        mcpTools
+      )
+    }
+
+    const processToolUses = async (content: string) => {
+      return await parseAndCallTools(
+        content,
+        toolResponses,
+        onChunk,
+        this.mcpToolCallResponseToMessage,
+        model,
+        mcpTools
+      )
+    }
+
+    const processStream = async (
+      stream: AsyncGenerator<GenerateContentResponse> | GenerateContentResponse,
+      idx: number
+    ) => {
+      history.push(messageContents)
+
+      let functionCalls: FunctionCall[] = []
+
+      if (stream instanceof GenerateContentResponse) {
+        let content = ''
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+        const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+        if (stream.text?.length) {
+          toolResults.push(...(await processToolUses(stream.text)))
+        }
+        stream.candidates?.forEach((candidate) => {
+          if (candidate.content) {
+            history.push(candidate.content)
+
+            candidate.content.parts?.forEach((part) => {
+              if (part.functionCall) {
+                functionCalls.push(part.functionCall)
+              }
+              if (part.text) {
+                content += part.text
+                onChunk({ type: ChunkType.TEXT_DELTA, text: part.text })
+              }
+            })
+          }
+        })
+        if (content.length) {
+          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+        }
+        if (functionCalls.length) {
+          toolResults.push(...(await processToolCalls(functionCalls)))
+        }
+        if (stream.text?.length) {
+          toolResults.push(...(await processToolUses(stream.text)))
+        }
+        if (toolResults.length) {
+          await processToolResults(toolResults, idx)
+        }
+        onChunk({
+          type: ChunkType.BLOCK_COMPLETE,
+          response: {
+            text: stream.text,
+            usage: {
+              prompt_tokens: stream.usageMetadata?.promptTokenCount || 0,
+              thoughts_tokens: stream.usageMetadata?.thoughtsTokenCount || 0,
+              completion_tokens: stream.usageMetadata?.candidatesTokenCount || 0,
+              total_tokens: stream.usageMetadata?.totalTokenCount || 0
+            },
+            metrics: {
+              completion_tokens: stream.usageMetadata?.candidatesTokenCount,
+              time_completion_millsec,
+              time_first_token_millsec: 0
+            },
+            webSearch: {
+              results: stream.candidates?.[0]?.groundingMetadata,
+              source: 'gemini'
+            }
+          } as Response
+        } as BlockCompleteChunk)
+      } else {
+        let content = ''
+        let final_time_completion_millsec = 0
+        let lastUsage: Usage | undefined = undefined
+        for await (const chunk of stream) {
+          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
+
+          // --- Calculate Metrics ---
+          if (time_first_token_millsec == 0 && chunk.text !== undefined) {
+            // Update based on text arrival
+            time_first_token_millsec = new Date().getTime() - start_time_millsec
+          }
+
+          // 1. Text Content
+          if (chunk.text !== undefined) {
+            content += chunk.text
+            onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.text })
+          }
+
+          // 2. Usage Data
+          if (chunk.usageMetadata) {
+            lastUsage = {
+              prompt_tokens: chunk.usageMetadata.promptTokenCount || 0,
+              completion_tokens: chunk.usageMetadata.candidatesTokenCount || 0,
+              total_tokens: chunk.usageMetadata.totalTokenCount || 0
+            }
+            final_time_completion_millsec = new Date().getTime() - start_time_millsec
+          }
+
+          // 4. Image Generation
+          const generateImage = this.processGeminiImageResponse(chunk, onChunk)
+          if (generateImage?.images?.length) {
+            onChunk({ type: ChunkType.IMAGE_COMPLETE, image: generateImage })
+          }
+
+          if (chunk.candidates?.[0]?.finishReason) {
+            if (chunk.text) {
+              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+            }
+            if (chunk.candidates?.[0]?.groundingMetadata) {
+              // 3. Grounding/Search Metadata
+              const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  results: groundingMetadata,
+                  source: WebSearchSource.GEMINI
+                }
+              } as LLMWebSearchCompleteChunk)
+            }
+            if (chunk.functionCalls) {
+              chunk.candidates?.forEach((candidate) => {
+                if (candidate.content) {
+                  history.push(candidate.content)
+                }
+              })
+              functionCalls = functionCalls.concat(chunk.functionCalls)
+            }
+
+            onChunk({
+              type: ChunkType.BLOCK_COMPLETE,
+              response: {
+                metrics: {
+                  completion_tokens: lastUsage?.completion_tokens,
+                  time_completion_millsec: final_time_completion_millsec,
+                  time_first_token_millsec
+                },
+                usage: lastUsage
+              }
+            })
+          }
+
+          // --- End Incremental onChunk calls ---
+
+          // Call processToolUses AFTER potentially processing text content in this chunk
+          // This assumes tools might be specified within the text stream
+          // Note: parseAndCallTools inside should handle its own onChunk for tool responses
+          let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+          if (functionCalls.length) {
+            toolResults = await processToolCalls(functionCalls)
+          }
+          if (content.length) {
+            toolResults = toolResults.concat(await processToolUses(content))
+          }
+          if (toolResults.length) {
+            await processToolResults(toolResults, idx)
+          }
+        }
+      }
+    }
+
     if (!streamOutput) {
       const response = await chat.sendMessage({
         message: messageContents as PartUnion,
@@ -362,32 +591,10 @@ export default class GeminiProvider extends BaseProvider {
           abortSignal: abortController.signal
         }
       })
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-      onChunk({
-        type: ChunkType.BLOCK_COMPLETE,
-        response: {
-          text: response.text,
-          usage: {
-            prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
-            thoughts_tokens: response.usageMetadata?.thoughtsTokenCount || 0,
-            completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
-            total_tokens: response.usageMetadata?.totalTokenCount || 0
-          },
-          metrics: {
-            completion_tokens: response.usageMetadata?.candidatesTokenCount,
-            time_completion_millsec,
-            time_first_token_millsec: 0
-          },
-          webSearch: {
-            results: response.candidates?.[0]?.groundingMetadata,
-            source: 'gemini'
-          }
-        } as Response
-      } as BlockCompleteChunk)
-      return
+      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+      return await processStream(response, 0).then(cleanup)
     }
 
-    // 等待接口返回流
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     const userMessagesStream = await chat.sendMessageStream({
       message: messageContents as PartUnion,
@@ -396,105 +603,6 @@ export default class GeminiProvider extends BaseProvider {
         abortSignal: abortController.signal
       }
     })
-
-    const processToolUses = async (content: string, idx: number) => {
-      const toolResults = await parseAndCallTools(
-        content,
-        toolResponses,
-        onChunk,
-        idx,
-        mcpToolCallResponseToGeminiMessage,
-        mcpTools,
-        isVisionModel(model)
-      )
-      if (toolResults && toolResults.length > 0) {
-        history.push(messageContents)
-        const newChat = this.sdk.chats.create({
-          model: model.id,
-          config: generateContentConfig,
-          history: history as Content[]
-        })
-        const newStream = await newChat.sendMessageStream({
-          message: flatten(toolResults.map((ts) => (ts as Content).parts)) as PartUnion,
-          config: {
-            ...generateContentConfig,
-            abortSignal: abortController.signal
-          }
-        })
-        await processStream(newStream, idx + 1)
-      }
-    }
-
-    const processStream = async (stream: AsyncGenerator<GenerateContentResponse>, idx: number) => {
-      let content = ''
-      let final_time_completion_millsec = 0
-      let lastUsage: Usage | undefined = undefined
-      for await (const chunk of stream) {
-        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
-
-        // --- Calculate Metrics ---
-        if (time_first_token_millsec == 0 && chunk.text !== undefined) {
-          // Update based on text arrival
-          time_first_token_millsec = new Date().getTime() - start_time_millsec
-        }
-
-        // 1. Text Content
-        if (chunk.text !== undefined) {
-          content += chunk.text
-          onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.text })
-        }
-
-        // 2. Usage Data
-        if (chunk.usageMetadata) {
-          lastUsage = {
-            prompt_tokens: chunk.usageMetadata.promptTokenCount || 0,
-            completion_tokens: chunk.usageMetadata.candidatesTokenCount || 0,
-            total_tokens: chunk.usageMetadata.totalTokenCount || 0
-          }
-          final_time_completion_millsec = new Date().getTime() - start_time_millsec
-        }
-
-        // 4. Image Generation
-        const generateImage = this.processGeminiImageResponse(chunk, onChunk)
-        if (generateImage?.images?.length) {
-          onChunk({ type: ChunkType.IMAGE_COMPLETE, image: generateImage })
-        }
-
-        if (chunk.candidates?.[0]?.finishReason) {
-          if (chunk.text) {
-            onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-          }
-          if (chunk.candidates?.[0]?.groundingMetadata) {
-            // 3. Grounding/Search Metadata
-            const groundingMetadata = chunk.candidates?.[0]?.groundingMetadata
-            onChunk({
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: {
-                results: groundingMetadata,
-                source: WebSearchSource.GEMINI
-              }
-            } as LLMWebSearchCompleteChunk)
-          }
-          onChunk({
-            type: ChunkType.BLOCK_COMPLETE,
-            response: {
-              metrics: {
-                completion_tokens: lastUsage?.completion_tokens,
-                time_completion_millsec: final_time_completion_millsec,
-                time_first_token_millsec
-              },
-              usage: lastUsage
-            }
-          })
-        }
-        // --- End Incremental onChunk calls ---
-
-        // Call processToolUses AFTER potentially processing text content in this chunk
-        // This assumes tools might be specified within the text stream
-        // Note: parseAndCallTools inside should handle its own onChunk for tool responses
-        await processToolUses(content, idx)
-      }
-    }
 
     await processStream(userMessagesStream, 0).finally(cleanup)
 
@@ -843,5 +951,33 @@ export default class GeminiProvider extends BaseProvider {
 
   public generateImageByChat(): Promise<void> {
     throw new Error('Method not implemented.')
+  }
+
+  public convertMcpTools<T>(mcpTools: MCPTool[]): T[] {
+    return mcpToolsToGeminiTools(mcpTools) as T[]
+  }
+
+  public mcpToolCallResponseToMessage = (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => {
+    if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
+      return mcpToolCallResponseToGeminiMessage(mcpToolResponse, resp, isVisionModel(model))
+    } else if ('toolCallId' in mcpToolResponse) {
+      const toolCallOut = {
+        role: 'user',
+        parts: [
+          {
+            functionResponse: {
+              id: mcpToolResponse.toolCallId,
+              name: mcpToolResponse.tool.id,
+              response: {
+                output: !resp.isError ? resp.content : undefined,
+                error: resp.isError ? resp.content : undefined
+              }
+            }
+          }
+        ]
+      } satisfies Content
+      return toolCallOut
+    }
+    return
   }
 }

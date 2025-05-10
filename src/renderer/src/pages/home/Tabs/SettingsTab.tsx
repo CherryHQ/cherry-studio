@@ -38,6 +38,7 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
+  setShowPrompt,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
@@ -70,11 +71,13 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [enableToolUse, setEnableToolUse] = useState(assistant?.settings?.enableToolUse ?? false)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
 
   const {
+    showPrompt,
     showMessageDivider,
     messageFont,
     showInputEstimatedTokens,
@@ -222,6 +225,18 @@ const SettingsTab: FC<Props> = (props) => {
           />
         </SettingRow>
         <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('models.enable_tool_use')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableToolUse}
+            onChange={(checked) => {
+              setEnableToolUse(checked)
+              updateAssistantSettings({ enableToolUse: checked })
+            }}
+          />
+        </SettingRow>
+        <SettingDivider />
         <Row align="middle" justify="space-between" style={{ marginBottom: 10 }}>
           <HStack alignItems="center">
             <Label>{t('chat.settings.max_tokens')}</Label>
@@ -268,6 +283,11 @@ const SettingsTab: FC<Props> = (props) => {
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
+          <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.divider')}</SettingRowTitleSmall>
