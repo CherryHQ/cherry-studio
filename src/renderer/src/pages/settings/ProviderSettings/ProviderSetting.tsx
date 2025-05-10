@@ -224,8 +224,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       })
 
       if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
+        const newApiKey = result.validKeys.join(',')
+        setInputValue(newApiKey)
+        setApiKey(newApiKey)
+        updateProvider({ ...provider, apiKey: newApiKey })
       }
     } else {
       setApiChecking(true)
