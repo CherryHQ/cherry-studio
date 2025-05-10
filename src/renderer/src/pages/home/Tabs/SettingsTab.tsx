@@ -51,7 +51,7 @@ import {
   TranslateLanguageVarious
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -67,6 +67,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [enableMaxContexts, setEnableMaxContexts] = useState(assistant?.settings?.enableMaxContexts ?? false)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
@@ -153,9 +154,9 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
+  const formatSliderTooltip = () => {
+    if (contextCount === undefined) return ''
+    return contextCount.toString()
   }
 
   return (
@@ -213,6 +214,18 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </Col>
         </Row>
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.max_contexts')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableInfContext}
+            onChange={(checked) => {
+              setEnableInfContext(checked)
+              updateAssistantSettings({ enableMaxContexts: checked })
+            }}
+          />
+        </SettingRow>
+        <Divider style={{ margin: '10px 0' }} />
         <SettingRow>
           <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
           <Switch
