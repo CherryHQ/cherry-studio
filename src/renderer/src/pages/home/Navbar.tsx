@@ -16,7 +16,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useCallback, useState } from 'react'
 import styled from 'styled-components'
 
 import SelectModelButton from './components/SelectModelButton'
@@ -34,10 +34,24 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+  const [sidebarHideCooldown, setSidebarHideCooldown] = useState(false)
 
-  useShortcut('toggle_show_assistants', () => {
-    toggleShowAssistants()
-  })
+  // Function to toggle assistants with cooldown
+  const handleToggleShowAssistants = useCallback(() => {
+    if (showAssistants) {
+      // When hiding sidebar, set cooldown
+      toggleShowAssistants()
+      setSidebarHideCooldown(true)
+      // setTimeout(() => {
+      //   setSidebarHideCooldown(false)
+      // }, 10000) // 10 seconds cooldown
+    } else {
+      // When showing sidebar, no cooldown needed
+      toggleShowAssistants()
+    }
+  }, [showAssistants, toggleShowAssistants])
+
+  useShortcut('toggle_show_assistants', handleToggleShowAssistants)
 
   useShortcut('toggle_show_topics', () => {
     if (topicPosition === 'right') {
@@ -61,7 +75,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
       {showAssistants && (
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
+            <NavbarIcon onClick={handleToggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -74,13 +88,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
       )}
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
         <HStack alignItems="center">
-          {!showAssistants && (
+          {!showAssistants && !sidebarHideCooldown && (
             <FloatingSidebar
               activeAssistant={assistant}
               setActiveAssistant={(newAssistant) => {
                 EventEmitter.emit(EVENT_NAMES.SWITCH_ASSISTANT, newAssistant.id)
               }}>
-              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
                 <NavbarIcon
                   onClick={() => toggleShowAssistants()}
                   style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
@@ -88,6 +102,15 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
                 </NavbarIcon>
               </Tooltip>
             </FloatingSidebar>
+          )}
+          {!showAssistants && sidebarHideCooldown && (
+            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+              <NavbarIcon
+                onClick={() => toggleShowAssistants()}
+                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
+                <PanelRightClose size={18} onMouseOut={() => setSidebarHideCooldown(false)} />
+              </NavbarIcon>
+            </Tooltip>
           )}
           <SelectModelButton assistant={assistant} />
         </HStack>

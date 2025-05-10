@@ -31,11 +31,11 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
     setOpen(false)
   }
 
-  const [maxHeight, setMaxHeight] = useState(window.innerHeight - 100)
+  const [maxHeight, setMaxHeight] = useState(Math.floor(window.innerHeight * 0.75))
 
   useEffect(() => {
     const handleResize = () => {
-      setMaxHeight(window.innerHeight - 100)
+      setMaxHeight(Math.floor(window.innerHeight * 0.75))
     }
 
     window.addEventListener('resize', handleResize)
@@ -80,11 +80,15 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(visible) => {
+        setOpen(visible)
+      }}
       content={content}
-      trigger="hover"
+      trigger={['hover', 'click']}
       placement="rightTop"
       arrow={false}
+      mouseEnterDelay={0.8} // 800ms delay before showing
+      mouseLeaveDelay={0.3} // 300ms delay before hiding when mouse leaves
       styles={{
         body: {
           padding: 0,
