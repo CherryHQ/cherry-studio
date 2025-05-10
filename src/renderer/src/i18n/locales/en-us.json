@@ -1250,6 +1250,8 @@
         "install": "Install",
         "installError": "Failed to install dependencies",
         "installSuccess": "Dependencies installed successfully",
+        "invalidJsonFormat": "JSON parsing error",
+        "jsonInput": "Paste JSON here",
         "jsonFormatError": "JSON formatting error",
         "jsonModeHint": "Edit the JSON representation of the MCP server configuration. Please ensure the format is correct before saving.",
         "jsonSaveError": "Failed to save JSON configuration.",
@@ -1286,6 +1288,7 @@
         "installHelp": "Get Installation Help",
         "tabs": {
           "general": "General",
+          "json": "One-click Import",
           "description": "Description",
           "tools": "Tools",
           "prompts": "Prompts",

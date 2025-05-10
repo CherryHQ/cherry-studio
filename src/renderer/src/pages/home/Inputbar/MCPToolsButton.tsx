@@ -5,8 +5,7 @@ import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
 import { Plus, SquareTerminal } from 'lucide-react'
-import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import React from 'react'
+import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -409,10 +408,9 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }, [activedMcpServers, handleResourceSelect])
 
   const openResourcesList = useCallback(async () => {
-    const resources = resourcesList
     quickPanel.open({
       title: t('settings.mcp.title'),
-      list: resources,
+      list: resourcesList,
       symbol: 'mcp-resource',
       multiple: true
     })

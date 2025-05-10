@@ -5,7 +5,7 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Type } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
@@ -35,6 +35,10 @@ interface MCPFormValues {
   tags?: string[]
 }
 
+interface MCPJsonFormValues {
+  jsonInput: string
+}
+
 interface Registry {
   name: string
   url: string
@@ -49,7 +53,7 @@ const PipRegistry: Registry[] = [
   { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
-type TabKey = 'settings' | 'description' | 'tools' | 'prompts' | 'resources'
+type TabKey = 'settings' | 'json' | 'description' | 'tools' | 'prompts' | 'resources'
 
 const parseKeyValueString = (str: string): Record<string, string> => {
   const result: Record<string, string> = {}
@@ -75,6 +79,7 @@ const McpSettings: React.FC = () => {
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
+  const [jsonForm] = Form.useForm<MCPJsonFormValues>()
   const [loading, setLoading] = useState(false)
   const [isFormChanged, setIsFormChanged] = useState(false)
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
@@ -279,6 +284,80 @@ const McpSettings: React.FC = () => {
           content: error.message,
           centered: true
         })
+        setLoading(false)
+      }
+    } catch (error: any) {
+      setLoading(false)
+      console.error('Failed to save MCP server settings:', error)
+    }
+  }
+
+  // Save the json data
+  const onSaveJson = async () => {
+    setLoading(true)
+    try {
+      const jsonValues = await jsonForm.validateFields()
+      if (activeTab === 'json' && jsonValues.jsonInput) {
+        const parsedJson = JSON.parse(jsonValues.jsonInput)
+
+        // 检查是否存在mcpServers结构
+        const serverConfig = parsedJson.mcpServers
+          ? parsedJson.mcpServers[Object.keys(parsedJson.mcpServers)[0] ?? '']
+          : parsedJson
+
+        const mcpServer: MCPServer = {
+          id: server.id,
+          name: parsedJson.mcpServers
+            ? Object.keys(parsedJson.mcpServers)[0] || server.name
+            : serverConfig.name || server.name,
+          type: serverConfig.type || server.type,
+          description: serverConfig.description || server.description,
+          isActive: serverConfig.isActive !== undefined ? serverConfig.isActive : server.isActive,
+          registryUrl: serverConfig.registryUrl || server.registryUrl,
+          searchKey: server.searchKey,
+          timeout: serverConfig.timeout || server.timeout,
+          provider: serverConfig.provider || server.provider,
+          providerUrl: serverConfig.providerUrl || server.providerUrl,
+          logoUrl: serverConfig.logoUrl || server.logoUrl,
+          tags: serverConfig.tags || server.tags
+        }
+
+        // 设置 stdio 或 sse 服务器
+        if (serverConfig.type === 'sse' || serverConfig.type === 'streamableHttp') {
+          mcpServer.baseUrl = serverConfig.baseUrl || server.baseUrl || serverConfig.url
+        } else {
+          mcpServer.command = serverConfig.command || server.command
+          mcpServer.args = serverConfig.args || server.args
+        }
+
+        // 设置环境变量
+        if (serverConfig.env) {
+          mcpServer.env =
+            typeof serverConfig.env === 'string' ? parseKeyValueString(serverConfig.env) : serverConfig.env
+        }
+
+        // 设置请求头
+        if (serverConfig.headers) {
+          mcpServer.headers =
+            typeof serverConfig.headers === 'string' ? parseKeyValueString(serverConfig.headers) : serverConfig.headers
+        }
+
+        try {
+          await window.api.mcp.restartServer(mcpServer)
+          updateMCPServer({ ...mcpServer, isActive: true })
+          window.message.success({ content: t('settings.mcp.updateSuccess'), key: 'mcp-update-success' })
+          setIsFormChanged(false)
+        } catch (error: any) {
+          updateMCPServer({ ...mcpServer, isActive: false })
+          window.modal.error({
+            title: t('settings.mcp.updateError'),
+            content: error.message,
+            centered: true
+          })
+        } finally {
+          setLoading(false)
+        }
+      } else {
         setLoading(false)
       }
     } catch (error: any) {
@@ -622,6 +701,34 @@ const McpSettings: React.FC = () => {
         children: <MCPResourcesSection resources={resources} />
       }
     )
+  } else {
+    tabs.push({
+      key: 'json',
+      label: t('settings.mcp.tabs.json'),
+      children: (
+        <Form
+          form={jsonForm}
+          layout="vertical"
+          onValuesChange={() => setIsFormChanged(true)}
+          style={{
+            overflowY: 'auto',
+            width: 'calc(100% + 10px)',
+            paddingRight: '10px'
+          }}>
+          <Form.Item
+            name="jsonInput"
+            label={
+              <Flex align="center" gap={5}>
+                <Type size={16} />
+                <span>{t('settings.mcp.jsonInput')}</span>
+              </Flex>
+            }
+            rules={[{ required: true, message: '' }]}>
+            <TextArea rows={12} disabled={server.type === 'inMemory'} />
+          </Form.Item>
+        </Form>
+      )
+    })
   }
 
   return (
@@ -642,10 +749,10 @@ const McpSettings: React.FC = () => {
             <Button
               type="primary"
               icon={<SaveOutlined />}
-              onClick={onSave}
+              onClick={() => (activeTab === 'json' ? onSaveJson() : onSave())}
               loading={loading}
               shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}>
+              disabled={!isFormChanged || (activeTab !== 'settings' && activeTab !== 'json')}>
               {t('common.save')}
             </Button>
           </Flex>
@@ -675,5 +782,4 @@ const AdvancedSettingsButton = styled.div`
   display: flex;
   align-items: center;
 `
-
 export default McpSettings
