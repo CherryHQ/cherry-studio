@@ -7,6 +7,7 @@ import {
   type MessageBlock,
   MessageBlockType,
   type ThinkingMessageBlock,
+  ToolMessageBlock,
   type TranslationMessageBlock
 } from '@renderer/types/newMessage'
 
@@ -58,6 +59,16 @@ export function isCodeBlock(block: MessageBlock): block is CodeMessageBlock {
  */
 export function isThinkingBlock(block: MessageBlock): block is ThinkingMessageBlock {
   return block.type === MessageBlockType.THINKING
+}
+
+/**
+ * Checks if a message block is a Tool block.
+ * Acts as a TypeScript type guard.
+ * @param block - The message block to check.
+ * @returns True if the block is a ToolMessageBlock, false otherwise.
+ */
+export function isToolBlock(block: MessageBlock): block is ToolMessageBlock {
+  return block.type === MessageBlockType.TOOL
 }
 
 /**

@@ -6,6 +6,7 @@ import type {
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
+  MessageBlock,
   ThinkingMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
@@ -83,6 +84,19 @@ export const findFileBlocks = (message: Message): FileMessageBlock[] => {
     }
   }
   return fileBlocks
+}
+
+/**
+ * Finds all block associated with a given message.
+ * @param message - The message object.
+ * @returns An array of MessageBlocks (empty if none found).
+ */
+export const findAllBlocks = (message: Message): MessageBlock[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  return message.blocks.map((blockId) => messageBlocksSelectors.selectById(state, blockId)).filter(Boolean)
 }
 
 /**
