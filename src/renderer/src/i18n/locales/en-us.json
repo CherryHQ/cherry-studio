@@ -183,6 +183,8 @@
       "save": "Save",
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
+      "settings.code_footer_copy_threshold": "Code block footer copy button threshold",
+      "settings.code_footer_copy_threshold.tip": "Show copy button at the bottom when code block length exceeds this threshold",
       "settings.code_cacheable": "Code block cache",
       "settings.code_cacheable.tip": "Caching code blocks can reduce the rendering time of long code blocks, but it will increase memory usage",
       "settings.code_cache_max_size": "Max cache size",

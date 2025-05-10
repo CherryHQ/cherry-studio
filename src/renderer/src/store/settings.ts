@@ -52,6 +52,7 @@ export interface SettingsState {
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
+  codeFooterCopyThreshold: number
   // 代码块缓存
   codeCacheable: boolean
   codeCacheMaxSize: number
@@ -164,6 +165,7 @@ export const initialState: SettingsState = {
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
+  codeFooterCopyThreshold: 20,
   codeCacheable: false,
   codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
   codeCacheTTL: 15, // 缓存过期时间，分钟
@@ -513,6 +515,9 @@ const settingsSlice = createSlice({
     },
     setZoomFactor: (state, action: PayloadAction<number>) => {
       state.zoomFactor = action.payload
+    },
+    setCodeFooterCopyThreshold: (state, action: PayloadAction<number>) => {
+      state.codeFooterCopyThreshold = action.payload
     }
   }
 })
@@ -606,7 +611,8 @@ export const {
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
   setEnableBackspaceDeleteModel,
-  setZoomFactor
+  setZoomFactor,
+  setCodeFooterCopyThreshold
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

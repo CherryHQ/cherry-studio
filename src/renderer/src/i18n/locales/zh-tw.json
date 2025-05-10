@@ -1598,7 +1598,13 @@
       "privacy": {
         "title": "隱私設定",
         "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
-      }
+      },
+      "settings.code_wrappable": "代碼塊自動換行",
+      "settings.code_cacheable": "代碼塊緩存",
+      "settings.code_cacheable.tip": "緩存代碼塊可以減少長代碼塊的渲染時間，但會增加內存占用",
+      "settings.code_footer_copy_threshold": "代碼塊底部複製按鈕閾值",
+      "settings.code_footer_copy_threshold.tip": "當代碼塊長度超過此閾值時，會在底部顯示複製按鈕",
+      "settings.code_cache_max_size": "緩存上限"
     },
     "translate": {
       "any.language": "任意語言",

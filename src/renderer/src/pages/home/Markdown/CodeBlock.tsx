@@ -24,7 +24,7 @@ interface CodeBlockProps {
 
 const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const match = /language-(\w+)/.exec(className || '') || children?.includes('\n')
-  const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
+  const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable, codeFooterCopyThreshold } = useSettings()
   const language = match?.[1] ?? 'text'
   // const [html, setHtml] = useState<string>('')
   const { codeToHtml } = useSyntaxHighlighter()
@@ -35,7 +35,8 @@ const CodeBlock: React.FC<CodeBlockProps> = ({ children, className }) => {
   const childrenLengthRef = useRef(0)
   const isStreamingRef = useRef(false)
 
-  const showFooterCopyButton = children && children.length > 500 && !codeCollapsible
+  const lineCount = children ? children.split('\n').length : 0
+  const showFooterCopyButton = children && lineCount > codeFooterCopyThreshold && !codeCollapsible
 
   const showDownloadButton = ['csv', 'json', 'txt', 'md'].includes(language)
 

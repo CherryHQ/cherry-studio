@@ -22,6 +22,7 @@ import {
   setCodeCacheThreshold,
   setCodeCacheTTL,
   setCodeCollapsible,
+  setCodeFooterCopyThreshold,
   setCodeShowLineNumbers,
   setCodeStyle,
   setCodeWrappable,
@@ -88,6 +89,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeShowLineNumbers,
     codeCollapsible,
     codeWrappable,
+    codeFooterCopyThreshold,
     codeCacheable,
     codeCacheMaxSize,
     codeCacheTTL,
@@ -321,6 +323,24 @@ const SettingsTab: FC<Props> = (props) => {
         <SettingRow>
           <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
           <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('chat.settings.code_footer_copy_threshold')}
+            <Tooltip title={t('chat.settings.code_footer_copy_threshold.tip')}>
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <InputNumber
+            size="small"
+            min={0}
+            max={10000}
+            step={5}
+            value={codeFooterCopyThreshold}
+            onChange={(value) => dispatch(setCodeFooterCopyThreshold(value ?? 500))}
+            style={{ width: 100 }}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
