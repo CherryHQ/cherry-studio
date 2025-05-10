@@ -1,6 +1,5 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { Center } from '@renderer/components/Layout'
-import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { Assistant } from '@renderer/types'
 import { Popover } from 'antd'
@@ -45,14 +44,6 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
       window.removeEventListener('resize', handleResize)
     }
   }, [])
-
-  const onCreateAssistant = async () => {
-    const assistant = await AddAssistantPopup.show()
-    if (assistant) {
-      setActiveAssistant(assistant)
-    }
-    handleClose()
-  }
 
   const handleSwitchAssistant = (assistant: Assistant) => {
     setActiveAssistant(assistant)
@@ -168,21 +159,6 @@ const AssistantName = styled.div`
   overflow: hidden;
   font-size: 13px;
   flex: 1;
-`
-
-const AssistantAddItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 7px 10px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  cursor: pointer;
-  margin-top: 4px;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
 `
 
 export default FloatingSidebar
