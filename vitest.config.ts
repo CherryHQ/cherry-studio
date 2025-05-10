@@ -13,11 +13,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: [],
+    setupFiles: ['@vitest/web-worker'],
     include: [
       // 只测试渲染进程
       'src/renderer/**/*.{test,spec}.{ts,tsx}',
-      'src/renderer/**/__tests__/**/*.{ts,tsx}'
+      'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}'
     ],
     exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/build/**'],
     coverage: {

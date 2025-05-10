@@ -4,12 +4,13 @@ import 'katex/dist/contrib/mhchem'
 
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
-import { findCitationInChildren } from '@renderer/utils/markdown'
+import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, useMemo } from 'react'
+import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -65,14 +66,27 @@ const Markdown: FC<Props> = ({ block }) => {
     return plugins
   }, [mathEngine, messageContent])
 
+  const onSaveCodeBlock = useCallback(
+    (id: string, newContent: string) => {
+      EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
+        msgBlockId: block.id,
+        codeBlockId: id,
+        newContent
+      })
+    },
+    [block.id]
+  )
+
   const components = useMemo(() => {
     return {
       a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
-      code: CodeBlock,
+      code: (props: any) => (
+        <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
+      ),
       img: ImagePreview,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
     } as Partial<Components>
-  }, [])
+  }, [onSaveCodeBlock])
 
   // if (role === 'user' && !renderInputMessageAsMarkdown) {
   //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
@@ -99,4 +113,4 @@ const Markdown: FC<Props> = ({ block }) => {
   )
 }
 
-export default Markdown
+export default memo(Markdown)

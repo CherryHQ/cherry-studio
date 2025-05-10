@@ -8,8 +8,8 @@ import { PersistGate } from 'redux-persist/integration/react'
 import Sidebar from './components/app/Sidebar'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
+import { CodeStyleProvider } from './context/CodeStyleProvider'
 import StyleSheetManager from './context/StyleSheetManager'
-import { SyntaxHighlighterProvider } from './context/SyntaxHighlighterProvider'
 import { ThemeProvider } from './context/ThemeProvider'
 import NavigationHandler from './handler/NavigationHandler'
 import AgentsPage from './pages/agents/AgentsPage'
@@ -27,7 +27,7 @@ function App(): React.ReactElement {
       <StyleSheetManager>
         <ThemeProvider>
           <AntdProvider>
-            <SyntaxHighlighterProvider>
+            <CodeStyleProvider>
               <PersistGate loading={null} persistor={persistor}>
                 <TopViewContainer>
                   <HashRouter>
@@ -46,7 +46,7 @@ function App(): React.ReactElement {
                   </HashRouter>
                 </TopViewContainer>
               </PersistGate>
-            </SyntaxHighlighterProvider>
+            </CodeStyleProvider>
           </AntdProvider>
         </ThemeProvider>
       </StyleSheetManager>

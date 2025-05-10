@@ -1,3 +1,8 @@
+import remarkParse from 'remark-parse'
+import remarkStringify from 'remark-stringify'
+import { unified } from 'unified'
+import { visit } from 'unist-util-visit'
+
 // 更彻底的查找方法，递归搜索所有子元素
 export const findCitationInChildren = (children) => {
   if (!children) return null
@@ -45,6 +50,15 @@ export function removeTrailingDoubleSpaces(markdown: string): string {
 }
 
 /**
+ * 根据代码块节点的起始位置生成 ID
+ * @param start 代码块节点的起始位置
+ * @returns 代码块在 Markdown 字符串中的 ID
+ */
+export function getCodeBlockId(start: any): string | null {
+  return start ? `${start.line}:${start.column}:${start.offset}` : null
+}
+
+/**
  * HTML实体编码辅助函数
  * @param str 输入字符串
  * @returns string 编码后的字符串
@@ -60,4 +74,43 @@ export const encodeHTML = (str: string) => {
     }
     return entities[match]
   })
+}
+
+/**
+ * 更新Markdown字符串中的代码块内容。
+ *
+ * 由于使用了remark-stringify，所以会有一些默认格式化操作，例如：
+ * - 代码块前后会补充换行符。
+ * - 有些空格会被trimmed。
+ * - 文档末尾会补充一个换行符。
+ *
+ * @param raw 原始Markdown字符串
+ * @param id 代码块ID，按位置生成
+ * @param newContent 修改后的代码内容
+ * @returns 替换后的Markdown字符串
+ */
+export function updateCodeBlock(raw: string, id: string, newContent: string): string {
+  const tree = unified().use(remarkParse).parse(raw)
+  visit(tree, 'code', (node) => {
+    const startIndex = getCodeBlockId(node.position?.start)
+    if (startIndex && id && startIndex === id) {
+      node.value = newContent
+    }
+  })
+
+  return unified().use(remarkStringify).stringify(tree)
+}
+
+/**
+ * 检查是否为有效的 PlantUML 图表
+ * @param code 输入的 PlantUML 图表字符串
+ * @returns 有效 true，无效 false
+ */
+export function isValidPlantUML(code: string | null): boolean {
+  if (!code || !code.trim().startsWith('@start')) {
+    return false
+  }
+  const diagramType = code.match(/@start(\w+)/)?.[1]
+
+  return diagramType !== undefined && code.search(`@end${diagramType}`) !== -1
 }
