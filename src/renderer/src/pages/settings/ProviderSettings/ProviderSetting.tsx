@@ -11,7 +11,7 @@ import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -121,10 +121,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const keys = apiKey
-      .split(',')
-      .map((k) => k.trim())
-      .filter((k) => k)
+    const keys = splitApiKeyString(apiKey)
 
     // Add an empty key to enable health checks for local models.
     // Error messages will be shown for each model if a valid key is needed.
@@ -220,11 +217,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     if (apiKey.includes(',')) {
-      const keys = apiKey
-        .split(/(?<!\\),/)
-        .map((k) => k.trim())
-        .map((k) => k.replace(/\\,/g, ','))
-        .filter((k) => k)
+      const keys = splitApiKeyString(apiKey)
 
       const result = await ApiCheckPopup.show({
         title: t('settings.provider.check_multiple_keys'),
