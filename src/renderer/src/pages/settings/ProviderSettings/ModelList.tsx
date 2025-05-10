@@ -408,7 +408,6 @@ const StatusIndicator = styled.div<{ type: string }>`
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  cursor: pointer;
   color: ${(props) => {
     switch (props.type) {
       case 'success':
