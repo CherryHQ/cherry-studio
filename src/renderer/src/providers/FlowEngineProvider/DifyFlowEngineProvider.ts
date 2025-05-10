@@ -26,17 +26,17 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       if (!block.file) return
       const fileData = await window.api.file.readAsFile(block.file.path, block.file.origin_name)
       const file = new File([fileData.buffer], fileData.name, { type: fileData.type })
-      // const response = await this.uploadFile(flow, file)
-      const response = {
-        id: '3f8c7d51-7866-4e7b-a283-f3b4e841db6c',
-        name: 'image-1746779433348-0.png',
-        size: 72459,
-        extension: 'png',
-        mime_type: 'image/png',
-        created_by: '3d574994-6349-4df0-aab8-1fdf17eba25c',
-        created_at: 1746779492,
-        preview_url: null
-      }
+      const response = await this.uploadFile(flow, file)
+      // const response = {
+      //   id: '3f8c7d51-7866-4e7b-a283-f3b4e841db6c',
+      //   name: 'image-1746779433348-0.png',
+      //   size: 72459,
+      //   extension: 'png',
+      //   mime_type: 'image/png',
+      //   created_by: '3d574994-6349-4df0-aab8-1fdf17eba25c',
+      //   created_at: 1746779492,
+      //   preview_url: null
+      // }
 
       files.push({
         type: getFileTypeByName(response.name),
