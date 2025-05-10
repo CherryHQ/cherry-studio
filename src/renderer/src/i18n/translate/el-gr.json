@@ -292,7 +292,8 @@
       "topics.export.siyuan": "Εξαγωγή στο Siyuan Notepad",
       "topics.export.wait_for_title_naming": "Γενικευμένος τίτλος...",
       "topics.export.title_naming_success": "Ο τίτλος δημιουργήθηκε επιτυχώς",
-      "topics.export.title_naming_failed": "Η δημιουργία του τίτλου απέτυχε, θα χρησιμοποιηθεί ο προεπιλεγμένος τίτλος"
+      "topics.export.title_naming_failed": "Η δημιουργία του τίτλου απέτυχε, θα χρησιμοποιηθεί ο προεπιλεγμένος τίτλος",
+      "input.thinking.mode.tokens.tip": "Ρυθμίστε τον αριθμό token σκέψης"
     },
     "code_block": {
       "collapse": "συμπεριληφθείς",

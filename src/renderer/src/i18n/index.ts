@@ -13,6 +13,11 @@ import elGR from './translate/el-gr.json'
 import esES from './translate/es-es.json'
 import frFR from './translate/fr-fr.json'
 import ptPT from './translate/pt-pt.json'
+import arSA from './translate/ar-sa.json'
+import deDE from './translate/de-de.json'
+import itIT from './translate/it-it.json'
+import koKR from './translate/ko-kr.json'
+import trTR from './translate/tr-tr.json'
 
 const resources = {
   'el-GR': elGR,
@@ -23,7 +28,12 @@ const resources = {
   'pt-PT': ptPT,
   'ru-RU': ruRU,
   'zh-CN': zhCN,
-  'zh-TW': zhTW
+  'zh-TW': zhTW,
+  'ar-SA': arSA,
+  'de-DE': deDE,
+  'it-IT': itIT,
+  'ko-KR': koKR,
+  'tr-TR': trTR
 }
 
 export const getLanguage = () => {

@@ -104,7 +104,12 @@ const GeneralSettings: FC = () => {
     { value: 'el-GR', label: 'Ελληνικά', flag: '🇬🇷' },
     { value: 'es-ES', label: 'Español', flag: '🇪🇸' },
     { value: 'fr-FR', label: 'Français', flag: '🇫🇷' },
-    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' }
+    { value: 'pt-PT', label: 'Português', flag: '🇵🇹' },
+    { value: 'ar-SA', label: 'العربية', flag: '🇸🇦' },
+    { value: 'de-DE', label: 'Deutsch', flag: '🇩🇪' },
+    { value: 'it-IT', label: 'Italiano', flag: '🇮🇹' },
+    { value: 'ko-KR', label: '한국어', flag: '🇰🇷' },
+    { value: 'tr-TR', label: 'Türkçe', flag: '🇹🇷' }
   ]
 
   return (

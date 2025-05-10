@@ -292,7 +292,8 @@
       "topics.export.siyuan": "Exportar a SiYuan Notes",
       "topics.export.wait_for_title_naming": "Generando título...",
       "topics.export.title_naming_success": "Título generado exitosamente",
-      "topics.export.title_naming_failed": "Fallo al generar el título, usando el título predeterminado"
+      "topics.export.title_naming_failed": "Fallo al generar el título, usando el título predeterminado",
+      "input.thinking.mode.tokens.tip": "Establecer el número de tokens a pensar"
     },
     "code_block": {
       "collapse": "Replegar",

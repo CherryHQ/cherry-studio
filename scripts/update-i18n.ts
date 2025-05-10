@@ -10,7 +10,12 @@ const INDEX = [
   { name: 'France', code: 'fr-fr', model: 'Qwen3-235B-A22B' },
   { name: 'Spanish', code: 'es-es', model: 'Qwen3-235B-A22B' },
   { name: 'Portuguese', code: 'pt-pt', model: 'Qwen3-235B-A22B' },
-  { name: 'Greek', code: 'el-gr', model: 'Qwen3-235B-A22B' }
+  { name: 'Greek', code: 'el-gr', model: 'Qwen3-235B-A22B' },
+  { name: 'Arabic', code: 'ar-sa', model: 'Qwen3-235B-A22B' },
+  { name: 'German', code: 'de-de', model: 'Qwen3-235B-A22B' },
+  { name: 'Italian', code: 'it-it', model: 'Qwen3-235B-A22B' },
+  { name: 'Korean', code: 'ko-kr', model: 'Qwen3-235B-A22B' },
+  { name: 'Turkish', code: 'tr-tr', model: 'Qwen3-235B-A22B' }
 ]
 
 const fs = require('fs')

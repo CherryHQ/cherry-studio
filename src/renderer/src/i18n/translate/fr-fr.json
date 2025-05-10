@@ -292,7 +292,8 @@
       "topics.export.siyuan": "Exporter vers Siyuan Notes",
       "topics.export.wait_for_title_naming": "Génération du titre en cours...",
       "topics.export.title_naming_success": "Titre généré avec succès",
-      "topics.export.title_naming_failed": "Échec de génération du titre, utilisation du titre par défaut"
+      "topics.export.title_naming_failed": "Échec de génération du titre, utilisation du titre par défaut",
+      "input.thinking.mode.tokens.tip": "Définir le nombre de tokens à réfléchir"
     },
     "code_block": {
       "collapse": "Réduire",
