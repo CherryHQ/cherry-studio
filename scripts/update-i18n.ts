@@ -1,16 +1,16 @@
 /**
- * OCOOL_API_KEY=sk-abcxxxxxxxxxxxxxxxxxxxxxxx123 ts-node scripts/update-i18n.ts
+ * Paratera_API_KEY=sk-abcxxxxxxxxxxxxxxxxxxxxxxx123 ts-node scripts/update-i18n.ts
  */
 
 // OCOOL API KEY
-const OCOOL_API_KEY = process.env.OCOOL_API_KEY
+const Paratera_API_KEY = process.env.Paratera_API_KEY
 
 const INDEX = [
   //         语言的名称          代码            用来翻译的模型
-  { name: 'France', code: 'fr-fr', model: 'qwen2.5-32b-instruct' },
-  { name: 'Spanish', code: 'es-es', model: 'qwen2.5-32b-instruct' },
-  { name: 'Portuguese', code: 'pt-pt', model: 'qwen2.5-72b-instruct' },
-  { name: 'Greek', code: 'el-gr', model: 'qwen-turbo' }
+  { name: 'France', code: 'fr-fr', model: 'Qwen3-235B-A22B' },
+  { name: 'Spanish', code: 'es-es', model: 'Qwen3-235B-A22B' },
+  { name: 'Portuguese', code: 'pt-pt', model: 'Qwen3-235B-A22B' },
+  { name: 'Greek', code: 'el-gr', model: 'Qwen3-235B-A22B' }
 ]
 
 const fs = require('fs')
@@ -19,8 +19,8 @@ import OpenAI from 'openai'
 const zh = JSON.parse(fs.readFileSync('src/renderer/src/i18n/locales/zh-cn.json', 'utf8')) as object
 
 const openai = new OpenAI({
-  apiKey: OCOOL_API_KEY,
-  baseURL: 'https://one.ocoolai.com/v1'
+  apiKey: Paratera_API_KEY,
+  baseURL: 'https://llmapi.paratera.com/v1'
 })
 
 // 递归遍历翻译
