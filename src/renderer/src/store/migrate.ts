@@ -1138,7 +1138,7 @@ const migrateConfig = {
   '88': (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
-        const hasAutoInstall = state.mcp.servers.some((server) => server.name === 'mcp-auto-install')
+        const hasAutoInstall = state.mcp.servers.some((server) => server.name === '@cherry/mcp-auto-install')
         if (!hasAutoInstall) {
           const defaultServer = mcpSlice.getInitialState().servers[0]
           state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
@@ -1254,6 +1254,18 @@ const migrateConfig = {
     }
   },
   '98': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.type === 'openai' && provider.id !== 'openai') {
+          provider.type = 'openai-compatible'
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '99': (state: RootState) => {
     try {
       addWebSearchProvider(state, 'bocha')
       updateWebSearchProvider(state, {

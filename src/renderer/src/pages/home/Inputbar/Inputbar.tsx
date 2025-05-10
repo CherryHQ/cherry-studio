@@ -1,7 +1,13 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isGenerateImageModel, isReasoningModel, isVisionModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  isGenerateImageModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
@@ -16,7 +22,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
+import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
@@ -209,7 +215,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         )
       }
 
-      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
+      baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
 
@@ -570,14 +576,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      const clipboardText = event.clipboardData?.getData('text')
-      if (clipboardText) {
-        // Prioritize the text when pasting.
-        // handled by the default event
-      } else {
-        for (const file of event.clipboardData?.files || []) {
-          event.preventDefault()
-
+      // 1. 文件/图片粘贴
+      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+        event.preventDefault()
+        for (const file of event.clipboardData.files) {
           if (file.path === '') {
             // 图像生成也支持图像编辑
             if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
@@ -608,23 +610,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             }
           }
         }
+        return
       }
 
-      if (pasteLongTextAsFile) {
-        const item = event.clipboardData?.items[0]
-        if (item && item.kind === 'string' && item.type === 'text/plain') {
-          item.getAsString(async (pasteText) => {
-            if (pasteText.length > pasteLongTextThreshold) {
-              const tempFilePath = await window.api.file.create('pasted_text.txt')
-              await window.api.file.write(tempFilePath, pasteText)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-              setText(text)
-              setTimeout(() => resizeTextArea(), 50)
-            }
-          })
-        }
+      // 2. 文本粘贴
+      const clipboardText = event.clipboardData?.getData('text')
+      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
+        // 长文本直接转文件，阻止默认粘贴
+        event.preventDefault()
+
+        const tempFilePath = await window.api.file.create('pasted_text.txt')
+        await window.api.file.write(tempFilePath, clipboardText)
+        const selectedFile = await window.api.file.get(tempFilePath)
+        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+        setText(text) // 保持输入框内容不变
+        setTimeout(() => resizeTextArea(), 50)
+        return
       }
+
+      // 短文本走默认粘贴行为
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
@@ -856,6 +860,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const isExpended = expended || !!textareaHeight
+  const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   return (
     <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
@@ -922,7 +927,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setFiles={setFiles}
                 ToolbarButton={ToolbarButton}
               />
-              {isReasoningModel(model) && (
+              {showThinkingButton && (
                 <ThinkingButton
                   ref={thinkingButtonRef}
                   model={model}

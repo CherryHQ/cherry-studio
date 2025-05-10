@@ -1,5 +1,5 @@
 import { Assistant, FileType, FileTypes, Usage } from '@renderer/types'
-import type { Message, MessageInputBaseParams } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
 import { approximateTokenSize } from 'tokenx'
@@ -56,15 +56,58 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateMessageUsage(message: Partial<Message>, params?: MessageInputBaseParams): Promise<Usage> {
+/**
+ * 估算用户输入内容（文本和文件）的 token 用量。
+ *
+ * 该函数只根据传入的 content（文本内容）和 files（文件列表）估算，
+ * 不依赖完整的 Message 结构，也不会处理消息块、上下文等信息。
+ *
+ * @param {Object} params - 输入参数对象
+ * @param {string} [params.content] - 用户输入的文本内容
+ * @param {FileType[]} [params.files] - 用户上传的文件列表（支持图片和文本）
+ * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
+ */
+export async function estimateUserPromptUsage({
+  content,
+  files
+}: {
+  content?: string
+  files?: FileType[]
+}): Promise<Usage> {
   let imageTokens = 0
-  let files: FileType[] = []
-  if (params?.files) {
-    files = params.files
-  } else {
-    const fileBlocks = findFileBlocks(message as Message)
-    files = fileBlocks.map((f) => f.file)
+
+  if (files && files.length > 0) {
+    const images = files.filter((f) => f.type === FileTypes.IMAGE)
+    if (images.length > 0) {
+      for (const image of images) {
+        imageTokens = estimateImageTokens(image) + imageTokens
+      }
+    }
   }
+
+  const tokens = estimateTextTokens(content || '')
+
+  return {
+    prompt_tokens: tokens,
+    completion_tokens: tokens,
+    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0)
+  }
+}
+
+/**
+ * 估算完整消息（Message）的 token 用量。
+ *
+ * 该函数会自动从 message 中提取主文本内容、推理内容（reasoningContent）和所有文件块，
+ * 统计文本和图片的 token 数量，适用于对完整消息对象进行 usage 估算。
+ *
+ * @param {Partial<Message>} message - 消息对象，可以是完整或部分 Message
+ * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
+ */
+export async function estimateMessageUsage(message: Partial<Message>): Promise<Usage> {
+  const fileBlocks = findFileBlocks(message as Message)
+  const files = fileBlocks.map((f) => f.file)
+
+  let imageTokens = 0
 
   if (files.length > 0) {
     const images = files.filter((f) => f.type === FileTypes.IMAGE)
@@ -74,16 +117,9 @@ export async function estimateMessageUsage(message: Partial<Message>, params?: M
       }
     }
   }
-  let content = ''
-  if (params?.content) {
-    content = params.content
-  } else {
-    content = getMainTextContent(message as Message)
-  }
-  let reasoningContent = ''
-  if (!params) {
-    reasoningContent = getThinkingContent(message as Message)
-  }
+
+  const content = getMainTextContent(message as Message)
+  const reasoningContent = getThinkingContent(message as Message)
   const combinedContent = [content, reasoningContent].filter((s) => s !== undefined).join(' ')
   const tokens = estimateTextTokens(combinedContent)
 

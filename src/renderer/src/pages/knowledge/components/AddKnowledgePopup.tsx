@@ -1,7 +1,8 @@
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+// import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { SettingHelpText } from '@renderer/pages/settings'
@@ -67,7 +68,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const rerankSelectOptions = providers
     .filter((p) => p.models.length > 0)
-    .filter((p) => SUPPORTED_REANK_PROVIDERS.includes(p.id))
+    .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
@@ -176,8 +177,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           <Select style={{ width: '100%' }} options={rerankSelectOptions} placeholder={t('settings.models.empty')} />
         </Form.Item>
         <SettingHelpText style={{ marginTop: -15, marginBottom: 20 }}>
-          {t('models.rerank_model_support_provider', {
-            provider: SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
+          {t('models.rerank_model_not_support_provider', {
+            provider: NOT_SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
           })}
         </SettingHelpText>
         <Form.Item

@@ -6,7 +6,7 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileType, MCPServer, Model, Topic } from '@renderer/types'
+import type { Assistant, FileType, MCPServer, Model, Topic, Usage } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -110,7 +110,8 @@ export function getUserMessage({
   // Keep other potential params if needed by createMessage
   knowledgeBaseIds,
   mentions,
-  enabledMCPs
+  enabledMCPs,
+  usage
 }: {
   assistant: Assistant
   topic: Topic
@@ -120,6 +121,7 @@ export function getUserMessage({
   knowledgeBaseIds?: string[]
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
+  usage?: Usage
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
@@ -163,7 +165,8 @@ export function getUserMessage({
       // 移除knowledgeBaseIds
       mentions,
       enabledMCPs,
-      type
+      type,
+      usage
     }
   )
 

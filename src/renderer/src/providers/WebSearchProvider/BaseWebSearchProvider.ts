@@ -13,7 +13,11 @@ export default abstract class BaseWebSearchProvider {
     this.apiKey = this.getApiKey()
   }
 
-  abstract search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse>
+  abstract search(
+    query: string,
+    websearch: WebSearchState,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchProviderResponse>
 
   public getApiHost() {
     return this.provider.apiHost

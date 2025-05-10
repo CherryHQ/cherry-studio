@@ -375,6 +375,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         width={680}
         destroyOnClose
         styles={{
+          header: { border: 'none' },
           body: {
             padding: 0,
             height: 'calc(100% - 55px)'

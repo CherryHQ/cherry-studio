@@ -1,3 +1,4 @@
+import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
@@ -23,6 +24,7 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  knowledgeRecognition?: 'off' | 'on'
 }
 
 export type AssistantMessage = {
@@ -42,7 +44,7 @@ export type EffortRatio = Record<ReasoningEffortOptions, number>
 export const EFFORT_RATIO: EffortRatio = {
   low: 0.2,
   medium: 0.5,
-  high: 1,
+  high: 0.8,
   auto: 2
 }
 
@@ -53,10 +55,12 @@ export type AssistantSettings = {
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
+  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
+  qwenThinkMode?: boolean
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -157,7 +161,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -256,6 +260,8 @@ export type MinAppType = {
   bodered?: boolean
   background?: string
   style?: React.CSSProperties
+  addTime?: string
+  type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
 export interface FileType {
@@ -448,12 +454,16 @@ export type WebSearchResults =
   | WebSearchProviderResponse
   | GroundingMetadata
   | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
+  | OpenAI.Responses.ResponseOutputText.URLCitation[]
+  | WebSearchResultBlock[]
   | any[]
 
 export enum WebSearchSource {
   WEBSEARCH = 'websearch',
   OPENAI = 'openai',
+  OPENAI_COMPATIBLE = 'openai-compatible',
   OPENROUTER = 'openrouter',
+  ANTHROPIC = 'anthropic',
   GEMINI = 'gemini',
   PERPLEXITY = 'perplexity',
   QWEN = 'qwen',
@@ -562,12 +572,24 @@ export interface MCPConfig {
   servers: MCPServer[]
 }
 
-export interface MCPToolResponse {
-  id: string // tool call id, it should be unique
-  tool: MCPTool // tool info
+interface BaseToolResponse {
+  id: string // unique id
+  tool: MCPTool
+  arguments: Record<string, unknown> | undefined
   status: string // 'invoking' | 'done'
   response?: any
 }
+
+export interface ToolUseResponse extends BaseToolResponse {
+  toolUseId: string
+}
+
+export interface ToolCallResponse extends BaseToolResponse {
+  // gemini tool call id might be undefined
+  toolCallId?: string
+}
+
+export type MCPToolResponse = ToolUseResponse | ToolCallResponse
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -578,6 +600,7 @@ export interface MCPToolResultContent {
     uri?: string
     text?: string
     mimeType?: string
+    blob?: string
   }
 }
 

@@ -18,7 +18,17 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
+  const {
+    proxyUrl,
+    language,
+    windowStyle,
+    autoCheckUpdate,
+    proxyMode,
+    customCss,
+    enableDataCollection,
+    setZoomFactor,
+    zoomFactor
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -30,6 +40,19 @@ export function useAppInit() {
   useEffect(() => {
     avatar?.value && dispatch(setAvatar(avatar.value))
   }, [avatar, dispatch])
+
+  useEffect(() => {
+    const removeZoomListener = window.api.onZoomFactorUpdate((factor) => {
+      setZoomFactor(factor)
+    })
+    return () => {
+      removeZoomListener()
+    }
+  }, [setZoomFactor])
+
+  useEffect(() => {
+    setZoomFactor(zoomFactor)
+  }, [setZoomFactor, zoomFactor])
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
@@ -91,16 +114,16 @@ export function useAppInit() {
   }, [])
 
   useEffect(() => {
-    const oldCustomCss = document.getElementById('user-defined-custom-css')
-    if (oldCustomCss) {
-      oldCustomCss.remove()
+    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
+    if (customCssElement) {
+      customCssElement.remove()
     }
 
     if (customCss) {
-      const style = document.createElement('style')
-      style.id = 'user-defined-custom-css'
-      style.textContent = customCss
-      document.head.appendChild(style)
+      customCssElement = document.createElement('style')
+      customCssElement.id = 'user-defined-custom-css'
+      customCssElement.textContent = customCss
+      document.head.appendChild(customCssElement)
     }
   }, [customCss])
 

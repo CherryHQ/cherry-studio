@@ -141,18 +141,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     notifyThemeChange()
   })
 
-  // custom css
-  ipcMain.handle(IpcChannel.App_SetCustomCss, (event, css: string) => {
-    if (css === configManager.getCustomCss()) return
-    configManager.setCustomCss(css)
-
-    // Broadcast to all windows including the mini window
-    const senderWindowId = event.sender.id
+  // zoom factor
+  ipcMain.handle(IpcChannel.App_SetZoomFactor, (_, factor: number) => {
+    configManager.setZoomFactor(factor)
     const windows = BrowserWindow.getAllWindows()
-    // 向其他窗口广播主题变化
     windows.forEach((win) => {
-      if (win.webContents.id !== senderWindowId) {
-        win.webContents.send('custom-css:update', css)
+      if (!win.isDestroyed()) {
+        win.webContents.setZoomFactor(factor)
       }
     })
   })
@@ -211,8 +206,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)

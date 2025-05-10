@@ -22,22 +22,10 @@ import {
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findImageBlocks, findMainTextBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import {
-  AtSign,
-  Copy,
-  FilePenLine,
-  Languages,
-  Menu,
-  RefreshCw,
-  Save,
-  Share,
-  Split,
-  ThumbsUp,
-  Trash
-} from 'lucide-react'
+import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -72,7 +60,8 @@ const MessageMenubar: FC<Props> = (props) => {
     regenerateAssistantMessage,
     resendUserMessageWithEdit,
     getTranslationUpdater,
-    appendAssistantResponse
+    appendAssistantResponse,
+    editMessageBlocks
   } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
 
@@ -172,7 +161,11 @@ const MessageMenubar: FC<Props> = (props) => {
       //   imageUrls.push(match[1])
       //   content = content.replace(match[0], '')
       // }
-      resendMessage && resendUserMessageWithEdit(message, editedText, assistant)
+      if (resendMessage) {
+        resendUserMessageWithEdit(message, editedText, assistant)
+      } else {
+        editMessageBlocks([{ ...findMainTextBlocks(message)[0], content: editedText }])
+      }
       // // 更新消息内容，保留图片信息
       // await editMessage(message.id, {
       //   content: content.trim(),
@@ -204,19 +197,15 @@ const MessageMenubar: FC<Props> = (props) => {
       //     }
       //   })
     }
-  }, [resendUserMessageWithEdit, assistant, mainTextContent, message, t])
+  }, [resendUserMessageWithEdit, editMessageBlocks, assistant, mainTextContent, message, t])
 
-  // TODO 翻译
   const handleTranslate = useCallback(
     async (language: string) => {
       if (isTranslating) return
 
-      // editMessage(message.id, { translatedContent: t('translate.processing') })
-
       setIsTranslating(true)
       const messageId = message.id
       const translationUpdater = await getTranslationUpdater(messageId, language)
-      // console.log('translationUpdater', translationUpdater)
       if (!translationUpdater) return
       try {
         await translateText(mainTextContent, language, translationUpdater)
@@ -243,12 +232,12 @@ const MessageMenubar: FC<Props> = (props) => {
           window.api.file.save(fileName, mainTextContent)
         }
       },
-      {
-        label: t('common.edit'),
-        key: 'edit',
-        icon: <FilePenLine size={16} />,
-        onClick: onEdit
-      },
+      // {
+      //   label: t('common.edit'),
+      //   key: 'edit',
+      //   icon: <FilePenLine size={16} />,
+      //   onClick: onEdit
+      // },
       {
         label: t('chat.message.new.branch'),
         key: 'new-branch',
@@ -349,7 +338,7 @@ const MessageMenubar: FC<Props> = (props) => {
         ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, onEdit, onNewBranch, t, topic.name, exportMenuOptions]
+    [message, messageContainerRef, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
