@@ -159,11 +159,11 @@
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
     "dotenv-cli": "^7.4.2",
-    "electron": "31.7.6",
+    "electron": "35.2.2",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
     "electron-icon-builder": "^2.0.1",
-    "electron-vite": "^2.3.0",
+    "electron-vite": "^3.1.0",
     "emittery": "^1.0.3",
     "emoji-picker-element": "^1.22.1",
     "eslint": "^9.22.0",
@@ -223,7 +223,8 @@
     "pkce-challenge@npm:^4.1.0": "patch:pkce-challenge@npm%3A4.1.0#~/.yarn/patches/pkce-challenge-npm-4.1.0-fbc51695a3.patch",
     "app-builder-lib@npm:26.0.13": "patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch",
     "shiki": "3.2.2",
-    "openai@npm:^4.87.3": "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
+    "openai@npm:^4.87.3": "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch",
+    "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch"
   },
   "packageManager": "yarn@4.6.0",
   "lint-staged": {
