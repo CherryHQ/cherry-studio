@@ -1296,6 +1296,16 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '100': (state: RootState) => {
+    try {
+      if (!state.settings.zoomFactor) {
+        state.settings.zoomFactor = 1
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
