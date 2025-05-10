@@ -495,7 +495,7 @@ export default class AnthropicProvider extends BaseProvider {
 
   /**
    * Translate a message
-   * @param message - The message
+   * @param content
    * @param assistant - The assistant
    * @param onResponse - The onResponse callback
    * @returns The translated message
@@ -622,8 +622,7 @@ export default class AnthropicProvider extends BaseProvider {
       )
       .finally(cleanup)
 
-    const responseContent = response.content[0].type === 'text' ? response.content[0].text : ''
-    return responseContent
+    return response.content[0].type === 'text' ? response.content[0].text : ''
   }
 
   /**

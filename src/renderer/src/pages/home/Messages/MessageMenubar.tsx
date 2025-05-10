@@ -88,7 +88,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      console.log('mainTextContent', mainTextContent)
       navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
 
       window.message.success({ content: t('message.copied'), key: 'copy-message' })

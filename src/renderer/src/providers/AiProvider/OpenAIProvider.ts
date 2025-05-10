@@ -1239,12 +1239,11 @@ export default class OpenAIProvider extends BaseOpenAiProvider {
     if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
       return mcpToolCallResponseToOpenAIMessage(mcpToolResponse, resp, isVisionModel(model))
     } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
-      const toolCallOut: OpenAI.Responses.ResponseInputItem = {
+      return {
         type: 'function_call_output',
         call_id: mcpToolResponse.toolCallId,
         output: JSON.stringify(resp.content)
       }
-      return toolCallOut
     }
     return
   }
