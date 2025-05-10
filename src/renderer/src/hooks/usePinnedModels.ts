@@ -7,10 +7,12 @@ import { useProviders } from './useProvider'
 
 export const usePinnedModels = () => {
   const [pinnedModels, setPinnedModels] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
   const { providers } = useProviders()
 
   useEffect(() => {
     const loadPinnedModels = async () => {
+      setLoading(true)
       const setting = await db.settings.get('pinned:models')
       const savedPinnedModels = setting?.value || []
 
@@ -24,14 +26,14 @@ export const usePinnedModels = () => {
       }
 
       setPinnedModels(sortBy(validPinnedModels))
+      setLoading(false)
     }
 
-    try {
-      loadPinnedModels()
-    } catch (error) {
+    loadPinnedModels().catch((error) => {
       console.error('Failed to load pinned models', error)
       setPinnedModels([])
-    }
+      setLoading(false)
+    })
   }, [providers])
 
   const updatePinnedModels = useCallback(async (models: string[]) => {
@@ -57,5 +59,5 @@ export const usePinnedModels = () => {
     [pinnedModels, updatePinnedModels]
   )
 
-  return { pinnedModels, updatePinnedModels, togglePinnedModel }
+  return { pinnedModels, updatePinnedModels, togglePinnedModel, loading }
 }

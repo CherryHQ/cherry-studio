@@ -34,7 +34,7 @@ interface Props extends PopupParams {
 const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { pinnedModels, togglePinnedModel } = usePinnedModels()
+  const { pinnedModels, togglePinnedModel, loading: loadingPinnedModels } = usePinnedModels()
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
   const listRef = useRef<FixedSizeList>(null)
@@ -343,10 +343,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 初始化焦点和滚动位置
   useEffect(() => {
-    if (!open) return
+    if (!open || loadingPinnedModels) return
     setTimeout(() => inputRef.current?.focus(), 0)
     initScroll()
-  }, [open, initScroll])
+  }, [open, initScroll, loadingPinnedModels])
 
   const RowData = useMemo(
     (): VirtualizedRowData => ({
@@ -412,7 +412,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => setIsMouseOver(true)}>
+        <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
           {/* Sticky Group Banner，它会替换第一个分组名称 */}
           <StickyGroupBanner>{stickyGroup?.name}</StickyGroupBanner>
           <FixedSizeList

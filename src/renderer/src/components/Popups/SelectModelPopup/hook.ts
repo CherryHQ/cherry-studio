@@ -15,7 +15,7 @@ export function useScrollState() {
       setScrollTrigger: (trigger: ScrollTrigger) => dispatch({ type: 'SET_SCROLL_TRIGGER', payload: trigger }),
       setLastScrollOffset: (offset: number) => dispatch({ type: 'SET_LAST_SCROLL_OFFSET', payload: offset }),
       setStickyGroup: (group: FlatListItem | null) => dispatch({ type: 'SET_STICKY_GROUP', payload: group }),
-      setIsMouseOver: (isOver: boolean) => dispatch({ type: 'SET_IS_MOUSE_OVER', payload: isOver }),
+      setIsMouseOver: (isMouseOver: boolean) => dispatch({ type: 'SET_IS_MOUSE_OVER', payload: isMouseOver }),
       focusNextItem: (modelItems: FlatListItem[], step: number) =>
         dispatch({ type: 'FOCUS_NEXT_ITEM', payload: { modelItems, step } }),
       focusPage: (modelItems: FlatListItem[], currentIndex: number, step: number) =>
