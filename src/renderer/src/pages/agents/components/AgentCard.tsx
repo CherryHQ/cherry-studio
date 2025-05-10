@@ -43,14 +43,17 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
   )
 
   const exportAgent = useCallback(async () => {
-    const result = {
-      name: agent.name,
-      emoji: agent.emoji,
-      group: agent.group,
-      prompt: agent.prompt,
-      description: agent.description,
-      type: 'agent'
-    }
+    const result = [
+      {
+        name: agent.name,
+        emoji: agent.emoji,
+        group: agent.group,
+        prompt: agent.prompt,
+        description: agent.description,
+        regularPhrases: agent.regularPhrases,
+        type: 'agent'
+      }
+    ]
 
     const resultStr = JSON.stringify(result, null, 2)
 
