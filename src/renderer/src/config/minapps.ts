@@ -50,8 +50,11 @@ import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png?url'
+import CoSTORMLogo from '@renderer/assets/images/providers/Co-STORM.svg?url'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png?url'
+import DeepWikiLogo from '@renderer/assets/images/providers/deepwiki.svg?url'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
+import MetaAILogo from '@renderer/assets/images/providers/metaai.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
 import { MinAppType } from '@renderer/types'
@@ -459,6 +462,24 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
+  },
+  {
+    id: 'deepwiki',
+    name: 'DeepWiki',
+    logo: DeepWikiLogo,
+    url: 'https://deepwiki.org/'
+  },
+  {
+    id: 'co-storm',
+    name: 'Co-STORM',
+    logo: CoSTORMLogo,
+    url: 'https://storm.genie.stanford.edu/'
+  },
+  {
+    id: 'metaai',
+    name: 'MetaAI',
+    logo: MetaAILogo,
+    url: 'https://www.meta.ai/'
   }
 ]
 
