@@ -3,6 +3,7 @@ import i18n from '@renderer/i18n'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
@@ -27,6 +28,7 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   useEffect(() => {
     if (activeTopic) {
       store.dispatch(loadTopicMessagesThunk(activeTopic.id))
+      store.dispatch(newMessagesActions.setCurrentTopicId(activeTopic.id))
     }
   }, [activeTopic])
 
