@@ -267,11 +267,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   // 处理键盘导航
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!open) return
-
-      if (modelItems.length === 0) {
-        return
-      }
+      if (!open || modelItems.length === 0 || e.isComposing) return
 
       // 键盘操作时禁用鼠标 hover
       if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter', 'Escape'].includes(e.key)) {
