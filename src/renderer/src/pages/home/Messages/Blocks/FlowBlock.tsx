@@ -3,8 +3,8 @@ import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { Workflow } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { FlowMessageBlock, Message, MessageBlockStatus } from '@renderer/types/newMessage'
-import { StepProps, Steps } from 'antd'
-import { Bot, House, LandPlot, Wrench } from 'lucide-react'
+import { Breadcrumb } from 'antd'
+import { Bot, Ellipsis, House, LandPlot, Wrench } from 'lucide-react'
 import React from 'react'
 
 interface Props {
@@ -29,24 +29,51 @@ const getTypeIcon = (status: MessageBlockStatus, type?: string) => {
       return <Wrench size={16} />
   }
 }
-
 const FlowBlock: React.FC<Props> = ({ block, message }) => {
-  const nodeItems: StepProps[] =
+  const nodeItems =
     block.nodes?.map((node) => {
       const typeIcon = getTypeIcon(node.status, node.type)
       const title = node?.title || 'UNKNOWN'
       return {
-        title: title,
-        icon: typeIcon
+        key: node.id,
+        title: (
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {typeIcon}
+            <span style={{ marginLeft: 8 }}>{title}</span>
+          </div>
+        )
       }
     }) ?? []
-  console.log('nodeItems', nodeItems)
+
   const renderBlockContent = () => {
     switch (block.chunkType) {
       case ChunkType.WORKFLOW_INIT:
         return <WorkflowForm workflow={block.workflow as Workflow} message={message} />
       default: {
-        return <Steps items={nodeItems} />
+        if (nodeItems.length > 5) {
+          const firstItem = nodeItems[0]
+          const lastFourItems = nodeItems.slice(-4)
+          const middleItems = nodeItems.slice(1, -4)
+
+          const menuItems = middleItems.map((item) => ({
+            key: item.key,
+            label: item.title
+          }))
+
+          const menu = { items: menuItems }
+
+          const breadcrumbItems = [
+            firstItem,
+            {
+              key: 'ellipsis',
+              title: <Ellipsis size={16} />,
+              menu
+            },
+            ...lastFourItems
+          ]
+          return <Breadcrumb separator="--->" items={breadcrumbItems} />
+        }
+        return <Breadcrumb separator="--->" items={nodeItems} />
       }
     }
   }
