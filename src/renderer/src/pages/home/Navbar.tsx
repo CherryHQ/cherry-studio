@@ -18,6 +18,7 @@ import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search 
 import { FC } from 'react'
 import styled from 'styled-components'
 
+import DialogMapButton from './components/DialogMapButton'
 import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
@@ -91,6 +92,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
               <Search size={18} />
             </NarrowIcon>
           </Tooltip>
+          <DialogMapButton />
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>

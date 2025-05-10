@@ -1,4 +1,4 @@
-import { FileType, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
+import { DialogMap, FileType, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
 // Import necessary types for blocks and new message structure
 import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMessage'
 import { Dexie, type EntityTable } from 'dexie'
@@ -14,6 +14,7 @@ export const db = new Dexie('CherryStudio') as Dexie & {
   translate_history: EntityTable<TranslateHistory, 'id'>
   quick_phrases: EntityTable<QuickPhrase, 'id'>
   message_blocks: EntityTable<MessageBlock, 'id'> // Correct type for message_blocks
+  dialogMaps: EntityTable<DialogMap, 'id'>
 }
 
 db.version(1).stores({
@@ -70,7 +71,8 @@ db.version(7)
     knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
     translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
     quick_phrases: 'id',
-    message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
+    message_blocks: 'id, messageId, file.id', // Correct syntax with comma separator
+    dialogMaps: '&id, topicId, rootNodeId, createdAt, updatedAt'
   })
   .upgrade((tx) => upgradeToV7(tx))
 
