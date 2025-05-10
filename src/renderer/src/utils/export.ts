@@ -11,7 +11,7 @@ import { convertMathFormula } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
-//TODO: 添加对思考内容的支持
+// TODO: OB、Joplin支持思维链导出
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -164,10 +164,13 @@ export const exportMessageAsMarkdown = async (message: Message, exportReasoning?
   }
 }
 
+// TODO：Notion支持思维链导出(尝试转换为折叠块)
+// TODO：Notion导出自动分页优化
+
 const convertMarkdownToNotionBlocks = async (markdown: string) => {
   return markdownToBlocks(markdown)
 }
-// 修改 splitNotionBlocks 函数
+
 const splitNotionBlocks = (blocks: any[]) => {
   const { notionAutoSplit, notionSplitSize } = store.getState().settings
 
