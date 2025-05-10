@@ -1,5 +1,6 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import FloatingSidebar from '@renderer/components/Popups/FloatingSidebar'
 import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
@@ -74,13 +75,19 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
         <HStack alignItems="center">
           {!showAssistants && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-              <NavbarIcon
-                onClick={() => toggleShowAssistants()}
-                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
-                <PanelRightClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
+            <FloatingSidebar
+              activeAssistant={assistant}
+              setActiveAssistant={(newAssistant) => {
+                EventEmitter.emit(EVENT_NAMES.SWITCH_ASSISTANT, newAssistant.id)
+              }}>
+              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+                <NavbarIcon
+                  onClick={() => toggleShowAssistants()}
+                  style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
+                  <PanelRightClose size={18} />
+                </NavbarIcon>
+              </Tooltip>
+            </FloatingSidebar>
           )}
           <SelectModelButton assistant={assistant} />
         </HStack>
