@@ -1,6 +1,6 @@
 import 'emoji-picker-element'
 
-import { CheckOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined, ThunderboltOutlined, RollbackOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
@@ -38,6 +38,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
+  const [undoEnabled, setUndoEnabled] = useState(false)
+  const [originalPrompt, setOriginalPrompt] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
@@ -99,6 +101,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const handleButtonClick = async () => {
+    if (undoEnabled) {
+      form.setFieldsValue({ prompt: originalPrompt })
+      setUndoEnabled(false)
+      return
+    }
+
     const name = formRef.current?.getFieldValue('name')
     const content = formRef.current?.getFieldValue('prompt')
     const promptText = content || name
@@ -119,6 +127,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         content: promptText
       })
       form.setFieldsValue({ prompt: generatedText })
+      setUndoEnabled(true)
+      setOriginalPrompt(content)
     } catch (error) {
       console.error('Error fetching data:', error)
     }
@@ -154,6 +164,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           if (changedValues.prompt) {
             const count = await estimateTextTokens(changedValues.prompt)
             setTokenCount(count)
+            setUndoEnabled(false)
           }
         }}>
         <Form.Item name="name" label="Emoji">
@@ -174,7 +185,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+            icon={loading ? <LoadingOutlined /> : undoEnabled ? <RollbackOutlined /> : <ThunderboltOutlined />}
             onClick={handleButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
             disabled={loading}
