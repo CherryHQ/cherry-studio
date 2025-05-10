@@ -210,11 +210,6 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     [listItems, lastScrollOffset, setStickyGroup]
   )
 
-  // 在listItems变化时更新sticky group
-  useEffect(() => {
-    updateStickyGroup()
-  }, [listItems, updateStickyGroup])
-
   // 处理列表滚动事件，更新lastScrollOffset并更新sticky分组
   const handleScroll = useCallback(
     ({ scrollOffset }) => {
@@ -228,7 +223,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   useEffect(() => {
     if (loading) return
     updateOnListChange(modelItems)
-  }, [modelItems, updateOnListChange, loading])
+    updateStickyGroup()
+  }, [modelItems, updateOnListChange, loading, updateStickyGroup])
 
   // 滚动到聚焦项
   useEffect(() => {
