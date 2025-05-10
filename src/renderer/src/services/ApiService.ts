@@ -477,12 +477,13 @@ export async function checkApi(provider: Provider, model: Model) {
     }
   }
 
-  const AI = new AiProvider(provider)
+  const ai = new AiProvider(provider)
 
-  const { valid, error } = await AI.check(model)
-
-  return {
-    valid,
-    error
+  // Try streaming check first
+  const result = await ai.check(model, true)
+  if (result.valid && !result.error) {
+    return result
   }
+
+  return ai.check(model, false)
 }
