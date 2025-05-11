@@ -13,8 +13,12 @@ import type {
   ToolMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, UserMessageStatus } from '@renderer/types/newMessage'
-import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import {
+  AssistantMessageStatus,
+  MessageBlockStatus,
+  MessageBlockType,
+  UserMessageStatus
+} from '@renderer/types/newMessage'
 import { v4 as uuidv4 } from 'uuid'
 
 type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
@@ -184,7 +188,7 @@ export function createFileBlock(
 /**
  * Creates an Error Message Block.
  * @param messageId - The ID of the parent message.
- * @param error - The error object/details.
+ * @param errorData
  * @param overrides - Optional properties to override the defaults.
  * @returns An ErrorMessageBlock object.
  */
@@ -273,7 +277,6 @@ export function createCitationBlock(
  * @param role - The role of the message sender ('user' or 'assistant').
  * @param topicId - The ID of the topic this message belongs to.
  * @param assistantId - The ID of the assistant (relevant for assistant messages).
- * @param type - The type of the message ('text', '@', 'clear').
  * @param overrides - Optional properties to override the defaults. Initial blocks can be passed here.
  * @returns A Message object.
  */
@@ -311,8 +314,8 @@ export function createMessage(
 /**
  * Creates a new Assistant Message object (stub) based on the LATEST definition.
  * Contains only metadata, no content or block data initially.
- * @param assistant - The assistant configuration.
- * @param topic - The topic this message belongs to.
+ * @param assistantId
+ * @param topicId
  * @param overrides - Optional properties to override the defaults (e.g., model, askId).
  * @returns An Assistant Message stub object.
  */
@@ -395,7 +398,7 @@ export const resetAssistantMessage = (
   }
 
   // Create the base reset message
-  const resetMsg: Message = {
+  return {
     // --- Retain Core Identifiers ---
     id: originalMessage.id, // Keep the same message ID
     topicId: originalMessage.topicId,
@@ -420,8 +423,6 @@ export const resetAssistantMessage = (
     // --- Apply Overrides ---
     ...updates // Apply any specific updates passed in (e.g., a different status)
   }
-
-  return resetMsg
 }
 
 // 需要一个重置助手消息

@@ -620,7 +620,7 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * Translate a message
-   * @param message - The message
+   * @param content
    * @param assistant - The assistant
    * @param onResponse - The onResponse callback
    * @returns The translated message
@@ -827,7 +827,7 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * 处理Gemini图像响应
-   * @param response - Gemini响应
+   * @param chunk
    * @param onChunk - 处理生成块的回调
    */
   private processGeminiImageResponse(
@@ -961,7 +961,7 @@ export default class GeminiProvider extends BaseProvider {
     if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
       return mcpToolCallResponseToGeminiMessage(mcpToolResponse, resp, isVisionModel(model))
     } else if ('toolCallId' in mcpToolResponse) {
-      const toolCallOut = {
+      return {
         role: 'user',
         parts: [
           {
@@ -976,7 +976,6 @@ export default class GeminiProvider extends BaseProvider {
           }
         ]
       } satisfies Content
-      return toolCallOut
     }
     return
   }

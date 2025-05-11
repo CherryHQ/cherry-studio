@@ -88,7 +88,6 @@ export function useMessageOperations(topic: Topic) {
         console.error('[editMessage] Topic prop is not valid.')
         return
       }
-      console.log(`[useMessageOperations] Editing message ${messageId} with updates:`, updates)
 
       const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
         id: messageId,
@@ -274,12 +273,10 @@ export function useMessageOperations(topic: Topic) {
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
         await dispatch(updateTranslationBlockThunk(blockId, '', false))
-        console.log('[getTranslationUpdater] update existing translation block:', blockId)
       } else {
         blockId = await dispatch(
           initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
         )
-        console.log('[getTranslationUpdater] create new translation block:', blockId)
       }
 
       if (!blockId) {
