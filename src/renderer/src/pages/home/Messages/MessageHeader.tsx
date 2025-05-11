@@ -1,3 +1,4 @@
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -87,7 +88,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
         ) : (
           <>
             {isEmoji(avatar) ? (
-              <EmojiAvatar onClick={() => UserPopup.show()}>{avatar}</EmojiAvatar>
+              <EmojiAvatar onClick={() => UserPopup.show()} size={35} fontSize={20}>
+                {avatar}
+              </EmojiAvatar>
             ) : (
               <Avatar
                 src={avatar}
@@ -110,20 +113,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
 })
 
 MessageHeader.displayName = 'MessageHeader'
-
-const EmojiAvatar = styled.div`
-  width: 35px;
-  height: 35px;
-  background-color: var(--color-background-soft);
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  cursor: pointer;
-  border: 0.5px solid var(--color-border);
-  font-size: 20px;
-`
 
 const Container = styled.div`
   display: flex;
