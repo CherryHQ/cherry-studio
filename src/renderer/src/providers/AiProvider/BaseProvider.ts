@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { isFunctionCallingModel } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
@@ -129,7 +130,7 @@ export default abstract class BaseProvider {
 
     const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences]
 
-    console.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
+    Logger.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
 
     if (!isEmpty(allReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
@@ -172,10 +173,10 @@ export default abstract class BaseProvider {
     const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
 
     if (!isEmpty(knowledgeReferences)) {
-      // console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      // Logger.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    // console.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    // Logger.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 

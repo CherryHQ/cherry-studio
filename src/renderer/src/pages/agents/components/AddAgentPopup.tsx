@@ -141,6 +141,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       okText={t('agents.add.title')}
       width={800}
+      transitionName="animation-move-down"
       centered>
       <Form
         ref={formRef}

@@ -77,6 +77,7 @@ export function WebdavBackupModal({
       onOk={handleBackup}
       onCancel={handleCancel}
       okButtonProps={{ loading: backuping }}
+      transitionName="animation-move-down"
       centered>
       <Input
         value={customFileName}
@@ -208,6 +209,7 @@ export function WebdavRestoreModal({
       onCancel={handleCancel}
       okButtonProps={{ loading: restoring }}
       width={600}
+      transitionName="animation-move-down"
       centered>
       <div style={{ position: 'relative' }}>
         <Select

@@ -125,6 +125,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       afterClose={onClose}
       destroyOnClose
       maskClosable={false}
+      transitionName="animation-move-down"
       centered>
       <Form form={form} layout="vertical" className="compact-form">
         <Form.Item

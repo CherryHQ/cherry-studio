@@ -1,3 +1,5 @@
+import Logger from '@renderer/config/logger'
+
 import LocalSearchProvider, { SearchItem } from './LocalSearchProvider'
 
 export default class LocalBaiduProvider extends LocalSearchProvider {
@@ -22,7 +24,7 @@ export default class LocalBaiduProvider extends LocalSearchProvider {
     } catch (error) {
       console.error('Failed to parse Baidu search HTML:', error)
     }
-    console.log('Parsed Baidu search results:', results)
+    Logger.log('Parsed Baidu search results:', results)
     return results
   }
 }

@@ -305,6 +305,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      transitionName="animation-move-down"
       centered
       width={800}
       footer={null}>

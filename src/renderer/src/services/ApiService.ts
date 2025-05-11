@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
 import {
   SEARCH_SUMMARY_PROMPT,
@@ -200,7 +201,7 @@ async function fetchExternalTool(
     // 根据配置决定是否需要提取
     if (shouldWebSearch || hasKnowledgeBase) {
       extractResults = await extract()
-      console.log('Extraction results:', extractResults)
+      Logger.log('[fetchExternalTool] Extraction results:', extractResults)
     }
 
     let webSearchResponseFromSearch: WebSearchResponse | undefined

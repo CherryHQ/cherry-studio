@@ -1544,7 +1544,6 @@
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
-      "zoom.title": "Масштаб страницы",
       "title": "Настройки",
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
@@ -1624,6 +1623,10 @@
       "any.language": "Любой язык",
       "button.translate": "Перевести",
       "close": "Закрыть",
+      "closed": "Перевод закрыт",
+      "copied": "Содержимое перевода скопировано",
+      "empty": "Содержимое перевода пусто",
+      "not.found": "Содержимое перевода не найдено",
       "confirm": {
         "content": "Перевод заменит исходный текст, продолжить?",
         "title": "Перевод подтверждение"
@@ -1658,6 +1661,10 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "zoom": {
+      "title": "Масштаб",
+      "reset": "Сбросить"
     }
   }
 }

@@ -469,8 +469,4 @@ function updateDefaultMinApps(param) {
   DEFAULT_MIN_APPS = param
 }
 
-if (process.env.NODE_ENV === 'development') {
-  console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
-}
-
 export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps }

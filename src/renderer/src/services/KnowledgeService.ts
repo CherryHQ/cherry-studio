@@ -1,6 +1,7 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
+import Logger from '@renderer/config/logger'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
@@ -96,7 +97,7 @@ export const processKnowledgeSearch = async (
     extractResults.knowledge.question.length === 0 ||
     isEmpty(knowledgeBaseIds)
   ) {
-    console.log('No valid question found in extractResults.knowledge')
+    Logger.log('No valid question found in extractResults.knowledge')
     return []
   }
   const questions = extractResults.knowledge.question
@@ -104,7 +105,7 @@ export const processKnowledgeSearch = async (
 
   const bases = store.getState().knowledge.bases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
   if (!bases || bases.length === 0) {
-    console.log('Skipping knowledge search: No matching knowledge bases found.')
+    Logger.log('Skipping knowledge search: No matching knowledge bases found.')
     return []
   }
 
@@ -133,7 +134,7 @@ export const processKnowledgeSearch = async (
         new Map(allSearchResults.flat().map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
       ).sort((a, b) => b.score - a.score)
 
-      console.log(`Knowledge base ${base.name} search results:`, searchResults)
+      Logger.log(`Knowledge base ${base.name} search results:`, searchResults)
 
       let rerankResults = searchResults
       if (base.rerankModel && searchResults.length > 0) {
@@ -167,7 +168,7 @@ export const processKnowledgeSearch = async (
         })
       )
     } catch (error) {
-      console.error(`Error searching knowledge base ${base.name}:`, error)
+      Logger.error(`Error searching knowledge base ${base.name}:`, error)
       return []
     }
   })

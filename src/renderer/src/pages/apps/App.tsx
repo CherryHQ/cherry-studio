@@ -84,9 +84,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   }
 
   const handleFileChange = async (info: any) => {
-    console.log(info)
     const file = info.fileList[info.fileList.length - 1]?.originFileObj
-    console.log(file)
     setFileList(info.fileList.slice(-1))
 
     if (file) {
@@ -180,6 +178,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           setFileList([])
         }}
         footer={null}
+        transitionName="animation-move-down"
         centered>
         <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
           <Form.Item

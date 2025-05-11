@@ -89,7 +89,7 @@ export async function fetchWebContent(
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
     const article = new Readability(doc).parse()
-    // console.log('Parsed article:', article)
+    // Logger.log('Parsed article:', article)
 
     switch (format) {
       case 'markdown': {

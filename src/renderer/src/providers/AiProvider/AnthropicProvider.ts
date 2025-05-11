@@ -30,10 +30,12 @@ import {
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
+  Metrics,
   Model,
   Provider,
   Suggestion,
   ToolCallResponse,
+  Usage,
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
@@ -47,7 +49,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { first, flatten, sum, takeRight } from 'lodash'
+import { first, flatten, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
@@ -270,77 +272,82 @@ export default class AnthropicProvider extends BaseProvider {
       ...this.getCustomParameters(assistant)
     }
 
-    let time_first_token_millsec = 0
-    let time_first_content_millsec = 0
-    let checkThinkingContent = false
-    let thinking_content = ''
-    const start_time_millsec = new Date().getTime()
-
-    if (!streamOutput) {
-      const message = await this.sdk.messages.create({ ...body, stream: false })
-      const time_completion_millsec = new Date().getTime() - start_time_millsec
-
-      let text = ''
-      let reasoning_content = ''
-
-      if (message.content && message.content.length > 0) {
-        const thinkingBlock = message.content.find((block) => block.type === 'thinking')
-        const textBlock = message.content.find((block) => block.type === 'text')
-
-        if (thinkingBlock && 'thinking' in thinkingBlock) {
-          reasoning_content = thinkingBlock.thinking
-        }
-
-        if (textBlock && 'text' in textBlock) {
-          text = textBlock.text
-        }
-      }
-
-      return onChunk({
-        type: ChunkType.BLOCK_COMPLETE,
-        response: {
-          text,
-          reasoning_content,
-          usage: message.usage as any,
-          metrics: {
-            completion_tokens: message.usage.output_tokens,
-            time_completion_millsec,
-            time_first_token_millsec: 0
-          }
-        }
-      })
-    }
-
     const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
     const { signal } = abortController
+
+    const finalUsage: Usage = {
+      completion_tokens: 0,
+      prompt_tokens: 0,
+      total_tokens: 0
+    }
+
+    const finalMetrics: Metrics = {
+      completion_tokens: 0,
+      time_completion_millsec: 0,
+      time_first_token_millsec: 0
+    }
     const toolResponses: MCPToolResponse[] = []
 
-    const processStream = (body: MessageCreateParamsNonStreaming, idx: number) => {
+    const processStream = async (body: MessageCreateParamsNonStreaming, idx: number) => {
+      let time_first_token_millsec = 0
+      const start_time_millsec = new Date().getTime()
+
+      if (!streamOutput) {
+        const message = await this.sdk.messages.create({ ...body, stream: false })
+        const time_completion_millsec = new Date().getTime() - start_time_millsec
+
+        let text = ''
+        let reasoning_content = ''
+
+        if (message.content && message.content.length > 0) {
+          const thinkingBlock = message.content.find((block) => block.type === 'thinking')
+          const textBlock = message.content.find((block) => block.type === 'text')
+
+          if (thinkingBlock && 'thinking' in thinkingBlock) {
+            reasoning_content = thinkingBlock.thinking
+          }
+
+          if (textBlock && 'text' in textBlock) {
+            text = textBlock.text
+          }
+        }
+
+        return onChunk({
+          type: ChunkType.BLOCK_COMPLETE,
+          response: {
+            text,
+            reasoning_content,
+            usage: message.usage as any,
+            metrics: {
+              completion_tokens: message.usage.output_tokens,
+              time_completion_millsec,
+              time_first_token_millsec: 0
+            }
+          }
+        })
+      }
+
+      let thinking_content = ''
+      let isFirstChunk = true
+
       return new Promise<void>((resolve, reject) => {
         // 等待接口返回流
         const toolCalls: ToolUseBlock[] = []
-        let hasThinkingContent = false
+
         this.sdk.messages
           .stream({ ...body, stream: true }, { signal, timeout: 5 * 60 * 1000 })
           .on('text', (text) => {
-            if (hasThinkingContent && !checkThinkingContent) {
-              checkThinkingContent = true
-              onChunk({
-                type: ChunkType.THINKING_COMPLETE,
-                text: thinking_content,
-                thinking_millsec: new Date().getTime() - time_first_content_millsec
-              })
-            }
-            if (time_first_token_millsec == 0) {
-              time_first_token_millsec = new Date().getTime()
-            }
-
-            thinking_content = ''
-            checkThinkingContent = false
-            hasThinkingContent = false
-
-            if (!hasThinkingContent && time_first_content_millsec === 0) {
-              time_first_content_millsec = new Date().getTime()
+            if (isFirstChunk) {
+              isFirstChunk = false
+              if (time_first_token_millsec == 0) {
+                time_first_token_millsec = new Date().getTime()
+              } else {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinking_content,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
             }
 
             onChunk({ type: ChunkType.TEXT_DELTA, text })
@@ -372,33 +379,21 @@ export default class AnthropicProvider extends BaseProvider {
                 })
               }
             }
+            if (block.type === 'tool_use') {
+              toolCalls.push(block)
+            }
           })
           .on('thinking', (thinking) => {
-            hasThinkingContent = true
-            const currentTime = new Date().getTime() // Get current time for each chunk
-
             if (time_first_token_millsec == 0) {
-              time_first_token_millsec = currentTime
+              time_first_token_millsec = new Date().getTime()
             }
 
-            // Set time_first_content_millsec ONLY when the first content (thinking or text) arrives
-            if (time_first_content_millsec === 0) {
-              time_first_content_millsec = currentTime
-            }
-
-            // Calculate thinking time as time elapsed since start until this chunk
-            const thinking_time = currentTime - time_first_content_millsec
             onChunk({
               type: ChunkType.THINKING_DELTA,
               text: thinking,
-              thinking_millsec: thinking_time
+              thinking_millsec: new Date().getTime() - time_first_token_millsec
             })
             thinking_content += thinking
-          })
-          .on('contentBlock', (content) => {
-            if (content.type === 'tool_use') {
-              toolCalls.push(content)
-            }
           })
           .on('finalMessage', async (message) => {
             const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
@@ -458,29 +453,28 @@ export default class AnthropicProvider extends BaseProvider {
               newBody.messages = userMessages
 
               onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-              await processStream(newBody, idx + 1)
+              try {
+                await processStream(newBody, idx + 1)
+              } catch (error) {
+                console.error('Error processing stream:', error)
+                reject(error)
+              }
             }
 
-            const time_completion_millsec = new Date().getTime() - start_time_millsec
+            finalUsage.prompt_tokens += message.usage.input_tokens
+            finalUsage.completion_tokens += message.usage.output_tokens
+            finalUsage.total_tokens += finalUsage.prompt_tokens + finalUsage.completion_tokens
+            finalMetrics.completion_tokens = finalUsage.completion_tokens
+            finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
+            finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
 
             onChunk({
               type: ChunkType.BLOCK_COMPLETE,
               response: {
-                usage: {
-                  prompt_tokens: message.usage.input_tokens,
-                  completion_tokens: message.usage.output_tokens,
-                  total_tokens: sum(Object.values(message.usage))
-                },
-                metrics: {
-                  completion_tokens: message.usage.output_tokens,
-                  time_completion_millsec,
-                  time_first_token_millsec: time_first_token_millsec - start_time_millsec
-                }
+                usage: finalUsage,
+                metrics: finalMetrics
               }
             })
-            // FIXME: 临时方案，重置时间戳和思考内容
-            time_first_token_millsec = 0
-            time_first_content_millsec = 0
             resolve()
           })
           .on('error', (error) => reject(error))

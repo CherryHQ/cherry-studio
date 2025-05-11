@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
 import { WebSearchState } from '@renderer/store/websearch'
@@ -128,7 +129,7 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-      console.log('Search response:', response)
+      Logger.log('[checkSearch] Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
       return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
@@ -142,7 +143,7 @@ class WebSearchService {
   ): Promise<WebSearchProviderResponse> {
     // 检查 websearch 和 question 是否有效
     if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
-      console.log('No valid question found in extractResults.websearch')
+      Logger.log('[processWebsearch] No valid question found in extractResults.websearch')
       return { results: [] }
     }
 

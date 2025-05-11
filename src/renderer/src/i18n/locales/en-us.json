@@ -1546,7 +1546,6 @@
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
-      "zoom.title": "Page Zoom",
       "title": "Settings",
       "topic.position": "Topic position",
       "topic.position.left": "Left",
@@ -1624,6 +1623,10 @@
       "any.language": "Any language",
       "button.translate": "Translate",
       "close": "Close",
+      "closed": "Translation closed",
+      "copied": "Translation content copied",
+      "empty": "Translation content is empty",
+      "not.found": "Translation content not found",
       "confirm": {
         "content": "Translation will replace the original text, continue?",
         "title": "Translation Confirmation"

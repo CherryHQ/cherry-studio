@@ -1544,7 +1544,6 @@
       "theme.window.style.opaque": "不透明ウィンドウ",
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
-      "zoom.title": "ページズーム",
       "title": "設定",
       "topic.position": "トピックの位置",
       "topic.position.left": "左",
@@ -1624,6 +1623,10 @@
       "any.language": "任意の言語",
       "button.translate": "翻訳",
       "close": "閉じる",
+      "closed": "翻訳は閉じられました",
+      "copied": "翻訳内容がコピーされました",
+      "empty": "翻訳内容が空です",
+      "not.found": "翻訳内容が見つかりません",
       "confirm": {
         "content": "翻訳すると元のテキストが上書きされます。続行しますか？",
         "title": "翻訳確認"
@@ -1658,6 +1661,10 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "zoom": {
+      "title": "ズーム",
+      "reset": "リセット"
     }
   }
 }

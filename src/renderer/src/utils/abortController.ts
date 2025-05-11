@@ -1,3 +1,5 @@
+import Logger from '@renderer/config/logger'
+
 export const abortMap = new Map<string, (() => void)[]>()
 
 export const addAbortController = (id: string, abortFn: () => void) => {
@@ -29,7 +31,7 @@ export function createAbortPromise(signal: AbortSignal, finallyPromise: Promise<
     }
 
     const abortHandler = (e: Event) => {
-      console.log('abortHandler', e)
+      Logger.log('[createAbortPromise] abortHandler', e)
       reject(new DOMException('Operation aborted', 'AbortError'))
     }
 
