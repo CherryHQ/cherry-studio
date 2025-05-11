@@ -189,9 +189,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const updateStickyGroup = useCallback(
     (scrollOffset?: number) => {
       if (listItems.length === 0) {
-        setStickyGroup(null)
+        !stickyGroup && setStickyGroup(null)
         return
       }
+
+      let newStickyGroup: FlatListItem | null = null
 
       // 基于滚动位置计算当前可见的第一个项的索引
       const estimatedIndex = Math.floor((scrollOffset ?? lastScrollOffset) / ITEM_HEIGHT)
@@ -199,32 +201,37 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       // 从该索引向前查找最近的分组标题
       for (let i = estimatedIndex - 1; i >= 0; i--) {
         if (i < listItems.length && listItems[i]?.type === 'group') {
-          setStickyGroup(listItems[i])
-          return
+          newStickyGroup = listItems[i]
+          break
         }
       }
 
       // 找不到则使用第一个分组标题
-      setStickyGroup(firstGroupRef.current)
+      if (!newStickyGroup) newStickyGroup = firstGroupRef.current
+
+      if (stickyGroup?.key !== newStickyGroup?.key) {
+        setStickyGroup(newStickyGroup)
+      }
     },
-    [listItems, lastScrollOffset, setStickyGroup]
+    [listItems, lastScrollOffset, setStickyGroup, stickyGroup]
   )
 
   // 处理列表滚动事件，更新lastScrollOffset并更新sticky分组
   const handleScroll = useCallback(
     ({ scrollOffset }) => {
       setLastScrollOffset(scrollOffset)
-      updateStickyGroup(scrollOffset)
     },
-    [updateStickyGroup, setLastScrollOffset]
+    [setLastScrollOffset]
   )
 
   // 在列表项更新时，更新焦点项
   useEffect(() => {
-    if (loading) return
-    updateOnListChange(modelItems)
-    updateStickyGroup()
-  }, [modelItems, updateOnListChange, loading, updateStickyGroup])
+    if (!loading) updateOnListChange(modelItems)
+  }, [modelItems, updateOnListChange, loading])
+
+  useEffect(() => {
+    if (!loading) updateStickyGroup()
+  }, [modelItems, updateStickyGroup, loading])
 
   // 滚动到聚焦项
   useEffect(() => {
