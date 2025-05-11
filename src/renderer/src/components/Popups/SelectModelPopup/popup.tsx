@@ -48,7 +48,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const {
     focusedItemKey,
     scrollTrigger,
-    lastScrollOffset,
+    lastScrollOffset: _lastScrollOffset,
     stickyGroup: _stickyGroup,
     isMouseOver,
     setFocusedItemKey,
@@ -62,6 +62,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     updateOnListChange
   } = useScrollState()
 
+  const lastScrollOffset = useDeferredValue(_lastScrollOffset)
   const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
 
