@@ -42,5 +42,8 @@ jobs:
       - name: Build Check
         run: yarn build:check
 
+      - name: i18n Check
+        run: yarn build:check
+
       - name: Lint Check
         run: yarn lint
