@@ -95,11 +95,17 @@ const DisplaySettings: FC = () => {
       setCurrentZoom(factor)
     })
 
-    // 创建一个监听resize事件的函数, 同步快捷键导致的缩放
+    // 跟踪上一次的缩放值，避免不必要的更新
+    // 创建一个监听resize事件的函数
+    let lastWidth = window.innerWidth
     const handleResize = () => {
-      window.api.handleZoomFactor(0).then((factor) => {
-        setCurrentZoom(factor)
-      })
+      const currentWidth = window.innerWidth
+      if (currentWidth !== lastWidth) {
+        window.api.handleZoomFactor(0).then((factor) => {
+          setCurrentZoom(factor)
+        })
+        lastWidth = currentWidth
+      }
     }
 
     // 添加resize事件监听
