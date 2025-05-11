@@ -11,7 +11,7 @@ import { classNames } from '@renderer/utils/style'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { FixedSizeList } from 'react-window'
@@ -48,13 +48,13 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const {
     focusedItemKey,
     scrollTrigger,
-    lastScrollOffset: _lastScrollOffset,
-    stickyGroup: _stickyGroup,
+    lastScrollOffset,
+    stickyGroup,
     isMouseOver,
-    setFocusedItemKey,
+    setFocusedItemKey: _setFocusedItemKey,
     setScrollTrigger,
-    setLastScrollOffset,
-    setStickyGroup,
+    setLastScrollOffset: _setLastScrollOffset,
+    setStickyGroup: _setStickyGroup,
     setIsMouseOver,
     focusNextItem,
     focusPage,
@@ -62,9 +62,28 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     focusOnListChange
   } = useScrollState()
 
-  const lastScrollOffset = useDeferredValue(_lastScrollOffset)
-  const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
+
+  const setFocusedItemKey = useCallback(
+    (key: string) => {
+      startTransition(() => _setFocusedItemKey(key))
+    },
+    [_setFocusedItemKey]
+  )
+
+  const setLastScrollOffset = useCallback(
+    (offset: number) => {
+      startTransition(() => _setLastScrollOffset(offset))
+    },
+    [_setLastScrollOffset]
+  )
+
+  const setStickyGroup = useCallback(
+    (group: FlatListItem | null) => {
+      startTransition(() => _setStickyGroup(group))
+    },
+    [_setStickyGroup]
+  )
 
   // 根据输入的文本筛选模型
   const getFilteredModels = useCallback(
@@ -410,7 +429,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
+        <ListContainer onMouseMove={() => startTransition(() => setIsMouseOver(true))}>
           {/* Sticky Group Banner，它会替换第一个分组名称 */}
           <StickyGroupBanner>{stickyGroup?.name}</StickyGroupBanner>
           <FixedSizeList
@@ -421,7 +440,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
             itemSize={ITEM_HEIGHT}
             itemData={RowData}
             itemKey={(index, data) => data.listItems[index].key}
-            overscanCount={6}
+            overscanCount={4}
             onScroll={handleScroll}
             style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
             {VirtualizedRow}
