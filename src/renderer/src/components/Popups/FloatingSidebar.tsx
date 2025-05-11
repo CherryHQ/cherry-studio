@@ -55,7 +55,7 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
       }}
       content={content}
       trigger={['hover', 'click']}
-      placement="rightTop"
+      placement="bottomRight"
       arrow={false}
       mouseEnterDelay={0.8} // 800ms delay before showing
       mouseLeaveDelay={20}
