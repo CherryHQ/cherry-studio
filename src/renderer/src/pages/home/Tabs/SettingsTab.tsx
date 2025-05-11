@@ -13,6 +13,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -159,7 +160,7 @@ const SettingsTab: FC<Props> = (props) => {
     return contextCount.toString()
   }
 
-  return (
+  const container = (
     <Container className="settings-tab">
       <SettingGroup style={{ marginTop: 10 }}>
         <SettingSubtitle style={{ marginTop: 0, display: 'flex', justifyContent: 'space-between' }}>
@@ -652,6 +653,22 @@ const SettingsTab: FC<Props> = (props) => {
       </SettingGroup>
     </Container>
   )
+  EventEmitter.on(EVENT_NAMES.MAX_CONTEXTS_CHANGED, ({ check, context }): any => {
+    setEnableMaxContexts(check)
+    updateAssistantSettings({ enableMaxContexts: check })
+
+    // Ensure contextCount is within the new valid range
+    let newContextCount = context
+    if (!check && newContextCount > 10) {
+      newContextCount = 10
+    } else if (check && newContextCount > 100) {
+      newContextCount = 100
+    }
+
+    setContextCount(newContextCount)
+    onUpdateAssistantSettings({ contextCount: newContextCount })
+  })
+  return container
 }
 
 const Container = styled(Scrollbar)`

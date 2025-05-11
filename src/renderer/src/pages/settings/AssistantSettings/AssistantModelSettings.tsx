@@ -4,6 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
@@ -31,6 +32,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
     assistant?.settings?.customParameters ?? []
   )
+
+  const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
+    updateAssistantSettings(settings)
+  }
 
   const customParametersRef = useRef(customParameters)
 
@@ -312,14 +317,17 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <InputNumber
             min={0}
-            max={100}
+            max={!enableMaxContexts ? 10 : 100}
             step={1}
             value={contextCount}
             changeOnBlur
             onChange={(value) => {
               if (!isNull(value)) {
                 setContextCount(value)
-                setTimeout(() => updateAssistantSettings({ contextCount: value }), 500)
+                setTimeout(() => {
+                  updateAssistantSettings({ contextCount: value })
+                  onUpdateAssistantSettings({ contextCount: value })
+                }, 500)
               }
             }}
             style={{ width: '100%' }}
@@ -340,6 +348,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               setContextCount(10)
               onUpdateAssistantSettings({ contextCount: 10 })
             }
+            EventEmitter.emit(EVENT_NAMES.MAX_CONTEXTS_CHANGED, {
+              check: checked,
+              context: contextCount
+            })
           }}
         />
       </SettingRow>
