@@ -11,7 +11,16 @@ import { classNames } from '@renderer/utils/style'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { FixedSizeList } from 'react-window'
@@ -252,7 +261,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   }, [modelItems, updateStickyGroup, loading])
 
   // 滚动到聚焦项
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scrollTrigger === 'none' || !focusedItemKey) return
 
     const index = listItems.findIndex((item) => item.key === focusedItemKey)
