@@ -133,7 +133,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
           </TagsContainer>
         ),
         icon: (
