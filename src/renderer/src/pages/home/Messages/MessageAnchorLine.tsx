@@ -232,7 +232,13 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               ) : (
                 <>
                   {isEmoji(avatar) ? (
-                    <EmojiAvatar size={size} fontSize={size * 0.6} className="anchor-user-emoji-avatar">
+                    <EmojiAvatar
+                      size={size}
+                      fontSize={size * 0.6}
+                      style={{
+                        cursor: 'default',
+                        pointerEvents: 'none'
+                      }}>
                       {avatar}
                     </EmojiAvatar>
                   ) : (
@@ -303,11 +309,6 @@ const MessageItem = styled.div`
   will-change: opacity;
   opacity: 0.4;
   transition: opacity 0.1s linear;
-
-  &.anchor-user-emoji-avatar {
-    cursor: default;
-    pointer-events: none;
-  }
 `
 
 const MessageItemTitle = styled.div`
