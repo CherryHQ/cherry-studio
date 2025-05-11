@@ -59,7 +59,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     focusNextItem,
     focusPage,
     searchChanged,
-    updateOnListChange
+    focusOnListChange
   } = useScrollState()
 
   const lastScrollOffset = useDeferredValue(_lastScrollOffset)
@@ -227,8 +227,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 在列表项更新时，更新焦点项
   useEffect(() => {
-    if (!loading) updateOnListChange(modelItems)
-  }, [modelItems, updateOnListChange, loading])
+    if (!loading) focusOnListChange(modelItems)
+  }, [modelItems, focusOnListChange, loading])
 
   useEffect(() => {
     if (!loading) updateStickyGroup()
