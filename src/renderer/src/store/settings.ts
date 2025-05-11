@@ -233,8 +233,7 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
-  },
-  zoomFactor: 1
+  }
 }
 
 const settingsSlice = createSlice({
