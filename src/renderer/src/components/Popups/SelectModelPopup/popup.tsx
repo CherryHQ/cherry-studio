@@ -429,7 +429,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => startTransition(() => setIsMouseOver(true))}>
+        <ListContainer onMouseMove={() => !isMouseOver && startTransition(() => setIsMouseOver(true))}>
           {/* Sticky Group Banner，它会替换第一个分组名称 */}
           <StickyGroupBanner>{stickyGroup?.name}</StickyGroupBanner>
           <FixedSizeList
