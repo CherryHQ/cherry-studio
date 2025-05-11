@@ -190,6 +190,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     return value.toString()
   }
 
+  const validAndChangeContextCount = (contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT) => {
+    if ((typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)) {
+      return enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10
+    } else {
+      return typeof contextCount === 'number' ? contextCount : 0
+    }
+  }
+
   return (
     <Container>
       <Row align="middle" style={{ marginBottom: 10 }}>
@@ -301,15 +309,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
-            value={
-              (typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)
-                ? enableMaxContexts
-                  ? EXTENDED_CONTEXT_LIMIT
-                  : 10
-                : typeof contextCount === 'number'
-                  ? contextCount
-                  : 0
-            }
+            value={validAndChangeContextCount(contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT)}
             step={!enableMaxContexts ? 1 : 10}
             tooltip={{ formatter: formatSliderTooltip }}
           />

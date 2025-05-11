@@ -161,6 +161,14 @@ const SettingsTab: FC<Props> = (props) => {
     return value.toString()
   }
 
+  const validAndChangeContextCount = (contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT) => {
+    if ((typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)) {
+      return enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10
+    } else {
+      return typeof contextCount === 'number' ? contextCount : 0
+    }
+  }
+
   const container = (
     <Container className="settings-tab">
       <SettingGroup style={{ marginTop: 10 }}>
@@ -210,16 +218,7 @@ const SettingsTab: FC<Props> = (props) => {
               max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
-              value={
-                (typeof contextCount === 'number' ? contextCount : 0) >
-                (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)
-                  ? enableMaxContexts
-                    ? EXTENDED_CONTEXT_LIMIT
-                    : 10
-                  : typeof contextCount === 'number'
-                    ? contextCount
-                    : 0
-              }
+              value={validAndChangeContextCount(contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT)}
               step={!enableMaxContexts ? 1 : 10}
               tooltip={{ formatter: formatSliderTooltip }}
             />
