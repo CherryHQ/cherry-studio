@@ -100,8 +100,8 @@ function checkTranslations() {
       }
     } else {
       console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0\u3002'))
-      exit(0)
     }
   }
+  exit(0)
 }
 checkTranslations()
