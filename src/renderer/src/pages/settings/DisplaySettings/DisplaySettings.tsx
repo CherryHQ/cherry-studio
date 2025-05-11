@@ -90,15 +90,25 @@ const DisplaySettings: FC = () => {
   )
 
   useEffect(() => {
+    // 初始化获取当前缩放值
     window.api.handleZoomFactor(0).then((factor) => {
       setCurrentZoom(factor)
     })
-    // 添加一个监听resize事件, 同步快捷键导致的缩放
-    window.addEventListener('resize', () => {
+
+    // 创建一个监听resize事件的函数, 同步快捷键导致的缩放
+    const handleResize = () => {
       window.api.handleZoomFactor(0).then((factor) => {
         setCurrentZoom(factor)
       })
-    })
+    }
+
+    // 添加resize事件监听
+    window.addEventListener('resize', handleResize)
+
+    // 清理事件监听，防止内存泄漏
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
   }, [])
 
   const handleZoomFactor = async (delta: number, reset: boolean = false) => {
