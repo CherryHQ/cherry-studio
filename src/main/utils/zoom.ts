@@ -2,23 +2,25 @@ import { BrowserWindow } from 'electron'
 
 import { configManager } from '../services/ConfigManager'
 
-export function handleZoomFactor(delta: number, reset: boolean = false) {
-  return (window: BrowserWindow) => {
-    if (reset) {
-      window.webContents.setZoomFactor(1)
-      configManager.setZoomFactor(1)
-      return
-    }
+export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: boolean = false) {
+  if (reset) {
+    wins.forEach((win) => {
+      win.webContents.setZoomFactor(1)
+    })
+    configManager.setZoomFactor(1)
+    return
+  }
 
-    if (delta === 0) {
-      return
-    }
+  if (delta === 0) {
+    return
+  }
 
-    const currentZoom = configManager.getZoomFactor()
-    const newZoom = Number((currentZoom + delta).toFixed(1))
-    if (newZoom >= 0.5 && newZoom <= 2.0) {
-      window.webContents.setZoomFactor(newZoom)
-      configManager.setZoomFactor(newZoom)
-    }
+  const currentZoom = configManager.getZoomFactor()
+  const newZoom = Number((currentZoom + delta).toFixed(1))
+  if (newZoom >= 0.5 && newZoom <= 2.0) {
+    wins.forEach((win) => {
+      win.webContents.setZoomFactor(newZoom)
+    })
+    configManager.setZoomFactor(newZoom)
   }
 }

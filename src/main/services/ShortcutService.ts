@@ -15,11 +15,11 @@ const windowOnHandlers = new Map<BrowserWindow, { onFocusHandler: () => void; on
 function getShortcutHandler(shortcut: Shortcut) {
   switch (shortcut.key) {
     case 'zoom_in':
-      return (window: BrowserWindow) => handleZoomFactor(0.1)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], 0.1)
     case 'zoom_out':
-      return (window: BrowserWindow) => handleZoomFactor(-0.1)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], -0.1)
     case 'zoom_reset':
-      return (window: BrowserWindow) => handleZoomFactor(0, true)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], 0, true)
     case 'show_app':
       return () => {
         windowService.toggleMainWindow()

@@ -144,11 +144,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
-    windows.forEach((win) => {
-      if (!win.isDestroyed()) {
-        handleZoomFactor(delta, reset)(win)
-      }
-    })
+    handleZoomFactor(windows, delta, reset)
     return configManager.getZoomFactor()
   })
 
