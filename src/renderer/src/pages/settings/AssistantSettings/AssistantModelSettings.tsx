@@ -2,7 +2,7 @@ import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-desig
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, EXTENDED_CONTEXT_LIMIT } from '@renderer/config/constant'
 import { SettingRow } from '@renderer/pages/settings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
@@ -298,13 +298,13 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={20}>
           <Slider
             min={0}
-            max={!enableMaxContexts ? 10 : 100}
+            max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={
-              (typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? 100 : 10)
+              (typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)
                 ? enableMaxContexts
-                  ? 100
+                  ? EXTENDED_CONTEXT_LIMIT
                   : 10
                 : typeof contextCount === 'number'
                   ? contextCount
@@ -317,7 +317,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={4}>
           <InputNumber
             min={0}
-            max={!enableMaxContexts ? 10 : 100}
+            max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
             step={1}
             value={contextCount}
             changeOnBlur

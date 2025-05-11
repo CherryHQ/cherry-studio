@@ -5,6 +5,7 @@ import {
   DEFAULT_CONTEXTCOUNT,
   DEFAULT_MAX_TOKENS,
   DEFAULT_TEMPERATURE,
+  EXTENDED_CONTEXT_LIMIT,
   isMac,
   isWindows
 } from '@renderer/config/constant'
@@ -155,9 +156,9 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const formatSliderTooltip = () => {
-    if (contextCount === undefined) return ''
-    return contextCount.toString()
+  const formatSliderTooltip = (value?: number) => {
+    if (value === undefined) return ''
+    return value.toString()
   }
 
   const container = (
@@ -206,13 +207,14 @@ const SettingsTab: FC<Props> = (props) => {
           <Col span={24}>
             <Slider
               min={0}
-              max={!enableMaxContexts ? 10 : 100}
+              max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={
-                (typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? 100 : 10)
+                (typeof contextCount === 'number' ? contextCount : 0) >
+                (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)
                   ? enableMaxContexts
-                    ? 100
+                    ? EXTENDED_CONTEXT_LIMIT
                     : 10
                   : typeof contextCount === 'number'
                     ? contextCount
@@ -661,8 +663,8 @@ const SettingsTab: FC<Props> = (props) => {
     let newContextCount = context
     if (!check && newContextCount > 10) {
       newContextCount = 10
-    } else if (check && newContextCount > 100) {
-      newContextCount = 100
+    } else if (check && newContextCount > EXTENDED_CONTEXT_LIMIT) {
+      newContextCount = EXTENDED_CONTEXT_LIMIT
     }
 
     setContextCount(newContextCount)
