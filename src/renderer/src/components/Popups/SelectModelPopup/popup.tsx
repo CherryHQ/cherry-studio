@@ -317,23 +317,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
           break
         case 'Escape':
           e.preventDefault()
-          setScrollTrigger('none')
           setOpen(false)
           resolve(undefined)
           break
       }
     },
-    [
-      focusedItemKey,
-      modelItems,
-      handleItemClick,
-      open,
-      resolve,
-      setIsMouseOver,
-      focusNextItem,
-      focusPage,
-      setScrollTrigger
-    ]
+    [focusedItemKey, modelItems, handleItemClick, open, resolve, setIsMouseOver, focusNextItem, focusPage]
   )
 
   useEffect(() => {
@@ -342,11 +331,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   }, [handleKeyDown])
 
   const onCancel = useCallback(() => {
-    setScrollTrigger('initial')
     setOpen(false)
-  }, [setScrollTrigger])
+  }, [])
 
-  const onClose = useCallback(async () => {
+  const onAfterClose = useCallback(async () => {
     setScrollTrigger('initial')
     resolve(undefined)
     SelectModelPopup.hide()
@@ -386,7 +374,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       centered
       open={open}
       onCancel={onCancel}
-      afterClose={onClose}
+      afterClose={onAfterClose}
       width={600}
       transitionName="animation-move-down"
       styles={{
