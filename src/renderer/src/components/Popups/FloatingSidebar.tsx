@@ -1,13 +1,8 @@
-import EmojiIcon from '@renderer/components/EmojiIcon'
-import { Center } from '@renderer/components/Layout'
-import { useAssistants } from '@renderer/hooks/useAssistant'
-import { Assistant } from '@renderer/types'
+import HomeTabs from '@renderer/pages/home/Tabs/index'
+import { Assistant, Topic } from '@renderer/types'
 import { Popover } from 'antd'
-import { Empty } from 'antd'
-import { isEmpty } from 'lodash'
 import { FC, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Scrollbar from '../Scrollbar'
@@ -16,20 +11,22 @@ interface Props {
   children: React.ReactNode
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
+  activeTopic: Topic
+  setActiveTopic: (topic: Topic) => void
 }
 
-const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssistant }) => {
+const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const [open, setOpen] = useState(false)
-  const { assistants } = useAssistants()
-  const { t } = useTranslation()
+  // const { assistants } = useAssistants()
+  // const { t } = useTranslation()
 
   useHotkeys('esc', () => {
     setOpen(false)
   })
 
-  const handleClose = () => {
-    setOpen(false)
-  }
+  // const handleClose = () => {
+  //   setOpen(false)
+  // }
 
   const [maxHeight, setMaxHeight] = useState(Math.floor(window.innerHeight * 0.75))
 
@@ -45,14 +42,14 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
     }
   }, [])
 
-  const handleSwitchAssistant = (assistant: Assistant) => {
-    setActiveAssistant(assistant)
-    handleClose()
-  }
+  // const handleSwitchAssistant = (assistant: Assistant) => {
+  //   setActiveAssistant(assistant)
+  //   handleClose()
+  // }
 
   const content = (
     <PopoverContent maxHeight={maxHeight}>
-      <SidebarHeader>
+      {/* <SidebarHeader>
         <SidebarTitle>{t('assistants.title')}</SidebarTitle>
       </SidebarHeader>
 
@@ -73,7 +70,13 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </Center>
         )}
-      </AssistantsList>
+      </AssistantsList> */}
+      <HomeTabs
+        activeAssistant={activeAssistant}
+        activeTopic={activeTopic}
+        setActiveAssistant={setActiveAssistant}
+        setActiveTopic={setActiveTopic}
+        position="left"></HomeTabs>
     </PopoverContent>
   )
 
@@ -88,7 +91,7 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
       placement="rightTop"
       arrow={false}
       mouseEnterDelay={0.8} // 800ms delay before showing
-      mouseLeaveDelay={0.3} // 300ms delay before hiding when mouse leaves
+      mouseLeaveDelay={20}
       styles={{
         body: {
           padding: 0,
@@ -106,63 +109,62 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
 const PopoverContent = styled(Scrollbar)<{ maxHeight: number }>`
   max-height: ${(props) => props.maxHeight}px;
   overflow-y: auto;
-  width: 240px;
 `
 
-const SidebarHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 12px 6px 12px;
-  border-bottom: 0.5px solid var(--color-border);
-`
+// const SidebarHeader = styled.div`
+//   display: flex;
+//   justify-content: space-between;
+//   align-items: center;
+//   padding: 12px 12px 6px 12px;
+//   border-bottom: 0.5px solid var(--color-border);
+// `
 
-const SidebarTitle = styled.div`
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--color-text-1);
-`
+// const SidebarTitle = styled.div`
+//   font-weight: 500;
+//   font-size: 14px;
+//   color: var(--color-text-1);
+// `
 
-const AssistantsList = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 8px;
-  gap: 4px;
-`
+// const AssistantsList = styled.div`
+//   display: flex;
+//   flex-direction: column;
+//   padding: 8px;
+//   gap: 4px;
+// `
 
-const AssistantItem = styled.div<{ active: boolean }>`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 7px 10px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
-  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
-  cursor: pointer;
-  transition: background-color 0.2s;
+// const AssistantItem = styled.div<{ active: boolean }>`
+//   display: flex;
+//   flex-direction: row;
+//   align-items: center;
+//   padding: 7px 10px;
+//   border-radius: var(--list-item-border-radius);
+//   border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
+//   background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
+//   cursor: pointer;
+//   transition: background-color 0.2s;
 
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
-`
+//   &:hover {
+//     background-color: var(--color-background-soft);
+//   }
+// `
 
-const AssistantAvatar = styled.div`
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-`
+// const AssistantAvatar = styled.div`
+//   width: 24px;
+//   height: 24px;
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+//   margin-right: 8px;
+// `
 
-const AssistantName = styled.div`
-  color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 13px;
-  flex: 1;
-`
+// const AssistantName = styled.div`
+//   color: var(--color-text);
+//   display: -webkit-box;
+//   -webkit-line-clamp: 1;
+//   -webkit-box-orient: vertical;
+//   overflow: hidden;
+//   font-size: 13px;
+//   flex: 1;
+// `
 
 export default FloatingSidebar

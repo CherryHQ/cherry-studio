@@ -26,9 +26,11 @@ interface Props {
   activeAssistant: Assistant
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  setActiveAssistant: (assistant: Assistant) => void
+  position: 'left' | 'right'
 }
 
-const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
+const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
@@ -91,9 +93,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant }) => {
           {!showAssistants && !sidebarHideCooldown && (
             <FloatingSidebar
               activeAssistant={assistant}
-              setActiveAssistant={(newAssistant) => {
-                EventEmitter.emit(EVENT_NAMES.SWITCH_ASSISTANT, newAssistant.id)
-              }}>
+              setActiveAssistant={setActiveAssistant}
+              activeTopic={activeTopic}
+              setActiveTopic={setActiveTopic}>
               <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
                 <NavbarIcon
                   onClick={() => toggleShowAssistants()}
