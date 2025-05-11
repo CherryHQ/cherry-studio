@@ -93,7 +93,9 @@ Welcome PR for more themes
 # 🖥️ Develop
 
 Refer to the [development documentation](docs/dev.md)
+
 Refer to the [Architecture overview documentation](https://deepwiki.com/CherryHQ/cherry-studio)
+
 Refer to the [Branching Strategy](docs/branching-strategy.md) for contribution guidelines
 
 # 🤝 Contributing
