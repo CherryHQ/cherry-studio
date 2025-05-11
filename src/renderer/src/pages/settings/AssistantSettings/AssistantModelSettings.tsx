@@ -185,9 +185,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const formatSliderTooltip = () => {
-    if (contextCount === undefined) return ''
-    return contextCount.toString()
+  const formatSliderTooltip = (value?: number) => {
+    if (value === undefined) return ''
+    return value.toString()
   }
 
   return (
