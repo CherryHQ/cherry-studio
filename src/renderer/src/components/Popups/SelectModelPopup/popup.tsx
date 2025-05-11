@@ -100,14 +100,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
           const lowerFullName = fullName.toLowerCase()
           return keywords.every((keyword) => lowerFullName.includes(keyword))
         })
-      } else {
-        // 如果不是搜索状态，过滤掉已固定的模型
-        models = models.filter((m) => !pinnedModels.includes(getModelUniqId(m)))
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t, pinnedModels]
+    [searchText, t]
   )
 
   // 创建模型列表项
@@ -148,7 +145,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     const items: FlatListItem[] = []
 
     // 添加置顶模型分组（仅在无搜索文本时）
-    if (pinnedModels.length > 0 && searchText.length === 0) {
+    if (searchText.length === 0 && pinnedModels.length > 0) {
       const pinnedItems = providers.flatMap((p) =>
         p.models.filter((m) => pinnedModels.includes(getModelUniqId(m))).map((m) => createModelItem(m, p, true))
       )
@@ -169,7 +166,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     // 添加常规模型分组
     providers.forEach((p) => {
       const filteredModels = getFilteredModels(p).filter(
-        (m) => !pinnedModels.includes(getModelUniqId(m)) || searchText.length > 0
+        (m) => searchText.length > 0 || !pinnedModels.includes(getModelUniqId(m))
       )
 
       if (filteredModels.length === 0) return
@@ -209,7 +206,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const updateStickyGroup = useCallback(
     (scrollOffset?: number) => {
       if (listItems.length === 0) {
-        !stickyGroup && setStickyGroup(null)
+        stickyGroup && setStickyGroup(null)
         return
       }
 
@@ -244,11 +241,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     [setLastScrollOffset]
   )
 
-  // 在列表项更新时，更新焦点项
+  // 列表项更新时，更新焦点
   useEffect(() => {
     if (!loading) focusOnListChange(modelItems)
   }, [modelItems, focusOnListChange, loading])
 
+  // 列表项更新时，更新sticky分组
   useEffect(() => {
     if (!loading) updateStickyGroup()
   }, [modelItems, updateStickyGroup, loading])
