@@ -70,6 +70,7 @@ function checkTranslations() {
   var files = fs.readdirSync(translationsDir).filter(function (file) {
     return file.endsWith('.json') && file !== baseFileName
   })
+  var anyUpdated = false
   for (var _i = 0, files_1 = files; _i < files_1.length; _i++) {
     var file = files_1[_i]
     var filePath = path.join(translationsDir, file)
@@ -96,12 +97,17 @@ function checkTranslations() {
       } catch (error) {
         console.error('\u5199\u5165 '.concat(file, ' \u51FA\u9519:'), error)
       } finally {
-        exit(1)
+        anyUpdated = true
       }
     } else {
       console.log('\u6587\u4EF6 '.concat(file, ' \u65E0\u9700\u66F4\u65B0\u3002'))
     }
   }
-  exit(0)
+  if (anyUpdated) {
+    console.error('缺少部分翻译， 请运行 npm run i18n:sync 进行同步')
+    exit(1)
+  } else {
+    exit(0)
+  }
 }
 checkTranslations()

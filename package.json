@@ -43,7 +43,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
-    "i18n:update": "node scripts/check-i18n.js",
+    "i18n:sync": "node scripts/check-i18n.js",
     "check:i18n": "node scripts/check-i18n-in-ci.js",
     "test": "yarn test:renderer",
     "test:coverage": "yarn test:renderer:coverage",
