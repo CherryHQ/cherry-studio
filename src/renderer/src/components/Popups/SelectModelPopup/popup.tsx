@@ -421,7 +421,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
             itemSize={ITEM_HEIGHT}
             itemData={RowData}
             itemKey={(index, data) => data.listItems[index].key}
-            overscanCount={4}
+            overscanCount={6}
             onScroll={handleScroll}
             style={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
             {VirtualizedRow}
