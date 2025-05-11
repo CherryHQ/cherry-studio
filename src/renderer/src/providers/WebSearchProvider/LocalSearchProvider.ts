@@ -50,11 +50,11 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
       const validItems = searchItems
         .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
         .slice(0, websearch.maxResults)
-      // console.log('Valid search items:', validItems)
+      // Logger.log('Valid search items:', validItems)
 
       // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
-        // console.log(`Fetching content for ${item.url}...`)
+        // Logger.log(`Fetching content for ${item.url}...`)
         const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, httpOptions)
         if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
           result.content = result.content.slice(0, websearch.contentLimit) + '...'

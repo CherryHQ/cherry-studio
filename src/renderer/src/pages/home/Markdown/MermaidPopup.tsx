@@ -199,6 +199,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, chart }) => {
       onCancel={onCancel}
       afterClose={onClose}
       width={1000}
+      transitionName="animation-move-down"
       centered
       footer={[
         <Space key="download-buttons">

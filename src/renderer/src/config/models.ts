@@ -189,7 +189,7 @@ export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-3-mini(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-3-mini(?:-[\w-]+)?\b.*)$/i
 
 // Embedding models
 export const EMBEDDING_REGEX =
@@ -206,7 +206,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4o-mini',
   'gpt-4',
   'gpt-4.5',
-  'o1(?:-[\\w-]+)?',
+  'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
   'qwen',
   'qwen3',
@@ -237,24 +237,23 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 )
 
 export function isFunctionCallingModel(model: Model): boolean {
-  if (!model) return false
-  if (model.type) {
-    return model.type.includes('function_calling')
-  } else {
-    if (isEmbeddingModel(model)) {
-      return false
-    }
-
-    if (model.provider === 'qiniu') {
-      return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
-    }
-
-    if (['deepseek', 'anthropic'].includes(model.provider)) {
-      return true
-    }
-
-    return FUNCTION_CALLING_REGEX.test(model.id)
+  if (model.type?.includes('function_calling')) {
+    return true
   }
+
+  if (isEmbeddingModel(model)) {
+    return false
+  }
+
+  if (model.provider === 'qiniu') {
+    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
+  }
+
+  if (['deepseek', 'anthropic'].includes(model.provider)) {
+    return true
+  }
+
+  return FUNCTION_CALLING_REGEX.test(model.id)
 }
 
 export function getModelLogo(modelId: string) {
@@ -2154,11 +2153,11 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 
 export const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'grok-2-image-1212',
   'grok-2-image',
   'grok-2-image-latest',
-  'gpt-4o-image',
   'gpt-image-1'
 ]
 
@@ -2173,6 +2172,7 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-pro-exp-03-25',
   'gemini-2.5-pro-preview',
   'gemini-2.5-pro-preview-03-25',
+  'gemini-2.5-pro-preview-05-06',
   'gemini-2.5-flash-preview',
   'gemini-2.5-flash-preview-04-17'
 ]
@@ -2189,23 +2189,20 @@ export function isEmbeddingModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  if (model.type) {
-    return model.type.includes('embedding')
-  } else {
-    if (['anthropic'].includes(model?.provider)) {
-      return false
-    }
 
-    if (model.provider === 'doubao') {
-      return EMBEDDING_REGEX.test(model.name)
-    }
-
-    if (isRerankModel(model)) {
-      return false
-    }
-
-    return EMBEDDING_REGEX.test(model.id)
+  if (['anthropic'].includes(model?.provider)) {
+    return false
   }
+
+  if (model.provider === 'doubao') {
+    return EMBEDDING_REGEX.test(model.name)
+  }
+
+  if (isRerankModel(model)) {
+    return false
+  }
+
+  return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
 }
 
 export function isRerankModel(model: Model): boolean {
@@ -2216,20 +2213,16 @@ export function isVisionModel(model: Model): boolean {
   if (!model) {
     return false
   }
-  if (model.type) {
-    return model.type.includes('vision')
-  } else {
-    // 新添字段 copilot-vision-request 后可使用 vision
-    // if (model.provider === 'copilot') {
-    //   return false
-    // }
+  // 新添字段 copilot-vision-request 后可使用 vision
+  // if (model.provider === 'copilot') {
+  //   return false
+  // }
 
-    if (model.provider === 'doubao') {
-      return VISION_REGEX.test(model.name)
-    }
-
-    return VISION_REGEX.test(model.id)
+  if (model.provider === 'doubao') {
+    return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false
   }
+
+  return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
 }
 
 export function isOpenAIReasoningModel(model: Model): boolean {
@@ -2363,26 +2356,23 @@ export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
-  if (model.type) {
-    return model.type.includes('reasoning')
-  } else {
-    if (model.provider === 'doubao') {
-      return REASONING_REGEX.test(model.name)
-    }
 
-    if (
-      isClaudeReasoningModel(model) ||
-      isOpenAIReasoningModel(model) ||
-      isGeminiReasoningModel(model) ||
-      isQwenReasoningModel(model) ||
-      isGrokReasoningModel(model) ||
-      model.id.includes('glm-z1')
-    ) {
-      return true
-    }
-
-    return REASONING_REGEX.test(model.id)
+  if (model.provider === 'doubao') {
+    return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
   }
+
+  if (
+    isClaudeReasoningModel(model) ||
+    isOpenAIReasoningModel(model) ||
+    isGeminiReasoningModel(model) ||
+    isQwenReasoningModel(model) ||
+    isGrokReasoningModel(model) ||
+    model.id.includes('glm-z1')
+  ) {
+    return true
+  }
+
+  return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
 }
 
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
@@ -2397,86 +2387,89 @@ export function isWebSearchModel(model: Model): boolean {
   if (!model) {
     return false
   }
+
   if (model.type) {
-    return model.type.includes('web_search')
-  } else {
-    const provider = getProviderByModel(model)
-
-    if (!provider) {
-      return false
+    if (model.type.includes('web_search')) {
+      return true
     }
+  }
 
-    const isEmbedding = isEmbeddingModel(model)
+  const provider = getProviderByModel(model)
 
-    if (isEmbedding) {
-      return false
-    }
+  if (!provider) {
+    return false
+  }
 
-    if (model.id.includes('claude')) {
-      return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
-    }
+  const isEmbedding = isEmbeddingModel(model)
 
-    if (provider.type === 'openai') {
-      if (
-        isOpenAILLMModel(model) &&
-        !isTextToImageModel(model) &&
-        !isOpenAIReasoningModel(model) &&
-        !GENERATE_IMAGE_MODELS.includes(model.id)
-      ) {
-        return true
-      }
+  if (isEmbedding) {
+    return false
+  }
 
-      return false
-    }
+  if (model.id.includes('claude')) {
+    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
+  }
 
-    if (provider.id === 'perplexity') {
-      return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
-    }
-
-    if (provider.id === 'aihubmix') {
-      if (
-        isOpenAILLMModel(model) &&
-        !isTextToImageModel(model) &&
-        !isOpenAIReasoningModel(model) &&
-        !GENERATE_IMAGE_MODELS.includes(model.id)
-      ) {
-        return true
-      }
-
-      const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-      return models.includes(model?.id)
-    }
-
-    if (provider?.type === 'openai-compatible') {
-      if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
-        return true
-      }
-    }
-
-    if (provider.id === 'gemini' || provider?.type === 'gemini') {
-      return GEMINI_SEARCH_MODELS.includes(model?.id)
-    }
-
-    if (provider.id === 'hunyuan') {
-      return model?.id !== 'hunyuan-lite'
-    }
-
-    if (provider.id === 'zhipu') {
-      return model?.id?.startsWith('glm-4-')
-    }
-
-    if (provider.id === 'dashscope') {
-      const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
-      // matches id like qwen-max-0919, qwen-max-latest
-      return models.some((i) => model.id.startsWith(i))
-    }
-
-    if (provider.id === 'openrouter') {
+  if (provider.type === 'openai') {
+    if (
+      isOpenAILLMModel(model) &&
+      !isTextToImageModel(model) &&
+      !isOpenAIReasoningModel(model) &&
+      !GENERATE_IMAGE_MODELS.includes(model.id)
+    ) {
       return true
     }
 
     return false
   }
+
+  if (provider.id === 'perplexity') {
+    return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
+  }
+
+  if (provider.id === 'aihubmix') {
+    if (
+      isOpenAILLMModel(model) &&
+      !isTextToImageModel(model) &&
+      !isOpenAIReasoningModel(model) &&
+      !GENERATE_IMAGE_MODELS.includes(model.id)
+    ) {
+      return true
+    }
+
+    const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
+    return models.includes(model?.id)
+  }
+
+  if (provider?.type === 'openai-compatible') {
+    if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
+      return true
+    }
+  }
+
+  if (provider.id === 'gemini' || provider?.type === 'gemini') {
+    return GEMINI_SEARCH_MODELS.includes(model?.id)
+  }
+
+  if (provider.id === 'hunyuan') {
+    return model?.id !== 'hunyuan-lite'
+  }
+
+  if (provider.id === 'zhipu') {
+    return model?.id?.startsWith('glm-4-')
+  }
+
+  if (provider.id === 'dashscope') {
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
+    // matches id like qwen-max-0919, qwen-max-latest
+    return models.some((i) => model.id.startsWith(i))
+  }
+
+  if (provider.id === 'openrouter') {
+    return true
+  }
+
+  return false
 }
 
 export function isGenerateImageModel(model: Model): boolean {

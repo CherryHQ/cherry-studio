@@ -163,6 +163,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
           setFormData({ title: '', content: '', location: 'global' })
         }}
         width={520}
+        transitionName="animation-move-down"
         centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>

@@ -35,7 +35,7 @@ const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
   default: ['off', 'low', 'medium', 'high'],
   grok: ['off', 'low', 'high'],
   gemini: ['off', 'low', 'medium', 'high', 'auto'],
-  qwen: ['off', 'low', 'medium', 'high', 'auto']
+  qwen: ['off', 'low', 'medium', 'high']
 }
 
 // 选项转换映射表：当选项不支持时使用的替代选项

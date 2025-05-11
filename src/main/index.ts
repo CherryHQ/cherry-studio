@@ -19,6 +19,8 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
 
+Logger.initialize()
+
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
   app.quit()

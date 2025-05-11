@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
@@ -141,15 +142,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     notifyThemeChange()
   })
 
-  // zoom factor
-  ipcMain.handle(IpcChannel.App_SetZoomFactor, (_, factor: number) => {
-    configManager.setZoomFactor(factor)
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
-    windows.forEach((win) => {
-      if (!win.isDestroyed()) {
-        win.webContents.setZoomFactor(factor)
-      }
-    })
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache

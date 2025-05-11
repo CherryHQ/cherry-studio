@@ -91,7 +91,7 @@ const updateExistingMessageAndBlocksInDB = async (
           const newMessages = [...topic.messages]
           // Apply the updates passed in updatedMessage
           Object.assign(newMessages[messageIndex], updatedMessage)
-          // console.log('updateExistingMessageAndBlocksInDB', updatedMessage)
+          // Logger.log('updateExistingMessageAndBlocksInDB', updatedMessage)
           await db.topics.update(updatedMessage.topicId, { messages: newMessages })
         } else {
           console.error(`[updateExistingMsg] Message ${updatedMessage.id} not found in topic ${updatedMessage.topicId}`)
@@ -398,7 +398,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           } else {
             const newBlock = createThinkingBlock(assistantMsgId, accumulatedThinking, {
               status: MessageBlockStatus.STREAMING,
-              thinking_millsec: thinking_millsec
+              thinking_millsec: 0
             })
             handleBlockTransition(newBlock, MessageBlockType.THINKING)
           }
@@ -565,7 +565,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           message: pauseErrorLanguagePlaceholder || error.message || 'Stream processing error',
           originalMessage: error.message,
           stack: error.stack,
-          status: error.status,
+          status: error.status || error.code,
           requestId: error.request_id
         }
         if (lastBlockId) {
@@ -609,13 +609,13 @@ const fetchAndProcessAssistantResponseImpl = async (
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
-          if (response && !response.usage) {
+          if (response && response.usage?.total_tokens === 0) {
             const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
             response.usage = usage
           }
         }
         if (response && response.metrics) {
-          if (!response.metrics.completion_tokens && response.usage) {
+          if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
             response = {
               ...response,
               metrics: {
@@ -1103,7 +1103,7 @@ export const initiateTranslationThunk =
 export const updateTranslationBlockThunk =
   (blockId: string, accumulatedText: string, isComplete: boolean = false) =>
   async (dispatch: AppDispatch) => {
-    // console.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
+    // Logger.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
     try {
       const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
       const changes: Partial<MessageBlock> = {
@@ -1116,7 +1116,7 @@ export const updateTranslationBlockThunk =
 
       // 更新数据库
       await db.message_blocks.update(blockId, changes)
-      // console.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
+      // Logger.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
     } catch (error) {
       console.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
     }

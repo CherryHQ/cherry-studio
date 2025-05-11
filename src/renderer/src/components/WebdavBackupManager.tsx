@@ -255,6 +255,7 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
       onCancel={onClose}
       width={800}
       centered
+      transitionName="animation-move-down"
       footer={[
         <Button key="refresh" icon={<ReloadOutlined />} onClick={fetchBackupFiles} disabled={loading}>
           {t('settings.data.webdav.backup.manager.refresh')}

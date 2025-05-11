@@ -57,7 +57,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const nameInputRef = useRef<any>(null)
 
   const embeddingSelectOptions = useMemo(() => {
-    console.log(providers)
     return providers
       .filter((p) => p.models.length > 0)
       .map((p) => ({

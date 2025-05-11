@@ -12,7 +12,6 @@ interface Props {
 }
 
 const MessageTools: FC<Props> = ({ blocks }) => {
-  console.log('blocks', blocks)
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
@@ -171,6 +170,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
         footer={null}
         width="80%"
         centered
+        transitionName="animation-move-down"
         styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>

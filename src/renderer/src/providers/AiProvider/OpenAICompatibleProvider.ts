@@ -34,6 +34,7 @@ import {
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
+  Metrics,
   Model,
   Provider,
   Suggestion,
@@ -395,7 +396,6 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
       return streamOutput
     }
 
-    const start_time_millsec = new Date().getTime()
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
@@ -421,6 +421,18 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
       reqMessages = [...userMessages]
     } else {
       reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+    }
+
+    let finalUsage: Usage = {
+      completion_tokens: 0,
+      prompt_tokens: 0,
+      total_tokens: 0
+    }
+
+    const finalMetrics: Metrics = {
+      completion_tokens: 0,
+      time_completion_millsec: 0,
+      time_first_token_millsec: 0
     }
 
     const toolResponses: MCPToolResponse[] = []
@@ -505,18 +517,17 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
 
     const processStream = async (stream: any, idx: number) => {
       const toolCalls: ChatCompletionMessageToolCall[] = []
+      let time_first_token_millsec = 0
+      const start_time_millsec = new Date().getTime()
+
       // Handle non-streaming case (already returns early, no change needed here)
       if (!isSupportStreamOutput()) {
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
         // Calculate final metrics once
-        const finalMetrics = {
-          completion_tokens: stream.usage?.completion_tokens,
-          time_completion_millsec,
-          time_first_token_millsec: 0 // Non-streaming, first token time is not relevant
-        }
+        finalMetrics.completion_tokens = stream.usage?.completion_tokens
+        finalMetrics.time_completion_millsec = new Date().getTime() - start_time_millsec
 
         // Create a synthetic usage object if stream.usage is undefined
-        const finalUsage = stream.usage
+        finalUsage = { ...stream.usage }
         // Separate onChunk calls for text and usage/metrics
         let content = ''
         stream.choices.forEach((choice) => {
@@ -526,7 +537,7 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
               text: choice.message.reasoning,
-              thinking_millsec: time_completion_millsec
+              thinking_millsec: new Date().getTime() - start_time_millsec
             })
           }
           // text
@@ -576,20 +587,9 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
         return
       }
 
-      let content = '' // Accumulate content for tool processing if needed
+      let content = ''
       let thinkingContent = ''
-      // 记录最终的完成时间差
-      let final_time_completion_millsec_delta = 0
-      let final_time_thinking_millsec_delta = 0
-      // Variable to store the last received usage object
-      let lastUsage: Usage | undefined = undefined
-      // let isThinkingInContent: ThoughtProcessor | undefined = undefined
-      // const processThinkingChunk = this.handleThinkingTags()
       let isFirstChunk = true
-      let time_first_token_millsec = 0
-      let time_first_token_millsec_delta = 0
-      let time_first_content_millsec = 0
-      let time_thinking_start = 0
 
       // 1. 初始化中间件
       const reasoningTags = [
@@ -640,25 +640,24 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
 
       // 3. 消费 processedStream，分发 onChunk
       for await (const chunk of readableStreamAsyncIterable(processedStream)) {
-        const currentTime = new Date().getTime()
         const delta = chunk.type === 'finish' ? chunk.delta : chunk
         const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
 
         switch (chunk.type) {
           case 'reasoning': {
-            if (time_thinking_start === 0) {
-              time_thinking_start = currentTime
-              time_first_token_millsec = currentTime
-              time_first_token_millsec_delta = currentTime - start_time_millsec
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
             }
             thinkingContent += chunk.textDelta
-            const thinking_time = currentTime - time_thinking_start
-            onChunk({ type: ChunkType.THINKING_DELTA, text: chunk.textDelta, thinking_millsec: thinking_time })
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: chunk.textDelta,
+              thinking_millsec: new Date().getTime() - time_first_token_millsec
+            })
             break
           }
           case 'text-delta': {
             let textDelta = chunk.textDelta
-
             if (assistant.enableWebSearch && delta) {
               const originalDelta = rawChunk?.choices?.[0]?.delta
 
@@ -676,25 +675,32 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
             if (isFirstChunk) {
               isFirstChunk = false
               if (time_first_token_millsec === 0) {
-                time_first_token_millsec = currentTime
-                time_first_token_millsec_delta = currentTime - start_time_millsec
+                time_first_token_millsec = new Date().getTime()
+              } else {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
               }
             }
             content += textDelta
-            if (time_thinking_start > 0 && time_first_content_millsec === 0) {
-              time_first_content_millsec = currentTime
-              final_time_thinking_millsec_delta = time_first_content_millsec - time_thinking_start
-
-              onChunk({
-                type: ChunkType.THINKING_COMPLETE,
-                text: thinkingContent,
-                thinking_millsec: final_time_thinking_millsec_delta
-              })
-            }
             onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
             break
           }
           case 'tool-calls': {
+            if (isFirstChunk) {
+              isFirstChunk = false
+              if (time_first_token_millsec === 0) {
+                time_first_token_millsec = new Date().getTime()
+              } else {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
+            }
             chunk.delta.tool_calls.forEach((toolCall) => {
               const { id, index, type, function: fun } = toolCall
               if (id && type === 'function' && fun) {
@@ -721,10 +727,14 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
 
             if (!isEmpty(finishReason)) {
               onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-              final_time_completion_millsec_delta = currentTime - start_time_millsec
               if (usage) {
-                lastUsage = usage
+                finalUsage.completion_tokens += usage.completion_tokens || 0
+                finalUsage.prompt_tokens += usage.prompt_tokens || 0
+                finalUsage.total_tokens += usage.total_tokens || 0
+                finalMetrics.completion_tokens += usage.completion_tokens || 0
               }
+              finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
+              finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
               if (originalFinishDelta?.annotations) {
                 onChunk({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
@@ -774,49 +784,46 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
                 } as LLMWebSearchCompleteChunk)
               }
             }
-            reqMessages.push({
-              role: 'assistant',
-              content: content,
-              tool_calls: toolCalls.length
-                ? toolCalls.map((toolCall) => ({
-                    id: toolCall.id,
-                    function: {
-                      ...toolCall.function,
-                      arguments:
-                        typeof toolCall.function.arguments === 'string'
-                          ? toolCall.function.arguments
-                          : JSON.stringify(toolCall.function.arguments)
-                    },
-                    type: 'function'
-                  }))
-                : undefined
-            })
-            let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
-            if (toolCalls.length) {
-              toolResults = await processToolCalls(mcpTools, toolCalls)
-            }
-            if (content.length) {
-              toolResults = toolResults.concat(await processToolUses(content))
-            }
-            if (toolResults.length) {
-              await processToolResults(toolResults, idx)
-            }
-            onChunk({
-              type: ChunkType.BLOCK_COMPLETE,
-              response: {
-                usage: lastUsage,
-                metrics: {
-                  completion_tokens: lastUsage?.completion_tokens,
-                  time_completion_millsec: final_time_completion_millsec_delta,
-                  time_first_token_millsec: time_first_token_millsec_delta,
-                  time_thinking_millsec: final_time_thinking_millsec_delta
-                }
-              }
-            })
             break
           }
         }
       }
+
+      reqMessages.push({
+        role: 'assistant',
+        content: content,
+        tool_calls: toolCalls.length
+          ? toolCalls.map((toolCall) => ({
+              id: toolCall.id,
+              function: {
+                ...toolCall.function,
+                arguments:
+                  typeof toolCall.function.arguments === 'string'
+                    ? toolCall.function.arguments
+                    : JSON.stringify(toolCall.function.arguments)
+              },
+              type: 'function'
+            }))
+          : undefined
+      })
+      let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+      if (toolCalls.length) {
+        toolResults = await processToolCalls(mcpTools, toolCalls)
+      }
+      if (content.length) {
+        toolResults = toolResults.concat(await processToolUses(content))
+      }
+      if (toolResults.length) {
+        await processToolResults(toolResults, idx)
+      }
+
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          usage: finalUsage,
+          metrics: finalMetrics
+        }
+      })
     }
 
     reqMessages = processReqMessages(model, reqMessages)

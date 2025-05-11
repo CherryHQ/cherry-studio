@@ -5,6 +5,7 @@ import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import Logger from '@renderer/config/logger'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
@@ -194,7 +195,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
 
     const path = await window.api.file.selectFolder()
-    console.log('[KnowledgeContent] Selected directory:', path)
+    Logger.log('[KnowledgeContent] Selected directory:', path)
     path && addDirectory(path)
   }
 

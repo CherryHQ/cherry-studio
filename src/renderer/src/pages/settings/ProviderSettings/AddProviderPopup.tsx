@@ -152,6 +152,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       afterClose={onClose}
       width={360}
       closable={false}
+      transitionName="animation-move-down"
       centered
       title={t('settings.provider.add.title')}
       okButtonProps={{ disabled: buttonDisabled }}>

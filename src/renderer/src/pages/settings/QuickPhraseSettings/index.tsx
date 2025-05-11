@@ -118,6 +118,7 @@ const QuickPhraseSettings: FC = () => {
         onOk={handleModalOk}
         onCancel={() => setIsModalOpen(false)}
         width={520}
+        transitionName="animation-move-down"
         centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>

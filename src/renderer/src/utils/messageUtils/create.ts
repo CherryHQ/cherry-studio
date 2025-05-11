@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import type { Assistant, FileType, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type {
@@ -231,9 +232,9 @@ export function createToolBlock(
     metadata: metadata,
     ...baseOnlyOverrides
   }
-  console.log('createToolBlock_baseOverrides', baseOverrides.metadata)
+  Logger.log('createToolBlock_baseOverrides', baseOverrides.metadata)
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.TOOL, baseOverrides)
-  console.log('createToolBlock_baseBlock', baseBlock.metadata)
+  Logger.log('createToolBlock_baseBlock', baseBlock.metadata)
   return {
     ...baseBlock,
     toolId,
