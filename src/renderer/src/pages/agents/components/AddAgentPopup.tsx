@@ -38,7 +38,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
-  const [undoEnabled, setUndoEnabled] = useState(false)
+  const [showUndoButton, setShowUndoButton] = useState(false)
   const [originalPrompt, setOriginalPrompt] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
   const knowledgeState = useAppSelector((state) => state.knowledge)
@@ -100,13 +100,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve(null)
   }
 
-  const handleButtonClick = async () => {
-    if (undoEnabled) {
-      form.setFieldsValue({ prompt: originalPrompt })
-      setUndoEnabled(false)
-      return
-    }
-
+  const handleGenerateButtonClick = async () => {
     const name = formRef.current?.getFieldValue('name')
     const content = formRef.current?.getFieldValue('prompt')
     const promptText = content || name
@@ -120,6 +114,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
 
     setLoading(true)
+    setShowUndoButton(false)
 
     try {
       const generatedText = await fetchGenerate({
@@ -127,13 +122,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         content: promptText
       })
       form.setFieldsValue({ prompt: generatedText })
-      setUndoEnabled(true)
+      setShowUndoButton(true)
       setOriginalPrompt(content)
     } catch (error) {
       console.error('Error fetching data:', error)
     }
 
     setLoading(false)
+  }
+
+  const handleUndoButtonClick = async () => {
+      form.setFieldsValue({ prompt: originalPrompt })
+      setShowUndoButton(false)
   }
 
   // Compute label width based on the longest label
@@ -164,7 +164,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           if (changedValues.prompt) {
             const count = await estimateTextTokens(changedValues.prompt)
             setTokenCount(count)
-            setUndoEnabled(false)
+            setShowUndoButton(false)
           }
         }}>
         <Form.Item name="name" label="Emoji">
@@ -185,11 +185,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            icon={loading ? <LoadingOutlined /> : undoEnabled ? <RollbackOutlined /> : <ThunderboltOutlined />}
-            onClick={handleButtonClick}
+            icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+            onClick={handleGenerateButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
             disabled={loading}
           />
+          {showUndoButton && <Button
+            icon={<RollbackOutlined />}
+            onClick={handleUndoButtonClick}
+            style={{ position: 'absolute', top: 8, right: 48 }}
+          />}
         </div>
         {showKnowledgeIcon && (
           <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
