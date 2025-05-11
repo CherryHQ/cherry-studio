@@ -293,12 +293,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={20}>
           <Slider
             min={0}
-            max={20}
+            max={!enableMaxContexts ? 10 : 100}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
-            value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: '20' }}
-            step={1}
+            value={
+              (typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? 100 : 10)
+                ? enableMaxContexts
+                  ? 100
+                  : 10
+                : typeof contextCount === 'number'
+                  ? contextCount
+                  : 0
+            }
+            step={!enableMaxContexts ? 1 : 10}
             tooltip={{ formatter: formatSliderTooltip }}
           />
         </Col>
@@ -329,6 +336,10 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           onChange={(checked) => {
             setEnableMaxContexts(checked)
             updateAssistantSettings({ enableMaxContexts: checked })
+            if (!checked && contextCount > 10) {
+              setContextCount(10)
+              onUpdateAssistantSettings({ contextCount: 10 })
+            }
           }}
         />
       </SettingRow>
