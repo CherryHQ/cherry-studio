@@ -1527,7 +1527,6 @@
       "theme.window.style.opaque": "不透明窗口",
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
-      "zoom.title": "页面缩放",
       "title": "设置",
       "topic.position": "话题位置",
       "topic.position.left": "左侧",
@@ -1596,6 +1595,10 @@
       "privacy": {
         "title": "隐私设置",
         "enable_privacy_mode": "匿名发送错误报告和数据统计"
+      },
+      "zoom": {
+        "title": "缩放",
+        "reset": "重置"
       }
     },
     "translate": {

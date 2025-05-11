@@ -1525,7 +1525,6 @@
       "theme.window.style.opaque": "不透明ウィンドウ",
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
-      "zoom.title": "ページズーム",
       "title": "設定",
       "topic.position": "トピックの位置",
       "topic.position.left": "左",
@@ -1636,6 +1635,10 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "zoom": {
+      "title": "ズーム",
+      "reset": "リセット"
     }
   }
 }

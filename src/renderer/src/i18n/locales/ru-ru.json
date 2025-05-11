@@ -1525,7 +1525,6 @@
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
-      "zoom.title": "Масштаб страницы",
       "title": "Настройки",
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
@@ -1636,6 +1635,10 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "zoom": {
+      "title": "Масштаб",
+      "reset": "Сбросить"
     }
   }
 }

@@ -13,8 +13,7 @@ export enum IpcChannel {
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetZoomFactor = 'app:set-zoom-factor',
-  ZoomFactorUpdated = 'app:zoom-factor-updated',
+  App_HandleZoomFactor = 'app:handle-zoom-factor',
 
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
