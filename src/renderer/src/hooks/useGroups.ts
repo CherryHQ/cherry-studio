@@ -1,15 +1,5 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  addGroup,
-  addMemberToGroup,
-  defaultGroupId,
-  defaultGroupName,
-  initializeGroups,
-  removeGroup,
-  removeMemberFromGroup,
-  updateGroup,
-  updateGroups
-} from '@renderer/store/groups'
+import { defaultGroupId, defaultGroupName, initializeGroups, removeGroup, updateGroups } from '@renderer/store/groups'
 import { Group } from '@renderer/types'
 import { useCallback } from 'react'
 
@@ -20,42 +10,10 @@ export function useGroups() {
 
   const getDefaultGroup = useCallback(() => groups.find((g) => g.id === defaultGroupId), [groups])
 
-  const addGroupHandler = useCallback(
-    (group: Group) => {
-      if (group.id === defaultGroupId) return
-      dispatch(addGroup(group))
-    },
-    [dispatch]
-  )
-
   const removeGroupHandler = useCallback(
     (id: string) => {
       if (id === defaultGroupId) return
       dispatch(removeGroup({ id }))
-    },
-    [dispatch]
-  )
-
-  const updateGroupHandler = useCallback(
-    (group: Group) => {
-      if (group.id === defaultGroupId) return
-      dispatch(updateGroup(group))
-    },
-    [dispatch]
-  )
-
-  const addMemberToGroupHandler = useCallback(
-    (groupId: string, memberId: string) => {
-      if (groupId === defaultGroupId) return
-      dispatch(addMemberToGroup({ groupId, memberId }))
-    },
-    [dispatch]
-  )
-
-  const removeMemberFromGroupHandler = useCallback(
-    (groupId: string, memberId: string) => {
-      if (groupId === defaultGroupId) return
-      dispatch(removeMemberFromGroup({ groupId, memberId }))
     },
     [dispatch]
   )
@@ -194,11 +152,7 @@ export function useGroups() {
     expandGroupIds,
     defaultGroupId,
     getDefaultGroup,
-    addGroup: addGroupHandler,
     removeGroup: removeGroupHandler,
-    updateGroup: updateGroupHandler,
-    addMemberToGroup: addMemberToGroupHandler,
-    removeMemberFromGroup: removeMemberFromGroupHandler,
     updateGroups: updateGroupsHandler,
     moveAssistantBetweenGroups,
     reorderGroups,
