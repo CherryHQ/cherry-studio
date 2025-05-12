@@ -2,7 +2,7 @@ import { isDev, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
-import {
+import type {
   KeyboardEventData,
   MouseEventData,
   SelectionHookConstructor,
