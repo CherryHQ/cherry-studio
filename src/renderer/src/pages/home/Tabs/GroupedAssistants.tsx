@@ -184,10 +184,19 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
                         <PlusCircleOutlined
                           onClick={async () => {
                             const memberIds = await AddMemberToGroupPopup.show()
-                            if (memberIds) {
-                              const updatedGroups = groups.map((g) =>
-                                g.id === group.id ? { ...g, members: [...g.members, ...memberIds] } : g
-                              )
+                            if (memberIds && memberIds.length > 0) {
+                              // 先添加到新分组
+                              const updatedGroups = groups.map((g) => {
+                                if (g.id === group.id) {
+                                  return { ...g, members: [...g.members, ...memberIds] }
+                                }
+                                if (g.id === defaultGroupId) {
+                                  return { ...g, members: g.members.filter((id) => !memberIds.includes(id)) }
+                                }
+                                return g
+                              })
+                              // 再从未分组中移除这些成员
+
                               updateGroups(updatedGroups)
                             }
                           }}
