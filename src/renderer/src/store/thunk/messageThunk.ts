@@ -1611,6 +1611,20 @@ function getCommonStreamLogic(
     }
   }
 
+  const onWorkflowFinished = (chunk: Chunk) => {
+    if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_FINISHED) {
+      const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
+      const changes: Partial<FlowMessageBlock> = {
+        nodes: currentFlowBlock.nodes?.map((node) => ({
+          ...node,
+          status: MessageBlockStatus.SUCCESS
+        }))
+      }
+      dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
+      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+    }
+  }
+
   const onError = (error) => {
     console.dir(error, { depth: null })
     let pauseErrorLanguagePlaceholder = ''
@@ -1656,6 +1670,7 @@ function getCommonStreamLogic(
     onWorkflowStarted,
     onWorkflowNodeInProgress,
     onWorkflowNodeComplete,
+    onWorkflowFinished,
     handleBlockTransition,
     onError
   }
@@ -1709,6 +1724,7 @@ const fetchAndProcessChatflowResponseImpl = async (
       onWorkflowStarted: (chunk) => commonLogic.onWorkflowStarted(chunk),
       onWorkflowNodeInProgress: (chunk) => commonLogic.onWorkflowNodeInProgress(chunk),
       onWorkflowNodeComplete: (chunk) => commonLogic.onWorkflowNodeComplete(chunk),
+      onWorkflowFinished: (chunk) => commonLogic.onWorkflowFinished(chunk),
       onError: (error) => commonLogic.onError(error)
     }
 

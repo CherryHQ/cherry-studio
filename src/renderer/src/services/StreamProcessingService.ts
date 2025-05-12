@@ -37,6 +37,7 @@ export interface StreamProcessorCallbacks {
   onWorkflowStarted?: (chunk: Chunk) => void
   onWorkflowNodeInProgress?: (chunk: Chunk) => void
   onWorkflowNodeComplete?: (chunk: Chunk) => void
+  onWorkflowFinished?: (chunk: Chunk) => void
 }
 
 // Function to create a stream processor instance
@@ -100,6 +101,9 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
       }
       if (data.type === ChunkType.WORKFLOW_NODE_FINISHED && callbacks.onWorkflowNodeComplete) {
         callbacks.onWorkflowNodeComplete(data)
+      }
+      if (data.type === ChunkType.WORKFLOW_FINISHED && callbacks.onWorkflowFinished) {
+        callbacks.onWorkflowFinished(data)
       }
       // Note: Usage and Metrics are usually handled at the end or accumulated differently,
       // so direct callbacks might not be the best fit here. They are often part of the final message state.

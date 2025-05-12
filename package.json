@@ -151,7 +151,7 @@
     "@vitejs/plugin-react-swc": "^3.9.0",
     "@vitest/coverage-v8": "^3.1.1",
     "@vitest/ui": "^3.1.1",
-    "@xyflow/react": "^12.4.4",
+    "@xyflow/react": "^12.6.1",
     "antd": "^5.22.5",
     "applescript": "^1.0.0",
     "axios": "^1.7.3",

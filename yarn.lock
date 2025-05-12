@@ -4404,23 +4404,23 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@xyflow/react@npm:^12.4.4":
-  version: 12.4.4
-  resolution: "@xyflow/react@npm:12.4.4"
+"@xyflow/react@npm:^12.6.1":
+  version: 12.6.1
+  resolution: "@xyflow/react@npm:12.6.1"
   dependencies:
-    "@xyflow/system": "npm:0.0.52"
+    "@xyflow/system": "npm:0.0.58"
     classcat: "npm:^5.0.3"
     zustand: "npm:^4.4.0"
   peerDependencies:
     react: ">=17"
     react-dom: ">=17"
-  checksum: 10c0/abce710e98a414def5f5cb847831ad49e25e3de5ebeaee4e4f9c8b651c1a507b1d61b8e11b8f1f519e9f7500f37d07218fbbd23d797c137e1e3f5515dc759c98
+  checksum: 10c0/dfdf1bd51661e3e60b361a196c906ea1dd3f884b43ede5d6ee5a13d91b09b8c5e6dddc6c904b493e151269b759024a2ba6b2713ab97753ef44d4a2c0fcab16a1
   languageName: node
   linkType: hard
 
-"@xyflow/system@npm:0.0.52":
-  version: 0.0.52
-  resolution: "@xyflow/system@npm:0.0.52"
+"@xyflow/system@npm:0.0.58":
+  version: 0.0.58
+  resolution: "@xyflow/system@npm:0.0.58"
   dependencies:
     "@types/d3-drag": "npm:^3.0.7"
     "@types/d3-selection": "npm:^3.0.10"
@@ -4429,7 +4429,7 @@ __metadata:
     d3-drag: "npm:^3.0.0"
     d3-selection: "npm:^3.0.0"
     d3-zoom: "npm:^3.0.0"
-  checksum: 10c0/34822192065f4d1358c781882b5f7e1eba6d6953aa741e480de704080a7d0609823b124d90fec17a747226150e980c12d9cd145642aa795ff94054c6cc67dbaa
+  checksum: 10c0/0252e8b9510c1238785c570d9b0edd94cc27d6c63f49b582e20f6662c15ede09fab26a8908c8889d23a6cb26f36a6d048ca30fcab7d127dbbb2da1317a0c9a0d
   languageName: node
   linkType: hard
 
@@ -4496,7 +4496,7 @@ __metadata:
     "@vitejs/plugin-react-swc": "npm:^3.9.0"
     "@vitest/coverage-v8": "npm:^3.1.1"
     "@vitest/ui": "npm:^3.1.1"
-    "@xyflow/react": "npm:^12.4.4"
+    "@xyflow/react": "npm:^12.6.1"
     adm-zip: "npm:^0.5.16"
     antd: "npm:^5.22.5"
     applescript: "npm:^1.0.0"
