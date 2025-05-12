@@ -916,7 +916,7 @@ export default class GeminiProvider extends BaseProvider {
           model: model.id,
           contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
           config: {
-            maxOutputTokens: 100
+            maxOutputTokens: 1
           }
         })
         if (isEmpty(result.text)) {
@@ -927,7 +927,7 @@ export default class GeminiProvider extends BaseProvider {
           model: model.id,
           contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
           config: {
-            maxOutputTokens: 100
+            maxOutputTokens: 1
           }
         })
         // 等待整个流式响应结束

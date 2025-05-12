@@ -1026,6 +1026,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       const response = await this.sdk.responses.create({
         model: model.id,
         input: [{ role: 'user', content: 'hi' }],
+        max_output_tokens: 1,
         stream: true
       })
       let hasContent = false
@@ -1042,7 +1043,8 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       const response = await this.sdk.responses.create({
         model: model.id,
         input: [{ role: 'user', content: 'hi' }],
-        stream: false
+        stream: false,
+        max_output_tokens: 1
       })
       if (!response.output_text) {
         throw new Error('Empty response')
