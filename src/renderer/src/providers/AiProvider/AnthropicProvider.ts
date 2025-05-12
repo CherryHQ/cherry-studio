@@ -290,7 +290,6 @@ export default class AnthropicProvider extends BaseProvider {
 
     const processStream = async (body: MessageCreateParamsNonStreaming, idx: number) => {
       let time_first_token_millsec = 0
-      const start_time_millsec = new Date().getTime()
 
       if (!streamOutput) {
         const message = await this.sdk.messages.create({ ...body, stream: false })
@@ -484,6 +483,7 @@ export default class AnthropicProvider extends BaseProvider {
       })
     }
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const start_time_millsec = new Date().getTime()
     await processStream(body, 0).finally(cleanup)
   }
 
