@@ -36,12 +36,6 @@ const STATUS_COLORS = {
   warning: '#faad14'
 }
 
-interface ModelListProps {
-  providerId: string
-  modelStatuses?: ModelStatus[]
-  searchText?: string
-}
-
 export interface ModelStatus {
   model: Model
   status?: ModelCheckStatus
@@ -121,7 +115,7 @@ function useModelStatusRendering() {
 
     if (modelStatus.checking) {
       return (
-        <StatusIndicator type="checking">
+        <StatusIndicator $type="checking">
           <LoadingOutlined spin />
         </StatusIndicator>
       )
@@ -151,7 +145,7 @@ function useModelStatusRendering() {
 
     return (
       <Tooltip title={renderKeyCheckResultTooltip(modelStatus)}>
-        <StatusIndicator type={statusType}>{icon}</StatusIndicator>
+        <StatusIndicator $type={statusType}>{icon}</StatusIndicator>
       </Tooltip>
     )
   }
@@ -167,6 +161,15 @@ function useModelStatusRendering() {
   return { renderStatusIndicator, renderLatencyText }
 }
 
+interface ModelListProps {
+  providerId: string
+  modelStatuses?: ModelStatus[]
+  searchText?: string
+}
+
+/**
+ * Model list component
+ */
 const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], searchText = '' }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, models, removeModel } = useProvider(providerId)
@@ -257,11 +260,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                     type="text"
                     className="toolbar-item"
                     icon={<MinusOutlined />}
-                    onClick={() =>
-                      modelGroups[group]
-                        .filter((model) => provider.models.some((m) => m.id === model.id))
-                        .forEach((model) => removeModel(model))
-                    }
+                    onClick={() => modelGroups[group].forEach((model) => removeModel(model))}
                   />
                 </Tooltip>
               }>
@@ -403,13 +402,13 @@ const NameSpan = styled.span`
   font-size: 14px;
 `
 
-const StatusIndicator = styled.div<{ type: string }>`
+const StatusIndicator = styled.div<{ $type: string }>`
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 14px;
   color: ${(props) => {
-    switch (props.type) {
+    switch (props.$type) {
       case 'success':
         return STATUS_COLORS.success
       case 'error':
