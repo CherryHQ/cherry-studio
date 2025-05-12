@@ -29,6 +29,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const allBlocks = findAllBlocks(message)
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
   const [files, setFiles] = useState<FileType[]>([])
+  const [isProcessing, setIsProcessing] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
@@ -78,6 +79,8 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   }
 
   const handleClick = async (withResend?: boolean) => {
+    if (isProcessing) return
+    setIsProcessing(true)
     const updatedBlocks = [...editedBlocks]
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -91,7 +94,6 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
         }
       })
     }
-    setEditedBlocks(updatedBlocks)
     if (withResend) {
       onResend(updatedBlocks)
     } else {

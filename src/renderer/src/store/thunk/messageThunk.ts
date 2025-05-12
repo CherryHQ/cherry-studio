@@ -1337,7 +1337,7 @@ export const cloneMessagesToNewTopicThunk =
  * Updates Redux state and persists changes to the database within a transaction.
  * Message updates are optional if only blocks need updating.
  */
-export const updateMessageAndBlocksThunk =
+export const updateMessageAndUpdateBlocksThunk =
   (
     topicId: string,
     // Allow messageUpdates to be optional or just contain the ID if only blocks are updated
@@ -1348,7 +1348,7 @@ export const updateMessageAndBlocksThunk =
     const messageId = messageUpdates?.id
 
     if (messageUpdates && !messageId) {
-      console.error('[updateMessageAndBlocksThunk] Message ID is required.')
+      console.error('[updateMessageAndUpdateBlocksThunk] Message ID is required.')
       return false
     }
 
@@ -1370,7 +1370,10 @@ export const updateMessageAndBlocksThunk =
           if (blockId && Object.keys(blockChanges).length > 0) {
             dispatch(updateOneBlock({ id: blockId, changes: blockChanges }))
           } else if (!blockId) {
-            console.warn('[updateMessageAndBlocksThunk] Skipping block update due to missing block ID:', blockUpdate)
+            console.warn(
+              '[updateMessageAndUpdateBlocksThunk] Skipping block update due to missing block ID:',
+              blockUpdate
+            )
           }
         })
       }
@@ -1387,13 +1390,13 @@ export const updateMessageAndBlocksThunk =
               await db.topics.update(topicId, { messages: topic.messages })
             } else {
               console.error(
-                `[updateMessageAndBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
+                `[updateMessageAndUpdateBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
               )
               throw new Error(`Message ${messageId} not found in DB topic ${topicId} for property update.`)
             }
           } else {
             console.error(
-              `[updateMessageAndBlocksThunk] Topic ${topicId} not found or empty for message property update.`
+              `[updateMessageAndUpdateBlocksThunk] Topic ${topicId} not found or empty for message property update.`
             )
             throw new Error(`Topic ${topicId} not found or empty for message property update.`)
           }
@@ -1419,7 +1422,81 @@ export const updateMessageAndBlocksThunk =
 
       return true
     } catch (error) {
-      console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
+      console.error(`[updateMessageAndUpdateBlocksThunk] Failed to process updates for message ${messageId}:`, error)
+      return false
+    }
+  }
+
+/**
+ * Thunk to update a message and add new blocks.
+ * Updates Redux state and persists changes to the database within a transaction.
+ * Specifically designed for adding new blocks rather than updating existing ones.
+ */
+export const updateMessageAndAddBlocksThunk =
+  (
+    topicId: string,
+    // Allow messageUpdates to be optional or just contain the ID if only blocks are added
+    messageUpdates: (Partial<Message> & Pick<Message, 'id'>) | null,
+    blocksToAdd: MessageBlock[] // New blocks to add (not updates to existing blocks)
+  ) =>
+  async (dispatch: AppDispatch): Promise<boolean> => {
+    const messageId = messageUpdates?.id
+
+    if (messageUpdates && !messageId) {
+      console.error('[updateMessageAndAddBlocksThunk] Message ID is required.')
+      return false
+    }
+
+    try {
+      // 1. 更新 Redux Store
+      if (messageUpdates && messageId) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: msgId, ...actualMessageChanges } = messageUpdates // Separate ID from actual changes
+
+        // Only dispatch message update if there are actual changes beyond the ID
+        if (Object.keys(actualMessageChanges).length > 0) {
+          dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: actualMessageChanges }))
+        }
+      }
+
+      // Add new blocks to Redux store
+      if (blocksToAdd.length > 0) {
+        dispatch(upsertManyBlocks(blocksToAdd))
+      }
+
+      // 2. 更新数据库 (在事务中)
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+        // Only update topic.messages if there were actual message changes
+        if (messageUpdates && Object.keys(messageUpdates).length > 0) {
+          const topic = await db.topics.get(topicId)
+          if (topic && topic.messages) {
+            const messageIndex = topic.messages.findIndex((m) => m.id === messageId)
+            if (messageIndex !== -1) {
+              Object.assign(topic.messages[messageIndex], messageUpdates)
+              await db.topics.update(topicId, { messages: topic.messages })
+            } else {
+              console.error(
+                `[updateMessageAndAddBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
+              )
+              throw new Error(`Message ${messageId} not found in DB topic ${topicId} for property update.`)
+            }
+          } else {
+            console.error(
+              `[updateMessageAndAddBlocksThunk] Topic ${topicId} not found or empty for message property update.`
+            )
+            throw new Error(`Topic ${topicId} not found or empty for message property update.`)
+          }
+        }
+
+        // Add new blocks to database
+        if (blocksToAdd.length > 0) {
+          await db.message_blocks.bulkAdd(blocksToAdd)
+        }
+      })
+
+      return true
+    } catch (error) {
+      console.error(`[updateMessageAndAddBlocksThunk] Failed to process updates for message ${messageId}:`, error)
       return false
     }
   }

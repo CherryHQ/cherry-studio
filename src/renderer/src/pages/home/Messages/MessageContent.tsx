@@ -9,13 +9,13 @@ import MessageEditor from './MessageEditor'
 interface Props {
   message: Message
   isEditing?: boolean
-  onSave: (blocks: MessageBlock[]) => Promise<void>
-  onResend: (blocks: MessageBlock[]) => Promise<void>
-  onCancel: () => void
+  onSave?: (blocks: MessageBlock[]) => Promise<void>
+  onResend?: (blocks: MessageBlock[]) => Promise<void>
+  onCancel?: () => void
 }
 
 const MessageContent: React.FC<Props> = ({ message, isEditing, onSave, onResend, onCancel }) => {
-  if (isEditing) {
+  if (isEditing && onSave && onResend && onCancel) {
     return <MessageEditor message={message} onSave={onSave} onResend={onResend} onCancel={onCancel} />
   }
   return (
