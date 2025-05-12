@@ -1,7 +1,7 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
-import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
+import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import {
   getModelLogo,
   groupQwenModels,
@@ -22,7 +22,7 @@ import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip, Typography } f
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -170,6 +170,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         title={
           isAllFilteredInProvider ? t('settings.models.manage.remove_listed') : t('settings.models.manage.add_listed')
         }
+        mouseEnterDelay={0.5}
         placement="top">
         <Button
           type={isAllFilteredInProvider ? 'default' : 'primary'}
@@ -200,6 +201,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
               ? t(`settings.models.manage.remove_whole_group`)
               : t(`settings.models.manage.add_whole_group`)
           }
+          mouseEnterDelay={0.5}
           placement="top">
           <Button
             type="text"
@@ -285,59 +287,12 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
                 extra={renderGroupTools(group)}>
                 <FlexColumn style={{ margin: '10px 0' }}>
                   {modelGroups[group].map((model) => (
-                    <FileItem
-                      style={{
-                        backgroundColor: isModelInProvider(provider, model.id)
-                          ? 'rgba(0, 126, 0, 0.06)'
-                          : 'rgba(255, 255, 255, 0.04)',
-                        border: 'none',
-                        boxShadow: 'none'
-                      }}
+                    <ModelListItem
                       key={model.id}
-                      fileInfo={{
-                        icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-                        name: (
-                          <ListItemName>
-                            <Tooltip
-                              styles={{
-                                root: {
-                                  width: 'auto',
-                                  maxWidth: '500px'
-                                }
-                              }}
-                              destroyTooltipOnHide
-                              title={
-                                <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-                                  {model.id}
-                                </Typography.Text>
-                              }
-                              placement="top">
-                              <span style={{ cursor: 'help' }}>{model.name}</span>
-                            </Tooltip>
-                            <ModelTagsWithLabel model={model} size={11} />
-                          </ListItemName>
-                        ),
-                        extra: model.description && (
-                          <div style={{ marginTop: 6 }}>
-                            <Typography.Paragraph
-                              type="secondary"
-                              ellipsis={{ rows: 1, expandable: true }}
-                              style={{ marginBottom: 0, marginTop: 5 }}>
-                              {model.description}
-                            </Typography.Paragraph>
-                          </div>
-                        ),
-                        ext: '.model',
-                        actions: (
-                          <div>
-                            {isModelInProvider(provider, model.id) ? (
-                              <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
-                            ) : (
-                              <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
-                            )}
-                          </div>
-                        )
-                      }}
+                      model={model}
+                      provider={provider}
+                      onAddModel={onAddModel}
+                      onRemoveModel={onRemoveModel}
                     />
                   ))}
                 </FlexColumn>
@@ -350,6 +305,47 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     </Modal>
   )
 }
+
+interface ModelListItemProps {
+  model: Model
+  provider: Provider
+  onAddModel: (model: Model) => void
+  onRemoveModel: (model: Model) => void
+}
+
+const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onAddModel, onRemoveModel }) => {
+  const isAdded = useMemo(() => isModelInProvider(provider, model.id), [provider, model.id])
+
+  return (
+    <FileItem
+      style={{
+        backgroundColor: isAdded ? 'rgba(0, 126, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)',
+        border: 'none',
+        boxShadow: 'none'
+      }}
+      fileInfo={{
+        icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+        name: <ModelIdWithTags model={model} />,
+        extra: model.description && (
+          <div style={{ marginTop: 6 }}>
+            <Typography.Paragraph
+              type="secondary"
+              ellipsis={{ rows: 1, expandable: true }}
+              style={{ marginBottom: 0, marginTop: 5 }}>
+              {model.description}
+            </Typography.Paragraph>
+          </div>
+        ),
+        ext: '.model',
+        actions: isAdded ? (
+          <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
+        ) : (
+          <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
+        )
+      }}
+    />
+  )
+})
 
 const SearchContainer = styled.div`
   display: flex;
@@ -386,17 +382,6 @@ const FlexColumn = styled.div`
   flex-direction: column;
   gap: 12px;
   margin-top: 16px;
-`
-
-const ListItemName = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-  font-weight: 600;
 `
 
 const ModelHeaderTitle = styled.div`

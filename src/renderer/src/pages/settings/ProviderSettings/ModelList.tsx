@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { HStack } from '@renderer/components/Layout'
-import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
+import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -144,7 +144,7 @@ function useModelStatusRendering() {
     }
 
     return (
-      <Tooltip title={renderKeyCheckResultTooltip(modelStatus)}>
+      <Tooltip title={renderKeyCheckResultTooltip(modelStatus)} mouseEnterDelay={0.5}>
         <StatusIndicator $type={statusType}>{icon}</StatusIndicator>
       </Tooltip>
     )
@@ -255,7 +255,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                 </Flex>
               }
               extra={
-                <Tooltip title={t('settings.models.manage.remove_whole_group')}>
+                <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseEnterDelay={0.5}>
                   <Button
                     type="text"
                     className="toolbar-item"
@@ -275,25 +275,14 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
                         <Avatar src={getModelLogo(model.id)} style={{ width: 26, height: 26 }}>
                           {model?.name?.[0]?.toUpperCase()}
                         </Avatar>
-                        <ListItemName>
-                          <Tooltip
-                            styles={{
-                              root: {
-                                width: 'auto',
-                                maxWidth: '500px'
-                              }
-                            }}
-                            destroyTooltipOnHide
-                            title={
-                              <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-                                {model.id}
-                              </Typography.Text>
-                            }
-                            placement="top">
-                            <NameSpan>{model.name}</NameSpan>
-                          </Tooltip>
-                          <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
-                        </ListItemName>
+                        <ModelIdWithTags
+                          model={model}
+                          style={{
+                            flex: 1,
+                            width: 0,
+                            overflow: 'hidden'
+                          }}
+                        />
                       </HStack>
                       <Flex gap={4} align="center">
                         {renderLatencyText(modelStatus)}
@@ -375,31 +364,6 @@ const ListItem = styled.div`
   color: var(--color-text);
   font-size: 14px;
   line-height: 1;
-`
-
-const ListItemName = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1;
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  flex: 1;
-  width: 0;
-`
-
-const NameSpan = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: help;
-  font-family: 'Ubuntu';
-  line-height: 30px;
-  font-size: 14px;
 `
 
 const StatusIndicator = styled.div<{ $type: string }>`
