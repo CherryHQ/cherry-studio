@@ -773,6 +773,8 @@
       "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
+      "image_placeholder": "無圖片",
+      "image_retry": "重試",
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -1385,6 +1387,7 @@
       "models.add.group_name.tooltip": "選填，例如 ChatGPT",
       "models.add.model_id": "模型 ID",
       "models.add.model_id.placeholder": "必填，例如 gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "選擇模型",
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "選填，例如 GPT-4",
