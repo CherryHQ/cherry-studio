@@ -79,7 +79,9 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
-          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html')
+          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
+          selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
+          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html')
         }
       }
     }

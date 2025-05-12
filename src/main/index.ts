@@ -5,6 +5,7 @@ import { app, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
+import { isDev } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -14,6 +15,7 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
+import { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
@@ -63,7 +65,7 @@ if (!app.requestSingleInstanceLock()) {
     // Setup deep link for AppImage on Linux
     await setupAppImageDeepLink()
 
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
@@ -75,6 +77,9 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(IpcChannel.System_GetHostname, () => {
       return require('os').hostname()
     })
+
+    //start selection assistant  service
+    initSelectionService()
   })
 
   registerProtocolClient(app)

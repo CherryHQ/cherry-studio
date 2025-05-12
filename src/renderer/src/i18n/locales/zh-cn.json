@@ -1668,6 +1668,136 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "selection": {
+      "name": "划词助手",
+      "action": {
+        "builtin": {
+          "translate": "翻译",
+          "explain": "解释",
+          "summary": "总结",
+          "search": "搜索",
+          "refine": "优化",
+          "copy": "复制"
+        },
+        "window": {
+          "pin": "置顶",
+          "pinned": "已置顶",
+          "opacity": "窗口透明度",
+          "original_show": "显示原文",
+          "original_hide": "隐藏原文",
+          "original_copy": "复制原文",
+          "esc_close": "Esc 关闭",
+          "esc_stop": "Esc 停止",
+          "c_copy": "C 复制"
+        }
+      },
+      "settings": {
+        "experimental": "实验性功能",
+        "enable": {
+          "title": "启用",
+          "description": "当前仅支持 Windows 系统"
+        },
+        "toolbar": {
+          "title": "工具栏",
+          "trigger_mode": {
+            "title": "触发方式",
+            "description": "划词立即显示工具栏，或者划词后按住 Ctrl 键才显示工具栏。",
+            "description_note": "注意：在某些应用中可能无法通过 Ctrl 键调出工具栏。",
+            "selected": "划词",
+            "ctrlkey": "Ctrl 键"
+          },
+          "compact_mode": {
+            "title": "紧凑模式",
+            "description": "紧凑模式下，只显示图标，不显示文字"
+          }
+        },
+        "window": {
+          "title": "功能窗口",
+          "follow_toolbar": {
+            "title": "跟随工具栏",
+            "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
+          },
+          "auto_close": {
+            "title": "自动关闭",
+            "description": "当窗口未置顶且失去焦点时，将自动关闭该窗口"
+          },
+          "auto_pin": {
+            "title": "自动置顶",
+            "description": "默认将窗口置于顶部"
+          }
+        },
+        "actions": {
+          "title": "功能",
+          "reset": {
+            "button": "重置",
+            "tooltip": "重置为默认功能，自定义功能不会被删除",
+            "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。"
+          },
+          "add_tooltip": {
+            "enabled": "添加自定义功能",
+            "disabled": "自定义功能已达上限 ({{max}}个)"
+          },
+          "delete_confirm": "确定要删除这个自定义功能吗？",
+          "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
+        },
+        "user_modal": {
+          "title": {
+            "add": "添加自定义功能",
+            "edit": "编辑自定义功能"
+          },
+          "name": {
+            "label": "名称",
+            "hint": "请输入功能名称"
+          },
+          "icon": {
+            "label": "图标",
+            "placeholder": "输入 Lucide 图标名称",
+            "error": "无效的图标名称，请检查输入",
+            "tooltip": "Lucide图标名称为小写，如 arrow-right",
+            "view_all": "查看所有图标",
+            "random": "随机图标"
+          },
+          "model": {
+            "label": "模型",
+            "tooltip": "使用助手：会同时使用助手的系统提示词和模型参数",
+            "default": "默认模型",
+            "assistant": "使用助手"
+          },
+          "assistant": {
+            "label": "选择助手",
+            "default": "默认"
+          },
+          "prompt": {
+            "label": "用户提示词(Prompt)",
+            "tooltip": "用户提示词，作为用户输入的补充，不会覆盖助手的系统提示词",
+            "placeholder": "使用占位符{{text}}代表选中的文本，不填写时，选中的文本将添加到本提示词的末尾",
+            "placeholder_text": "占位符",
+            "copy_placeholder": "复制占位符"
+          }
+        },
+        "search_modal": {
+          "title": "设置搜索引擎",
+          "engine": {
+            "label": "搜索引擎",
+            "custom": "自定义"
+          },
+          "custom": {
+            "name": {
+              "label": "自定义名称",
+              "hint": "请输入搜索引擎名称",
+              "max_length": "名称不能超过16个字符"
+            },
+            "url": {
+              "label": "自定义搜索 URL",
+              "required": "请输入搜索 URL",
+              "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
+              "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
+            },
+            "test": "测试"
+          }
+        }
+      }
     }
   }
 }

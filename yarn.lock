@@ -4469,6 +4469,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.77.2"
+    selection-hook: "npm:^0.9.9"
     shiki: "npm:^3.2.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -12610,6 +12611,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-gyp-build@npm:^4.7.1":
+  version: 4.8.4
+  resolution: "node-gyp-build@npm:4.8.4"
+  bin:
+    node-gyp-build: bin.js
+    node-gyp-build-optional: optional.js
+    node-gyp-build-test: build-test.js
+  checksum: 10c0/444e189907ece2081fe60e75368784f7782cfddb554b60123743dfb89509df89f1f29c03bbfa16b3a3e0be3f48799a4783f487da6203245fa5bed239ba7407e1
+  languageName: node
+  linkType: hard
+
 "node-gyp@npm:^9.1.0":
   version: 9.4.1
   resolution: "node-gyp@npm:9.4.1"
@@ -15493,6 +15505,17 @@ __metadata:
   dependencies:
     parseley: "npm:^0.12.0"
   checksum: 10c0/c2ad8313a0dbf3c0b74752a8d03cfbc0931ae77a36679cdb64733eb732c1762f95a5174249bf7e8b8103874cb0e013a030f9c8b72f5d41e62f1d847d4a845d39
+  languageName: node
+  linkType: hard
+
+"selection-hook@npm:^0.9.9":
+  version: 0.9.9
+  resolution: "selection-hook@npm:0.9.9"
+  dependencies:
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.7.1"
+  checksum: 10c0/a10d77cabb14617bcf9ec249b8fe7532558a641f9dbd66d1cb986119901dba51397362472a11844ff18cb5b2b778d7d90c2e1318103660431d1b199bf117782b
+  conditions: os=win32
   languageName: node
   linkType: hard
 

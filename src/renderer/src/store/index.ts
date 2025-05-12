@@ -18,6 +18,7 @@ import newMessagesReducer from './newMessage'
 import nutstore from './nutstore'
 import paintings from './paintings'
 import runtime from './runtime'
+import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
 import websearch from './websearch'
@@ -37,6 +38,7 @@ const rootReducer = combineReducers({
   websearch,
   mcp,
   copilot,
+  selectionStore,
   // messages: messagesReducer,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer
@@ -65,7 +67,7 @@ const persistedReducer = persistReducer(
  * Call storeSyncService.subscribe() in the window's entryPoint.tsx
  */
 storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/']
+  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/']
 })
 
 const store = configureStore({

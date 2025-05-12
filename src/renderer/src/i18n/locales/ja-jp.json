@@ -1668,6 +1668,136 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "selection": {
+      "name": "テキスト選択ツール",
+      "action": {
+        "builtin": {
+          "translate": "翻訳",
+          "explain": "解説",
+          "summary": "要約",
+          "search": "検索",
+          "refine": "最適化",
+          "copy": "コピー"
+        },
+        "window": {
+          "pin": "最前面に固定",
+          "pinned": "固定中",
+          "opacity": "ウィンドウの透過度",
+          "original_show": "原文を表示",
+          "original_hide": "原文を非表示",
+          "original_copy": "原文をコピー",
+          "esc_close": "Escで閉じる",
+          "esc_stop": "Escで停止",
+          "c_copy": "Cでコピー"
+        }
+      },
+      "settings": {
+        "experimental": "実験的機能",
+        "enable": {
+          "title": "有効化",
+          "description": "現在Windowsのみ対応"
+        },
+        "toolbar": {
+          "title": "ツールバー",
+          "trigger_mode": {
+            "title": "表示方法",
+            "description": "テキスト選択時に即時表示、またはCtrlキー押下時のみ表示",
+            "description_note": "※一部アプリではCtrlキーでの表示ができない場合があります",
+            "selected": "選択時",
+            "ctrlkey": "Ctrlキー"
+          },
+          "compact_mode": {
+            "title": "コンパクトモード",
+            "description": "アイコンのみ表示（テキスト非表示）"
+          }
+        },
+        "window": {
+          "title": "機能ウィンドウ",
+          "follow_toolbar": {
+            "title": "ツールバーに追従",
+            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
+          },
+          "auto_close": {
+            "title": "自動閉じる",
+            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる"
+          },
+          "auto_pin": {
+            "title": "自動で最前面に固定",
+            "description": "デフォルトで最前面表示"
+          }
+        },
+        "actions": {
+          "title": "機能設定",
+          "reset": {
+            "button": "リセット",
+            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",
+            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません"
+          },
+          "add_tooltip": {
+            "enabled": "カスタム機能を追加",
+            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)"
+          },
+          "delete_confirm": "このカスタム機能を削除しますか？",
+          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
+        },
+        "user_modal": {
+          "title": {
+            "add": "カスタム機能追加",
+            "edit": "カスタム機能編集"
+          },
+          "name": {
+            "label": "機能名",
+            "hint": "機能名を入力"
+          },
+          "icon": {
+            "label": "アイコン",
+            "placeholder": "Lucideアイコン名を入力",
+            "error": "無効なアイコン名です",
+            "tooltip": "例: arrow-right（小文字で入力）",
+            "view_all": "全アイコンを表示",
+            "random": "ランダム選択"
+          },
+          "model": {
+            "label": "モデル",
+            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用",
+            "default": "デフォルトモデル",
+            "assistant": "アシスタントを使用"
+          },
+          "assistant": {
+            "label": "アシスタント選択",
+            "default": "デフォルト"
+          },
+          "prompt": {
+            "label": "ユーザープロンプト",
+            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能",
+            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
+            "placeholder_text": "プレースホルダー",
+            "copy_placeholder": "プレースホルダーをコピー"
+          }
+        },
+        "search_modal": {
+          "title": "検索エンジン設定",
+          "engine": {
+            "label": "検索エンジン",
+            "custom": "カスタム"
+          },
+          "custom": {
+            "name": {
+              "label": "表示名",
+              "hint": "検索エンジン名（16文字以内）",
+              "max_length": "16文字以内で入力"
+            },
+            "url": {
+              "label": "検索URL",
+              "required": "URLを入力してください",
+              "invalid_format": "http:// または https:// で始まるURLを入力",
+              "missing_placeholder": "{{queryString}}を含めてください"
+            },
+            "test": "テスト"
+          }
+        }
+      }
     }
   }
 }
