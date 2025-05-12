@@ -67,7 +67,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <ModeSwitch>
-        <Tooltip title={t('settings.assistant.title')}>
+        <Tooltip title={t('assistants.title')}>
           <IconButton
             active={groupMode === 'assitants'}
             onClick={() => {
@@ -77,7 +77,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             <MenuOutlined style={{ fontSize: 16 }} />
           </IconButton>
         </Tooltip>
-        <Tooltip title={t(t('settings.group.title'))}>
+        <Tooltip title={t(t('assistants.group.title'))}>
           <IconButton
             active={groupMode === 'groups'}
             onClick={() => {

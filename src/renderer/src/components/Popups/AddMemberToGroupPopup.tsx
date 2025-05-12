@@ -42,7 +42,7 @@ const PopupContainer: FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       onOk={() => resolve(selectedIds)}
       okText={t('common.confirm')}
-      title={t('chat.group.addMembers')}
+      title={t('assistants.group.addMembers')}
       cancelText={t('common.cancel')}
       transitionName="ant-move-up"
       styles={{
@@ -55,8 +55,9 @@ const PopupContainer: FC<Props> = ({ resolve }) => {
       <Select
         mode="multiple"
         maxTagTextLength={5}
+        maxCount={5}
         style={{ width: '100%' }}
-        placeholder={t('chat.group.selectMembers')}
+        placeholder={t('assistants.group.selectMembers')}
         value={selectedIds}
         onChange={setSelectedIds}
         optionFilterProp="label"

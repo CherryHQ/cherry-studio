@@ -84,7 +84,20 @@
       "settings.reasoning_effort.medium": "斟酌",
       "settings.reasoning_effort.high": "沉思",
       "settings.reasoning_effort.default": "默认",
-      "settings.more": "助手设置"
+      "settings.more": "助手设置",
+      "group.title": "助手分组",
+      "group.emptyNameError": "分组名称不能为空",
+      "group.duplicateNameError": "分组名称已存在",
+      "group.addGroup": "添加分组",
+      "group.enterGroupName": "请输入分组名称",
+      "group.delete": "删除分组",
+      "group.empty": "空分组",
+      "group.add": "添加分组",
+      "group.expandAll": "展开全部",
+      "group.defaultName": "默认分组",
+      "group.addMembers": "添加助手到分组",
+      "group.selectMembers": "请选择要添加的助手",
+      "group.collapseAll": "折叠全部"
     },
     "auth": {
       "error": "自动获取密钥失败，请手动获取",

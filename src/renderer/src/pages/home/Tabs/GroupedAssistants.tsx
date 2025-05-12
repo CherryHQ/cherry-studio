@@ -174,7 +174,7 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
                     {group.id !== defaultGroupId && (
                       <>
                         <Popconfirm
-                          title={t('group.delete')}
+                          title={t('assistants.group.delete')}
                           placement="top"
                           okButtonProps={{ danger: true }}
                           onConfirm={() => {
@@ -235,7 +235,7 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
                         }}
                       </VirtualList>
                     ) : (
-                      <EmptyPlaceholder>{t('group.empty')}</EmptyPlaceholder>
+                      <EmptyPlaceholder>{t('assistants.group.empty')}</EmptyPlaceholder>
                     )}
                     {provided.placeholder}
                   </div>
@@ -256,7 +256,7 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
             }
           }}>
           <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-          {t('group.add')}
+          {t('assistants.group.add')}
         </GroupBottomItem>
         {groups.length > 0 && (
           <>
@@ -268,12 +268,12 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
               {expandedGroups.size === groups.length ? (
                 <>
                   <VerticalAlignMiddleOutlined style={{ color: 'var(--color-text-2)' }} />
-                  <span>{t('group.collapseAll')}</span>
+                  <span>{t('assistants.group.collapseAll')}</span>
                 </>
               ) : (
                 <>
                   <ColumnHeightOutlined style={{ color: 'var(--color-text-2)' }} />
-                  <span>{t('group.expandAll')}</span>
+                  <span>{t('assistants.group.expandAll')}</span>
                 </>
               )}
             </GroupBottomItem>
@@ -359,6 +359,8 @@ const GroupBottomItem = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--list-item-border-radius);
   &:hover {
     background-color: var(--color-background-soft);
   }

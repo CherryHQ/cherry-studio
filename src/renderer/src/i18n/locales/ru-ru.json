@@ -84,7 +84,20 @@
       "settings.knowledge_base.recognition.tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели",
       "settings.knowledge_base.recognition": "Использование базы знаний",
       "settings.knowledge_base.recognition.off": "Принудительный поиск",
-      "settings.knowledge_base.recognition.on": "Распознавание намерений"
+      "settings.knowledge_base.recognition.on": "Распознавание намерений",
+      "group.title": "Группы ассистентов",
+      "group.emptyNameError": "Название группы не может быть пустым",
+      "group.duplicateNameError": "Название группы уже существует",
+      "group.addGroup": "Добавить группу",
+      "group.enterGroupName": "Введите название группы",
+      "group.delete": "Удалить группу",
+      "group.empty": "Пустая группа",
+      "group.add": "Добавить группу",
+      "group.expandAll": "Развернуть все",
+      "group.defaultName": "Группа по умолчанию",
+      "group.addMembers": "Добавить ассистентов в группу",
+      "group.selectMembers": "Выберите ассистентов для добавления",
+      "group.collapseAll": "Свернуть все"
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",

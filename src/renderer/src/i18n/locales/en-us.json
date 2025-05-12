@@ -84,7 +84,20 @@
       "settings.knowledge_base.recognition.tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities",
       "settings.knowledge_base.recognition": "Use Knowledge Base",
       "settings.knowledge_base.recognition.off": "Force Search",
-      "settings.knowledge_base.recognition.on": "Intent Recognition"
+      "settings.knowledge_base.recognition.on": "Intent Recognition",
+      "group.title": "Assistant Groups",
+      "group.emptyNameError": "Group name cannot be empty",
+      "group.duplicateNameError": "Group name already exists",
+      "group.addGroup": "Add Group",
+      "group.enterGroupName": "Please enter group name",
+      "group.delete": "Delete Group",
+      "group.empty": "Empty Group",
+      "group.add": "Add Group",
+      "group.expandAll": "Expand All",
+      "group.defaultName": "Default Group",
+      "group.addMembers": "Add Assistants to Group",
+      "group.selectMembers": "Please select assistants to add",
+      "group.collapseAll": "Collapse All"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",

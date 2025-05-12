@@ -24,8 +24,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (!trimmedName) {
       Modal.error({
         centered: true,
-        title: t('common.error'),
-        content: t('groups.emptyNameError')
+        title: t('common.warning'),
+        content: t('assistants.group.emptyNameError')
       })
       return
     }
@@ -34,8 +34,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (groups.some((g) => g.name === trimmedName)) {
       Modal.error({
         centered: true,
-        title: t('common.error'),
-        content: t('groups.duplicateNameError')
+        title: t('common.warning'),
+        content: t('assistants.group.duplicateNameError')
       })
       return
     }
@@ -71,7 +71,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       closeIcon={null}
       afterClose={onClose}
       onOk={onCreateGroup}
-      title={t('chat.group.addGroup')}
+      title={t('assistants.group.addGroup')}
       okText={t('common.confirm')}
       cancelText={t('common.cancel')}
       transitionName="ant-move-up"
@@ -84,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }}>
       <Input
         ref={inputRef}
-        placeholder={t('groups.enterGroupName')}
+        placeholder={t('assistants.group.enterGroupName')}
         value={groupName}
         onChange={(e) => setGroupName(e.target.value)}
         onPressEnter={onCreateGroup}

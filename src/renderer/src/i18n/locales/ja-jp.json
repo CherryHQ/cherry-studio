@@ -84,7 +84,20 @@
       "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
       "settings.knowledge_base.recognition.off": "強制検索",
-      "settings.knowledge_base.recognition.on": "意図認識"
+      "settings.knowledge_base.recognition.on": "意図認識",
+      "group.title": "アシスタントグループ",
+      "group.emptyNameError": "グループ名は空にできません",
+      "group.duplicateNameError": "グループ名は既に存在します",
+      "group.addGroup": "グループを追加",
+      "group.enterGroupName": "グループ名を入力してください",
+      "group.delete": "グループを削除",
+      "group.empty": "空のグループ",
+      "group.add": "グループを追加",
+      "group.expandAll": "すべて展開",
+      "group.defaultName": "デフォルトグループ",
+      "group.addMembers": "アシスタントをグループに追加",
+      "group.selectMembers": "追加するアシスタントを選択してください",
+      "group.collapseAll": "すべて折りたたむ"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",

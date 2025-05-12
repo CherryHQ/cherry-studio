@@ -2,7 +2,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import i18n from '@renderer/i18n'
 
 export const defaultGroupId = 'defaultGroupId'
-export const defaultGroupName = i18n.t('group.defaultName')
+export const defaultGroupName = i18n.t('assistants.group.defaultName')
 
 export interface Group {
   id: string
