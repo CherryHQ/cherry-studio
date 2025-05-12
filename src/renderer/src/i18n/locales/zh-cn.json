@@ -1145,6 +1145,7 @@
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
       "display.topic.title": "话题设置",
+      "display.allowEscToExitFullscreen": "允许使用ESC键退出全屏模式",
       "miniapps": {
         "title": "小程序设置",
         "disabled": "隐藏的小程序",
