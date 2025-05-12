@@ -2,6 +2,9 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addGroup,
   addMemberToGroup,
+  defaultGroupId,
+  defaultGroupName,
+  initializeGroups,
   removeGroup,
   removeMemberFromGroup,
   updateGroup,
@@ -11,9 +14,59 @@ import { Group } from '@renderer/types'
 import { useCallback } from 'react'
 
 export function useGroups() {
-  const { groups } = useAppSelector((state) => state.groups)
+  const { groups, expandGroupIds } = useAppSelector((state) => state.groups)
   const { assistants } = useAppSelector((state) => state.assistants)
   const dispatch = useAppDispatch()
+
+  const getDefaultGroup = useCallback(() => groups.find((g) => g.id === defaultGroupId), [groups])
+
+  const addGroupHandler = useCallback(
+    (group: Group) => {
+      if (group.id === defaultGroupId) return
+      dispatch(addGroup(group))
+    },
+    [dispatch]
+  )
+
+  const removeGroupHandler = useCallback(
+    (id: string) => {
+      if (id === defaultGroupId) return
+      dispatch(removeGroup({ id }))
+    },
+    [dispatch]
+  )
+
+  const updateGroupHandler = useCallback(
+    (group: Group) => {
+      if (group.id === defaultGroupId) return
+      dispatch(updateGroup(group))
+    },
+    [dispatch]
+  )
+
+  const addMemberToGroupHandler = useCallback(
+    (groupId: string, memberId: string) => {
+      if (groupId === defaultGroupId) return
+      dispatch(addMemberToGroup({ groupId, memberId }))
+    },
+    [dispatch]
+  )
+
+  const removeMemberFromGroupHandler = useCallback(
+    (groupId: string, memberId: string) => {
+      if (groupId === defaultGroupId) return
+      dispatch(removeMemberFromGroup({ groupId, memberId }))
+    },
+    [dispatch]
+  )
+
+  const updateGroupsHandler = useCallback<(groups: Group[]) => void>(
+    (groups) => {
+      console.log('updateGroupsHandler', groups)
+      dispatch(updateGroups(groups))
+    },
+    [dispatch]
+  )
 
   // 初始化时检查未分组的助手
   const groupedMemberIds = new Set<string>()
@@ -23,68 +76,108 @@ export function useGroups() {
 
   const ungroupedAssistants = assistants.filter((a) => !groupedMemberIds.has(a.id))
   if (ungroupedAssistants.length > 0) {
-    const defaultGroup = groups.find((g) => g.id === 'default') || {
-      id: 'default',
-      name: '未分组',
+    const defaultGroup = groups.find((g) => g.id === defaultGroupId) || {
+      id: defaultGroupId,
+      name: defaultGroupName,
       members: []
     }
     const updatedDefaultGroup = {
       ...defaultGroup,
       members: [...defaultGroup.members, ...ungroupedAssistants.map((a) => a.id)]
     }
-    console.log('updatedDefaultGroup', groups)
-    dispatch(updateGroups([...groups.filter((g) => g.id !== 'default'), updatedDefaultGroup]))
+    dispatch(updateGroups([...groups.filter((g) => g.id !== defaultGroupId), updatedDefaultGroup]))
   }
+
+  const moveAssistantBetweenGroups = useCallback(
+    (sourceGroupId: string, sourceIndex: number, destGroupId: string, destIndex: number, groups: Group[]) => {
+      const sourceGroup = groups.find((g) => g.id === sourceGroupId)
+      const destGroup = groups.find((g) => g.id === destGroupId)
+      if (!sourceGroup || !destGroup) return groups
+
+      // 处理移动到未分组的情况
+      if (!destGroupId) {
+        if (sourceGroupId === defaultGroupId) return groups // 未分组不能再移动到未分组
+
+        const sourceMembers = [...sourceGroup.members]
+        const [removed] = sourceMembers.splice(sourceIndex, 1)
+
+        const defaultGroup = groups.find((g) => g.id === defaultGroupId) || {
+          id: defaultGroupId,
+          name: defaultGroupName,
+          members: []
+        }
+        const updatedDefaultGroup = {
+          ...defaultGroup,
+          members: [...defaultGroup.members, removed]
+        }
+
+        return groups.map((group) => {
+          if (group.id === sourceGroupId) {
+            return { ...sourceGroup, members: sourceMembers }
+          }
+          if (group.id === defaultGroupId) {
+            return updatedDefaultGroup
+          }
+          return group
+        })
+      }
+
+      // 同组内调整顺序
+      if (sourceGroupId === destGroupId) {
+        const newMembers = [...sourceGroup.members]
+        const [removed] = newMembers.splice(sourceIndex, 1)
+        newMembers.splice(destIndex, 0, removed)
+
+        return groups.map((group) => (group.id === sourceGroupId ? { ...group, members: newMembers } : group))
+      }
+
+      // 跨组移动
+      const sourceMembers = [...sourceGroup.members]
+      const [removed] = sourceMembers.splice(sourceIndex, 1)
+
+      const destMembers = [...destGroup.members]
+      destMembers.splice(destIndex, 0, removed)
+
+      return groups.map((group) => {
+        if (group.id === sourceGroupId) {
+          return { ...group, members: sourceMembers }
+        }
+        if (group.id === destGroupId) {
+          return { ...group, members: destMembers }
+        }
+        return group
+      })
+    },
+    []
+  )
+
+  const reorderGroups = useCallback((sourceIndex: number, destIndex: number, groups: Group[]) => {
+    const newGroups = [...groups]
+    const [removed] = newGroups.splice(sourceIndex, 1)
+    newGroups.splice(destIndex, 0, removed)
+    return newGroups
+  }, [])
+
+  const initializeGroupsHandler = useCallback(
+    (assistantIds: string[]) => {
+      dispatch(initializeGroups({ assistantIds }))
+    },
+    [dispatch]
+  )
 
   return {
     groups,
-    addGroup: useCallback(
-      (group: Group) => {
-        // 不允许添加id为default的分组
-        if (group.id === 'default') return
-        dispatch(addGroup(group))
-      },
-      [dispatch]
-    ),
-    removeGroup: useCallback(
-      (id: string) => {
-        // 不允许删除default分组
-        if (id === 'default') return
-        dispatch(removeGroup({ id }))
-      },
-      [dispatch]
-    ),
-    updateGroup: useCallback(
-      (group: Group) => {
-        // 不允许更新default分组
-        if (group.id === 'default') return
-        dispatch(updateGroup(group))
-      },
-      [dispatch]
-    ),
-    addMemberToGroup: useCallback(
-      (groupId: string, memberId: string) => {
-        // 不允许直接操作default分组
-        if (groupId === 'default') return
-        dispatch(addMemberToGroup({ groupId, memberId }))
-      },
-      [dispatch]
-    ),
-    removeMemberFromGroup: useCallback(
-      (groupId: string, memberId: string) => {
-        // 不允许直接操作default分组
-        if (groupId === 'default') return
-        dispatch(removeMemberFromGroup({ groupId, memberId }))
-      },
-      [dispatch]
-    ),
-    updateGroups: useCallback<(groups: Group[]) => void>(
-      (groups) => {
-        console.log('defaultGroup', groups)
-
-        dispatch(updateGroups(groups))
-      },
-      [dispatch]
-    )
+    expandGroupIds,
+    defaultGroupId,
+    getDefaultGroup,
+    addGroup: addGroupHandler,
+    removeGroup: removeGroupHandler,
+    updateGroup: updateGroupHandler,
+    addMemberToGroup: addMemberToGroupHandler,
+    removeMemberFromGroup: removeMemberFromGroupHandler,
+    updateGroups: updateGroupsHandler,
+    moveAssistantBetweenGroups,
+    reorderGroups,
+    initializeGroups: initializeGroupsHandler
   }
 }

@@ -13,22 +13,42 @@ interface Props {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { addGroup } = useGroups()
+  const { addGroup, groups } = useGroups()
   const [groupName, setGroupName] = useState('')
   const inputRef = useRef<InputRef>(null)
 
   const onCreateGroup = useCallback(() => {
-    if (!groupName.trim()) return
+    const trimmedName = groupName.trim()
+
+    // 空名称校验
+    if (!trimmedName) {
+      Modal.error({
+        centered: true,
+        title: t('common.error'),
+        content: t('groups.emptyNameError')
+      })
+      return
+    }
+
+    // 重名校验
+    if (groups.some((g) => g.name === trimmedName)) {
+      Modal.error({
+        centered: true,
+        title: t('common.error'),
+        content: t('groups.duplicateNameError')
+      })
+      return
+    }
 
     const newGroup: Group = {
       id: uuid(),
-      name: groupName.trim(),
+      name: trimmedName,
       members: []
     }
     addGroup(newGroup)
     resolve(newGroup)
     setOpen(false)
-  }, [groupName, addGroup, resolve])
+  }, [groupName, addGroup, resolve, t, groups])
 
   const onCancel = () => {
     setOpen(false)
@@ -51,6 +71,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       closeIcon={null}
       afterClose={onClose}
       onOk={onCreateGroup}
+      title={t('chat.group.addGroup')}
       okText={t('common.confirm')}
       cancelText={t('common.cancel')}
       transitionName="ant-move-up"
@@ -73,15 +94,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     </Modal>
   )
 }
+const TopViewKey = 'AddGroupPopup'
 
 export default class AddGroupPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('AddGroupPopup')
+    TopView.hide(TopViewKey)
   }
   static show() {
     return new Promise<Group | undefined>((resolve) => {
-      TopView.show(<PopupContainer resolve={resolve} />, 'AddGroupPopup')
+      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }
 }

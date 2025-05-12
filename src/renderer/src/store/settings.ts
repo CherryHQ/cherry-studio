@@ -86,6 +86,7 @@ export interface SettingsState {
   narrowMode: boolean
   // QuickAssistant
   enableQuickAssistant: boolean
+  assistantTabDefaultMode: 'assitants' | 'groups'
   clickTrayToShowQuickAssistant: boolean
   multiModelMessageStyle: MultiModelMessageStyle
   readClipboardAtStartup: boolean
@@ -159,6 +160,7 @@ export const initialState: SettingsState = {
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
+  assistantTabDefaultMode: 'assitants',
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
   codeShowLineNumbers: false,
@@ -513,6 +515,9 @@ const settingsSlice = createSlice({
     },
     setZoomFactor: (state, action: PayloadAction<number>) => {
       state.zoomFactor = action.payload
+    },
+    setAssistantTabDefaultMode: (state, action: PayloadAction<'assitants' | 'groups'>) => {
+      state.assistantTabDefaultMode = action.payload
     }
   }
 })
@@ -606,7 +611,8 @@ export const {
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
   setEnableBackspaceDeleteModel,
-  setZoomFactor
+  setZoomFactor,
+  setAssistantTabDefaultMode
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

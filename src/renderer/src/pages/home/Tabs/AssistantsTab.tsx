@@ -1,11 +1,14 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { AlignLeftOutlined, MenuOutlined, PlusOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { useAppDispatch } from '@renderer/store'
+import { setAssistantTabDefaultMode } from '@renderer/store/settings'
 import { Assistant } from '@renderer/types'
-import { Switch } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
+import { Tooltip } from 'antd'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,9 +28,11 @@ const Assistants: FC<AssistantsTabProps> = ({
   onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
+  const dispatch = useAppDispatch()
+  const { assistantTabDefaultMode } = useSettings()
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
-  const [groupMode, setGroupMode] = useState(false)
+  const [groupMode, setGroupMode] = useState(assistantTabDefaultMode)
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -44,27 +49,48 @@ const Assistants: FC<AssistantsTabProps> = ({
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
+  // 防止反复渲染，只有助手变化的时候 才有必要重新渲染组助手
+  const GroupTab = useMemo(() => {
+    return (
+      <GroupedAssistants
+        assistants={assistants}
+        activeAssistant={activeAssistant}
+        onDelete={onDelete}
+        setActiveAssistant={setActiveAssistant}
+        addAgent={addAgent}
+        addAssistant={addAssistant}
+        onCreateDefaultAssistant={onCreateDefaultAssistant}
+      />
+    )
+  }, [assistants, activeAssistant, onDelete, setActiveAssistant, addAgent, addAssistant, onCreateDefaultAssistant])
+
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <ModeSwitch>
-        <Switch
-          checked={groupMode}
-          onChange={setGroupMode}
-          checkedChildren={t('chat.group.mode.grouped')}
-          unCheckedChildren={t('chat.group.mode.flat')}
-        />
+        <Tooltip title={t('settings.assistant.title')}>
+          <IconButton
+            active={groupMode === 'assitants'}
+            onClick={() => {
+              dispatch(setAssistantTabDefaultMode('assitants'))
+              setGroupMode('assitants')
+            }}>
+            <MenuOutlined style={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title={t(t('settings.group.title'))}>
+          <IconButton
+            active={groupMode === 'groups'}
+            onClick={() => {
+              dispatch(setAssistantTabDefaultMode('groups'))
+              setGroupMode('groups')
+            }}>
+            <AlignLeftOutlined style={{ fontSize: 16 }} />
+          </IconButton>
+        </Tooltip>
       </ModeSwitch>
 
-      {groupMode ? (
-        <GroupedAssistants
-          assistants={assistants}
-          activeAssistant={activeAssistant}
-          onDelete={onDelete}
-          setActiveAssistant={setActiveAssistant}
-          addAgent={addAgent}
-          addAssistant={addAssistant}
-          onCreateDefaultAssistant={onCreateDefaultAssistant}
-        />
+      {groupMode === 'groups' ? (
+        GroupTab
       ) : (
         <>
           <DragableList
@@ -113,6 +139,21 @@ const ModeSwitch = styled.div`
   margin-bottom: 10px;
   display: flex;
   justify-content: flex-start;
+`
+
+const IconButton = styled.div<{ active: boolean }>`
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  padding: 4px;
+  color: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-text-2)')};
+  background: ${(props) => (props.active ? 'unset' : 'var(--color-background-soft)')};
+  &:first-child {
+    border-radius: 4px 0 0 4px;
+    border-right: none;
+  }
+  &:last-child {
+    border-radius: 0 4px 4px 0;
+  }
 `
 
 const AssistantAddItem = styled.div`
