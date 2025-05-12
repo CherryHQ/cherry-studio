@@ -14,6 +14,7 @@ import { FC } from 'react'
 
 interface Props<T> {
   list: T[]
+  droppableId?: string
   style?: React.CSSProperties
   listStyle?: React.CSSProperties
   children: (item: T, index: number) => React.ReactNode
@@ -25,6 +26,7 @@ interface Props<T> {
 
 const DragableList: FC<Props<any>> = ({
   children,
+  droppableId,
   list,
   style,
   listStyle,
@@ -45,7 +47,7 @@ const DragableList: FC<Props<any>> = ({
 
   return (
     <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
-      <Droppable droppableId="droppable" {...droppableProps}>
+      <Droppable droppableId={droppableId || 'droppable'} {...droppableProps}>
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
             <VirtualList data={list} itemKey="id">

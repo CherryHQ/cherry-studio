@@ -95,6 +95,21 @@
         "titlePlaceholder": "输入标题",
         "contentLabel": "内容",
         "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。"
+      },
+      "group": {
+        "title": "助手分组",
+        "emptyNameError": "分组名称不能为空",
+        "duplicateNameError": "分组名称已存在",
+        "addGroup": "添加分组",
+        "enterGroupName": "请输入分组名称",
+        "delete": "删除分组",
+        "empty": "空分组",
+        "add": "添加分组",
+        "expandAll": "展开全部",
+        "defaultName": "默认分组",
+        "addMembers": "添加助手到分组",
+        "selectMembers": "请选择要添加的助手",
+        "collapseAll": "折叠全部"
       }
     },
     "auth": {

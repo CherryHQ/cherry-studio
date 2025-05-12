@@ -95,6 +95,21 @@
         "titlePlaceholder": "Enter title",
         "contentLabel": "Content",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      },
+      "group": {
+        "title": "Assistant Groups",
+        "emptyNameError": "Group name cannot be empty",
+        "duplicateNameError": "Group name already exists",
+        "addGroup": "Add Group",
+        "enterGroupName": "Please enter group name",
+        "delete": "Delete Group",
+        "empty": "Empty Group",
+        "add": "Add Group",
+        "expandAll": "Expand All",
+        "defaultName": "Default Group",
+        "addMembers": "Add Assistants to Group",
+        "selectMembers": "Please select assistants to add",
+        "collapseAll": "Collapse All"
       }
     },
     "auth": {

@@ -95,7 +95,22 @@
       "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",
-      "settings.knowledge_base.recognition.on": "意圖識別"
+      "settings.knowledge_base.recognition.on": "意圖識別",
+      "group": {
+        "title": "助手分組",
+        "emptyNameError": "分組名稱不能為空",
+        "duplicateNameError": "分組名稱已存在",
+        "addGroup": "添加分組",
+        "enterGroupName": "請輸入分組名稱",
+        "delete": "刪除分組",
+        "empty": "空分組",
+        "add": "添加分組",
+        "expandAll": "展開全部",
+        "defaultName": "默認分組",
+        "addMembers": "添加助手到分組",
+        "selectMembers": "請選擇要添加的助手",
+        "collapseAll": "折疊全部"
+      }
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
