@@ -1617,6 +1617,10 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
+      },
+      "zoom": {
+        "title": "Page Zoom",
+        "reset": "Reset"
       }
     },
     "translate": {

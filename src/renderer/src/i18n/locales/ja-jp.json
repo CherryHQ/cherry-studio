@@ -1617,6 +1617,10 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
+      "zoom": {
+        "title": "ページズーム",
+        "reset": "リセット"
+      },
       "input.show_translate_confirm": "翻訳確認ダイアログを表示"
     },
     "translate": {
@@ -1661,10 +1665,6 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
-    },
-    "zoom": {
-      "title": "ズーム",
-      "reset": "リセット"
     }
   }
 }
