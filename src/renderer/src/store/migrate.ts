@@ -1257,6 +1257,7 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'openai' && provider.id !== 'openai') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'openai-compatible'
         }
       })
@@ -1292,6 +1293,22 @@ const migrateConfig = {
           return provider
         })
       }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '100': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        // @ts-ignore eslint-disable-next-line
+        if (['openai-compatible', 'openai'].includes(provider.type)) {
+          provider.type = 'openai'
+        }
+        if (provider.id === 'openai') {
+          provider.type = 'openai-response'
+        }
+      })
       return state
     } catch (error) {
       return state
