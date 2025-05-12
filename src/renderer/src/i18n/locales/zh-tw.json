@@ -81,6 +81,17 @@
       "settings.reasoning_effort.medium": "正常思考",
       "settings.reasoning_effort.default": "預設",
       "settings.more": "助手設定",
+      "settings.regular_phrases": {
+        "title": "常用短语",
+        "add": "添加短语",
+        "edit": "編輯短语",
+        "delete": "刪除短语",
+        "deleteConfirm": "確定要刪除這個短语嗎？",
+        "titleLabel": "標題",
+        "titlePlaceholder": "輸入標題",
+        "contentLabel": "內容",
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。"
+      },
       "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",
@@ -304,6 +315,7 @@
       "confirm": "確認",
       "copied": "已複製",
       "copy": "複製",
+      "inspect": "檢查",
       "cut": "剪下",
       "default": "預設",
       "delete": "刪除",
@@ -619,7 +631,9 @@
       "error.siyuan.no_config": "未配置思源筆記API地址或令牌",
       "success.siyuan.export": "導出到思源筆記成功",
       "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
-      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！"
+      "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！",
+      "download.success": "下載成功",
+      "download.failed": "下載失敗"
     },
     "minapp": {
       "popup": {
@@ -705,6 +719,7 @@
       "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加",
       "search": "搜尋模型...",
       "stream_output": "串流輸出",
+      "enable_tool_use": "工具調用",
       "type": {
         "embedding": "嵌入",
         "free": "免費",
@@ -715,7 +730,8 @@
         "text": "文字",
         "vision": "視覺",
         "websearch": "網路搜尋"
-      }
+      },
+      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -757,6 +773,8 @@
       "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
+      "image_placeholder": "無圖片",
+      "image_retry": "重試",
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -1338,6 +1356,7 @@
         "providerPlaceholder": "提供者名稱",
         "advancedSettings": "高級設定"
       },
+      "messages.prompt": "提示詞顯示",
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
@@ -1368,6 +1387,7 @@
       "models.add.group_name.tooltip": "選填，例如 ChatGPT",
       "models.add.model_id": "模型 ID",
       "models.add.model_id.placeholder": "必填，例如 gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "選擇模型",
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "選填，例如 GPT-4",
@@ -1379,7 +1399,10 @@
       "models.check.enabled": "開啟",
       "models.check.failed": "失敗",
       "models.check.keys_status_count": "通過：{{count_passed}}個密鑰，失敗：{{count_failed}}個密鑰",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 個模型完成健康檢查（其中 {{count_partial}} 個模型用某些密鑰無法訪問），{{count_failed}} 個模型完全無法訪問。",
+      "models.check.model_status_failed": "{{count}} 個模型完全無法訪問",
+      "models.check.model_status_partial": "其中 {{count}} 個模型用某些密鑰無法訪問",
+      "models.check.model_status_passed": "{{count}} 個模型通過健康檢查",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "未找到API密鑰，請先添加API密鑰。",
       "models.check.passed": "通過",
       "models.check.select_api_key": "選擇要使用的API密鑰：",
@@ -1525,7 +1548,6 @@
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
-      "zoom.title": "頁面縮放",
       "title": "設定",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
@@ -1580,7 +1602,10 @@
         "titlePlaceholder": "請輸入短語標題",
         "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
         "delete": "刪除短語",
-        "deleteConfirm": "刪除後無法復原，是否繼續？"
+        "deleteConfirm": "刪除後無法復原，是否繼續？",
+        "locationLabel": "添加位置",
+        "global": "全局快速短語",
+        "assistant": "助手提示詞"
       },
       "quickPanel": {
         "title": "快捷選單",
@@ -1595,12 +1620,20 @@
       "privacy": {
         "title": "隱私設定",
         "enable_privacy_mode": "匿名發送錯誤報告和資料統計"
+      },
+      "zoom": {
+        "title": "縮放",
+        "reset": "重置"
       }
     },
     "translate": {
       "any.language": "任意語言",
       "button.translate": "翻譯",
       "close": "關閉",
+      "closed": "翻譯已關閉",
+      "copied": "翻譯內容已複製",
+      "empty": "翻譯內容為空",
+      "not.found": "未找到翻譯內容",
       "confirm": {
         "content": "翻譯後將覆蓋原文，是否繼續？",
         "title": "翻譯確認"

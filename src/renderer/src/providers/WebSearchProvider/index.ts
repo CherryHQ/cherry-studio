@@ -17,8 +17,6 @@ export default class WebSearchEngineProvider {
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
     const result = await this.sdk.search(query, websearch, httpOptions)
-    const filteredResult = await filterResultWithBlacklist(result, websearch)
-
-    return filteredResult
+    return await filterResultWithBlacklist(result, websearch)
   }
 }

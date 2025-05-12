@@ -16,6 +16,7 @@ interface ArtboardProps {
   onPrevImage: () => void
   onNextImage: () => void
   onCancel: () => void
+  retry?: (painting: Painting) => void
 }
 
 const Artboard: FC<ArtboardProps> = ({
@@ -24,7 +25,8 @@ const Artboard: FC<ArtboardProps> = ({
   currentImageIndex,
   onPrevImage,
   onNextImage,
-  onCancel
+  onCancel,
+  retry
 }) => {
   const { t } = useTranslation()
 
@@ -90,7 +92,25 @@ const Artboard: FC<ArtboardProps> = ({
             </ImageCounter>
           </ImageContainer>
         ) : (
-          <ImagePlaceholder />
+          <ImagePlaceholder>
+            {painting.urls.length > 0 && retry ? (
+              <div>
+                <ImageList>
+                  {painting.urls.map((url) => (
+                    <ImageListItem key={url}>{url}</ImageListItem>
+                  ))}
+                </ImageList>
+                <div>
+                  {t('paintings.proxy_required')}
+                  <Button type="link" onClick={() => retry?.(painting)}>
+                    {t('paintings.image_retry')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>{t('paintings.image_placeholder')}</div>
+            )}
+          </ImagePlaceholder>
         )}
         {isLoading && (
           <LoadingOverlay>
@@ -118,7 +138,21 @@ const ImagePlaceholder = styled.div`
   background-color: var(--color-background-soft);
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  padding: 24px;
+  box-sizing: border-box;
+`
+
+const ImageList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  word-break: break-all;
+  user-select: text;
+`
+
+const ImageListItem = styled.li`
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
 `
 
 const ImageContainer = styled.div`

@@ -84,7 +84,18 @@
       "settings.knowledge_base.recognition.tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели",
       "settings.knowledge_base.recognition": "Использование базы знаний",
       "settings.knowledge_base.recognition.off": "Принудительный поиск",
-      "settings.knowledge_base.recognition.on": "Распознавание намерений"
+      "settings.knowledge_base.recognition.on": "Распознавание намерений",
+      "settings.regular_phrases": {
+        "title": "Регулярные подсказки",
+        "add": "Добавить подсказку",
+        "edit": "Редактировать подсказку",
+        "delete": "Удалить подсказку",
+        "deleteConfirm": "Вы уверены, что хотите удалить эту подсказку?",
+        "titleLabel": "Заголовок",
+        "titlePlaceholder": "Введите заголовок",
+        "contentLabel": "Содержание",
+        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}."
+      }
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -304,6 +315,7 @@
       "confirm": "Подтверждение",
       "copied": "Скопировано",
       "copy": "Копировать",
+      "inspect": "Осмотреть",
       "cut": "Вырезать",
       "default": "По умолчанию",
       "delete": "Удалить",
@@ -619,7 +631,9 @@
       "error.siyuan.no_config": "Не настроен API адрес или токен Siyuan",
       "success.siyuan.export": "Успешный экспорт в Siyuan",
       "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
-      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
+      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!",
+      "download.success": "Скачано успешно",
+      "download.failed": "Скачивание не удалось"
     },
     "minapp": {
       "popup": {
@@ -705,6 +719,7 @@
       "rerank_model_tooltip": "В настройках -> Служба модели нажмите кнопку \"Управление\", чтобы добавить.",
       "search": "Поиск моделей...",
       "stream_output": "Потоковый вывод",
+      "enable_tool_use": "Вызов инструмента",
       "type": {
         "embedding": "Встраиваемые",
         "free": "Бесплатные",
@@ -715,7 +730,8 @@
         "text": "Текст",
         "vision": "Визуальные",
         "websearch": "Веб-поисковые"
-      }
+      },
+      "rerank_model_not_support_provider": "В настоящее время модель переупорядочивания не поддерживает этого провайдера ({{provider}})"
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
@@ -757,6 +773,8 @@
       "proxy_required": "Сейчас необходимо открыть прокси для просмотра сгенерированных изображений, в будущем будет поддерживаться прямое соединение",
       "image_file_required": "Пожалуйста, сначала загрузите изображение",
       "image_file_retry": "Пожалуйста, сначала загрузите изображение",
+      "image_placeholder": "Изображение недоступно",
+      "image_retry": "Попробовать снова",
       "mode": {
         "generate": "Рисование",
         "edit": "Редактирование",
@@ -1337,6 +1355,7 @@
         "providerPlaceholder": "Имя провайдера",
         "advancedSettings": "Расширенные настройки"
       },
+      "messages.prompt": "Показывать подсказки",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
@@ -1367,6 +1386,7 @@
       "models.add.group_name.tooltip": "Необязательно, например, ChatGPT",
       "models.add.model_id": "ID модели",
       "models.add.model_id.placeholder": "Обязательно, например, gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "Выберите модель",
       "models.add.model_id.tooltip": "Пример: gpt-3.5-turbo",
       "models.add.model_name": "Имя модели",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
@@ -1378,7 +1398,10 @@
       "models.check.enabled": "Включено",
       "models.check.failed": "Не прошло",
       "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} моделей прошли проверку состояния (из них {{count_partial}} моделей недоступны с некоторыми ключами), {{count_failed}} моделей полностью недоступны.",
+      "models.check.model_status_failed": "{{count}} моделей полностью недоступны",
+      "models.check.model_status_partial": "{{count}} моделей недоступны с некоторыми ключами",
+      "models.check.model_status_passed": "{{count}} моделей прошли проверку состояния",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.passed": "Прошло",
       "models.check.select_api_key": "Выберите API ключ для использования:",
@@ -1524,7 +1547,6 @@
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
-      "zoom.title": "Масштаб страницы",
       "title": "Настройки",
       "topic.position": "Позиция топиков",
       "topic.position.left": "Слева",
@@ -1579,7 +1601,10 @@
         "titlePlaceholder": "Введите заголовок фразы",
         "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
         "delete": "Удалить фразу",
-        "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?"
+        "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?",
+        "locationLabel": "Место добавления",
+        "global": "Глобальные быстрые фразы",
+        "assistant": "Подсказки ассистента"
       },
       "quickPanel": {
         "title": "Быстрое меню",
@@ -1595,12 +1620,20 @@
         "title": "Настройки конфиденциальности",
         "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
+      "zoom": {
+        "title": "Масштаб страницы",
+        "reset": "Сбросить"
+      },
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {
       "any.language": "Любой язык",
       "button.translate": "Перевести",
       "close": "Закрыть",
+      "closed": "Перевод закрыт",
+      "copied": "Содержимое перевода скопировано",
+      "empty": "Содержимое перевода пусто",
+      "not.found": "Содержимое перевода не найдено",
       "confirm": {
         "content": "Перевод заменит исходный текст, продолжить?",
         "title": "Перевод подтверждение"

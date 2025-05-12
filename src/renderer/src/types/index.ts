@@ -25,6 +25,7 @@ export type Assistant = {
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
+  regularPhrases?: QuickPhrase[] // Added for regular phrase
 }
 
 export type AssistantMessage = {
@@ -55,10 +56,12 @@ export type AssistantSettings = {
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
+  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
+  qwenThinkMode?: boolean
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -118,8 +121,8 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
 }
 
 export type Metrics = {
-  completion_tokens?: number
-  time_completion_millsec?: number
+  completion_tokens: number
+  time_completion_millsec: number
   time_first_token_millsec?: number
   time_thinking_millsec?: number
 }
@@ -570,12 +573,24 @@ export interface MCPConfig {
   servers: MCPServer[]
 }
 
-export interface MCPToolResponse {
-  id: string // tool call id, it should be unique
-  tool: MCPTool // tool info
+interface BaseToolResponse {
+  id: string // unique id
+  tool: MCPTool
+  arguments: Record<string, unknown> | undefined
   status: string // 'invoking' | 'done'
   response?: any
 }
+
+export interface ToolUseResponse extends BaseToolResponse {
+  toolUseId: string
+}
+
+export interface ToolCallResponse extends BaseToolResponse {
+  // gemini tool call id might be undefined
+  toolCallId?: string
+}
+
+export type MCPToolResponse = ToolUseResponse | ToolCallResponse
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -586,6 +601,7 @@ export interface MCPToolResultContent {
     uri?: string
     text?: string
     mimeType?: string
+    blob?: string
   }
 }
 

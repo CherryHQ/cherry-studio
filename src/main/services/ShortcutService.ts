@@ -1,5 +1,4 @@
-import { ZOOM_LEVELS } from '@shared/config/constant'
-import { IpcChannel } from '@shared/IpcChannel'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { Shortcut } from '@types'
 import { BrowserWindow, globalShortcut } from 'electron'
 import Logger from 'electron-log'
@@ -16,14 +15,11 @@ const windowOnHandlers = new Map<BrowserWindow, { onFocusHandler: () => void; on
 function getShortcutHandler(shortcut: Shortcut) {
   switch (shortcut.key) {
     case 'zoom_in':
-      return (window: BrowserWindow) => handleZoom(1)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], 0.1)
     case 'zoom_out':
-      return (window: BrowserWindow) => handleZoom(-1)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], -0.1)
     case 'zoom_reset':
-      return (window: BrowserWindow) => {
-        window.webContents.setZoomFactor(1)
-        configManager.setZoomFactor(1)
-      }
+      return (window: BrowserWindow) => handleZoomFactor([window], 0, true)
     case 'show_app':
       return () => {
         windowService.toggleMainWindow()
@@ -39,46 +35,6 @@ function getShortcutHandler(shortcut: Shortcut) {
 
 function formatShortcutKey(shortcut: string[]): string {
   return shortcut.join('+')
-}
-
-function handleZoom(delta: number) {
-  return (window: BrowserWindow) => {
-    const currentZoom = configManager.getZoomFactor()
-    let currentIndex = ZOOM_LEVELS.indexOf(currentZoom)
-
-    // 如果当前缩放比例不在预设列表中，找到最接近的
-    if (currentIndex === -1) {
-      let closestIndex = 0
-      let minDiff = Math.abs(ZOOM_LEVELS[0] - currentZoom)
-      for (let i = 1; i < ZOOM_LEVELS.length; i++) {
-        const diff = Math.abs(ZOOM_LEVELS[i] - currentZoom)
-        if (diff < minDiff) {
-          minDiff = diff
-          closestIndex = i
-        }
-      }
-      currentIndex = closestIndex
-    }
-
-    let nextIndex = currentIndex + delta
-
-    // 边界检查
-    if (nextIndex < 0) {
-      nextIndex = 0 // 已经是最小值
-    } else if (nextIndex >= ZOOM_LEVELS.length) {
-      nextIndex = ZOOM_LEVELS.length - 1 // 已经是最大值
-    }
-
-    const newZoom = ZOOM_LEVELS[nextIndex]
-
-    if (newZoom !== currentZoom) {
-      // 只有在实际改变时才更新
-      configManager.setZoomFactor(newZoom)
-      // 通知所有渲染进程更新 zoomFactor
-      window.webContents.setZoomFactor(newZoom)
-      window.webContents.send(IpcChannel.ZoomFactorUpdated, newZoom)
-    }
-  }
 }
 
 const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat = (

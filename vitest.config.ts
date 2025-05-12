@@ -6,20 +6,22 @@ const rendererConfig = electronViteConfig.renderer
 
 export default defineConfig({
   // 复用 renderer 插件和路径别名
-  plugins: rendererConfig.plugins,
+  // @ts-ignore plugins 类型
+  plugins: rendererConfig?.plugins,
   resolve: {
-    alias: rendererConfig.resolve.alias
+    // @ts-ignore alias 类型
+    alias: rendererConfig?.resolve.alias
   },
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: [],
+    setupFiles: ['./src/renderer/__tests__/setup.ts'],
     include: [
       // 只测试渲染进程
       'src/renderer/**/*.{test,spec}.{ts,tsx}',
       'src/renderer/**/__tests__/**/*.{ts,tsx}'
     ],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/build/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', '**/out/**', '**/build/**', '**/src/renderer/__tests__/setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

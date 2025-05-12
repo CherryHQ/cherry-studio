@@ -312,6 +312,7 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
       closable
       maskClosable
       centered
+      transitionName="animation-move-down"
       okButtonProps={{
         type: 'primary',
         disabled: vaults.length === 0 || loading || !!error

@@ -26,6 +26,8 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Get release tag
         id: get-tag

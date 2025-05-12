@@ -245,7 +245,7 @@ export const selectMessagesForTopic = createSelector(
     (state: RootState, topicId: string) => state.messages.messageIdsByTopic[topicId] // Input 2: Get the ordered IDs for the specific topic
   ],
   (messageEntities, topicMessageIds) => {
-    // console.log(`[Selector selectMessagesForTopic] Running for topicId: ${topicId}`); // Uncomment for debugging selector runs
+    // Logger.log(`[Selector selectMessagesForTopic] Running for topicId: ${topicId}`); // Uncomment for debugging selector runs
     if (!topicMessageIds) {
       return [] // Return an empty array if the topic or its IDs don't exist
     }

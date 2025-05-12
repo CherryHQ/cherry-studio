@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.2.10",
+  "version": "1.3.0",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -94,7 +94,6 @@
     "markdown-it": "^14.1.0",
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.1.1",
-    "opendal": "^0.47.11",
     "os-proxy-config": "^1.1.2",
     "proxy-agent": "^6.5.0",
     "rc-virtual-list": "^3.18.6",
@@ -178,6 +177,7 @@
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.487.0",
     "mime": "^4.0.4",
+    "motion": "^12.10.5",
     "npx-scope-finder": "^1.2.0",
     "openai": "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch",
     "p-queue": "^8.1.0",

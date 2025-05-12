@@ -1,10 +1,10 @@
+import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import { upgradeToV7 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
 import dayjs from 'dayjs'
-import Logger from 'electron-log'
 
 export async function backup() {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
@@ -33,7 +33,7 @@ export async function restore() {
 
       await handleData(data)
     } catch (error) {
-      console.error(error)
+      Logger.error('[Backup] restore: Error restoring backup file:', error)
       window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
     }
   }
@@ -228,7 +228,7 @@ export function startAutoSync(immediate = false) {
   const { webdavAutoSync, webdavHost } = store.getState().settings
 
   if (!webdavAutoSync || !webdavHost) {
-    console.log('[AutoSync] Invalid sync settings, auto sync disabled')
+    Logger.log('[AutoSync] Invalid sync settings, auto sync disabled')
     return
   }
 
@@ -254,7 +254,7 @@ export function startAutoSync(immediate = false) {
     const { webdavSync } = store.getState().backup
 
     if (webdavSyncInterval <= 0) {
-      console.log('[AutoSync] Invalid sync interval, auto sync disabled')
+      Logger.log('[AutoSync] Invalid sync interval, auto sync disabled')
       stopAutoSync()
       return
     }
@@ -274,7 +274,7 @@ export function startAutoSync(immediate = false) {
 
     syncTimeout = setTimeout(performAutoBackup, timeUntilNextSync)
 
-    console.log(
+    Logger.log(
       `[AutoSync] Next sync scheduled in ${Math.floor(timeUntilNextSync / 1000 / 60)} minutes ${Math.floor(
         (timeUntilNextSync / 1000) % 60
       )} seconds`
@@ -283,7 +283,7 @@ export function startAutoSync(immediate = false) {
 
   async function performAutoBackup() {
     if (isAutoBackupRunning || isManualBackupRunning) {
-      console.log('[AutoSync] Backup already in progress, rescheduling')
+      Logger.log('[AutoSync] Backup already in progress, rescheduling')
       scheduleNextBackup()
       return
     }
@@ -294,7 +294,7 @@ export function startAutoSync(immediate = false) {
 
     while (retryCount < maxRetries) {
       try {
-        console.log(`[AutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
+        Logger.log(`[AutoSync] Starting auto backup... (attempt ${retryCount + 1}/${maxRetries})`)
 
         await backupToWebdav({ autoBackupProcess: true })
 
@@ -313,7 +313,7 @@ export function startAutoSync(immediate = false) {
       } catch (error: any) {
         retryCount++
         if (retryCount === maxRetries) {
-          console.error('[AutoSync] Auto backup failed after all retries:', error)
+          Logger.error('[AutoSync] Auto backup failed after all retries:', error)
 
           store.dispatch(
             setWebDAVSyncState({
@@ -334,13 +334,13 @@ export function startAutoSync(immediate = false) {
         } else {
           //Exponential Backoff with Base 2： 7s、17s、37s
           const backoffDelay = Math.pow(2, retryCount - 1) * 10000 - 3000
-          console.log(`[AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
+          Logger.log(`[AutoSync] Failed, retry ${retryCount}/${maxRetries} after ${backoffDelay / 1000}s`)
 
           await new Promise((resolve) => setTimeout(resolve, backoffDelay))
 
           //in case auto backup is stopped by user
           if (!isAutoBackupRunning) {
-            console.log('[AutoSync] retry cancelled by user, exit')
+            Logger.log('[AutoSync] retry cancelled by user, exit')
             break
           }
         }
@@ -351,7 +351,7 @@ export function startAutoSync(immediate = false) {
 
 export function stopAutoSync() {
   if (syncTimeout) {
-    console.log('[AutoSync] Stopping auto sync')
+    Logger.log('[AutoSync] Stopping auto sync')
     clearTimeout(syncTimeout)
     syncTimeout = null
   }

@@ -232,6 +232,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         content: { padding: 0 },
         header: { padding: '16px 22px 30px 22px' }
       }}
+      transitionName="animation-move-down"
       centered>
       <SearchContainer>
         <TopToolsWrapper>

@@ -40,7 +40,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
 
   const handleAddCustomApp = async (values: any) => {
     try {
-      const content = await window.api.file.read('customMiniAPP')
+      const content = await window.api.file.read('custom-minapps.json')
       const customApps = JSON.parse(content)
 
       // Check for duplicate ID
@@ -62,7 +62,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         addTime: new Date().toISOString()
       }
       customApps.push(newApp)
-      await window.api.file.writeWithId('customMiniAPP', JSON.stringify(customApps, null, 2))
+      await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(customApps, null, 2))
       message.success(t('settings.miniapps.custom.save_success'))
       setIsModalVisible(false)
       form.resetFields()
@@ -84,9 +84,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   }
 
   const handleFileChange = async (info: any) => {
-    console.log(info)
     const file = info.fileList[info.fileList.length - 1]?.originFileObj
-    console.log(file)
     setFileList(info.fileList.slice(-1))
 
     if (file) {
@@ -138,10 +136,10 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                 danger: true,
                 onClick: async () => {
                   try {
-                    const content = await window.api.file.read('customMiniAPP')
+                    const content = await window.api.file.read('custom-minapps.json')
                     const customApps = JSON.parse(content)
                     const updatedApps = customApps.filter((customApp: MinAppType) => customApp.id !== app.id)
-                    await window.api.file.writeWithId('customMiniAPP', JSON.stringify(updatedApps, null, 2))
+                    await window.api.file.writeWithId('custom-minapps.json', JSON.stringify(updatedApps, null, 2))
                     message.success(t('settings.miniapps.custom.remove_success'))
                     const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
                     updateDefaultMinApps(reloadedApps)
@@ -179,7 +177,9 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           setIsModalVisible(false)
           setFileList([])
         }}
-        footer={null}>
+        footer={null}
+        transitionName="animation-move-down"
+        centered>
         <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
           <Form.Item
             name="id"

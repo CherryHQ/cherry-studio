@@ -19,7 +19,7 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 
 # 📖 Guide
 
-https://docs.cherry-ai.com
+<https://docs.cherry-ai.com>
 
 # 🌠 Screenshot
 
@@ -82,17 +82,21 @@ https://docs.cherry-ai.com
 
 # 🌈 Theme
 
-- Theme Gallery: https://cherrycss.com
-- Aero Theme: https://github.com/hakadao/CherryStudio-Aero
-- PaperMaterial Theme: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
-- Claude dynamic-style: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-- Maple Neon Theme: https://github.com/BoningtonChen/CherryStudio_themes
+- Theme Gallery: <https://cherrycss.com>
+- Aero Theme: <https://github.com/hakadao/CherryStudio-Aero>
+- PaperMaterial Theme: <https://github.com/rainoffallingstar/CherryStudio-PaperMaterial>
+- Claude dynamic-style: <https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic>
+- Maple Neon Theme: <https://github.com/BoningtonChen/CherryStudio_themes>
 
 Welcome PR for more themes
 
 # 🖥️ Develop
 
 Refer to the [development documentation](docs/dev.md)
+
+Refer to the [Architecture overview documentation](https://deepwiki.com/CherryHQ/cherry-studio)
+
+Refer to the [Branching Strategy](docs/branching-strategy.md) for contribution guidelines
 
 # 🤝 Contributing
 
@@ -144,7 +148,7 @@ Thank you for your support and contributions!
 
 # ✉️ Contact
 
-yinsenho@cherry-ai.com
+<yinsenho@cherry-ai.com>
 
 # ⭐️ Star History
 

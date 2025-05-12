@@ -1,6 +1,7 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
+import Logger from '@renderer/config/logger'
 import {
   isGenerateImageModel,
   isSupportedReasoningEffortModel,
@@ -22,7 +23,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { estimateMessageUsage, estimateTextTokens as estimateTxtTokens } from '@renderer/services/TokenService'
+import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch } from '@renderer/store'
@@ -36,7 +37,6 @@ import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
-import Logger from 'electron-log/renderer'
 import { debounce, isEmpty } from 'lodash'
 import {
   AtSign,
@@ -184,7 +184,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       return
     }
 
-    console.log('[DEBUG] Starting to send message')
+    Logger.log('[DEBUG] Starting to send message')
 
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE)
 
@@ -193,7 +193,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-      console.log('baseUserMessage', baseUserMessage)
+      Logger.log('baseUserMessage', baseUserMessage)
 
       // getUserMessage()
       if (uploadedFiles) {
@@ -215,15 +215,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         )
       }
 
-      baseUserMessage.usage = await estimateMessageUsage(baseUserMessage)
+      baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      console.log('[DEBUG] Created message and blocks:', message, blocks)
-      console.log('[DEBUG] Dispatching _sendMessage')
+      Logger.log('[DEBUG] Created message and blocks:', message, blocks)
+      Logger.log('[DEBUG] Dispatching _sendMessage')
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
-      console.log('[DEBUG] _sendMessage dispatched')
+      Logger.log('[DEBUG] _sendMessage dispatched')
 
       // Clear input
       setText('')
@@ -459,7 +459,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }, 200)
 
         if (spaceClickCount === 2) {
-          console.log('Triple space detected - trigger translation')
+          Logger.log('Triple space detected - trigger translation')
           setSpaceClickCount(0)
           setIsTranslating(true)
           translate()
@@ -741,7 +741,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     textareaRef.current?.focus()
-  }, [assistant])
+  }, [assistant, topic])
 
   useEffect(() => {
     setTimeout(() => resizeTextArea(), 0)
@@ -757,9 +757,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [])
 
   useEffect(() => {
-    window.addEventListener('focus', () => {
+    const onFocus = () => {
+      if (document.activeElement?.closest('.ant-modal')) {
+        return
+      }
       textareaRef.current?.focus()
-    })
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   useEffect(() => {
@@ -898,10 +903,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
-              const textArea = e.target
-              if (textArea) {
-                const length = textArea.value.length
-                textArea.setSelectionRange(length, length)
+              if (e.target.value.length === 0) {
+                e.target.setSelectionRange(0, 0)
               }
             }}
             onBlur={() => setInputFocus(false)}
@@ -970,6 +973,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 setInputValue={setText}
                 resizeTextArea={resizeTextArea}
                 ToolbarButton={ToolbarButton}
+                assistantObj={assistant}
               />
               <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
                 <ToolbarButton type="text" onClick={clearTopic}>

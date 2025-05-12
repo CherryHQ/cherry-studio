@@ -14,8 +14,7 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
-  setWindowStyle,
-  setZoomFactor
+  setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
 
@@ -80,10 +79,6 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
-    },
-    setZoomFactor(factor: number) {
-      dispatch(setZoomFactor(factor))
-      window.api.setZoomFactor(factor)
     }
   }
 }

@@ -84,7 +84,18 @@
       "settings.knowledge_base.recognition.tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities",
       "settings.knowledge_base.recognition": "Use Knowledge Base",
       "settings.knowledge_base.recognition.off": "Force Search",
-      "settings.knowledge_base.recognition.on": "Intent Recognition"
+      "settings.knowledge_base.recognition.on": "Intent Recognition",
+      "settings.regular_phrases": {
+        "title": "Regular Phrase",
+        "add": "Add Phrase",
+        "edit": "Edit Phrase",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "Are you sure to delete this phrase?",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter title",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      }
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -304,6 +315,7 @@
       "confirm": "Confirm",
       "copied": "Copied",
       "copy": "Copy",
+      "inspect": "Inspect",
       "cut": "Cut",
       "default": "Default",
       "delete": "Delete",
@@ -619,7 +631,9 @@
       "error.siyuan.no_config": "Siyuan Note API address or token is not configured",
       "success.siyuan.export": "Successfully exported to Siyuan Note",
       "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
-      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
+      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!",
+      "download.success": "Download successfully",
+      "download.failed": "Download failed"
     },
     "minapp": {
       "popup": {
@@ -702,9 +716,11 @@
       "pinned": "Pinned",
       "rerank_model": "Reordering Model",
       "rerank_model_support_provider": "Currently, the reordering model only supports some providers ({{provider}})",
+      "rerank_model_not_support_provider": "Currently, the reordering model does not support this provider ({{provider}})",
       "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
       "search": "Search models...",
       "stream_output": "Stream output",
+      "enable_tool_use": "Enable Tool Use",
       "type": {
         "embedding": "Embedding",
         "free": "Free",
@@ -757,6 +773,8 @@
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
+      "image_placeholder": "No image available",
+      "image_retry": "Retry",
       "mode": {
         "generate": "Draw",
         "edit": "Edit",
@@ -1339,6 +1357,7 @@
         "providerPlaceholder": "Provider name",
         "advancedSettings": "Advanced Settings"
       },
+      "messages.prompt": "Show prompt",
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
@@ -1369,6 +1388,7 @@
       "models.add.group_name.tooltip": "Optional e.g. ChatGPT",
       "models.add.model_id": "Model ID",
       "models.add.model_id.placeholder": "Required e.g. gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "Select Model",
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
@@ -1380,7 +1400,10 @@
       "models.check.enabled": "Enabled",
       "models.check.failed": "Failed",
       "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed health checks ({{count_partial}} models had inaccessible keys), {{count_failed}} models completely inaccessible.",
+      "models.check.model_status_failed": "{{count}} models completely inaccessible",
+      "models.check.model_status_partial": "{{count}} models had inaccessible keys",
+      "models.check.model_status_passed": "{{count}} models passed health checks",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "No API keys found, please add API keys first.",
       "models.check.passed": "Passed",
       "models.check.select_api_key": "Select the API key to use:",
@@ -1526,7 +1549,6 @@
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
-      "zoom.title": "Page Zoom",
       "title": "Settings",
       "topic.position": "Topic position",
       "topic.position.left": "Left",
@@ -1580,7 +1602,10 @@
         "titlePlaceholder": "Please enter phrase title",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
-        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?"
+        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+        "locationLabel": "Add Location",
+        "global": "Global Phrases",
+        "assistant": "Assistant Phrases"
       },
       "quickPanel": {
         "title": "Quick Menu",
@@ -1595,12 +1620,20 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
+      },
+      "zoom": {
+        "title": "Page Zoom",
+        "reset": "Reset"
       }
     },
     "translate": {
       "any.language": "Any language",
       "button.translate": "Translate",
       "close": "Close",
+      "closed": "Translation closed",
+      "copied": "Translation content copied",
+      "empty": "Translation content is empty",
+      "not.found": "Translation content not found",
       "confirm": {
         "content": "Translation will replace the original text, continue?",
         "title": "Translation Confirmation"

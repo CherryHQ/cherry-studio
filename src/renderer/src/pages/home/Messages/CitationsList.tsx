@@ -2,7 +2,7 @@ import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Button, Drawer } from 'antd'
+import { Button, Drawer, Skeleton } from 'antd'
 import { FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,7 @@ export interface Citation {
   content?: string
   showFavicon?: boolean
   type?: string
+  metadata?: Record<string, any>
 }
 
 interface CitationsListProps {
@@ -90,6 +91,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           onClose={() => setOpen(false)}
           open={open}
           width={680}
+          styles={{ header: { border: 'none' }, body: { paddingTop: 0 } }}
           destroyOnClose={false}>
           {open &&
             citations.map((citation) => (
@@ -114,8 +116,6 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
 }
 
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
-  const { t } = useTranslation()
-
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
     queryFn: async () => {
@@ -129,44 +129,49 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
   return (
     <WebSearchCard>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      <WebSearchCardHeader>
         {citation.showFavicon && citation.url && (
           <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
         )}
-        <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+        <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
           {citation.title || <span className="hostname">{citation.hostname}</span>}
         </CitationLink>
-      </div>
-      {isLoading ? <div>{t('common.loading')}</div> : fetchedContent}
+      </WebSearchCardHeader>
+      {isLoading ? (
+        <Skeleton active paragraph={{ rows: 1 }} title={false} />
+      ) : (
+        <WebSearchCardContent>{fetchedContent}</WebSearchCardContent>
+      )}
     </WebSearchCard>
   )
 }
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
   <WebSearchCard>
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+    <WebSearchCardHeader>
       {citation.showFavicon && <FileSearch width={16} />}
-      <CitationLink href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+      <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
         {citation.title}
       </CitationLink>
-    </div>
-    {citation.content && truncateText(citation.content, 100)}
+    </WebSearchCardHeader>
+    <WebSearchCardContent>{citation.content && truncateText(citation.content, 100)}</WebSearchCardContent>
   </WebSearchCard>
 )
 
 const OpenButton = styled(Button)`
   display: flex;
   align-items: center;
-  padding: 2px 6px;
+  padding: 3px 8px;
   margin-bottom: 8px;
   align-self: flex-start;
   font-size: 12px;
+  background-color: var(--color-background-soft);
+  border-radius: var(--list-item-border-radius);
 `
 
 const PreviewIcons = styled.div`
   display: flex;
   align-items: center;
-  margin-right: 8px;
 `
 
 const PreviewIcon = styled.div`
@@ -193,10 +198,6 @@ const CitationLink = styled.a`
   color: var(--color-text-1);
   text-decoration: none;
 
-  &:hover {
-    text-decoration: underline;
-  }
-
   .hostname {
     color: var(--color-link);
   }
@@ -207,18 +208,23 @@ const WebSearchCard = styled.div`
   flex-direction: column;
   width: 100%;
   padding: 12px;
-  margin-bottom: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--color-border);
+  border-radius: var(--list-item-border-radius);
   background-color: var(--color-background);
   transition: all 0.3s ease;
+`
 
-  &:hover {
-    box-shadow: 0 4px 12px var(--color-border-soft);
-    background-color: var(--color-hover);
-    border-color: var(--color-primary-soft);
-    transform: translateY(-2px);
-  }
+const WebSearchCardHeader = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+`
+
+const WebSearchCardContent = styled.div`
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-2);
 `
 
 export default CitationsList

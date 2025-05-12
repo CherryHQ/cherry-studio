@@ -24,6 +24,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [enableToolUse, setEnableToolUse] = useState(assistant?.settings?.enableToolUse ?? false)
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
@@ -373,6 +374,17 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           onChange={(checked) => {
             setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
+          }}
+        />
+      </SettingRow>
+      <Divider style={{ margin: '10px 0' }} />
+      <SettingRow style={{ minHeight: 30 }}>
+        <Label>{t('models.enable_tool_use')}</Label>
+        <Switch
+          checked={enableToolUse}
+          onChange={(checked) => {
+            setEnableToolUse(checked)
+            updateAssistantSettings({ enableToolUse: checked })
           }}
         />
       </SettingRow>
