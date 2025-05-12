@@ -1,7 +1,7 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
@@ -74,8 +74,10 @@ if (!app.requestSingleInstanceLock()) {
       return require('os').hostname()
     })
 
-    ipcMain.handle(IpcChannel.System_ToggleDevTools, () => {
-      mainWindow.webContents.toggleDevTools()
+    ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
+      //
+      const win = BrowserWindow.fromWebContents(e.sender)
+      win && win.webContents.toggleDevTools()
     })
   })
 
