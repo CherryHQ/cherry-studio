@@ -95,7 +95,22 @@
       "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
       "settings.knowledge_base.recognition.off": "強制検索",
-      "settings.knowledge_base.recognition.on": "意図認識"
+      "settings.knowledge_base.recognition.on": "意図認識",
+      "group": {
+        "title": "アシスタントグループ",
+        "emptyNameError": "グループ名は空にできません",
+        "duplicateNameError": "グループ名は既に存在します",
+        "addGroup": "グループを追加",
+        "enterGroupName": "グループ名を入力してください",
+        "delete": "グループを削除",
+        "empty": "空のグループ",
+        "add": "グループを追加",
+        "expandAll": "すべて展開",
+        "defaultName": "デフォルトグループ",
+        "addMembers": "アシスタントをグループに追加",
+        "selectMembers": "追加するアシスタントを選択してください",
+        "collapseAll": "すべて折りたたむ"
+      }
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -489,7 +504,7 @@
       "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
       "title": "ナレッジベース",
       "topN": "返却される結果の数",
-      "topN_too_large_or_small": "結果の数は30より大きくてはならず、1より小さくてはなりません。",
+      "topN__too_large_or_small": "結果の数は100より大きくてはならず、1より小さくてはなりません。",
       "topN_placeholder": "未設定",
       "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
       "url_added": "URLが追加されました",

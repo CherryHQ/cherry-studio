@@ -95,6 +95,22 @@
         "titlePlaceholder": "输入标题",
         "contentLabel": "内容",
         "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。"
+      },
+      "group": {
+        "title": "助手分组",
+        "emptyNameError": "分组名称不能为空",
+        "duplicateNameError": "分组名称已存在",
+        "addGroup": "添加分组",
+        "modifyGroup": "修改分组",
+        "enterGroupName": "请输入分组名称",
+        "delete": "删除分组",
+        "empty": "空分组",
+        "add": "添加分组",
+        "expandAll": "展开全部",
+        "defaultName": "默认分组",
+        "addMembers": "添加助手到分组",
+        "selectMembers": "请选择要添加的助手",
+        "collapseAll": "折叠全部"
       }
     },
     "auth": {
@@ -493,7 +509,7 @@
       "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
       "title": "知识库",
       "topN": "返回结果数量",
-      "topN_too_large_or_small": "返回结果数量不能大于30或小于1",
+      "topN__too_large_or_small": "返回结果数量不能大于100或小于1",
       "topN_placeholder": "未设置",
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
@@ -1154,7 +1170,7 @@
           "title": "在浏览器中打开新窗口链接"
         },
         "custom": {
-          "title": "自定义",
+          "title": "自定义小程序",
           "edit_title": "编辑自定义小程序",
           "save_success": "自定义小程序保存成功。",
           "save_error": "自定义小程序保存失败。",
