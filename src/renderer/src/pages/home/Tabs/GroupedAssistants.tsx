@@ -65,7 +65,6 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
     expandGroupIds?.forEach((id) => {
       set.add(id)
     })
-    console.log('expandGroupIds', expandGroupIds)
     return set
   })
 
