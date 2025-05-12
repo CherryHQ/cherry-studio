@@ -567,7 +567,6 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
     ) => {
       const toolCalls: OpenAI.Responses.ResponseFunctionToolCall[] = []
       let time_first_token_millsec = 0
-      const start_time_millsec = new Date().getTime()
 
       if (!streamOutput) {
         const nonStream = stream as OpenAI.Responses.Response
@@ -785,6 +784,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
     }
 
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const start_time_millsec = new Date().getTime()
     const stream = await this.sdk.responses.create(
       {
         model: model.id,

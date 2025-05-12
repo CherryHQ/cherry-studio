@@ -518,7 +518,6 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
     const processStream = async (stream: any, idx: number) => {
       const toolCalls: ChatCompletionMessageToolCall[] = []
       let time_first_token_millsec = 0
-      const start_time_millsec = new Date().getTime()
 
       // Handle non-streaming case (already returns early, no change needed here)
       if (!isSupportStreamOutput()) {
@@ -831,6 +830,7 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
     reqMessages = processReqMessages(model, reqMessages)
     // 等待接口返回流
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const start_time_millsec = new Date().getTime()
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
