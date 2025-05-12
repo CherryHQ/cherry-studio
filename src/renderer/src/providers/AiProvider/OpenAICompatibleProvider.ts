@@ -736,6 +736,8 @@ export default class OpenAICompatibleProvider extends BaseOpenAiProvider {
               finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
               finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
               if (originalFinishDelta?.annotations) {
+                if (assistant.model?.provider === 'copilot') return
+
                 onChunk({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {

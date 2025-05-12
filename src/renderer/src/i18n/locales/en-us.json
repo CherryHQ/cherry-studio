@@ -773,6 +773,8 @@
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
+      "image_placeholder": "No image available",
+      "image_retry": "Retry",
       "mode": {
         "generate": "Draw",
         "edit": "Edit",
@@ -1386,6 +1388,7 @@
       "models.add.group_name.tooltip": "Optional e.g. ChatGPT",
       "models.add.model_id": "Model ID",
       "models.add.model_id.placeholder": "Required e.g. gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "Select Model",
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
@@ -1617,6 +1620,10 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
+      },
+      "zoom": {
+        "title": "Page Zoom",
+        "reset": "Reset"
       }
     },
     "translate": {

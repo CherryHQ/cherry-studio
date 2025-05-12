@@ -223,14 +223,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
-        // 如果没有成功下载任何文件但有URLs，显示代理提示
-        if (validFiles.length === 0 && urls.length > 0) {
-          window.modal.error({
-            content: t('paintings.proxy_required'),
-            centered: true
-          })
-        }
-
         await FileManager.addFiles(validFiles)
 
         updatePaintingState({ files: validFiles, urls })
@@ -247,6 +239,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       dispatch(setGenerating(false))
       setAbortController(null)
     }
+  }
+
+  const handleRetry = async (painting: PaintingAction) => {
+    setIsLoading(true)
+    const downloadedFiles = await Promise.all(
+      painting.urls.map(async (url) => {
+        try {
+          return await window.api.file.download(url)
+        } catch (error) {
+          console.error('下载图像失败:', error)
+          setIsLoading(false)
+          return null
+        }
+      })
+    )
+
+    const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+
+    await FileManager.addFiles(validFiles)
+
+    updatePaintingState({ files: validFiles, urls: painting.urls })
+    setIsLoading(false)
   }
 
   const onCancel = () => {
@@ -556,6 +570,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onPrevImage={prevImage}
             onNextImage={nextImage}
             onCancel={onCancel}
+            retry={handleRetry}
           />
           <InputContainer>
             <Textarea
