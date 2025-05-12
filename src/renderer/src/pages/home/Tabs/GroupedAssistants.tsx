@@ -1,10 +1,11 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { DropResult } from '@hello-pangea/dnd'
+import { Draggable, DragStart, Droppable, DropResult } from '@hello-pangea/dnd'
 import DragableList from '@renderer/components/DragableList'
 import AddGroupPopup from '@renderer/components/Popups/AddGroupPopup'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useGroups } from '@renderer/hooks/useGroups'
 import { Assistant } from '@renderer/types'
-import { useState } from 'react'
+import VirtualList from 'rc-virtual-list'
+import { useCallback, useEffect, useState } from 'react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -12,12 +13,6 @@ import styled from 'styled-components'
 import AssistantItem from './AssistantItem'
 
 interface GroupedAssistantsProps {
-  groups: Array<{
-    id: string
-    name: string
-    members: string[]
-    expanded?: boolean
-  }>
   assistants: Assistant[]
   activeAssistant: Assistant
   onDelete: (assistant: Assistant) => void
@@ -25,134 +20,204 @@ interface GroupedAssistantsProps {
   addAgent: (assistant: Assistant) => void
   addAssistant: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
-  updateGroups: (groups: any[], assistants?: string[]) => void
 }
 
 const GroupedAssistants: FC<GroupedAssistantsProps> = ({
-  groups,
   assistants,
   activeAssistant,
   onDelete,
   setActiveAssistant,
   addAgent,
   addAssistant,
-  onCreateDefaultAssistant,
-  updateGroups
+  onCreateDefaultAssistant
 }) => {
   const { t } = useTranslation()
-  const { updateAssistants } = useAssistants()
-  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null)
-  const [hoverGroupId, setHoverGroupId] = useState<string | null>(null)
-
-  const handleDragStart = (result: any, type?: string) => {
-    if (type === 'GROUP') {
-      return
+  const { groups, updateGroups } = useGroups()
+  const [assistantMap] = useState(() => new Map<string, Assistant>())
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    const set = new Set<string>()
+    if (groups.length > 0) {
+      set.add(groups[0].id) // 默认展开第一个组
     }
-    const sourceGroupId = groups.find((group) => group.members.includes(result.draggableId))?.id
-    setDraggingGroupId(sourceGroupId || null)
-  }
+    return set
+  })
 
-  const handleDragEnd = (result: DropResult) => {
-    console.log('handleDragEnd', result)
-    if (!result.destination) {
-      setDraggingGroupId(null)
-      setHoverGroupId(null)
-      return
-    }
+  // 构建助手ID到助手的映射
+  useEffect(() => {
+    assistants.forEach((assistant) => {
+      assistantMap.set(assistant.id, assistant)
+    })
+  }, [assistants, assistantMap])
 
-    // 处理组排序
-    if (result.type === 'GROUP') {
-      const items = Array.from(groups)
-      const [reorderedItem] = items.splice(result.source.index, 1)
-      items.splice(result.destination.index, 0, reorderedItem)
-      updateGroups(items)
-      return
-    }
+  const handleDragStart = useCallback(
+    (result: DragStart) => {
+      console.log('handleDragStart', result)
+    },
+    [groups]
+  )
 
-    // 处理跨组助手移动
-    if (draggingGroupId && hoverGroupId && draggingGroupId !== hoverGroupId) {
-      const assistantId = result.draggableId
-      const newGroups = groups.map((group) => {
-        if (group.id === draggingGroupId) {
-          return {
-            ...group,
-            members: group.members.filter((id) => id !== assistantId)
+  const handleDragEnd = useCallback(
+    (result: DropResult) => {
+      console.log('handleDragEnd', result)
+
+      if (!result.source) return
+
+      const { type, source, destination } = result
+
+      if (type === 'ASSISTANT') {
+        // 处理助手拖拽
+        const sourceGroup = groups.find((g) => g.id === source.droppableId)
+        if (!sourceGroup) return
+
+        // 1. 没有destination的情况（移动到未分组）
+        if (!destination) {
+          if (sourceGroup.id === 'default') return // 未分组不能再移动到未分组
+
+          const sourceMembers = [...sourceGroup.members]
+          const [removed] = sourceMembers.splice(source.index, 1)
+
+          const defaultGroup = groups.find((g) => g.id === 'default') || {
+            id: 'default',
+            name: '未分组',
+            members: []
+          }
+          const updatedDefaultGroup = {
+            ...defaultGroup,
+            members: [...defaultGroup.members, removed]
+          }
+
+          const updatedGroups = groups.map((group) => {
+            if (group.id === sourceGroup.id) {
+              return { ...sourceGroup, members: sourceMembers }
+            }
+            if (group.id === 'default') {
+              return updatedDefaultGroup
+            }
+            return group
+          })
+
+          updateGroups(updatedGroups)
+          return
+        }
+
+        // 2. 有destination的情况
+        const destGroup = groups.find((g) => g.id === destination.droppableId)
+        const assistantId = result.draggableId
+        if (destination) {
+          // 1.1 同组内调整顺序
+          if (source.droppableId === destination.droppableId) {
+            const newMembers = [...sourceGroup.members]
+            const [removed] = newMembers.splice(source.index, 1)
+            newMembers.splice(destination.index, 0, removed)
+
+            const updatedGroups = groups.map((group) =>
+              group.id === source.droppableId ? { ...group, members: newMembers } : group
+            )
+            updateGroups(updatedGroups)
+          }
+          // 1.2 跨组移动
+          else {
+            // 从原组移除
+            const sourceMembers = [...sourceGroup.members]
+            sourceMembers.splice(source.index, 1)
+
+            // 添加到目标组
+            const destMembers = [...destGroup!.members]
+            destMembers.splice(destination.index, 0, assistantId)
+
+            const updatedGroups = groups.map((group) => {
+              if (group.id === source.droppableId) {
+                return { ...group, members: sourceMembers }
+              }
+              if (group.id === destination.droppableId) {
+                return { ...group, members: destMembers }
+              }
+              return group
+            })
+            updateGroups(updatedGroups)
           }
         }
-        if (group.id === hoverGroupId) {
-          return {
-            ...group,
-            members: [...group.members, assistantId]
-          }
-        }
-        return group
-      })
-      updateGroups(newGroups)
-    }
-    setDraggingGroupId(null)
-    setHoverGroupId(null)
-  }
+      }
+      // 处理组顺序调整
+      else if (type === 'DEFAULT') {
+        if (!destination) return
+        const newGroups = [...groups]
+        const [removed] = newGroups.splice(source.index, 1)
+        newGroups.splice(destination.index, 0, removed)
+        updateGroups(newGroups)
+      }
+    },
+    [groups, updateGroups]
+  )
 
-  const handleDragOver = (groupId: string) => {
-    if (draggingGroupId && draggingGroupId !== groupId) {
-      setHoverGroupId(groupId)
-    }
-  }
   return (
     <>
       <DragableList
         list={groups}
-        onUpdate={(items) => updateGroups(items as any[])}
-        onDragStart={(result) => handleDragStart(result, 'GROUP')}
+        onUpdate={() => {}}
+        onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        droppableId="groups"
         style={{ paddingBottom: 0 }}>
         {(group) => (
-          <GroupContainer
-            key={group.id}
-            isDraggingOver={hoverGroupId === group.id}
-            isSourceGroup={draggingGroupId === group.id}
-            onDragEnter={() => handleDragOver(group.id)}
-            onDragLeave={() => setHoverGroupId(null)}>
-            <GroupTitle
-              onClick={() => {
-                updateGroups(groups.map((g) => (g.id === group.id ? { ...g, expanded: !g.expanded } : g)))
-              }}>
-              <span>{group.name}</span>
-              <ExpandIcon expanded={group.expanded !== false}>
-                <svg viewBox="0 0 24 24" fill="none">
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </ExpandIcon>
-            </GroupTitle>
-            {group.expanded === false ? null : (
-              <>
-                {assistants.filter((a) => group.members.includes(a.id)).length > 0 ? (
-                  <DragableList
-                    list={assistants.filter((a) => group.members.includes(a.id))}
-                    onUpdate={updateAssistants}
-                    onDragStart={(result) => handleDragStart(result)}
-                    onDragEnd={handleDragEnd}
-                    style={{ paddingBottom: 0 }}>
-                    {(assistant) => (
-                      <AssistantItem
-                        key={assistant.id}
-                        assistant={assistant}
-                        isActive={assistant.id === activeAssistant.id}
-                        onSwitch={setActiveAssistant}
-                        onDelete={onDelete}
-                        addAgent={addAgent}
-                        addAssistant={addAssistant}
-                        onCreateDefaultAssistant={onCreateDefaultAssistant}
-                      />
+          <Droppable droppableId={group.id} type="ASSISTANT">
+            {(provided) => (
+              <GroupContainer key={group.id} {...provided.droppableProps} ref={provided.innerRef}>
+                <GroupTitle
+                  onClick={() => {
+                    setExpandedGroups((prev) => {
+                      const newSet = new Set(prev)
+                      if (newSet.has(group.id)) {
+                        newSet.delete(group.id)
+                      } else {
+                        newSet.add(group.id)
+                      }
+                      return newSet
+                    })
+                  }}>
+                  <span>{group.name}</span>
+                  <ExpandIcon expanded={expandedGroups.has(group.id)}>
+                    <svg viewBox="0 0 24 24" fill="none">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </ExpandIcon>
+                </GroupTitle>
+                {!expandedGroups.has(group.id) ? null : (
+                  <div>
+                    {group.members.map((id) => assistantMap.get(id)).filter(Boolean).length > 0 ? (
+                      <VirtualList data={group.members.map((id) => assistantMap.get(id)).filter(Boolean)} itemKey="id">
+                        {(assistant, index) => {
+                          return (
+                            <Draggable
+                              key={`draggable_${assistant.id}_${index}`}
+                              draggableId={assistant.id}
+                              index={index}>
+                              {(provided) => (
+                                <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                                  <AssistantItem
+                                    key={assistant.id}
+                                    assistant={assistant}
+                                    isActive={assistant.id === activeAssistant.id}
+                                    onSwitch={setActiveAssistant}
+                                    onDelete={onDelete}
+                                    addAgent={addAgent}
+                                    addAssistant={addAssistant}
+                                    onCreateDefaultAssistant={onCreateDefaultAssistant}
+                                  />
+                                </div>
+                              )}
+                            </Draggable>
+                          )
+                        }}
+                      </VirtualList>
+                    ) : (
+                      <EmptyPlaceholder>{t('chat.empty.assistants')}</EmptyPlaceholder>
                     )}
-                  </DragableList>
-                ) : (
-                  <EmptyPlaceholder>{t('chat.empty.assistants')}</EmptyPlaceholder>
+                    {provided.placeholder}
+                  </div>
                 )}
-              </>
+              </GroupContainer>
             )}
-          </GroupContainer>
+          </Droppable>
         )}
       </DragableList>
       {/* 添加分组 */}
@@ -160,7 +225,7 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
         onClick={async () => {
           const group = await AddGroupPopup.show()
           if (group) {
-            updateGroups([...groups, group])
+            updateGroups([group, ...groups])
           }
         }}>
         <AssistantName>
@@ -173,20 +238,17 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
 }
 
 interface GroupContainerProps {
-  isDraggingOver: boolean
-  isSourceGroup: boolean
+  isDraggingOver?: boolean
+  isSourceGroup?: boolean
 }
 
 const GroupContainer = styled.div<GroupContainerProps>`
-  background-color: ${(props) => (props.isDraggingOver ? 'var(--color-background-mute)' : 'transparent')};
-  opacity: ${(props) => (props.isSourceGroup ? 0.5 : 1)};
   transition: all 0.2s ease;
   border-bottom: 1px solid var(--color-border-soft);
   padding-bottom: 8px;
   margin-bottom: 8px;
-  &:last-child {
-    border-bottom: none;
-  }
+  background-color: ${(props) => (props.isDraggingOver ? 'var(--color-background-mute)' : 'transparent')};
+  opacity: ${(props) => (props.isSourceGroup ? 0.5 : 1)};
 `
 
 const GroupTitle = styled.div`
@@ -212,12 +274,17 @@ const ExpandIcon = styled.div<{ expanded: boolean }>`
   transition: transform 0.2s ease;
   transform: ${(props) => (props.expanded ? 'rotate(0deg)' : 'rotate(90deg)')};
   svg {
+    border-radius: 12px;
     width: 12px;
     height: 12px;
     stroke: var(--color-text-2);
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+  :hover {
+    stroke: var(--color-text);
+    background-color: var(--color-background-mute);
   }
 `
 

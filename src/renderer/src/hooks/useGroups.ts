@@ -15,13 +15,25 @@ export function useGroups() {
   const { assistants } = useAppSelector((state) => state.assistants)
   const dispatch = useAppDispatch()
 
-  // 初始化时检查是否需要自动分组
-  if (groups.length === 1 && groups[0].id === 'default' && groups[0].members.length === 0 && assistants.length > 0) {
-    const defaultGroup = {
-      ...groups[0],
-      members: assistants.map((a) => a.id)
+  // 初始化时检查未分组的助手
+  const groupedMemberIds = new Set<string>()
+  groups.forEach((group) => {
+    group.members.forEach((memberId) => groupedMemberIds.add(memberId))
+  })
+
+  const ungroupedAssistants = assistants.filter((a) => !groupedMemberIds.has(a.id))
+  if (ungroupedAssistants.length > 0) {
+    const defaultGroup = groups.find((g) => g.id === 'default') || {
+      id: 'default',
+      name: '未分组',
+      members: []
     }
-    dispatch(updateGroups([defaultGroup]))
+    const updatedDefaultGroup = {
+      ...defaultGroup,
+      members: [...defaultGroup.members, ...ungroupedAssistants.map((a) => a.id)]
+    }
+    console.log('updatedDefaultGroup', groups)
+    dispatch(updateGroups([...groups.filter((g) => g.id !== 'default'), updatedDefaultGroup]))
   }
 
   return {
@@ -66,27 +78,11 @@ export function useGroups() {
       },
       [dispatch]
     ),
-    updateGroups: useCallback<(groups: Group[], assistants?: string[]) => void>(
-      (groups, assistants) => {
-        // 确保保留default分组
-        const defaultGroup = groups.find((g) => g.id === 'default') || {
-          id: 'default',
-          name: '未分组',
-          members: []
-        }
+    updateGroups: useCallback<(groups: Group[]) => void>(
+      (groups) => {
+        console.log('defaultGroup', groups)
 
-        // 如果只有一个分组且未分组下没有成员，自动将所有助手放入未分组
-        if (
-          groups.length === 1 &&
-          groups[0].id === 'default' &&
-          groups[0].members.length === 0 &&
-          assistants &&
-          assistants.length > 0
-        ) {
-          defaultGroup.members = [...assistants]
-        }
-
-        dispatch(updateGroups([...groups.filter((g) => g.id !== 'default'), defaultGroup]))
+        dispatch(updateGroups(groups))
       },
       [dispatch]
     )

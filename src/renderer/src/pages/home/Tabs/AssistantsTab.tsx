@@ -3,7 +3,6 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useGroups } from '@renderer/hooks/useGroups'
 import { Assistant } from '@renderer/types'
 import { Switch } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
@@ -28,7 +27,6 @@ const Assistants: FC<AssistantsTabProps> = ({
 }) => {
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
-  const { groups, updateGroups } = useGroups()
   const [groupMode, setGroupMode] = useState(false)
   const { addAgent } = useAgents()
   const { t } = useTranslation()
@@ -59,7 +57,6 @@ const Assistants: FC<AssistantsTabProps> = ({
 
       {groupMode ? (
         <GroupedAssistants
-          groups={groups}
           assistants={assistants}
           activeAssistant={activeAssistant}
           onDelete={onDelete}
@@ -67,7 +64,6 @@ const Assistants: FC<AssistantsTabProps> = ({
           addAgent={addAgent}
           addAssistant={addAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}
-          updateGroups={updateGroups}
         />
       ) : (
         <>

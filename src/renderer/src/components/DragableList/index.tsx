@@ -44,7 +44,6 @@ const DragableList: FC<Props<any>> = ({
       onUpdate(reorderAgents)
     }
   }
-
   return (
     <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
       <Droppable droppableId={droppableId || 'droppable'} {...droppableProps}>
