@@ -1156,7 +1156,7 @@
         "custom": {
           "duplicate_ids": "發現重複的ID: {{ids}}",
           "conflicting_ids": "與預設應用ID衝突: {{ids}}",
-          "title": "自定義小程序",
+          "title": "自定義",
           "edit_title": "編輯自定義小程序",
           "save_success": "自定義小程序保存成功。",
           "save_error": "自定義小程序保存失敗。",

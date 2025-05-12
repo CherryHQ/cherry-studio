@@ -1154,7 +1154,7 @@
           "title": "在浏览器中打开新窗口链接"
         },
         "custom": {
-          "title": "自定义小程序",
+          "title": "自定义",
           "edit_title": "编辑自定义小程序",
           "save_success": "自定义小程序保存成功。",
           "save_error": "自定义小程序保存失败。",

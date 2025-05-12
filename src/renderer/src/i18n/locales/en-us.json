@@ -1148,7 +1148,7 @@
       "miniapps": {
         "title": "Mini Apps Settings",
         "custom": {
-          "title": "Custom Mini App",
+          "title": "Custom",
           "edit_title": "Edit Custom Mini App",
           "save_success": "Custom mini app saved successfully.",
           "save_error": "Failed to save custom mini app.",
