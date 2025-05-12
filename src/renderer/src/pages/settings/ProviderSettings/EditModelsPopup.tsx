@@ -1,6 +1,7 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
+import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import {
   getModelLogo,
@@ -18,7 +19,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip, Typography } from 'antd'
+import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -326,16 +327,7 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
       fileInfo={{
         icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
         name: <ModelIdWithTags model={model} />,
-        extra: model.description && (
-          <div style={{ marginTop: 6 }}>
-            <Typography.Paragraph
-              type="secondary"
-              ellipsis={{ rows: 1, expandable: true }}
-              style={{ marginBottom: 0, marginTop: 5 }}>
-              {model.description}
-            </Typography.Paragraph>
-          </div>
-        ),
+        extra: model.description && <ExpandableText text={model.description} />,
         ext: '.model',
         actions: isAdded ? (
           <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
