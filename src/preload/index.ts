@@ -193,7 +193,10 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
-  }
+  },
+  setAllowEscToExitFullscreen: (isActive: boolean) =>
+    ipcRenderer.invoke(IpcChannel.Set_AllowEscToExitFullscreen, isActive),
+  getAllowEscToExitFullscreen: () => ipcRenderer.invoke(IpcChannel.Get_AllowEscToExitFullscreen)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

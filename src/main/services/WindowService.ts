@@ -196,10 +196,12 @@ export class WindowService {
     // 添加Escape键退出全屏的支持
     mainWindow.webContents.on('before-input-event', (event, input) => {
       // 当按下Escape键且窗口处于全屏状态时退出全屏
-      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+      if (isMac && input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
         if (mainWindow.isFullScreen()) {
           event.preventDefault()
-          mainWindow.setFullScreen(false)
+          if (configManager.getAllowEscToExitFullscreen()) {
+            mainWindow.setFullScreen(false)
+          }
         }
       }
     })

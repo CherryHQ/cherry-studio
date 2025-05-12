@@ -16,7 +16,8 @@ enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
-  EnableDataCollection = 'enableDataCollection'
+  EnableDataCollection = 'enableDataCollection',
+  AllowEscToExitFullscreen = 'allowEscToExitFullscreen'
 }
 
 export class ConfigManager {
@@ -144,6 +145,14 @@ export class ConfigManager {
 
   setEnableDataCollection(value: boolean) {
     this.set(ConfigKeys.EnableDataCollection, value)
+  }
+
+  getAllowEscToExitFullscreen(): boolean {
+    return this.get<boolean>(ConfigKeys.AllowEscToExitFullscreen, true)
+  }
+
+  setAllowEscToExitFullscreen(value: boolean) {
+    this.set(ConfigKeys.AllowEscToExitFullscreen, value)
   }
 
   set(key: string, value: unknown) {
