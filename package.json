@@ -76,7 +76,6 @@
     "adm-zip": "^0.5.16",
     "archiver": "^7.0.1",
     "async-mutex": "^0.5.0",
-    "bufferutil": "^4.0.9",
     "color": "^5.0.0",
     "diff": "^7.0.0",
     "docx": "^9.0.2",
