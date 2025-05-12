@@ -1,4 +1,4 @@
-import { LoadingOutlined, MinusOutlined, PlusOutlined } from '@ant-design/icons'
+import { MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import CustomTag from '@renderer/components/CustomTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
@@ -18,7 +18,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Empty, Flex, Modal, Tabs, Tooltip, Typography } from 'antd'
+import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip, Typography } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { Search } from 'lucide-react'
@@ -133,9 +133,10 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             }))
             .filter((model) => !isEmpty(model.name))
         )
-        setLoading(false)
       } catch (error) {
-        setLoading(false)
+        console.error('Failed to fetch models', error)
+      } finally {
+        setTimeout(() => setLoading(false), 300)
       }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,7 +146,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
     if (open && searchInputRef.current) {
       setTimeout(() => {
         searchInputRef.current?.focus()
-      }, 100)
+      }, 350)
     }
   }, [open])
 
@@ -157,7 +158,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
           {i18n.language.startsWith('zh') ? '' : ' '}
           {t('common.models')}
         </ModelHeaderTitle>
-        {loading && <LoadingOutlined size={20} />}
       </Flex>
     )
   }
@@ -263,82 +263,88 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         />
       </SearchContainer>
       <ListContainer>
-        {Object.keys(modelGroups).map((group, i) => {
-          return (
-            <CustomCollapse
-              key={i}
-              defaultActiveKey={['1']}
-              styles={{ body: { padding: '0 10px' } }}
-              label={
-                <Flex align="center" gap={10}>
-                  <span style={{ fontWeight: 600 }}>{group}</span>
-                  <CustomTag color="#02B96B" size={10}>
-                    {modelGroups[group].length}
-                  </CustomTag>
-                </Flex>
-              }
-              extra={renderGroupTools(group)}>
-              <FlexColumn style={{ margin: '10px 0' }}>
-                {modelGroups[group].map((model) => (
-                  <FileItem
-                    style={{
-                      backgroundColor: isModelInProvider(provider, model.id)
-                        ? 'rgba(0, 126, 0, 0.06)'
-                        : 'rgba(255, 255, 255, 0.04)',
-                      border: 'none',
-                      boxShadow: 'none'
-                    }}
-                    key={model.id}
-                    fileInfo={{
-                      icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
-                      name: (
-                        <ListItemName>
-                          <Tooltip
-                            styles={{
-                              root: {
-                                width: 'auto',
-                                maxWidth: '500px'
+        {loading ? (
+          <Flex justify="center" align="center" style={{ height: '70%' }}>
+            <Spin size="large" />
+          </Flex>
+        ) : (
+          Object.keys(modelGroups).map((group, i) => {
+            return (
+              <CustomCollapse
+                key={i}
+                defaultActiveKey={['1']}
+                styles={{ body: { padding: '0 10px' } }}
+                label={
+                  <Flex align="center" gap={10}>
+                    <span style={{ fontWeight: 600 }}>{group}</span>
+                    <CustomTag color="#02B96B" size={10}>
+                      {modelGroups[group].length}
+                    </CustomTag>
+                  </Flex>
+                }
+                extra={renderGroupTools(group)}>
+                <FlexColumn style={{ margin: '10px 0' }}>
+                  {modelGroups[group].map((model) => (
+                    <FileItem
+                      style={{
+                        backgroundColor: isModelInProvider(provider, model.id)
+                          ? 'rgba(0, 126, 0, 0.06)'
+                          : 'rgba(255, 255, 255, 0.04)',
+                        border: 'none',
+                        boxShadow: 'none'
+                      }}
+                      key={model.id}
+                      fileInfo={{
+                        icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+                        name: (
+                          <ListItemName>
+                            <Tooltip
+                              styles={{
+                                root: {
+                                  width: 'auto',
+                                  maxWidth: '500px'
+                                }
+                              }}
+                              destroyTooltipOnHide
+                              title={
+                                <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
+                                  {model.id}
+                                </Typography.Text>
                               }
-                            }}
-                            destroyTooltipOnHide
-                            title={
-                              <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-                                {model.id}
-                              </Typography.Text>
-                            }
-                            placement="top">
-                            <span style={{ cursor: 'help' }}>{model.name}</span>
-                          </Tooltip>
-                          <ModelTagsWithLabel model={model} size={11} />
-                        </ListItemName>
-                      ),
-                      extra: model.description && (
-                        <div style={{ marginTop: 6 }}>
-                          <Typography.Paragraph
-                            type="secondary"
-                            ellipsis={{ rows: 1, expandable: true }}
-                            style={{ marginBottom: 0, marginTop: 5 }}>
-                            {model.description}
-                          </Typography.Paragraph>
-                        </div>
-                      ),
-                      ext: '.model',
-                      actions: (
-                        <div>
-                          {isModelInProvider(provider, model.id) ? (
-                            <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
-                          ) : (
-                            <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
-                          )}
-                        </div>
-                      )
-                    }}
-                  />
-                ))}
-              </FlexColumn>
-            </CustomCollapse>
-          )
-        })}
+                              placement="top">
+                              <span style={{ cursor: 'help' }}>{model.name}</span>
+                            </Tooltip>
+                            <ModelTagsWithLabel model={model} size={11} />
+                          </ListItemName>
+                        ),
+                        extra: model.description && (
+                          <div style={{ marginTop: 6 }}>
+                            <Typography.Paragraph
+                              type="secondary"
+                              ellipsis={{ rows: 1, expandable: true }}
+                              style={{ marginBottom: 0, marginTop: 5 }}>
+                              {model.description}
+                            </Typography.Paragraph>
+                          </div>
+                        ),
+                        ext: '.model',
+                        actions: (
+                          <div>
+                            {isModelInProvider(provider, model.id) ? (
+                              <Button type="text" onClick={() => onRemoveModel(model)} icon={<MinusOutlined />} />
+                            ) : (
+                              <Button type="text" onClick={() => onAddModel(model)} icon={<PlusOutlined />} />
+                            )}
+                          </div>
+                        )
+                      }}
+                    />
+                  ))}
+                </FlexColumn>
+              </CustomCollapse>
+            )
+          })
+        )}
         {isEmpty(list) && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />}
       </ListContainer>
     </Modal>
