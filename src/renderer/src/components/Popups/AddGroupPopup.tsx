@@ -1,25 +1,32 @@
 import { TopView } from '@renderer/components/TopView'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useGroups } from '@renderer/hooks/useGroups'
-import { Group } from '@renderer/types'
+import { Assistant, Group } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Input, InputRef, Modal } from 'antd'
+import { Input, InputRef, Modal, Select, Space } from 'antd'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const { Option } = Select
 interface Props {
   resolve: (value: Group | undefined) => void
+  mode: 'add' | 'update'
+  group?: Group
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
+const PopupContainer: React.FC<Props> = ({ resolve, mode = 'add', group }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { addGroup, groups } = useGroups()
-  const [groupName, setGroupName] = useState('')
+  const { groups } = useGroups()
+  const { assistants } = useAssistants()
+  const [groupName, setGroupName] = useState(group?.name || '')
+  const { getDefaultGroup } = useGroups()
   const inputRef = useRef<InputRef>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>(group?.members || [])
+  const [filteredAssistants, setFilteredAssistants] = useState<Assistant[]>([])
 
-  const onCreateGroup = useCallback(() => {
+  const onModifyGroup = useCallback(() => {
     const trimmedName = groupName.trim()
-
     // 空名称校验
     if (!trimmedName) {
       Modal.error({
@@ -29,9 +36,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       })
       return
     }
-
     // 重名校验
-    if (groups.some((g) => g.name === trimmedName)) {
+    if (groups.some((g) => g.name === trimmedName) && trimmedName !== group?.name) {
       Modal.error({
         centered: true,
         title: t('common.warning'),
@@ -40,15 +46,20 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       return
     }
 
-    const newGroup: Group = {
-      id: uuid(),
-      name: trimmedName,
-      members: []
+    if (mode === 'update') {
+      const updatedGroup: Group = { ...group!, name: trimmedName, members: selectedIds }
+      resolve(updatedGroup)
     }
-    addGroup(newGroup)
-    resolve(newGroup)
+    if (mode === 'add') {
+      const newGroup: Group = {
+        id: uuid(),
+        name: trimmedName,
+        members: selectedIds
+      }
+      resolve(newGroup)
+    }
     setOpen(false)
-  }, [groupName, addGroup, resolve, t, groups])
+  }, [groupName, groups, mode, t, group, selectedIds, resolve])
 
   const onCancel = () => {
     setOpen(false)
@@ -56,8 +67,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const onClose = async () => {
     resolve(undefined)
-    AddGroupPopup.hide()
+    GroupPopup.hide()
   }
+
+  useEffect(() => {
+    const getDefaultGroupIds = getDefaultGroup()?.members.map((id) => id) || []
+    setFilteredAssistants([
+      ...assistants.filter((a) => getDefaultGroupIds.includes(a.id) || group?.members?.includes(a.id))
+    ])
+  }, [assistants, getDefaultGroup, group?.members])
 
   useEffect(() => {
     open && setTimeout(() => inputRef.current?.focus(), 0)
@@ -70,8 +88,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       closeIcon={null}
       afterClose={onClose}
-      onOk={onCreateGroup}
-      title={t('assistants.group.addGroup')}
+      onOk={onModifyGroup}
+      title={mode === 'add' ? t('assistants.group.addGroup') : t('assistants.group.modifyGroup')}
       okText={t('common.confirm')}
       cancelText={t('common.cancel')}
       transitionName="ant-move-up"
@@ -82,28 +100,54 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           overflow: 'hidden'
         }
       }}>
-      <Input
-        ref={inputRef}
-        placeholder={t('assistants.group.enterGroupName')}
-        value={groupName}
-        onChange={(e) => setGroupName(e.target.value)}
-        onPressEnter={onCreateGroup}
-        allowClear
-        autoFocus
-      />
+      <Space size={10} direction="vertical" style={{ width: '100%' }}>
+        <Input
+          ref={inputRef}
+          placeholder={t('assistants.group.enterGroupName')}
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          onPressEnter={onModifyGroup}
+          allowClear
+          autoFocus
+        />
+        <Select
+          mode="multiple"
+          maxTagTextLength={5}
+          maxCount={5}
+          style={{ width: '100%' }}
+          placeholder={t('assistants.group.selectMembers')}
+          value={selectedIds}
+          onChange={setSelectedIds}
+          optionFilterProp="label"
+          showSearch
+          filterOption={(input, option) => (option?.label as string).toLowerCase().includes(input.toLowerCase())}>
+          {filteredAssistants.map((a) => (
+            <Option key={a.id} value={a.id} label={a.name}>
+              <Space>
+                {a.emoji}
+                <span>{a.name}</span>
+              </Space>
+            </Option>
+          ))}
+        </Select>
+      </Space>
     </Modal>
   )
 }
-const TopViewKey = 'AddGroupPopup'
+const TopViewKey = 'GroupPopup'
 
-export default class AddGroupPopup {
+interface PopUpProps {
+  mode: 'add' | 'update'
+  group?: Group
+}
+export default class GroupPopup {
   static topviewId = 0
   static hide() {
     TopView.hide(TopViewKey)
   }
-  static show() {
+  static show(props: PopUpProps) {
     return new Promise<Group | undefined>((resolve) => {
-      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

@@ -10,7 +10,6 @@ import {
 import { Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import DragableList from '@renderer/components/DragableList'
 import AddGroupPopup from '@renderer/components/Popups/AddGroupPopup'
-import AddMemberToGroupPopup from '@renderer/components/Popups/AddMemberToGroupPopup'
 import { useGroups } from '@renderer/hooks/useGroups'
 import { useAppDispatch } from '@renderer/store'
 import { setExpandGroupIds } from '@renderer/store/groups'
@@ -54,7 +53,8 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
     moveAssistantBetweenGroups,
     reorderGroups,
     initializeGroups,
-    removeGroup
+    removeGroup,
+    updateGroupWithMembers
   } = useGroups()
   const [assistantMap] = useState(() => new Map<string, Assistant>())
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
@@ -183,20 +183,13 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
                         </Popconfirm>
                         <PlusCircleOutlined
                           onClick={async () => {
-                            const memberIds = await AddMemberToGroupPopup.show()
-                            if (memberIds && memberIds.length > 0) {
-                              // 先添加到新分组
-                              const updatedGroups = groups.map((g) => {
-                                if (g.id === group.id) {
-                                  return { ...g, members: [...g.members, ...memberIds] }
-                                }
-                                if (g.id === defaultGroupId) {
-                                  return { ...g, members: g.members.filter((id) => !memberIds.includes(id)) }
-                                }
-                                return g
-                              })
-                              // 再从未分组中移除这些成员
-
+                            const newGroup = await AddGroupPopup.show({
+                              mode: 'update',
+                              group
+                            })
+                            const memberIds = newGroup?.members
+                            if (memberIds) {
+                              const updatedGroups = updateGroupWithMembers(group.id, memberIds, groups)
                               updateGroups(updatedGroups)
                             }
                           }}
@@ -256,9 +249,12 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
       <GroupBottom>
         <GroupBottomItem
           onClick={async () => {
-            const group = await AddGroupPopup.show()
+            const group = await AddGroupPopup.show({
+              mode: 'add'
+            })
             if (group) {
-              updateGroups([group, ...groups])
+              const newGroup = updateGroupWithMembers(group.id, group.members, [group, ...groups])
+              updateGroups(newGroup)
               toggleExpanded(group.id)
             }
           }}>

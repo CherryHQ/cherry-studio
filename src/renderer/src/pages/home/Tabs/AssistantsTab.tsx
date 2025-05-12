@@ -8,7 +8,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setAssistantTabDefaultMode } from '@renderer/store/settings'
 import { Assistant } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -49,21 +49,6 @@ const Assistants: FC<AssistantsTabProps> = ({
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
-  // 防止反复渲染，只有助手变化的时候 才有必要重新渲染组助手
-  const GroupTab = useMemo(() => {
-    return (
-      <GroupedAssistants
-        assistants={assistants}
-        activeAssistant={activeAssistant}
-        onDelete={onDelete}
-        setActiveAssistant={setActiveAssistant}
-        addAgent={addAgent}
-        addAssistant={addAssistant}
-        onCreateDefaultAssistant={onCreateDefaultAssistant}
-      />
-    )
-  }, [assistants, activeAssistant, onDelete, setActiveAssistant, addAgent, addAssistant, onCreateDefaultAssistant])
-
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <ModeSwitch>
@@ -90,7 +75,15 @@ const Assistants: FC<AssistantsTabProps> = ({
       </ModeSwitch>
 
       {groupMode === 'groups' ? (
-        GroupTab
+        <GroupedAssistants
+          assistants={assistants}
+          activeAssistant={activeAssistant}
+          onDelete={onDelete}
+          setActiveAssistant={setActiveAssistant}
+          addAgent={addAgent}
+          addAssistant={addAssistant}
+          onCreateDefaultAssistant={onCreateDefaultAssistant}
+        />
       ) : (
         <>
           <DragableList

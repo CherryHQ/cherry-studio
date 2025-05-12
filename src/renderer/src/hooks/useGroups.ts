@@ -62,7 +62,6 @@ export function useGroups() {
 
   const updateGroupsHandler = useCallback<(groups: Group[]) => void>(
     (groups) => {
-      console.log('updateGroupsHandler', groups)
       dispatch(updateGroups(groups))
     },
     [dispatch]
@@ -158,6 +157,28 @@ export function useGroups() {
     return newGroups
   }, [])
 
+  const updateGroupWithMembers = useCallback((groupId: string, newMembers: string[], groups: Group[]) => {
+    const targetGroup = groups.find((g) => g.id === groupId)
+    if (!targetGroup) return groups
+
+    const originGroupMembers = targetGroup.members
+    // 更新目标组
+    const updatedGroups = groups.map((group) => {
+      if (group.id === groupId) {
+        return { ...group, members: [...newMembers] }
+      }
+      if (group.id === defaultGroupId) {
+        return {
+          ...group,
+          members: [...originGroupMembers, ...group.members].filter((id) => !newMembers.includes(id))
+        }
+      }
+      return group
+    })
+
+    return updatedGroups
+  }, [])
+
   const initializeGroupsHandler = useCallback(
     (assistantIds: string[]) => {
       dispatch(initializeGroups({ assistantIds }))
@@ -178,6 +199,7 @@ export function useGroups() {
     updateGroups: updateGroupsHandler,
     moveAssistantBetweenGroups,
     reorderGroups,
-    initializeGroups: initializeGroupsHandler
+    initializeGroups: initializeGroupsHandler,
+    updateGroupWithMembers
   }
 }

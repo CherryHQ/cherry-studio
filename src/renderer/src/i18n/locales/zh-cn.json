@@ -101,6 +101,7 @@
         "emptyNameError": "分组名称不能为空",
         "duplicateNameError": "分组名称已存在",
         "addGroup": "添加分组",
+        "modifyGroup": "修改分组",
         "enterGroupName": "请输入分组名称",
         "delete": "删除分组",
         "empty": "空分组",
