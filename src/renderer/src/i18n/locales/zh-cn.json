@@ -493,7 +493,7 @@
       "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
       "title": "知识库",
       "topN": "返回结果数量",
-      "topN__too_large_or_small": "返回结果数量不能大于100或小于1",
+      "topN_too_large_or_small": "返回结果数量不能大于30或小于1",
       "topN_placeholder": "未设置",
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
