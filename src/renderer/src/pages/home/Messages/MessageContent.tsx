@@ -1,15 +1,23 @@
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { Flex } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
 
 import MessageBlockRenderer from './Blocks'
+import MessageEditor from './MessageEditor'
 interface Props {
   message: Message
+  isEditing?: boolean
+  onSave: (blocks: MessageBlock[]) => Promise<void>
+  onResend: (blocks: MessageBlock[]) => Promise<void>
+  onCancel: () => void
 }
 
-const MessageContent: React.FC<Props> = ({ message }) => {
+const MessageContent: React.FC<Props> = ({ message, isEditing, onSave, onResend, onCancel }) => {
+  if (isEditing) {
+    return <MessageEditor message={message} onSave={onSave} onResend={onResend} onCancel={onCancel} />
+  }
   return (
     <>
       <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
@@ -19,17 +27,6 @@ const MessageContent: React.FC<Props> = ({ message }) => {
     </>
   )
 }
-
-// const SearchingContainer = styled.div`
-//   display: flex;
-//   flex-direction: row;
-//   align-items: center;
-//   background-color: var(--color-background-mute);
-//   padding: 10px;
-//   border-radius: 10px;
-//   margin-bottom: 10px;
-//   gap: 10px;
-// `
 
 const MentionTag = styled.span`
   color: var(--color-link);

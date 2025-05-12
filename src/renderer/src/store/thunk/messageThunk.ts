@@ -928,22 +928,7 @@ export const resendMessageThunk =
  * of its associated assistant responses using resendMessageThunk.
  */
 export const resendUserMessageWithEditThunk =
-  (
-    topicId: Topic['id'],
-    originalMessage: Message,
-    mainTextBlockId: string,
-    editedContent: string,
-    assistant: Assistant
-  ) =>
-  async (dispatch: AppDispatch) => {
-    const blockChanges = {
-      content: editedContent,
-      updatedAt: new Date().toISOString()
-    }
-    // Update block in Redux and DB
-    dispatch(updateOneBlock({ id: mainTextBlockId, changes: blockChanges }))
-    await db.message_blocks.update(mainTextBlockId, blockChanges)
-
+  (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
     // Trigger the regeneration logic for associated assistant messages
     dispatch(resendMessageThunk(topicId, originalMessage, assistant))
   }
@@ -1436,5 +1421,51 @@ export const updateMessageAndBlocksThunk =
     } catch (error) {
       console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
       return false
+    }
+  }
+
+export const removeBlocksThunk =
+  (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
+  async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
+    if (!blockIdsToRemove.length) {
+      console.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      return
+    }
+
+    try {
+      const state = getState()
+      const message = state.messages.entities[messageId]
+
+      if (!message) {
+        console.error(`[removeBlocksFromMessageThunk] Message ${messageId} not found in state.`)
+        return
+      }
+      const blockIdsToRemoveSet = new Set(blockIdsToRemove)
+
+      const updatedBlockIds = (message.blocks || []).filter((id) => !blockIdsToRemoveSet.has(id))
+
+      // 1. Update Redux state
+      dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
+
+      if (blockIdsToRemove.length > 0) {
+        dispatch(removeManyBlocks(blockIdsToRemove))
+      }
+
+      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+
+      // 2. Update database (in a transaction)
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+        // Update the message in the topic
+        await db.topics.update(topicId, { messages: finalMessagesToSave })
+        // Delete the blocks from the database
+        if (blockIdsToRemove.length > 0) {
+          await db.message_blocks.bulkDelete(blockIdsToRemove)
+        }
+      })
+
+      return
+    } catch (error) {
+      console.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error)
+      throw error
     }
   }

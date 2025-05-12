@@ -1,12 +1,13 @@
 import { FONT_FAMILY } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useModel } from '@renderer/hooks/useModel'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Assistant, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
 import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -47,11 +48,47 @@ const MessageItem: FC<Props> = ({
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize } = useSettings()
+  const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
   const [selectedText, setSelectedText] = useState<string>('')
+  const [isEditing, setIsEditing] = useState(false)
+  const handleEditStart = useCallback(() => {
+    setIsEditing(true)
+  }, [])
+
+  const handleEditSave = useCallback(
+    async (blocks: MessageBlock[]) => {
+      try {
+        console.log('after save blocks', blocks)
+        await editMessageBlocks(message.id, blocks)
+        setIsEditing(false)
+      } catch (error) {
+        console.error('Failed to save message blocks:', error)
+      }
+    },
+    [message, editMessageBlocks]
+  )
+
+  const handleEditResend = useCallback(
+    async (blocks: MessageBlock[]) => {
+      try {
+        // 编辑后重新发送消息
+        console.log('after resend blocks', blocks)
+        await resendUserMessageWithEdit(message, blocks, assistant)
+        setIsEditing(false)
+      } catch (error) {
+        console.error('Failed to resend message:', error)
+      }
+    },
+    [message, resendUserMessageWithEdit, assistant]
+  )
+
+  const handleEditCancel = useCallback(() => {
+    setIsEditing(false)
+  }, [])
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
@@ -146,7 +183,13 @@ const MessageItem: FC<Props> = ({
         className="message-content-container"
         style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
         <MessageErrorBoundary>
-          <MessageContent message={message} />
+          <MessageContent
+            message={message}
+            isEditing={isEditing}
+            onSave={handleEditSave}
+            onResend={handleEditResend}
+            onCancel={handleEditCancel}
+          />
         </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter
@@ -161,6 +204,7 @@ const MessageItem: FC<Props> = ({
               model={model}
               index={index}
               topic={topic}
+              onEditStart={handleEditStart}
               isLastMessage={isLastMessage}
               isAssistantMessage={isAssistantMessage}
               isGrouped={isGrouped}
