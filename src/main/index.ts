@@ -74,10 +74,6 @@ if (!app.requestSingleInstanceLock()) {
       return require('os').hostname()
     })
 
-    ipcMain.handle(IpcChannel.System_GetDevToolsOpen, () => {
-      return mainWindow.webContents.isDevToolsOpened()
-    })
-
     ipcMain.handle(IpcChannel.System_ToggleDevTools, () => {
       mainWindow.webContents.toggleDevTools()
     })

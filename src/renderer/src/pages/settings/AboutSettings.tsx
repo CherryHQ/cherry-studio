@@ -24,7 +24,6 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
-  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false)
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
   const { theme } = useTheme()
@@ -72,10 +71,6 @@ const AboutSettings: FC = () => {
 
   const debug = async () => {
     await window.api.devTools.toggle()
-    setTimeout(async () => {
-      const isOpen = await window.api.devTools.getOpen()
-      setIsDevToolsOpen(isOpen)
-    }, 500)
   }
 
   const showLicense = async () => {
@@ -105,9 +100,6 @@ const AboutSettings: FC = () => {
       const appInfo = await window.api.getAppInfo()
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
-
-      const isOpen = await window.api.devTools.getOpen()
-      setIsDevToolsOpen(isOpen)
     })
   }, [])
 
@@ -237,9 +229,7 @@ const AboutSettings: FC = () => {
             <Bug size={18} />
             {t('settings.about.debug.title')}
           </SettingRowTitle>
-          <Button onClick={debug}>
-            {isDevToolsOpen ? t('settings.about.debug.close') : t('settings.about.debug.open')}
-          </Button>
+          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

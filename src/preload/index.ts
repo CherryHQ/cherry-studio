@@ -28,7 +28,6 @@ const api = {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
   },
   devTools: {
-    getOpen: () => ipcRenderer.invoke(IpcChannel.System_GetDevToolsOpen),
     toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
   },
   zip: {

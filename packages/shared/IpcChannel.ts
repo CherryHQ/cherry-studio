@@ -136,7 +136,6 @@ export enum IpcChannel {
   System_GetHostname = 'system:getHostname',
 
   // DevTools
-  System_GetDevToolsOpen = 'system:getDevToolsOpen',
   System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
