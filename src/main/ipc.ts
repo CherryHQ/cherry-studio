@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { arch } from 'node:os'
+import path from 'node:path'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
@@ -8,7 +9,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
-import { getFolderSizeBin } from "go-get-folder-size"
+import { getFolderSizeBin } from 'go-get-folder-size'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
@@ -34,7 +35,7 @@ import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-import path = require('node:path')
+
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
