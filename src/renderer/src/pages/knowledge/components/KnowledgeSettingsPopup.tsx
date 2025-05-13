@@ -291,7 +291,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             rules={[
               {
                 validator(_, value) {
-                  if (value && (value < 0 || value > 10)) {
+                  if (value && (value < 0 || value > 30)) {
                     return Promise.reject(new Error(t('knowledge.topN_too_large_or_small')))
                   }
                   return Promise.resolve()
