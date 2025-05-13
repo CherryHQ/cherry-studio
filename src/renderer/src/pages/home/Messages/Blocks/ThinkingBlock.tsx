@@ -1,6 +1,7 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
+import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
 import { Lightbulb } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -9,27 +10,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Markdown from '../../Markdown/Markdown'
-
-// Define variants outside the component if they don't depend on component's props/state directly
-// or inside if they do (though for this case, outside is fine).
-const lightbulbVariants = {
-  thinking: {
-    opacity: [1, 0.2, 1],
-    transition: {
-      duration: 1.2,
-      ease: 'easeInOut',
-      times: [0, 0.5, 1],
-      repeat: Infinity
-    }
-  },
-  idle: {
-    opacity: 1,
-    transition: {
-      duration: 0.3, // Smooth transition to idle state
-      ease: 'easeInOut'
-    }
-  }
-}
 
 interface Props {
   block: ThinkingMessageBlock
@@ -116,7 +96,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
               <motion.span
                 style={{ height: '18px' }}
                 variants={lightbulbVariants}
-                animate={isThinking ? 'thinking' : 'idle'}
+                animate={isThinking ? 'active' : 'idle'}
                 initial="idle">
                 <Lightbulb size={18} />
               </motion.span>

@@ -905,6 +905,8 @@
       "about.checkUpdate.available": "Update",
       "about.contact.button": "Email",
       "about.contact.title": "Contact",
+      "about.debug.title": "Debug",
+      "about.debug.open": "Open",
       "about.description": "A powerful AI assistant for producer",
       "about.downloading": "Downloading...",
       "about.feedback.button": "Feedback",

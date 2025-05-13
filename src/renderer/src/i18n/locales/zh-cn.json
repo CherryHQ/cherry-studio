@@ -905,6 +905,8 @@
       "about.checkUpdate.available": "立即更新",
       "about.contact.button": "邮件",
       "about.contact.title": "邮件联系",
+      "about.debug.title": "调试面板",
+      "about.debug.open": "打开",
       "about.description": "一款为创造者而生的 AI 助手",
       "about.downloading": "正在下载更新...",
       "about.feedback.button": "反馈",
