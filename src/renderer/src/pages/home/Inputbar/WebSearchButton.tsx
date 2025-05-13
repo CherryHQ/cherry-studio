@@ -50,29 +50,34 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
 
-    const items: QuickPanelListItem[] = providers.map((p) => ({
-      label: p.name,
-      description: WebSearchService.isWebSearchEnabled(p.id)
-        ? hasObjectKey(p, 'apiKey')
-          ? t('settings.websearch.apikey')
-          : t('settings.websearch.free')
-        : t('chat.input.web_search.enable_content'),
-      icon: <Globe />,
-      isSelected: p.id === assistant?.webSearchProviderId,
-      disabled: !WebSearchService.isWebSearchEnabled(p.id),
-      action: () => updateSelectedWebSearchProvider(p.id)
-    }))
+    const items: QuickPanelListItem[] = providers
+      .map((p) => ({
+        label: p.name,
+        description: WebSearchService.isWebSearchEnabled(p.id)
+          ? hasObjectKey(p, 'apiKey')
+            ? t('settings.websearch.apikey')
+            : t('settings.websearch.free')
+          : t('chat.input.web_search.enable_content'),
+        icon: <Globe />,
+        isSelected: p.id === assistant?.webSearchProviderId,
+        disabled: !WebSearchService.isWebSearchEnabled(p.id),
+        action: () => updateSelectedWebSearchProvider(p.id)
+      }))
+      .filter((o) => !o.disabled)
 
-    items.unshift({
-      label: t('chat.input.web_search.builtin'),
-      description: isWebSearchModelEnabled
-        ? t('chat.input.web_search.builtin.enabled_content')
-        : t('chat.input.web_search.builtin.disabled_content'),
-      icon: <Globe />,
-      isSelected: assistant.enableWebSearch,
-      disabled: !isWebSearchModelEnabled,
-      action: () => updateSelectedWebSearchBuiltin()
-    })
+    if (isWebSearchModelEnabled) {
+      items.unshift({
+        label: t('chat.input.web_search.builtin'),
+        description: isWebSearchModelEnabled
+          ? t('chat.input.web_search.builtin.enabled_content')
+          : t('chat.input.web_search.builtin.disabled_content'),
+        icon: <Globe />,
+        isSelected: assistant.enableWebSearch,
+        disabled: !isWebSearchModelEnabled,
+        action: () => updateSelectedWebSearchBuiltin()
+      })
+    }
+
     items.push({
       label: '前往设置' + '...',
       icon: <Settings />,
@@ -105,7 +110,8 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     quickPanel.open({
       title: t('chat.input.web_search'),
       list: providerItems,
-      symbol: '?'
+      symbol: '?',
+      pageSize: 9
     })
   }, [quickPanel, providerItems, t])
 

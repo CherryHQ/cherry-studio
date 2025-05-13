@@ -972,10 +972,21 @@ export const regenerateAssistantResponseThunk =
       const blockIdsToDelete = [...(messageToResetEntity.blocks || [])]
 
       // 5. Reset the message entity in Redux
-      const resetAssistantMsg = resetAssistantMessage(messageToResetEntity, {
-        status: AssistantMessageStatus.PENDING,
-        updatedAt: new Date().toISOString()
-      })
+      const resetAssistantMsg = resetAssistantMessage(
+        messageToResetEntity,
+        // Grouped message (mentioned model message) should not reset model and modelId, always use the original model
+        assistantMessageToRegenerate.modelId
+          ? {
+              status: AssistantMessageStatus.PENDING,
+              updatedAt: new Date().toISOString()
+            }
+          : {
+              status: AssistantMessageStatus.PENDING,
+              updatedAt: new Date().toISOString(),
+              model: assistant.model
+            }
+      )
+
       dispatch(
         newMessagesActions.updateMessage({
           topicId,
