@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import { arch } from 'node:os'
-import path from 'node:path'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
@@ -33,7 +32,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -184,7 +183,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
-    const cachePath = path.join(app.getPath('userData'), 'Cache')
+    const cachePath = getCacheDir()
     const size = await getFolderSizeBin(cachePath, true, {
       // ignore files that we can't access
       loose: true
