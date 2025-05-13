@@ -10,13 +10,16 @@ import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { Button, Space } from 'antd'
+import { Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import { Save, Send, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
+import { ToolbarButton } from '../Inputbar/Inputbar'
 
 interface Props {
   message: Message
@@ -34,12 +37,18 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { pasteLongTextAsFile, pasteLongTextThreshold } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
+  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
 
   useEffect(() => {
-    setTimeout(() => resizeTextArea(), 0)
+    setTimeout(() => {
+      resizeTextArea()
+      if (textareaRef.current) {
+        textareaRef.current.focus({ cursor: 'end' })
+      }
+    }, 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -174,59 +183,83 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             <Textarea
               key={block.id}
               ref={textareaRef}
+              variant="borderless"
               value={block.content}
               onChange={(e) => {
                 handleTextChange(block.id, e.target.value)
                 autoResizeTextArea(e)
               }}
               autoFocus
+              contextMenu="true"
               spellCheck={false}
               onPaste={(e) => onPaste(e.nativeEvent)}
+              style={{
+                fontSize,
+                minHeight: '100px',
+                padding: '0px 15px 8px 0px'
+              }}
             />
           ))}
-        {editedBlocks.some(
-          (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
-        ) && (
-          <FileBlocksContainer>
-            {editedBlocks
-              .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-              .map(
-                (block) =>
-                  block.file && (
-                    <CustomTag
-                      key={block.id}
-                      icon={getFileIcon(block.file.ext)}
-                      color="#37a5aa"
-                      closable
-                      onClose={() => handleFileRemove(block.id)}>
-                      <FileNameRender file={block.file} />
-                    </CustomTag>
-                  )
-              )}
+        {editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
+          (files.length > 0 && (
+            <FileBlocksContainer>
+              {editedBlocks
+                .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+                .map(
+                  (block) =>
+                    block.file && (
+                      <CustomTag
+                        key={block.id}
+                        icon={getFileIcon(block.file.ext)}
+                        color="#37a5aa"
+                        closable
+                        onClose={() => handleFileRemove(block.id)}>
+                        <FileNameRender file={block.file} />
+                      </CustomTag>
+                    )
+                )}
 
-            {files.map((file) => (
-              <CustomTag
-                key={file.id}
-                icon={getFileIcon(file.ext)}
-                color="#37a5aa"
-                closable
-                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-                <FileNameRender file={file} />
-              </CustomTag>
-            ))}
-          </FileBlocksContainer>
-        )}
+              {files.map((file) => (
+                <CustomTag
+                  key={file.id}
+                  icon={getFileIcon(file.ext)}
+                  color="#37a5aa"
+                  closable
+                  onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+                  <FileNameRender file={file} />
+                </CustomTag>
+              ))}
+            </FileBlocksContainer>
+          ))}
 
         <ActionBar>
-          <Space>
-            <Button onClick={onCancel}>{t('common.cancel')}</Button>
-            <Button type="primary" onClick={() => handleClick()}>
-              {t('common.save')}
-            </Button>
-            <Button type="primary" onClick={() => handleClick(true)}>
-              {t('chat.resend')}
-            </Button>
-          </Space>
+          <ActionBarLeft>
+            <AttachmentButton
+              ref={attachmentButtonRef}
+              model={model}
+              files={files}
+              setFiles={setFiles}
+              ToolbarButton={ToolbarButton}
+            />
+          </ActionBarLeft>
+          <ActionBarMiddle />
+          <ActionBarRight>
+            <Tooltip title={t('common.cancel')}>
+              <ToolbarButton type="text" onClick={onCancel}>
+                <X size={16} />
+              </ToolbarButton>
+            </Tooltip>
+            <Tooltip title={t('common.save')}>
+              <ToolbarButton type="text" onClick={() => handleClick()}>
+                <Save size={16} />
+              </ToolbarButton>
+            </Tooltip>
+            <Tooltip title={t('chat.resend')}>
+              <ToolbarButton type="text" onClick={() => handleClick(true)}>
+                <Send size={16} />
+              </ToolbarButton>
+            </Tooltip>
+          </ActionBarRight>
         </ActionBar>
       </EditorContainer>
     </>
@@ -246,7 +279,10 @@ const FileBlocksContainer = styled.div`
 const EditorContainer = styled.div`
   padding: 8px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  transition: all 0.2s ease;
+  border-radius: 15px;
+  margin-top: 0;
+  background-color: var(--color-background-opacity);
 `
 
 const Textarea = styled(TextArea)`
@@ -268,6 +304,21 @@ const ActionBar = styled.div`
   display: flex;
   justify-content: space-between;
   margin-top: 8px;
+`
+
+const ActionBarLeft = styled.div`
+  display: flex;
+  align-items: center;
+`
+
+const ActionBarMiddle = styled.div`
+  flex: 1;
+`
+
+const ActionBarRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 export default MessageBlockEditor
