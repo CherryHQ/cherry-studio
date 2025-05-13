@@ -195,7 +195,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               onPaste={(e) => onPaste(e.nativeEvent)}
               style={{
                 fontSize,
-                padding: '0px 15px 8px 0px'
+                padding: '0px 15px 8px 15px'
               }}
             />
           ))}
@@ -269,14 +269,14 @@ const FileBlocksContainer = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px;
+  padding: 0 15px;
   margin: 8px 0;
   background: transplant;
   border-radius: 4px;
 `
 
 const EditorContainer = styled.div`
-  padding: 8px;
+  padding: 8px 0;
   border: 1px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
@@ -301,6 +301,7 @@ const Textarea = styled(TextArea)`
 
 const ActionBar = styled.div`
   display: flex;
+  padding: 0 8px;
   justify-content: space-between;
   margin-top: 8px;
 `
