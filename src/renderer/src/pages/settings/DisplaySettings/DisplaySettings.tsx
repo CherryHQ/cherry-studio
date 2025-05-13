@@ -40,7 +40,6 @@ const DisplaySettings: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
-  const [setAllowEscToExitFullscreen] = useState<boolean>(true)
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
@@ -109,12 +108,6 @@ const DisplaySettings: FC = () => {
     return () => {
       window.removeEventListener('resize', handleResize)
     }
-  }, [])
-
-  useEffect(() => {
-    window.api?.getAllowEscToExitFullscreen?.().then((value) => {
-      setAllowEscToExitFullscreen(value)
-    })
   }, [])
 
   const handleZoomFactor = async (delta: number, reset: boolean = false) => {
