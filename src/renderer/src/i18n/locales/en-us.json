@@ -489,7 +489,7 @@
       "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
       "title": "Knowledge Base",
       "topN": "Number of results returned",
-      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_too_large_or_small": "The number of results returned cannot be greater than 30 or less than 1.",
       "topN_placeholder": "Not set",
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",
@@ -905,6 +905,8 @@
       "about.checkUpdate.available": "Update",
       "about.contact.button": "Email",
       "about.contact.title": "Contact",
+      "about.debug.title": "Debug",
+      "about.debug.open": "Open",
       "about.description": "A powerful AI assistant for producer",
       "about.downloading": "Downloading...",
       "about.feedback.button": "Feedback",
@@ -1148,7 +1150,7 @@
       "miniapps": {
         "title": "Mini Apps Settings",
         "custom": {
-          "title": "Custom Mini App",
+          "title": "Custom",
           "edit_title": "Edit Custom Mini App",
           "save_success": "Custom mini app saved successfully.",
           "save_error": "Failed to save custom mini app.",

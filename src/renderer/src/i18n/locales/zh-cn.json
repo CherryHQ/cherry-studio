@@ -493,7 +493,7 @@
       "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
       "title": "知识库",
       "topN": "返回结果数量",
-      "topN__too_large_or_small": "返回结果数量不能大于100或小于1",
+      "topN_too_large_or_small": "返回结果数量不能大于30或小于1",
       "topN_placeholder": "未设置",
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
@@ -905,6 +905,8 @@
       "about.checkUpdate.available": "立即更新",
       "about.contact.button": "邮件",
       "about.contact.title": "邮件联系",
+      "about.debug.title": "调试面板",
+      "about.debug.open": "打开",
       "about.description": "一款为创造者而生的 AI 助手",
       "about.downloading": "正在下载更新...",
       "about.feedback.button": "反馈",
@@ -1154,7 +1156,7 @@
           "title": "在浏览器中打开新窗口链接"
         },
         "custom": {
-          "title": "自定义小程序",
+          "title": "自定义",
           "edit_title": "编辑自定义小程序",
           "save_success": "自定义小程序保存成功。",
           "save_error": "自定义小程序保存失败。",

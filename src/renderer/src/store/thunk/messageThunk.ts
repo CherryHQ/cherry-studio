@@ -348,6 +348,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onTextComplete: async (finalText) => {
+        cancelThrottledBlockUpdate()
         if (lastBlockType === MessageBlockType.MAIN_TEXT && lastBlockId) {
           const changes = {
             content: finalText,
@@ -405,6 +406,8 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onThinkingComplete: (finalText, final_thinking_millsec) => {
+        cancelThrottledBlockUpdate()
+
         if (lastBlockType === MessageBlockType.THINKING && lastBlockId) {
           const changes = {
             type: MessageBlockType.THINKING,
@@ -446,6 +449,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onToolCallComplete: (toolResponse: MCPToolResponse) => {
+        cancelThrottledBlockUpdate()
         const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
         if (toolResponse.status === 'done' || toolResponse.status === 'error') {
           if (!existingBlockId) {
