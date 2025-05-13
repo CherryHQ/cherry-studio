@@ -258,13 +258,13 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   useLayoutEffect(() => {
-    if (!listRef.current || index < 0 || isMouseOver) return
+    if (!listRef.current || index < 0 || scrollTriggerRef.current === 'none') return
 
     const alignment = scrollTriggerRef.current === 'keyboard' ? 'auto' : 'smart'
     listRef.current?.scrollToItem(index, alignment)
 
-    scrollTriggerRef.current = 'initial'
-  }, [index, isMouseOver])
+    scrollTriggerRef.current = 'none'
+  }, [index])
 
   // 处理键盘事件
   useEffect(() => {
@@ -430,7 +430,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $selectedColor={selectedColor}
       $selectedColorHover={selectedColorHover}
       className={ctx.isVisible ? 'visible' : ''}>
-      <QuickPanelBody ref={bodyRef} onMouseMove={() => setIsMouseOver((prev) => (prev ? prev : true))}>
+      <QuickPanelBody
+        ref={bodyRef}
+        onMouseMove={() =>
+          setIsMouseOver((prev) => {
+            scrollTriggerRef.current = 'initial'
+            return prev ? prev : true
+          })
+        }>
         <FixedSizeList
           ref={listRef}
           itemCount={list.length}
