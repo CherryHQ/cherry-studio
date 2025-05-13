@@ -89,7 +89,7 @@ export async function fetchWebContent(
     const parser = new DOMParser()
     const doc = parser.parseFromString(html, 'text/html')
     const article = new Readability(doc).parse()
-    // console.log('Parsed article:', article)
+    // Logger.log('Parsed article:', article)
 
     switch (format) {
       case 'markdown': {
@@ -124,5 +124,22 @@ export async function fetchWebContent(
       url: url,
       content: noContent
     }
+  }
+}
+
+export async function fetchRedirectUrl(url: string) {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    })
+    return response.url
+  } catch (e) {
+    console.error(`Failed to fetch redirect url: ${e}`)
+    return url
   }
 }

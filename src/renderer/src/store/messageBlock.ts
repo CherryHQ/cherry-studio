@@ -85,19 +85,22 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
   if (!block) return []
 
   let formattedCitations: Citation[] = []
-  // 1. Handle Web Search Responses (Non-Gemini)
+  // 1. Handle Web Search Responses
   if (block.response) {
     switch (block.response.source) {
-      case WebSearchSource.GEMINI:
+      case WebSearchSource.GEMINI: {
+        const groundingMetadata = block.response.results as GroundingMetadata
         formattedCitations =
-          (block.response?.results as GroundingMetadata)?.groundingChunks?.map((chunk, index) => ({
+          groundingMetadata?.groundingChunks?.map((chunk, index) => ({
             number: index + 1,
             url: chunk?.web?.uri || '',
             title: chunk?.web?.title,
-            showFavicon: false,
+            showFavicon: true,
+            metadata: groundingMetadata.groundingSupports,
             type: 'websearch'
           })) || []
         break
+      }
       case WebSearchSource.OPENAI:
         formattedCitations =
           (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {

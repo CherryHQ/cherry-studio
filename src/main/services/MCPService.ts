@@ -593,7 +593,7 @@ class McpService {
       const pathSeparator = process.platform === 'win32' ? ';' : ':'
       const cherryBinPath = path.join(os.homedir(), '.cherrystudio', 'bin')
       loginEnv.PATH = `${loginEnv.PATH}${pathSeparator}${cherryBinPath}`
-      Logger.info('[MCP] Successfully fetched login shell environment variables:', loginEnv)
+      Logger.info('[MCP] Successfully fetched login shell environment variables:')
       return loginEnv
     } catch (error) {
       Logger.error('[MCP] Failed to fetch login shell environment variables:', error)

@@ -2825,55 +2825,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@opendal/lib-darwin-arm64@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-darwin-arm64@npm:0.47.11"
-  conditions: os=darwin & cpu=arm64
-  languageName: node
-  linkType: hard
-
-"@opendal/lib-darwin-x64@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-darwin-x64@npm:0.47.11"
-  conditions: os=darwin & cpu=x64
-  languageName: node
-  linkType: hard
-
-"@opendal/lib-linux-arm64-gnu@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-linux-arm64-gnu@npm:0.47.11"
-  conditions: os=linux & cpu=arm64 & libc=glibc
-  languageName: node
-  linkType: hard
-
-"@opendal/lib-linux-arm64-musl@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-linux-arm64-musl@npm:0.47.11"
-  conditions: os=linux & cpu=arm64 & libc=glibc
-  languageName: node
-  linkType: hard
-
-"@opendal/lib-linux-x64-gnu@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-linux-x64-gnu@npm:0.47.11"
-  conditions: os=linux & cpu=x64 & libc=glibc
-  languageName: node
-  linkType: hard
-
-"@opendal/lib-win32-arm64-msvc@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-win32-arm64-msvc@npm:0.47.11"
-  conditions: os=win32 & cpu=arm64
-  languageName: node
-  linkType: hard
-
-"@opendal/lib-win32-x64-msvc@npm:0.47.11":
-  version: 0.47.11
-  resolution: "@opendal/lib-win32-x64-msvc@npm:0.47.11"
-  conditions: os=win32 & cpu=x64
-  languageName: node
-  linkType: hard
-
 "@parcel/watcher-android-arm64@npm:2.5.1":
   version: 2.5.1
   resolution: "@parcel/watcher-android-arm64@npm:2.5.1"
@@ -4496,8 +4447,7 @@ __metadata:
     "@vitejs/plugin-react-swc": "npm:^3.9.0"
     "@vitest/coverage-v8": "npm:^3.1.1"
     "@vitest/ui": "npm:^3.1.1"
-    "@xyflow/react": "npm:^12.6.1"
-    adm-zip: "npm:^0.5.16"
+    "@xyflow/react": "npm:^12.4.4"
     antd: "npm:^5.22.5"
     applescript: "npm:^1.0.0"
     archiver: "npm:^7.0.1"
@@ -4505,7 +4455,6 @@ __metadata:
     axios: "npm:^1.7.3"
     babel-plugin-styled-components: "npm:^2.1.4"
     browser-image-compression: "npm:^2.0.2"
-    bufferutil: "npm:^4.0.9"
     color: "npm:^5.0.0"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
@@ -4529,10 +4478,10 @@ __metadata:
     eslint-plugin-react-hooks: "npm:^5.2.0"
     eslint-plugin-simple-import-sort: "npm:^12.1.1"
     eslint-plugin-unused-imports: "npm:^4.1.4"
-    extract-zip: "npm:^2.0.1"
     fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:^1.3.2"
     fs-extra: "npm:^11.2.0"
+    go-get-folder-size: "npm:^0.5.5"
     got-scraping: "npm:^4.1.1"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -4544,11 +4493,11 @@ __metadata:
     lucide-react: "npm:^0.487.0"
     markdown-it: "npm:^14.1.0"
     mime: "npm:^4.0.4"
+    motion: "npm:^12.10.5"
     node-stream-zip: "npm:^1.15.0"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
-    opendal: "npm:^0.47.11"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
@@ -4646,7 +4595,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"adm-zip@npm:^0.5.16, adm-zip@npm:^0.5.9":
+"adm-zip@npm:^0.5.9":
   version: 0.5.16
   resolution: "adm-zip@npm:0.5.16"
   checksum: 10c0/6f10119d4570c7ba76dcf428abb8d3f69e63f92e51f700a542b43d4c0130373dd2ddfc8f85059f12d4a843703a90c3970cfd17876844b4f3f48bf042bfa6b49f
@@ -5444,16 +5393,6 @@ __metadata:
     base64-js: "npm:^1.3.1"
     ieee754: "npm:^1.2.1"
   checksum: 10c0/2a905fbbcde73cc5d8bd18d1caa23715d5f83a5935867c2329f0ac06104204ba7947be098fe1317fbd8830e26090ff8e764f08cd14fefc977bb248c3487bcbd0
-  languageName: node
-  linkType: hard
-
-"bufferutil@npm:^4.0.9":
-  version: 4.0.9
-  resolution: "bufferutil@npm:4.0.9"
-  dependencies:
-    node-gyp: "npm:latest"
-    node-gyp-build: "npm:^4.3.0"
-  checksum: 10c0/f8a93279fc9bdcf32b42eba97edc672b39ca0fe5c55a8596099886cffc76ea9dd78e0f6f51ecee3b5ee06d2d564aa587036b5d4ea39b8b5ac797262a363cdf7d
   languageName: node
   linkType: hard
 
@@ -8672,7 +8611,29 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fresh@npm:2.0.0, fresh@npm:^2.0.0":
+"framer-motion@npm:^12.10.5":
+  version: 12.10.5
+  resolution: "framer-motion@npm:12.10.5"
+  dependencies:
+    motion-dom: "npm:^12.10.5"
+    motion-utils: "npm:^12.9.4"
+    tslib: "npm:^2.4.0"
+  peerDependencies:
+    "@emotion/is-prop-valid": "*"
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    "@emotion/is-prop-valid":
+      optional: true
+    react:
+      optional: true
+    react-dom:
+      optional: true
+  checksum: 10c0/a24a44b7a1b21e347f93f9ec3c1218b9ebf2b2bc2883c26ab9951e19a62fdc2e03f80a57d0c78eaf408d098ed6f0fbcae48207313921c1f5462eb04296adf55b
+  languageName: node
+  linkType: hard
+
+"fresh@npm:^2.0.0":
   version: 2.0.0
   resolution: "fresh@npm:2.0.0"
   checksum: 10c0/0557548194cb9a809a435bf92bcfbc20c89e8b5eb38861b73ced36750437251e39a111fc3a18b98531be9dd91fe1411e4969f229dc579ec0251ce6c5d4900bbc
@@ -9129,6 +9090,17 @@ __metadata:
     merge2: "npm:^1.4.1"
     slash: "npm:^3.0.0"
   checksum: 10c0/b39511b4afe4bd8a7aead3a27c4ade2b9968649abab0a6c28b1a90141b96ca68ca5db1302f7c7bd29eab66bf51e13916b8e0a3d0ac08f75e1e84a39b35691189
+  languageName: node
+  linkType: hard
+
+"go-get-folder-size@npm:^0.5.5":
+  version: 0.5.5
+  resolution: "go-get-folder-size@npm:0.5.5"
+  dependencies:
+    std-env: "npm:^3.7.0"
+  bin:
+    go-get-folder-size: bin/cli.js
+  checksum: 10c0/eb69b686952218cc114dccf65763e0dff5056050fa3e9b2afa6161b933c3978500455503b104f9f28d96aab2fedd64ccb0255d6ea16d699fe020795f431ed7b8
   languageName: node
   linkType: hard
 
@@ -12600,6 +12572,43 @@ __metadata:
   languageName: node
   linkType: hard
 
+"motion-dom@npm:^12.10.5":
+  version: 12.10.5
+  resolution: "motion-dom@npm:12.10.5"
+  dependencies:
+    motion-utils: "npm:^12.9.4"
+  checksum: 10c0/2c362eb94c941bbbc42288a6738b8c7a11933687b3b20aa6c9f2c3dedc69e5c7995c7348499b535f8abe5ed9ea81d88f9eb2f98b69f5012bcd80b8f7a64a1c2c
+  languageName: node
+  linkType: hard
+
+"motion-utils@npm:^12.9.4":
+  version: 12.9.4
+  resolution: "motion-utils@npm:12.9.4"
+  checksum: 10c0/b6783babfd1282ad320585f7cdac9fe7a1f97b39e07d12a500d3709534441bd9d49b556fa1cd838d1bde188570d4ab6b4c5aa9d297f7f5aa9dc16d600c17afdc
+  languageName: node
+  linkType: hard
+
+"motion@npm:^12.10.5":
+  version: 12.10.5
+  resolution: "motion@npm:12.10.5"
+  dependencies:
+    framer-motion: "npm:^12.10.5"
+    tslib: "npm:^2.4.0"
+  peerDependencies:
+    "@emotion/is-prop-valid": "*"
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    "@emotion/is-prop-valid":
+      optional: true
+    react:
+      optional: true
+    react-dom:
+      optional: true
+  checksum: 10c0/d8f1755a565332e6122e2079e164026b945eda34827170f2615999d74d3df2ad77984ca55304d7682b97a2ccf83c33508d234af619b043cd18056047884396d1
+  languageName: node
+  linkType: hard
+
 "mri@npm:1.1.4":
   version: 1.1.4
   resolution: "mri@npm:1.1.4"
@@ -12823,17 +12832,6 @@ __metadata:
     fetch-blob: "npm:^3.1.4"
     formdata-polyfill: "npm:^4.0.10"
   checksum: 10c0/f3d5e56190562221398c9f5750198b34cf6113aa304e34ee97c94fd300ec578b25b2c2906edba922050fce983338fde0d5d34fcb0fc3336ade5bd0e429ad7538
-  languageName: node
-  linkType: hard
-
-"node-gyp-build@npm:^4.3.0":
-  version: 4.8.4
-  resolution: "node-gyp-build@npm:4.8.4"
-  bin:
-    node-gyp-build: bin.js
-    node-gyp-build-optional: optional.js
-    node-gyp-build-test: build-test.js
-  checksum: 10c0/444e189907ece2081fe60e75368784f7782cfddb554b60123743dfb89509df89f1f29c03bbfa16b3a3e0be3f48799a4783f487da6203245fa5bed239ba7407e1
   languageName: node
   linkType: hard
 
@@ -13214,7 +13212,7 @@ __metadata:
 
 "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch":
   version: 4.96.0
-  resolution: "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch::version=4.96.0&hash=17e659"
+  resolution: "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch::version=4.96.0&hash=6bc976"
   dependencies:
     "@types/node": "npm:^18.11.18"
     "@types/node-fetch": "npm:^2.6.4"
@@ -13233,7 +13231,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/b1f6162017ede2e0c3338ca94ea0e0c6ababc39ef8abea9e1a04d747725cf6ca3fbd0e4682c231af03a6473228b25a16ce52aac03c3cc4feb302d03b9603e06b
+  checksum: 10c0/e50e4b9b60e94fadaca541cf2c36a12c55221555dd2ce977738e13978b7187504263f2e31b4641f2b6e70fce562b4e1fa2affd68caeca21248ddfa8847eeb003
   languageName: node
   linkType: hard
 
@@ -13241,36 +13239,6 @@ __metadata:
   version: 12.1.3
   resolution: "openapi-types@npm:12.1.3"
   checksum: 10c0/4ad4eb91ea834c237edfa6ab31394e87e00c888fc2918009763389c00d02342345195d6f302d61c3fd807f17723cd48df29b47b538b68375b3827b3758cd520f
-  languageName: node
-  linkType: hard
-
-"opendal@npm:^0.47.11":
-  version: 0.47.11
-  resolution: "opendal@npm:0.47.11"
-  dependencies:
-    "@opendal/lib-darwin-arm64": "npm:0.47.11"
-    "@opendal/lib-darwin-x64": "npm:0.47.11"
-    "@opendal/lib-linux-arm64-gnu": "npm:0.47.11"
-    "@opendal/lib-linux-arm64-musl": "npm:0.47.11"
-    "@opendal/lib-linux-x64-gnu": "npm:0.47.11"
-    "@opendal/lib-win32-arm64-msvc": "npm:0.47.11"
-    "@opendal/lib-win32-x64-msvc": "npm:0.47.11"
-  dependenciesMeta:
-    "@opendal/lib-darwin-arm64":
-      optional: true
-    "@opendal/lib-darwin-x64":
-      optional: true
-    "@opendal/lib-linux-arm64-gnu":
-      optional: true
-    "@opendal/lib-linux-arm64-musl":
-      optional: true
-    "@opendal/lib-linux-x64-gnu":
-      optional: true
-    "@opendal/lib-win32-arm64-msvc":
-      optional: true
-    "@opendal/lib-win32-x64-msvc":
-      optional: true
-  checksum: 10c0/0783da2651bb27ac693ce38938d12b00124530fb965364517eef3de17b3ff898cdecf06260a79a7d70745d57c2ba952a753a4bab52e0831aa7232c3a69120225
   languageName: node
   linkType: hard
 
@@ -16414,7 +16382,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"std-env@npm:^3.8.1":
+"std-env@npm:^3.7.0, std-env@npm:^3.8.1":
   version: 3.9.0
   resolution: "std-env@npm:3.9.0"
   checksum: 10c0/4a6f9218aef3f41046c3c7ecf1f98df00b30a07f4f35c6d47b28329bc2531eef820828951c7d7b39a1c5eb19ad8a46e3ddfc7deb28f0a2f3ceebee11bab7ba50

@@ -1,4 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit'
+import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
@@ -79,7 +80,7 @@ export function useMessageOperations(topic: Topic) {
   )
 
   /**
-   * 编辑消息。（目前仅更新 Redux state）。 / Edits a message. (Currently only updates Redux state).
+   * 编辑消息。 / Edits a message.
    * 使用 newMessagesActions.updateMessage.
    */
   const editMessage = useCallback(
@@ -88,21 +89,15 @@ export function useMessageOperations(topic: Topic) {
         console.error('[editMessage] Topic prop is not valid.')
         return
       }
-      console.log(`[useMessageOperations] Editing message ${messageId} with updates:`, updates)
 
       const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
         id: messageId,
+        updatedAt: new Date().toISOString(),
         ...updates
       }
 
       // Call the thunk with topic.id and only message updates
-      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
-
-      if (success) {
-        console.log(`[useMessageOperations] Successfully edited message ${messageId} properties.`)
-      } else {
-        console.error(`[useMessageOperations] Failed to edit message ${messageId} properties.`)
-      }
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
     [dispatch, topic.id]
   )
@@ -133,9 +128,16 @@ export function useMessageOperations(topic: Topic) {
       const files = findFileBlocks(message).map((block) => block.file)
 
       const usage = await estimateUserPromptUsage({ content: editedContent, files })
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: message.id,
+        updatedAt: new Date().toISOString(),
+        usage
+      }
 
-      await dispatch(updateMessageAndBlocksThunk(topic.id, { id: message.id, usage }, []))
-
+      await dispatch(
+        newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates })
+      )
+      // 对于message的修改会在下面的thunk中保存
       await dispatch(resendUserMessageWithEditThunk(topic.id, message, mainTextBlockId, editedContent, assistant))
     },
     [dispatch, topic.id]
@@ -272,12 +274,10 @@ export function useMessageOperations(topic: Topic) {
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
         await dispatch(updateTranslationBlockThunk(blockId, '', false))
-        console.log('[getTranslationUpdater] update existing translation block:', blockId)
       } else {
         blockId = await dispatch(
           initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
         )
-        console.log('[getTranslationUpdater] create new translation block:', blockId)
       }
 
       if (!blockId) {
@@ -302,7 +302,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const createTopicBranch = useCallback(
     (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
-      console.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
+      Logger.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
       return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
     },
     [dispatch]
@@ -313,31 +313,55 @@ export function useMessageOperations(topic: Topic) {
    * Uses the generalized thunk for persistence.
    */
   const editMessageBlocks = useCallback(
-    // messageId?: string
-    async (blockUpdatesListRaw: Partial<MessageBlock>[]) => {
+    async (messageId: string, updates: Partial<MessageBlock>) => {
       if (!topic?.id) {
         console.error('[editMessageBlocks] Topic prop is not valid.')
         return
       }
-      if (!blockUpdatesListRaw || blockUpdatesListRaw.length === 0) {
-        console.warn('[editMessageBlocks] Received empty block updates list.')
+
+      const blockUpdatesListProcessed = {
+        updatedAt: new Date().toISOString(),
+        ...updates
+      }
+
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
+        updatedAt: new Date().toISOString()
+      }
+
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, [blockUpdatesListProcessed]))
+    },
+    [dispatch, topic.id]
+  )
+
+  /**
+   * Removes a specific block from a message.
+   */
+  const removeMessageBlock = useCallback(
+    async (messageId: string, blockIdToRemove: string) => {
+      if (!topic?.id) {
+        console.error('[removeMessageBlock] Topic prop is not valid.')
         return
       }
 
-      const blockUpdatesListProcessed = blockUpdatesListRaw.map((update) => ({
-        ...update,
-        updatedAt: new Date().toISOString()
-      }))
-
-      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, null, blockUpdatesListProcessed))
-
-      if (success) {
-        // console.log(`[useMessageOperations] Successfully processed block updates for message ${messageId}.`)
-      } else {
-        // console.error(`[useMessageOperations] Failed to process block updates for message ${messageId}.`)
+      const state = store.getState()
+      const message = state.messages.entities[messageId]
+      if (!message || !message.blocks) {
+        console.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
+        return
       }
+
+      const updatedBlocks = message.blocks.filter((blockId) => blockId !== blockIdToRemove)
+
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
+        updatedAt: new Date().toISOString(),
+        blocks: updatedBlocks
+      }
+
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
-    [dispatch, topic.id]
+    [dispatch, topic?.id]
   )
 
   return {
@@ -355,7 +379,8 @@ export function useMessageOperations(topic: Topic) {
     resumeMessage,
     getTranslationUpdater,
     createTopicBranch,
-    editMessageBlocks
+    editMessageBlocks,
+    removeMessageBlock
   }
 }
 

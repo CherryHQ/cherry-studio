@@ -6,6 +6,7 @@ import {
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
+import Logger from '@renderer/config/logger'
 import { isVisionModel } from '@renderer/config/models'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
@@ -262,7 +263,7 @@ export function openAIToolsToMcpTool(
 }
 
 export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
-  console.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+  Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
@@ -293,7 +294,7 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       }
     }
 
-    console.log(`[MCP] Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
+    Logger.log(`[MCP] Tool called: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, resp)
     return resp
   } catch (e) {
     console.error(`[MCP] Error calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, e)
@@ -458,10 +459,10 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
       // If parsing fails, use the string as is
       parsedArgs = toolArgs
     }
-    // console.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
+    // Logger.log(`Parsed arguments for tool "${toolName}":`, parsedArgs)
     const mcpTool = mcpTools.find((tool) => tool.id === toolName)
     if (!mcpTool) {
-      console.error(`Tool "${toolName}" not found in MCP tools`)
+      Logger.error(`Tool "${toolName}" not found in MCP tools`)
       continue
     }
 

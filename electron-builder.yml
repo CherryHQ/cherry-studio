@@ -90,9 +90,9 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增对 grok-2-image 和 gpt-4o-image 图像支持
-    支持 Windows 便携版使用 data 目录存储数据
-    MCP 界面改版，新增描述信息显示
-    Mermaid 渲染逻辑优化
-    支持关闭公示渲染
-    修复 OpenAI 类型渲染错误
+    重构消息结构，支持不同类型消息按时间顺序显示
+    智能体支持导入和导出
+    快捷面板增加网络搜索引擎选择
+    显示设置增加缩放控制按钮
+    支持添加自定义小程序
+    性能优化和错误修复

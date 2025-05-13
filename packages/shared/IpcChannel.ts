@@ -1,4 +1,5 @@
 export enum IpcChannel {
+  App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
@@ -13,8 +14,7 @@ export enum IpcChannel {
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetZoomFactor = 'app:set-zoom-factor',
-  ZoomFactorUpdated = 'app:zoom-factor-updated',
+  App_HandleZoomFactor = 'app:handle-zoom-factor',
 
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
@@ -135,6 +135,9 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+
+  // DevTools
+  System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
   BackupProgress = 'backup-progress',

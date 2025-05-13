@@ -29,6 +29,7 @@ export type Assistant = {
   workflow?: Workflow
   chatflow?: Chatflow
   knowledgeRecognition?: 'off' | 'on'
+  regularPhrases?: QuickPhrase[] // Added for regular phrase
 }
 
 export type AssistantMessage = {
@@ -64,6 +65,7 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
+  qwenThinkMode?: boolean
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -123,8 +125,8 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
 }
 
 export type Metrics = {
-  completion_tokens?: number
-  time_completion_millsec?: number
+  completion_tokens: number
+  time_completion_millsec: number
   time_first_token_millsec?: number
   time_thinking_millsec?: number
 }

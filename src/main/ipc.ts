@@ -3,10 +3,12 @@ import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
+import { getFolderSizeBin } from 'go-get-folder-size'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
@@ -30,8 +32,9 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
+
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -120,11 +123,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const updateTitleBarOverlay = () => {
+      if (!mainWindow?.setTitleBarOverlay) return
+      const isDark = nativeTheme.shouldUseDarkColors
+      mainWindow.setTitleBarOverlay(isDark ? titleBarOverlayDark : titleBarOverlayLight)
+    }
+
+    const broadcastThemeChange = () => {
+      const isDark = nativeTheme.shouldUseDarkColors
+      const effectiveTheme = isDark ? ThemeMode.dark : ThemeMode.light
+      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send(IpcChannel.ThemeChange, effectiveTheme))
+    }
+
     const notifyThemeChange = () => {
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) =>
-        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
-      )
+      updateTitleBarOverlay()
+      broadcastThemeChange()
     }
 
     if (theme === ThemeMode.auto) {
@@ -132,24 +145,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       nativeTheme.on('updated', notifyThemeChange)
     } else {
       nativeTheme.themeSource = theme
-      nativeTheme.removeAllListeners('updated')
+      nativeTheme.off('updated', notifyThemeChange)
     }
 
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
+    updateTitleBarOverlay()
     configManager.setTheme(theme)
     notifyThemeChange()
   })
 
-  // zoom factor
-  ipcMain.handle(IpcChannel.App_SetZoomFactor, (_, factor: number) => {
-    configManager.setZoomFactor(factor)
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
-    windows.forEach((win) => {
-      if (!win.isDestroyed()) {
-        win.webContents.setZoomFactor(factor)
-      }
-    })
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache
@@ -172,6 +179,19 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       log.error('Failed to clear cache:', error)
       return { success: false, error: error.message }
     }
+  })
+
+  // get cache size
+  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
+    const cachePath = getCacheDir()
+    const size = await getFolderSizeBin(cachePath, true, {
+      // ignore files that we can't access
+      loose: true
+    }).catch((err) => {
+      log.error('Failed to get cache size:', err)
+    })
+
+    return size || '0MB'
   })
 
   // check for update

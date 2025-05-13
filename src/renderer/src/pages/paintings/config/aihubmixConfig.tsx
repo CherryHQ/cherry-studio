@@ -41,12 +41,12 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'model',
         options: [
-          { label: 'V_1', value: 'V_1' },
-          { label: 'V_1_TURBO', value: 'V_1_TURBO' },
-          { label: 'V_2', value: 'V_2' },
-          { label: 'V_2_TURBO', value: 'V_2_TURBO' },
-          { label: 'V_2A', value: 'V_2A' },
-          { label: 'V_2A_TURBO', value: 'V_2A_TURBO' }
+          { label: 'ideogram_V_1', value: 'V_1' },
+          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' },
+          { label: 'ideogram_V_2', value: 'V_2' },
+          { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
+          { label: 'ideogram_V_2A', value: 'V_2A' },
+          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' }
         ]
       },
       { type: 'title', title: 'paintings.aspect_ratio' },
@@ -119,8 +119,8 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'model',
         options: [
-          { label: 'V_2', value: 'V_2' },
-          { label: 'V_2_TURBO', value: 'V_2_TURBO' }
+          { label: 'ideogram_V_2', value: 'V_2' },
+          { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' }
         ]
       },
       {
@@ -174,12 +174,12 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'model',
         options: [
-          { label: 'V_1', value: 'V_1' },
-          { label: 'V_1_TURBO', value: 'V_1_TURBO' },
-          { label: 'V_2', value: 'V_2' },
-          { label: 'V_2_TURBO', value: 'V_2_TURBO' },
-          { label: 'V_2A', value: 'V_2A' },
-          { label: 'V_2A_TURBO', value: 'V_2A_TURBO' }
+          { label: 'ideogram_V_1', value: 'V_1' },
+          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' },
+          { label: 'ideogram_V_2', value: 'V_2' },
+          { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
+          { label: 'ideogram_V_2A', value: 'V_2A' },
+          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' }
         ]
       },
       { type: 'title', title: 'paintings.aspect_ratio' },

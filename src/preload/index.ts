@@ -19,13 +19,18 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   restartTray: () => ipcRenderer.invoke(IpcChannel.App_RestartTray),
   setTheme: (theme: 'light' | 'dark' | 'auto') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
-  setZoomFactor: (factor: number) => ipcRenderer.invoke(IpcChannel.App_SetZoomFactor, factor),
+  handleZoomFactor: (delta: number, reset: boolean = false) =>
+    ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
+  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
+  },
+  devTools: {
+    toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),
@@ -194,17 +199,6 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
-  },
-  // 新增：监听主进程的 zoom factor 更新
-  onZoomFactorUpdate: (callback: (factor: number) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, factor: number) => {
-      callback(factor)
-    }
-    ipcRenderer.on(IpcChannel.ZoomFactorUpdated, listener)
-    // 返回一个移除监听器的函数
-    return () => {
-      ipcRenderer.removeListener(IpcChannel.ZoomFactorUpdated, listener)
-    }
   }
 }
 

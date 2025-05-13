@@ -36,6 +36,7 @@ import YuqueSettings from './YuqueSettings'
 const DataSettings: FC = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
+  const [cacheSize, setCacheSize] = useState<string>('')
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
@@ -106,6 +107,7 @@ const DataSettings: FC = () => {
 
   useEffect(() => {
     window.api.getAppInfo().then(setAppInfo)
+    window.api.getCacheSize().then(setCacheSize)
   }, [])
 
   const handleOpenPath = (path?: string) => {
@@ -130,6 +132,7 @@ const DataSettings: FC = () => {
       onOk: async () => {
         try {
           await window.api.clearCache()
+          await window.api.getCacheSize().then(setCacheSize)
           window.message.success(t('settings.data.clear_cache.success'))
         } catch (error) {
           window.message.error(t('settings.data.clear_cache.error'))
@@ -228,7 +231,10 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.clear_cache.title')}</SettingRowTitle>
+                <SettingRowTitle>
+                  {t('settings.data.clear_cache.title')}
+                  <CacheText>({cacheSize})</CacheText>
+                </SettingRowTitle>
                 <HStack gap="5px">
                   <Button onClick={handleClearCache} danger>
                     {t('settings.data.clear_cache.button')}
@@ -278,6 +284,16 @@ const MenuList = styled.div`
     color: var(--color-text-2);
     line-height: 16px;
   }
+`
+
+const CacheText = styled(Typography.Text)`
+  color: var(--color-text-3);
+  font-size: 12px;
+  margin-left: 5px;
+  line-height: 16px;
+  display: inline-block;
+  vertical-align: middle;
+  text-align: left;
 `
 
 const PathText = styled(Typography.Text)`

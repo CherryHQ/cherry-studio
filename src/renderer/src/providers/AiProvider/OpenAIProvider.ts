@@ -24,6 +24,7 @@ import {
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
+  Metrics,
   Model,
   Provider,
   Suggestion,
@@ -309,7 +310,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
     const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
-    const isEnabledWebSearch = assistant.enableWebSearch || !!assistant.webSearchProviderId
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
     // 退回到 OpenAI 兼容模式
     if (isOpenAIWebSearch(model)) {
       const systemMessage = { role: 'system', content: assistant.prompt || '' }
@@ -332,7 +333,6 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       const lastUserMessage = _messages.findLast((m) => m.role === 'user')
       const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
       const { signal } = abortController
-      let time_first_token_millsec_delta = 0
       const start_time_millsec = new Date().getTime()
       const response = await this.sdk.chat.completions
         // @ts-ignore key is not typed
@@ -354,8 +354,17 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       const processStream = async (stream: any) => {
         let content = ''
         let isFirstChunk = true
-        let final_time_completion_millsec_delta = 0
-        let lastUsage: Usage | undefined = undefined
+        const finalUsage: Usage = {
+          completion_tokens: 0,
+          prompt_tokens: 0,
+          total_tokens: 0
+        }
+
+        const finalMetrics: Metrics = {
+          completion_tokens: 0,
+          time_completion_millsec: 0,
+          time_first_token_millsec: 0
+        }
         for await (const chunk of stream as any) {
           if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
             break
@@ -363,22 +372,26 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
           const delta = chunk.choices[0]?.delta
           const finishReason = chunk.choices[0]?.finish_reason
           if (delta?.content) {
-            if (delta?.annotations) {
+            if (isOpenAIWebSearch(model)) {
               delta.content = convertLinks(delta.content || '', isFirstChunk)
             }
             if (isFirstChunk) {
               isFirstChunk = false
-              time_first_token_millsec_delta = new Date().getTime() - start_time_millsec
+              finalMetrics.time_first_token_millsec = new Date().getTime() - start_time_millsec
             }
             content += delta.content
             onChunk({ type: ChunkType.TEXT_DELTA, text: delta.content })
           }
           if (!isEmpty(finishReason) || chunk?.annotations) {
             onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-            final_time_completion_millsec_delta = new Date().getTime() - start_time_millsec
+            finalMetrics.time_completion_millsec = new Date().getTime() - start_time_millsec
             if (chunk.usage) {
-              lastUsage = chunk.usage
+              const usage = chunk.usage as OpenAI.Completions.CompletionUsage
+              finalUsage.completion_tokens = usage.completion_tokens
+              finalUsage.prompt_tokens = usage.prompt_tokens
+              finalUsage.total_tokens = usage.total_tokens
             }
+            finalMetrics.completion_tokens = finalUsage.completion_tokens
           }
           if (delta?.annotations) {
             onChunk({
@@ -393,12 +406,8 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
         onChunk({
           type: ChunkType.BLOCK_COMPLETE,
           response: {
-            usage: lastUsage,
-            metrics: {
-              completion_tokens: lastUsage?.completion_tokens,
-              time_completion_millsec: final_time_completion_millsec_delta,
-              time_first_token_millsec: time_first_token_millsec_delta
-            }
+            usage: finalUsage,
+            metrics: finalMetrics
           }
         })
       }
@@ -409,7 +418,10 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       return
     }
     let tools: OpenAI.Responses.Tool[] = []
-    if (isEnabledWebSearch) {
+    const toolChoices: OpenAI.Responses.ToolChoiceTypes = {
+      type: 'web_search_preview'
+    }
+    if (isEnabledBuiltinWebSearch) {
       tools.push({
         type: 'web_search_preview'
       })
@@ -425,7 +437,6 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       type: 'input_text'
     }
     if (isSupportedReasoningEffortOpenAIModel(model)) {
-      systemMessageInput.text = `Formatting re-enabled${systemMessageInput.text ? '\n' + systemMessageInput.text : ''}`
       systemMessage.role = 'developer'
     }
 
@@ -452,9 +463,6 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       userMessage.push(await this.getReponseMessageParam(message, model))
     }
 
-    let time_first_token_millsec = 0
-    const start_time_millsec = new Date().getTime()
-
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
@@ -465,6 +473,18 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       reqMessages = [...userMessage]
     } else {
       reqMessages = [systemMessage, ...userMessage].filter(Boolean) as OpenAI.Responses.EasyInputMessage[]
+    }
+
+    const finalUsage: Usage = {
+      completion_tokens: 0,
+      prompt_tokens: 0,
+      total_tokens: 0
+    }
+
+    const finalMetrics: Metrics = {
+      completion_tokens: 0,
+      time_completion_millsec: 0,
+      time_first_token_millsec: 0
     }
 
     const toolResponses: MCPToolResponse[] = []
@@ -546,6 +566,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       idx: number
     ) => {
       const toolCalls: OpenAI.Responses.ResponseFunctionToolCall[] = []
+      let time_first_token_millsec = 0
 
       if (!streamOutput) {
         const nonStream = stream as OpenAI.Responses.Response
@@ -630,17 +651,15 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
 
       const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
 
-      let lastUsage: Usage | undefined = undefined
-      let final_time_completion_millsec_delta = 0
       for await (const chunk of stream as Stream<OpenAI.Responses.ResponseStreamEvent>) {
         if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
           break
         }
         switch (chunk.type) {
-          case 'response.created':
-            time_first_token_millsec = new Date().getTime()
-            break
           case 'response.output_item.added':
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
+            }
             if (chunk.item.type === 'function_call') {
               outputItems.push(chunk.item)
             }
@@ -660,17 +679,22 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
               thinking_millsec: new Date().getTime() - time_first_token_millsec
             })
             break
-          case 'response.output_text.delta':
+          case 'response.output_text.delta': {
+            let delta = chunk.delta
+            if (isEnabledBuiltinWebSearch) {
+              delta = convertLinks(delta)
+            }
             onChunk({
               type: ChunkType.TEXT_DELTA,
-              text: chunk.delta
+              text: delta
             })
-            content += chunk.delta
+            content += delta
             break
+          }
           case 'response.output_text.done':
             onChunk({
               type: ChunkType.TEXT_COMPLETE,
-              text: chunk.text
+              text: content
             })
             break
           case 'response.function_call_arguments.done': {
@@ -700,18 +724,18 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
             }
             break
           case 'response.completed': {
-            final_time_completion_millsec_delta = new Date().getTime() - start_time_millsec
             const completion_tokens =
               (chunk.response.usage?.output_tokens || 0) +
               (chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0)
             const total_tokens =
               (chunk.response.usage?.total_tokens || 0) +
               (chunk.response.usage?.output_tokens_details.reasoning_tokens ?? 0)
-            lastUsage = {
-              completion_tokens,
-              prompt_tokens: chunk.response.usage?.input_tokens || 0,
-              total_tokens
-            }
+            finalUsage.completion_tokens += completion_tokens
+            finalUsage.prompt_tokens += chunk.response.usage?.input_tokens || 0
+            finalUsage.total_tokens += total_tokens
+            finalMetrics.completion_tokens += completion_tokens
+            finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
+            finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
             break
           }
           case 'error':
@@ -753,17 +777,14 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       onChunk({
         type: ChunkType.BLOCK_COMPLETE,
         response: {
-          usage: lastUsage,
-          metrics: {
-            completion_tokens: lastUsage?.completion_tokens,
-            time_completion_millsec: final_time_completion_millsec_delta,
-            time_first_token_millsec: time_first_token_millsec - start_time_millsec
-          }
+          usage: finalUsage,
+          metrics: finalMetrics
         }
       })
     }
 
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const start_time_millsec = new Date().getTime()
     const stream = await this.sdk.responses.create(
       {
         model: model.id,
@@ -773,6 +794,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
         max_output_tokens: maxTokens,
         stream: streamOutput,
         tools: tools.length > 0 ? tools : undefined,
+        tool_choice: isEnabledBuiltinWebSearch ? toolChoices : undefined,
         service_tier: this.getServiceTier(model),
         ...this.getResponseReasoningEffort(assistant, model),
         ...this.getCustomParameters(assistant)
@@ -1004,6 +1026,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       const response = await this.sdk.responses.create({
         model: model.id,
         input: [{ role: 'user', content: 'hi' }],
+        max_output_tokens: 1,
         stream: true
       })
       let hasContent = false
@@ -1020,7 +1043,8 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
       const response = await this.sdk.responses.create({
         model: model.id,
         input: [{ role: 'user', content: 'hi' }],
-        stream: false
+        stream: false,
+        max_output_tokens: 1
       })
       if (!response.output_text) {
         throw new Error('Empty response')
@@ -1230,12 +1254,11 @@ export default class OpenAIProvider extends BaseOpenAiProvider {
     if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
       return mcpToolCallResponseToOpenAIMessage(mcpToolResponse, resp, isVisionModel(model))
     } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
-      const toolCallOut: OpenAI.Responses.ResponseInputItem = {
+      return {
         type: 'function_call_output',
         call_id: mcpToolResponse.toolCallId,
         output: JSON.stringify(resp.content)
       }
-      return toolCallOut
     }
     return
   }

@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
 import {
   SEARCH_SUMMARY_PROMPT,
@@ -125,6 +126,8 @@ async function fetchExternalTool(
       return
     }
 
+    if (extractResults.websearch.question[0] === 'not_needed') return
+
     // Add check for assistant.model before using it
     if (!assistant.model) {
       console.warn('searchTheWeb called without assistant.model')
@@ -198,7 +201,7 @@ async function fetchExternalTool(
     // 根据配置决定是否需要提取
     if (shouldWebSearch || hasKnowledgeBase) {
       extractResults = await extract()
-      console.log('Extraction results:', extractResults)
+      Logger.log('[fetchExternalTool] Extraction results:', extractResults)
     }
 
     let webSearchResponseFromSearch: WebSearchResponse | undefined
@@ -475,12 +478,13 @@ export async function checkApi(provider: Provider, model: Model) {
     }
   }
 
-  const AI = new AiProvider(provider)
+  const ai = new AiProvider(provider)
 
-  const { valid, error } = await AI.check(model)
-
-  return {
-    valid,
-    error
+  // Try streaming check first
+  const result = await ai.check(model, true)
+  if (result.valid && !result.error) {
+    return result
   }
+
+  return ai.check(model, false)
 }

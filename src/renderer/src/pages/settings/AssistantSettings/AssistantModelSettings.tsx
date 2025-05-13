@@ -381,7 +381,6 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.enable_tool_use')}</Label>
         <Switch
-          size="small"
           checked={enableToolUse}
           onChange={(checked) => {
             setEnableToolUse(checked)

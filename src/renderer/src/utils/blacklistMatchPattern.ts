@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProviderResponse } from '@renderer/types'
 
@@ -179,7 +180,7 @@ export async function parseSubscribeContent(url: string): Promise<string[]> {
   try {
     // 获取订阅源内容
     const response = await fetch(url)
-    console.log('response', response)
+    Logger.log('[parseSubscribeContent] response', response)
     if (!response.ok) {
       throw new Error('Failed to fetch subscribe content')
     }
@@ -190,12 +191,10 @@ export async function parseSubscribeContent(url: string): Promise<string[]> {
     const lines = content.split('\n')
 
     // 过滤出有效的匹配模式
-    const patterns = lines
+    return lines
       .filter((line) => line.trim() !== '' && !line.startsWith('#'))
       .map((line) => line.trim())
       .filter((pattern) => parseMatchPattern(pattern) !== null)
-
-    return patterns
   } catch (error) {
     console.error('Error parsing subscribe content:', error)
     throw error
@@ -205,7 +204,7 @@ export async function filterResultWithBlacklist(
   response: WebSearchProviderResponse,
   websearch: WebSearchState
 ): Promise<WebSearchProviderResponse> {
-  console.log('filterResultWithBlacklist', response)
+  Logger.log('[filterResultWithBlacklist]', response)
 
   // 没有结果或者没有黑名单规则时，直接返回原始结果
   if (
@@ -264,18 +263,14 @@ export async function filterResultWithBlacklist(
 
       // 检查URL是否匹配任何匹配模式规则
       const matchesPattern = patternMap.get(result.url).length > 0
-      if (matchesPattern) {
-        return false
-      }
-
-      return true
+      return !matchesPattern
     } catch (error) {
       console.error('Error processing URL:', result.url, error)
       return true // 如果URL解析失败，保留该结果
     }
   })
 
-  console.log('filterResultWithBlacklist filtered results:', filteredResults)
+  Logger.log('filterResultWithBlacklist filtered results:', filteredResults)
 
   return {
     ...response,

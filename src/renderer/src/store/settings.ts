@@ -31,6 +31,7 @@ export interface SettingsState {
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  showPrompt: boolean
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
@@ -129,7 +130,6 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
   }
-  zoomFactor: number
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -143,6 +143,7 @@ export const initialState: SettingsState = {
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  showPrompt: true,
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
@@ -234,8 +235,7 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
-  },
-  zoomFactor: 1
+  }
 }
 
 const settingsSlice = createSlice({
@@ -271,6 +271,9 @@ const settingsSlice = createSlice({
     },
     setUserName: (state, action: PayloadAction<string>) => {
       state.userName = action.payload
+    },
+    setShowPrompt: (state, action: PayloadAction<boolean>) => {
+      state.showPrompt = action.payload
     },
     setShowMessageDivider: (state, action: PayloadAction<boolean>) => {
       state.showMessageDivider = action.payload
@@ -510,9 +513,6 @@ const settingsSlice = createSlice({
     },
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
-    },
-    setZoomFactor: (state, action: PayloadAction<number>) => {
-      state.zoomFactor = action.payload
     }
   }
 })
@@ -528,6 +528,7 @@ export const {
   setProxyMode,
   setProxyUrl,
   setUserName,
+  setShowPrompt,
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
@@ -605,8 +606,7 @@ export const {
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
-  setEnableBackspaceDeleteModel,
-  setZoomFactor
+  setEnableBackspaceDeleteModel
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

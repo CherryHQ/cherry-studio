@@ -21,13 +21,13 @@ export interface KnowledgeExtractResults {
  * @throws
  */
 export const extractInfoFromXML = (text: string): ExtractResults => {
-  // console.log('extract text', text)
+  // Logger.log('extract text', text)
   const parser = new XMLParser({
     isArray: (name) => {
       return name === 'question' || name === 'links'
     }
   })
   const extractResults: ExtractResults = parser.parse(text)
-  // console.log('Extracted results:', extractResults)
+  // Logger.log('Extracted results:', extractResults)
   return extractResults
 }

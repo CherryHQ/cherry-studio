@@ -5,7 +5,7 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant } from '@renderer/types'
+import { Assistant, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
@@ -71,6 +71,18 @@ function addFlowEngineProvider(state: RootState, id: string) {
       const _provider = INITIAL_FLOW_ENGINE_PROVIDERS.find((p) => p.id === id)
       if (_provider) {
         state.flow.providers.push(_provider)
+      }
+    }
+  }
+}
+
+function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchProvider>) {
+  if (state.websearch && state.websearch.providers) {
+    const index = state.websearch.providers.findIndex((p) => p.id === provider.id)
+    if (index !== -1) {
+      state.websearch.providers[index] = {
+        ...state.websearch.providers[index],
+        ...provider
       }
     }
   }
@@ -1261,6 +1273,38 @@ const migrateConfig = {
           provider.type = 'openai-compatible'
         }
       })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '99': (state: RootState) => {
+    try {
+      state.settings.showPrompt = true
+
+      addWebSearchProvider(state, 'bocha')
+
+      updateWebSearchProvider(state, {
+        id: 'exa',
+        apiHost: 'https://api.exa.ai'
+      })
+
+      updateWebSearchProvider(state, {
+        id: 'tavily',
+        apiHost: 'https://api.tavily.com'
+      })
+
+      // Remove basic auth fields from exa and tavily
+      if (state.websearch?.providers) {
+        state.websearch.providers = state.websearch.providers.map((provider) => {
+          if (provider.id === 'exa' || provider.id === 'tavily') {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { basicAuthUsername, basicAuthPassword, ...rest } = provider
+            return rest
+          }
+          return provider
+        })
+      }
       return state
     } catch (error) {
       return state

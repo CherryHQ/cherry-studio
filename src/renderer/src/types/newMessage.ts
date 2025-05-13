@@ -13,7 +13,8 @@ import type {
   Model,
   Topic,
   Usage,
-  WebSearchResponse
+  WebSearchResponse,
+  WebSearchSource
 } from '.'
 import { ChunkType } from './chunk'
 
@@ -67,6 +68,7 @@ export interface MainTextMessageBlock extends BaseMessageBlock {
   // Citation references
   citationReferences?: {
     citationBlockId?: string
+    citationBlockSource?: WebSearchSource
   }[]
 }
 
@@ -174,7 +176,7 @@ export type Message = {
   assistantId: string
   topicId: string
   createdAt: string
-  //   updatedAt?: string
+  updatedAt?: string
   status: UserMessageStatus | AssistantMessageStatus
 
   // 消息元数据

@@ -38,6 +38,7 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
+  setShowPrompt,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
@@ -76,6 +77,7 @@ const SettingsTab: FC<Props> = (props) => {
   const dispatch = useAppDispatch()
 
   const {
+    showPrompt,
     showMessageDivider,
     messageFont,
     showInputEstimatedTokens,
@@ -281,6 +283,11 @@ const SettingsTab: FC<Props> = (props) => {
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
+          <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.divider')}</SettingRowTitleSmall>

@@ -1,4 +1,5 @@
 import { SearxngClient } from '@agentic/searxng'
+import Logger from '@renderer/config/logger'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
@@ -10,7 +11,6 @@ import BaseWebSearchProvider from './BaseWebSearchProvider'
 export default class SearxngProvider extends BaseWebSearchProvider {
   private searxng: SearxngClient
   private engines: string[] = []
-  private readonly apiHost: string
   private readonly basicAuthUsername?: string
   private readonly basicAuthPassword?: string
   private isInitialized = false
@@ -45,7 +45,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
   }
   private async initEngines(): Promise<void> {
     try {
-      console.log(`Initializing SearxNG with API host: ${this.apiHost}`)
+      Logger.log(`Initializing SearxNG with API host: ${this.apiHost}`)
       const auth = this.basicAuthUsername
         ? {
             username: this.basicAuthUsername,
@@ -67,7 +67,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       }
 
       const allEngines = response.data.engines
-      console.log(`Found ${allEngines.length} total engines in SearxNG`)
+      Logger.log(`Found ${allEngines.length} total engines in SearxNG`)
 
       this.engines = allEngines
         .filter(
@@ -84,11 +84,11 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       }
 
       this.isInitialized = true
-      console.log(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
+      Logger.log(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
     } catch (err) {
       this.isInitialized = false
 
-      console.error('Failed to fetch SearxNG engine configuration:', err)
+      Logger.error('Failed to fetch SearxNG engine configuration:', err)
       throw new Error(`Failed to initialize SearxNG: ${err}`)
     }
   }
@@ -117,11 +117,11 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       const validItems = result.results
         .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
         .slice(0, websearch.maxResults)
-      // console.log('Valid search items:', validItems)
+      // Logger.log('Valid search items:', validItems)
 
       // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
-        // console.log(`Fetching content for ${item.url}...`)
+        // Logger.log(`Fetching content for ${item.url}...`)
         const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
         if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
           result.content = result.content.slice(0, websearch.contentLimit) + '...'
@@ -137,7 +137,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
-      console.error('Searxng search failed:', error)
+      Logger.error('Searxng search failed:', error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

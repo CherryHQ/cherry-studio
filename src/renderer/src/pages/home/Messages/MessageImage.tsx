@@ -13,6 +13,7 @@ import { Image as AntdImage, Space } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
 interface Props {
   block: ImageMessageBlock
 }
@@ -87,40 +88,42 @@ const MessageImage: FC<Props> = ({ block }) => {
     }
   }
 
+  const renderToolbar =
+    (currentImage: string, currentIndex: number) =>
+    (
+      _: any,
+      {
+        transform: { scale },
+        actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
+      }: any
+    ) => (
+      <ToobarWrapper size={12} className="toolbar-wrapper">
+        <SwapOutlined rotate={90} onClick={onFlipY} />
+        <SwapOutlined onClick={onFlipX} />
+        <RotateLeftOutlined onClick={onRotateLeft} />
+        <RotateRightOutlined onClick={onRotateRight} />
+        <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+        <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+        <UndoOutlined onClick={onReset} />
+        <CopyOutlined onClick={() => onCopy(block.metadata?.generateImageResponse?.type!, currentImage)} />
+        <DownloadOutlined onClick={() => onDownload(currentImage, currentIndex)} />
+      </ToobarWrapper>
+    )
+
   const images = block.metadata?.generateImageResponse?.images?.length
     ? block.metadata?.generateImageResponse?.images
-    : // TODO 加file是否合适？
-      block?.file?.path
+    : block?.file?.path
       ? [`file://${block?.file?.path}`]
       : []
+
   return (
     <Container style={{ marginBottom: 8 }}>
       {images.map((image, index) => (
         <Image
           src={image}
           key={`image-${index}`}
-          height={300}
-          preview={{
-            toolbarRender: (
-              _,
-              {
-                transform: { scale },
-                actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
-              }
-            ) => (
-              <ToobarWrapper size={12} className="toolbar-wrapper">
-                <SwapOutlined rotate={90} onClick={onFlipY} />
-                <SwapOutlined onClick={onFlipX} />
-                <RotateLeftOutlined onClick={onRotateLeft} />
-                <RotateRightOutlined onClick={onRotateRight} />
-                <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-                <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-                <UndoOutlined onClick={onReset} />
-                <CopyOutlined onClick={() => onCopy(block.metadata?.generateImageResponse?.type!, image)} />
-                <DownloadOutlined onClick={() => onDownload(image, index)} />
-              </ToobarWrapper>
-            )
-          }}
+          style={{ maxWidth: 500, maxHeight: 500 }}
+          preview={{ toolbarRender: renderToolbar(image, index) }}
         />
       ))}
     </Container>

@@ -1,5 +1,6 @@
 import { AxiosRequestConfig } from 'axios'
 import { app, safeStorage } from 'electron'
+import Logger from 'electron-log'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -227,10 +228,10 @@ class CopilotService {
       try {
         await fs.access(this.tokenFilePath)
         await fs.unlink(this.tokenFilePath)
-        console.log('Successfully logged out from Copilot')
+        Logger.log('Successfully logged out from Copilot')
       } catch (error) {
         // 文件不存在不是错误，只是记录一下
-        console.log('Token file not found, nothing to delete')
+        Logger.log('Token file not found, nothing to delete')
       }
     } catch (error) {
       console.error('Failed to logout:', error)
