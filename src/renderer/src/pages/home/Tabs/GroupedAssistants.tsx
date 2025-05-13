@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './AssistantItem'
+import AssitantModeSwitch from './AssitantModeSwitch'
 
 interface GroupedAssistantsProps {
   assistants: Assistant[]
@@ -29,6 +30,7 @@ interface GroupedAssistantsProps {
   setActiveAssistant: (assistant: Assistant) => void
   addAgent: (assistant: Assistant) => void
   addAssistant: (assistant: Assistant) => void
+  setGroupMode: (type: 'groups' | 'assitants') => void
   onCreateDefaultAssistant: () => void
 }
 
@@ -38,6 +40,7 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
   onDelete,
   setActiveAssistant,
   addAgent,
+  setGroupMode,
   addAssistant,
   onCreateDefaultAssistant
 }) => {
@@ -126,6 +129,44 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
 
   return (
     <>
+      {/* 添加分组和展开/收起操作 */}
+      <BottonGroup>
+        <AssitantModeSwitch groupMode={'groups'} setGroupMode={setGroupMode}></AssitantModeSwitch>
+        <BottonGroupItem
+          onClick={async () => {
+            const group = await AddGroupPopup.show({
+              mode: 'add'
+            })
+            if (group) {
+              const newGroup = getNewGroupsfromUpdateGroup(group, [group, ...groups])
+              updateGroups(newGroup)
+              toggleExpanded(group.id)
+            }
+          }}>
+          <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+          {t('assistants.group.add')}
+        </BottonGroupItem>
+        {groups.length > 0 && (
+          <>
+            <BottonGroupItem
+              onClick={() => {
+                toggleAllExpanded(expandedGroups.size === groups.length)
+              }}>
+              {expandedGroups.size === groups.length ? (
+                <>
+                  <VerticalAlignMiddleOutlined style={{ color: 'var(--color-text-2)' }} />
+                  <span>{t('assistants.group.collapseAll')}</span>
+                </>
+              ) : (
+                <>
+                  <ColumnHeightOutlined style={{ color: 'var(--color-text-2)' }} />
+                  <span>{t('assistants.group.expandAll')}</span>
+                </>
+              )}
+            </BottonGroupItem>
+          </>
+        )}
+      </BottonGroup>
       <DragableList list={groups} onUpdate={() => {}} onDragEnd={handleDragEnd} style={{ paddingBottom: 0 }}>
         {(group) => (
           <Droppable droppableId={group.id} type="ASSISTANT">
@@ -210,44 +251,6 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
           </Droppable>
         )}
       </DragableList>
-      {/* 添加分组和展开/收起操作 */}
-      <GroupBottom>
-        <GroupBottomItem
-          onClick={async () => {
-            const group = await AddGroupPopup.show({
-              mode: 'add'
-            })
-            if (group) {
-              const newGroup = getNewGroupsfromUpdateGroup(group, [group, ...groups])
-              updateGroups(newGroup)
-              toggleExpanded(group.id)
-            }
-          }}>
-          <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-          {t('assistants.group.add')}
-        </GroupBottomItem>
-        {groups.length > 0 && (
-          <>
-            <GroupBottomItem
-              onClick={() => {
-                toggleAllExpanded(expandedGroups.size === groups.length)
-              }}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, marginRight: 8 }}>
-              {expandedGroups.size === groups.length ? (
-                <>
-                  <VerticalAlignMiddleOutlined style={{ color: 'var(--color-text-2)' }} />
-                  <span>{t('assistants.group.collapseAll')}</span>
-                </>
-              ) : (
-                <>
-                  <ColumnHeightOutlined style={{ color: 'var(--color-text-2)' }} />
-                  <span>{t('assistants.group.expandAll')}</span>
-                </>
-              )}
-            </GroupBottomItem>
-          </>
-        )}
-      </GroupBottom>
     </>
   )
 }
@@ -291,14 +294,13 @@ const GroupActions = styled.div`
   gap: 8px;
 `
 
-const GroupBottom = styled.div`
+const BottonGroup = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  padding: 7px 12px;
+  padding: 4px 4px;
   position: sticky;
   bottom: -10px;
-  padding-right: 35px;
   background-color: var(--color-background);
   font-family: Ubuntu;
   border: 0.5px solid transparent;
@@ -312,10 +314,12 @@ const EmptyPlaceholder = styled.div`
   text-align: center;
 `
 
-const GroupBottomItem = styled.div`
+const BottonGroupItem = styled.div`
   color: var(--color-text);
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
+  margin-bottom: 10px;
+  display: flex;
+  border: 0.5px solid var(--color-border);
+  align-items: center;
   border-radius: 4px;
   -webkit-box-orient: vertical;
   overflow: hidden;

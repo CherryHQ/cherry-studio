@@ -107,13 +107,16 @@ const PopupContainer: React.FC<Props> = ({ resolve, mode = 'add', group }) => {
           value={groupName}
           onChange={(e) => setGroupName(e.target.value)}
           onPressEnter={onModifyGroup}
-          allowClear
           autoFocus
         />
         <Select
           mode="multiple"
           maxTagTextLength={5}
           maxCount={5}
+          onClear={() => {
+            setSelectedIds([])
+          }}
+          allowClear
           style={{ width: '100%' }}
           placeholder={t('assistants.group.selectMembers')}
           value={selectedIds}

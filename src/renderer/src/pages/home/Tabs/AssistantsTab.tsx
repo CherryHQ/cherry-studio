@@ -1,18 +1,16 @@
-import { AlignLeftOutlined, MenuOutlined, PlusOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setAssistantTabDefaultMode } from '@renderer/store/settings'
 import { Assistant } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './AssistantItem'
+import AssitantModeSwitch from './AssitantModeSwitch'
 import GroupedAssistants from './GroupedAssistants'
 
 interface AssistantsTabProps {
@@ -28,7 +26,6 @@ const Assistants: FC<AssistantsTabProps> = ({
   onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
-  const dispatch = useAppDispatch()
   const { assistantTabDefaultMode } = useSettings()
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
@@ -51,34 +48,12 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <ModeSwitch>
-        <Tooltip title={t('assistants.title')}>
-          <IconButton
-            active={groupMode === 'assitants'}
-            onClick={() => {
-              dispatch(setAssistantTabDefaultMode('assitants'))
-              setGroupMode('assitants')
-            }}>
-            <MenuOutlined style={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title={t(t('assistants.group.title'))}>
-          <IconButton
-            active={groupMode === 'groups'}
-            onClick={() => {
-              dispatch(setAssistantTabDefaultMode('groups'))
-              setGroupMode('groups')
-            }}>
-            <AlignLeftOutlined style={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
-      </ModeSwitch>
-
       {groupMode === 'groups' ? (
         <GroupedAssistants
           assistants={assistants}
           activeAssistant={activeAssistant}
           onDelete={onDelete}
+          setGroupMode={setGroupMode}
           setActiveAssistant={setActiveAssistant}
           addAgent={addAgent}
           addAssistant={addAssistant}
@@ -86,6 +61,7 @@ const Assistants: FC<AssistantsTabProps> = ({
         />
       ) : (
         <>
+          <AssitantModeSwitch groupMode={groupMode} setGroupMode={setGroupMode} />
           <DragableList
             list={assistants}
             onUpdate={updateAssistants}
@@ -126,27 +102,6 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
-`
-
-const ModeSwitch = styled.div`
-  margin-bottom: 10px;
-  display: flex;
-  justify-content: flex-start;
-`
-
-const IconButton = styled.div<{ active: boolean }>`
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  padding: 4px;
-  color: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-text-2)')};
-  background: ${(props) => (props.active ? 'unset' : 'var(--color-background-soft)')};
-  &:first-child {
-    border-radius: 4px 0 0 4px;
-    border-right: none;
-  }
-  &:last-child {
-    border-radius: 0 4px 4px 0;
-  }
 `
 
 const AssistantAddItem = styled.div`
