@@ -232,8 +232,9 @@ class BackupManager {
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
 
       const zip = new StreamZip.async({ file: backupPath })
-      onProgress({ stage: 'reading_data', progress: 25, total: 100 })
+      onProgress({ stage: 'extracting', progress: 15, total: 100 })
       await zip.extract(null, this.tempDir)
+      onProgress({ stage: 'extracted', progress: 25, total: 100 })
 
       Logger.log('[backup] step 2: read data.json')
       // 读取 data.json
