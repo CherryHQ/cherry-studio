@@ -2,6 +2,8 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Agent } from '@renderer/types'
 import { useEffect, useState } from 'react'
+import store from '@renderer/store'
+
 let _agents: Agent[] = []
 
 export const getAgentsFromSystemAgents = (systemAgents: any) => {
@@ -16,6 +18,47 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 }
 
 export function useSystemAgents() {
+  const { agentssubscribeUrl } = store.getState().settings
+  if (agentssubscribeUrl === null || agentssubscribeUrl === undefined) {
+    console.error('agentssubscribeUrl is null or undefined');
+    return useLocalSystemAgents();
+  }
+  if (!agentssubscribeUrl.startsWith('http')) {
+    return useLocalSystemAgents();
+  } else {
+    return useRemoteSystemAgents();
+  }
+}
+const useRemoteSystemAgents = () => {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const { agentssubscribeUrl } = store.getState().settings
+  const resourcesPath = `${agentssubscribeUrl}`;
+  if (agentssubscribeUrl === null || agentssubscribeUrl === undefined) {
+    console.error('defaultaides is null or undefined');
+    return agents;
+  }
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const response = await fetch(resourcesPath);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        const agentsData = await response.json() as Agent[];
+        setAgents(agentsData);
+      } catch (error) {
+        console.error("Failed to load agents:", error);
+      }
+    };
+
+    loadAgents();
+  }, [resourcesPath]);
+
+  return agents;
+};
+
+const useLocalSystemAgents = () => {
   const { defaultAgent } = useSettings()
   const [agents, setAgents] = useState<Agent[]>([])
   const { resourcesPath } = useRuntime()
@@ -42,7 +85,7 @@ export function useSystemAgents() {
   }, [defaultAgent, resourcesPath])
 
   return agents
-}
+};
 
 export function groupByCategories(data: Agent[]) {
   const groupedMap = new Map<string, Agent[]>()

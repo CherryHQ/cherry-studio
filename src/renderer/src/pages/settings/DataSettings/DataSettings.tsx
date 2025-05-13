@@ -32,6 +32,7 @@ import ObsidianSettings from './ObsidianSettings'
 import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
+import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -62,7 +63,14 @@ const DataSettings: FC = () => {
         p-id="2965"></path>
     </svg>
   )
-
+  const AidesIcon = () => (
+    <svg viewBox="0 0 100 100" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="1234" width="16" height="16">
+      <path
+        d="M50 10 L61.2 37.3 L87.9 38.2 L66 57.3 L71.2 84.7 L50 66.1 L28.8 84.7 L34 57.3 L12.1 38.2 L38.8 37.3 Z"
+        fill="#FFD700"
+        p-id="1235"></path>
+    </svg>
+  );
   const menuItems = [
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: 'settings.data.data.title', icon: <FolderCog size={16} /> },
@@ -80,6 +88,7 @@ const DataSettings: FC = () => {
       title: 'settings.data.markdown_export.title',
       icon: <FileText size={16} />
     },
+
     { key: 'divider_3', isDivider: true, text: t('settings.data.divider.third_party') },
     { key: 'notion', title: 'settings.data.notion.title', icon: <i className="iconfont icon-notion" /> },
     {
@@ -101,7 +110,12 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: 'settings.data.siyuan.title',
       icon: <SiyuanIcon />
-    }
+    },
+    {
+      key: 'agentssubscribe_url',
+      title: 'agents.tag.agent',
+      icon: <AidesIcon />
+    },
   ]
 
   useEffect(() => {
@@ -247,6 +261,7 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
+        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
       </SettingContainer>
     </Container>
   )
