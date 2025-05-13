@@ -191,17 +191,18 @@ const MessageItem: FC<Props> = ({
       <MessageContentContainer
         className="message-content-container"
         style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
-        {isEditing && (
+        {isEditing ? (
           <MessageEditor
             message={message}
             onSave={handleEditSave}
             onResend={handleEditResend}
             onCancel={handleEditCancel}
           />
+        ) : (
+          <MessageErrorBoundary>
+            <MessageContent message={message} />
+          </MessageErrorBoundary>
         )}
-        <MessageErrorBoundary>
-          <MessageContent message={message} />
-        </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter
             style={{
