@@ -653,3 +653,5 @@ export interface StoreSyncAction {
     source?: string
   }
 }
+
+export type { Message } from './newMessage'
