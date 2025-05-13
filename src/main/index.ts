@@ -75,7 +75,6 @@ if (!app.requestSingleInstanceLock()) {
     })
 
     ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
-      //
       const win = BrowserWindow.fromWebContents(e.sender)
       win && win.webContents.toggleDevTools()
     })
