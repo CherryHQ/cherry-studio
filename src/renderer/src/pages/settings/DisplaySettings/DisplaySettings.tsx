@@ -40,7 +40,7 @@ const DisplaySettings: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
-  const [allowEscToExitFullscreen, setAllowEscToExitFullscreen] = useState<boolean | undefined>(undefined)
+  const [setAllowEscToExitFullscreen] = useState<boolean | undefined>(undefined)
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
@@ -51,12 +51,6 @@ const DisplaySettings: FC = () => {
     },
     [setWindowStyle]
   )
-
-  const handleEscToExitFullscreenChange = useCallback((checked: boolean) => {
-    setAllowEscToExitFullscreen(checked)
-    window.api?.setAllowEscToExitFullscreen?.(checked)
-    console.log('allowEscToExitFullscreen', checked)
-  }, [])
 
   const handleReset = useCallback(() => {
     setVisibleIcons([...DEFAULT_SIDEBAR_ICONS])
@@ -172,10 +166,6 @@ const DisplaySettings: FC = () => {
           </>
         )}
         <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.display.allowEscToExitFullscreen')}</SettingRowTitle>
-          <Switch checked={allowEscToExitFullscreen} onChange={handleEscToExitFullscreenChange} />
-        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
