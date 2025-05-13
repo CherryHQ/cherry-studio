@@ -249,6 +249,7 @@
       "topics.clear.title": "メッセージをクリア",
       "topics.copy.image": "画像としてコピー",
       "topics.copy.md": "Markdownとしてコピー",
+      "topics.copy.plain_text": "プレーンテキストとしてコピー（Markdownを除去）",
       "topics.copy.title": "コピー",
       "topics.delete.shortcut": "{{key}}キーを押しながらで直接削除",
       "topics.edit.placeholder": "新しい名前を入力",
