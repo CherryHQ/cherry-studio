@@ -23,7 +23,7 @@ import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -48,7 +48,12 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const [listModels, setListModels] = useState<Model[]>([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
+  const [actualFilterType, setActualFilterType] = useState<string>('all')
+  const [optimisticFilterType, setOptimisticFilterTypeFn] = useOptimistic(
+    actualFilterType,
+    (_currentFilterType, newFilterType: string) => newFilterType
+  )
+  const [isPending, startTransition] = useTransition()
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
@@ -64,7 +69,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       return false
     }
 
-    switch (filterType) {
+    switch (actualFilterType) {
       case 'reasoning':
         return isReasoningModel(model)
       case 'vision':
@@ -252,6 +257,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         <Tabs
           size={i18n.language.startsWith('zh') ? 'middle' : 'small'}
           defaultActiveKey="all"
+          activeKey={optimisticFilterType}
           items={[
             { label: t('models.all'), key: 'all' },
             { label: t('models.type.reasoning'), key: 'reasoning' },
@@ -262,11 +268,18 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             { label: t('models.type.rerank'), key: 'rerank' },
             { label: t('models.type.function_calling'), key: 'function_calling' }
           ]}
-          onChange={(key) => setFilterType(key)}
+          onChange={(key) => {
+            // Optimistically update the tab UI
+            setOptimisticFilterTypeFn(key)
+            // Start a transition for the actual state update and heavy filtering
+            startTransition(() => {
+              setActualFilterType(key)
+            })
+          }}
         />
       </SearchContainer>
       <ListContainer>
-        {loading ? (
+        {loading || isPending ? (
           <Flex justify="center" align="center" style={{ height: '70%' }}>
             <Spin size="large" />
           </Flex>
@@ -301,7 +314,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             )
           })
         )}
-        {isEmpty(list) && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />}
+        {!(loading || isPending) && isEmpty(list) && (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />
+        )}
       </ListContainer>
     </Modal>
   )
