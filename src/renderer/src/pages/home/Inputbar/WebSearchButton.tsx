@@ -50,18 +50,20 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
 
-    const items: QuickPanelListItem[] = providers.map((p) => ({
-      label: p.name,
-      description: WebSearchService.isWebSearchEnabled(p.id)
-        ? hasObjectKey(p, 'apiKey')
-          ? t('settings.websearch.apikey')
-          : t('settings.websearch.free')
-        : t('chat.input.web_search.enable_content'),
-      icon: <Globe />,
-      isSelected: p.id === assistant?.webSearchProviderId,
-      disabled: !WebSearchService.isWebSearchEnabled(p.id),
-      action: () => updateSelectedWebSearchProvider(p.id)
-    }))
+    const items: QuickPanelListItem[] = providers
+      .map((p) => ({
+        label: p.name,
+        description: WebSearchService.isWebSearchEnabled(p.id)
+          ? hasObjectKey(p, 'apiKey')
+            ? t('settings.websearch.apikey')
+            : t('settings.websearch.free')
+          : t('chat.input.web_search.enable_content'),
+        icon: <Globe />,
+        isSelected: p.id === assistant?.webSearchProviderId,
+        disabled: !WebSearchService.isWebSearchEnabled(p.id),
+        action: () => updateSelectedWebSearchProvider(p.id)
+      }))
+      .filter((o) => !o.disabled)
 
     if (isWebSearchModelEnabled) {
       items.unshift({
