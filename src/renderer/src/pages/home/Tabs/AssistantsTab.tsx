@@ -55,6 +55,7 @@ const Assistants: FC<AssistantsTabProps> = ({
           onDelete={onDelete}
           setGroupMode={setGroupMode}
           setActiveAssistant={setActiveAssistant}
+          onCreateAssistant={onCreateAssistant}
           addAgent={addAgent}
           addAssistant={addAssistant}
           onCreateDefaultAssistant={onCreateDefaultAssistant}

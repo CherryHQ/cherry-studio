@@ -3,7 +3,8 @@ import {
   DeleteOutlined,
   EditOutlined,
   LeftCircleOutlined,
-  PlusOutlined,
+  UserAddOutlined,
+  UsergroupAddOutlined,
   VerticalAlignMiddleOutlined
 } from '@ant-design/icons'
 import { Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
@@ -13,7 +14,7 @@ import { useGroups } from '@renderer/hooks/useGroups'
 import { useAppDispatch } from '@renderer/store'
 import { setExpandGroupIds } from '@renderer/store/groups'
 import { Assistant } from '@renderer/types'
-import { Popconfirm } from 'antd'
+import { Popconfirm, Tooltip } from 'antd'
 import VirtualList from 'rc-virtual-list'
 import { useCallback, useEffect, useState } from 'react'
 import { FC } from 'react'
@@ -30,6 +31,7 @@ interface GroupedAssistantsProps {
   setActiveAssistant: (assistant: Assistant) => void
   addAgent: (assistant: Assistant) => void
   addAssistant: (assistant: Assistant) => void
+  onCreateAssistant: () => void
   setGroupMode: (type: 'groups' | 'assitants') => void
   onCreateDefaultAssistant: () => void
 }
@@ -42,6 +44,7 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
   addAgent,
   setGroupMode,
   addAssistant,
+  onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
   const { t } = useTranslation()
@@ -143,8 +146,14 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
               toggleExpanded(group.id)
             }
           }}>
-          <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-          {t('assistants.group.add')}
+          <Tooltip title={t('assistants.group.add')}>
+            <UsergroupAddOutlined />
+          </Tooltip>
+        </BottonGroupItem>
+        <BottonGroupItem onClick={onCreateAssistant}>
+          <Tooltip title={t('chat.add.assistant.title')}>
+            <UserAddOutlined></UserAddOutlined>
+          </Tooltip>
         </BottonGroupItem>
         {groups.length > 0 && (
           <>
@@ -153,15 +162,13 @@ const GroupedAssistants: FC<GroupedAssistantsProps> = ({
                 toggleAllExpanded(expandedGroups.size === groups.length)
               }}>
               {expandedGroups.size === groups.length ? (
-                <>
-                  <VerticalAlignMiddleOutlined style={{ color: 'var(--color-text-2)' }} />
-                  <span>{t('assistants.group.collapseAll')}</span>
-                </>
+                <Tooltip title={t('assistants.group.collapseAll')}>
+                  <VerticalAlignMiddleOutlined />
+                </Tooltip>
               ) : (
-                <>
-                  <ColumnHeightOutlined style={{ color: 'var(--color-text-2)' }} />
-                  <span>{t('assistants.group.expandAll')}</span>
-                </>
+                <Tooltip title={t('assistants.group.expandAll')}>
+                  <ColumnHeightOutlined />
+                </Tooltip>
               )}
             </BottonGroupItem>
           </>
@@ -297,9 +304,9 @@ const GroupActions = styled.div`
 const BottonGroup = styled.div`
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
-  padding: 4px 4px;
-  position: sticky;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0;
   bottom: -10px;
   background-color: var(--color-background);
   font-family: Ubuntu;
