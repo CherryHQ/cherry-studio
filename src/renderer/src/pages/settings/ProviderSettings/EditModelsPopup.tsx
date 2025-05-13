@@ -250,7 +250,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             ref={searchInputRef}
             placeholder={t('settings.provider.search_placeholder')}
             allowClear
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => startTransition(() => setSearchText(e.target.value))}
           />
           {renderTopTools()}
         </TopToolsWrapper>
