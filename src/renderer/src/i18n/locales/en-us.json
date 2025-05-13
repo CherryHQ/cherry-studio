@@ -768,6 +768,7 @@
       "model": "Model Version",
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
+      "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
@@ -775,6 +776,7 @@
       "image_file_retry": "Please re-upload an image first",
       "image_placeholder": "No image available",
       "image_retry": "Retry",
+      "translating": "Translating...",
       "mode": {
         "generate": "Draw",
         "edit": "Edit",
@@ -782,20 +784,22 @@
         "upscale": "Upscale"
       },
       "generate": {
-        "model_tip": "Model version: V2 is the latest model of the interface, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+        "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
         "number_images_tip": "Number of images to generate",
         "seed_tip": "Controls image generation randomness for reproducible results",
         "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
         "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
-        "style_type_tip": "Image generation style for V_2 and above"
+        "style_type_tip": "Image generation style for V_2 and above",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "edit": {
         "image_file": "Edited Image",
-        "model_tip": "Only supports V_2 and V_2_TURBO versions",
+        "model_tip": "V3 and V2 versions supported",
         "number_images_tip": "Number of edited results to generate",
         "style_type_tip": "Style for edited image, only for V_2 and above",
         "seed_tip": "Controls editing randomness",
-        "magic_prompt_option_tip": "Intelligently enhances editing prompts"
+        "magic_prompt_option_tip": "Intelligently enhances editing prompts",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "remix": {
         "model_tip": "Select AI model version for remixing",
@@ -806,7 +810,8 @@
         "seed_tip": "Control the randomness of the mixed result",
         "style_type_tip": "Style for remixed image, only for V_2 and above",
         "negative_prompt_tip": "Describe unwanted elements in remix results",
-        "magic_prompt_option_tip": "Intelligently enhances remix prompts"
+        "magic_prompt_option_tip": "Intelligently enhances remix prompts",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "upscale": {
         "image_file": "Image to upscale",

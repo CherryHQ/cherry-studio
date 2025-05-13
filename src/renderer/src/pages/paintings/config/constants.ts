@@ -9,7 +9,7 @@ import type { PaintingAction } from '@renderer/types'
 // 几种默认的绘画配置
 export const DEFAULT_PAINTING: PaintingAction = {
   id: 'aihubmix_1',
-  model: 'V_2',
+  model: 'V_3',
   aspectRatio: 'ASPECT_1_1',
   numImages: 1,
   styleType: 'AUTO',
@@ -23,7 +23,8 @@ export const DEFAULT_PAINTING: PaintingAction = {
   imageFile: undefined,
   mask: undefined,
   files: [],
-  urls: []
+  urls: [],
+  renderingSpeed: 'DEFAULT'
 }
 
 export const ASPECT_RATIOS = [
@@ -74,7 +75,7 @@ export const ASPECT_RATIOS = [
   },
   {
     label: '16:10',
-    value: 'SPECT_16_10',
+    value: 'ASPECT_16_10',
     icon: ImageSize16_9
   },
   {
@@ -103,10 +104,31 @@ export const STYLE_TYPES = [
   },
   {
     label: '3D',
-    value: 'RENDER_3D'
+    value: 'RENDER_3D',
+    onlyV2: true // 仅V2模型支持
   },
   {
     label: '动漫',
-    value: 'ANIME'
+    value: 'ANIME',
+    onlyV2: true // 仅V2模型支持
+  }
+]
+
+// V3模型支持的样式类型
+export const V3_STYLE_TYPES = STYLE_TYPES.filter((style) => !style.onlyV2)
+
+// 新增V3渲染速度选项
+export const RENDERING_SPEED_OPTIONS = [
+  {
+    label: '默认',
+    value: 'DEFAULT'
+  },
+  {
+    label: '快速',
+    value: 'TURBO'
+  },
+  {
+    label: '高质量',
+    value: 'QUALITY'
   }
 ]
