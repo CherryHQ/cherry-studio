@@ -2,6 +2,7 @@ import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } fro
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
@@ -38,7 +39,6 @@ interface Props {
   topic: Topic
   model?: Model
   index?: number
-  onEditStart?: () => void
   isGrouped?: boolean
   isLastMessage: boolean
   isAssistantMessage: boolean
@@ -47,18 +47,8 @@ interface Props {
 }
 
 const MessageMenubar: FC<Props> = (props) => {
-  const {
-    message,
-    index,
-    onEditStart,
-    isGrouped,
-    isLastMessage,
-    isAssistantMessage,
-    assistant,
-    topic,
-    model,
-    messageContainerRef
-  } = props
+  const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
+    props
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
@@ -122,9 +112,11 @@ const MessageMenubar: FC<Props> = (props) => {
     [assistant, loading, message, resendMessage]
   )
 
+  const { startEditing } = useMessageEditing()
+
   const onEdit = useCallback(async () => {
-    onEditStart!()
-  }, [onEditStart])
+    startEditing(message.id)
+  }, [message.id, startEditing])
 
   const handleTranslate = useCallback(
     async (language: string) => {

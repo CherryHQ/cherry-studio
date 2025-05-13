@@ -16,8 +16,7 @@ import {
   removeBlocksThunk,
   resendMessageThunk,
   resendUserMessageWithEditThunk,
-  updateMessageAndAddBlocksThunk,
-  updateMessageAndUpdateBlocksThunk,
+  updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Model, Topic } from '@renderer/types'
@@ -86,7 +85,7 @@ export function useMessageOperations(topic: Topic) {
       }
 
       // Call the thunk with topic.id and only message updates
-      await dispatch(updateMessageAndUpdateBlocksThunk(topic.id, messageUpdates, []))
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
     [dispatch, topic.id]
   )
@@ -337,11 +336,11 @@ export function useMessageOperations(topic: Topic) {
         // 7. Update Redux state and database
         // First update message and add/update blocks
         if (blocksToAdd.length > 0) {
-          await dispatch(updateMessageAndAddBlocksThunk(topic.id, messageUpdates, blocksToAdd))
+          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToAdd))
         }
 
         if (blocksToUpdate.length > 0) {
-          await dispatch(updateMessageAndUpdateBlocksThunk(topic.id, messageUpdates, blocksToUpdate))
+          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToUpdate))
         }
 
         // Then remove blocks if needed
@@ -416,7 +415,7 @@ export function useMessageOperations(topic: Topic) {
         blocks: updatedBlocks
       }
 
-      await dispatch(updateMessageAndUpdateBlocksThunk(topic.id, messageUpdates, []))
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
     [dispatch, topic?.id]
   )

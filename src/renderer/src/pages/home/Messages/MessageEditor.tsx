@@ -195,42 +195,41 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               onPaste={(e) => onPaste(e.nativeEvent)}
               style={{
                 fontSize,
-                minHeight: '100px',
                 padding: '0px 15px 8px 0px'
               }}
             />
           ))}
-        {editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
-          (files.length > 0 && (
-            <FileBlocksContainer>
-              {editedBlocks
-                .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-                .map(
-                  (block) =>
-                    block.file && (
-                      <CustomTag
-                        key={block.id}
-                        icon={getFileIcon(block.file.ext)}
-                        color="#37a5aa"
-                        closable
-                        onClose={() => handleFileRemove(block.id)}>
-                        <FileNameRender file={block.file} />
-                      </CustomTag>
-                    )
-                )}
+        {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
+          files.length > 0) && (
+          <FileBlocksContainer>
+            {editedBlocks
+              .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+              .map(
+                (block) =>
+                  block.file && (
+                    <CustomTag
+                      key={block.id}
+                      icon={getFileIcon(block.file.ext)}
+                      color="#37a5aa"
+                      closable
+                      onClose={() => handleFileRemove(block.id)}>
+                      <FileNameRender file={block.file} />
+                    </CustomTag>
+                  )
+              )}
 
-              {files.map((file) => (
-                <CustomTag
-                  key={file.id}
-                  icon={getFileIcon(file.ext)}
-                  color="#37a5aa"
-                  closable
-                  onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-                  <FileNameRender file={file} />
-                </CustomTag>
-              ))}
-            </FileBlocksContainer>
-          ))}
+            {files.map((file) => (
+              <CustomTag
+                key={file.id}
+                icon={getFileIcon(file.ext)}
+                color="#37a5aa"
+                closable
+                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+                <FileNameRender file={file} />
+              </CustomTag>
+            ))}
+          </FileBlocksContainer>
+        )}
 
         <ActionBar>
           <ActionBarLeft>
@@ -272,7 +271,7 @@ const FileBlocksContainer = styled.div`
   gap: 8px;
   padding: 8px;
   margin: 8px 0;
-  background: var(--color-background-mute);
+  background: transplant;
   border-radius: 4px;
 `
 

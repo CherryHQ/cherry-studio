@@ -1,4 +1,5 @@
 import { FONT_FAMILY } from '@renderer/config/constant'
+import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useModel } from '@renderer/hooks/useModel'
@@ -50,26 +51,33 @@ const MessageItem: FC<Props> = ({
   const { showMessageDivider, messageFont, fontSize } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
+  const { editingMessageId, stopEditing } = useMessageEditing()
 
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
   const [selectedText, setSelectedText] = useState<string>('')
-  const [isEditing, setIsEditing] = useState(false)
-  const handleEditStart = useCallback(() => {
-    setIsEditing(true)
-  }, [])
+  const isEditing = editingMessageId === message.id
+
+  useEffect(() => {
+    if (isEditing && messageContainerRef.current) {
+      messageContainerRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+    }
+  }, [isEditing])
 
   const handleEditSave = useCallback(
     async (blocks: MessageBlock[]) => {
       try {
         console.log('after save blocks', blocks)
         await editMessageBlocks(message.id, blocks)
-        setIsEditing(false)
+        stopEditing()
       } catch (error) {
         console.error('Failed to save message blocks:', error)
       }
     },
-    [message, editMessageBlocks]
+    [message, editMessageBlocks, stopEditing]
   )
 
   const handleEditResend = useCallback(
@@ -78,21 +86,21 @@ const MessageItem: FC<Props> = ({
         // 编辑后重新发送消息
         console.log('after resend blocks', blocks)
         await resendUserMessageWithEdit(message, blocks, assistant)
-        setIsEditing(false)
+        stopEditing()
       } catch (error) {
         console.error('Failed to resend message:', error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant]
+    [message, resendUserMessageWithEdit, assistant, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
-    setIsEditing(false)
-  }, [])
+    stopEditing()
+  }, [stopEditing])
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
-  const showMenubar = !isStreaming && !message.status.includes('ing')
+  const showMenubar = !isStreaming && !message.status.includes('ing') && !isEditing
 
   const fontFamily = useMemo(() => {
     return messageFont === 'serif' ? FONT_FAMILY.replace('sans-serif', 'serif').replace('Ubuntu, ', '') : FONT_FAMILY
@@ -204,7 +212,6 @@ const MessageItem: FC<Props> = ({
               model={model}
               index={index}
               topic={topic}
-              onEditStart={handleEditStart}
               isLastMessage={isLastMessage}
               isAssistantMessage={isAssistantMessage}
               isGrouped={isGrouped}
