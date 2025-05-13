@@ -18,74 +18,50 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 }
 
 export function useSystemAgents() {
-  const { agentssubscribeUrl } = store.getState().settings
-  if (agentssubscribeUrl === null || agentssubscribeUrl === undefined) {
-    console.error('agentssubscribeUrl is null or undefined');
-    return useLocalSystemAgents();
-  }
-  if (!agentssubscribeUrl.startsWith('http')) {
-    return useLocalSystemAgents();
-  } else {
-    return useRemoteSystemAgents();
-  }
-}
-const useRemoteSystemAgents = () => {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const { agentssubscribeUrl } = store.getState().settings
-  const resourcesPath = `${agentssubscribeUrl}`;
-  if (agentssubscribeUrl === null || agentssubscribeUrl === undefined) {
-    console.error('defaultaides is null or undefined');
-    return agents;
-  }
-  useEffect(() => {
-    const loadAgents = async () => {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const response = await fetch(resourcesPath);
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const agentsData = await response.json() as Agent[];
-        setAgents(agentsData);
-      } catch (error) {
-        console.error("Failed to load agents:", error);
-      }
-    };
-
-    loadAgents();
-  }, [resourcesPath]);
-
-  return agents;
-};
-
-const useLocalSystemAgents = () => {
   const { defaultAgent } = useSettings()
   const [agents, setAgents] = useState<Agent[]>([])
   const { resourcesPath } = useRuntime()
+  const { agentssubscribeUrl } = store.getState().settings
 
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        // 始终加载本地 agents
+        // 检查是否使用远程数据源
+        if (agentssubscribeUrl && agentssubscribeUrl.startsWith('http')) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            const response = await fetch(agentssubscribeUrl);
+            if (!response.ok) {
+              throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            const agentsData = await response.json() as Agent[];
+            setAgents(agentsData);
+            return;
+          } catch (error) {
+            console.error("Failed to load remote agents:", error);
+            // 远程加载失败，继续尝试加载本地数据
+          }
+        }
+        
+        // 如果没有远程配置或获取失败，加载本地代理
         if (resourcesPath && _agents.length === 0) {
           const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
           _agents = JSON.parse(localAgentsData) as Agent[]
         }
-
-        // 如果没有远程配置或获取失败，使用本地 agents
+        
         setAgents(_agents)
       } catch (error) {
         console.error('Failed to load agents:', error)
-        // 发生错误时使用本地 agents
+        // 发生错误时使用已加载的本地 agents
         setAgents(_agents)
       }
     }
 
     loadAgents()
-  }, [defaultAgent, resourcesPath])
+  }, [defaultAgent, resourcesPath, agentssubscribeUrl])
 
   return agents
-};
+}
 
 export function groupByCategories(data: Agent[]) {
   const groupedMap = new Map<string, Agent[]>()
