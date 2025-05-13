@@ -156,7 +156,6 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 
 const CollapseContainer = styled(Collapse)`
   margin-bottom: 15px;
-  max-width: 960px;
 `
 
 const MessageTitleLabel = styled.div`

@@ -49,8 +49,8 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     }
 
     switch (block.citationReferences[0].citationBlockSource) {
-      case WebSearchSource.OPENAI_COMPATIBLE:
-      case WebSearchSource.OPENAI: {
+      case WebSearchSource.OPENAI:
+      case WebSearchSource.OPENAI_RESPONSE: {
         formattedCitations.forEach((citation) => {
           const citationNum = citation.number
           const supData = {

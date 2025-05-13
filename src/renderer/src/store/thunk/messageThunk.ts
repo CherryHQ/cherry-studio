@@ -989,8 +989,11 @@ export const regenerateAssistantResponseThunk =
       // 5. Reset the message entity in Redux
       const resetAssistantMsg = resetAssistantMessage(messageToResetEntity, {
         status: AssistantMessageStatus.PENDING,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        model: assistant.model,
+        modelId: assistant?.model?.id
       })
+
       dispatch(
         newMessagesActions.updateMessage({
           topicId,
