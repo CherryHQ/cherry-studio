@@ -40,7 +40,7 @@ const DisplaySettings: FC = () => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
-  const [setAllowEscToExitFullscreen] = useState<boolean | undefined>(undefined)
+  const [setAllowEscToExitFullscreen] = useState<boolean>(true)
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
