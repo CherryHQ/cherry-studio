@@ -2388,7 +2388,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model)) {
+  if (isOpenAIReasoningModel(model) || isOpenAIWebSearch(model)) {
     return true
   }
 
