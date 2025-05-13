@@ -6,7 +6,8 @@ import type {
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
-  ThinkingMessageBlock
+  ThinkingMessageBlock,
+  TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
@@ -30,6 +31,11 @@ export const findMainTextBlocks = (message: Message): MainTextMessageBlock[] => 
   return textBlocks
 }
 
+/**
+ * Finds all ThinkingMessageBlocks associated with a given message.
+ * @param message - The message object.
+ * @returns An array of ThinkingMessageBlocks (empty if none found).
+ */
 export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => {
   if (!message || !message.blocks || message.blocks.length === 0) {
     return []
@@ -95,6 +101,11 @@ export const getMainTextContent = (message: Message): string => {
   return textBlocks.map((block) => block.content).join('\n\n')
 }
 
+/**
+ * Gets the concatenated content string from all ThinkingMessageBlocks of a message, in order.
+ * @param message
+ * @returns The concatenated content string or an empty string if no thinking blocks are found.
+ */
 export const getThinkingContent = (message: Message): string => {
   const thinkingBlocks = findThinkingBlocks(message)
   return thinkingBlocks.map((block) => block.content).join('\n\n')
@@ -129,6 +140,26 @@ export const findCitationBlocks = (message: Message): CitationMessageBlock[] => 
     }
   }
   return citationBlocks
+}
+
+/**
+ * Finds all TranslationMessageBlocks associated with a given message.
+ * @param message - The message object.
+ * @returns An array of TranslationMessageBlocks (empty if none found).
+ */
+export const findTranslationBlocks = (message: Message): TranslationMessageBlock[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  const translationBlocks: TranslationMessageBlock[] = []
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && block.type === 'translation') {
+      translationBlocks.push(block as TranslationMessageBlock)
+    }
+  }
+  return translationBlocks
 }
 
 /**

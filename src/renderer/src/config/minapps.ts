@@ -1,7 +1,7 @@
-import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
 import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
+import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
@@ -27,6 +27,7 @@ import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
+import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
@@ -60,11 +61,11 @@ const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
   try {
     let content: string
     try {
-      content = await window.api.file.read('customMiniAPP')
+      content = await window.api.file.read('custom-minapps.json')
     } catch (error) {
       // 如果文件不存在，创建一个空的 JSON 数组
       content = '[]'
-      await window.api.file.writeWithId('customMiniAPP', content)
+      await window.api.file.writeWithId('custom-minapps.json', content)
     }
 
     const customApps = JSON.parse(content)
@@ -448,6 +449,16 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 10
     }
+  },
+  {
+    id: 'n8n',
+    name: 'n8n',
+    logo: n8nLogo,
+    url: 'https://app.n8n.cloud/',
+    bodered: true,
+    style: {
+      padding: 5
+    }
   }
 ]
 
@@ -456,10 +467,6 @@ let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp(
 
 function updateDefaultMinApps(param) {
   DEFAULT_MIN_APPS = param
-}
-
-if (process.env.NODE_ENV === 'development') {
-  console.log('DEFAULT_MIN_APPS', DEFAULT_MIN_APPS)
 }
 
 export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps }

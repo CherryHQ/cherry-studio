@@ -70,6 +70,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       cancelButtonProps={{ disabled: isDisabled }}
       okText={t('backup.confirm.button')}
       maskClosable={false}
+      transitionName="animation-move-down"
       centered>
       {!progressData && <div>{t('backup.content')}</div>}
       {progressData && (

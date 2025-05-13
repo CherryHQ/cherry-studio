@@ -224,6 +224,7 @@ const PlantUMLPopupCantaier: React.FC<PlantUMLPopupProps> = ({ resolve, diagram 
       onCancel={onCancel}
       afterClose={onClose}
       width={1000}
+      transitionName="animation-move-down"
       centered
       footer={[
         <Space key="download-buttons">

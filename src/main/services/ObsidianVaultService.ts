@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import Logger from 'electron-log'
 import fs from 'fs'
 import path from 'path'
 
@@ -155,7 +156,7 @@ class ObsidianVaultService {
         return []
       }
 
-      console.log('获取Vault文件结构:', vault.name, vault.path)
+      Logger.log('获取Vault文件结构:', vault.name, vault.path)
       return this.getVaultStructure(vault.path)
     } catch (error) {
       console.error('获取Vault文件结构时发生错误:', error)

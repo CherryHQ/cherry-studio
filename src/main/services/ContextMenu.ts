@@ -9,10 +9,27 @@ class ContextMenu {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
       if (filtered.length > 0) {
-        const menu = Menu.buildFromTemplate(filtered)
+        const menu = Menu.buildFromTemplate([...filtered, ...this.createInspectMenuItems(w)])
         menu.popup()
       }
     })
+  }
+
+  private createInspectMenuItems(w: Electron.BrowserWindow): MenuItemConstructorOptions[] {
+    const locale = locales[configManager.getLanguage()]
+    const { common } = locale.translation
+    const template: MenuItemConstructorOptions[] = [
+      {
+        id: 'inspect',
+        label: common.inspect,
+        click: () => {
+          w.webContents.toggleDevTools()
+        },
+        enabled: true
+      }
+    ]
+
+    return template
   }
 
   private createEditMenuItems(properties: Electron.ContextMenuParams): MenuItemConstructorOptions[] {

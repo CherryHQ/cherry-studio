@@ -64,7 +64,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           type: 'agent',
           topics: [],
           messages: [],
-          defaultModel: getDefaultModel()
+          defaultModel: getDefaultModel(),
+          regularPhrases: agent.regularPhrases || []
         }
         addAgent(newAgent)
       }
@@ -93,7 +94,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   return (
-    <Modal title={t('agents.import.title')} open={open} onCancel={onCancel} footer={null} centered>
+    <Modal
+      title={t('agents.import.title')}
+      open={open}
+      onCancel={onCancel}
+      footer={null}
+      transitionName="animation-move-down"
+      centered>
       <Form form={form} onFinish={onFinish} layout="vertical">
         <Form.Item>
           <Radio.Group value={importType} onChange={(e) => setImportType(e.target.value)}>

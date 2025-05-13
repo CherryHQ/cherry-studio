@@ -1,6 +1,6 @@
 import { isOpenAILLMModel } from '@renderer/config/models'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import { Assistant, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, MCPCallToolResponse, MCPTool, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import OpenAI from 'openai'
 
@@ -18,6 +18,7 @@ import OpenAIProvider from './OpenAIProvider'
 export default class AihubmixProvider extends BaseProvider {
   private providers: Map<string, BaseProvider> = new Map()
   private defaultProvider: BaseProvider
+  private currentProvider: BaseProvider
 
   constructor(provider: Provider) {
     super(provider)
@@ -30,6 +31,7 @@ export default class AihubmixProvider extends BaseProvider {
 
     // 设置默认提供商
     this.defaultProvider = this.providers.get('default')!
+    this.currentProvider = this.defaultProvider
   }
 
   /**
@@ -70,7 +72,8 @@ export default class AihubmixProvider extends BaseProvider {
 
   public async completions(params: CompletionsParams): Promise<void> {
     const model = params.assistant.model
-    return this.getProvider(model!).completions(params)
+    this.currentProvider = this.getProvider(model!)
+    return this.currentProvider.completions(params)
   }
 
   public async translate(
@@ -99,5 +102,13 @@ export default class AihubmixProvider extends BaseProvider {
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     return this.getProvider(model).getEmbeddingDimensions(model)
+  }
+
+  public convertMcpTools<T>(mcpTools: MCPTool[]) {
+    return this.currentProvider.convertMcpTools(mcpTools) as T[]
+  }
+
+  public mcpToolCallResponseToMessage(mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) {
+    return this.currentProvider.mcpToolCallResponseToMessage(mcpToolResponse, resp, model)
   }
 }
