@@ -22,6 +22,7 @@ import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/ut
 import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
+import { debounce } from 'lodash'
 import { Search } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -49,6 +50,20 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [filterSearchText, setFilterSearchText] = useState('')
+  const debouncedSetFilterText = useMemo(
+    () =>
+      debounce((value: string) => {
+        startSearchTransition(() => {
+          setFilterSearchText(value)
+        })
+      }, 300),
+    []
+  )
+  useEffect(() => {
+    return () => {
+      debouncedSetFilterText.cancel()
+    }
+  }, [debouncedSetFilterText])
   const [actualFilterType, setActualFilterType] = useState<string>('all')
   const [optimisticFilterType, setOptimisticFilterTypeFn] = useOptimistic(
     actualFilterType,
@@ -256,9 +271,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             onChange={(e) => {
               const newSearchValue = e.target.value
               setSearchText(newSearchValue) // Update input field immediately
-              startSearchTransition(() => {
-                setFilterSearchText(newSearchValue) // Defer filtering logic update
-              })
+              debouncedSetFilterText(newSearchValue)
             }}
           />
           {renderTopTools()}
