@@ -17,13 +17,13 @@ import { reset } from '@renderer/services/BackupService'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput,Sparkle } from 'lucide-react'
-
+import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
@@ -33,7 +33,6 @@ import ObsidianSettings from './ObsidianSettings'
 import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
-import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 
 const DataSettings: FC = () => {
   const { t } = useTranslation()
@@ -107,9 +106,9 @@ const DataSettings: FC = () => {
     },
     {
       key: 'agentssubscribe_url',
-      title: 'agents.tag.agent',
-      icon: <Sparkle />
-    },
+      title: 'agents.settings.title',
+      icon: <Sparkle size={16} className="icon" />
+    }
   ]
 
   useEffect(() => {

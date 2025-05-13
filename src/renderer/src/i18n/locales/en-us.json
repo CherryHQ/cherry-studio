@@ -44,6 +44,9 @@
       "my_agents": "My Agents",
       "search.no_results": "No results found",
       "sorting.title": "Sorting",
+      "settings": {
+        "title": "Agent Setting"
+      },
       "tag.agent": "Agent",
       "tag.default": "Default",
       "tag.new": "New",

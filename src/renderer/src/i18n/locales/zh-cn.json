@@ -48,7 +48,10 @@
       "tag.default": "默认",
       "tag.new": "新建",
       "tag.system": "系统",
-      "title": "智能体"
+      "title": "智能体",
+      "settings": {
+        "title": "智能体配置"
+      }
     },
     "assistants": {
       "title": "助手",

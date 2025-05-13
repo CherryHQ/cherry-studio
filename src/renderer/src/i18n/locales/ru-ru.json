@@ -48,6 +48,9 @@
       },
       "export": {
         "agent": "Экспорт агента"
+      },
+      "settings": {
+        "title": "Настройки агента"
       }
     },
     "assistants": {
