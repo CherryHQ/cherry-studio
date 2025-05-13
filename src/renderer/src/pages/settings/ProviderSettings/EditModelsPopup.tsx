@@ -48,12 +48,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
   const [listModels, setListModels] = useState<Model[]>([])
   const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
+  const [filterSearchText, setFilterSearchText] = useState('')
   const [actualFilterType, setActualFilterType] = useState<string>('all')
   const [optimisticFilterType, setOptimisticFilterTypeFn] = useOptimistic(
     actualFilterType,
     (_currentFilterType, newFilterType: string) => newFilterType
   )
-  const [isPending, startTransition] = useTransition()
+  const [isSearchPending, startSearchTransition] = useTransition()
+  const [isFilterTypePending, startFilterTypeTransition] = useTransition()
   const { t, i18n } = useTranslation()
   const searchInputRef = useRef<any>(null)
 
@@ -62,9 +64,9 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
 
   const list = allModels.filter((model) => {
     if (
-      searchText &&
-      !model.id.toLocaleLowerCase().includes(searchText.toLocaleLowerCase()) &&
-      !model.name?.toLocaleLowerCase().includes(searchText.toLocaleLowerCase())
+      filterSearchText &&
+      !model.id.toLocaleLowerCase().includes(filterSearchText.toLocaleLowerCase()) &&
+      !model.name?.toLocaleLowerCase().includes(filterSearchText.toLocaleLowerCase())
     ) {
       return false
     }
@@ -250,7 +252,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             ref={searchInputRef}
             placeholder={t('settings.provider.search_placeholder')}
             allowClear
-            onChange={(e) => setSearchText(e.target.value)}
+            value={searchText}
+            onChange={(e) => {
+              const newSearchValue = e.target.value
+              setSearchText(newSearchValue) // Update input field immediately
+              startSearchTransition(() => {
+                setFilterSearchText(newSearchValue) // Defer filtering logic update
+              })
+            }}
           />
           {renderTopTools()}
         </TopToolsWrapper>
@@ -269,17 +278,15 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             { label: t('models.type.function_calling'), key: 'function_calling' }
           ]}
           onChange={(key) => {
-            // Optimistically update the tab UI
             setOptimisticFilterTypeFn(key)
-            // Start a transition for the actual state update and heavy filtering
-            startTransition(() => {
+            startFilterTypeTransition(() => {
               setActualFilterType(key)
             })
           }}
         />
       </SearchContainer>
       <ListContainer>
-        {loading || isPending ? (
+        {loading || isFilterTypePending || isSearchPending ? (
           <Flex justify="center" align="center" style={{ height: '70%' }}>
             <Spin size="large" />
           </Flex>
@@ -314,7 +321,7 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             )
           })
         )}
-        {!(loading || isPending) && isEmpty(list) && (
+        {!(loading || isFilterTypePending || isSearchPending) && isEmpty(list) && (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.models.empty')} />
         )}
       </ListContainer>
