@@ -251,7 +251,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   useEffect(() => {
     if (index >= 0) {
-      listRef.current?.scrollToItem(index, 'auto')
+      listRef.current?.scrollToItem(index, 'smart')
     }
   }, [index])
 
