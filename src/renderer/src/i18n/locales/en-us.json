@@ -504,7 +504,7 @@
       "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
       "title": "Knowledge Base",
       "topN": "Number of results returned",
-      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_too_large_or_small": "The number of results returned cannot be greater than 30 or less than 1.",
       "topN_placeholder": "Not set",
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",

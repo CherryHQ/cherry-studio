@@ -489,7 +489,7 @@
       "threshold_tooltip": "Usado para medir a relevância entre a pergunta do usuário e o conteúdo do repositório de conhecimento (0-1)",
       "title": "Repositório de conhecimento",
       "topN": "Número de resultados retornados",
-      "topN__too_large_or_small": "O número de resultados retornados não pode ser maior que 100 ou menor que 1",
+      "topN_too_large_or_small": "O número de resultados retornados não pode ser maior que 30 ou menor que 1",
       "topN_placeholder": "Não definido",
       "topN_tooltip": "Número de resultados correspondentes retornados, quanto maior o valor, mais resultados correspondentes, mas mais tokens são consumidos",
       "url_added": "URL adicionada",

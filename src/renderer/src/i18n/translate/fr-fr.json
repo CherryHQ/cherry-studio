@@ -488,7 +488,7 @@
       "threshold_tooltip": "Utilisé pour mesurer la pertinence entre la question de l'utilisateur et le contenu de la base de connaissances (0-1)",
       "title": "Base de connaissances",
       "topN": "Nombre de résultats retournés",
-      "topN__too_large_or_small": "Le nombre de résultats retournés ne peut pas être supérieur à 100 ou inférieur à 1",
+      "topN_too_large_or_small": "Le nombre de résultats retournés ne peut pas être supérieur à 30 ou inférieur à 1",
       "topN_placeholder": "Non défini",
       "topN_tooltip": "Nombre de résultats de correspondance retournés, plus le chiffre est élevé, plus il y a de résultats de correspondance, mais plus de jetons sont consommés",
       "url_added": "URL ajoutée",
