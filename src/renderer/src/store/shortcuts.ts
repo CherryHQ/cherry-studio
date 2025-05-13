@@ -11,6 +11,13 @@ const initialState: ShortcutsState = {
   shortcuts: [
     ...ZOOM_SHORTCUTS,
     {
+      key: 'exit_fullscreen',
+      shortcut: ['Escape'],
+      editable: false,
+      enabled: true,
+      system: true
+    },
+    {
       key: 'show_settings',
       shortcut: [isMac ? 'Command' : 'Ctrl', ','],
       editable: false,

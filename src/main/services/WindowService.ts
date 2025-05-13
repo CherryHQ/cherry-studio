@@ -198,9 +198,20 @@ export class WindowService {
       // 当按下Escape键且窗口处于全屏状态时退出全屏
       if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
         if (mainWindow.isFullScreen()) {
-          event.preventDefault()
-          if (configManager.getAllowEscToExitFullscreen()) {
-            mainWindow.setFullScreen(false)
+          console.log('mainWindow.isFullScreen()', mainWindow.isFullScreen())
+          // 获取 shortcuts 配置
+          const shortcuts = configManager.getShortcuts()
+          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+          console.log('exitFullscreenShortcut', exitFullscreenShortcut)
+
+          // 只有当快捷键启用时才处理
+          console.log('exitFullscreenShortcut?.enabled', exitFullscreenShortcut?.enabled)
+          if (exitFullscreenShortcut?.enabled) {
+            if (configManager.getAllowEscToExitFullscreen()) {
+              console.log('configManager.getAllowEscToExitFullscreen()', configManager.getAllowEscToExitFullscreen())
+              event.preventDefault()
+              mainWindow.setFullScreen(false)
+            }
           }
         }
       }
@@ -308,7 +319,7 @@ export class WindowService {
 
       /**
        * 上述逻辑以下:
-       * win/linux: 是“开启托盘+设置关闭时最小化到托盘”的情况
+       * win/linux: 是"开启托盘+设置关闭时最小化到托盘"的情况
        * mac: 任何情况都会到这里，因此需要单独处理mac
        */
 
