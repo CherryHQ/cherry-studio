@@ -116,7 +116,7 @@ export function removeSvgEmptyLines(text: string): string {
 
 export function withGenerateImage(message: Message): { content: string; images?: string[] } {
   const originalContent = getMainTextContent(message)
-  const imagePattern = new RegExp(`![[^]]*]((.*?)s*(".*[^"]")?s*)`)
+  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
   const images: string[] = []
   let processedContent: string
 
@@ -129,7 +129,7 @@ export function withGenerateImage(message: Message): { content: string; images?:
 
   processedContent = processedContent.replace(/\n\s*\n/g, '\n').trim()
 
-  const downloadPattern = /\[[^\]]*]\((.*?)\s*(".*[^"]")?\s*\)/g
+  const downloadPattern = /\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g
   processedContent = processedContent
     .replace(downloadPattern, '')
     .replace(/\n\s*\n/g, '\n')
