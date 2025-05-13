@@ -7,6 +7,7 @@ import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.p
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
+import CherryCloudProviderLogo from '@renderer/assets/images/providers/cherry-cloud.svg'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -42,6 +43,8 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+
+import { CHERRY_CLOUD_HOST } from './constant'
 
 const PROVIDER_LOGO_MAP = {
   openai: OpenAiProviderLogo,
@@ -88,7 +91,8 @@ const PROVIDER_LOGO_MAP = {
   gpustack: GPUStackProviderLogo,
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
-  qiniu: QiniuProviderLogo
+  qiniu: QiniuProviderLogo,
+  'cherry-cloud': CherryCloudProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -583,6 +587,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq',
       docs: 'https://developer.qiniu.com/aitokenapi',
       models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
+    }
+  },
+  'cherry-cloud': {
+    api: {
+      url: CHERRY_CLOUD_HOST
+    },
+    websites: {
+      official: CHERRY_CLOUD_HOST,
+      apiKey: `${CHERRY_CLOUD_HOST}/dashboard/api-keys`,
+      docs: `${CHERRY_CLOUD_HOST}/docs`,
+      models: `${CHERRY_CLOUD_HOST}/models`
     }
   }
 }

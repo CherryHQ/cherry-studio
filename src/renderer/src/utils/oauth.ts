@@ -1,6 +1,6 @@
-import { SILICON_CLIENT_ID } from '@renderer/config/constant'
-import { getLanguageCode } from '@renderer/i18n'
-import i18n from '@renderer/i18n'
+import { CHERRY_CLOUD_HOST, SILICON_CLIENT_ID } from '@renderer/config/constant'
+import i18n, { getLanguageCode } from '@renderer/i18n'
+
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
 
@@ -56,6 +56,22 @@ export const oauthWithAihubmix = async (setKey) => {
 
   window.removeEventListener('message', messageHandler)
   window.addEventListener('message', messageHandler)
+}
+
+export const oauthWithCherryCloud = async () => {
+  const callbackUrl = `${CHERRY_CLOUD_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
+  const resp = await fetch(`${CHERRY_CLOUD_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
+  if (!resp.ok) {
+    window.message.error(i18n.t('oauth.error'))
+    return
+  }
+  const data = await resp.json()
+  const authUrl = data.data.url
+  window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
 }
 
 export const providerCharge = async (provider: string) => {

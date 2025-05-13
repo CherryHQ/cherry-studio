@@ -1,4 +1,5 @@
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import CherryCloudProviderLogo from '@renderer/assets/images/providers/cherry-cloud.svg'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
@@ -7,8 +8,7 @@ import { Provider } from '@renderer/types'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
-import { ReceiptText } from 'lucide-react'
-import { CircleDollarSign } from 'lucide-react'
+import { CircleDollarSign, ReceiptText } from 'lucide-react'
 import { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -20,7 +20,8 @@ interface Props {
 
 const PROVIDER_LOGO_MAP = {
   silicon: SiliconFlowProviderLogo,
-  aihubmix: AiHubMixProviderLogo
+  aihubmix: AiHubMixProviderLogo,
+  'cherry-cloud': CherryCloudProviderLogo
 }
 
 const ProviderOAuth: FC<Props> = ({ provider, setApiKey }) => {

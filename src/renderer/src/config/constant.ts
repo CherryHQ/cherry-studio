@@ -12,6 +12,7 @@ export const isWindows = platform === 'win32' || platform === 'win64'
 export const isLinux = platform === 'linux'
 
 export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'
+export const CHERRY_CLOUD_HOST = 'https://cherry-ai.cloud'
 
 // Messages loading configuration
 export const INITIAL_MESSAGES_COUNT = 20

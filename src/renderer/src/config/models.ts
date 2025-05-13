@@ -16,6 +16,8 @@ import BigcodeModelLogoDark from '@renderer/assets/images/models/bigcode_dark.we
 import ChatGLMModelLogo from '@renderer/assets/images/models/chatglm.png'
 import ChatGLMModelLogoDark from '@renderer/assets/images/models/chatglm_dark.png'
 import ChatGptModelLogo from '@renderer/assets/images/models/chatgpt.jpeg'
+import CherryCloudModelLogo from '@renderer/assets/images/models/cherry-cloud.png'
+import CherryCloudModelLogoDark from '@renderer/assets/images/models/cherry-cloud_dark.png'
 import ClaudeModelLogo from '@renderer/assets/images/models/claude.png'
 import ClaudeModelLogoDark from '@renderer/assets/images/models/claude_dark.png'
 import CodegeexModelLogo from '@renderer/assets/images/models/codegeex.png'
@@ -34,8 +36,10 @@ import DianxinModelLogo from '@renderer/assets/images/models/dianxin.png'
 import DianxinModelLogoDark from '@renderer/assets/images/models/dianxin_dark.png'
 import DoubaoModelLogo from '@renderer/assets/images/models/doubao.png'
 import DoubaoModelLogoDark from '@renderer/assets/images/models/doubao_dark.png'
-import EmbeddingModelLogo from '@renderer/assets/images/models/embedding.png'
-import EmbeddingModelLogoDark from '@renderer/assets/images/models/embedding.png'
+import {
+  default as EmbeddingModelLogo,
+  default as EmbeddingModelLogoDark
+} from '@renderer/assets/images/models/embedding.png'
 import FlashaudioModelLogo from '@renderer/assets/images/models/flashaudio.png'
 import FlashaudioModelLogoDark from '@renderer/assets/images/models/flashaudio_dark.png'
 import FluxModelLogo from '@renderer/assets/images/models/flux.png'
@@ -44,14 +48,15 @@ import GeminiModelLogo from '@renderer/assets/images/models/gemini.png'
 import GeminiModelLogoDark from '@renderer/assets/images/models/gemini_dark.png'
 import GemmaModelLogo from '@renderer/assets/images/models/gemma.png'
 import GemmaModelLogoDark from '@renderer/assets/images/models/gemma_dark.png'
-import GoogleModelLogo from '@renderer/assets/images/models/google.png'
-import GoogleModelLogoDark from '@renderer/assets/images/models/google.png'
+import { default as GoogleModelLogo, default as GoogleModelLogoDark } from '@renderer/assets/images/models/google.png'
 import ChatGPT35ModelLogo from '@renderer/assets/images/models/gpt_3.5.png'
 import ChatGPT4ModelLogo from '@renderer/assets/images/models/gpt_4.png'
-import ChatGptModelLogoDakr from '@renderer/assets/images/models/gpt_dark.png'
-import ChatGPT35ModelLogoDark from '@renderer/assets/images/models/gpt_dark.png'
-import ChatGPT4ModelLogoDark from '@renderer/assets/images/models/gpt_dark.png'
-import ChatGPTo1ModelLogoDark from '@renderer/assets/images/models/gpt_dark.png'
+import {
+  default as ChatGPT4ModelLogoDark,
+  default as ChatGPT35ModelLogoDark,
+  default as ChatGptModelLogoDakr,
+  default as ChatGPTo1ModelLogoDark
+} from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
 import GrokModelLogo from '@renderer/assets/images/models/grok.png'
 import GrokModelLogoDark from '@renderer/assets/images/models/grok_dark.png'
@@ -86,22 +91,28 @@ import MicrosoftModelLogo from '@renderer/assets/images/models/microsoft.png'
 import MicrosoftModelLogoDark from '@renderer/assets/images/models/microsoft_dark.png'
 import MidjourneyModelLogo from '@renderer/assets/images/models/midjourney.png'
 import MidjourneyModelLogoDark from '@renderer/assets/images/models/midjourney_dark.png'
-import MinicpmModelLogo from '@renderer/assets/images/models/minicpm.webp'
-import MinicpmModelLogoDark from '@renderer/assets/images/models/minicpm.webp'
+import {
+  default as MinicpmModelLogo,
+  default as MinicpmModelLogoDark
+} from '@renderer/assets/images/models/minicpm.webp'
 import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
 import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
 import MistralModelLogoDark from '@renderer/assets/images/models/mixtral_dark.png'
 import MoonshotModelLogo from '@renderer/assets/images/models/moonshot.png'
 import MoonshotModelLogoDark from '@renderer/assets/images/models/moonshot_dark.png'
-import NousResearchModelLogo from '@renderer/assets/images/models/nousresearch.png'
-import NousResearchModelLogoDark from '@renderer/assets/images/models/nousresearch.png'
+import {
+  default as NousResearchModelLogo,
+  default as NousResearchModelLogoDark
+} from '@renderer/assets/images/models/nousresearch.png'
 import NvidiaModelLogo from '@renderer/assets/images/models/nvidia.png'
 import NvidiaModelLogoDark from '@renderer/assets/images/models/nvidia_dark.png'
 import PalmModelLogo from '@renderer/assets/images/models/palm.png'
 import PalmModelLogoDark from '@renderer/assets/images/models/palm_dark.png'
-import PerplexityModelLogo from '@renderer/assets/images/models/perplexity.png'
-import PerplexityModelLogoDark from '@renderer/assets/images/models/perplexity.png'
+import {
+  default as PerplexityModelLogo,
+  default as PerplexityModelLogoDark
+} from '@renderer/assets/images/models/perplexity.png'
 import PixtralModelLogo from '@renderer/assets/images/models/pixtral.png'
 import PixtralModelLogoDark from '@renderer/assets/images/models/pixtral_dark.png'
 import QwenModelLogo from '@renderer/assets/images/models/qwen.png'
@@ -367,7 +378,8 @@ export function getModelLogo(modelId: string) {
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     'bge-': BgeModelLogo,
-    'voyage-': VoyageModelLogo
+    'voyage-': VoyageModelLogo,
+    'cherry-cloud': isLight ? CherryCloudModelLogo : CherryCloudModelLogoDark
   }
 
   for (const key in logoMap) {
@@ -2073,6 +2085,38 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       provider: 'qiniu',
       name: 'Qwen2.5 72B Instruct',
       group: 'Qwen'
+    }
+  ],
+  cherrycloud: [
+    {
+      id: 'gpt-4.1',
+      provider: 'cherry-cloud',
+      name: 'GPT-4.1',
+      group: 'GPT-4.1'
+    },
+    {
+      id: 'claude-3-7-sonnet',
+      provider: 'cherry-cloud',
+      name: 'Claude 3.7 Sonnet',
+      group: 'Claude 3.7'
+    },
+    {
+      id: 'gemini-2.5-pro',
+      provider: 'cherry-cloud',
+      name: 'Gemini 2.5 Pro',
+      group: 'Gemini 2.5'
+    },
+    {
+      id: 'deepseek-r1',
+      provider: 'cherry-cloud',
+      name: 'DeepSeek R1',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3',
+      provider: 'qiniu',
+      name: 'DeepSeek V3',
+      group: 'DeepSeek'
     }
   ]
 }

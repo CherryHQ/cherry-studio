@@ -1,5 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
   addProvider,
@@ -10,6 +10,7 @@ import {
   updateProviders
 } from '@renderer/store/llm'
 import { Assistant, Model, Provider } from '@renderer/types'
+import { IpcChannel } from '@shared/IpcChannel'
 
 import { useDefaultModel } from './useAssistant'
 
@@ -63,3 +64,16 @@ export function useProviderByAssistant(assistant: Assistant) {
   const { provider } = useProvider(model.provider)
   return provider
 }
+
+// Listen for server changes from main process
+window.electron.ipcRenderer.on(IpcChannel.Provider_AddKey, (_, data) => {
+  console.log('Received provider key data:', data)
+  const { id, apiKey } = data
+  if (id === 'cherry-cloud') {
+    if (apiKey) {
+      store.dispatch(updateProvider({ id, apiKey } as Provider))
+      window.message.success('Cherry Cloud API key updated')
+      console.log('Cherry Cloud API key updated:', apiKey)
+    }
+  }
+})

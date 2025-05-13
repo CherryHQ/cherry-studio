@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { app } from 'electron'
 import Logger from 'electron-log'
 
+import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
 import { handleMcpProtocolUrl } from './urlschema/mcp-install'
 import { windowService } from './WindowService'
 
@@ -33,6 +34,9 @@ export function handleProtocolUrl(url: string) {
   switch (urlObj.hostname.toLowerCase()) {
     case 'mcp':
       handleMcpProtocolUrl(urlObj)
+      return
+    case 'providers':
+      handleProvidersProtocolUrl(urlObj)
       return
   }
 

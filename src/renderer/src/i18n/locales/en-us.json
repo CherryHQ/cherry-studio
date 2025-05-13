@@ -882,7 +882,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu",
+      "cherry-cloud": "Cherry Cloud"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
