@@ -29,7 +29,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { updateAssistant } = useAssistant(assistant.id)
 
   const updateSelectedWebSearchProvider = useCallback(
-    (providerId: WebSearchProvider['id']) => {
+    (providerId?: WebSearchProvider['id']) => {
       // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
       setTimeout(() => {
         const currentWebSearchProviderId = assistant.webSearchProviderId
@@ -77,6 +77,16 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       label: '前往设置' + '...',
       icon: <Settings />,
       action: () => navigate('/settings/web-search')
+    })
+
+    items.unshift({
+      label: t('chat.input.web_search.no_web_search'),
+      description: t('chat.input.web_search.no_web_search.description'),
+      icon: <Globe />,
+      isSelected: !assistant.enableWebSearch && !assistant.webSearchProviderId,
+      action: () => {
+        updateSelectedWebSearchProvider(undefined)
+      }
     })
 
     return items

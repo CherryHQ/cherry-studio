@@ -1,4 +1,4 @@
-import { InfoCircleFilled, PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
@@ -20,6 +20,7 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -72,6 +73,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     { label: t('paintings.mode.remix'), value: 'remix' },
     { label: t('paintings.mode.upscale'), value: 'upscale' }
   ]
+
   const getNewPainting = () => {
     return {
       ...DEFAULT_PAINTING,
@@ -221,14 +223,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
-        // 如果没有成功下载任何文件但有URLs，显示代理提示
-        if (validFiles.length === 0 && urls.length > 0) {
-          window.modal.error({
-            content: t('paintings.proxy_required'),
-            centered: true
-          })
-        }
-
         await FileManager.addFiles(validFiles)
 
         updatePaintingState({ files: validFiles, urls })
@@ -245,6 +239,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       dispatch(setGenerating(false))
       setAbortController(null)
     }
+  }
+
+  const handleRetry = async (painting: PaintingAction) => {
+    setIsLoading(true)
+    const downloadedFiles = await Promise.all(
+      painting.urls.map(async (url) => {
+        try {
+          return await window.api.file.download(url)
+        } catch (error) {
+          console.error('下载图像失败:', error)
+          setIsLoading(false)
+          return null
+        }
+      })
+    )
+
+    const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+
+    await FileManager.addFiles(validFiles)
+
+    updatePaintingState({ files: validFiles, urls: painting.urls })
+    setIsLoading(false)
   }
 
   const onCancel = () => {
@@ -278,14 +294,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     removePainting(mode, paintingToDelete)
-
-    if (filteredPaintings.length === 1) {
-      const defaultPainting = {
-        ...DEFAULT_PAINTING,
-        id: uuid()
-      }
-      setPainting(defaultPainting)
-    }
   }
 
   const translate = async () => {
@@ -334,6 +342,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       navigate('../' + providerId, { replace: true })
     }
   }
+
   // 处理模式切换
   const handleModeChange = (value: string) => {
     setMode(value as keyof PaintingsState)
@@ -494,8 +503,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   useEffect(() => {
     if (filteredPaintings.length === 0) {
-      addPainting(mode, getNewPainting())
-      setPainting(DEFAULT_PAINTING)
+      const newPainting = getNewPainting()
+      addPainting(mode, newPainting)
+      setPainting(newPainting)
     }
   }, [filteredPaintings, mode, addPainting, painting])
 
@@ -560,6 +570,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onPrevImage={prevImage}
             onNextImage={nextImage}
             onCancel={onCancel}
+            retry={handleRetry}
           />
           <InputContainer>
             <Textarea
@@ -674,11 +685,17 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-const InfoIcon = styled(InfoCircleFilled)`
+const InfoIcon = styled(Info)`
   margin-left: 5px;
   cursor: help;
-  color: #8d94a6;
-  font-size: 12px;
+  color: var(--color-text-2);
+  opacity: 0.6;
+  width: 14px;
+  height: 16px;
+
+  &:hover {
+    opacity: 1;
+  }
 `
 
 const SliderContainer = styled.div`

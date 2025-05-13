@@ -135,10 +135,7 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
 
   // Filter adjacent user messages, keeping only the last one
   _messages = _messages.filter((message, index, origin) => {
-    if (message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user') {
-      return false
-    }
-    return true
+    return !(message.role === 'user' && index + 1 < origin.length && origin[index + 1].role === 'user')
   })
 
   return _messages

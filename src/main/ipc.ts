@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
@@ -122,11 +123,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const updateTitleBarOverlay = () => {
+      if (!mainWindow?.setTitleBarOverlay) return
+      const isDark = nativeTheme.shouldUseDarkColors
+      mainWindow.setTitleBarOverlay(isDark ? titleBarOverlayDark : titleBarOverlayLight)
+    }
+
+    const broadcastThemeChange = () => {
+      const isDark = nativeTheme.shouldUseDarkColors
+      const effectiveTheme = isDark ? ThemeMode.dark : ThemeMode.light
+      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send(IpcChannel.ThemeChange, effectiveTheme))
+    }
+
     const notifyThemeChange = () => {
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) =>
-        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
-      )
+      updateTitleBarOverlay()
+      broadcastThemeChange()
     }
 
     if (theme === ThemeMode.auto) {
@@ -134,13 +145,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       nativeTheme.on('updated', notifyThemeChange)
     } else {
       nativeTheme.themeSource = theme
-      nativeTheme.removeAllListeners('updated')
+      nativeTheme.off('updated', notifyThemeChange)
     }
 
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
+    updateTitleBarOverlay()
     configManager.setTheme(theme)
     notifyThemeChange()
+  })
+
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
+    const windows = BrowserWindow.getAllWindows()
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache
@@ -210,6 +226,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
   ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)

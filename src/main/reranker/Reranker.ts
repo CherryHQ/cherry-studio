@@ -1,13 +1,12 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { KnowledgeBaseParams } from '@types'
 
-import BaseReranker from './BaseReranker'
-import RerankerFactory from './RerankerFactory'
+import GeneralReranker from './GeneralReranker'
 
 export default class Reranker {
-  private sdk: BaseReranker
+  private sdk: GeneralReranker
   constructor(base: KnowledgeBaseParams) {
-    this.sdk = RerankerFactory.create(base)
+    this.sdk = new GeneralReranker(base)
   }
   public async rerank(query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> {
     return this.sdk.rerank(query, searchResults)

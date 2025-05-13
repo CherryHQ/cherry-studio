@@ -29,7 +29,26 @@
       "tag.default": "Προεπιλογή",
       "tag.new": "Νέος",
       "tag.system": "Σύστημα",
-      "title": "Ειδικοί"
+      "title": "Ειδικοί",
+      "import": {
+        "type": {
+          "url": "URL",
+          "file": "Αρχείο"
+        },
+        "error": {
+          "url_required": "Παρακαλώ εισάγετε τη διεύθυνση URL",
+          "fetch_failed": "Αποτυχία λήψης δεδομένων από το URL",
+          "invalid_format": "Μη έγκυρη μορφή πράκτορα: λείπουν υποχρεωτικά πεδία"
+        },
+        "title": "Εισαγωγή από το εξωτερικό",
+        "url_placeholder": "Εισάγετε τη διεύθυνση URL JSON",
+        "select_file": "Επιλέξτε αρχείο",
+        "button": "Εισαγωγή",
+        "file_filter": "Αρχεία JSON"
+      },
+      "export": {
+        "agent": "Εξαγωγή υποκειμένου"
+      }
     },
     "assistants": {
       "abbr": "Βοηθός",
@@ -52,8 +71,31 @@
       "settings.reasoning_effort.low": "Μικρό",
       "settings.reasoning_effort.medium": "Μεσαίο",
       "settings.reasoning_effort.off": "Απενεργοποίηση",
-      "settings.reasoning_effort.tip": "Υποστηρίζεται μόνο για μοντέλα πληροφορικής OpenAI o-series και Anthropic",
-      "title": "Βοηθός"
+      "title": "Βοηθός",
+      "settings.regular_phrases": {
+        "title": "Δημοφιλείς φράσεις",
+        "add": "Προσθήκη φράσης",
+        "edit": "Επεξεργασία φράσης",
+        "delete": "Διαγραφή φράσης",
+        "deleteConfirm": "Είστε βέβαιος ότι θέλετε να διαγράψετε αυτήν τη φράση;",
+        "titleLabel": "Τίτλος",
+        "titlePlaceholder": "Εισαγάγετε τίτλο",
+        "contentLabel": "Περιεχόμενο",
+        "contentPlaceholder": "Παρακαλώ εισάγετε το περιεχόμενο της φράσης. Υποστηρίζονται μεταβλητές, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την επεξεργαστείτε. Για παράδειγμα: \\nΒοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια στείλε την στο ${email}."
+      },
+      "settings.title": "Ρυθμίσεις Βοηθού",
+      "icon.type": "Εικόνα Βοηθού",
+      "settings.mcp": "Διακομιστής MCP",
+      "settings.mcp.enableFirst": "Πρώτα ενεργοποιήστε αυτόν τον διακομιστή στις ρυθμίσεις MCP",
+      "settings.mcp.title": "Ρυθμίσεις MCP",
+      "settings.mcp.noServersAvailable": "Δεν υπάρχουν διαθέσιμοι διακομιστές MCP. Προσθέστε ένα διακομιστή στις ρυθμίσεις",
+      "settings.mcp.description": "Διακομιστής MCP που είναι ενεργοποιημένος εξ ορισμού",
+      "settings.knowledge_base.recognition.tip": "Ο πράκτορας θα καλέσει τη δυνατότητα αναγνώρισης πρόθεσης του μεγάλου μοντέλου για να αποφασίσει αν χρειάζεται να κληθεί η βάση γνώσης για να απαντηθεί, και αυτή η λειτουργία θα εξαρτηθεί από τις δυνατότητες του μοντέλου",
+      "settings.knowledge_base.recognition": "Κλήση βάσης γνώσης",
+      "settings.knowledge_base.recognition.off": "Υποχρεωτική αναζήτηση",
+      "settings.knowledge_base.recognition.on": "Αναγνώριση πρόθεσης",
+      "settings.reasoning_effort.default": "Προεπιλογή",
+      "settings.more": "Ρυθμίσεις Βοηθού"
     },
     "auth": {
       "error": "Αποτυχία στην αυτόματη πήγαινη των κλειδιών, παρακαλείστε να το κάνετε χειροκίνητα",
@@ -133,7 +175,8 @@
         "prev": "Προηγούμενο μήνυμα",
         "top": "Επιστροφή στην κορυφή",
         "bottom": "Επιστροφή στο κάτω μέρος",
-        "close": "Κλείσιμο"
+        "close": "Κλείσιμο",
+        "history": "Ιστορικό συνομιλίας"
       },
       "resend": "Ξαναστείλε",
       "save": "Αποθήκευση",
@@ -176,7 +219,6 @@
       "topics.export.obsidian_created_placeholder": "Επιλέξτε την ημερομηνία δημιουργίας",
       "topics.export.obsidian_export_failed": "Η εξαγωγή απέτυχε",
       "topics.export.obsidian_export_success": "Η εξαγωγή ήταν επιτυχής",
-      "topics.export.obsidian_not_configured": "Το Obsidian δεν είναι συντονισμένο",
       "topics.export.obsidian_operate": "Επεξεργασία μεθόδου",
       "topics.export.obsidian_operate_append": "Επισυναγωγή",
       "topics.export.obsidian_operate_new_or_overwrite": "Νέο (επιστροφή σε επιστροφή)",
@@ -203,7 +245,54 @@
       "topics.unpinned": "Αποστέλλω",
       "translate": "Μετάφραση",
       "input.generate_image": "Δημιουργία εικόνας",
-      "input.generate_image_not_supported": "Το μοντέλο δεν υποστηρίζει τη δημιουργία εικόνων"
+      "input.generate_image_not_supported": "Το μοντέλο δεν υποστηρίζει τη δημιουργία εικόνων",
+      "history": {
+        "assistant_node": "Βοηθός",
+        "click_to_navigate": "Κάντε κλικ για να μεταβείτε στο αντίστοιχο μήνυμα",
+        "coming_soon": "Το διάγραμμα ροής συνομιλίας θα είναι σύντομα διαθέσιμο",
+        "no_messages": "Δεν βρέθηκαν μηνύματα",
+        "start_conversation": "Ξεκινήστε μια συνομιλία για να δείτε το διάγραμμα ροής",
+        "title": "Ιστορικό συνομιλιών",
+        "user_node": "Χρήστης",
+        "view_full_content": "Προβολή πλήρους περιεχομένου"
+      },
+      "input.translating": "Μετάφραση...",
+      "input.thinking": "Σκέψη",
+      "input.thinking.mode.default": "Προεπιλογή",
+      "input.thinking.mode.default.tip": "Το μοντέλο θα αποφασίσει αυτόματα τον αριθμό token για σκέψη",
+      "input.thinking.mode.custom": "Προσαρμοσμένο",
+      "input.thinking.mode.custom.tip": "Ο μέγιστος αριθμός token που μπορεί να σκεφτεί το μοντέλο. Πρέπει να ληφθεί υπόψη το όριο πλαισίου του μοντέλου, διαφορετικά θα εμφανιστεί σφάλμα",
+      "input.thinking.budget_exceeds_max": "Ο προϋπολογισμός σκέψης υπερβαίνει τον μέγιστο αριθμό token",
+      "input.upload.upload_from_local": "Μεταφόρτωση αρχείου από τον υπολογιστή...",
+      "input.web_search.builtin": "Ενσωματωμένη στο μοντέλο",
+      "input.web_search.builtin.enabled_content": "Χρήση της ενσωματωμένης δυνατότητας διαδικτυακής αναζήτησης του μοντέλου",
+      "input.web_search.builtin.disabled_content": "Η τρέχουσα έκδοση του μοντέλου δεν υποστηρίζει τη δυνατότητα διαδικτυακής αναζήτησης",
+      "input.web_search.no_web_search": "Χωρίς διαδίκτυο",
+      "input.web_search.no_web_search.description": "Να μην ενεργοποιηθεί η δυνατότητα διαδικτυακής αναζήτησης",
+      "settings.code_cacheable": "Κρυφή μνήμη κώδικα",
+      "settings.code_cacheable.tip": "Η κρυφή μνήμη των τμημάτων κώδικα μπορεί να μειώσει τον χρόνο απεικόνισης μεγάλων τμημάτων κώδικα, αλλά αυξάνει τη χρήση μνήμης",
+      "settings.code_cache_max_size": "Όριο κρυφής μνήμης",
+      "settings.code_cache_max_size.tip": "Μέγιστος αριθμός χαρακτήρων (σε χιλιάδες) που επιτρέπεται να αποθηκευτούν στην κρυφή μνήμη, υπολογίζεται με βάση τον κώδικα με χρώματα. Ο κώδικας με χρώματα είναι πολύ πιο μακρύς από τον καθαρό κείμενο.",
+      "settings.code_cache_ttl": "Διάρκεια κρυφής μνήμης",
+      "settings.code_cache_ttl.tip": "Χρόνος λήξης της κρυφής μνήμης (σε λεπτά)",
+      "settings.code_cache_threshold": "Κατώφλι κρυφής μνήμης",
+      "settings.code_cache_threshold.tip": "Ελάχιστο μήκος κώδικα (σε χιλιάδες χαρακτήρες) που επιτρέπεται να αποθηκευτεί στην κρυφή μνήμη. Μόνο τα τμήματα που υπερβαίνουν το κατώφλι θα αποθηκεύονται στην κρυφή μνήμη",
+      "topics.export.md.reason": "Εξαγωγή σε Markdown (περιλαμβανομένης της σκέψης)",
+      "topics.export.obsidian_vault": "Αποθήκη Obsidian",
+      "topics.export.obsidian_vault_placeholder": "Επιλέξτε το όνομα της αποθήκης",
+      "topics.export.obsidian_path": "Διαδρομή",
+      "topics.export.obsidian_path_placeholder": "Επιλέξτε διαδρομή",
+      "topics.export.obsidian_no_vaults": "Δεν βρέθηκε αποθήκη Obsidian",
+      "topics.export.obsidian_loading": "Φόρτωση...",
+      "topics.export.obsidian_fetch_error": "Αποτυχία λήψης της αποθήκης Obsidian",
+      "topics.export.obsidian_fetch_folders_error": "Αποτυχία λήψης της δομής φακέλων",
+      "topics.export.obsidian_no_vault_selected": "Παρακαλώ επιλέξτε μια αποθήκη πρώτα",
+      "topics.export.obsidian_select_vault_first": "Παρακαλώ επιλέξτε πρώτα μια αποθήκη",
+      "topics.export.obsidian_root_directory": "Κυρίως κατάλογος",
+      "topics.export.siyuan": "Εξαγωγή στο Siyuan Notepad",
+      "topics.export.wait_for_title_naming": "Γενικευμένος τίτλος...",
+      "topics.export.title_naming_success": "Ο τίτλος δημιουργήθηκε επιτυχώς",
+      "topics.export.title_naming_failed": "Η δημιουργία του τίτλου απέτυχε, θα χρησιμοποιηθεί ο προεπιλεγμένος τίτλος"
     },
     "code_block": {
       "collapse": "συμπεριληφθείς",
@@ -254,7 +343,16 @@
       "select": "Επιλογή",
       "topics": "Θέματα",
       "warning": "Προσοχή",
-      "you": "Εσείς"
+      "you": "Εσείς",
+      "sort": {
+        "pinyin": "Ταξινόμηση κατά Πινγίν",
+        "pinyin.asc": "Αύξουσα ταξινόμηση κατά Πινγίν",
+        "pinyin.desc": "Φθίνουσα ταξινόμηση κατά Πινγίν"
+      },
+      "inspect": "Επιθεώρηση",
+      "collapse": "Σύμπτυξη",
+      "loading": "Φόρτωση...",
+      "reasoning_content": "Έχει σκεφτεί πολύ καλά"
     },
     "docs": {
       "title": "Βοήθεια"
@@ -280,7 +378,9 @@
         "description": "Απέτυχε η ώθηση της εξίσωσης, παρακαλώ ελέγξτε το σωστό μορφάτι της",
         "title": "Σφάλμα Παρασκήνιου"
       },
-      "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη"
+      "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
+      "unknown": "Άγνωστο σφάλμα",
+      "pause_placeholder": "Διακόπηκε"
     },
     "export": {
       "assistant": "βοηθός",
@@ -393,7 +493,11 @@
       "topN_tooltip": "Η ποσότητα των επιστρεφόμενων αποτελεσμάτων που συνάφονται, όσο μεγαλύτερη είναι η τιμή, τόσο περισσότερα αποτελέσματα συνδέονται, αλλά και οι καταναλωτικοί Token επειδή περισσότερα",
       "url_added": "Η διεύθυνση προστέθηκε",
       "url_placeholder": "Εισάγετε τη διεύθυνση, χωρίστε πολλαπλές διευθύνσεις με επιστροφή",
-      "urls": "Διευθύνσεις"
+      "urls": "Διευθύνσεις",
+      "dimensions": "Διαστάσεις ενσωμάτωσης",
+      "dimensions_size_tooltip": "Το μέγεθος των διαστάσεων ενσωμάτωσης. Όσο μεγαλύτερη η τιμή, τόσο περισσότερες οι διαστάσεις ενσωμάτωσης, αλλά και οι απαιτούμενες μονάδες (Tokens).",
+      "dimensions_size_placeholder": "Προεπιλεγμένη τιμή (δεν συνιστάται να τροποποιηθεί)",
+      "dimensions_size_too_large": "Οι διαστάσεις ενσωμάτωσης δεν μπορούν να υπερβούν το όριο περιεχομένου του μοντέλου ({{max_context}})"
     },
     "languages": {
       "arabic": "Αραβικά",
@@ -505,20 +609,63 @@
         "completed": "Ολοκληρώθηκε",
         "invoking": "κλήση σε εξέλιξη",
         "raw": "Ακατέργαστο",
-        "preview": "Προεπισκόπηση"
+        "preview": "Προεπισκόπηση",
+        "error": "Προέκυψε σφάλμα"
       },
       "topic.added": "Η θεματική προστέθηκε επιτυχώς",
       "upgrade.success.button": "Επανεκκίνηση",
       "upgrade.success.content": "Επανεκκίνηση για να ολοκληρώσετε την ενημέρωση",
       "upgrade.success.title": "Η ενημέρωση ήταν επιτυχής",
       "warn.notion.exporting": "Εξαγωγή στο Notion, μην επαναλάβετε την διαδικασία εξαγωγής!",
-      "warning.rate.limit": "Υπερβολική συχνότητα στείλατε παρακαλώ περιμένετε {{seconds}} δευτερόλεπτα και προσπαθήστε ξανά"
+      "warning.rate.limit": "Υπερβολική συχνότητα στείλατε παρακαλώ περιμένετε {{seconds}} δευτερόλεπτα και προσπαθήστε ξανά",
+      "agents": {
+        "imported": "Εισήχθη επιτυχώς",
+        "import.error": "Η εισαγωγή απέτυχε"
+      },
+      "citation": "{{count}} αναφορές",
+      "error.invalid.nutstore": "Μη έγκυρη ρύθμιση Nutstore",
+      "error.invalid.nutstore_token": "Μη έγκυρο Token Nutstore",
+      "processing": "Επεξεργασία...",
+      "error.siyuan.export": "Η έκθεση σημειώσεων Siyuan απέτυχε, ελέγξτε την κατάσταση σύνδεσης και τις ρυθμίσεις σύμφωνα με τα έγγραφα",
+      "error.siyuan.no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes",
+      "success.siyuan.export": "Επιτυχής εξαγωγή στις σημειώσεις Siyuan",
+      "warn.yuque.exporting": "Γίνεται έκθεση Yuque· μην ξαναζητήσετε την έκθεση!",
+      "warn.siyuan.exporting": "Γίνεται εξαγωγή στις σημειώσεις Siyuan· μην ξαναζητήσετε την έκθεση!",
+      "download.success": "Λήψη ολοκληρώθηκε",
+      "download.failed": "Αποτυχία λήψης"
     },
     "minapp": {
-      "sidebar.add.title": "Προσθήκη στην πλευρή",
-      "sidebar.remove.title": "Αφαίρεση από την πλευρή",
-      "sidebar.hide.title": "Απόκρυψη μικροπρογράμματος",
-      "title": "Μικρόπρογραμμα"
+      "title": "Μικρόπρογραμμα",
+      "popup": {
+        "refresh": "Ανανέωση",
+        "close": "Κλείσιμο της εφαρμογής",
+        "minimize": "Ελαχιστοποίηση της εφαρμογής",
+        "devtools": "Εργαλεία προγραμματιστή",
+        "openExternal": "Άνοιγμα στον περιηγητή",
+        "rightclick_copyurl": "Αντιγραφή URL με δεξί κλικ",
+        "open_link_external_on": "Τρέχον: Άνοιγμα συνδέσμου στον περιηγητή",
+        "open_link_external_off": "Τρέχον: Άνοιγμα συνδέσμου χρησιμοποιώντας το προεπιλεγμένο παράθυρο"
+      },
+      "sidebar": {
+        "add": {
+          "title": "Προσθήκη στην πλευρική μπάρα"
+        },
+        "remove": {
+          "title": "Αφαίρεση από την πλευρική μπάρα"
+        },
+        "remove_custom": {
+          "title": "Διαγραφή προσαρμοσμένης εφαρμογής"
+        },
+        "hide": {
+          "title": "Απόκρυψη"
+        },
+        "close": {
+          "title": "Κλείσιμο"
+        },
+        "closeall": {
+          "title": "Κλείσιμο όλων"
+        }
+      }
     },
     "miniwindow": {
       "clipboard": {
@@ -534,13 +681,17 @@
         "copy_last_message": "Παράκαμε το τελευταίο μήνυμα",
         "esc": "πατήστε ESC για {{action}}",
         "esc_back": "Επιστροφή",
-        "esc_close": "Κλείσιμο παραθύρου"
+        "esc_close": "Κλείσιμο παραθύρου",
+        "backspace_clear": "Πατήστε το πλήκτρο Backspace για να κάνετε εκκαθάριση"
       },
       "input": {
         "placeholder": {
           "empty": "Ρώτα τον {{model}} για βοήθεια...",
           "title": "Τι θέλεις να κάνεις με το κείμενο που είναι παρακάτω"
         }
+      },
+      "tooltip": {
+        "pin": "Καρφίτσωμα παραθύρου"
       }
     },
     "models": {
@@ -577,7 +728,9 @@
         "free": "δωρεάν",
         "rerank": "Τακτοποιώ",
         "websearch": "δικτύωση"
-      }
+      },
+      "rerank_model_not_support_provider": "Ο επαναξιολογητικός μοντέλος δεν υποστηρίζει αυτόν τον πάροχο ({{provider}})",
+      "enable_tool_use": "Ενεργοποίηση κλήσης εργαλείου"
     },
     "navbar": {
       "expand": "Επισκευή διαλόγου",
@@ -609,7 +762,59 @@
       "regenerate.confirm": "Αυτό θα επιβάλει τις δημιουργίες που έχετε κάνει, θέλετε να συνεχίσετε;",
       "seed": "Τυχαίος παράγοντας",
       "seed_tip": "Η χρήση του ίδιου παραγόντα και του σχολίου μπορεί να δημιουργήσει παρόμοιες εικόνες",
-      "title": "Εικόνα"
+      "title": "Εικόνα",
+      "mode": {
+        "generate": "Δημιουργία",
+        "edit": "Επεξεργασία",
+        "remix": "Ανάμειξη",
+        "upscale": "Μεγέθυνση"
+      },
+      "generate": {
+        "model_tip": "Έκδοση μοντέλου: Το V2 είναι το τελευταίο μοντέλο διεπαφής, το V2A είναι γρήγορο μοντέλο, το V_1 είναι το αρχικό μοντέλο και το _TURBO είναι η επιταχυνόμενη έκδοση",
+        "number_images_tip": "Αριθμός εικόνων ανά παραγωγή",
+        "seed_tip": "Ελέγχει την τυχαιότητα της δημιουργίας εικόνας, χρησιμοποιείται για να επαναληφθεί το ίδιο αποτέλεσμα",
+        "negative_prompt_tip": "Περιγράψτε στοιχεία που δεν θέλετε να εμφανίζονται στην εικόνα, υποστηρίζεται μόνο στις εκδόσεις V_1, V_1_TURBO, V_2 και V_2_TURBO",
+        "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της προτροπής για βελτίωση των αποτελεσμάτων",
+        "style_type_tip": "Στυλ δημιουργίας εικόνας, ισχύει μόνο για την έκδοση V_2 και μεταγενέστερες"
+      },
+      "edit": {
+        "image_file": "Επεξεργασμένη εικόνα",
+        "model_tip": "Η λειτουργία επεξεργασίας υποστηρίζεται μόνο από τις εκδόσεις V_2 και V_2_TURBO",
+        "number_images_tip": "Αριθμός των αποτελεσμάτων επεξεργασίας που θα δημιουργηθούν",
+        "style_type_tip": "Ο τύπος στυλ για την επεξεργασμένη εικόνα, ισχύει μόνο για την έκδοση V_2 και νεότερες",
+        "seed_tip": "Έλεγχος της τυχαιότητας στα αποτελέσματα επεξεργασίας",
+        "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της πρότασης επεξεργασίας"
+      },
+      "remix": {
+        "model_tip": "Επιλέξτε την έκδοση του AI μοντέλου για χρήση σε remix",
+        "image_file": "Εικόνα αναφοράς",
+        "image_weight": "Βάρος εικόνας αναφοράς",
+        "image_weight_tip": "Ρυθμίστε την επίδραση της εικόνας αναφοράς",
+        "number_images_tip": "Αριθμός αποτελεσμάτων remix που θα δημιουργηθούν",
+        "seed_tip": "Έλεγχος τυχαιότητας των αποτελεσμάτων remix",
+        "style_type_tip": "Στυλ εικόνας μετά το remix, διαθέσιμο μόνο για εκδόσεις V_2 και νεότερες",
+        "negative_prompt_tip": "Περιγράψτε στοιχεία που δεν θέλετε να εμφανιστούν στο αποτέλεσμα remix",
+        "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της προτροπής remix"
+      },
+      "upscale": {
+        "image_file": "Εικόνα που χρειάζεται μεγέθυνση",
+        "resemblance": "Ομοιότητα",
+        "resemblance_tip": "Ρυθμίστε την ομοιότητα της μεγεθυσμένης εικόνας με την αρχική",
+        "detail": "Λεπτομέρεια",
+        "detail_tip": "Ρυθμίστε την ένταση των λεπτομερειών στην μεγεθυσμένη εικόνα",
+        "number_images_tip": "Αριθμός των αποτελεσμάτων μεγέθυνσης που θα δημιουργηθούν",
+        "seed_tip": "Ελέγχει την τυχαιότητα του αποτελέσματος μεγέθυνσης",
+        "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της προτροπής μεγέθυνσης"
+      },
+      "magic_prompt_option": "Ενίσχυση προτροπής",
+      "model": "Έκδοση",
+      "aspect_ratio": "Λόγος διαστάσεων",
+      "style_type": "Στυλ",
+      "learn_more": "Μάθετε περισσότερα",
+      "prompt_placeholder_edit": "Εισάγετε την περιγραφή της εικόνας σας, χρησιμοποιήστε διπλά εισαγωγικά \"\" για κείμενο",
+      "proxy_required": "Αυτή τη στιγμή χρειάζεται να ενεργοποιήσετε τον μεσολαβητή (proxy) για να δείτε τις δημιουργημένες εικόνες. Στο μέλλον θα υποστηρίζεται η άμεση σύνδεση στην Κίνα",
+      "image_file_required": "Παρακαλώ ανεβάστε πρώτα μια εικόνα",
+      "image_file_retry": "Παρακαλώ ανεβάστε ξανά την εικόνα"
     },
     "plantuml": {
       "download": {
@@ -672,7 +877,9 @@
       "xirang": "China Telecom Xiran",
       "yi": "Zero One Wanyiwu",
       "zhinao": "360 Intelligent Brain",
-      "zhipu": "Zhipu AI"
+      "zhipu": "Zhipu AI",
+      "voyageai": "Voyage AI",
+      "qiniu": "Qiniu Cloud"
     },
     "restore": {
       "confirm": "Είστε σίγουροι ότι θέλετε να επαναφέρετε τα δεδομένα;",
@@ -714,7 +921,6 @@
       "advanced.title": "Ρυθμίσεις Ανώτερου Νiveau",
       "assistant": "Πρόεδρος Υπηρεσίας",
       "assistant.model_params": "Παράμετροι Μοντέλου",
-      "assistant.show.icon": "Εμφάνιση εικονιδίου μοντέλου",
       "assistant.title": "Πρόεδρος Υπηρεσίας",
       "data": {
         "app_data": "Δεδομένα εφαρμογής",
@@ -780,13 +986,13 @@
         "notion.split_size_placeholder": "Εισαγάγετε τον περιορισμό μπλοκ κάθε σελίδας (προεπιλογή: 90)",
         "notion.title": "Ρυθμίσεις του Notion",
         "obsidian": {
-          "folder": "Φάκελος",
-          "folder_placeholder": "Παρακαλώ εισάγετε όνομα φακέλου",
-          "tags": "Παγκόσμιοι ετικέτες",
-          "tags_placeholder": "Παρακαλώ εισάγετε ονόματα ετικετών, χωριστά με κόμματα, οι ετικέτες στο Obsidian δεν μπορούν να είναι μόνο αριθμοί",
           "title": "Ρύθμιση του Obsidian",
-          "vault": "Αποθήκη",
-          "vault_placeholder": "Παρακαλώ εισάγετε όνομα αποθήκης"
+          "default_vault": "Προεπιλεγμένο αποθετήριο Obsidian",
+          "default_vault_placeholder": "Επιλέξτε προεπιλεγμένο αποθετήριο Obsidian",
+          "default_vault_loading": "Ανάκτηση αποθετηρίου Obsidian...",
+          "default_vault_no_vaults": "Δεν βρέθηκε αποθετήριο Obsidian",
+          "default_vault_fetch_error": "Αποτυχία ανάκτησης αποθετηρίου Obsidian",
+          "default_vault_export_failed": "Η εξαγωγή απέτυχε"
         },
         "title": "Ρυθμίσεις δεδομένων",
         "webdav": {
@@ -818,7 +1024,26 @@
           "title": "WebDAV",
           "user": "Όνομα χρήστη WebDAV",
           "maxBackups": "Μέγιστο αριθμό αρχείων αντιγραφής ασφαλείας",
-          "maxBackups.unlimited": "Απεριόριστο"
+          "maxBackups.unlimited": "Απεριόριστο",
+          "backup.manager.title": "Διαχείριση δεδομένων αντιγράφου ασφαλείας",
+          "backup.manager.refresh": "Ανανέωση",
+          "backup.manager.delete.selected": "Διαγραφή επιλεγμένων",
+          "backup.manager.delete.text": "Διαγραφή",
+          "backup.manager.restore.text": "Επαναφορά",
+          "backup.manager.restore.success": "Η επαναφορά ήταν επιτυχής, η εφαρμογή θα ανανεωθεί σε λίγα δευτερόλεπτα",
+          "backup.manager.restore.error": "Αποτυχία επαναφοράς",
+          "backup.manager.delete.confirm.title": "Επιβεβαίωση διαγραφής",
+          "backup.manager.delete.confirm.single": "Είστε βέβαιοι ότι θέλετε να διαγράψετε το αντίγραφο ασφαλείας \"{{fileName}}\"; Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.",
+          "backup.manager.delete.confirm.multiple": "Είστε βέβαιοι ότι θέλετε να διαγράψετε τα {{count}} επιλεγμένα αντίγραφα ασφαλείας; Η ενέργεια αυτή δεν μπορεί να αναιρεθεί.",
+          "backup.manager.delete.success.single": "Η διαγραφή ήταν επιτυχής",
+          "backup.manager.delete.success.multiple": "Τα {{count}} αντίγραφα ασφαλείας διαγράφηκαν επιτυχώς",
+          "backup.manager.delete.error": "Αποτυχία διαγραφής",
+          "backup.manager.fetch.error": "Αποτυχία λήψης αντιγράφων ασφαλείας",
+          "backup.manager.select.files.delete": "Παρακαλώ επιλέξτε τα αντίγραφα ασφαλείας προς διαγραφή",
+          "backup.manager.columns.fileName": "Όνομα αρχείου",
+          "backup.manager.columns.modifiedTime": "Ώρα τροποποίησης",
+          "backup.manager.columns.size": "Μέγεθος",
+          "backup.manager.columns.actions": "Ενέργειες"
         },
         "yuque": {
           "check": {
@@ -834,16 +1059,73 @@
           "title": "Ρύθμιση Yusi",
           "token": "Token του Yusi",
           "token_placeholder": "Παρακαλούμε εισάγετε το Token του Yusi"
-        }
+        },
+        "export_menu": {
+          "title": "Εξαγωγή ρυθμίσεων μενού",
+          "image": "Εξαγωγή ως εικόνα",
+          "markdown": "Εξαγωγή σε Markdown",
+          "markdown_reason": "Εξαγωγή σε Markdown (περιλαμβάνει σκέψη)",
+          "notion": "Εξαγωγή στο Notion",
+          "yuque": "Εξαγωγή στο Yuque",
+          "obsidian": "Εξαγωγή στο Obsidian",
+          "siyuan": "Εξαγωγή στο Ση-Υάν",
+          "joplin": "Εξαγωγή στο Joplin",
+          "docx": "Εξαγωγή σε Word"
+        },
+        "siyuan": {
+          "check": {
+            "title": "Έλεγχος Σύνδεσης",
+            "button": "Έλεγχος",
+            "empty_config": "Παρακαλώ εισάγετε τη διεύθυνση API και το token",
+            "success": "Η σύνδεση ήταν επιτυχής",
+            "fail": "Αποτυχία σύνδεσης, παρακαλώ ελέγξτε τη διεύθυνση API και το token",
+            "error": "Αιφνίδια διακοπή σύνδεσης, παρακαλώ ελέγξτε τη σύνδεση δικτύου"
+          },
+          "title": "Ρυθμίσεις του Siyuan Σημειώσεων",
+          "api_url": "Διεύθυνση API",
+          "api_url_placeholder": "Παράδειγμα: http://127.0.0.1:6806",
+          "token": "Κλειδί API",
+          "token.help": "Λήψη από Siyuan Σημειώσεις -> Ρυθμίσεις -> Σχετικά",
+          "token_placeholder": "Εισάγετε το κλειδί των Siyuan Σημειώσεων",
+          "box_id": "ID Υπολογιστή",
+          "box_id_placeholder": "Εισάγετε το ID υπολογιστή",
+          "root_path": "Κεντρική διαδρομή εγγράφων",
+          "root_path_placeholder": "Παράδειγμα: /CherryStudio"
+        },
+        "nutstore": {
+          "title": "Ρυθμίσεις Jotunn Cloud",
+          "isLogin": "Συνδεδεμένος",
+          "notLogin": "Μη συνδεδεμένος",
+          "login.button": "Σύνδεση",
+          "logout.button": "Αποσύνδεση",
+          "logout.title": "Επιβεβαίωση αποσύνδεσης από το Jotunn Cloud;",
+          "logout.content": "Μετά την αποσύνδεση δεν θα μπορείτε να κάνετε αντίγραφο ασφαλείας ή να ανακτήσετε δεδομένα από το Jotunn Cloud",
+          "checkConnection.name": "Έλεγχος σύνδεσης",
+          "checkConnection.success": "Συνδεδεμένο στο Jotunn Cloud",
+          "checkConnection.fail": "Αποτυχία σύνδεσης στο Jotunn Cloud",
+          "username": "Όνομα χρήστη Jotunn Cloud",
+          "path": "Διαδρομή αποθήκευσης Jotunn Cloud",
+          "path.placeholder": "Παρακαλώ εισάγετε τη διαδρομή αποθήκευσης του Jotunn Cloud",
+          "backup.button": "Αντίγραφο ασφαλείας στο Jotunn Cloud",
+          "restore.button": "Επαναφορά από το Jotunn Cloud",
+          "pathSelector.title": "Διαδρομή αποθήκευσης Jotunn Cloud",
+          "pathSelector.return": "Πίσω",
+          "pathSelector.currentPath": "Τρέχουσα διαδρομή",
+          "new_folder.button.confirm": "Επιβεβαίωση",
+          "new_folder.button.cancel": "Άκυρο",
+          "new_folder.button": "Νέος φάκελος"
+        },
+        "divider.basic": "Ρυθμίσεις βασικών δεδομένων",
+        "divider.cloud_storage": "Ρυθμίσεις αποθήκευσης στο νέφος",
+        "divider.export_settings": "Ρυθμίσεις εξαγωγής",
+        "divider.third_party": "Σύνδεση τρίτων",
+        "message_title.use_topic_naming.title": "Δημιουργία τίτλων μηνυμάτων χρησιμοποιώντας μοντέλο ονομασίας θεμάτων",
+        "message_title.use_topic_naming.help": "Όταν είναι ενεργό, δημιουργεί τίτλους για τα μηνύματα που εξάγονται χρησιμοποιώντας μοντέλο ονομασίας θεμάτων. Αυτό επηρεάζει επίσης όλες τις μεθόδους εξαγωγής μέσω Markdown."
       },
       "display.assistant.title": "Ρυθμίσεις Υπηρεσίας",
       "display.custom.css": "Προσαρμοστική CSS",
       "display.custom.css.cherrycss": "Λήψη από cherrycss.com",
       "display.custom.css.placeholder": "/* Γράψτε εδώ την προσαρμοστική CSS */",
-      "display.minApp.disabled": "Αποκρυμμένα μικροπρογράμματα",
-      "display.minApp.empty": "Βάλτε εδώ τα μικροπρογράμματα που θέλετε να κρύψετε από την αριστερά",
-      "display.minApp.title": "Ρυθμίσεις εμφάνισης μικροπρογραμμάτων",
-      "display.minApp.visible": "Εμφανιζόμενα μικροπρογράμματα",
       "display.sidebar.chat.hiddenMessage": "Η υπηρεσία είναι βασική λειτουργία και δεν υποστηρίζεται η κρυμμένη εμφάνιση",
       "display.sidebar.disabled": "Αποκρυμμένα εικονίδια",
       "display.sidebar.empty": "Βάλτε εδώ τις λειτουργίες που θέλετε να κρύψετε από την αριστερά",
@@ -864,7 +1146,6 @@
       "general.display.title": "Ρυθμίσεις εμφάνισης",
       "general.emoji_picker": "Επιλογή σμιλιών",
       "general.image_upload": "Φόρτωση εικόνων",
-      "general.manually_check_update.title": "Απενεργοποίηση ελέγχου ενημερώσεων",
       "general.reset.button": "Επαναφορά",
       "general.reset.title": "Επαναφορά δεδομένων",
       "general.restore.button": "Αποκατάσταση",
@@ -930,11 +1211,94 @@
         "serverPlural": "Διακομιστές",
         "serverSingular": "Διακομιστής",
         "title": "Διακομιστές MCP",
-        "toggleError": "Αποτυχία εναλλαγής",
         "type": "Τύπος",
         "updateError": "Αποτυχία ενημέρωσης διακομιστή",
         "updateSuccess": "Ο διακομιστής ενημερώθηκε επιτυχώς",
-        "url": "URL"
+        "url": "URL",
+        "errors": {
+          "32000": "Η εκκίνηση του MCP απέτυχε. Παρακαλώ ελέγξτε αν όλες οι παράμετροι έχουν συμπληρωθεί σύμφωνα με τον οδηγό."
+        },
+        "tabs": {
+          "general": "Γενικά",
+          "description": "Περιγραφή",
+          "tools": "Εργαλεία",
+          "prompts": "Ερωτήματα",
+          "resources": "Πόροι"
+        },
+        "tools": {
+          "inputSchema": "Είσοδος Σχήματος",
+          "availableTools": "Διαθέσιμα Εργαλεία",
+          "noToolsAvailable": "Δεν υπάρχουν διαθέσιμα εργαλεία",
+          "loadError": "Αποτυχία φόρτωσης εργαλείων"
+        },
+        "prompts": {
+          "availablePrompts": "Διαθέσιμες Υποδείξεις",
+          "noPromptsAvailable": "Δεν υπάρχουν διαθέσιμες υποδείξεις",
+          "arguments": "Ορίσματα",
+          "requiredField": "Υποχρεωτικό πεδίο",
+          "genericError": "Σφάλμα κατά τη λήψη της υπόδειξης",
+          "loadError": "Αποτυχία λήψης υπόδειξης"
+        },
+        "resources": {
+          "noResourcesAvailable": "Δεν υπάρχουν διαθέσιμοι πόροι",
+          "availableResources": "Διαθέσιμοι πόροι",
+          "uri": "URI",
+          "mimeType": "Τύπος MIME",
+          "size": "Μέγεθος",
+          "blob": "Δυαδικά δεδομένα",
+          "blobInvisible": "Αόρατα δυαδικά δεδομένα",
+          "text": "Κείμενο"
+        },
+        "types": {
+          "inMemory": "Ενσωματωμένη",
+          "sse": "SSE",
+          "streamableHttp": "Ροή",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Συγχρονισμός Διακομιστή",
+          "selectProvider": "Επιλέξτε Πάροχο:",
+          "discoverMcpServers": "Ανακάλυψη MCP Διακομιστών",
+          "discoverMcpServersDescription": "Πρόσβαση στην πλατφόρμα για ανακάλυψη διαθέσιμων MCP διακομιστών",
+          "getToken": "Λήψη API Τοκεν",
+          "getTokenDescription": "Λήψη ενός προσωπικού API τοκεν από τον λογαριασμό σας",
+          "setToken": "Εισαγάγετε το τοκεν σας",
+          "tokenRequired": "Απαιτείται API Τοκεν",
+          "tokenPlaceholder": "Εισάγετε το API τοκεν εδώ",
+          "button": "Συγχρονισμός",
+          "error": "Σφάλμα κατά τον συγχρονισμό MCP διακομιστή",
+          "success": "Ο συγχρονισμός MCP διακομιστή ολοκληρώθηκε επιτυχώς",
+          "unauthorized": "Δεν εξουσιοδοτήθηκε ο συγχρονισμός",
+          "noServersAvailable": "Δεν υπάρχουν διαθέσιμοι MCP διακομιστές"
+        },
+        "sse": "Συμβάντα Αποστολής από τον Διακομιστή (sse)",
+        "streamableHttp": "Ρέουσα μεταφορά HTTP (streamableHttp)",
+        "stdio": "Πρότυπη Είσοδος/Έξοδος (stdio)",
+        "inMemory": "Σε Μνήμη",
+        "headers": "Κεφαλίδες",
+        "headersTooltip": "Προσαρμοσμένες κεφαλίδες HTTP αιτήσεων",
+        "searchNpx": "Αναζήτηση MCP",
+        "newServer": "Διακομιστής MCP",
+        "startError": "Εκκίνηση Απέτυχε",
+        "editMcpJson": "Επεξεργασία ρύθμισης MCP",
+        "installHelp": "Λήψη βοήθειας εγκατάστασης",
+        "deleteServer": "Διαγραφή διακομιστή",
+        "deleteServerConfirm": "Είστε σίγουρος ότι θέλετε να διαγράψετε αυτόν τον διακομιστή;",
+        "registry": "Πηγή Διαχείρισης πακέτων",
+        "registryTooltip": "Επιλέξτε την πηγή για την εγκατάσταση πακέτων, για να αντιμετωπιστούν προβλήματα δικτύου από την προεπιλεγμένη πηγή.",
+        "registryDefault": "Προεπιλεγμένη",
+        "not_support": "Το μοντέλο δεν υποστηρίζεται",
+        "user": "Χρήστης",
+        "system": "Σύστημα",
+        "timeout": "Τερματισμός λόγω αδράνειας",
+        "timeoutTooltip": "Ο χρόνος λήξης αιτήσεων για αυτόν τον διακομιστή (σε δευτερόλεπτα), προεπιλεγμένος είναι 60 δευτερόλεπτα",
+        "provider": "Πάροχος",
+        "providerUrl": "URL Παρόχου",
+        "logoUrl": "URL Λογότυπου",
+        "tags": "Ετικέτες",
+        "tagsPlaceholder": "Εισάγετε ετικέτες",
+        "providerPlaceholder": "Όνομα παρόχου",
+        "advancedSettings": "Προχωρημένες Ρυθμίσεις"
       },
       "messages.divider": "Διαχωριστική γραμμή μηνυμάτων",
       "messages.grid_columns": "Αριθμός στήλων γριλ μηνυμάτων",
@@ -1046,13 +1410,29 @@
         "docs_more_details": "Λάβετε περισσότερες λεπτομέρειες",
         "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",
         "is_not_support_array_content": "Ενεργοποίηση συμβατικού μοντέλου",
-        "no_models": "Πρέπει να προσθέσετε πρώτα πρόσωπο το πρόσωπο της μονάδας πριν ελέγξετε τη σύνδεση API",
         "not_checked": "Δεν ελέγχεται",
         "remove_duplicate_keys": "Αφαίρεση Επαναλαμβανόμενων Κλειδιών",
         "remove_invalid_keys": "Διαγραφή Ακυρωμένων Κλειδιών",
         "search": "Αναζήτηση πλατφόρμας μονάδων...",
         "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
-        "title": "Υπηρεσία μονάδων"
+        "title": "Υπηρεσία μονάδων",
+        "oauth": {
+          "button": "Σύνδεση με λογαριασμό {{provider}}",
+          "description": "Η υπηρεσία παρέχεται από την ιστοσελίδα {{provider}}",
+          "official_website": "Επίσημη ιστοσελίδα"
+        },
+        "notes": {
+          "title": "Σχόλιο Μοντέλου",
+          "placeholder": "Εισάγετε περιεχόμενο σε μορφή Markdown...",
+          "markdown_editor_default_value": "Περιοχή Προεπισκόπησης"
+        },
+        "basic_auth": "Πιστοποίηση HTTP",
+        "basic_auth.tip": "Ισχύει για περιπτώσεις που τοποθετούνται σε διακομιστή (δείτε την τεκμηρίωση). Υποστηρίζεται μόνο το σχήμα Basic (RFC7617).",
+        "basic_auth.user_name": "Όνομα χρήστη",
+        "basic_auth.user_name.tip": "Αφήστε κενό για να απενεργοποιήσετε",
+        "basic_auth.password": "Κωδικός πρόσβασης",
+        "bills": "Λογαριασμοί",
+        "no_models_for_check": "Δεν υπάρχουν μοντέλα για έλεγχο (π.χ. μοντέλα συνομιλίας)"
       },
       "proxy": {
         "mode": {
@@ -1129,8 +1509,111 @@
           "description": "Το Tavily είναι ένα αναζητητής που διαμορφώνεται για AI-agents, παρέχοντας συνεχεία ακριβείς αποτελέσματα, νοηματικές προτάσεις αναζήτησης και βαθειά ικανότητες μελέτης",
           "title": "Tavily"
         },
-        "title": "Διαδικτυακή αναζήτηση"
-      }
+        "title": "Διαδικτυακή αναζήτηση",
+        "overwrite": "Επικάλυψη πάροχου αναζήτησης",
+        "overwrite_tooltip": "Εξαναγκαστική χρήση του πάροχου αναζήτησης αντί του μεγάλου γλωσσικού μοντέλου για αναζήτηση",
+        "subscribe": "Συνδρομή λίστας αποκλεισμού",
+        "subscribe_update": "Ενημέρωση τώρα",
+        "subscribe_add": "Προσθήκη συνδρομής",
+        "subscribe_url": "Διεύθυνση συνδρομής",
+        "subscribe_name": "Εναλλακτικό όνομα",
+        "subscribe_name.placeholder": "Εναλλακτικό όνομα που θα χρησιμοποιείται όταν η ληφθείσα συνδρομή δεν έχει όνομα",
+        "subscribe_add_success": "Η συνδρομή προστέθηκε επιτυχώς!",
+        "subscribe_delete": "Διαγραφή συνδρομής",
+        "apikey": "Κλειδί API",
+        "free": "Δωρεάν",
+        "content_limit": "Περιορισμός μήκους περιεχομένου",
+        "content_limit_tooltip": "Περιορίζει το μήκος του περιεχομένου των αποτελεσμάτων αναζήτησης, το περιεχόμενο πέρα από το όριο θα περικόπτεται"
+      },
+      "miniapps": {
+        "open_link_external": {
+          "title": "Άνοιγμα νέου παραθύρου σύνδεσης στον περιηγητή"
+        },
+        "custom": {
+          "title": "Προσαρμοσμένη Εφαρμογή",
+          "edit_title": "Επεξεργασία Προσαρμοσμένης Εφαρμογής",
+          "save_success": "Η προσαρμοσμένη εφαρμογή αποθηκεύτηκε επιτυχώς.",
+          "save_error": "Αποτυχία αποθήκευσης της προσαρμοσμένης εφαρμογής.",
+          "remove_success": "Η προσαρμοσμένη εφαρμογή διαγράφηκε επιτυχώς.",
+          "remove_error": "Αποτυχία διαγραφής της προσαρμοσμένης εφαρμογής.",
+          "logo_upload_success": "Το Logo μεταφορτώθηκε επιτυχώς.",
+          "logo_upload_error": "Αποτυχία μεταφόρτωσης του Logo.",
+          "id": "ID",
+          "id_error": "Το ID είναι υποχρεωτικό πεδίο.",
+          "id_placeholder": "Παρακαλώ εισάγετε το ID",
+          "name": "Όνομα",
+          "name_error": "Το Όνομα είναι υποχρεωτικό πεδίο.",
+          "name_placeholder": "Παρακαλώ εισάγετε το όνομα",
+          "url": "URL",
+          "url_error": "Το URL είναι υποχρεωτικό πεδίο.",
+          "url_placeholder": "Παρακαλώ εισάγετε το URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "Μεταφόρτωση Logo Αρχείου",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "Παρακαλώ εισάγετε το Logo URL",
+          "logo_upload_label": "Μεταφόρτωση Logo",
+          "logo_upload_button": "Μεταφόρτωση",
+          "save": "Αποθήκευση",
+          "edit_description": "Επεξεργαστείτε τη διαμόρφωση της προσαρμοσμένης σας εφαρμογής εδώ. Κάθε εφαρμογή πρέπει να περιλαμβάνει τα πεδία id, name, url και logo.",
+          "placeholder": "Παρακαλώ εισάγετε τη διαμόρφωση της προσαρμοσμένης εφαρμογής (Μορφή JSON)",
+          "duplicate_ids": "Εντοπίστηκαν διπλότυπα ID: {{ids}}",
+          "conflicting_ids": "Υπάρχει σύγκρουση με τα προεπιλεγμένα ID της εφαρμογής: {{ids}}"
+        },
+        "title": "Ρυθμίσεις Μικροπρογράμματος",
+        "disabled": "Απόκρυψη μικροπρογράμματος",
+        "empty": "Σύρετε το μικροπρόγραμμα που θέλετε να αποκρύψετε από την αριστερή πλευρά σε αυτήν την περιοχή",
+        "visible": "Εμφανιζόμενα μικροπρογράμματα",
+        "cache_settings": "Ρυθμίσεις Προσωρινής Μνήμης",
+        "cache_title": "Ποσότητα Προσωρινής Μνήμης Μικροπρογράμματος",
+        "cache_description": "Ορίστε τον μέγιστο αριθμό των μικροπρογραμμάτων που μπορούν να είναι ενεργά ταυτόχρονα",
+        "reset_tooltip": "Επαναφορά στις προεπιλεγμένες τιμές",
+        "display_title": "Ρυθμίσεις Εμφάνισης Μικροπρογράμματος",
+        "sidebar_title": "Ρυθμίσεις Εμφάνισης Ενεργού Μικροπρογράμματος στην Πλευρική Γραμμή",
+        "sidebar_description": "Καθορίστε εάν το ενεργό μικροπρόγραμμα θα εμφανίζεται στην πλευρική γραμμή",
+        "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή"
+      },
+      "quickPhrase": {
+        "title": "Γρήγορες Φράσεις",
+        "add": "Προσθήκη Φράσης",
+        "edit": "Επεξεργασία Φράσης",
+        "titleLabel": "Τίτλος",
+        "contentLabel": "Περιεχόμενο",
+        "titlePlaceholder": "Παρακαλώ εισάγετε τίτλο φράσης",
+        "contentPlaceholder": "Παρακαλώ εισάγετε περιεχόμενο φράσης. Υποστηρίζεται η χρήση μεταβλητών, και στη συνέχεια πατήστε Tab για να μεταβείτε γρήγορα στη μεταβλητή και να την τροποποιήσετε. Για παράδειγμα: \\\\n Βοήθησέ με να σχεδιάσω μια διαδρομή από το ${from} στο ${to}, και στη συνέχεια να τη στείλεις στο ${email}.",
+        "delete": "Διαγραφή Φράσης",
+        "deleteConfirm": "Η διαγραφή της φράσης δεν μπορεί να αναιρεθεί. Θέλετε να συνεχίσετε;",
+        "locationLabel": "Προσθήκη Τοποθεσίας",
+        "global": "Κοινές Φράσεις",
+        "assistant": "Φράσεις Βοηθού"
+      },
+      "quickPanel": {
+        "title": "Γρήγορη Πρόσβαση",
+        "close": "Κλείσιμο",
+        "select": "Επιλογή",
+        "page": "Σελίδα",
+        "confirm": "Επιβεβαίωση",
+        "back": "Πίσω",
+        "forward": "Μπρος",
+        "multiple": "Πολλαπλή επιλογή"
+      },
+      "privacy": {
+        "title": "Ρυθμίσεις Απορρήτου",
+        "enable_privacy_mode": "Αποστολή ανώνυμων αναφορών σφαλμάτων και στατιστικών δεδομένων"
+      },
+      "assistant.icon.type": "Τύπος εικονιδίου μοντέλου",
+      "assistant.icon.type.model": "Εικονίδιο μοντέλου",
+      "assistant.icon.type.emoji": "Emoji",
+      "assistant.icon.type.none": "Κανένα",
+      "general.auto_check_update.title": "Αυτόματη ενημέρωση",
+      "input.show_translate_confirm": "Εμφάνιση παραθύρου επιβεβαίωσης μετάφρασης",
+      "messages.prompt": "Λήμμα προτροπής",
+      "messages.input.enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
+      "messages.input.enable_delete_model": "Ενεργοποίηση διαγραφής μοντέλων/επισυναπτόμενων αρχείων με το πλήκτρο διαγραφής",
+      "messages.math_engine.none": "Κανένα",
+      "models.manage.add_listed": "Προσθήκη μοντέλων από τη λίστα",
+      "models.manage.remove_listed": "Αφαίρεση μοντέλων από τη λίστα",
+      "zoom.title": "Μεγέθυνση σελίδας"
     },
     "translate": {
       "any.language": " οποιαδήποτε γλώσσα",
@@ -1155,7 +1638,10 @@
       "scroll_sync.disable": "Απενεργοποίηση συγχρονισμού οριζόντιου μετακινήσεων",
       "scroll_sync.enable": "Ενεργοποίηση συγχρονισμού οριζόντιου μετακινήσεων",
       "title": "Μετάφραση",
-      "tooltip.newline": "Αλλαγή γραμμής"
+      "tooltip.newline": "Αλλαγή γραμμής",
+      "menu": {
+        "description": "Μεταφράστε το περιεχόμενο του τρέχοντος πεδίου εισαγωγής"
+      }
     },
     "tray": {
       "quit": "Έξοδος",

@@ -1,6 +1,7 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import { useShikiWithMarkdownIt } from '@renderer/utils/shiki'
 import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +12,6 @@ interface Props {
 }
 
 const MessageTools: FC<Props> = ({ blocks }) => {
-  console.log('blocks', blocks)
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
@@ -24,6 +24,22 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   }, [messageFont])
 
   const toolResponse = blocks.metadata?.rawMcpToolResponse
+
+  const resultString = useMemo(() => {
+    try {
+      return JSON.stringify(
+        {
+          params: toolResponse?.arguments,
+          response: toolResponse?.response
+        },
+        null,
+        2
+      )
+    } catch (e) {
+      return 'Invalid Result'
+    }
+  }, [toolResponse])
+  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(`\`\`\`json\n${resultString}\n\`\`\``)
 
   if (!toolResponse) {
     return null
@@ -50,7 +66,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
     const isDone = status === 'done'
     const hasError = isDone && response?.isError === true
     const result = {
-      params: tool.inputSchema,
+      params: toolResponse.arguments,
       response: toolResponse.response
     }
 
@@ -107,7 +123,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
       ),
       children: isDone && result && (
         <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
-          <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
+          <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
         </ToolResponseContainer>
       )
     })
@@ -154,6 +170,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
         footer={null}
         width="80%"
         centered
+        transitionName="animation-move-down"
         styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
           <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
@@ -183,13 +200,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                 {
                   key: 'raw',
                   label: t('message.tools.raw'),
-                  children: (
-                    <CodeBlock>
-                      {typeof expandedResponse.content === 'string'
-                        ? expandedResponse.content
-                        : JSON.stringify(expandedResponse.content, null, 2)}
-                    </CodeBlock>
-                  )
+                  children: <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
                 }
               ]}
             />
@@ -300,9 +311,7 @@ const CollapsibleIcon = styled.i`
 `
 
 const ToolResponseContainer = styled.div`
-  background: var(--color-bg-1);
   border-radius: 0 0 4px 4px;
-  padding: 12px 16px;
   overflow: auto;
   max-height: 300px;
   border-top: none;
@@ -315,14 +324,6 @@ const PreviewBlock = styled.div`
   word-break: break-word;
   color: var(--color-text);
   user-select: text;
-`
-
-const CodeBlock = styled.pre`
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--color-text);
-  font-family: ubuntu;
 `
 
 const ExpandedResponseContainer = styled.div`

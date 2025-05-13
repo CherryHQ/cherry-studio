@@ -4,11 +4,7 @@ export function formatApiHost(host: string) {
       return true
     }
 
-    if (host.endsWith('volces.com/api/v3')) {
-      return true
-    }
-
-    return false
+    return host.endsWith('volces.com/api/v3')
   }
 
   return forceUseOriginalHost() ? host : `${host}/v1/`

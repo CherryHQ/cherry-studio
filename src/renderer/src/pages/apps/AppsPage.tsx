@@ -23,7 +23,7 @@ const AppsPage: FC = () => {
 
   // Calculate the required number of lines
   const itemsPerRow = Math.floor(930 / 115) // Maximum width divided by the width of each item (including spacing)
-  const rowCount = Math.ceil(filteredApps.length / itemsPerRow)
+  const rowCount = Math.ceil((filteredApps.length + 1) / itemsPerRow) // +1 for the add button
   // Each line height is 85px (60px icon + 5px margin + 12px text + spacing)
   const containerHeight = rowCount * 85 + (rowCount - 1) * 25 // 25px is the line spacing.
 
@@ -60,6 +60,7 @@ const AppsPage: FC = () => {
             {filteredApps.map((app) => (
               <App key={app.id} app={app} />
             ))}
+            <App isLast app={filteredApps[0]} />
           </AppsContainer>
         )}
       </ContentContainer>

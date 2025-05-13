@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 // @ts-ignore next-line`
@@ -202,7 +203,7 @@ export function getMcpConfigSampleFromReadme(readme: string) {
         }
       }
     } catch (e) {
-      console.log('getMcpConfigSampleFromReadme', e)
+      Logger.log('getMcpConfigSampleFromReadme', e)
     }
   }
   return null

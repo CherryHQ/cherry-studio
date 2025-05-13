@@ -167,7 +167,7 @@ interface ChatFlowHistoryProps {
 }
 
 // 定义节点和边的类型
-type FlowNode = Node<any, string>
+type FlowNode = Node<any>
 type FlowEdge = Edge<any>
 
 // 统一的边样式

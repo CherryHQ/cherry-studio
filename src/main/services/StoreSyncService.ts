@@ -78,6 +78,8 @@ export class StoreSyncService {
       // Broadcast the action to all other windows
       this.broadcastToOtherWindows(sourceWindowId, action)
     })
+
+    this.isIpcHandlerRegistered = true
   }
 
   /**

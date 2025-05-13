@@ -43,13 +43,15 @@ export function useAssistant(id: string) {
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
 
-  const model = assistant?.model ?? assistant?.defaultModel ?? defaultModel
+  const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
   if (!model) {
     throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
   }
 
+  const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
+
   return {
-    assistant: { ...assistant, model },
+    assistant: assistantWithModel,
     model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {

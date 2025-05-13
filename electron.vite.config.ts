@@ -74,6 +74,14 @@ export default defineConfig({
     },
     optimizeDeps: {
       exclude: []
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html')
+        }
+      }
     }
   }
 })

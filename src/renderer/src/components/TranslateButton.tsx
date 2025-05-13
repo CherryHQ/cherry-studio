@@ -35,7 +35,6 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   }
 
   const handleTranslate = async () => {
-    console.log('handleTranslate', text)
     if (!text?.trim()) return
 
     if (!(await translateConfirm())) {
