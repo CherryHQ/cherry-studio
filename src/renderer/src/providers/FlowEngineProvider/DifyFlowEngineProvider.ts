@@ -207,10 +207,9 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
               })
               break
             case EventEnum.WORKFLOW_FINISHED:
-              // onChunk({
-              //   type: ChunkType.WORKFLOW_FINISHED,
-              //   metadata: { id: parsedData.data.id, title: parsedData.data.title, type: parsedData.data.node_type }
-              // })
+              onChunk({
+                type: ChunkType.WORKFLOW_FINISHED
+              })
               console.log('工作流完成')
               break
           }

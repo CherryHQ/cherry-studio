@@ -1592,9 +1592,12 @@ function getCommonStreamLogic(
     if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_NODE_FINISHED) {
       console.log('[onWorkflowNodeComplete] Workflow node completed:', chunk, streamState.lastBlockId)
       const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
+
+      console.log('[onWorkflowNodeComplete] Workflow node completed:', chunk, currentFlowBlock)
       if (!currentFlowBlock.nodes) {
         return
       }
+
       const changes: Partial<FlowMessageBlock> = {
         nodes: currentFlowBlock.nodes.map((node) => {
           if (node.id === chunk.metadata.id) {
@@ -1606,22 +1609,20 @@ function getCommonStreamLogic(
           return node
         })
       }
+      console.log('[onWorkflowNodeComplete] Updating flow block with changes:', changes)
+
       dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
-      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+      saveUpdatedBlockToDB(streamState.flowBlockId, assistantMessage.id, topicId, getState)
     }
   }
 
   const onWorkflowFinished = (chunk: Chunk) => {
     if (streamState.flowBlockId && chunk.type === ChunkType.WORKFLOW_FINISHED) {
-      const currentFlowBlock = getState().messageBlocks.entities[streamState.flowBlockId] as FlowMessageBlock
       const changes: Partial<FlowMessageBlock> = {
-        nodes: currentFlowBlock.nodes?.map((node) => ({
-          ...node,
-          status: MessageBlockStatus.SUCCESS
-        }))
+        status: MessageBlockStatus.SUCCESS
       }
       dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
-      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+      saveUpdatedBlockToDB(streamState.flowBlockId, assistantMessage.id, topicId, getState)
     }
   }
 
