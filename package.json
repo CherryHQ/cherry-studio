@@ -97,7 +97,8 @@
     "turndown": "^7.2.0",
     "undici": "^7.4.0",
     "webdav": "^5.8.0",
-    "ws": "^8.18.1"
+    "ws": "^8.18.1",
+    "zipread": "^1.3.3"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",

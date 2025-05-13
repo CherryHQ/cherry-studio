@@ -4336,6 +4336,7 @@ __metadata:
     vitest: "npm:^3.1.1"
     webdav: "npm:^5.8.0"
     ws: "npm:^8.18.1"
+    zipread: "npm:^1.3.3"
   languageName: unknown
   linkType: soft
 
@@ -17661,6 +17662,13 @@ __metadata:
     compress-commons: "npm:^6.0.2"
     readable-stream: "npm:^4.0.0"
   checksum: 10c0/50f2fb30327fb9d09879abf7ae2493705313adf403e794b030151aaae00009162419d60d0519e807673ec04d442e140c8879ca14314df0a0192de3b233e8f28b
+  languageName: node
+  linkType: hard
+
+"zipread@npm:^1.3.3":
+  version: 1.3.3
+  resolution: "zipread@npm:1.3.3"
+  checksum: 10c0/e8be7df8ff5188ba2090459f1f54047da376f1fc9175d4531353c82a9a99c323474cb91539677759dccd642c32160b49714c2361800b3666d647a25c9ae19252
   languageName: node
   linkType: hard
 
