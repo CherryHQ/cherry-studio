@@ -13,7 +13,7 @@ import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -321,4 +321,4 @@ const ActionBarRight = styled.div`
   gap: 8px;
 `
 
-export default MessageBlockEditor
+export default memo(MessageBlockEditor)

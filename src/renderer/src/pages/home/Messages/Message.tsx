@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageContent from './MessageContent'
+import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
@@ -190,14 +191,16 @@ const MessageItem: FC<Props> = ({
       <MessageContentContainer
         className="message-content-container"
         style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
-        <MessageErrorBoundary>
-          <MessageContent
+        {isEditing && (
+          <MessageEditor
             message={message}
-            isEditing={isEditing}
             onSave={handleEditSave}
             onResend={handleEditResend}
             onCancel={handleEditCancel}
           />
+        )}
+        <MessageErrorBoundary>
+          <MessageContent message={message} />
         </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter

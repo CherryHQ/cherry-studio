@@ -1,23 +1,15 @@
 import { getModelUniqId } from '@renderer/services/ModelService'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message } from '@renderer/types/newMessage'
 import { Flex } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
 
 import MessageBlockRenderer from './Blocks'
-import MessageEditor from './MessageEditor'
 interface Props {
   message: Message
-  isEditing?: boolean
-  onSave?: (blocks: MessageBlock[]) => Promise<void>
-  onResend?: (blocks: MessageBlock[]) => Promise<void>
-  onCancel?: () => void
 }
 
-const MessageContent: React.FC<Props> = ({ message, isEditing, onSave, onResend, onCancel }) => {
-  if (isEditing && onSave && onResend && onCancel) {
-    return <MessageEditor message={message} onSave={onSave} onResend={onResend} onCancel={onCancel} />
-  }
+const MessageContent: React.FC<Props> = ({ message }) => {
   return (
     <>
       <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
