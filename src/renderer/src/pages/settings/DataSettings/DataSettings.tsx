@@ -14,15 +14,25 @@ import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { reset } from '@renderer/services/BackupService'
+import store, { useAppDispatch } from '@renderer/store'
+import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Typography } from 'antd'
+import { Button, Switch, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '..'
 import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
@@ -41,6 +51,11 @@ const DataSettings: FC = () => {
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
+
+  const _skipBackupFile = store.getState().settings.skipBackupFile
+  const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
+
+  const dispatch = useAppDispatch()
 
   //joplin icon needs to be updated into iconfont
   const JoplinIcon = () => (
@@ -164,6 +179,11 @@ const DataSettings: FC = () => {
     })
   }
 
+  const onSkipBackupFilesChange = (value: boolean) => {
+    setSkipBackupFile(value)
+    dispatch(_setSkipBackupFile(value))
+  }
+
   return (
     <Container>
       <MenuList>
@@ -207,6 +227,14 @@ const DataSettings: FC = () => {
                     {t('settings.general.reset.button')}
                   </Button>
                 </HStack>
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
+              </SettingRow>
+              <SettingRow>
+                <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
               </SettingRow>
             </SettingGroup>
             <SettingGroup theme={theme}>

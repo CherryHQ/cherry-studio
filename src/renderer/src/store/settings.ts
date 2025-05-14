@@ -65,6 +65,8 @@ export interface SettingsState {
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
+  // 数据目录设置
+  skipBackupFile: boolean
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -73,6 +75,7 @@ export interface SettingsState {
   webdavAutoSync: boolean
   webdavSyncInterval: number
   webdavMaxBackups: number
+  webdavSkipBackupFile: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -178,6 +181,7 @@ export const initialState: SettingsState = {
   gridColumns: 2,
   gridPopoverTrigger: 'click',
   messageNavigation: 'none',
+  skipBackupFile: false,
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -185,6 +189,7 @@ export const initialState: SettingsState = {
   webdavAutoSync: false,
   webdavSyncInterval: 0,
   webdavMaxBackups: 0,
+  webdavSkipBackupFile: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -332,6 +337,9 @@ const settingsSlice = createSlice({
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
     },
+    setSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.skipBackupFile = action.payload
+    },
     setWebdavHost: (state, action: PayloadAction<string>) => {
       state.webdavHost = action.payload
     },
@@ -352,6 +360,12 @@ const settingsSlice = createSlice({
     },
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
+    },
+    setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.webdavSkipBackupFile = action.payload
+    },
+    setNutSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.nutSkipBackupFile = action.payload
     },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
@@ -552,6 +566,7 @@ export const {
   setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
+  setSkipBackupFile,
   setWebdavHost,
   setWebdavUser,
   setWebdavPass,
@@ -559,6 +574,7 @@ export const {
   setWebdavAutoSync,
   setWebdavSyncInterval,
   setWebdavMaxBackups,
+  setWebdavSkipBackupFile,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
