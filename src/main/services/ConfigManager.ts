@@ -16,8 +16,7 @@ enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
-  EnableDataCollection = 'enableDataCollection',
-  AllowEscToExitFullscreen = 'allowEscToExitFullscreen'
+  EnableDataCollection = 'enableDataCollection'
 }
 
 export class ConfigManager {
