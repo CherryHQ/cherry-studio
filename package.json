@@ -50,6 +50,7 @@
     "test:renderer": "vitest run",
     "test:renderer:ui": "vitest --ui",
     "test:renderer:coverage": "vitest run --coverage",
+    "test:lint":"eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "format": "prettier --write .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "postinstall": "electron-builder install-app-deps",
