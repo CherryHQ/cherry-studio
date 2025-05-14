@@ -101,7 +101,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
           })) || []
         break
       }
-      case WebSearchSource.OPENAI:
+      case WebSearchSource.OPENAI_RESPONSE:
         formattedCitations =
           (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
             let hostname: string | undefined
@@ -120,7 +120,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
             }
           }) || []
         break
-      case WebSearchSource.OPENAI_COMPATIBLE:
+      case WebSearchSource.OPENAI:
         formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation

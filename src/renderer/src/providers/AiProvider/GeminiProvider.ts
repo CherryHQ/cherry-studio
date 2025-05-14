@@ -500,7 +500,6 @@ export default class GeminiProvider extends BaseProvider {
 
       let functionCalls: FunctionCall[] = []
       let time_first_token_millsec = 0
-      const start_time_millsec = new Date().getTime()
 
       if (stream instanceof GenerateContentResponse) {
         let content = ''
@@ -647,6 +646,7 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const start_time_millsec = new Date().getTime()
     const userMessagesStream = await chat.sendMessageStream({
       message: messageContents as PartUnion,
       config: {
@@ -916,7 +916,7 @@ export default class GeminiProvider extends BaseProvider {
           model: model.id,
           contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
           config: {
-            maxOutputTokens: 100
+            maxOutputTokens: 1
           }
         })
         if (isEmpty(result.text)) {
@@ -927,7 +927,7 @@ export default class GeminiProvider extends BaseProvider {
           model: model.id,
           contents: [{ role: 'user', parts: [{ text: 'hi' }] }],
           config: {
-            maxOutputTokens: 100
+            maxOutputTokens: 1
           }
         })
         // 等待整个流式响应结束

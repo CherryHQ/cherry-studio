@@ -4392,7 +4392,6 @@ __metadata:
     "@vitest/coverage-v8": "npm:^3.1.1"
     "@vitest/ui": "npm:^3.1.1"
     "@xyflow/react": "npm:^12.4.4"
-    adm-zip: "npm:^0.5.16"
     antd: "npm:^5.22.5"
     applescript: "npm:^1.0.0"
     archiver: "npm:^7.0.1"
@@ -4423,10 +4422,10 @@ __metadata:
     eslint-plugin-react-hooks: "npm:^5.2.0"
     eslint-plugin-simple-import-sort: "npm:^12.1.1"
     eslint-plugin-unused-imports: "npm:^4.1.4"
-    extract-zip: "npm:^2.0.1"
     fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:^1.3.2"
     fs-extra: "npm:^11.2.0"
+    go-get-folder-size: "npm:^0.5.5"
     got-scraping: "npm:^4.1.1"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -4541,7 +4540,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"adm-zip@npm:^0.5.16, adm-zip@npm:^0.5.9":
+"adm-zip@npm:^0.5.9":
   version: 0.5.16
   resolution: "adm-zip@npm:0.5.16"
   checksum: 10c0/6f10119d4570c7ba76dcf428abb8d3f69e63f92e51f700a542b43d4c0130373dd2ddfc8f85059f12d4a843703a90c3970cfd17876844b4f3f48bf042bfa6b49f
@@ -8963,6 +8962,17 @@ __metadata:
     merge2: "npm:^1.4.1"
     slash: "npm:^3.0.0"
   checksum: 10c0/b39511b4afe4bd8a7aead3a27c4ade2b9968649abab0a6c28b1a90141b96ca68ca5db1302f7c7bd29eab66bf51e13916b8e0a3d0ac08f75e1e84a39b35691189
+  languageName: node
+  linkType: hard
+
+"go-get-folder-size@npm:^0.5.5":
+  version: 0.5.5
+  resolution: "go-get-folder-size@npm:0.5.5"
+  dependencies:
+    std-env: "npm:^3.7.0"
+  bin:
+    go-get-folder-size: bin/cli.js
+  checksum: 10c0/eb69b686952218cc114dccf65763e0dff5056050fa3e9b2afa6161b933c3978500455503b104f9f28d96aab2fedd64ccb0255d6ea16d699fe020795f431ed7b8
   languageName: node
   linkType: hard
 
@@ -16037,7 +16047,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"std-env@npm:^3.8.1":
+"std-env@npm:^3.7.0, std-env@npm:^3.8.1":
   version: 3.9.0
   resolution: "std-env@npm:3.9.0"
   checksum: 10c0/4a6f9218aef3f41046c3c7ecf1f98df00b30a07f4f35c6d47b28329bc2531eef820828951c7d7b39a1c5eb19ad8a46e3ddfc7deb28f0a2f3ceebee11bab7ba50

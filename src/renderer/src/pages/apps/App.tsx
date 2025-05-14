@@ -53,7 +53,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         return
       }
 
-      const newApp = {
+      const newApp: MinAppType = {
         id: values.id,
         name: values.name,
         url: values.url,
@@ -70,7 +70,7 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
       // 重新加载应用列表
       const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
       updateDefaultMinApps(reloadedApps)
-      updateMinapps(reloadedApps)
+      updateMinapps([...minapps, newApp])
     } catch (error) {
       message.error(t('settings.miniapps.custom.save_error'))
       console.error('Failed to save custom mini app:', error)
@@ -143,7 +143,9 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
                     message.success(t('settings.miniapps.custom.remove_success'))
                     const reloadedApps = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
                     updateDefaultMinApps(reloadedApps)
-                    updateMinapps(reloadedApps)
+                    updateMinapps(minapps.filter((item) => item.id !== app.id))
+                    updatePinnedMinapps(pinned.filter((item) => item.id !== app.id))
+                    updateDisabledMinapps(disabled.filter((item) => item.id !== app.id))
                   } catch (error) {
                     message.error(t('settings.miniapps.custom.remove_error'))
                     console.error('Failed to remove custom mini app:', error)

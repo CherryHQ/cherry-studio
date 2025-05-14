@@ -38,5 +38,4 @@ export type ScrollAction =
   | { type: 'FOCUS_NEXT_ITEM'; payload: { modelItems: FlatListItem[]; step: number } }
   | { type: 'FOCUS_PAGE'; payload: { modelItems: FlatListItem[]; currentIndex: number; step: number } }
   | { type: 'SEARCH_CHANGED'; payload: { searchText: string } }
-  | { type: 'UPDATE_ON_LIST_CHANGE'; payload: { modelItems: FlatListItem[] } }
-  | { type: 'INIT_SCROLL'; payload?: void }
+  | { type: 'FOCUS_ON_LIST_CHANGE'; payload: { modelItems: FlatListItem[] } }

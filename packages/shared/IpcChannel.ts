@@ -1,4 +1,5 @@
 export enum IpcChannel {
+  App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
@@ -133,6 +134,9 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+
+  // DevTools
+  System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
   BackupProgress = 'backup-progress',
