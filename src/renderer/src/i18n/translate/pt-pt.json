@@ -107,6 +107,7 @@
     "backup": {
       "confirm": "Tem certeza de que deseja fazer backup dos dados?",
       "confirm.button": "Escolher local de backup",
+      "confirm.file_checkbox": "Pule a cópia de segurança de arquivos de dados como imagens e banco de conhecimento e copie apenas as conversas e as configurações.",
       "content": "Fazer backup de todos os dados, incluindo registros de chat, configurações, base de conhecimento e todos os outros dados. Por favor, note que o processo de backup pode levar algum tempo. Agradecemos sua paciência.",
       "progress": {
         "completed": "Backup concluído",
@@ -931,6 +932,8 @@
         "app_knowledge.remove_all_confirm": "A exclusão dos arquivos da base de conhecimento reduzirá o uso do espaço de armazenamento, mas não excluirá os dados vetoriais da base de conhecimento. Após a exclusão, os arquivos originais não poderão ser abertos. Deseja excluir?",
         "app_knowledge.remove_all_success": "Arquivo excluído com sucesso",
         "app_logs": "Logs do aplicativo",
+        "backup.skip_file_data_title": "Backup simplificado",
+        "backup.skip_file_data_help": "Pule arquivos de dados como imagens e bancos de conhecimento durante o backup e realize apenas o backup das conversas e configurações. Diminua o consumo de espaço e aumente a velocidade do backup.",
         "clear_cache": {
           "button": "Limpar cache",
           "confirm": "Limpar cache removerá os dados armazenados em cache do aplicativo, incluindo dados de aplicativos minúsculos. Esta ação não pode ser desfeita, deseja continuar?",
