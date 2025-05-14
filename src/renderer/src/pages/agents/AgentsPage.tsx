@@ -1,4 +1,4 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CustomTag from '@renderer/components/CustomTag'
 import ListItem from '@renderer/components/ListItem'
@@ -20,6 +20,7 @@ import { groupTranslations } from './agentGroupTranslations'
 import AddAgentPopup from './components/AddAgentPopup'
 import AgentCard from './components/AgentCard'
 import { AgentGroupIcon } from './components/AgentGroupIcon'
+import ImportAgentPopup from './components/ImportAgentPopup'
 
 const AgentsPage: FC = () => {
   const [search, setSearch] = useState('')
@@ -138,6 +139,17 @@ const AgentsPage: FC = () => {
     })
   }
 
+  const handleImportAgent = async () => {
+    try {
+      await ImportAgentPopup.show()
+    } catch (error) {
+      window.message.error({
+        content: error instanceof Error ? error.message : t('message.agents.import.error'),
+        key: 'agents-import-error'
+      })
+    }
+  }
+
   return (
     <Container>
       <Navbar>
@@ -208,9 +220,14 @@ const AgentsPage: FC = () => {
                 </CustomTag>
               }
             </AgentsListTitle>
-            <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
-              {t('agents.add.title')}
-            </Button>
+            <Flex gap={8}>
+              <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
+                {t('agents.import.title')}
+              </Button>
+              <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
+                {t('agents.add.title')}
+              </Button>
+            </Flex>
           </AgentsListHeader>
 
           {filteredAgents.length > 0 ? (

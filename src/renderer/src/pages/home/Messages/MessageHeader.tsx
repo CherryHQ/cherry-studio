@@ -1,3 +1,4 @@
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -7,7 +8,8 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
-import { Assistant, Message, Model } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { Avatar } from 'antd'
 import dayjs from 'dayjs'
@@ -86,7 +88,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
         ) : (
           <>
             {isEmoji(avatar) ? (
-              <EmojiAvatar onClick={() => UserPopup.show()}>{avatar}</EmojiAvatar>
+              <EmojiAvatar onClick={() => UserPopup.show()} size={35} fontSize={20}>
+                {avatar}
+              </EmojiAvatar>
             ) : (
               <Avatar
                 src={avatar}
@@ -101,7 +105,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
-          <MessageTime>{dayjs(message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+          <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
         </UserWrap>
       </AvatarWrapper>
     </Container>
@@ -109,20 +113,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
 })
 
 MessageHeader.displayName = 'MessageHeader'
-
-const EmojiAvatar = styled.div`
-  width: 35px;
-  height: 35px;
-  background-color: var(--color-background-soft);
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  cursor: pointer;
-  border: 0.5px solid var(--color-border);
-  font-size: 20px;
-`
 
 const Container = styled.div`
   display: flex;

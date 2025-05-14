@@ -4,8 +4,8 @@ import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
-import extract from 'extract-zip'
 import * as fs from 'fs-extra'
+import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
@@ -231,15 +231,10 @@ class BackupManager {
 
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
 
-      // 使用 extract-zip 解压
-      await extract(backupPath, {
-        dir: this.tempDir,
-        onEntry: () => {
-          // 这里可以处理进度，但 extract-zip 不提供总条目数信息
-          onProgress({ stage: 'extracting', progress: 15, total: 100 })
-        }
-      })
-      onProgress({ stage: 'extracting', progress: 25, total: 100 })
+      const zip = new StreamZip.async({ file: backupPath })
+      onProgress({ stage: 'extracting', progress: 15, total: 100 })
+      await zip.extract(null, this.tempDir)
+      onProgress({ stage: 'extracted', progress: 25, total: 100 })
 
       Logger.log('[backup] step 2: read data.json')
       // 读取 data.json
@@ -286,9 +281,18 @@ class BackupManager {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data)
     const webdavClient = new WebDav(webdavConfig)
-    return await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
-      overwrite: true
-    })
+    try {
+      const result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
+        overwrite: true
+      })
+      // 上传成功后删除本地备份文件
+      await fs.remove(backupedFilePath)
+      return result
+    } catch (error) {
+      // 上传失败时也删除本地临时文件
+      await fs.remove(backupedFilePath).catch(() => {})
+      throw error
+    }
   }
 
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {

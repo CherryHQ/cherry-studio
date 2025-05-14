@@ -8,14 +8,16 @@ import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useP
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
-import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
+import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -177,22 +179,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       }
     )
 
-    // Show summary of results after checking
-    const failedModels = checkResults.filter((result) => result.status === ModelCheckStatus.FAILED)
-    const partialModels = checkResults.filter((result) => result.status === ModelCheckStatus.PARTIAL)
-    const successModels = checkResults.filter((result) => result.status === ModelCheckStatus.SUCCESS)
-
-    // Display statistics of all model check results
     window.message.info({
       key: 'health-check-summary',
       style: { marginTop: '3vh' },
-      duration: 10,
-      content: t('settings.models.check.model_status_summary', {
-        provider: provider.name,
-        count_passed: successModels.length + partialModels.length,
-        count_partial: partialModels.length,
-        count_failed: failedModels.length
-      })
+      duration: 5,
+      content: getModelCheckSummary(checkResults, provider.name)
     })
 
     // Reset health check status
@@ -235,8 +226,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       })
 
       if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
+        const newApiKey = result.validKeys.join(',')
+        setInputValue(newApiKey)
+        setApiKey(newApiKey)
+        updateProvider({ ...provider, apiKey: newApiKey })
       }
     } else {
       setApiChecking(true)
@@ -269,8 +262,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
-
-    return formatApiHost(apiHost) + 'chat/completions'
+    if (provider.type === 'openai') {
+      return formatApiHost(apiHost) + 'chat/completions'
+    }
+    return formatApiHost(apiHost) + 'responses'
   }
 
   useEffect(() => {
@@ -418,9 +413,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <Button
                 type="text"
                 size="small"
-                icon={<StreamlineGoodHealthAndWellBeing />}
                 onClick={onHealthCheck}
-                loading={isHealthChecking}
+                icon={
+                  <motion.span
+                    variants={lightbulbVariants}
+                    animate={isHealthChecking ? 'active' : 'idle'}
+                    initial="idle">
+                    <StreamlineGoodHealthAndWellBeing />
+                  </motion.span>
+                }
               />
             </Tooltip>
           )}

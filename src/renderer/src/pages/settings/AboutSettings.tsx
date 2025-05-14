@@ -12,7 +12,7 @@ import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
 import { debounce } from 'lodash'
-import { FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -67,6 +67,10 @@ const AboutSettings: FC = () => {
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
+  }
+
+  const debug = async () => {
+    await window.api.devTools.toggle()
   }
 
   const showLicense = async () => {
@@ -218,6 +222,14 @@ const AboutSettings: FC = () => {
             {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            <Bug size={18} />
+            {t('settings.about.debug.title')}
+          </SettingRowTitle>
+          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

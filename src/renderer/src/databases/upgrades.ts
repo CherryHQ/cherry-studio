@@ -1,4 +1,27 @@
+import Logger from '@renderer/config/logger'
+import type { LegacyMessage as OldMessage, Topic } from '@renderer/types'
+import { FileTypes } from '@renderer/types' // Import FileTypes enum
+import { WebSearchSource } from '@renderer/types'
+import type {
+  BaseMessageBlock,
+  CitationMessageBlock,
+  Message as NewMessage,
+  MessageBlock
+} from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Transaction } from 'dexie'
+import { isEmpty } from 'lodash'
+
+import {
+  createCitationBlock,
+  createErrorBlock,
+  createFileBlock,
+  createImageBlock,
+  createMainTextBlock,
+  createThinkingBlock,
+  createToolBlock,
+  createTranslationBlock
+} from '../utils/messageUtils/create'
 
 export async function upgradeToV5(tx: Transaction): Promise<void> {
   const topics = await tx.table('topics').toArray()
@@ -37,18 +60,252 @@ export async function upgradeToV5(tx: Transaction): Promise<void> {
   }
 }
 
-// 为每个 topic 添加时间戳,兼容老数据,默认按照最新的时间戳来,不确定是否要加
-export async function upgradeToV6(tx: Transaction): Promise<void> {
-  const topics = await tx.table('topics').toArray()
-
-  // 为每个 topic 添加时间戳,兼容老数据,默认按照最新的时间戳来
-  const now = new Date().toISOString()
-  for (const topic of topics) {
-    if (!topic.createdAt && !topic.updatedAt) {
-      await tx.table('topics').update(topic.id, {
-        createdAt: now,
-        updatedAt: now
-      })
-    }
+// --- Simplified status mapping functions ---
+function mapOldStatusToBlockStatus(oldStatus: OldMessage['status']): MessageBlockStatus {
+  // Handle statuses that need mapping
+  if (oldStatus === 'sending' || oldStatus === 'pending' || oldStatus === 'searching') {
+    return MessageBlockStatus.PROCESSING
   }
+  // For success, paused, error, the values match MessageBlockStatus
+  if (oldStatus === 'success' || oldStatus === 'paused' || oldStatus === 'error') {
+    // Cast is safe here as the values are identical
+    return oldStatus as MessageBlockStatus
+  }
+  // Default fallback for any unexpected old status
+  return MessageBlockStatus.PROCESSING
+}
+
+function mapOldStatusToNewMessageStatus(oldStatus: OldMessage['status']): NewMessage['status'] {
+  // Handle statuses that need mapping
+  if (oldStatus === 'pending' || oldStatus === 'sending') {
+    return AssistantMessageStatus.PENDING
+  }
+  // For sending, success, paused, error, the values match NewMessage['status']
+  if (oldStatus === 'searching' || oldStatus === 'success' || oldStatus === 'paused' || oldStatus === 'error') {
+    // Cast is safe here as the values are identical
+    return oldStatus as NewMessage['status']
+  }
+  // Default fallback
+  return AssistantMessageStatus.PROCESSING
+}
+
+// --- UPDATED UPGRADE FUNCTION for Version 7 ---
+export async function upgradeToV7(tx: Transaction): Promise<void> {
+  Logger.info('Starting DB migration to version 7: Normalizing messages and blocks...')
+
+  const oldTopicsTable = tx.table('topics')
+  const newBlocksTable = tx.table('message_blocks')
+  const topicUpdates: Record<string, { messages: NewMessage[] }> = {}
+
+  await oldTopicsTable.toCollection().each(async (oldTopic: Pick<Topic, 'id'> & { messages: OldMessage[] }) => {
+    const newMessagesForTopic: NewMessage[] = []
+    const blocksToCreate: MessageBlock[] = []
+
+    if (!oldTopic.messages || !Array.isArray(oldTopic.messages)) {
+      console.warn(`Topic ${oldTopic.id} has no valid messages array, skipping.`)
+      topicUpdates[oldTopic.id] = { messages: [] }
+      return
+    }
+
+    for (const oldMessage of oldTopic.messages) {
+      const messageBlockIds: string[] = []
+      const citationDataToCreate: Partial<Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>> = {}
+      let hasCitationData = false
+
+      // 2. Thinking Block (Status is SUCCESS)
+      // 挪到前面,尽量保持与旧版本的一致性
+      if (oldMessage.reasoning_content?.trim()) {
+        const block = createThinkingBlock(oldMessage.id, oldMessage.reasoning_content, {
+          createdAt: oldMessage.createdAt,
+          thinking_millsec: oldMessage?.metrics?.time_thinking_millsec,
+          status: MessageBlockStatus.SUCCESS // Thinking block is complete content
+        })
+        blocksToCreate.push(block)
+        messageBlockIds.push(block.id)
+      }
+
+      // 7. Tool Blocks (Status based on original mcpTool status)
+      // 挪到前面,尽量保持与旧版本的一致性
+      if (oldMessage.metadata?.mcpTools?.length) {
+        oldMessage.metadata.mcpTools.forEach((mcpTool) => {
+          const block = createToolBlock(oldMessage.id, mcpTool.id, {
+            // Determine status based on original tool status
+            status: MessageBlockStatus.SUCCESS,
+            content: mcpTool.response,
+            error:
+              mcpTool.status !== 'done'
+                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status }
+                : undefined,
+            createdAt: oldMessage.createdAt,
+            metadata: { rawMcpToolResponse: mcpTool }
+          })
+          blocksToCreate.push(block)
+          messageBlockIds.push(block.id)
+        })
+      }
+
+      // 1. Main Text Block
+      if (oldMessage.content?.trim()) {
+        const block = createMainTextBlock(oldMessage.id, oldMessage.content, {
+          createdAt: oldMessage.createdAt,
+          status: mapOldStatusToBlockStatus(oldMessage.status),
+          knowledgeBaseIds: oldMessage.knowledgeBaseIds
+        })
+        blocksToCreate.push(block)
+        messageBlockIds.push(block.id)
+      }
+
+      // 3. Translation Block (Status is SUCCESS)
+      if (oldMessage.translatedContent?.trim()) {
+        const block = createTranslationBlock(oldMessage.id, oldMessage.translatedContent, 'unknown', {
+          createdAt: oldMessage.createdAt,
+          status: MessageBlockStatus.SUCCESS // Translation block is complete content
+        })
+        blocksToCreate.push(block)
+        messageBlockIds.push(block.id)
+      }
+
+      // 4. File Blocks (Non-Image) and Image Blocks (from Files) (Status is SUCCESS)
+      if (oldMessage.files?.length) {
+        oldMessage.files.forEach((file) => {
+          if (file.type === FileTypes.IMAGE) {
+            const block = createImageBlock(oldMessage.id, {
+              file: file,
+              createdAt: oldMessage.createdAt,
+              status: MessageBlockStatus.SUCCESS
+            })
+            blocksToCreate.push(block)
+            messageBlockIds.push(block.id)
+          } else {
+            const block = createFileBlock(oldMessage.id, file, {
+              createdAt: oldMessage.createdAt,
+              status: MessageBlockStatus.SUCCESS
+            })
+            blocksToCreate.push(block)
+            messageBlockIds.push(block.id)
+          }
+        })
+      }
+
+      // 5. Image Blocks (from Metadata - AI Generated) (Status is SUCCESS)
+      if (oldMessage.metadata?.generateImage) {
+        const block = createImageBlock(oldMessage.id, {
+          metadata: { generateImageResponse: oldMessage.metadata.generateImage },
+          createdAt: oldMessage.createdAt,
+          status: MessageBlockStatus.SUCCESS
+        })
+        blocksToCreate.push(block)
+        messageBlockIds.push(block.id)
+      }
+
+      // 6. Web Search Block - REMOVED, data moved to citation collection
+      // if (oldMessage.metadata?.webSearch?.results?.length) { ... }
+
+      // 8. Collect Citation and Reference Data (Simplified: Independent checks)
+      if (oldMessage.metadata?.groundingMetadata) {
+        hasCitationData = true
+        citationDataToCreate.response = {
+          results: oldMessage.metadata.groundingMetadata,
+          source: WebSearchSource.GEMINI
+        }
+      }
+      if (oldMessage.metadata?.annotations?.length) {
+        hasCitationData = true
+        citationDataToCreate.response = {
+          results: oldMessage.metadata.annotations,
+          source: WebSearchSource.OPENAI_RESPONSE
+        }
+      }
+      if (oldMessage.metadata?.citations?.length) {
+        hasCitationData = true
+        citationDataToCreate.response = {
+          results: oldMessage.metadata.citations,
+          // 无法区分，统一为Openrouter
+          source: WebSearchSource.OPENROUTER
+        }
+      }
+      if (oldMessage.metadata?.webSearch) {
+        hasCitationData = true
+        citationDataToCreate.response = {
+          results: oldMessage.metadata.webSearch,
+          source: WebSearchSource.WEBSEARCH
+        }
+      }
+      if (oldMessage.metadata?.webSearchInfo) {
+        hasCitationData = true
+        citationDataToCreate.response = {
+          results: oldMessage.metadata.webSearchInfo,
+          // 无法区分，统一为zhipu
+          source: WebSearchSource.ZHIPU
+        }
+      }
+      if (oldMessage.metadata?.knowledge?.length) {
+        hasCitationData = true
+        citationDataToCreate.knowledge = oldMessage.metadata.knowledge
+      }
+
+      // 9. Create Citation Block (if any citation data was found, no need to set citationType)
+      if (hasCitationData) {
+        const block = createCitationBlock(
+          oldMessage.id,
+          citationDataToCreate as Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>,
+          {
+            createdAt: oldMessage.createdAt,
+            status: MessageBlockStatus.SUCCESS
+          }
+        )
+        blocksToCreate.push(block)
+        messageBlockIds.push(block.id)
+      }
+
+      // 10. Error Block (Status is ERROR)
+      if (oldMessage.error && typeof oldMessage.error === 'object' && Object.keys(oldMessage.error).length > 0) {
+        if (isEmpty(oldMessage.content)) {
+          const block = createErrorBlock(oldMessage.id, oldMessage.error, {
+            createdAt: oldMessage.createdAt,
+            status: MessageBlockStatus.ERROR // Error block status is ERROR
+          })
+          blocksToCreate.push(block)
+          messageBlockIds.push(block.id)
+        }
+      }
+
+      // 11. Create the New Message reference object (Add usage/metrics assignment)
+      const newMessageReference: NewMessage = {
+        id: oldMessage.id,
+        role: oldMessage.role as NewMessage['role'],
+        assistantId: oldMessage.assistantId || '',
+        topicId: oldTopic.id,
+        createdAt: oldMessage.createdAt,
+        status: mapOldStatusToNewMessageStatus(oldMessage.status),
+        modelId: oldMessage.modelId,
+        model: oldMessage.model,
+        type: oldMessage.type === 'clear' ? 'clear' : undefined,
+        isPreset: oldMessage.isPreset,
+        useful: oldMessage.useful,
+        askId: oldMessage.askId,
+        mentions: oldMessage.mentions,
+        enabledMCPs: oldMessage.enabledMCPs,
+        usage: oldMessage.usage,
+        metrics: oldMessage.metrics,
+        multiModelMessageStyle: oldMessage.multiModelMessageStyle,
+        foldSelected: oldMessage.foldSelected,
+        blocks: messageBlockIds
+      }
+      newMessagesForTopic.push(newMessageReference)
+    }
+
+    if (blocksToCreate.length > 0) {
+      await newBlocksTable.bulkPut(blocksToCreate)
+    }
+    topicUpdates[oldTopic.id] = { messages: newMessagesForTopic }
+  })
+
+  const updateOperations = Object.entries(topicUpdates).map(([id, data]) => ({ key: id, changes: data }))
+  if (updateOperations.length > 0) {
+    await oldTopicsTable.bulkUpdate(updateOperations)
+    Logger.log(`Updated message references for ${updateOperations.length} topics.`)
+  }
+
+  Logger.log('DB migration to version 7 finished successfully.')
 }

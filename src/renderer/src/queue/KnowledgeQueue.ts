@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import store from '@renderer/store'
@@ -37,7 +38,7 @@ class KnowledgeQueue {
 
   async processQueue(baseId: string): Promise<void> {
     if (this.processing.get(baseId)) {
-      console.log(`[KnowledgeQueue] Queue for base ${baseId} is already being processed`)
+      Logger.log(`[KnowledgeQueue] Queue for base ${baseId} is already being processed`)
       return
     }
 
@@ -71,7 +72,7 @@ class KnowledgeQueue {
         processableItem = findProcessableItem()
       }
     } finally {
-      console.log(`[KnowledgeQueue] Finished processing queue for base ${baseId}`)
+      Logger.log(`[KnowledgeQueue] Finished processing queue for base ${baseId}`)
       this.processing.set(baseId, false)
     }
   }
@@ -89,11 +90,11 @@ class KnowledgeQueue {
   private async processItem(baseId: string, item: KnowledgeItem): Promise<void> {
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
-        console.log(`[KnowledgeQueue] Item ${item.id} has reached max retries, skipping`)
+        Logger.log(`[KnowledgeQueue] Item ${item.id} has reached max retries, skipping`)
         return
       }
 
-      console.log(`[KnowledgeQueue] Starting to process item ${item.id} (${item.type})`)
+      Logger.log(`[KnowledgeQueue] Starting to process item ${item.id} (${item.type})`)
 
       store.dispatch(
         updateItemProcessingStatus({
@@ -120,7 +121,7 @@ class KnowledgeQueue {
       let result: LoaderReturn | null = null
       let note, content
 
-      console.log(`[KnowledgeQueue] Processing item: ${sourceItem.content}`)
+      Logger.log(`[KnowledgeQueue] Processing item: ${sourceItem.content}`)
 
       switch (item.type) {
         case 'note':
@@ -135,7 +136,7 @@ class KnowledgeQueue {
           break
       }
 
-      console.log(`[KnowledgeQueue] Successfully completed processing item ${item.id}`)
+      Logger.log(`[KnowledgeQueue] Successfully completed processing item ${item.id}`)
 
       store.dispatch(
         updateItemProcessingStatus({
@@ -155,11 +156,11 @@ class KnowledgeQueue {
           })
         )
       }
-      console.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
+      Logger.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
 
       store.dispatch(clearCompletedProcessing({ baseId }))
     } catch (error) {
-      console.error(`[KnowledgeQueue] Error processing item ${item.id}: `, error)
+      Logger.error(`[KnowledgeQueue] Error processing item ${item.id}: `, error)
       store.dispatch(
         updateItemProcessingStatus({
           baseId,

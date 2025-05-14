@@ -1,6 +1,6 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setContentLimit, setMaxResult, setOverwrite, setSearchWithTime } from '@renderer/store/websearch'
+import { setContentLimit, setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import { Input, Slider, Switch, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Info } from 'lucide-react'
@@ -11,7 +11,6 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
   const searchWithTime = useAppSelector((state) => state.websearch.searchWithTime)
-  const overwrite = useAppSelector((state) => state.websearch.overwrite)
   const maxResults = useAppSelector((state) => state.websearch.maxResults)
   const contentLimit = useAppSelector((state) => state.websearch.contentLimit)
 
@@ -25,16 +24,6 @@ const BasicSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.websearch.search_with_time')}</SettingRowTitle>
           <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
-        </SettingRow>
-        <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
-        <SettingRow>
-          <SettingRowTitle>
-            {t('settings.websearch.overwrite')}
-            <Tooltip title={t('settings.websearch.overwrite_tooltip')} placement="right">
-              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-            </Tooltip>
-          </SettingRowTitle>
-          <Switch checked={overwrite} onChange={(checked) => dispatch(setOverwrite(checked))} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>

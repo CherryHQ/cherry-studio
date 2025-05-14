@@ -1,7 +1,10 @@
-import { GroundingMetadata } from '@google/genai'
-import OpenAI from 'openai'
+import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type { GroundingMetadata } from '@google/genai'
+import type OpenAI from 'openai'
 import React from 'react'
 import { BuiltinTheme } from 'shiki'
+
+import type { Message } from './newMessage'
 
 export type Assistant = {
   id: string
@@ -16,9 +19,13 @@ export type Assistant = {
   defaultModel?: Model
   settings?: Partial<AssistantSettings>
   messages?: AssistantMessage[]
+  /** enableWebSearch 代表使用模型内置网络搜索功能 */
   enableWebSearch?: boolean
+  webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  knowledgeRecognition?: 'off' | 'on'
+  regularPhrases?: QuickPhrase[] // Added for regular phrase
 }
 
 export type AssistantMessage = {
@@ -32,17 +39,30 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
+export type ReasoningEffortOptions = 'low' | 'medium' | 'high' | 'auto'
+export type EffortRatio = Record<ReasoningEffortOptions, number>
+
+export const EFFORT_RATIO: EffortRatio = {
+  low: 0.2,
+  medium: 0.5,
+  high: 0.8,
+  auto: 2
+}
+
 export type AssistantSettings = {
   contextCount: number
+  enableMaxContexts: boolean
   temperature: number
   topP: number
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
+  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort?: 'low' | 'medium' | 'high'
+  reasoning_effort?: ReasoningEffortOptions
+  qwenThinkMode?: boolean
   enablePromptCache?: boolean
   cacheTTL?: number
 }
@@ -51,7 +71,7 @@ export type Agent = Omit<Assistant, 'model'> & {
   group?: string[]
 }
 
-export type Message = {
+export type LegacyMessage = {
   id: string
   assistantId: string
   role: 'user' | 'assistant'
@@ -85,7 +105,7 @@ export type Message = {
     // Zhipu or Hunyuan
     webSearchInfo?: any[]
     // Web search
-    webSearch?: WebSearchResponse
+    webSearch?: WebSearchProviderResponse
     // MCP Tools
     mcpTools?: MCPToolResponse[]
     // Generate Image
@@ -104,8 +124,8 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
 }
 
 export type Metrics = {
-  completion_tokens?: number
-  time_completion_millsec?: number
+  completion_tokens: number
+  time_completion_millsec: number
   time_first_token_millsec?: number
   time_thinking_millsec?: number
 }
@@ -146,7 +166,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -164,11 +184,14 @@ export type Suggestion = {
   content: string
 }
 
-export interface Painting {
+export type PaintingParams = {
   id: string
-  model?: string
   urls: string[]
   files: FileType[]
+}
+
+export interface Painting extends PaintingParams {
+  model?: string
   prompt?: string
   negativePrompt?: string
   imageSize?: string
@@ -179,6 +202,61 @@ export interface Painting {
   promptEnhancement?: boolean
 }
 
+export interface GeneratePainting extends PaintingParams {
+  model: string
+  prompt: string
+  aspectRatio?: string
+  numImages?: number
+  styleType?: string
+  seed?: string
+  negativePrompt?: string
+  magicPromptOption?: boolean
+}
+
+export interface EditPainting extends PaintingParams {
+  imageFile: string
+  mask: FileType
+  model: string
+  prompt: string
+  numImages?: number
+  styleType?: string
+  seed?: string
+  magicPromptOption?: boolean
+}
+
+export interface RemixPainting extends PaintingParams {
+  imageFile: string
+  model: string
+  prompt: string
+  aspectRatio?: string
+  imageWeight: number
+  numImages?: number
+  styleType?: string
+  seed?: string
+  negativePrompt?: string
+  magicPromptOption?: boolean
+}
+
+export interface ScalePainting extends PaintingParams {
+  imageFile: string
+  prompt: string
+  resemblance?: number
+  detail?: number
+  numImages?: number
+  seed?: string
+  magicPromptOption?: boolean
+}
+
+export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
+
+export interface PaintingsState {
+  paintings: Painting[]
+  generate: Partial<GeneratePainting> & PaintingParams[]
+  remix: Partial<RemixPainting> & PaintingParams[]
+  edit: Partial<EditPainting> & PaintingParams[]
+  upscale: Partial<ScalePainting> & PaintingParams[]
+}
+
 export type MinAppType = {
   id: string
   name: string
@@ -187,6 +265,8 @@ export type MinAppType = {
   bodered?: boolean
   background?: string
   style?: React.CSSProperties
+  addTime?: string
+  type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
 export interface FileType {
@@ -344,6 +424,13 @@ export interface TranslateHistory {
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
 
+export type ExternalToolResult = {
+  mcpTools?: MCPTool[]
+  toolUse?: MCPToolResponse[]
+  webSearch?: WebSearchResponse
+  knowledge?: KnowledgeReference[]
+}
+
 export type WebSearchProvider = {
   id: string
   name: string
@@ -357,15 +444,41 @@ export type WebSearchProvider = {
   usingBrowser?: boolean
 }
 
-export type WebSearchResponse = {
-  query?: string
-  results: WebSearchResult[]
-}
-
-export type WebSearchResult = {
+export type WebSearchProviderResult = {
   title: string
   content: string
   url: string
+}
+
+export type WebSearchProviderResponse = {
+  query?: string
+  results: WebSearchProviderResult[]
+}
+
+export type WebSearchResults =
+  | WebSearchProviderResponse
+  | GroundingMetadata
+  | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
+  | OpenAI.Responses.ResponseOutputText.URLCitation[]
+  | WebSearchResultBlock[]
+  | any[]
+
+export enum WebSearchSource {
+  WEBSEARCH = 'websearch',
+  OPENAI = 'openai',
+  OPENAI_RESPONSE = 'openai-response',
+  OPENROUTER = 'openrouter',
+  ANTHROPIC = 'anthropic',
+  GEMINI = 'gemini',
+  PERPLEXITY = 'perplexity',
+  QWEN = 'qwen',
+  HUNYUAN = 'hunyuan',
+  ZHIPU = 'zhipu'
+}
+
+export type WebSearchResponse = {
+  results: WebSearchResults
+  source: WebSearchSource
 }
 
 export type KnowledgeReference = {
@@ -464,12 +577,24 @@ export interface MCPConfig {
   servers: MCPServer[]
 }
 
-export interface MCPToolResponse {
-  id: string // tool call id, it should be unique
-  tool: MCPTool // tool info
+interface BaseToolResponse {
+  id: string // unique id
+  tool: MCPTool
+  arguments: Record<string, unknown> | undefined
   status: string // 'invoking' | 'done'
   response?: any
 }
+
+export interface ToolUseResponse extends BaseToolResponse {
+  toolUseId: string
+}
+
+export interface ToolCallResponse extends BaseToolResponse {
+  // gemini tool call id might be undefined
+  toolCallId?: string
+}
+
+export type MCPToolResponse = ToolUseResponse | ToolCallResponse
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -480,6 +605,7 @@ export interface MCPToolResultContent {
     uri?: string
     text?: string
     mimeType?: string
+    blob?: string
   }
 }
 
@@ -522,3 +648,12 @@ export interface Citation {
 }
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
+
+export interface StoreSyncAction {
+  type: string
+  payload: any
+  meta?: {
+    fromSync?: boolean
+    source?: string
+  }
+}

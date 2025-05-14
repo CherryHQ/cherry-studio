@@ -1,5 +1,5 @@
 import { MCPPrompt } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Flex, Tag, Tooltip, Typography } from 'antd'
+import { Collapse, Descriptions, Empty, Flex, Tooltip, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,11 +22,11 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
             <Descriptions.Item
               key={index}
               label={
-                <Flex vertical gap={4}>
+                <Flex gap={4}>
                   <Typography.Text strong>{arg.name}</Typography.Text>
                   {arg.required && (
                     <Tooltip title="Required field">
-                      <Tag color="red">Required</Tag>
+                      <span style={{ color: '#f5222d' }}>*</span>
                     </Tooltip>
                   )}
                 </Flex>

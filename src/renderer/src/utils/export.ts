@@ -4,9 +4,11 @@ import i18n from '@renderer/i18n'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
-import { Message, Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { convertMathFormula } from '@renderer/utils/markdown'
+import { getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 //TODO: 添加对思考内容的支持
@@ -45,7 +47,8 @@ export const messageToMarkdown = (message: Message) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
-  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
+  const content = getMainTextContent(message)
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
   return [titleSection, '', contentSection].join('\n')
 }
@@ -55,12 +58,11 @@ export const messageToMarkdownWithReasoning = (message: Message) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
-
+  let reasoningContent = getThinkingContent(message)
   // 处理思考内容
   let reasoningSection = ''
-  if (message.reasoning_content) {
+  if (reasoningContent) {
     // 移除开头的<think>标记和换行符，并将所有换行符替换为<br>
-    let reasoningContent = message.reasoning_content
     if (reasoningContent.startsWith('<think>\n')) {
       reasoningContent = reasoningContent.substring(8)
     } else if (reasoningContent.startsWith('<think>')) {
@@ -78,8 +80,9 @@ export const messageToMarkdownWithReasoning = (message: Message) => {
     ${reasoningContent}
 </details>`
   }
+  const content = getMainTextContent(message)
 
-  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(message.content) : message.content
+  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
   return [titleSection, '', reasoningSection + contentSection].join('\n')
 }

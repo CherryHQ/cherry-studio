@@ -1,5 +1,6 @@
 import { ArrowLeftOutlined, EnterOutlined } from '@ant-design/icons'
-import { Message, Topic } from '@renderer/types'
+import { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { Input, InputRef } from 'antd'
 import { last } from 'lodash'
 import { Search } from 'lucide-react'
