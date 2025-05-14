@@ -53,6 +53,8 @@
 
   --modal-background: #1f1f1f;
 
+  --miniapp-background: #1f1f1f;
+
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
 
@@ -126,6 +128,8 @@ body[theme-mode='light'] {
   --color-reference-background: #f1f7ff;
 
   --modal-background: var(--color-white);
+
+  --miniapp-background: rgba(244, 244, 244);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
   --navbar-background: rgba(244, 244, 244);

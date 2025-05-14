@@ -369,7 +369,7 @@ const MinappPopupContainer: React.FC = () => {
       closeIcon={null}
       style={{
         marginLeft: 'var(--sidebar-width)',
-        backgroundColor: windowStyle === 'transparent' ? 'var(--color-background)' : 'var(--navbar-background)'
+        backgroundColor: windowStyle === 'transparent' ? 'var(--color-background)' : 'var(--miniapp-background)'
       }}>
       {!isReady && (
         <EmptyView>

@@ -64,7 +64,7 @@ export function useAppInit() {
       if (windowStyle === 'transparent') {
         window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
       } else {
-        window.root.style.background = 'var(--navbar-background)'
+        window.root.style.background = 'var(--miniapp-background)'
       }
       return
     }
