@@ -13,6 +13,7 @@ import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import useMiniappBackgroundColor from '@renderer/hooks/useMiniappBg'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -63,11 +64,13 @@ const MinappPopupContainer: React.FC = () => {
   /** indicate whether the webview has loaded  */
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
   /** whether the minapps open link external is enabled */
-  const { minappsOpenLinkExternal, windowStyle } = useSettings()
+  const { minappsOpenLinkExternal } = useSettings()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
   useBridge()
+
+  const miniappBackgroundColor = useMiniappBackgroundColor()
 
   /** set the popup display status */
   useEffect(() => {
@@ -369,7 +372,7 @@ const MinappPopupContainer: React.FC = () => {
       closeIcon={null}
       style={{
         marginLeft: 'var(--sidebar-width)',
-        backgroundColor: windowStyle === 'transparent' ? 'var(--color-background)' : 'var(--miniapp-background)'
+        backgroundColor: miniappBackgroundColor
       }}>
       {!isReady && (
         <EmptyView>

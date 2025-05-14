@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
+import useMiniappBackgroundColor from './useMiniappBg'
 import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
@@ -23,6 +24,7 @@ export function useAppInit() {
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
+  const miniappBackgroundColor = useMiniappBackgroundColor()
 
   useUpdateHandler()
   useFullScreenNotice()
@@ -61,11 +63,7 @@ export function useAppInit() {
     const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
 
     if (minappShow) {
-      if (windowStyle === 'transparent') {
-        window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
-      } else {
-        window.root.style.background = 'var(--miniapp-background)'
-      }
+      window.root.style.background = miniappBackgroundColor
       return
     }
 
