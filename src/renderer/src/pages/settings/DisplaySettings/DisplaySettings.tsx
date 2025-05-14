@@ -158,7 +158,6 @@ const DisplaySettings: FC = () => {
             </SettingRow>
           </>
         )}
-        <SettingDivider />
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>

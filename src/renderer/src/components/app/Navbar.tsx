@@ -1,5 +1,4 @@
 import { isLinux, isMac, isWindows } from '@renderer/config/constant'
-import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
@@ -26,12 +25,7 @@ export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
-  const isFullscreen = useFullscreen()
-  return (
-    <NavbarRightContainer {...props} $isFullscreen={isFullscreen}>
-      {children}
-    </NavbarRightContainer>
-  )
+  return <NavbarRightContainer {...props}>{children}</NavbarRightContainer>
 }
 
 const NavbarContainer = styled.div`
@@ -64,11 +58,11 @@ const NavbarCenterContainer = styled.div`
   color: var(--color-text-1);
 `
 
-const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
+const NavbarRightContainer = styled.div`
   min-width: var(--topic-list-width);
   display: flex;
   align-items: center;
   padding: 0 12px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '140px' : isLinux ? '120px' : '12px')};
+  padding-right: ${isWindows ? '140px' : isLinux ? '120px' : '12px'};
   justify-content: flex-end;
 `
