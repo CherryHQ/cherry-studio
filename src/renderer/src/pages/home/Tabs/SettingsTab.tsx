@@ -5,6 +5,8 @@ import {
   DEFAULT_CONTEXTCOUNT,
   DEFAULT_MAX_TOKENS,
   DEFAULT_TEMPERATURE,
+  EXTENDED_CONTEXT_LIMIT,
+  EXTENDED_CONTEXT_STEP,
   isMac,
   isWindows
 } from '@renderer/config/constant'
@@ -13,6 +15,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -51,7 +54,7 @@ import {
   TranslateLanguageVarious
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -67,6 +70,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [enableMaxContexts, setEnableMaxContexts] = useState(assistant?.settings?.enableMaxContexts ?? false)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
@@ -155,10 +159,18 @@ const SettingsTab: FC<Props> = (props) => {
 
   const formatSliderTooltip = (value?: number) => {
     if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
+    return value.toString()
   }
 
-  return (
+  const validAndChangeContextCount = (contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT) => {
+    if ((typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)) {
+      return enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10
+    } else {
+      return typeof contextCount === 'number' ? contextCount : 0
+    }
+  }
+
+  const container = (
     <Container className="settings-tab">
       <SettingGroup style={{ marginTop: 10 }}>
         <SettingSubtitle style={{ marginTop: 0, display: 'flex', justifyContent: 'space-between' }}>
@@ -204,15 +216,31 @@ const SettingsTab: FC<Props> = (props) => {
           <Col span={24}>
             <Slider
               min={0}
-              max={10}
+              max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
-              value={typeof contextCount === 'number' ? contextCount : 0}
-              step={1}
+              value={validAndChangeContextCount(contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT)}
+              step={!enableMaxContexts ? 1 : EXTENDED_CONTEXT_STEP}
               tooltip={{ formatter: formatSliderTooltip }}
             />
           </Col>
         </Row>
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.max_contexts')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={enableMaxContexts}
+            onChange={(checked) => {
+              setEnableMaxContexts(checked)
+              updateAssistantSettings({ enableMaxContexts: checked })
+              if (!checked && contextCount > 10) {
+                setContextCount(10)
+                onUpdateAssistantSettings({ contextCount: 10 })
+              }
+            }}
+          />
+        </SettingRow>
+        <Divider style={{ margin: '10px 0' }} />
         <SettingRow>
           <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
           <Switch
@@ -627,6 +655,22 @@ const SettingsTab: FC<Props> = (props) => {
       </SettingGroup>
     </Container>
   )
+  EventEmitter.on(EVENT_NAMES.MAX_CONTEXTS_CHANGED, ({ check, context }): any => {
+    setEnableMaxContexts(check)
+    updateAssistantSettings({ enableMaxContexts: check })
+
+    // Ensure contextCount is within the new valid range
+    let newContextCount = context
+    if (!check && newContextCount > 10) {
+      newContextCount = 10
+    } else if (check && newContextCount > EXTENDED_CONTEXT_LIMIT) {
+      newContextCount = EXTENDED_CONTEXT_LIMIT
+    }
+
+    setContextCount(newContextCount)
+    onUpdateAssistantSettings({ contextCount: newContextCount })
+  })
+  return container
 }
 
 const Container = styled(Scrollbar)`

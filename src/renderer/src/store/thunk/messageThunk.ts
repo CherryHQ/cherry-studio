@@ -536,10 +536,22 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onImageCreated: () => {
-        const imageBlock = createImageBlock(assistantMsgId, {
-          status: MessageBlockStatus.PROCESSING
-        })
-        handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+        if (lastBlockId) {
+          if (lastBlockType === MessageBlockType.UNKNOWN) {
+            const initialChanges: Partial<MessageBlock> = {
+              type: MessageBlockType.IMAGE,
+              status: MessageBlockStatus.STREAMING
+            }
+            lastBlockType = MessageBlockType.IMAGE
+            dispatch(updateOneBlock({ id: lastBlockId, changes: initialChanges }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          } else {
+            const imageBlock = createImageBlock(assistantMsgId, {
+              status: MessageBlockStatus.PROCESSING
+            })
+            handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+          }
+        }
       },
       onImageGenerated: (imageData) => {
         const imageUrl = imageData.images?.[0] || 'placeholder_image_url'

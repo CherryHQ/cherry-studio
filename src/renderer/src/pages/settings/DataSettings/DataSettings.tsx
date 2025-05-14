@@ -17,12 +17,13 @@ import { reset } from '@renderer/services/BackupService'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
@@ -81,6 +82,7 @@ const DataSettings: FC = () => {
       title: 'settings.data.markdown_export.title',
       icon: <FileText size={16} />
     },
+
     { key: 'divider_3', isDivider: true, text: t('settings.data.divider.third_party') },
     { key: 'notion', title: 'settings.data.notion.title', icon: <i className="iconfont icon-notion" /> },
     {
@@ -102,6 +104,11 @@ const DataSettings: FC = () => {
       key: 'siyuan',
       title: 'settings.data.siyuan.title',
       icon: <SiyuanIcon />
+    },
+    {
+      key: 'agentssubscribe_url',
+      title: 'agents.settings.title',
+      icon: <Sparkle size={16} className="icon" />
     }
   ]
 
@@ -253,6 +260,7 @@ const DataSettings: FC = () => {
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
+        {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
       </SettingContainer>
     </Container>
   )

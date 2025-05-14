@@ -1,9 +1,9 @@
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
+  isClaudeReasoningModel,
   isHunyuanSearchModel,
   isOpenAIReasoningModel,
-  isOpenAIWebSearch,
   isReasoningModel,
   isSupportedModel,
   isSupportedReasoningEffortGrokModel,
@@ -73,7 +73,7 @@ import {
 } from 'openai/resources'
 
 import { CompletionsParams } from '.'
-import { BaseOpenAiProvider } from './OpenAIResponseProvider'
+import { BaseOpenAIProvider } from './OpenAIResponseProvider'
 
 // 1. 定义联合类型
 export type OpenAIStreamChunk =
@@ -81,7 +81,7 @@ export type OpenAIStreamChunk =
   | { type: 'tool-calls'; delta: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
 
-export default class OpenAIProvider extends BaseOpenAiProvider {
+export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
     super(provider)
 
@@ -192,14 +192,18 @@ export default class OpenAIProvider extends BaseOpenAiProvider {
     } as ChatCompletionMessageParam
   }
 
-  /**
-   * Get the temperature for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The temperature
-   */
-  override getTemperature(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) || isOpenAIWebSearch(model) ? undefined : assistant?.settings?.temperature
+  override getTemperature(assistant: Assistant, model: Model): number | undefined {
+    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+      return undefined
+    }
+    return assistant.settings?.temperature
+  }
+
+  override getTopP(assistant: Assistant, model: Model): number | undefined {
+    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+      return undefined
+    }
+    return assistant.settings?.topP
   }
 
   /**
@@ -227,20 +231,6 @@ export default class OpenAIProvider extends BaseOpenAiProvider {
     }
 
     return {}
-  }
-
-  /**
-   * Get the top P for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The top P
-   */
-  override getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model) || isOpenAIWebSearch(model)) {
-      return undefined
-    }
-
-    return assistant?.settings?.topP
   }
 
   /**
