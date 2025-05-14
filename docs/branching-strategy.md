@@ -49,3 +49,4 @@ When contributing to Cherry Studio, please follow these guidelines:
 - Include relevant issue numbers in your PR description
 - Make sure all tests pass and code meets our quality standards
 - Critical hotfixes may be submitted against `main` but must also be merged into `develop`
+- Add a photo to show what is different if you add a new feature or modify a component in the UI.

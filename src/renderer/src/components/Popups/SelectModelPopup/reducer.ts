@@ -72,7 +72,7 @@ export const scrollReducer = (state: ScrollState, action: ScrollAction): ScrollS
         scrollTrigger: action.payload.searchText ? 'search' : 'initial'
       }
 
-    case 'UPDATE_ON_LIST_CHANGE': {
+    case 'FOCUS_ON_LIST_CHANGE': {
       const { modelItems } = action.payload
 
       // 在列表变化时尝试聚焦一个模型：
@@ -95,13 +95,6 @@ export const scrollReducer = (state: ScrollState, action: ScrollAction): ScrollS
         focusedItemKey: newFocusedKey
       }
     }
-
-    case 'INIT_SCROLL':
-      return {
-        ...state,
-        scrollTrigger: 'initial',
-        lastScrollOffset: 0
-      }
 
     default:
       return state

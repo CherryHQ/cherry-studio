@@ -53,6 +53,7 @@ export const EFFORT_RATIO: EffortRatio = {
 
 export type AssistantSettings = {
   contextCount: number
+  enableMaxContexts: boolean
   temperature: number
   topP: number
   maxTokens: number | undefined
@@ -164,14 +165,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType =
-  | 'openai'
-  | 'openai-compatible'
-  | 'anthropic'
-  | 'gemini'
-  | 'qwenlm'
-  | 'azure-openai'
-  | 'mistral'
+export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai' | 'mistral'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -462,7 +456,7 @@ export type WebSearchResults =
 export enum WebSearchSource {
   WEBSEARCH = 'websearch',
   OPENAI = 'openai',
-  OPENAI_COMPATIBLE = 'openai-compatible',
+  OPENAI_RESPONSE = 'openai-response',
   OPENROUTER = 'openrouter',
   ANTHROPIC = 'anthropic',
   GEMINI = 'gemini',

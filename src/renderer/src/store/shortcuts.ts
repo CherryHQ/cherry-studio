@@ -79,6 +79,13 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: true,
       system: false
+    },
+    {
+      key: 'exit_fullscreen',
+      shortcut: ['Escape'],
+      editable: false,
+      enabled: true,
+      system: true
     }
   ]
 }

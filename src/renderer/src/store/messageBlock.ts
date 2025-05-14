@@ -101,7 +101,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
           })) || []
         break
       }
-      case WebSearchSource.OPENAI:
+      case WebSearchSource.OPENAI_RESPONSE:
         formattedCitations =
           (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
             let hostname: string | undefined
@@ -120,7 +120,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
             }
           }) || []
         break
-      case WebSearchSource.OPENAI_COMPATIBLE:
+      case WebSearchSource.OPENAI:
         formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation
@@ -236,10 +236,11 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
       })
     )
   }
-  // 4. Deduplicate by URL and Renumber Sequentially
+  // 4. Deduplicate non-knowledge citations by URL and Renumber Sequentially
   const urlSet = new Set<string>()
   return formattedCitations
     .filter((citation) => {
+      if (citation.type === 'knowledge') return true
       if (!citation.url || urlSet.has(citation.url)) return false
       urlSet.add(citation.url)
       return true

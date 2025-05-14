@@ -1,3 +1,4 @@
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -70,7 +71,9 @@ const Sidebar: FC = () => {
   return (
     <Container id="app-sidebar" style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
-        <EmojiAvatar onClick={onEditUser}>{avatar}</EmojiAvatar>
+        <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
+          {avatar}
+        </EmojiAvatar>
       ) : (
         <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
       )}
@@ -319,6 +322,12 @@ const Container = styled.div`
   height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
   -webkit-app-region: drag !important;
   margin-top: ${isMac ? 'var(--navbar-height)' : 0};
+
+  .sidebar-avatar {
+    margin-bottom: ${isMac ? '12px' : '12px'};
+    margin-top: ${isMac ? '0px' : '2px'};
+    -webkit-app-region: none;
+  }
 `
 
 const AvatarImg = styled(Avatar)`
@@ -329,23 +338,6 @@ const AvatarImg = styled(Avatar)`
   margin-top: ${isMac ? '0px' : '2px'};
   border: none;
   cursor: pointer;
-`
-
-const EmojiAvatar = styled.div`
-  width: 31px;
-  height: 31px;
-  background-color: var(--color-background-soft);
-  margin-bottom: ${isMac ? '12px' : '12px'};
-  margin-top: ${isMac ? '0px' : '2px'};
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  cursor: pointer;
-  -webkit-app-region: none;
-  border: 0.5px solid var(--color-border);
-  font-size: 20px;
 `
 
 const MainMenusContainer = styled.div`

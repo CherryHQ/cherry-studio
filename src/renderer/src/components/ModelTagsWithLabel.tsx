@@ -23,6 +23,7 @@ interface ModelTagsProps {
   showToolsCalling?: boolean
   size?: number
   showLabel?: boolean
+  showTooltip?: boolean
   style?: React.CSSProperties
 }
 
@@ -33,6 +34,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showToolsCalling = true,
   size = 12,
   showLabel = true,
+  showTooltip = true,
   style
 }) => {
   const { t } = useTranslation()
@@ -73,7 +75,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           size={size}
           color="#00b96b"
           icon={<EyeOutlined style={{ fontSize: size }} />}
-          tooltip={t('models.type.vision')}>
+          tooltip={showTooltip ? t('models.type.vision') : undefined}>
           {shouldShowLabel ? t('models.type.vision') : ''}
         </CustomTag>
       )}
@@ -82,7 +84,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           size={size}
           color="#1677ff"
           icon={<GlobalOutlined style={{ fontSize: size }} />}
-          tooltip={t('models.type.websearch')}>
+          tooltip={showTooltip ? t('models.type.websearch') : undefined}>
           {shouldShowLabel ? t('models.type.websearch') : ''}
         </CustomTag>
       )}
@@ -91,7 +93,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           size={size}
           color="#6372bd"
           icon={<i className="iconfont icon-thinking" />}
-          tooltip={t('models.type.reasoning')}>
+          tooltip={showTooltip ? t('models.type.reasoning') : undefined}>
           {shouldShowLabel ? t('models.type.reasoning') : ''}
         </CustomTag>
       )}
@@ -100,19 +102,13 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           size={size}
           color="#f18737"
           icon={<ToolOutlined style={{ fontSize: size }} />}
-          tooltip={t('models.type.function_calling')}>
+          tooltip={showTooltip ? t('models.type.function_calling') : undefined}>
           {shouldShowLabel ? t('models.type.function_calling') : ''}
         </CustomTag>
       )}
-      {isEmbeddingModel(model) && (
-        <CustomTag size={size} color="#FFA500" icon={t('models.type.embedding')} tooltip={t('models.type.embedding')} />
-      )}
-      {showFree && isFreeModel(model) && (
-        <CustomTag size={size} color="#7cb305" icon={t('models.type.free')} tooltip={t('models.type.free')} />
-      )}
-      {isRerankModel(model) && (
-        <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')} tooltip={t('models.type.rerank')} />
-      )}
+      {isEmbeddingModel(model) && <CustomTag size={size} color="#FFA500" icon={t('models.type.embedding')} />}
+      {showFree && isFreeModel(model) && <CustomTag size={size} color="#7cb305" icon={t('models.type.free')} />}
+      {isRerankModel(model) && <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')} />}
     </Container>
   )
 }

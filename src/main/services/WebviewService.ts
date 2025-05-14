@@ -6,12 +6,8 @@ import { session, shell, webContents } from 'electron'
  */
 export function initSessionUserAgent() {
   const wvSession = session.fromPartition('persist:webview')
-  const newChromeVersion = '135.0.7049.96'
   const originUA = wvSession.getUserAgent()
-  const newUA = originUA
-    .replace(/CherryStudio\/\S+\s/, '')
-    .replace(/Electron\/\S+\s/, '')
-    .replace(/Chrome\/\d+\.\d+\.\d+\.\d+/, `Chrome/${newChromeVersion}`)
+  const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
   wvSession.setUserAgent(newUA)
 }

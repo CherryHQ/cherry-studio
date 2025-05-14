@@ -38,7 +38,7 @@ export default abstract class BaseReranker {
   protected getRerankRequestBody(query: string, searchResults: ExtractChunkData[]) {
     const provider = this.base.rerankModelProvider
     const documents = searchResults.map((doc) => doc.pageContent)
-    const topN = this.base.topN || 5
+    const topN = this.base.topN || 10
 
     if (provider === 'voyageai') {
       return {

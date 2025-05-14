@@ -1,4 +1,5 @@
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import ImageStorage from '@renderer/services/ImageStorage'
@@ -154,7 +155,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 }
               }}
               placement="bottom">
-              {isEmoji(avatar) ? <EmojiAvatar>{avatar}</EmojiAvatar> : <UserAvatar src={avatar} />}
+              {isEmoji(avatar) ? (
+                <EmojiAvatar size={80} fontSize={40}>
+                  {avatar}
+                </EmojiAvatar>
+              ) : (
+                <UserAvatar src={avatar} />
+              )}
             </Popover>
           </Dropdown>
         </VStack>
@@ -177,23 +184,6 @@ const UserAvatar = styled(Avatar)`
   width: 80px;
   height: 80px;
   transition: opacity 0.3s ease;
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const EmojiAvatar = styled.div`
-  cursor: pointer;
-  width: 80px;
-  height: 80px;
-  border-radius: 20%;
-  background-color: var(--color-background-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 40px;
-  transition: opacity 0.3s ease;
-  border: 0.5px solid var(--color-border);
   &:hover {
     opacity: 0.8;
   }

@@ -1,14 +1,17 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { Model } from '@renderer/types'
+import { isEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
@@ -63,7 +66,11 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
     // 用户头像
     if (data.userAvatar) {
-      avatar = <Avatar src={data.userAvatar} alt={title} />
+      if (isEmoji(data.userAvatar)) {
+        avatar = <EmojiAvatar size={32}>{data.userAvatar}</EmojiAvatar>
+      } else {
+        avatar = <Avatar src={data.userAvatar} alt={title} />
+      }
     } else {
       avatar = <Avatar icon={<UserOutlined />} style={{ backgroundColor: 'var(--color-info)' }} />
     }
@@ -221,7 +228,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   )
 
   // 获取用户头像
-  const userAvatar = useSelector((state: RootState) => state.runtime.avatar)
+  const userAvatar = useAvatar()
 
   // 消息过滤
   const { userMessages, assistantMessages } = useMemo(() => {

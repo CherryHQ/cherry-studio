@@ -48,7 +48,10 @@
       "tag.default": "デフォルト",
       "tag.new": "新規",
       "tag.system": "システム",
-      "title": "エージェント"
+      "title": "エージェント",
+      "settings": {
+        "title": "エージェント設定"
+      }
     },
     "assistants": {
       "title": "アシスタント",
@@ -205,6 +208,7 @@
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
+      "settings.max_contexts": "より長いコンテキスト制限",
       "settings.max_tokens": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
@@ -493,7 +497,7 @@
       "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
       "title": "ナレッジベース",
       "topN": "返却される結果の数",
-      "topN__too_large_or_small": "結果の数は100より大きくてはならず、1より小さくてはなりません。",
+      "topN_too_large_or_small": "結果の数は30より大きくてはならず、1より小さくてはなりません。",
       "topN_placeholder": "未設定",
       "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
       "url_added": "URLが追加されました",
@@ -1526,6 +1530,7 @@
         "clear_shortcut": "ショートカットをクリア",
         "clear_topic": "メッセージを消去",
         "copy_last_message": "最後のメッセージをコピー",
+        "exit_fullscreen": "フルスクリーンを終了",
         "key": "キー",
         "mini_window": "クイックアシスタント",
         "new_topic": "新しいトピック",
