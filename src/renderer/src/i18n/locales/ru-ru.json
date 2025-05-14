@@ -1635,7 +1635,6 @@
         "reset": "Сбросить"
       },
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
-      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
     },
     "translate": {
       "any.language": "Любой язык",
