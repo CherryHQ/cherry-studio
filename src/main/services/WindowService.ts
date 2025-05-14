@@ -201,16 +201,18 @@ export class WindowService {
           // 获取 shortcuts 配置
           const shortcuts = configManager.getShortcuts()
           const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-
+          if (exitFullscreenShortcut == undefined) {
+            mainWindow.setFullScreen(false)
+            return
+          }
           if (exitFullscreenShortcut?.enabled) {
             event.preventDefault()
             mainWindow.setFullScreen(false)
-          } else {
-            // 如果没有设置快捷键，则直接退出全屏
-            mainWindow.setFullScreen(false)
+            return
           }
         }
       }
+      return
     })
   }
 
