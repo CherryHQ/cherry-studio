@@ -15,13 +15,25 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
-import { initSelectionService } from './services/SelectionService'
+import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
+
+// handle uncaught exception
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error)
+  Logger.error('Uncaught Exception:', error)
+})
+
+// handle unhandled rejection
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+})
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -111,6 +123,11 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuitting = true
+
+    // quit selection service
+    if (selectionService) {
+      selectionService.quit()
+    }
   })
 
   app.on('will-quit', async () => {
