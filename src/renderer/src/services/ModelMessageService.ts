@@ -57,7 +57,7 @@ export function processPostsuffixQwen3Model(
     } else {
       // 思考模式未启用，添加 postsuffix
       if (!content.endsWith(postsuffix)) {
-        return content + postsuffix
+        return content + ' ' + postsuffix
       }
     }
   } else if (Array.isArray(content)) {

@@ -48,7 +48,10 @@
       "tag.default": "デフォルト",
       "tag.new": "新規",
       "tag.system": "システム",
-      "title": "エージェント"
+      "title": "エージェント",
+      "settings": {
+        "title": "エージェント設定"
+      }
     },
     "assistants": {
       "title": "アシスタント",

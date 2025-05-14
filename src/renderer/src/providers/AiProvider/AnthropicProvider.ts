@@ -678,7 +678,7 @@ export default class AnthropicProvider extends BaseProvider {
     const body = {
       model: model.id,
       messages: [{ role: 'user' as const, content: 'hi' }],
-      max_tokens: 100,
+      max_tokens: 2, // api文档写的 x>1
       stream
     }
 
