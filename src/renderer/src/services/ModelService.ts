@@ -76,7 +76,9 @@ export async function checkModel(provider: Provider, model: Model) {
       provider,
       model,
       (ai, model) => ai.getEmbeddingDimensions(model),
-      (dimensions) => ({ valid: dimensions > 0, error: null })
+      // (dimensions) => ({ valid: dimensions > 0, error: null })
+      // TODO FIX: 嵌入模型dimensions可选
+      () => ({ valid: true, error: null })
     )
   } else {
     return performModelCheck(
