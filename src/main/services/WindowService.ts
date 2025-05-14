@@ -203,10 +203,8 @@ export class WindowService {
           const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
 
           if (exitFullscreenShortcut?.enabled) {
-            if (configManager.getAllowEscToExitFullscreen()) {
-              event.preventDefault()
-              mainWindow.setFullScreen(false)
-            }
+            event.preventDefault()
+            mainWindow.setFullScreen(false)
           }
         }
       }

@@ -159,15 +159,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return configManager.getZoomFactor()
   })
 
-  // allow esc to exit fullscreen
-  ipcMain.handle(IpcChannel.Set_AllowEscToExitFullscreen, (_, value: boolean) => {
-    configManager.setAllowEscToExitFullscreen(value)
-  })
-
-  ipcMain.handle(IpcChannel.Get_AllowEscToExitFullscreen, () => {
-    return configManager.getAllowEscToExitFullscreen()
-  })
-
   // clear cache
   ipcMain.handle(IpcChannel.App_ClearCache, async () => {
     const sessions = [session.defaultSession, session.fromPartition('persist:webview')]

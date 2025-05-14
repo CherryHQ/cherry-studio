@@ -154,9 +154,6 @@ export enum IpcChannel {
 
   FullscreenStatusChanged = 'fullscreen-status-changed',
 
-  Set_AllowEscToExitFullscreen = 'app:set-allow-esc-to-exit-fullscreen',
-  Get_AllowEscToExitFullscreen = 'app:get-allow-esc-to-exit-fullscreen',
-
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
 
