@@ -2233,6 +2233,9 @@ export function isOpenAILLMModel(model: Model): boolean {
   if (!model) {
     return false
   }
+  if (model.id.includes('gpt-4o-image')) {
+    return false
+  }
   if (isOpenAIReasoningModel(model)) {
     return true
   }

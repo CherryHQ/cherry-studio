@@ -208,6 +208,7 @@
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
+      "settings.max_contexts": "より長いコンテキスト制限",
       "settings.max_tokens": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm": "最大トークン制限を有効にする",
       "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",

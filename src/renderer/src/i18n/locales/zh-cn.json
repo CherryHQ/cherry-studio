@@ -222,6 +222,7 @@
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
+      "settings.max_contexts": "更多上下文长度限制",
       "settings.max_tokens": "开启消息长度限制",
       "settings.max_tokens.confirm": "开启消息长度限制",
       "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",

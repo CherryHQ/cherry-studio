@@ -208,6 +208,7 @@
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
+      "settings.max_contexts": "More Contexts Length",
       "settings.max_tokens": "Enable max tokens limit",
       "settings.max_tokens.confirm": "Enable max tokens limit",
       "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",

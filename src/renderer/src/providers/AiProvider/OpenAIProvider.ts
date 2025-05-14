@@ -73,7 +73,7 @@ import {
 } from 'openai/resources'
 
 import { CompletionsParams } from '.'
-import { BaseOpenAiProvider } from './OpenAIResponseProvider'
+import { BaseOpenAIProvider } from './OpenAIResponseProvider'
 
 // 1. 定义联合类型
 export type OpenAIStreamChunk =
@@ -81,7 +81,7 @@ export type OpenAIStreamChunk =
   | { type: 'tool-calls'; delta: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
 
-export default class OpenAIProvider extends BaseOpenAiProvider {
+export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
     super(provider)
 
