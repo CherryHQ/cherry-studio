@@ -6,6 +6,7 @@ import {
   DEFAULT_MAX_TOKENS,
   DEFAULT_TEMPERATURE,
   EXTENDED_CONTEXT_LIMIT,
+  EXTENDED_CONTEXT_STEP,
   isMac,
   isWindows
 } from '@renderer/config/constant'
@@ -219,7 +220,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={validAndChangeContextCount(contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT)}
-              step={!enableMaxContexts ? 1 : 10}
+              step={!enableMaxContexts ? 1 : EXTENDED_CONTEXT_STEP}
               tooltip={{ formatter: formatSliderTooltip }}
             />
           </Col>
