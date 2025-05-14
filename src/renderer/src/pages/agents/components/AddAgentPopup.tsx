@@ -1,6 +1,6 @@
 import 'emoji-picker-element'
 
-import { CheckOutlined, LoadingOutlined, ThunderboltOutlined, RollbackOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
@@ -132,8 +132,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const handleUndoButtonClick = async () => {
-      form.setFieldsValue({ prompt: originalPrompt })
-      setShowUndoButton(false)
+    form.setFieldsValue({ prompt: originalPrompt })
+    setShowUndoButton(false)
   }
 
   // Compute label width based on the longest label
@@ -191,11 +191,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             style={{ position: 'absolute', top: 8, right: 8 }}
             disabled={loading}
           />
-          {showUndoButton && <Button
-            icon={<RollbackOutlined />}
-            onClick={handleUndoButtonClick}
-            style={{ position: 'absolute', top: 8, right: 48 }}
-          />}
+          {showUndoButton && (
+            <Button
+              icon={<RollbackOutlined />}
+              onClick={handleUndoButtonClick}
+              style={{ position: 'absolute', top: 8, right: 48 }}
+            />
+          )}
         </div>
         {showKnowledgeIcon && (
           <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
