@@ -191,26 +191,6 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     return 5 * 1000 * 60
   }
 
-  /**
-   * Get the temperature for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The temperature
-   */
-  protected getTemperature(assistant: Assistant, model: Model) {
-    return isOpenAIReasoningModel(model) || isOpenAILLMModel(model) ? undefined : assistant?.settings?.temperature
-  }
-
-  /**
-   * Get the top P for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The top P
-   */
-  protected getTopP(assistant: Assistant, model: Model) {
-    return isOpenAIReasoningModel(model) || isOpenAILLMModel(model) ? undefined : assistant?.settings?.topP
-  }
-
   private getResponseReasoningEffort(assistant: Assistant, model: Model) {
     if (!isSupportedReasoningEffortOpenAIModel(model)) {
       return {}

@@ -379,8 +379,8 @@ export default class GeminiProvider extends BaseProvider {
       safetySettings: this.getSafetySettings(),
       // generate image don't need system instruction
       systemInstruction: isGemmaModel(model) ? undefined : systemInstruction,
-      temperature: assistant?.settings?.temperature,
-      topP: assistant?.settings?.topP,
+      temperature: this.getTemperature(assistant, model),
+      topP: this.getTopP(assistant, model),
       maxOutputTokens: maxTokens,
       tools: tools,
       ...this.getBudgetToken(assistant, model),
