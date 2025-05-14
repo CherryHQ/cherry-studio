@@ -3,7 +3,6 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
-import { resolve } from 'path'
 import { CreateDirectoryOptions } from 'webdav'
 
 // Custom APIs for renderer
