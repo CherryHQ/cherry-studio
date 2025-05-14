@@ -130,7 +130,7 @@ Thank you for your support and contributions!
 # 🚀 Contributors
 
 <a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
+  <img src="https://contrib.rocks/image?repo=CherryHQ/cherry-studio" />
 </a>
 <br /><br />
 
