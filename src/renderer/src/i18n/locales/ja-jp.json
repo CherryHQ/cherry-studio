@@ -1148,7 +1148,6 @@
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
       "display.topic.title": "トピック設定",
-      "display.allowEscToExitFullscreen": "ESCキーでフルスクリーンを終了する",
       "miniapps": {
         "title": "ミニアプリ設定",
         "disabled": "非表示のミニアプリ",

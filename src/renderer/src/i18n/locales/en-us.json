@@ -1150,7 +1150,6 @@
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
-      "display.allowEscToExitFullscreen": "Allow ESC key to exit fullscreen mode",
       "miniapps": {
         "title": "Mini Apps Settings",
         "custom": {
