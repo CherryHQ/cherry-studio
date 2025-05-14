@@ -392,10 +392,9 @@ export default class GeminiProvider extends BaseProvider {
       })
 
       generateContentConfig = {
-        responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
-        responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
         temperature: this.getTemperature(assistant, model),
         topP: this.getTopP(assistant, model),
+        cachedContent: cache.name,
         maxOutputTokens: maxTokens,
         tools: tools,
         ...this.getBudgetToken(assistant, model),
@@ -403,8 +402,6 @@ export default class GeminiProvider extends BaseProvider {
       }
     } else {
       generateContentConfig = {
-        responseModalities: isGenerateImageModel(model) ? [Modality.TEXT, Modality.IMAGE] : undefined,
-        responseMimeType: isGenerateImageModel(model) ? 'text/plain' : undefined,
         temperature: this.getTemperature(assistant, model),
         topP: this.getTopP(assistant, model),
         maxOutputTokens: maxTokens,
