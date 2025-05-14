@@ -831,7 +831,6 @@ export class SelectionService {
     })
 
     actionWindow.show()
-    this.hideToolbar()
   }
 
   public closeActionWindow(actionWindow: BrowserWindow): void {

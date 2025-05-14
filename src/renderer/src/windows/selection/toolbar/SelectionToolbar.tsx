@@ -191,10 +191,12 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 
     const searchUrl = customUrl.replace('{{queryString}}', encodeURIComponent(action.selectedText || ''))
     window.api?.openWebsite(searchUrl)
+    window.api?.selection.hideToolbar()
   }
 
   const handleDefaultAction = (action: ActionItem) => {
     window.api?.selection.processAction(action)
+    window.api?.selection.hideToolbar()
   }
 
   return (
