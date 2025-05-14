@@ -10,11 +10,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import {
-  isGrokReasoningModel,
-  isSupportedPromptCacheModel,
-  isSupportedReasoningEffortModel
-} from '@renderer/config/models'
+import { isSupportedPromptCacheModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'

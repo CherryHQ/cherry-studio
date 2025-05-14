@@ -2510,7 +2510,7 @@ export function isGenerateImageModel(model: Model): boolean {
   return false
 }
 
-export const SUPPORTED_PROMPT_CACHE_GEMINI_MODELS = ['gemini-2.5-pro-preview', 'gemini-2.0-flash(?:-[\\w-]+)?']
+export const SUPPORTED_PROMPT_CACHE_GEMINI_MODELS = ['gemini-2.5(?:-[\\w-]+)?', 'gemini-2.0-flash(?:-[\\w-]+)?']
 export const SUPPORTED_PROMPT_CACHE_GEMINI_MODELS_REGEX = new RegExp(SUPPORTED_PROMPT_CACHE_GEMINI_MODELS.join('|'))
 
 export function isSupportedPromptCacheModel(model: Model): boolean {
