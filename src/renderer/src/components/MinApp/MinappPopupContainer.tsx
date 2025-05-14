@@ -63,7 +63,7 @@ const MinappPopupContainer: React.FC = () => {
   /** indicate whether the webview has loaded  */
   const webviewLoadedRefs = useRef<Map<string, boolean>>(new Map())
   /** whether the minapps open link external is enabled */
-  const { minappsOpenLinkExternal } = useSettings()
+  const { minappsOpenLinkExternal, windowStyle } = useSettings()
 
   const isInDevelopment = process.env.NODE_ENV === 'development'
 
@@ -367,7 +367,10 @@ const MinappPopupContainer: React.FC = () => {
       height={'100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{ marginLeft: 'var(--sidebar-width)', backgroundColor: 'var(--color-background)' }}>
+      style={{
+        marginLeft: 'var(--sidebar-width)',
+        backgroundColor: windowStyle === 'transparent' ? 'var(--color-background)' : 'var(--navbar-background)'
+      }}>
       {!isReady && (
         <EmptyView>
           <Avatar

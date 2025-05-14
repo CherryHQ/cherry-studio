@@ -61,7 +61,11 @@ export function useAppInit() {
     const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
 
     if (minappShow) {
-      window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
+      if (windowStyle === 'transparent') {
+        window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
+      } else {
+        window.root.style.background = 'var(--navbar-background)'
+      }
       return
     }
 
