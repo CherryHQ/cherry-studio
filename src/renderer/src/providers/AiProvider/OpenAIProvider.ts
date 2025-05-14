@@ -1199,14 +1199,14 @@ export default class OpenAIProvider extends BaseOpenAiProvider {
    * @param model - The model
    * @returns The embedding dimensions
    */
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model): Promise<number | undefined> {
     await this.checkIsCopilot()
 
     const data = await this.sdk.embeddings.create({
       model: model.id,
       input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
     })
-    return data.data[0].embedding.length
+    return data.data[0].embedding.length || undefined
   }
 
   public async checkIsCopilot() {

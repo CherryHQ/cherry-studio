@@ -467,173 +467,194 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@cherrystudio/embedjs-interfaces@npm:0.1.29":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.29"
+"@cherrystudio/embedjs-interfaces@npm:0.1.30":
+  version: 0.1.30
+  resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.30"
   dependencies:
     "@langchain/core": "npm:^0.3.26"
     debug: "npm:^4.4.0"
     md5: "npm:^2.3.0"
     uuid: "npm:^11.0.3"
-  checksum: 10c0/df7ac19aecae137e5af427bb1605232993ef1510e3d41875cb8dd604e7a692778758e5f640a6ab839aaa4193c21012a50b7dfb0aa42c434e668f99faa0fd04d7
+  checksum: 10c0/1d0eca816d89df25adfa15eb0b6ce67e8b3446966886c4e5e84f4c657daf3b5cad728c953479e8f317136a3c86ca512ebf13ceb070462da733eaab02937bc460
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-libsql@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-libsql@npm:0.1.29"
+"@cherrystudio/embedjs-interfaces@npm:0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@langchain/core": "npm:^0.3.26"
+    debug: "npm:^4.4.0"
+    md5: "npm:^2.3.0"
+    uuid: "npm:^11.0.3"
+  checksum: 10c0/da4de44f48a332c20ed891899c1e0fc06e0238df8d34450f58a52394efe3cd598f21f6feaedb3410cef6d3a86c6a2e2ca1fad574fedb5e256c38b82c72668d55
+  languageName: node
+  linkType: hard
+
+"@cherrystudio/embedjs-libsql@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-libsql@npm:0.1.31"
+  dependencies:
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.30"
+    "@cherrystudio/embedjs-utils": "npm:0.1.30"
     "@libsql/client": "npm:^0.14.0"
     debug: "npm:^4.4.0"
-  checksum: 10c0/655da13d5e192bb0d46e36cbe1ee444b290f6d98d39ad4ac72004fa0aa1a2f5c6dc7a41dd2a9631cc80014501e3423fbd3a822f9fcb331617ab0a43db9692410
+  checksum: 10c0/248453e07b7ff1661f18213f69d74a0ab2e5d722d3ae5409240fd38cf3c263da5c8a224635f6ec4cf823cdaa91846ba0f4890d64872133950810afcfd8512498
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-csv@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-csv@npm:0.1.29"
+"@cherrystudio/embedjs-loader-csv@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-csv@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:0.1.31"
     csv-parse: "npm:^5.6.0"
     debug: "npm:^4.4.0"
     md5: "npm:^2.3.0"
-  checksum: 10c0/7c54791fe836839bf3b6a882a9e4c5656b4f30e54aa4e8967b380bc858fd76e03b2ca39b050bc5c06ffbc9e0c722d91d5dd0acf9edf576ff279805d718dfd437
+  checksum: 10c0/810a1eaf6bad7364856933b3752c698df033c4eb4c857eea22bd4da2143ae074e67857f106a7c9499817601e3420247d1d0e5ba319cf28d27f26a7274d75460e
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-image@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-image@npm:0.1.29"
+"@cherrystudio/embedjs-loader-image@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-image@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:0.1.31"
     "@langchain/core": "npm:^0.3.26"
     debug: "npm:^4.4.0"
     exifremove: "npm:^1.0.1"
     md5: "npm:^2.3.0"
     mime: "npm:^4.0.6"
     stream-mime-type: "npm:^2.0.0"
-  checksum: 10c0/cbc43bf0be38ccd231a35ee06f160fee4628267a912f222c2c326e6d383a0477e1faad1910c9cd485ef8857b63d4404a9797c7e6a9661773345a4cca1ce956cf
+  checksum: 10c0/7e367a9722c30423dc26af795ef553120cc61c807c6d13e222eee336732bbe5a5e211cc66fb15941bc9fc05749a00200df6d741e3ae9ae9ec7a7d29db8dea075
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-markdown@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-markdown@npm:0.1.29"
+"@cherrystudio/embedjs-loader-markdown@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-markdown@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-loader-web": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-loader-web": "npm:0.1.31"
     debug: "npm:^4.4.0"
     md5: "npm:^2.3.0"
     micromark: "npm:^4.0.1"
     micromark-extension-gfm: "npm:^3.0.0"
     micromark-extension-mdx-jsx: "npm:^3.0.1"
-  checksum: 10c0/068393c00321a03a7b7881bb9b4b3b115440a91496b4fef43ad9b7f352c763aa59a6a33f69c9db39f2ed4c0a727f7e1dcd28448f7a446a5ec6a62edbd035f5a8
+  checksum: 10c0/3e917eafe12331750a2702ae50d3aaf81a33ba43de111edcd0fe59a464c02149c44a124cfae8125374973313d70cd8d5ed2f091a85421238301859ec48aec4b0
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-msoffice@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-msoffice@npm:0.1.29"
+"@cherrystudio/embedjs-loader-msoffice@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-msoffice@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:0.1.31"
     "@langchain/textsplitters": "npm:^0.1.0"
     md5: "npm:^2.3.0"
     office-text-extractor: "npm:^3.0.3"
-  checksum: 10c0/be97eb2278d29f06b569b0aa2fd2b3640caf43207268f5c5cbe16fb77776fe026e4e0d5a9c6360f61c4af439561022f6f4becbe97c2b903d1d446021ab3bf38f
+  checksum: 10c0/57e688611dfa3481710231721608d0934ab31b726a22d3932a88fc911a16e1c7781537ec01e2906a7d22173950e7e46f4a5c56e315415222087ee09fefbcb98d
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-pdf@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-pdf@npm:0.1.29"
+"@cherrystudio/embedjs-loader-pdf@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-pdf@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:0.1.31"
     "@langchain/textsplitters": "npm:^0.1.0"
     md5: "npm:^2.3.0"
     office-text-extractor: "npm:^3.0.3"
-  checksum: 10c0/cd45963f9405cd1b817f9539ad876dd32e214d21b651459822fc9f829105dc4934daf1aded9cc7084efd9dc914901b4b72fc52a7c5aa9fb550454b0e465844cf
+  checksum: 10c0/67c36c8a18ce7ed7312544bda37d2378a4d604eefa454700b142fd5ed1cb3a80c9b02bb392610a9b7b797ebb5aab0bd2437b74c2b125765dabf3064d4f55c2fd
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-sitemap@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-sitemap@npm:0.1.29"
+"@cherrystudio/embedjs-loader-sitemap@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-sitemap@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-loader-web": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-loader-web": "npm:0.1.31"
     debug: "npm:^4.4.0"
     md5: "npm:^2.3.0"
     sitemapper: "npm:^3.2.20"
-  checksum: 10c0/2cb5fba68f3e89026b08274f3d286b46c44192f3e8b499d72984e63f36d174bdc7da6c8122c922b8fd5660fa0bc1fbbdbaecc37dae134467d2a501fd1642f0d2
+  checksum: 10c0/9e8f644b7f248c3db86cae0945d841c35a4ecc8101a7737b8476250d6acf8b1b176d7144b044a6687dcbe1439528abdb4b0cc15057fd78b95dc65f4426eac50d
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-web@npm:0.1.29, @cherrystudio/embedjs-loader-web@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-web@npm:0.1.29"
+"@cherrystudio/embedjs-loader-web@npm:0.1.31, @cherrystudio/embedjs-loader-web@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-web@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:0.1.31"
     "@langchain/textsplitters": "npm:^0.1.0"
     debug: "npm:^4.4.0"
     html-to-text: "npm:^9.0.5"
     md5: "npm:^2.3.0"
-  checksum: 10c0/a15529e45e309993644db7ee8546f970c0d94fd54baf5044d650a0af66cddb9729af5f3a3fb115c13cd7b7b2ab38bb3809cc088d4c6346e9ca33e478845820f3
+  checksum: 10c0/a5b06d597794520fd92aa4a711e5e8ea4858573a1d079981753ffe2d3dcb1a6212fe467695fe92a0400409db3148495bee91d1ee82863f8053698d7ffc2a792e
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-loader-xml@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-loader-xml@npm:0.1.29"
+"@cherrystudio/embedjs-loader-xml@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-loader-xml@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
     debug: "npm:^4.4.0"
     fast-xml-parser: "npm:^4.5.1"
     md5: "npm:^2.3.0"
-  checksum: 10c0/cf24dc1b48d55197f3773a9f7490c521461c6cade86869a333bac6c05dae10529ecdbaa03dbfce0994e07215fe343c9801b81356a6141965aa10d50fe2e6c858
+  checksum: 10c0/bc41eb67741a2e2cc6a48147eb0c8600e4876a72259d5ce347fed1ad48d7efc186030301ff6965728d7b3c2cbfdbc867558c764b40edaffaa2480f004dc1d2ae
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-openai@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-openai@npm:0.1.29"
+"@cherrystudio/embedjs-openai@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-openai@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
     "@langchain/core": "npm:^0.3.26"
     "@langchain/openai": "npm:^0.3.16"
     debug: "npm:^4.4.0"
-  checksum: 10c0/10451eb9e0c8f613ea3829b478120890ee44e2a9c7707a48797c21cbd4f4479ad56f86bd38099762900ddf17d42758dba938325eaaa9fae66f71e033c6b64dd5
+  checksum: 10c0/2fb50cbdd0f226c5be34ed5fc8b34f544cff17e3b1a295cba26404d327e08a369af30dd73f18632d8855adbaa063c3e14033cda1795a17b883d248d43feae0d1
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-utils@npm:0.1.29":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs-utils@npm:0.1.29"
+"@cherrystudio/embedjs-utils@npm:0.1.30":
+  version: 0.1.30
+  resolution: "@cherrystudio/embedjs-utils@npm:0.1.30"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-  checksum: 10c0/1b8d8e38207e7588ee134c316bc566dfb68d56023887be61793480cdeac0fc5a2dcc3c72f7727daae801abcaf16e8518ab9dcb7b0b0f7d3a16473a8830ba9dff
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.30"
+  checksum: 10c0/1bd6151a69b6e4db6c93528622ff4f7834f80834681f28758d19f9780e8da36f29c21737d49809021ba5b6b1127dd7d2891e26864e2d696f83f577966d1cbf2c
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs@npm:^0.1.28":
-  version: 0.1.29
-  resolution: "@cherrystudio/embedjs@npm:0.1.29"
+"@cherrystudio/embedjs-utils@npm:0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-utils@npm:0.1.31"
   dependencies:
-    "@cherrystudio/embedjs-interfaces": "npm:0.1.29"
-    "@cherrystudio/embedjs-utils": "npm:0.1.29"
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+  checksum: 10c0/249e0cbf84adf04948ef5d3071df56ceb1804a716ae577e68c167415ac90eb711ded49375c95de3d68b49700dbfdfc16ac80b00b571d15469672898dfc82be77
+  languageName: node
+  linkType: hard
+
+"@cherrystudio/embedjs@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs@npm:0.1.31"
+  dependencies:
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:0.1.31"
     "@langchain/textsplitters": "npm:^0.1.0"
     debug: "npm:^4.4.0"
     langchain: "npm:^0.3.8"
     md5: "npm:^2.3.0"
     mime: "npm:^4.0.6"
     stream-mime-type: "npm:^2.0.0"
-  checksum: 10c0/01487ab886e7c5c260fc65dee0d67407988e58fa82a1f0fdc4a332548a570cc63f5d39cc87878a7e3272be547a306fee5ec6caa805614eb4e139ce1259b7f6c9
+  checksum: 10c0/632d82848e24e57bbd4cd3bcfd63e753d7c694879d701b93c7eab1ad110b0655c6bf9f3781f63a5e564fac1a450cfe7f8ec848d8a12b6a7a1d0bf7f73eb3fa4a
   languageName: node
   linkType: hard
 
@@ -4339,17 +4360,17 @@ __metadata:
     "@agentic/tavily": "npm:^7.3.3"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.41.0"
-    "@cherrystudio/embedjs": "npm:^0.1.28"
-    "@cherrystudio/embedjs-libsql": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-csv": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-image": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-markdown": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-msoffice": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-pdf": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-sitemap": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-web": "npm:^0.1.28"
-    "@cherrystudio/embedjs-loader-xml": "npm:^0.1.28"
-    "@cherrystudio/embedjs-openai": "npm:^0.1.28"
+    "@cherrystudio/embedjs": "npm:^0.1.31"
+    "@cherrystudio/embedjs-libsql": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-csv": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-image": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-markdown": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-msoffice": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-pdf": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-sitemap": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-web": "npm:^0.1.31"
+    "@cherrystudio/embedjs-loader-xml": "npm:^0.1.31"
+    "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
     "@electron-toolkit/preload": "npm:^3.0.0"

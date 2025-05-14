@@ -362,7 +362,7 @@ export interface KnowledgeBase {
   id: string
   name: string
   model: Model
-  dimensions: number
+  dimensions?: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -379,7 +379,8 @@ export interface KnowledgeBase {
 export type KnowledgeBaseParams = {
   id: string
   model: string
-  dimensions: number
+  // https://github.com/CherryHQ/cherry-studio/issues/3866
+  dimensions?: number
   apiKey: string
   apiVersion?: string
   baseURL: string

@@ -981,12 +981,12 @@ export default class GeminiProvider extends BaseProvider {
    * @param model - The model
    * @returns The embedding dimensions
    */
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model): Promise<number | undefined> {
     const data = await this.sdk.models.embedContent({
       model: model.id,
       contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
     })
-    return data.embeddings?.[0]?.values?.length || 0
+    return data.embeddings?.[0]?.values?.length || undefined
   }
 
   public async generateImageByChat({ messages, assistant, onChunk }): Promise<void> {

@@ -56,7 +56,7 @@ export default abstract class BaseProvider {
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
-  abstract getEmbeddingDimensions(model: Model): Promise<number>
+  abstract getEmbeddingDimensions(model: Model): Promise<number | undefined>
   public abstract convertMcpTools<T>(mcpTools: MCPTool[]): T[]
   public abstract mcpToolCallResponseToMessage(
     mcpToolResponse: MCPToolResponse,

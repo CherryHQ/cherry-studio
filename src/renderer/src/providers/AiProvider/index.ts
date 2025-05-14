@@ -83,7 +83,7 @@ export default class AiProvider {
     return this.sdk.generateImageByChat({ messages, assistant, onChunk, onFilterMessages })
   }
 
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model): Promise<number | undefined> {
     return this.sdk.getEmbeddingDimensions(model)
   }
 

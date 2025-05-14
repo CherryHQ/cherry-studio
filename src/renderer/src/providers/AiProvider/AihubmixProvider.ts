@@ -100,7 +100,7 @@ export default class AihubmixProvider extends BaseProvider {
     return this.getProvider(model).check(model, stream)
   }
 
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model): Promise<number | undefined> {
     return this.getProvider(model).getEmbeddingDimensions(model)
   }
 

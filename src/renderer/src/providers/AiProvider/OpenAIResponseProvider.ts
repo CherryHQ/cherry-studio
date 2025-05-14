@@ -1233,7 +1233,7 @@ export abstract class BaseOpenAiProvider extends BaseProvider {
    * @param model - The model
    * @returns The embedding dimensions
    */
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model): Promise<number | undefined> {
     const data = await this.sdk.embeddings.create({
       model: model.id,
       input: 'hi'

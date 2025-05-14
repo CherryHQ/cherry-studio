@@ -108,7 +108,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         }
 
         const aiProvider = new AiProvider(provider)
-        let dimensions = 0
+        let dimensions: number | undefined
 
         try {
           dimensions = await aiProvider.getEmbeddingDimensions(selectedEmbeddingModel)

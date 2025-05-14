@@ -728,8 +728,8 @@ export default class AnthropicProvider extends BaseProvider {
     return []
   }
 
-  public async getEmbeddingDimensions(): Promise<number> {
-    return 0
+  public async getEmbeddingDimensions(): Promise<undefined> {
+    return undefined
   }
 
   public convertMcpTools<T>(mcpTools: MCPTool[]): T[] {
