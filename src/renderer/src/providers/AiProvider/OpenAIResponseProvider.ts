@@ -46,7 +46,7 @@ import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/u
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
-import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
 import { FileLike, toFile } from 'openai/uploads'
 
@@ -211,66 +211,6 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     }
 
     return {}
-  }
-
-  /**
-   * Get the message parameter
-   * @param message - The message
-   * @param model - The model
-   * @returns The message parameter
-   */
-  protected async getMessageParam(
-    message: Message,
-    model: Model
-  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
-    const isVision = isVisionModel(model)
-    const content = await this.getMessageContent(message)
-    const fileBlocks = findFileBlocks(message)
-    const imageBlocks = findImageBlocks(message)
-
-    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
-      return {
-        role: message.role === 'system' ? 'user' : message.role,
-        content
-      }
-    }
-
-    const parts: ChatCompletionContentPart[] = []
-
-    if (content) {
-      parts.push({ type: 'text', text: content })
-    }
-
-    for (const imageBlock of imageBlocks) {
-      if (isVision) {
-        if (imageBlock.file) {
-          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
-          parts.push({ type: 'image_url', image_url: { url: image.data } })
-        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
-          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
-        }
-      }
-    }
-
-    for (const fileBlock of fileBlocks) {
-      const { file } = fileBlock
-      if (!file) {
-        continue
-      }
-
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-        parts.push({
-          type: 'text',
-          text: file.origin_name + '\n' + fileContent
-        })
-      }
-    }
-
-    return {
-      role: message.role === 'system' ? 'user' : message.role,
-      content: parts
-    } as ChatCompletionMessageParam
   }
 
   /**
