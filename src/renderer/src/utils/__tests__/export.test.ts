@@ -5,6 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
+// Mock window.electron
+vi.stubGlobal('electron', {
+  ipcRenderer: {
+    on: vi.fn(),
+    off: vi.fn(),
+    invoke: vi.fn()
+  }
+})
+
 // Mock i18n at the top level using vi.mock
 vi.mock('@renderer/i18n', () => ({
   default: {
