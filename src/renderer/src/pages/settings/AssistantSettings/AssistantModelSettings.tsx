@@ -318,7 +318,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <InputNumber
             min={0}
             max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
-            step={1}
+            step={!enableMaxContexts ? 1 : 10}
             value={contextCount}
             changeOnBlur
             onChange={(value) => {
