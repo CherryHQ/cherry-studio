@@ -54,7 +54,7 @@
   --modal-background: #1f1f1f;
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
-  --navbar-background: #1f1f1f;
+  --navbar-background: rgba(20, 20, 20, 0.4);
 
   --navbar-height: 40px;
   --sidebar-width: 50px;
@@ -128,7 +128,7 @@ body[theme-mode='light'] {
   --modal-background: var(--color-white);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
-  --navbar-background: rgba(244, 244, 244);
+  --navbar-background: rgba(255, 255, 255, 0.4);
 
   --chat-background: #f3f3f3;
   --chat-background-user: #95ec69;

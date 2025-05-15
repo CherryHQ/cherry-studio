@@ -48,7 +48,9 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
     rerankModelProvider: base.rerankModel?.provider,
-    topN: base.topN
+    topN: base.topN,
+    preprocessing: base.preprocessing,
+    ocrProvider: base.ocrProvider
   }
 }
 
@@ -66,7 +68,9 @@ export const getFileFromUrl = async (url: string): Promise<FileType | null> => {
   }
 
   if (fileName) {
-    const fileId = fileName.split('.')[0]
+    const actualFileName = fileName.split(/[/\\]/).pop() || fileName
+    console.log('actualFileName', actualFileName)
+    const fileId = actualFileName.split('.')[0]
     const file = await FileManager.getFile(fileId)
     if (file) {
       return file

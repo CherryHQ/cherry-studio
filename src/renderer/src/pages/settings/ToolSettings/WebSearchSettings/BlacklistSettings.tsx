@@ -10,7 +10,7 @@ import TextArea from 'antd/es/input/TextArea'
 import { t } from 'i18next'
 import { FC, useEffect, useState } from 'react'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import AddSubscribePopup from './AddSubscribePopup'
 
 type TableRowSelection<T extends object = object> = TableProps<T>['rowSelection']
@@ -131,7 +131,7 @@ const BlacklistSettings: FC = () => {
           console.error(`Error updating subscribe source ${source.url}:`, error)
           // 显示具体源更新失败的消息
           window.message.warning({
-            content: t('settings.websearch.subscribe_source_update_failed', { url: source.url }),
+            content: t('settings.tool.websearch.subscribe_source_update_failed', { url: source.url }),
             duration: 3
           })
         }
@@ -143,7 +143,7 @@ const BlacklistSettings: FC = () => {
         setSubscribeValid(true)
         // 显示成功消息
         window.message.success({
-          content: t('settings.websearch.subscribe_update_success'),
+          content: t('settings.tool.websearch.subscribe_update_success'),
           duration: 2
         })
         setTimeout(() => setSubscribeValid(false), 3000)
@@ -154,7 +154,7 @@ const BlacklistSettings: FC = () => {
     } catch (error) {
       console.error('Error updating subscribes:', error)
       window.message.error({
-        content: t('settings.websearch.subscribe_update_failed'),
+        content: t('settings.tool.websearch.subscribe_update_failed'),
         duration: 2
       })
     }
@@ -165,7 +165,7 @@ const BlacklistSettings: FC = () => {
   async function handleAddSubscribe() {
     setSubscribeChecking(true)
     const result = await AddSubscribePopup.show({
-      title: t('settings.websearch.subscribe_add')
+      title: t('settings.tool.websearch.subscribe_add')
     })
 
     if (result && result.url) {
@@ -185,14 +185,14 @@ const BlacklistSettings: FC = () => {
         setSubscribeValid(true)
         // 显示成功消息
         window.message.success({
-          content: t('settings.websearch.subscribe_add_success'),
+          content: t('settings.tool.websearch.subscribe_add_success'),
           duration: 2
         })
         setTimeout(() => setSubscribeValid(false), 3000)
       } catch (error) {
         setSubscribeValid(false)
         window.message.error({
-          content: t('settings.websearch.subscribe_add_failed'),
+          content: t('settings.tool.websearch.subscribe_add_failed'),
           duration: 2
         })
       }
@@ -218,32 +218,32 @@ const BlacklistSettings: FC = () => {
   return (
     <>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.websearch.blacklist')}</SettingTitle>
+        <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
         <SettingDivider />
         <SettingRow style={{ marginBottom: 10 }}>
-          <SettingRowTitle>{t('settings.websearch.blacklist_description')}</SettingRowTitle>
+          <SettingRowTitle>{t('settings.tool.websearch.blacklist_description')}</SettingRowTitle>
         </SettingRow>
         <TextArea
           value={blacklistInput}
           onChange={(e) => setBlacklistInput(e.target.value)}
-          placeholder={t('settings.websearch.blacklist_tooltip')}
+          placeholder={t('settings.tool.websearch.blacklist_tooltip')}
           autoSize={{ minRows: 4, maxRows: 8 }}
           rows={4}
         />
         <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
-        {errFormat && <Alert message={t('settings.websearch.blacklist_tooltip')} type="error" />}
+        {errFormat && <Alert message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>
-          {t('settings.websearch.subscribe')}
+          {t('settings.tool.websearch.subscribe')}
           <Button
             type={subscribeValid ? 'primary' : 'default'}
             ghost={subscribeValid}
             disabled={subscribeChecking}
             onClick={handleAddSubscribe}>
-            {t('settings.websearch.subscribe_add')}
+            {t('settings.tool.websearch.subscribe_add')}
           </Button>
         </SettingTitle>
         <SettingDivider />
@@ -266,11 +266,11 @@ const BlacklistSettings: FC = () => {
               ) : subscribeValid ? (
                 <CheckOutlined />
               ) : (
-                t('settings.websearch.subscribe_update')
+                t('settings.tool.websearch.subscribe_update')
               )}
             </Button>
             <Button style={{ width: 100 }} disabled={selectedRowKeys.length === 0} onClick={handleDeleteSubscribe}>
-              {t('settings.websearch.subscribe_delete')}
+              {t('settings.tool.websearch.subscribe_delete')}
             </Button>
           </SettingRow>
         </div>

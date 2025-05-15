@@ -481,7 +481,11 @@
       "rename": "重命名",
       "search": "搜索知识库",
       "search_placeholder": "输入查询内容",
-      "settings": "知识库设置",
+      "settings": {
+        "title": "知识库设置",
+        "preprocessing": "预处理",
+        "preprocessing_tooltip": "使用 OCR 预处理上传的文件"
+      },
       "sitemap_placeholder": "请输入站点地图 URL",
       "sitemaps": "网站",
       "source": "来源",
@@ -1557,48 +1561,57 @@
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
       "title": "设置",
-      "topic.position": "话题位置",
-      "topic.position.left": "左侧",
-      "topic.position.right": "右侧",
-      "topic.show.time": "显示话题时间",
-      "tray.onclose": "关闭时最小化到托盘",
-      "tray.show": "显示托盘图标",
-      "tray.title": "托盘",
-      "websearch": {
-        "blacklist": "黑名单",
-        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "check": "检测",
-        "check_failed": "验证失败",
-        "check_success": "验证成功",
-        "overwrite": "覆盖服务商搜索",
-        "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
-        "get_api_key": "点击这里获取密钥",
-        "no_provider_selected": "请选择搜索服务商后再检测",
-        "search_max_result": "搜索结果个数",
-        "search_provider": "搜索服务商",
-        "search_provider_placeholder": "选择一个搜索服务商",
-        "subscribe": "黑名单订阅",
-        "subscribe_update": "立即更新",
-        "subscribe_add": "添加订阅",
-        "subscribe_url": "订阅源地址",
-        "subscribe_name": "替代名字",
-        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
-        "subscribe_add_success": "订阅源添加成功!",
-        "subscribe_delete": "删除订阅源",
-        "search_result_default": "默认",
-        "search_with_time": "搜索包含日期",
-        "tavily": {
-          "api_key": "Tavily API 密钥",
-          "api_key.placeholder": "请输入 Tavily API 密钥",
-          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
-          "title": "Tavily"
+      "tool": {
+        "title": "工具设置",
+        "ocr": {
+          "title": "OCR设置",
+          "provider": "OCR服务商",
+          "provider_placeholder": "选择一个OCR服务商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "识别模式",
+              "accurate": "精准",
+              "fast": "快速"
+            },
+            "min_confidence": "最小置信度"
+          }
         },
-        "title": "网络搜索",
-        "apikey": "API 密钥",
-        "free": "免费",
-        "content_limit": "内容长度限制",
-        "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
+        "websearch": {
+          "blacklist": "黑名单",
+          "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+          "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
+          "check": "检测",
+          "check_failed": "验证失败",
+          "check_success": "验证成功",
+          "overwrite": "覆盖服务商搜索",
+          "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
+          "get_api_key": "点击这里获取密钥",
+          "no_provider_selected": "请选择搜索服务商后再检测",
+          "search_max_result": "搜索结果个数",
+          "search_provider": "搜索服务商",
+          "search_provider_placeholder": "选择一个搜索服务商",
+          "subscribe": "黑名单订阅",
+          "subscribe_update": "立即更新",
+          "subscribe_add": "添加订阅",
+          "subscribe_url": "订阅源地址",
+          "subscribe_name": "替代名字",
+          "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+          "subscribe_add_success": "订阅源添加成功!",
+          "subscribe_delete": "删除订阅源",
+          "search_result_default": "默认",
+          "search_with_time": "搜索包含日期",
+          "tavily": {
+            "api_key": "Tavily API 密钥",
+            "api_key.placeholder": "请输入 Tavily API 密钥",
+            "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "网络搜索",
+          "apikey": "API 密钥",
+          "free": "免费",
+          "content_limit": "内容长度限制",
+          "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
+        }
       },
       "quickPhrase": {
         "title": "快捷短语",
@@ -1631,7 +1644,14 @@
       "zoom": {
         "title": "缩放",
         "reset": "重置"
-      }
+      },
+      "topic.position": "话题位置",
+      "topic.position.left": "左侧",
+      "topic.position.right": "右侧",
+      "topic.show.time": "显示话题时间",
+      "tray.onclose": "关闭时最小化到托盘",
+      "tray.show": "显示托盘图标",
+      "tray.title": "托盘"
     },
     "translate": {
       "any.language": "任意语言",

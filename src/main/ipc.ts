@@ -5,7 +5,7 @@ import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Shortcut, ThemeMode } from '@types'
+import { LocalFileSource, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
 import { getFolderSizeBin } from 'go-get-folder-size'
@@ -16,14 +16,14 @@ import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import { ExportService } from './services/ExportService'
-import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
-import { GeminiService } from './services/GeminiService'
+import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import storeSyncService from './services/StoreSyncService'
@@ -222,6 +222,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Clear, fileManager.clear)
   ipcMain.handle(IpcChannel.File_Read, fileManager.readFile)
   ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile)
+  ipcMain.handle('file:deleteDir', fileManager.deleteDir)
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile)
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
@@ -233,6 +234,27 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
+
+  // file service
+  ipcMain.handle(IpcChannel.FileService_Upload, async (_, type: string, apiKey: string, file: LocalFileSource) => {
+    const service = FileServiceManager.getInstance().getService(type, apiKey)
+    return await service.uploadFile(file)
+  })
+
+  ipcMain.handle(IpcChannel.FileService_List, async (_, type: string, apiKey: string) => {
+    const service = FileServiceManager.getInstance().getService(type, apiKey)
+    return await service.listFiles()
+  })
+
+  ipcMain.handle(IpcChannel.FileService_Delete, async (_, type: string, apiKey: string, fileId: string) => {
+    const service = FileServiceManager.getInstance().getService(type, apiKey)
+    return await service.deleteFile(fileId)
+  })
+
+  ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, type: string, apiKey: string, fileId: string) => {
+    const service = FileServiceManager.getInstance().getService(type, apiKey)
+    return await service.retrieveFile(fileId)
+  })
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
@@ -276,13 +298,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       mainWindow?.setSize(1080, height)
     }
   })
-
-  // gemini
-  ipcMain.handle(IpcChannel.Gemini_UploadFile, GeminiService.uploadFile)
-  ipcMain.handle(IpcChannel.Gemini_Base64File, GeminiService.base64File)
-  ipcMain.handle(IpcChannel.Gemini_RetrieveFile, GeminiService.retrieveFile)
-  ipcMain.handle(IpcChannel.Gemini_ListFiles, GeminiService.listFiles)
-  ipcMain.handle(IpcChannel.Gemini_DeleteFile, GeminiService.deleteFile)
 
   // mini window
   ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())

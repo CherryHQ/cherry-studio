@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'iconfont'; /* Project id 4753420 */
-  src: url('iconfont.woff2?t=1742184675192') format('woff2');
+  src: url('iconfont.woff2?t=1742793497518') format('woff2');
 }
 
 .iconfont {
@@ -9,6 +9,18 @@
   font-style: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-plugin:before {
+  content: '\e612';
+}
+
+.icon-tools:before {
+  content: '\e762';
+}
+
+.icon-OCRshibie:before {
+  content: '\e658';
 }
 
 .icon-obsidian:before {
