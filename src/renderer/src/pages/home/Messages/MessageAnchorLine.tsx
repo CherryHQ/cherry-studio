@@ -1,4 +1,5 @@
 import { DownOutlined } from '@ant-design/icons'
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -16,6 +17,7 @@ import { Avatar } from 'antd'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
 interface MessageLineProps {
   messages: Message[]
 }
@@ -230,7 +232,15 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               ) : (
                 <>
                   {isEmoji(avatar) ? (
-                    <EmojiAvatar size={size}>{avatar}</EmojiAvatar>
+                    <EmojiAvatar
+                      size={size}
+                      fontSize={size * 0.6}
+                      style={{
+                        cursor: 'default',
+                        pointerEvents: 'none'
+                      }}>
+                      {avatar}
+                    </EmojiAvatar>
                   ) : (
                     <Avatar src={avatar} size={size} />
                   )}
@@ -312,18 +322,6 @@ const MessageItemContent = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
-`
-
-const EmojiAvatar = styled.div<{ size: number }>`
-  width: ${(props) => props.size}px;
-  height: ${(props) => props.size}px;
-  background-color: var(--color-background-soft);
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: ${(props) => props.size * 0.6}px;
-  border: 0.5px solid var(--color-border);
 `
 
 export default MessageAnchorLine

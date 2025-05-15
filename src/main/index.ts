@@ -5,7 +5,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
-import { isDev } from './constant'
+import { isDev, isMac, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -23,23 +23,27 @@ import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
 
-// handle uncaught exception
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error)
-  Logger.error('Uncaught Exception:', error)
-})
+// in production mode, handle uncaught exception and unhandled rejection globally
+if (!isDev) {
+  // handle uncaught exception
+  process.on('uncaughtException', (error) => {
+    Logger.error('Uncaught Exception:', error)
+  })
 
-// handle unhandled rejection
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason)
-  Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
-})
+  // handle unhandled rejection
+  process.on('unhandledRejection', (reason, promise) => {
+    Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  })
+}
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
+  // Portable dir must be setup before app ready
+  setUserDataDir()
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
@@ -72,8 +76,6 @@ if (!app.requestSingleInstanceLock()) {
 
     replaceDevtoolsFont(mainWindow)
 
-    setUserDataDir()
-
     // Setup deep link for AppImage on Linux
     await setupAppImageDeepLink()
 
@@ -83,7 +85,7 @@ if (!app.requestSingleInstanceLock()) {
         .catch((err) => console.log('An error occurred: ', err))
     }
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
-      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+      return isMac ? 'mac' : isWin ? 'windows' : 'linux'
     })
 
     ipcMain.handle(IpcChannel.System_GetHostname, () => {

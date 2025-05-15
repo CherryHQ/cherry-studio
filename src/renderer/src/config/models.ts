@@ -2233,6 +2233,9 @@ export function isOpenAILLMModel(model: Model): boolean {
   if (!model) {
     return false
   }
+  if (model.id.includes('gpt-4o-image')) {
+    return false
+  }
   if (isOpenAIReasoningModel(model)) {
     return true
   }
@@ -2381,6 +2384,18 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   }
 
   return !NOT_SUPPORTED_REGEX.test(model.id)
+}
+
+export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+  if (!model) {
+    return true
+  }
+
+  if (isOpenAIReasoningModel(model) || isOpenAIWebSearch(model)) {
+    return true
+  }
+
+  return false
 }
 
 export function isWebSearchModel(model: Model): boolean {

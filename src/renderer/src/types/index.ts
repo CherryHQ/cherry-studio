@@ -56,12 +56,12 @@ export type AssistantSettings = {
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
-  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
   qwenThinkMode?: boolean
+  toolUseMode?: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {

@@ -71,7 +71,6 @@ const SettingsTab: FC<Props> = (props) => {
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [enableToolUse, setEnableToolUse] = useState(assistant?.settings?.enableToolUse ?? false)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -153,10 +152,8 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
-  }
+  const assistantContextCount = assistant?.settings?.contextCount || 20
+  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
 
   return (
     <Container className="settings-tab">
@@ -204,12 +201,11 @@ const SettingsTab: FC<Props> = (props) => {
           <Col span={24}>
             <Slider
               min={0}
-              max={10}
+              max={maxContextCount}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
               step={1}
-              tooltip={{ formatter: formatSliderTooltip }}
             />
           </Col>
         </Row>
@@ -221,18 +217,6 @@ const SettingsTab: FC<Props> = (props) => {
             onChange={(checked) => {
               setStreamOutput(checked)
               onUpdateAssistantSettings({ streamOutput: checked })
-            }}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitleSmall>{t('models.enable_tool_use')}</SettingRowTitleSmall>
-          <Switch
-            size="small"
-            checked={enableToolUse}
-            onChange={(checked) => {
-              setEnableToolUse(checked)
-              updateAssistantSettings({ enableToolUse: checked })
             }}
           />
         </SettingRow>

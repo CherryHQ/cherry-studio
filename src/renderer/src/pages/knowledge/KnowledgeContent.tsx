@@ -245,9 +245,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 </Tag>
               </div>
             </Tooltip>
-            <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
-              {t('models.dimensions', { dimensions: base.dimensions || 0 })}
-            </Tag>
+            {base.rerankModel && (
+              <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
+                {base.rerankModel.name}
+              </Tag>
+            )}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">
