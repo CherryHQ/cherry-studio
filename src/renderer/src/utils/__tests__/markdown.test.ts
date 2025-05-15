@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { convertMathFormula, findCitationInChildren, removeTrailingDoubleSpaces } from '../markdown'
+import {
+  convertMathFormula,
+  findCitationInChildren,
+  removeTrailingDoubleSpaces,
+  markdownToPlainText
+} from '../markdown'
 
 describe('markdown', () => {
   describe('findCitationInChildren', () => {
@@ -129,6 +134,81 @@ describe('markdown', () => {
       const input = ''
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('')
+    })
+  })
+
+  describe('markdownToPlainText', () => {
+    it('should return an empty string if input is null or empty', () => {
+      expect(markdownToPlainText(null as any)).toBe('')
+      expect(markdownToPlainText('')).toBe('')
+    })
+
+    it('should remove headers', () => {
+      expect(markdownToPlainText('# Header 1')).toBe('Header 1')
+      expect(markdownToPlainText('## Header 2')).toBe('Header 2')
+      expect(markdownToPlainText('### Header 3')).toBe('Header 3')
+    })
+
+    it('should remove bold and italic', () => {
+      expect(markdownToPlainText('**bold**')).toBe('bold')
+      expect(markdownToPlainText('*italic*')).toBe('italic')
+      expect(markdownToPlainText('***bolditalic***')).toBe('bolditalic')
+      expect(markdownToPlainText('__bold__')).toBe('bold')
+      expect(markdownToPlainText('_italic_')).toBe('italic')
+      expect(markdownToPlainText('___bolditalic___')).toBe('bolditalic')
+    })
+
+    it('should remove strikethrough', () => {
+      expect(markdownToPlainText('~~strikethrough~~')).toBe('strikethrough')
+    })
+
+    it('should remove links, keeping the text', () => {
+      expect(markdownToPlainText('[link text](http://example.com)')).toBe('link text')
+      expect(markdownToPlainText('[link text with title](http://example.com "title")')).toBe('link text with title')
+    })
+
+    it('should remove images, keeping the alt text', () => {
+      expect(markdownToPlainText('![alt text](http://example.com/image.png)')).toBe('alt text')
+    })
+
+    it('should remove inline code', () => {
+      expect(markdownToPlainText('`inline code`')).toBe('inline code')
+    })
+
+    it('should remove code blocks', () => {
+      const codeBlock = '```javascript\nconst x = 1;\n```'
+      expect(markdownToPlainText(codeBlock)).toBe('const x = 1;') // remove-markdown keeps code content
+    })
+
+    it('should remove blockquotes', () => {
+      expect(markdownToPlainText('> blockquote')).toBe('blockquote')
+    })
+
+    it('should remove unordered lists', () => {
+      const list = '* item 1\n* item 2'
+      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
+    })
+
+    it('should remove ordered lists', () => {
+      const list = '1. item 1\n2. item 2'
+      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
+    })
+
+    it('should remove horizontal rules', () => {
+      expect(markdownToPlainText('---')).toBe('')
+      expect(markdownToPlainText('***')).toBe('')
+      expect(markdownToPlainText('___')).toBe('')
+    })
+
+    it('should handle a mix of markdown elements', () => {
+      const mixed = '# Title\nSome **bold** and *italic* text.\n[link](url)\n`code`\n> quote\n* list item'
+      const expected = 'Title\nSome bold and italic text.\nlink\ncode\nquote\nlist item'
+      const normalize = (str: string) => str.replace(/\s+/g, ' ').trim()
+      expect(normalize(markdownToPlainText(mixed))).toBe(normalize(expected))
+    })
+
+    it('should keep plain text unchanged', () => {
+      expect(markdownToPlainText('This is plain text.')).toBe('This is plain text.')
     })
   })
 })
