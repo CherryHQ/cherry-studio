@@ -57,15 +57,22 @@ const createBaseMarkdown = (message: Message, includeReasoning: boolean = false)
       } else if (reasoningContent.startsWith('<think>')) {
         reasoningContent = reasoningContent.substring(7)
       }
-      reasoningContent = reasoningContent.replace(/\n/g, '<br>')
-
+      reasoningContent = reasoningContent
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/\n/g, '<br>')
       if (forceDollarMathInMarkdown) {
         reasoningContent = convertMathFormula(reasoningContent)
       }
-      reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
-      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+      reasoningSection = `<div style="border: 2px solid #dddddd; border-radius: 10px;">
+  <details style="padding: 5px;">
+    <summary>${i18n.t('common.reasoning_content')}</summary>
     ${reasoningContent}
-</details>`
+  </details>
+</div>`
     }
   }
 
@@ -485,7 +492,7 @@ function transformObsidianFileName(fileName: string): string {
   } else if (isMac) {
     // Mac 的清理
     sanitized = sanitized
-      .replace(/[/:\u0020-\u007E]/g, '') // 移除无效字符
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
       .replace(/^\./, '_') // 避免以句点开头
   } else {
     // Linux 或其他系统
