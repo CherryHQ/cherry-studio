@@ -726,6 +726,7 @@ export const loadTopicMessagesThunk =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
+    dispatch(newMessagesActions.setCurrentTopicId(topicId))
 
     if (topicMessagesExist && !forceReload) {
       return
