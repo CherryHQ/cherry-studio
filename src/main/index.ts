@@ -5,6 +5,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
+import { isDev, isMac, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -20,6 +21,19 @@ import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
+
+// in production mode, handle uncaught exception and unhandled rejection globally
+if (!isDev) {
+  // handle uncaught exception
+  process.on('uncaughtException', (error) => {
+    Logger.error('Uncaught Exception:', error)
+  })
+
+  // handle unhandled rejection
+  process.on('unhandledRejection', (reason, promise) => {
+    Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  })
+}
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -63,13 +77,13 @@ if (!app.requestSingleInstanceLock()) {
     // Setup deep link for AppImage on Linux
     await setupAppImageDeepLink()
 
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
     ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
-      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
+      return isMac ? 'mac' : isWin ? 'windows' : 'linux'
     })
 
     ipcMain.handle(IpcChannel.System_GetHostname, () => {
