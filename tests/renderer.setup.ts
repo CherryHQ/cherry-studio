@@ -1,4 +1,9 @@
-import { vi } from 'vitest'
+import '@testing-library/jest-dom/vitest'
+
+import { styleSheetSerializer } from 'jest-styled-components/serializer'
+import { expect, vi } from 'vitest'
+
+expect.addSnapshotSerializer(styleSheetSerializer)
 
 vi.mock('electron-log/renderer', () => {
   return {

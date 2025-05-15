@@ -6,18 +6,18 @@ interface ClassDictionary {
 
 interface ClassArray extends Array<ClassValue> {}
 
-// Example:
-// classNames('foo', 'bar'); // => 'foo bar'
-// classNames('foo', { bar: true }); // => 'foo bar'
-// classNames({ foo: true, bar: false }); // => 'foo'
-// classNames(['foo', 'bar']); // => 'foo bar'
-// classNames('foo', null, 'bar'); // => 'foo bar'
-// classNames({ message: true, 'message-assistant': true }); // => 'message message-assistant'
-
 /**
  * 生成 class 字符串
- * @param args
- * @returns
+ *
+ * Examples:
+ * classNames('foo', 'bar'); // => 'foo bar'
+ * classNames('foo', { bar: true }); // => 'foo bar'
+ * classNames({ foo: true, bar: false }); // => 'foo'
+ * classNames(['foo', 'bar']); // => 'foo bar'
+ * classNames('foo', null, 'bar'); // => 'foo bar'
+ * classNames({ message: true, 'message-assistant': true }); // => 'message message-assistant'
+ * @param {ClassValue[]} args
+ * @returns {string}
  */
 export function classNames(...args: ClassValue[]): string {
   const classes: string[] = []
