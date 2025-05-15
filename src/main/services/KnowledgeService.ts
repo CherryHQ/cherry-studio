@@ -116,7 +116,14 @@ class KnowledgeService {
     dimensions
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
     let ragApplication: RAGApplication
-    const embeddings = new Embeddings({ model, apiKey, apiVersion, baseURL, dimensions } as KnowledgeBaseParams)
+    const embeddings = new Embeddings({
+      model,
+      apiKey,
+      apiVersion,
+      baseURL,
+      dimensions
+    } as KnowledgeBaseParams)
+
     try {
       ragApplication = await new RAGApplicationBuilder()
         .setModel('NO_MODEL')
