@@ -74,6 +74,8 @@
     "@tanstack/react-query": "^5.27.0",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "adm-zip": "^0.5.16",
+    "allotment": "^1.20.3",
+    "apache-arrow": "^18.1.0",
     "archiver": "^7.0.1",
     "async-mutex": "^0.5.0",
     "bufferutil": "^4.0.9",
