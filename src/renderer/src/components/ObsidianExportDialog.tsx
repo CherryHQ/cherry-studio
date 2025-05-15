@@ -1,7 +1,15 @@
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { exportMarkdownToObsidian } from '@renderer/utils/export'
-import { Alert, Empty, Form, Input, Modal, Select, Spin, TreeSelect } from 'antd'
+import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import {
+  exportMarkdownToObsidian,
+  messagesToMarkdown,
+  messageToMarkdown,
+  messageToMarkdownWithReasoning,
+  topicToMarkdown
+} from '@renderer/utils/export'
+import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
 
 const { Option } = Select
@@ -14,11 +22,13 @@ interface FileInfo {
 
 interface PopupContainerProps {
   title: string
-  markdown: string
   obsidianTags: string | null
   processingMethod: string | '3'
   open: boolean
   resolve: (success: boolean) => void
+  message?: Message
+  messages?: Message[]
+  topic?: Topic
 }
 
 // 转换文件信息数组为树形结构
@@ -115,11 +125,13 @@ const convertToTreeData = (files: FileInfo[]) => {
 
 const PopupContainer: React.FC<PopupContainerProps> = ({
   title,
-  markdown,
   obsidianTags,
   processingMethod,
   open,
-  resolve
+  resolve,
+  message,
+  messages,
+  topic
 }) => {
   const defaultObsidianVault = store.getState().settings.defaultObsidianVault
   const [state, setState] = useState({
@@ -137,6 +149,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   const [selectedVault, setSelectedVault] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [exportReasoning, setExportReasoning] = useState(false)
 
   useEffect(() => {
     if (files.length > 0) {
@@ -205,6 +218,16 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
     if (!selectedVault) {
       setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return
+    }
+    let markdown = ''
+    if (topic) {
+      markdown = await topicToMarkdown(topic, exportReasoning)
+    } else if (messages && messages.length > 0) {
+      markdown = messagesToMarkdown(messages, exportReasoning)
+    } else if (message) {
+      markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
+    } else {
+      markdown = ''
     }
     let content = ''
     if (state.processingMethod !== '3') {
@@ -371,6 +394,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             <Option value="2">{i18n.t('chat.topics.export.obsidian_operate_prepend')}</Option>
             <Option value="3">{i18n.t('chat.topics.export.obsidian_operate_new_or_overwrite')}</Option>
           </Select>
+        </Form.Item>
+        <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
+          <Switch checked={exportReasoning} onChange={setExportReasoning} />
         </Form.Item>
       </Form>
     </Modal>

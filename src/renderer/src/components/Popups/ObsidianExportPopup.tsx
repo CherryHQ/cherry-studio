@@ -1,10 +1,14 @@
 import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
 import { TopView } from '@renderer/components/TopView'
+import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 
 interface ObsidianExportOptions {
   title: string
-  markdown: string
-  processingMethod: string | '3' // 默认新增（存在就覆盖）
+  processingMethod: string | '3'
+  topic?: Topic
+  message?: Message
+  messages?: Message[]
 }
 
 export default class ObsidianExportPopup {
@@ -16,9 +20,11 @@ export default class ObsidianExportPopup {
       TopView.show(
         <PopupContainer
           title={options.title}
-          markdown={options.markdown}
-          obsidianTags={''}
           processingMethod={options.processingMethod}
+          topic={options.topic}
+          message={options.message}
+          messages={options.messages}
+          obsidianTags={''}
           open={true}
           resolve={(v) => {
             resolve(v)
