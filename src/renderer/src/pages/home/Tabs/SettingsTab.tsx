@@ -8,7 +8,11 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { isOpenAIModel, isSupportedReasoningEffortOpenAIModel } from '@renderer/config/models'
+import {
+  isOpenAIModel,
+  isSupportedFlexServiceTier,
+  isSupportedReasoningEffortOpenAIModel
+} from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -168,7 +172,10 @@ const SettingsTab: FC<Props> = (props) => {
 
   const isOpenAI = isOpenAIModel(model)
   const isOpenAIReasoning =
-    isSupportedReasoningEffortOpenAIModel(model) && (provider.type === 'openai-response' || provider.id === 'aihubmix')
+    isSupportedReasoningEffortOpenAIModel(model) &&
+    !model.id.includes('o1-pro') &&
+    (provider.type === 'openai-response' || provider.id === 'aihubmix')
+  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
 
   return (
     <Container className="settings-tab">
@@ -293,7 +300,9 @@ const SettingsTab: FC<Props> = (props) => {
           </Row>
         )}
       </SettingGroup>
-      {isOpenAI && <OpenAISettingsTab isOpenAIReasoning={isOpenAIReasoning} />}
+      {isOpenAI && (
+        <OpenAISettingsTab isOpenAIReasoning={isOpenAIReasoning} isSupportedFlexServiceTier={isOpenAIFlexServiceTier} />
+      )}
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
         <SettingDivider />

@@ -3,7 +3,7 @@ import {
   isOpenAIModel,
   isOpenAIReasoningModel,
   isOpenAIWebSearch,
-  isSuportedFlexServiceTier,
+  isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
@@ -184,7 +184,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     let serviceTier = 'auto' as OpenAIServiceTier
 
     if (openAI.serviceTier === 'flex') {
-      if (isSuportedFlexServiceTier(model)) {
+      if (isSupportedFlexServiceTier(model)) {
         serviceTier = 'flex'
       } else {
         serviceTier = 'auto'
@@ -197,7 +197,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
   }
 
   protected getTimeout(model: Model) {
-    if (isSuportedFlexServiceTier(model)) {
+    if (isSupportedFlexServiceTier(model)) {
       return 15 * 1000 * 60
     }
     return 5 * 1000 * 60
@@ -230,7 +230,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const openAI = getStoreSetting('openAI') as any
     const summaryText = openAI.summaryText as OpenAISummaryText
     let summary: string | undefined = undefined
-    if (summaryText === 'off') {
+    if (summaryText === 'off' || model.id.includes('o1-pro')) {
       summary = undefined
     } else {
       summary = summaryText

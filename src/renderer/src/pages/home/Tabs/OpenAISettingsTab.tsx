@@ -4,7 +4,7 @@ import { setOpenAIServiceTier, setOpenAISummaryText } from '@renderer/store/sett
 import { OpenAIServiceTier, OpenAISummaryText } from '@renderer/types'
 import { Select, Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -13,6 +13,13 @@ import { SettingGroup, SettingRowTitleSmall } from './SettingsTab'
 
 interface Props {
   isOpenAIReasoning: boolean
+  isSupportedFlexServiceTier: boolean
+}
+
+const FALL_BACK_SERVICE_TIER: Record<OpenAIServiceTier, OpenAIServiceTier> = {
+  auto: 'auto',
+  default: 'default',
+  flex: 'default'
 }
 
 const OpenAISettingsTab: FC<Props> = (props) => {
@@ -21,22 +28,24 @@ const OpenAISettingsTab: FC<Props> = (props) => {
   const serviceTierMode = useSelector((state: RootState) => state.settings.openAI.serviceTier)
   const dispatch = useAppDispatch()
 
-  const setSummaryText = (value: OpenAISummaryText) => {
-    dispatch(setOpenAISummaryText(value))
-  }
+  const setSummaryText = useCallback(
+    (value: OpenAISummaryText) => {
+      dispatch(setOpenAISummaryText(value))
+    },
+    [dispatch]
+  )
 
-  const setServiceTierMode = (value: OpenAIServiceTier) => {
-    dispatch(setOpenAIServiceTier(value))
-  }
+  const setServiceTierMode = useCallback(
+    (value: OpenAIServiceTier) => {
+      dispatch(setOpenAIServiceTier(value))
+    },
+    [dispatch]
+  )
 
   const summaryTextOptions = [
     {
       value: 'auto',
       label: t('settings.openai.summary_text_mode.auto')
-    },
-    {
-      value: 'concise',
-      label: t('settings.openai.summary_text_mode.concise')
     },
     {
       value: 'detailed',
@@ -48,20 +57,34 @@ const OpenAISettingsTab: FC<Props> = (props) => {
     }
   ]
 
-  const serviceTierOptions = [
-    {
-      value: 'auto',
-      label: t('settings.openai.service_tier.auto')
-    },
-    {
-      value: 'default',
-      label: t('settings.openai.service_tier.default')
-    },
-    {
-      value: 'flex',
-      label: t('settings.openai.service_tier.flex')
+  const serviceTierOptions = useMemo(() => {
+    const baseOptions = [
+      {
+        value: 'auto',
+        label: t('settings.openai.service_tier.auto')
+      },
+      {
+        value: 'default',
+        label: t('settings.openai.service_tier.default')
+      },
+      {
+        value: 'flex',
+        label: t('settings.openai.service_tier.flex')
+      }
+    ]
+    return baseOptions.filter((option) => {
+      if (option.value === 'flex') {
+        return props.isSupportedFlexServiceTier
+      }
+      return true
+    })
+  }, [props.isSupportedFlexServiceTier, t])
+
+  useEffect(() => {
+    if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
+      setServiceTierMode(FALL_BACK_SERVICE_TIER[serviceTierMode])
     }
-  ]
+  }, [serviceTierMode, serviceTierOptions, setServiceTierMode])
 
   return (
     <SettingGroup>
