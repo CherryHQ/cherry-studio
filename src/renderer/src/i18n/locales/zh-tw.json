@@ -1624,6 +1624,20 @@
       "zoom": {
         "title": "縮放",
         "reset": "重置"
+      },
+      "openai": {
+        "title": "OpenAI設定",
+        "summary_text_mode.title": "摘要模式",
+        "summary_text_mode.tip": "模型所執行的推理摘要",
+        "summary_text_mode.auto": "自動",
+        "summary_text_mode.concise": "簡潔",
+        "summary_text_mode.detailed": "詳細",
+        "summary_text_mode.off": "關閉",
+        "service_tier.title": "服務層級",
+        "service_tier.tip": "指定用於處理請求的延遲層級",
+        "service_tier.auto": "自動",
+        "service_tier.default": "預設",
+        "service_tier.flex": "彈性"
       }
     },
     "translate": {

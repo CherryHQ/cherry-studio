@@ -8,11 +8,14 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
+import { isOpenAIModel, isSupportedReasoningEffortOpenAIModel } from '@renderer/config/models'
 import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -57,12 +60,15 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import OpenAISettingsTab from './OpenAISettingsTab'
+
 interface Props {
   assistant: Assistant
 }
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
+  const { provider } = useProvider(assistant.model.provider)
   const { messageStyle, codeStyle, fontSize, language } = useSettings()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
@@ -157,6 +163,12 @@ const SettingsTab: FC<Props> = (props) => {
     if (value === undefined) return ''
     return value === 20 ? '∞' : value.toString()
   }
+
+  const model = assistant.model || getDefaultModel()
+
+  const isOpenAI = isOpenAIModel(model)
+  const isOpenAIReasoning =
+    isSupportedReasoningEffortOpenAIModel(model) && (provider.type === 'openai-response' || provider.id === 'aihubmix')
 
   return (
     <Container className="settings-tab">
@@ -281,6 +293,7 @@ const SettingsTab: FC<Props> = (props) => {
           </Row>
         )}
       </SettingGroup>
+      {isOpenAI && <OpenAISettingsTab isOpenAIReasoning={isOpenAIReasoning} />}
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
         <SettingDivider />
@@ -645,7 +658,7 @@ const Label = styled.p`
   margin-right: 5px;
 `
 
-const SettingRowTitleSmall = styled(SettingRowTitle)`
+export const SettingRowTitleSmall = styled(SettingRowTitle)`
   font-size: 13px;
 `
 

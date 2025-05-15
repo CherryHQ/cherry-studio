@@ -1,7 +1,9 @@
 import {
   isOpenAILLMModel,
+  isOpenAIModel,
   isOpenAIReasoningModel,
   isOpenAIWebSearch,
+  isSuportedFlexServiceTier,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
@@ -25,6 +27,8 @@ import {
   MCPToolResponse,
   Metrics,
   Model,
+  OpenAIServiceTier,
+  OpenAISummaryText,
   Provider,
   Suggestion,
   ToolCallResponse,
@@ -175,17 +179,25 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
   }
 
   protected getServiceTier(model: Model) {
-    if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
-      return 'flex'
+    if (!isOpenAIModel(model)) return undefined
+    const openAI = getStoreSetting('openAI') as any
+    let serviceTier = 'auto' as OpenAIServiceTier
+
+    if (openAI.serviceTier === 'flex') {
+      if (isSuportedFlexServiceTier(model)) {
+        serviceTier = 'flex'
+      } else {
+        serviceTier = 'auto'
+      }
+    } else {
+      serviceTier = openAI.serviceTier
     }
-    if (isOpenAILLMModel(model)) {
-      return 'auto'
-    }
-    return undefined
+
+    return serviceTier
   }
 
   protected getTimeout(model: Model) {
-    if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
+    if (isSuportedFlexServiceTier(model)) {
       return 15 * 1000 * 60
     }
     return 5 * 1000 * 60
@@ -215,6 +227,14 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     if (!isSupportedReasoningEffortOpenAIModel(model)) {
       return {}
     }
+    const openAI = getStoreSetting('openAI') as any
+    const summaryText = openAI.summaryText as OpenAISummaryText
+    let summary: string | undefined = undefined
+    if (summaryText === 'off') {
+      summary = undefined
+    } else {
+      summary = summaryText
+    }
 
     const reasoningEffort = assistant?.settings?.reasoning_effort
     if (!reasoningEffort) {
@@ -225,7 +245,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
       return {
         reasoning: {
           effort: reasoningEffort as OpenAI.ReasoningEffort,
-          summary: 'detailed'
+          summary: summary
         } as OpenAI.Reasoning
       }
     }

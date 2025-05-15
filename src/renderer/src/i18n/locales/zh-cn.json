@@ -1624,6 +1624,20 @@
       "zoom": {
         "title": "缩放",
         "reset": "重置"
+      },
+      "openai": {
+        "title": "OpenAI设置",
+        "summary_text_mode.title": "摘要模式",
+        "summary_text_mode.tip": "模型执行的推理摘要",
+        "summary_text_mode.auto": "自动",
+        "summary_text_mode.concise": "简洁",
+        "summary_text_mode.detailed": "详细",
+        "summary_text_mode.off": "关闭",
+        "service_tier.title": "服务层级",
+        "service_tier.tip": "指定用于处理请求的延迟层级",
+        "service_tier.auto": "自动",
+        "service_tier.default": "默认",
+        "service_tier.flex": "灵活"
       }
     },
     "translate": {

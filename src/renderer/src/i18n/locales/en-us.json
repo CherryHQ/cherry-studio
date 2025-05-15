@@ -1624,6 +1624,20 @@
       "zoom": {
         "title": "Page Zoom",
         "reset": "Reset"
+      },
+      "openai": {
+        "title": "OpenAI Settings",
+        "summary_text_mode.title": "Summary Mode",
+        "summary_text_mode.tip": "A summary of the reasoning performed by the model",
+        "summary_text_mode.auto": "auto",
+        "summary_text_mode.concise": "concise",
+        "summary_text_mode.detailed": "detailed",
+        "summary_text_mode.off": "off",
+        "service_tier.title": "Service Tier",
+        "service_tier.tip": "Specifies the latency tier to use for processing the request",
+        "service_tier.auto": "auto",
+        "service_tier.default": "default",
+        "service_tier.flex": "flex"
       }
     },
     "translate": {

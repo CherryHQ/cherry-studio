@@ -1624,7 +1624,21 @@
         "title": "Масштаб страницы",
         "reset": "Сбросить"
       },
-      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
+      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
+      "openai": {
+        "title": "Настройки OpenAI",
+        "summary_text_mode.title": "Режим резюме",
+        "summary_text_mode.tip": "Резюме рассуждений, выполненных моделью",
+        "summary_text_mode.auto": "Авто",
+        "summary_text_mode.concise": "Краткий",
+        "summary_text_mode.detailed": "Подробный",
+        "summary_text_mode.off": "Выключен",
+        "service_tier.title": "Уровень сервиса",
+        "service_tier.tip": "Указывает уровень задержки, который следует использовать для обработки запроса",
+        "service_tier.auto": "Авто",
+        "service_tier.default": "По умолчанию",
+        "service_tier.flex": "Гибкий"
+      }
     },
     "translate": {
       "any.language": "Любой язык",
