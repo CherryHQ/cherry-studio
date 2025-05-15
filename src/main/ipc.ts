@@ -21,6 +21,7 @@ import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import SystemInfoService from './services/SystemInfoService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { getResourcePath } from './utils'
@@ -288,9 +289,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle('obsidian:get-vaults', () => {
     return obsidianVaultService.getVaults()
   })
-
   ipcMain.handle('obsidian:get-files', (_event, vaultName) => {
     return obsidianVaultService.getFilesByVaultName(vaultName)
+  })
+  // Variables
+  ipcMain.handle('system:get-os-info', () => {
+    return SystemInfoService.getOsInfo()
+  })
+
+  ipcMain.handle('system:get-hardware-info', () => {
+    return SystemInfoService.getHardwareInfo()
   })
 
   // nutstore

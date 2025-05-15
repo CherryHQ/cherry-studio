@@ -34,6 +34,8 @@ declare global {
       clearCache: () => Promise<{ success: boolean; error?: string }>
       system: {
         getDeviceType: () => Promise<'mac' | 'windows' | 'linux'>
+        getOsInfo: () => Promise<{ platform: string; release: string; arch: string }>
+        getHardwareInfo: () => Promise<{ cpuModel: string; cpuCores: number; totalMemory: number }>
       }
       zip: {
         compress: (text: string) => Promise<Buffer>

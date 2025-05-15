@@ -22,7 +22,9 @@ const api = {
   minApp: (url: string) => ipcRenderer.invoke('minapp', url),
   clearCache: () => ipcRenderer.invoke('app:clear-cache'),
   system: {
-    getDeviceType: () => ipcRenderer.invoke('system:getDeviceType')
+    getDeviceType: () => ipcRenderer.invoke('system:getDeviceType'),
+    getOsInfo: () => ipcRenderer.invoke('system:get-os-info'),
+    getHardwareInfo: () => ipcRenderer.invoke('system:get-hardware-info')
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke('zip:compress', text),

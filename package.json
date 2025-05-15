@@ -125,7 +125,7 @@
     "axios": "^1.7.3",
     "babel-plugin-styled-components": "^2.1.4",
     "browser-image-compression": "^2.0.2",
-    "dayjs": "^1.11.11",
+    "dayjs": "^1.11.13",
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
     "dotenv-cli": "^7.4.2",

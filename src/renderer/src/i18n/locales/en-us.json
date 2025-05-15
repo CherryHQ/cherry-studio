@@ -287,12 +287,37 @@
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
+      "variables": "Variables",
+      "all": "All"
+    },
+    "variable": {
+      "custom_variables": "Custom Variables",
+      "select_variables": "Select Variables",
+      "variables_help": "Add variable names and values that need to be replaced",
       "variable_name": "Variable Name",
       "value": "Value",
       "no_variables_added": "No variables added",
       "insert_variable_into_prompt": "Insert variable into prompt",
-      "variables": "Variables",
-      "variables_help": "Add variables that need to be replaced in the text, triggered by {{variable_name}} in the replacement document"
+      "no_results": "No variables found",
+      "group": {
+        "date": "Date and Time",
+        "local": "Local System"
+      },
+      "variables": {
+        "date": {
+          "current_time": "Current Time",
+          "current_year": "Current Year",
+          "current_month": "Current Month",
+          "current_day": "Current Day",
+          "current_datetime": "Current Date and Time (YYYY-MM-DD HH:mm:ss)",
+          "current_timestamp": "Current Timestamp (milliseconds)",
+          "current_timezone": "Current Timezone"
+        },
+        "local": {
+          "os_info": "System Information",
+          "hardware_info": "Hardware Information"
+        }
+      }
     },
     "docs": {
       "title": "Docs"
@@ -508,6 +533,9 @@
       "error.notion.no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
       "error.yuque.export": "Failed to export to Yuque. Please check connection status and configuration according to documentation",
       "error.yuque.no_config": "Yuque Token or Yuque Url is not configured",
+      "error.variable.failed_to_get_value": "Failed to get value",
+      "error.variable.get_value": "Failed to get value for variable {{variableName}}",
+      "error.variable.system_info": "Failed to get system information",
       "group.delete.content": "Deleting a group message will delete the user's question and all assistant's answers",
       "group.delete.title": "Delete Group Message",
       "ignore.knowledge.base": "Web search mode is enabled, ignore knowledge base",

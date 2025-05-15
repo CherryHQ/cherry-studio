@@ -287,12 +287,37 @@
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
+      "variables": "Переменные",
+      "all": "Все"
+    },
+    "variable": {
+      "custom_variables": "Пользовательские переменные",
+      "select_variables": "Выбрать переменные",
+      "variables_help": "Добавьте имя переменной и значение, которое нужно заменить",
       "variable_name": "Имя переменной",
       "value": "Значение",
-      "no_variables_added": "Нет переменных",
+      "no_variables_added": "Нет добавленных переменных",
       "insert_variable_into_prompt": "Вставить переменную в промпт",
-      "variables": "Переменные",
-      "variables_help": "Добавьте переменные, которые нужно заменить в тексте, замена срабатывает в формате {{variable_name}} в документе замены"
+      "no_results": "Переменные не найдены",
+      "group": {
+        "date": "Дата и время",
+        "local": "Локальная система"
+      },
+      "variables": {
+        "date": {
+          "current_time": "Текущее время",
+          "current_year": "Текущий год",
+          "current_month": "Текущий месяц",
+          "current_day": "Текущий день",
+          "current_datetime": "Текущие дата и время (YYYY-MM-DD HH:mm:ss)",
+          "current_timestamp": "Текущая временная метка (миллисекунды)",
+          "current_timezone": "Текущий часовой пояс"
+        },
+        "local": {
+          "os_info": "Информация о системе",
+          "hardware_info": "Информация об оборудовании"
+        }
+      }
     },
     "docs": {
       "title": "Документация"
@@ -508,6 +533,9 @@
       "error.notion.no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
       "error.yuque.export": "Ошибка экспорта в Yuque, пожалуйста, проверьте состояние подключения и настройки в документации",
       "error.yuque.no_config": "Yuque Token или Yuque Url не настроен",
+      "error.variable.failed_to_get_value": "Не удалось получить значение",
+      "error.variable.get_value": "Не удалось получить значение переменной {{variableName}}",
+      "error.variable.system_info": "Не удалось получить информацию о системе",
       "group.delete.content": "Удаление группы сообщений удалит пользовательский вопрос и все ответы помощника",
       "group.delete.title": "Удалить группу сообщений",
       "ignore.knowledge.base": "Режим сети включен, игнорировать базу знаний",

@@ -44,10 +44,11 @@ export async function fetchChatCompletion({
     let query = ''
 
     // Process variables in the prompt if they exist
-    if (assistant.promptVariables && assistant.promptVariables.length > 0) {
+    if (assistant.prompt) {
+      const processedPrompt = await processPromptVariables(assistant.prompt, assistant.promptVariables || [])
       assistant = {
         ...assistant,
-        prompt: processPromptVariables(assistant.prompt, assistant.promptVariables)
+        prompt: processedPrompt
       }
     }
 

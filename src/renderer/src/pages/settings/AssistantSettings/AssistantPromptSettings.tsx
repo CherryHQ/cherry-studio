@@ -1,9 +1,10 @@
 import 'emoji-picker-element'
 
 import { CloseCircleFilled, PlusOutlined } from '@ant-design/icons'
+import CustomVariableList from '@renderer/components/CustomVariableList'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HStack } from '@renderer/components/Layout'
-import VariableList from '@renderer/components/VariableList'
+import SelectVariablePopup from '@renderer/components/Popups/SelectVariablePopup'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings, Variable } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -150,10 +151,20 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
           onBlur={onUpdate}
           style={{ flex: 1 }}
         />
+      </HStack>{' '}
+      <HStack justifyContent="space-between" alignItems="center" mb={8}>
+        <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>{' '}
+        <Button
+          type="text"
+          onClick={async () => {
+            const variableName = await SelectVariablePopup.show({ customVariables: variables })
+            if (variableName) {
+              handleInsertVariable(variableName)
+            }
+          }}>
+          {t('variable.select_variables')}
+        </Button>
       </HStack>
-      <Box mt={8} mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.prompt')}
-      </Box>
       <TextAreaContainer>
         <TextArea
           rows={10}
@@ -166,36 +177,33 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
         />
         <TokenCount>Tokens: {tokenCount}</TokenCount>
       </TextAreaContainer>
-
       <Box mt={12} mb={8}>
         <HStack justifyContent="space-between" alignItems="center">
           <Typography.Title level={5} style={{ margin: 0 }}>
-            {t('common.variables')}
+            {t('variable.custom_variables')}
           </Typography.Title>
-          <Tooltip title={t('common.variables_help')}>
+          <Tooltip title={t('variable.variables_help')}>
             <Typography.Text type="secondary" style={{ fontSize: '12px', cursor: 'help' }}>
               ?
             </Typography.Text>
           </Tooltip>
         </HStack>
       </Box>
-
-      <VariableList
+      <CustomVariableList
         variables={variables}
         setVariables={setVariables}
         onUpdate={handleUpdateVariables}
         onInsertVariable={handleInsertVariable}
       />
-
       <HStack gap={8} width="100%" mt={8} mb={8}>
         <Input
-          placeholder={t('common.variable_name')}
+          placeholder={t('variable.variable_name')}
           value={variableName}
           onChange={(e) => setVariableName(e.target.value)}
           style={{ width: '30%' }}
         />
         <Input
-          placeholder={t('common.value')}
+          placeholder={t('variable.value')}
           value={variableValue}
           onChange={(e) => setVariableValue(e.target.value)}
           style={{ flex: 1 }}
@@ -204,7 +212,6 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant, 
           {t('common.add')}
         </Button>
       </HStack>
-
       <HStack width="100%" justifyContent="flex-end" mt="10px">
         <Button type="primary" onClick={onOk}>
           {t('common.close')}

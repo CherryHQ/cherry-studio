@@ -287,12 +287,37 @@
       "topics": "話題",
       "warning": "警告",
       "you": "您",
+      "variables": "變量",
+      "all": "全部"
+    },
+    "variable": {
+      "custom_variables": "自訂變量",
+      "select_variables": "選擇變量",
+      "variables_help": "添加需要替換的變量名字和值即可",
       "variable_name": "變量名稱",
       "value": "值",
       "no_variables_added": "沒有添加變量",
       "insert_variable_into_prompt": "插入變量到提示詞",
-      "variables": "變量",
-      "variables_help": "添加需要替換的變量名字和值即可"
+      "no_results": "未找到變量",
+      "group": {
+        "date": "日期和時間",
+        "local": "本地系統"
+      },
+      "variables": {
+        "date": {
+          "current_time": "當前時間",
+          "current_year": "當前年份",
+          "current_month": "當前月份",
+          "current_day": "當前日期",
+          "current_datetime": "當前日期和時間 (YYYY-MM-DD HH:mm:ss)",
+          "current_timestamp": "當前時間戳（毫秒）",
+          "current_timezone": "當前時區"
+        },
+        "local": {
+          "os_info": "系統信息",
+          "hardware_info": "硬件信息"
+        }
+      }
     },
     "docs": {
       "title": "說明文件"
@@ -508,6 +533,9 @@
       "error.notion.no_api_key": "未設定 Notion API Key 或 Notion Database ID",
       "error.yuque.export": "匯出語雀錯誤，請檢查連接狀態並對照文件檢查設定",
       "error.yuque.no_config": "未設定語雀 Token 或知識庫 Url",
+      "error.variable.failed_to_get_value": "獲取值失敗",
+      "error.variable.get_value": "獲取變量 {{variableName}} 的值失敗",
+      "error.variable.system_info": "獲取系統信息失敗",
       "group.delete.content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
       "group.delete.title": "刪除分組訊息",
       "ignore.knowledge.base": "網路模式開啟，忽略知識庫",

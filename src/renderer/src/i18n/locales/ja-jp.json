@@ -287,12 +287,37 @@
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
+      "variables": "変数",
+      "all": "すべて"
+    },
+    "variable": {
+      "custom_variables": "カスタム変数",
+      "select_variables": "変数を選択",
+      "variables_help": "置換が必要な変数名と値を追加するだけです",
       "variable_name": "変数名",
       "value": "値",
-      "no_variables_added": "変数がありません",
+      "no_variables_added": "変数が追加されていません",
       "insert_variable_into_prompt": "プロンプトに変数を挿入",
-      "variables": "変数",
-      "variables_help": "テキスト内で置換が必要な変数を追加し、置換ドキュメント内で{{variable_name}}の形式でトリガーします"
+      "no_results": "変数が見つかりません",
+      "group": {
+        "date": "日付と時間",
+        "local": "ローカルシステム"
+      },
+      "variables": {
+        "date": {
+          "current_time": "現在の時間",
+          "current_year": "現在の年",
+          "current_month": "現在の月",
+          "current_day": "現在の日",
+          "current_datetime": "現在の日付と時間 (YYYY-MM-DD HH:mm:ss)",
+          "current_timestamp": "現在のタイムスタンプ（ミリ秒）",
+          "current_timezone": "現在のタイムゾーン"
+        },
+        "local": {
+          "os_info": "システム情報",
+          "hardware_info": "ハードウェア情報"
+        }
+      }
     },
     "docs": {
       "title": "ドキュメント"
@@ -507,6 +532,9 @@
       "error.notion.export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
       "error.notion.no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
       "error.yuque.export": "語雀へのエクスポートに失敗しました。接続状態と設定を確認してください",
+      "error.variable.failed_to_get_value": "値の取得に失敗しました",
+      "error.variable.get_value": "変数 {{variableName}} の値の取得に失敗しました",
+      "error.variable.system_info": "システム情報の取得に失敗しました",
       "group.delete.content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
       "group.delete.title": "分組メッセージを削除",
       "ignore.knowledge.base": "インターネットモードが有効になっています。ナレッジベースを無視します",
