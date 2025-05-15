@@ -44,14 +44,6 @@ export class ConfigManager {
     this.set(ConfigKeys.Theme, theme)
   }
 
-  getCustomCss(): string {
-    return this.store.get('customCss', '') as string
-  }
-
-  setCustomCss(css: string) {
-    this.store.set('customCss', css)
-  }
-
   getLaunchToTray(): boolean {
     return !!this.get(ConfigKeys.LaunchToTray, false)
   }

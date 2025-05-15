@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
 // @ts-ignore next-line`
@@ -155,10 +156,6 @@ export const compareVersions = (v1: string, v2: string): number => {
   return 0
 }
 
-export function isMiniWindow() {
-  return window.location.hash === '#/mini'
-}
-
 /**
  * 显示确认模态框。
  * @param params 模态框参数
@@ -206,7 +203,7 @@ export function getMcpConfigSampleFromReadme(readme: string) {
         }
       }
     } catch (e) {
-      console.log('getMcpConfigSampleFromReadme', e)
+      Logger.log('getMcpConfigSampleFromReadme', e)
     }
   }
   return null

@@ -1,8 +1,7 @@
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Agent } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
 import { useEffect, useState } from 'react'
-
 let _agents: Agent[] = []
 
 export const getAgentsFromSystemAgents = (systemAgents: any) => {
@@ -17,17 +16,30 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
 }
 
 export function useSystemAgents() {
-  const [agents, setAgents] = useState<Agent[]>(_agents)
+  const { defaultAgent } = useSettings()
+  const [agents, setAgents] = useState<Agent[]>([])
   const { resourcesPath } = useRuntime()
 
   useEffect(() => {
-    runAsyncFunction(async () => {
-      if (!resourcesPath || _agents.length > 0) return
-      const agents = await window.api.fs.read(resourcesPath + '/data/agents.json')
-      _agents = JSON.parse(agents) as Agent[]
-      setAgents(_agents)
-    })
-  }, [resourcesPath])
+    const loadAgents = async () => {
+      try {
+        // 始终加载本地 agents
+        if (resourcesPath && _agents.length === 0) {
+          const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
+          _agents = JSON.parse(localAgentsData) as Agent[]
+        }
+
+        // 如果没有远程配置或获取失败，使用本地 agents
+        setAgents(_agents)
+      } catch (error) {
+        console.error('Failed to load agents:', error)
+        // 发生错误时使用本地 agents
+        setAgents(_agents)
+      }
+    }
+
+    loadAgents()
+  }, [defaultAgent, resourcesPath])
 
   return agents
 }

@@ -63,6 +63,7 @@ const PromptPopupContainer: React.FC<Props> = ({
       onCancel={onCancel}
       afterClose={onClose}
       afterOpenChange={handleAfterOpenChange}
+      transitionName="animation-move-down"
       centered>
       <Box mb={8}>{message}</Box>
       <Input.TextArea

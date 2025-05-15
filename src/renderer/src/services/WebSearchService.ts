@@ -1,16 +1,35 @@
+import Logger from '@renderer/config/logger'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
-import { setDefaultProvider, WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse, WebSearchResult } from '@renderer/types'
+import { WebSearchState } from '@renderer/store/websearch'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
+import { addAbortController } from '@renderer/utils/abortController'
 import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import dayjs from 'dayjs'
-
 /**
  * 提供网络搜索相关功能的服务类
  */
 class WebSearchService {
+  /**
+   * 是否暂停
+   */
+  private signal: AbortSignal | null = null
+
+  isPaused = false
+
+  createAbortSignal(key: string) {
+    const controller = new AbortController()
+    this.signal = controller.signal
+    addAbortController(key, () => {
+      this.isPaused = true
+      this.signal = null
+      controller.abort()
+    })
+    return controller
+  }
+
   /**
    * 获取当前存储的网络搜索状态
    * @private
@@ -25,9 +44,9 @@ class WebSearchService {
    * @public
    * @returns 如果默认搜索提供商已启用则返回true，否则返回false
    */
-  public isWebSearchEnabled(): boolean {
-    const { defaultProvider, providers } = this.getWebSearchState()
-    const provider = providers.find((provider) => provider.id === defaultProvider)
+  public isWebSearchEnabled(providerId?: WebSearchProvider['id']): boolean {
+    const { providers } = this.getWebSearchState()
+    const provider = providers.find((provider) => provider.id === providerId)
 
     if (!provider) {
       return false
@@ -49,6 +68,8 @@ class WebSearchService {
   }
 
   /**
+   * @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用
+   *
    * 检查是否启用覆盖搜索
    * @public
    * @returns 如果启用覆盖搜索则返回true，否则返回false
@@ -62,21 +83,10 @@ class WebSearchService {
    * 获取当前默认的网络搜索提供商
    * @public
    * @returns 网络搜索提供商
-   * @throws 如果找不到默认提供商则抛出错误
    */
-  public getWebSearchProvider(): WebSearchProvider {
-    const { defaultProvider, providers } = this.getWebSearchState()
-    let provider = providers.find((provider) => provider.id === defaultProvider)
-
-    if (!provider) {
-      provider = providers[0]
-      if (provider) {
-        // 可选：自动更新默认提供商
-        store.dispatch(setDefaultProvider(provider.id))
-      } else {
-        throw new Error(`No web search providers available`)
-      }
-    }
+  public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
+    const { providers } = this.getWebSearchState()
+    const provider = providers.find((provider) => provider.id === providerId)
 
     return provider
   }
@@ -88,22 +98,26 @@ class WebSearchService {
    * @param query 搜索查询
    * @returns 搜索响应
    */
-  public async search(provider: WebSearchProvider, query: string): Promise<WebSearchResponse> {
+  public async search(
+    provider: WebSearchProvider,
+    query: string,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchProviderResponse> {
     const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider)
 
     let formattedQuery = query
-    // 有待商榷，效果一般
+    // FIXME: 有待商榷，效果一般
     if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
-    try {
-      return await webSearchEngine.search(formattedQuery, websearch)
-    } catch (error) {
-      console.error('Search failed:', error)
-      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    // try {
+    return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
+    // } catch (error) {
+    //   console.error('Search failed:', error)
+    //   throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // }
   }
 
   /**
@@ -115,7 +129,7 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-      console.log('Search response:', response)
+      Logger.log('[checkSearch] Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
       return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
@@ -126,43 +140,42 @@ class WebSearchService {
   public async processWebsearch(
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults
-  ): Promise<WebSearchResponse> {
-    try {
-      // 检查 websearch 和 question 是否有效
-      if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
-        console.log('No valid question found in extractResults.websearch')
-        return { results: [] }
-      }
+  ): Promise<WebSearchProviderResponse> {
+    // 检查 websearch 和 question 是否有效
+    if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
+      Logger.log('[processWebsearch] No valid question found in extractResults.websearch')
+      return { results: [] }
+    }
 
-      const questions = extractResults.websearch.question
-      const links = extractResults.websearch.links
-      const firstQuestion = questions[0]
-
-      if (firstQuestion === 'summarize' && links && links.length > 0) {
-        const contents = await fetchWebContents(links)
-        return {
-          query: 'summaries',
-          results: contents
-        }
-      }
-      const searchPromises = questions.map((q) => this.search(webSearchProvider, q))
-      const searchResults = await Promise.allSettled(searchPromises)
-      const aggregatedResults: WebSearchResult[] = []
-
-      searchResults.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          if (result.value.results) {
-            aggregatedResults.push(...result.value.results)
-          }
-        }
+    const questions = extractResults.websearch.question
+    const links = extractResults.websearch.links
+    const firstQuestion = questions[0]
+    if (firstQuestion === 'summarize' && links && links.length > 0) {
+      const contents = await fetchWebContents(links, undefined, undefined, {
+        signal: this.signal
       })
       return {
-        query: questions.join(' | '),
-        results: aggregatedResults
+        query: 'summaries',
+        results: contents
       }
-    } catch (error) {
-      console.error('Failed to process enhanced search:', error)
-      return { results: [] }
+    }
+    const searchPromises = questions.map((q) => this.search(webSearchProvider, q, { signal: this.signal }))
+    const searchResults = await Promise.allSettled(searchPromises)
+    const aggregatedResults: any[] = []
+
+    searchResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        if (result.value.results) {
+          aggregatedResults.push(...result.value.results)
+        }
+      }
+      if (result.status === 'rejected') {
+        throw result.reason
+      }
+    })
+    return {
+      query: questions.join(' | '),
+      results: aggregatedResults
     }
   }
 }

@@ -129,12 +129,11 @@ export class ProxyManager {
       if (!protocol.includes('socks')) {
         setGlobalDispatcher(new ProxyAgent(proxyUrl))
       } else {
-        const dispatcher = socksDispatcher({
+        global[Symbol.for('undici.globalDispatcher.1')] = socksDispatcher({
           port: parseInt(port),
           type: protocol === 'socks5' ? 5 : 4,
           host: host
         })
-        global[Symbol.for('undici.globalDispatcher.1')] = dispatcher
       }
     }
   }

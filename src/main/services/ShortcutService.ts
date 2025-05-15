@@ -1,3 +1,4 @@
+import { handleZoomFactor } from '@main/utils/zoom'
 import { Shortcut } from '@types'
 import { BrowserWindow, globalShortcut } from 'electron'
 import Logger from 'electron-log'
@@ -14,14 +15,11 @@ const windowOnHandlers = new Map<BrowserWindow, { onFocusHandler: () => void; on
 function getShortcutHandler(shortcut: Shortcut) {
   switch (shortcut.key) {
     case 'zoom_in':
-      return (window: BrowserWindow) => handleZoom(0.1)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], 0.1)
     case 'zoom_out':
-      return (window: BrowserWindow) => handleZoom(-0.1)(window)
+      return (window: BrowserWindow) => handleZoomFactor([window], -0.1)
     case 'zoom_reset':
-      return (window: BrowserWindow) => {
-        window.webContents.setZoomFactor(1)
-        configManager.setZoomFactor(1)
-      }
+      return (window: BrowserWindow) => handleZoomFactor([window], 0, true)
     case 'show_app':
       return () => {
         windowService.toggleMainWindow()
@@ -37,17 +35,6 @@ function getShortcutHandler(shortcut: Shortcut) {
 
 function formatShortcutKey(shortcut: string[]): string {
   return shortcut.join('+')
-}
-
-function handleZoom(delta: number) {
-  return (window: BrowserWindow) => {
-    const currentZoom = configManager.getZoomFactor()
-    const newZoom = Number((currentZoom + delta).toFixed(1))
-    if (newZoom >= 0.1 && newZoom <= 5.0) {
-      window.webContents.setZoomFactor(newZoom)
-      configManager.setZoomFactor(newZoom)
-    }
-  }
 }
 
 const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat = (

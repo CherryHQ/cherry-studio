@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
@@ -24,6 +25,7 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
@@ -31,7 +33,6 @@ import { getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -120,11 +121,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const updateTitleBarOverlay = () => {
+      if (!mainWindow?.setTitleBarOverlay) return
+      const isDark = nativeTheme.shouldUseDarkColors
+      mainWindow.setTitleBarOverlay(isDark ? titleBarOverlayDark : titleBarOverlayLight)
+    }
+
+    const broadcastThemeChange = () => {
+      const isDark = nativeTheme.shouldUseDarkColors
+      const effectiveTheme = isDark ? ThemeMode.dark : ThemeMode.light
+      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send(IpcChannel.ThemeChange, effectiveTheme))
+    }
+
     const notifyThemeChange = () => {
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) =>
-        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
-      )
+      updateTitleBarOverlay()
+      broadcastThemeChange()
     }
 
     if (theme === ThemeMode.auto) {
@@ -132,29 +143,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       nativeTheme.on('updated', notifyThemeChange)
     } else {
       nativeTheme.themeSource = theme
-      nativeTheme.removeAllListeners('updated')
+      nativeTheme.off('updated', notifyThemeChange)
     }
 
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
+    updateTitleBarOverlay()
     configManager.setTheme(theme)
     notifyThemeChange()
   })
 
-  // custom css
-  ipcMain.handle(IpcChannel.App_SetCustomCss, (event, css: string) => {
-    if (css === configManager.getCustomCss()) return
-    configManager.setCustomCss(css)
-
-    // Broadcast to all windows including the mini window
-    const senderWindowId = event.sender.id
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
-    // 向其他窗口广播主题变化
-    windows.forEach((win) => {
-      if (win.webContents.id !== senderWindowId) {
-        win.webContents.send('custom-css:update', css)
-      }
-    })
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache
@@ -211,11 +211,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
-  ipcMain.handle(IpcChannel.File_BinaryFile, fileManager.binaryFile)
+  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
@@ -338,4 +340,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
     setOpenLinkExternal(webviewId, isExternal)
   )
+
+  // store sync
+  storeSyncService.registerIpcHandler()
 }

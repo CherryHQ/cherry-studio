@@ -19,11 +19,16 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
 
+Logger.initialize()
+
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
+  // Portable dir must be setup before app ready
+  setUserDataDir()
+  
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
@@ -55,8 +60,6 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc(mainWindow, app)
 
     replaceDevtoolsFont(mainWindow)
-
-    setUserDataDir()
 
     // Setup deep link for AppImage on Linux
     await setupAppImageDeepLink()

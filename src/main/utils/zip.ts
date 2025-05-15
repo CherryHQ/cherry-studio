@@ -9,14 +9,13 @@ const gunzipPromise = util.promisify(zlib.gunzip)
 
 /**
  * 压缩字符串
- * @param {string} string - 要压缩的 JSON 字符串
  * @returns {Promise<Buffer>} 压缩后的 Buffer
+ * @param str
  */
 export async function compress(str) {
   try {
     const buffer = Buffer.from(str, 'utf-8')
-    const compressedBuffer = await gzipPromise(buffer)
-    return compressedBuffer
+    return await gzipPromise(buffer)
   } catch (error) {
     logger.error('Compression failed:', error)
     throw error

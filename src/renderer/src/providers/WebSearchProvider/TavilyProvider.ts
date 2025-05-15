@@ -1,6 +1,6 @@
 import { TavilyClient } from '@agentic/tavily'
 import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -12,10 +12,13 @@ export default class TavilyProvider extends BaseWebSearchProvider {
     if (!this.apiKey) {
       throw new Error('API key is required for Tavily provider')
     }
-    this.tvly = new TavilyClient({ apiKey: this.apiKey })
+    if (!this.apiHost) {
+      throw new Error('API host is required for Tavily provider')
+    }
+    this.tvly = new TavilyClient({ apiKey: this.apiKey, apiBaseUrl: this.apiHost })
   }
 
-  public async search(query: string, websearch: WebSearchState): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')

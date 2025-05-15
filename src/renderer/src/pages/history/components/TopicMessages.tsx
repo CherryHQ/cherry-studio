@@ -7,10 +7,12 @@ import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { isGenerating, locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
+import { useAppDispatch } from '@renderer/store'
+import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
 import { Button, Divider, Empty } from 'antd'
 import { t } from 'i18next'
-import { FC } from 'react'
+import { FC, useEffect } from 'react'
 import styled from 'styled-components'
 
 import { default as MessageItem } from '../../home/Messages/Message'
@@ -23,6 +25,11 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
   const navigate = NavigationService.navigate!
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
   const { messageStyle } = useSettings()
+  const dispatch = useAppDispatch()
+
+  useEffect(() => {
+    topic && dispatch(loadTopicMessagesThunk(topic.id))
+  }, [dispatch, topic])
 
   const isEmpty = (topic?.messages || []).length === 0
 
