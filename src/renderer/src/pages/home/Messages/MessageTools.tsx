@@ -212,7 +212,8 @@ const MessageTools: FC<Props> = ({ blocks }) => {
 }
 
 const CollapseContainer = styled(Collapse)`
-  margin-bottom: 15px;
+  margin-top: 10px;
+  margin-bottom: 12px;
   border-radius: 8px;
   overflow: hidden;
 

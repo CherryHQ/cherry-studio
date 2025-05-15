@@ -37,6 +37,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import { convertLinks } from '@renderer/utils/linkConverter'
 import {
+  isEnabledToolUse,
   mcpToolCallResponseToOpenAIMessage,
   mcpToolsToOpenAIResponseTools,
   openAIToolsToMcpTool,
@@ -289,7 +290,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBuiltinWebSearch = assistant.enableWebSearch
 
     let tools: OpenAI.Responses.Tool[] = []
@@ -318,7 +319,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const { tools: extraTools } = this.setupToolsConfig<OpenAI.Responses.Tool>({
       mcpTools,
       model,
-      enableToolUse
+      enableToolUse: isEnabledToolUse(assistant)
     })
 
     tools = tools.concat(extraTools)

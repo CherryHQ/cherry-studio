@@ -1319,6 +1319,17 @@ const migrateConfig = {
   },
   '101': (state: RootState) => {
     try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings) {
+          // @ts-ignore eslint-disable-next-line
+          if (assistant.settings.enableToolUse) {
+            // @ts-ignore eslint-disable-next-line
+            assistant.settings.toolUseMode = assistant.settings.enableToolUse ? 'function' : 'prompt'
+            // @ts-ignore eslint-disable-next-line
+            delete assistant.settings.enableToolUse
+          }
+        }
+      })
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
           key: 'exit_fullscreen',
