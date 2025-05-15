@@ -8,6 +8,7 @@ import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
 import copilot from './copilot'
+import groups from './groups'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
@@ -37,6 +38,7 @@ const rootReducer = combineReducers({
   websearch,
   mcp,
   copilot,
+  groups,
   // messages: messagesReducer,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer

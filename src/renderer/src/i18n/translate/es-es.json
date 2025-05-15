@@ -488,7 +488,7 @@
       "threshold_tooltip": "Se usa para medir la relevancia entre la pregunta del usuario y el contenido de la base de conocimientos (0-1)",
       "title": "Base de conocimientos",
       "topN": "Número de resultados devueltos",
-      "topN__too_large_or_small": "El número de resultados devueltos no puede ser mayor que 100 o menor que 1",
+      "topN_too_large_or_small": "El número de resultados devueltos no puede ser mayor que 30 o menor que 1",
       "topN_placeholder": "No configurado",
       "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
       "url_added": "URL agregada",

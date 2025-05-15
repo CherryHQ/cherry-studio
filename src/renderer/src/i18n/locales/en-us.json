@@ -98,6 +98,21 @@
         "titlePlaceholder": "Enter title",
         "contentLabel": "Content",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      },
+      "group": {
+        "title": "Assistant Groups",
+        "emptyNameError": "Group name cannot be empty",
+        "duplicateNameError": "Group name already exists",
+        "addGroup": "Add Group",
+        "enterGroupName": "Please enter group name",
+        "delete": "Delete Group",
+        "empty": "Empty Group",
+        "add": "Add Group",
+        "expandAll": "Expand All",
+        "defaultName": "Default Group",
+        "addMembers": "Add Assistants to Group",
+        "selectMembers": "Please select assistants to add",
+        "collapseAll": "Collapse All"
       }
     },
     "auth": {
@@ -1154,7 +1169,7 @@
       "miniapps": {
         "title": "Mini Apps Settings",
         "custom": {
-          "title": "Custom",
+          "title": "Custom Mini App",
           "edit_title": "Edit Custom Mini App",
           "save_success": "Custom mini app saved successfully.",
           "save_error": "Failed to save custom mini app.",

@@ -3,12 +3,15 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { Assistant } from '@renderer/types'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './AssistantItem'
+import AssitantModeSwitch from './AssitantModeSwitch'
+import GroupedAssistants from './GroupedAssistants'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -23,8 +26,10 @@ const Assistants: FC<AssistantsTabProps> = ({
   onCreateAssistant,
   onCreateDefaultAssistant
 }) => {
+  const { assistantTabDefaultMode } = useSettings()
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
+  const [groupMode, setGroupMode] = useState(assistantTabDefaultMode || 'assitants')
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -43,33 +48,51 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DragableList
-        list={assistants}
-        onUpdate={updateAssistants}
-        style={{ paddingBottom: dragging ? '34px' : 0 }}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(assistant) => (
-          <AssistantItem
-            key={assistant.id}
-            assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            onSwitch={setActiveAssistant}
-            onDelete={onDelete}
-            addAgent={addAgent}
-            addAssistant={addAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-          />
-        )}
-      </DragableList>
-      {!dragging && (
-        <AssistantAddItem onClick={onCreateAssistant}>
-          <AssistantName>
-            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
-            {t('chat.add.assistant.title')}
-          </AssistantName>
-        </AssistantAddItem>
+      {groupMode === 'groups' ? (
+        <GroupedAssistants
+          assistants={assistants}
+          activeAssistant={activeAssistant}
+          onDelete={onDelete}
+          setGroupMode={setGroupMode}
+          setActiveAssistant={setActiveAssistant}
+          onCreateAssistant={onCreateAssistant}
+          addAgent={addAgent}
+          addAssistant={addAssistant}
+          onCreateDefaultAssistant={onCreateDefaultAssistant}
+        />
+      ) : (
+        <>
+          <AssitantModeSwitch groupMode={groupMode} setGroupMode={setGroupMode} />
+          <DragableList
+            list={assistants}
+            onUpdate={updateAssistants}
+            style={{ paddingBottom: dragging ? '34px' : 0 }}
+            onDragStart={() => setDragging(true)}
+            onDragEnd={() => setDragging(false)}>
+            {(assistant) => (
+              <AssistantItem
+                key={assistant.id}
+                assistant={assistant}
+                isActive={assistant.id === activeAssistant.id}
+                onSwitch={setActiveAssistant}
+                onDelete={onDelete}
+                addAgent={addAgent}
+                addAssistant={addAssistant}
+                onCreateDefaultAssistant={onCreateDefaultAssistant}
+              />
+            )}
+          </DragableList>
+          {!dragging && (
+            <AssistantAddItem onClick={onCreateAssistant}>
+              <AssistantName>
+                <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+                {t('chat.add.assistant.title')}
+              </AssistantName>
+            </AssistantAddItem>
+          )}
+        </>
       )}
+
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )
