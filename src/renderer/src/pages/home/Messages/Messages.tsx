@@ -225,7 +225,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   return (
     <Container
       id="messages"
-      style={{ maxWidth }}
+      style={{ maxWidth, paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
       ref={containerRef}
       $right={topicPosition === 'left'}>
@@ -319,7 +319,7 @@ interface ContainerProps {
 const Container = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0 10px;
+  padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;

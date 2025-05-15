@@ -53,6 +53,7 @@ import {
   convertLinksToZhipu
 } from '@renderer/utils/linkConverter'
 import {
+  isEnabledToolUse,
   mcpToolCallResponseToOpenAICompatibleMessage,
   mcpToolsToOpenAIChatTools,
   openAIToolsToMcpTool,
@@ -351,7 +352,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
 
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBultinWebSearch = assistant.enableWebSearch
     messages = addImageFileToContents(messages)
     const enableReasoning =
@@ -365,7 +366,11 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }
-    const { tools } = this.setupToolsConfig<ChatCompletionTool>({ mcpTools, model, enableToolUse })
+    const { tools } = this.setupToolsConfig<ChatCompletionTool>({
+      mcpTools,
+      model,
+      enableToolUse: isEnabledToolUse(assistant)
+    })
 
     if (this.useSystemPromptForTools) {
       systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
@@ -1192,11 +1197,15 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     await this.checkIsCopilot()
 
-    const data = await this.sdk.embeddings.create({
-      model: model.id,
-      input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
-    })
-    return data.data[0].embedding.length
+    try {
+      const data = await this.sdk.embeddings.create({
+        model: model.id,
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
+      })
+      return data.data[0].embedding.length
+    } catch (e) {
+      return 0
+    }
   }
 
   public async checkIsCopilot() {
