@@ -1,6 +1,5 @@
 import { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { VoyageEmbeddings as _VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
-import Logger from 'electron-log'
 
 export default class VoyageEmbeddings extends BaseEmbeddings {
   private model: _VoyageEmbeddings
@@ -12,7 +11,6 @@ export default class VoyageEmbeddings extends BaseEmbeddings {
     if (!this.configuration.outputDimension) {
       throw new Error('You need to pass in the optional dimensions parameter for this model')
     }
-    Logger.log('VoyageEmbeddings', this.configuration)
     this.model = new _VoyageEmbeddings(this.configuration)
   }
   override async getDimensions(): Promise<number> {
