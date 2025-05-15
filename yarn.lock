@@ -4499,7 +4499,6 @@ __metadata:
     turndown: "npm:^7.2.0"
     turndown-plugin-gfm: "npm:^1.0.2"
     typescript: "npm:^5.6.2"
-    undici: "npm:^7.4.0"
     uuid: "npm:^10.0.0"
     vite: "npm:6.2.6"
     vitest: "npm:^3.1.1"
@@ -17002,7 +17001,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:>=6, undici@npm:^7.4.0":
+"undici@npm:>=6":
   version: 7.8.0
   resolution: "undici@npm:7.8.0"
   checksum: 10c0/7141f63ea405208a88120d211d83d77bf21327b16b451d3149fb266c28884fbcf78ec370ac2d3412a0e68ba6132ab85265ba85a2f4fde24cb47dc77f5c5a158c
