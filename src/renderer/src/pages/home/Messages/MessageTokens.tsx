@@ -44,7 +44,10 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
       <MessageMetadata className={`message-tokens ${hasMetrics ? 'has-metrics' : ''}`} onClick={locateMessage}>
         <span className="metrics">{metrixs}</span>
         <span className="tokens">
-          Tokens: {message?.usage?.total_tokens} ↑{message?.usage?.prompt_tokens} ↓{message?.usage?.completion_tokens}
+          Tokens:
+          <span>{message?.usage?.total_tokens}</span>
+          <span>↑{message?.usage?.prompt_tokens}</span>
+          <span>↓{message?.usage?.completion_tokens}</span>
         </span>
       </MessageMetadata>
     )
@@ -67,6 +70,10 @@ const MessageMetadata = styled.div`
 
   .tokens {
     display: block;
+
+    span {
+      padding: 0 2px;
+    }
   }
 
   &.has-metrics:hover {

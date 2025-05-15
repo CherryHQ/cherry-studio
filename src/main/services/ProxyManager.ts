@@ -1,8 +1,7 @@
 import { ProxyConfig as _ProxyConfig, session } from 'electron'
-import { socksDispatcher } from 'fetch-socks'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
-import { ProxyAgent, setGlobalDispatcher } from 'undici'
+// import { ProxyAgent, setGlobalDispatcher } from 'undici'
 
 type ProxyMode = 'system' | 'custom' | 'none'
 
@@ -121,22 +120,22 @@ export class ProxyManager {
     return this.config.url || ''
   }
 
-  setGlobalProxy() {
-    const proxyUrl = this.config.url
-    if (proxyUrl) {
-      const [protocol, address] = proxyUrl.split('://')
-      const [host, port] = address.split(':')
-      if (!protocol.includes('socks')) {
-        setGlobalDispatcher(new ProxyAgent(proxyUrl))
-      } else {
-        global[Symbol.for('undici.globalDispatcher.1')] = socksDispatcher({
-          port: parseInt(port),
-          type: protocol === 'socks5' ? 5 : 4,
-          host: host
-        })
-      }
-    }
-  }
+  // setGlobalProxy() {
+  //   const proxyUrl = this.config.url
+  //   if (proxyUrl) {
+  //     const [protocol, address] = proxyUrl.split('://')
+  //     const [host, port] = address.split(':')
+  //     if (!protocol.includes('socks')) {
+  //       setGlobalDispatcher(new ProxyAgent(proxyUrl))
+  //     } else {
+  //       global[Symbol.for('undici.globalDispatcher.1')] = socksDispatcher({
+  //         port: parseInt(port),
+  //         type: protocol === 'socks5' ? 5 : 4,
+  //         host: host
+  //       })
+  //     }
+  //   }
+  // }
 }
 
 export const proxyManager = new ProxyManager()
