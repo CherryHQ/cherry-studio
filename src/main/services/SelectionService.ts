@@ -300,7 +300,7 @@ export class SelectionService {
 
   /**
    * Show toolbar at specified position with given orientation
-   * @param point Reference point for positioning
+   * @param point Reference point for positioning, logical coordinates
    * @param orientation Preferred position relative to reference point
    */
   private showToolbarAtPosition(point: Point, orientation: RelativeOrientation) {
@@ -465,6 +465,7 @@ export class SelectionService {
 
     // Determine reference point and position for toolbar
     let refPoint: { x: number; y: number } = { x: 0, y: 0 }
+    let isLogical = false
     let refOrientation: RelativeOrientation = 'bottomRight'
 
     switch (selectionData.posLevel) {
@@ -473,6 +474,7 @@ export class SelectionService {
           const cursorPoint = screen.getCursorScreenPoint()
           refPoint = { x: cursorPoint.x, y: cursorPoint.y }
           refOrientation = 'bottomMiddle'
+          isLogical = true
         }
         break
       case SelectionHook?.PositionLevel.MOUSE_SINGLE:
@@ -576,6 +578,10 @@ export class SelectionService {
         break
     }
 
+    if (!isLogical) {
+      refPoint = screen.screenToDipPoint(refPoint)
+    }
+
     this.showToolbarAtPosition(refPoint, refOrientation)
     this.toolbarWindow?.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
   }
@@ -630,9 +636,12 @@ export class SelectionService {
       return
     }
 
+    //data point is physical coordinates, convert to logical coordinates
+    const mousePoint = screen.dipToScreenPoint({ x: data.x, y: data.y })
+
     const bounds = this.toolbarWindow!.getBounds()
-    const adjustedMouseX = Math.round(data.x)
-    const adjustedMouseY = Math.round(data.y)
+    const adjustedMouseX = Math.round(mousePoint.x)
+    const adjustedMouseY = Math.round(mousePoint.y)
 
     // Check if click is outside toolbar
     const isInsideToolbar =
@@ -868,6 +877,9 @@ export class SelectionService {
 
         this.isCtrlkeyListenerActive = true
       }
+
+      this.selectionHook!.disableClipboard()
+      this.selectionHook!.setSelectionPassiveMode(true)
     }
   }
 

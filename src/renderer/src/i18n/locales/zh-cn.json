@@ -1708,7 +1708,7 @@
           "trigger_mode": {
             "title": "触发方式",
             "description": "划词立即显示工具栏，或者划词后按住 Ctrl 键才显示工具栏。",
-            "description_note": "注意：在某些应用中可能无法通过 Ctrl 键调出工具栏。",
+            "description_note": "注意：少数应用不支持通过 Ctrl 键调出工具栏。",
             "selected": "划词",
             "ctrlkey": "Ctrl 键"
           },
