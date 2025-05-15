@@ -189,7 +189,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         return
       }
 
-      if (ctx.multiple && isAssistiveKeyPressed) return
+      if (ctx.multiple || isAssistiveKeyPressed) return
 
       handleClose(action)
     },
