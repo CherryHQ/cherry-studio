@@ -1,3 +1,4 @@
+import store from '@renderer/store'
 import dayjs from 'dayjs'
 import timezone from 'dayjs/plugin/timezone'
 import utc from 'dayjs/plugin/utc'
@@ -77,7 +78,6 @@ class PredefinedVariablesService {
         }
       ]
     }
-
     const localGroup: VariableGroup = {
       id: 'local',
       name: t('variable.group.local'),
@@ -119,7 +119,19 @@ class PredefinedVariablesService {
       ]
     }
 
-    this.groups = [dateGroup, localGroup]
+    const userGroup: VariableGroup = {
+      id: 'user',
+      name: t('variable.group.user'),
+      variables: [
+        {
+          id: 'user.name',
+          name: 'user.name',
+          description: t('variable.variables.user.name'),
+          getValue: () => store.getState().settings.userName || 'User'
+        }
+      ]
+    }
+    this.groups = [userGroup, dateGroup, localGroup]
   }
 
   public getAllGroups(): VariableGroup[] {

@@ -301,7 +301,8 @@
       "no_results": "No variables found",
       "group": {
         "date": "Date and Time",
-        "local": "Local System"
+        "local": "Local System",
+        "user" : "User"
       },
       "variables": {
         "date": {
@@ -316,6 +317,9 @@
         "local": {
           "os_info": "System Information",
           "hardware_info": "Hardware Information"
+        },
+        "user": {
+          "name": "User Name"
         }
       }
     },

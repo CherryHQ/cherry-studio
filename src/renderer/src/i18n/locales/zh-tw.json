@@ -301,7 +301,8 @@
       "no_results": "未找到變量",
       "group": {
         "date": "日期和時間",
-        "local": "本地系統"
+        "local": "本地系統",
+        "user" : "用戶"
       },
       "variables": {
         "date": {
@@ -316,6 +317,9 @@
         "local": {
           "os_info": "系統信息",
           "hardware_info": "硬件信息"
+        },
+        "user": {
+          "name": "用戶名稱"
         }
       }
     },

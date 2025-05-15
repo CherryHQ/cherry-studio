@@ -301,7 +301,8 @@
       "no_results": "変数が見つかりません",
       "group": {
         "date": "日付と時間",
-        "local": "ローカルシステム"
+        "local": "ローカルシステム",
+        "user" : "ユーザー"
       },
       "variables": {
         "date": {
@@ -316,6 +317,9 @@
         "local": {
           "os_info": "システム情報",
           "hardware_info": "ハードウェア情報"
+        },
+        "user": {
+          "name": "ユーザー名"
         }
       }
     },
