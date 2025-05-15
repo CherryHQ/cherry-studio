@@ -1624,7 +1624,21 @@
         "title": "ページズーム",
         "reset": "リセット"
       },
-      "input.show_translate_confirm": "翻訳確認ダイアログを表示"
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示",
+      "openai": {
+        "title": "OpenAIの設定",
+        "summary_text_mode.title": "要約モード",
+        "summary_text_mode.tip": "モデルが行った推論の要約",
+        "summary_text_mode.auto": "自動",
+        "summary_text_mode.concise": "簡潔",
+        "summary_text_mode.detailed": "詳細",
+        "summary_text_mode.off": "オフ",
+        "service_tier.title": "サービスティア",
+        "service_tier.tip": "リクエスト処理に使用するレイテンシティアを指定します",
+        "service_tier.auto": "自動",
+        "service_tier.default": "デフォルト",
+        "service_tier.flex": "フレックス"
+      }
     },
     "translate": {
       "any.language": "任意の言語",

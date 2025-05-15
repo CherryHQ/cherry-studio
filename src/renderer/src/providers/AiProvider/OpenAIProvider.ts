@@ -459,6 +459,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             keep_alive: this.keepAliveTime,
             stream: isSupportStreamOutput(),
             tools: !isEmpty(tools) ? tools : undefined,
+            service_tier: this.getServiceTier(model),
             ...getOpenAIWebSearchParams(assistant, model),
             ...this.getReasoningEffort(assistant, model),
             ...this.getProviderSpecificParameters(assistant, model),

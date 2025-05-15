@@ -2245,6 +2245,20 @@ export function isOpenAILLMModel(model: Model): boolean {
   return false
 }
 
+export function isOpenAIModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('gpt') || isOpenAIReasoningModel(model)
+}
+
+export function isSupportedFlexServiceTier(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return (model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')
+}
+
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (model.id.includes('o1') && !(model.id.includes('o1-preview') || model.id.includes('o1-mini'))) ||
