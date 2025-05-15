@@ -8,8 +8,8 @@ import { CompletionsParams } from '.'
 import AnthropicProvider from './AnthropicProvider'
 import BaseProvider from './BaseProvider'
 import GeminiProvider from './GeminiProvider'
-import OpenAICompatibleProvider from './OpenAICompatibleProvider'
 import OpenAIProvider from './OpenAIProvider'
+import OpenAIResponseProvider from './OpenAIResponseProvider'
 
 /**
  * AihubmixProvider - 根据模型类型自动选择合适的提供商
@@ -26,8 +26,8 @@ export default class AihubmixProvider extends BaseProvider {
     // 初始化各个提供商
     this.providers.set('claude', new AnthropicProvider(provider))
     this.providers.set('gemini', new GeminiProvider({ ...provider, apiHost: 'https://aihubmix.com/gemini' }))
-    this.providers.set('openai', new OpenAIProvider(provider))
-    this.providers.set('default', new OpenAICompatibleProvider(provider))
+    this.providers.set('openai', new OpenAIResponseProvider(provider))
+    this.providers.set('default', new OpenAIProvider(provider))
 
     // 设置默认提供商
     this.defaultProvider = this.providers.get('default')!

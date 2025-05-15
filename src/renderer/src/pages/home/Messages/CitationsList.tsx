@@ -1,9 +1,10 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { fetchWebContent } from '@renderer/utils/fetch'
+import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Button, Drawer, Skeleton } from 'antd'
-import { FileSearch } from 'lucide-react'
+import { Button, Drawer, message, Skeleton } from 'antd'
+import { Check, Copy, FileSearch } from 'lucide-react'
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -42,21 +43,6 @@ const queryClient = new QueryClient({
 const truncateText = (text: string, maxLength = 100) => {
   if (!text) return ''
   return text.length > maxLength ? text.slice(0, maxLength) + '...' : text
-}
-
-/**
- * 清理Markdown内容
- * @param text
- */
-const cleanMarkdownContent = (text: string): string => {
-  if (!text) return ''
-  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '')
-  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1')
-  cleaned = cleaned.replace(/https?:\/\/\S+/g, '')
-  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ')
-  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '')
-  cleaned = cleaned.replace(/\s+/g, ' ').trim()
-  return cleaned
 }
 
 const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
@@ -115,6 +101,27 @@ const handleLinkClick = (url: string, event: React.MouseEvent) => {
   else window.api.file.openPath(url)
 }
 
+const CopyButton: React.FC<{ content: string }> = ({ content }) => {
+  const [copied, setCopied] = useState(false)
+  const { t } = useTranslation()
+
+  const handleCopy = () => {
+    if (!content) return
+    navigator.clipboard
+      .writeText(content)
+      .then(() => {
+        setCopied(true)
+        message.success(t('common.copied'))
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(() => {
+        message.error(t('message.copy.failed'))
+      })
+  }
+
+  return <CopyIconWrapper onClick={handleCopy}>{copied ? <Check size={14} /> : <Copy size={14} />}</CopyIconWrapper>
+}
+
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
@@ -136,6 +143,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
           {citation.title || <span className="hostname">{citation.hostname}</span>}
         </CitationLink>
+        {fetchedContent && <CopyButton content={fetchedContent} />}
       </WebSearchCardHeader>
       {isLoading ? (
         <Skeleton active paragraph={{ rows: 1 }} title={false} />
@@ -153,6 +161,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
       <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
         {citation.title}
       </CitationLink>
+      {citation.content && <CopyButton content={citation.content} />}
     </WebSearchCardHeader>
     <WebSearchCardContent>{citation.content && truncateText(citation.content, 100)}</WebSearchCardContent>
   </WebSearchCard>
@@ -203,6 +212,23 @@ const CitationLink = styled.a`
   }
 `
 
+const CopyIconWrapper = styled.div`
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-2);
+  opacity: 0.6;
+  margin-left: auto;
+  padding: 4px;
+  border-radius: 4px;
+
+  &:hover {
+    opacity: 1;
+    background-color: var(--color-background-soft);
+  }
+`
+
 const WebSearchCard = styled.div`
   display: flex;
   flex-direction: column;
@@ -219,6 +245,7 @@ const WebSearchCardHeader = styled.div`
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
+  width: 100%;
 `
 
 const WebSearchCardContent = styled.div`

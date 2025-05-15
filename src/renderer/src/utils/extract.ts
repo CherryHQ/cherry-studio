@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser'
+
 export interface ExtractResults {
   websearch?: WebsearchExtractResults
   knowledge?: KnowledgeExtractResults
@@ -27,7 +28,6 @@ export const extractInfoFromXML = (text: string): ExtractResults => {
       return name === 'question' || name === 'links'
     }
   })
-  const extractResults: ExtractResults = parser.parse(text)
   // Logger.log('Extracted results:', extractResults)
-  return extractResults
+  return parser.parse(text)
 }

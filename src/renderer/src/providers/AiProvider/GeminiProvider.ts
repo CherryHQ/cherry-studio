@@ -379,8 +379,8 @@ export default class GeminiProvider extends BaseProvider {
       safetySettings: this.getSafetySettings(),
       // generate image don't need system instruction
       systemInstruction: isGemmaModel(model) ? undefined : systemInstruction,
-      temperature: assistant?.settings?.temperature,
-      topP: assistant?.settings?.topP,
+      temperature: this.getTemperature(assistant, model),
+      topP: this.getTopP(assistant, model),
       maxOutputTokens: maxTokens,
       tools: tools,
       ...this.getBudgetToken(assistant, model),
@@ -633,6 +633,9 @@ export default class GeminiProvider extends BaseProvider {
       }
     }
 
+    // 在发起请求之前开始计时
+    const start_time_millsec = new Date().getTime()
+
     if (!streamOutput) {
       const response = await chat.sendMessage({
         message: messageContents as PartUnion,
@@ -646,7 +649,6 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-    const start_time_millsec = new Date().getTime()
     const userMessagesStream = await chat.sendMessageStream({
       message: messageContents as PartUnion,
       config: {

@@ -262,7 +262,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
-    if (provider.type === 'openai-compatible') {
+    if (provider.type === 'openai') {
       return formatApiHost(apiHost) + 'chat/completions'
     }
     return formatApiHost(apiHost) + 'responses'

@@ -213,7 +213,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         hasCitationData = true
         citationDataToCreate.response = {
           results: oldMessage.metadata.annotations,
-          source: WebSearchSource.OPENAI
+          source: WebSearchSource.OPENAI_RESPONSE
         }
       }
       if (oldMessage.metadata?.citations?.length) {

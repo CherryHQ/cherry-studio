@@ -44,6 +44,9 @@
       "my_agents": "My Agents",
       "search.no_results": "No results found",
       "sorting.title": "Sorting",
+      "settings": {
+        "title": "Agent Setting"
+      },
       "tag.agent": "Agent",
       "tag.default": "Default",
       "tag.new": "New",
@@ -205,6 +208,7 @@
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
+      "settings.max_contexts": "More Contexts Length",
       "settings.max_tokens": "Enable max tokens limit",
       "settings.max_tokens.confirm": "Enable max tokens limit",
       "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
@@ -1526,6 +1530,7 @@
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
+        "exit_fullscreen": "Exit Fullscreen",
         "key": "Key",
         "mini_window": "Quick Assistant",
         "new_topic": "New Topic",
