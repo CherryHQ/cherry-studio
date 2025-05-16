@@ -262,7 +262,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
-    if (provider.type === 'openai-compatible') {
+    if (provider.type === 'openai') {
       return formatApiHost(apiHost) + 'chat/completions'
     }
     return formatApiHost(apiHost) + 'responses'
@@ -404,7 +404,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <HStack alignItems="center" gap={5}>
+          <HStack alignItems="center" gap={8} mb={5}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </HStack>

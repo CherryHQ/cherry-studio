@@ -554,6 +554,7 @@ const migrateConfig = {
   },
   '39': (state: RootState) => {
     try {
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeStyle = 'auto'
       return state
     } catch (error) {
@@ -1179,9 +1180,13 @@ const migrateConfig = {
   },
   '91': (state: RootState) => {
     try {
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheable = false
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheMaxSize = 1000
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheTTL = 15
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheThreshold = 2
       addProvider(state, 'qiniu')
       return state
@@ -1270,6 +1275,7 @@ const migrateConfig = {
       addFlowEngineProvider(state, 'dify')
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'openai' && provider.id !== 'openai') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'openai-compatible'
         }
       })
@@ -1305,6 +1311,81 @@ const migrateConfig = {
           return provider
         })
       }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '100': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        // @ts-ignore eslint-disable-next-line
+        if (['openai-compatible', 'openai'].includes(provider.type)) {
+          provider.type = 'openai'
+        }
+        if (provider.id === 'openai') {
+          provider.type = 'openai-response'
+        }
+      })
+      state.assistants.assistants.forEach((assistant) => {
+        assistant.knowledgeRecognition = 'off'
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '101': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings) {
+          // @ts-ignore eslint-disable-next-line
+          if (assistant.settings.enableToolUse) {
+            // @ts-ignore eslint-disable-next-line
+            assistant.settings.toolUseMode = assistant.settings.enableToolUse ? 'function' : 'prompt'
+            // @ts-ignore eslint-disable-next-line
+            delete assistant.settings.enableToolUse
+          }
+        }
+      })
+      if (state.shortcuts) {
+        state.shortcuts.shortcuts.push({
+          key: 'exit_fullscreen',
+          shortcut: ['Escape'],
+          editable: false,
+          enabled: true,
+          system: true
+        })
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '102': (state: RootState) => {
+    try {
+      state.settings.codeExecution = settingsInitialState.codeExecution
+      state.settings.codeEditor = settingsInitialState.codeEditor
+      state.settings.codePreview = settingsInitialState.codePreview
+
+      // @ts-ignore eslint-disable-next-line
+      if (state.settings.codeStyle) {
+        // @ts-ignore eslint-disable-next-line
+        state.settings.codePreview.themeLight = state.settings.codeStyle
+        // @ts-ignore eslint-disable-next-line
+        state.settings.codePreview.themeDark = state.settings.codeStyle
+      }
+
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeStyle
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheable
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheMaxSize
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheTTL
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheThreshold
       return state
     } catch (error) {
       return state

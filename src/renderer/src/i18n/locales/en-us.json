@@ -44,6 +44,9 @@
       "my_agents": "My Agents",
       "search.no_results": "No results found",
       "sorting.title": "Sorting",
+      "settings": {
+        "title": "Agent Setting"
+      },
       "tag.agent": "Agent",
       "tag.default": "Default",
       "tag.new": "New",
@@ -85,6 +88,9 @@
       "settings.knowledge_base.recognition": "Use Knowledge Base",
       "settings.knowledge_base.recognition.off": "Force Search",
       "settings.knowledge_base.recognition.on": "Intent Recognition",
+      "settings.tool_use_mode": "Tool Use Mode",
+      "settings.tool_use_mode.function": "Function",
+      "settings.tool_use_mode.prompt": "Prompt",
       "settings.regular_phrases": {
         "title": "Regular Phrase",
         "add": "Add Phrase",
@@ -192,6 +198,20 @@
       },
       "resend": "Resend",
       "save": "Save",
+      "settings.code.title": "Code Block Settings",
+      "settings.code_editor": {
+        "title": "Code Editor",
+        "highlight_active_line": "Highlight active line",
+        "fold_gutter": "Fold gutter",
+        "autocompletion": "Autocompletion",
+        "keymap": "Keymap"
+      },
+      "settings.code_execution": {
+        "title": "Code Execution",
+        "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
+        "timeout_minutes": "Timeout",
+        "timeout_minutes.tip": "The timeout time (minutes) of code execution"
+      },
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
       "settings.code_cacheable": "Code block cache",
@@ -205,9 +225,9 @@
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
-      "settings.max_tokens": "Enable max tokens limit",
-      "settings.max_tokens.confirm": "Enable max tokens limit",
-      "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
+      "settings.max_tokens": "Set max tokens",
+      "settings.max_tokens.confirm": "Set max tokens",
+      "settings.max_tokens.confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.max_tokens.tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.reset": "Reset",
       "settings.set_as_default": "Apply to default assistant",
@@ -297,9 +317,32 @@
     },
     "code_block": {
       "collapse": "Collapse",
-      "disable_wrap": "Unwrap",
-      "enable_wrap": "Wrap",
-      "expand": "Expand"
+      "copy.failed": "Copy failed",
+      "copy.source": "Copy Source Code",
+      "copy.success": "Copied",
+      "copy": "Copy",
+      "download.failed.network": "Download failed, please check the network",
+      "download.png": "Download PNG",
+      "download.source": "Download Source Code",
+      "download.svg": "Download SVG",
+      "download": "Download",
+      "edit.save.failed.message_not_found": "Save failed, message not found",
+      "edit.save.failed": "Save failed",
+      "edit.save.success": "Saved",
+      "edit.save": "Save Changes",
+      "edit": "Edit",
+      "expand": "Expand",
+      "more": "More",
+      "preview.copy.image": "Copy as image",
+      "preview.source": "View Source Code",
+      "preview.zoom_in": "Zoom In",
+      "preview.zoom_out": "Zoom Out",
+      "preview": "Preview",
+      "run": "Run",
+      "split.restore": "Restore Split View",
+      "split": "Split View",
+      "wrap.off": "Unwrap",
+      "wrap.on": "Wrap"
     },
     "common": {
       "add": "Add",
@@ -519,21 +562,6 @@
       "keep_alive_time.placeholder": "Minutes",
       "keep_alive_time.title": "Keep Alive Time",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "resize": {
-        "zoom-in": "Zoom In",
-        "zoom-out": "Zoom Out"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "Mermaid Diagram"
     },
     "message": {
       "agents": {
@@ -818,18 +846,6 @@
         "seed_tip": "Controls upscaling randomness",
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       }
-    },
-    "plantuml": {
-      "download": {
-        "failed": "Download failed, please check the network",
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "PlantUML Diagram"
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -1526,6 +1542,7 @@
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
+        "exit_fullscreen": "Exit Fullscreen",
         "key": "Key",
         "mini_window": "Quick Assistant",
         "new_topic": "New Topic",

@@ -551,10 +551,22 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onImageCreated: () => {
-        const imageBlock = createImageBlock(assistantMsgId, {
-          status: MessageBlockStatus.PROCESSING
-        })
-        handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+        if (lastBlockId) {
+          if (lastBlockType === MessageBlockType.UNKNOWN) {
+            const initialChanges: Partial<MessageBlock> = {
+              type: MessageBlockType.IMAGE,
+              status: MessageBlockStatus.STREAMING
+            }
+            lastBlockType = MessageBlockType.IMAGE
+            dispatch(updateOneBlock({ id: lastBlockId, changes: initialChanges }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          } else {
+            const imageBlock = createImageBlock(assistantMsgId, {
+              status: MessageBlockStatus.PROCESSING
+            })
+            handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+          }
+        }
       },
       onImageGenerated: (imageData) => {
         const imageUrl = imageData.images?.[0] || 'placeholder_image_url'
@@ -759,6 +771,7 @@ export const loadTopicMessagesThunk =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
+    dispatch(newMessagesActions.setCurrentTopicId(topicId))
 
     if (topicMessagesExist && !forceReload) {
       return
@@ -766,6 +779,11 @@ export const loadTopicMessagesThunk =
 
     try {
       const topic = await db.topics.get(topicId)
+
+      if (!topic) {
+        await db.topics.add({ id: topicId, messages: [] })
+      }
+
       const messagesFromDB = topic?.messages || []
 
       if (messagesFromDB.length > 0) {
@@ -1032,10 +1050,21 @@ export const regenerateAssistantResponseThunk =
       const blockIdsToDelete = [...(messageToResetEntity.blocks || [])]
 
       // 5. Reset the message entity in Redux
-      const resetAssistantMsg = resetAssistantMessage(messageToResetEntity, {
-        status: AssistantMessageStatus.PENDING,
-        updatedAt: new Date().toISOString()
-      })
+      const resetAssistantMsg = resetAssistantMessage(
+        messageToResetEntity,
+        // Grouped message (mentioned model message) should not reset model and modelId, always use the original model
+        assistantMessageToRegenerate.modelId
+          ? {
+              status: AssistantMessageStatus.PENDING,
+              updatedAt: new Date().toISOString()
+            }
+          : {
+              status: AssistantMessageStatus.PENDING,
+              updatedAt: new Date().toISOString(),
+              model: assistant.model
+            }
+      )
+
       dispatch(
         newMessagesActions.updateMessage({
           topicId,

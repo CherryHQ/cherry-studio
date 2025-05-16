@@ -1,5 +1,5 @@
 import Logger from '@renderer/config/logger'
-import { isFunctionCallingModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isNotSupportTemperatureAndTopP } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import type {
@@ -101,6 +101,14 @@ export default abstract class BaseProvider {
 
   public get keepAliveTime() {
     return this.provider.id === 'lmstudio' ? getLMStudioKeepAliveTime() : undefined
+  }
+
+  public getTemperature(assistant: Assistant, model: Model): number | undefined {
+    return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.temperature
+  }
+
+  public getTopP(assistant: Assistant, model: Model): number | undefined {
+    return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.topP
   }
 
   public async fakeCompletions({ onChunk }: CompletionsParams) {
