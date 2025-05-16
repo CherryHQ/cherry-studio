@@ -8,7 +8,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
-import { getFolderSizeBin } from 'go-get-folder-size'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
@@ -30,7 +29,7 @@ import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
@@ -184,14 +183,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
     const cachePath = getCacheDir()
-    const size = await getFolderSizeBin(cachePath, true, {
-      // ignore files that we can't access
-      loose: true
-    }).catch((err) => {
-      log.error('Failed to get cache size:', err)
-    })
+    log.info(`Calculating cache size for path: ${cachePath}`)
 
-    return size || '0MB'
+    try {
+      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
+      return `${sizeInMB}`
+    } catch (error: any) {
+      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      return '0'
+    }
   })
 
   // check for update

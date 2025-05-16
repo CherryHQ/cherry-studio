@@ -98,7 +98,10 @@
       "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
       "settings.knowledge_base.recognition.off": "強制検索",
-      "settings.knowledge_base.recognition.on": "意図認識"
+      "settings.knowledge_base.recognition.on": "意図認識",
+      "settings.tool_use_mode": "工具調用方式",
+      "settings.tool_use_mode.function": "関数",
+      "settings.tool_use_mode.prompt": "提示詞"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -222,10 +225,9 @@
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
-      "settings.max_contexts": "より長いコンテキスト制限",
-      "settings.max_tokens": "最大トークン制限を有効にする",
-      "settings.max_tokens.confirm": "最大トークン制限を有効にする",
-      "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
+      "settings.max_tokens": "最大トークン数",
+      "settings.max_tokens.confirm": "最大トークン数",
+      "settings.max_tokens.confirm_content": "最大トークン数を設定すると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.max_tokens.tip": "モデルが生成できる最大トークン数。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.reset": "リセット",
       "settings.set_as_default": "デフォルトのアシスタントに適用",

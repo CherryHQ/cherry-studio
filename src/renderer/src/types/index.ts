@@ -50,18 +50,17 @@ export const EFFORT_RATIO: EffortRatio = {
 
 export type AssistantSettings = {
   contextCount: number
-  enableMaxContexts: boolean
   temperature: number
   topP: number
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
-  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
   qwenThinkMode?: boolean
+  toolUseMode?: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {

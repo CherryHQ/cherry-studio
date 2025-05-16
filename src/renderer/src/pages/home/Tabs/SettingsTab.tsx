@@ -5,8 +5,6 @@ import {
   DEFAULT_CONTEXTCOUNT,
   DEFAULT_MAX_TOKENS,
   DEFAULT_TEMPERATURE,
-  EXTENDED_CONTEXT_LIMIT,
-  EXTENDED_CONTEXT_STEP,
   isMac,
   isWindows
 } from '@renderer/config/constant'
@@ -16,7 +14,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -53,7 +50,7 @@ import {
   TranslateLanguageVarious
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, Divider, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -70,12 +67,10 @@ const SettingsTab: FC<Props> = (props) => {
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [enableMaxContexts, setEnableMaxContexts] = useState(assistant?.settings?.enableMaxContexts ?? false)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
-  const [enableToolUse, setEnableToolUse] = useState(assistant?.settings?.enableToolUse ?? false)
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -182,20 +177,10 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value.toString()
-  }
+  const assistantContextCount = assistant?.settings?.contextCount || 20
+  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
 
-  const validAndChangeContextCount = (contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT) => {
-    if ((typeof contextCount === 'number' ? contextCount : 0) > (enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10)) {
-      return enableMaxContexts ? EXTENDED_CONTEXT_LIMIT : 10
-    } else {
-      return typeof contextCount === 'number' ? contextCount : 0
-    }
-  }
-
-  const container = (
+  return (
     <Container className="settings-tab">
       <CollapsibleSettingGroup
         title={t('assistants.settings.title')}
@@ -706,22 +691,6 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
     </Container>
   )
-  EventEmitter.on(EVENT_NAMES.MAX_CONTEXTS_CHANGED, ({ check, context }): any => {
-    setEnableMaxContexts(check)
-    updateAssistantSettings({ enableMaxContexts: check })
-
-    // Ensure contextCount is within the new valid range
-    let newContextCount = context
-    if (!check && newContextCount > 10) {
-      newContextCount = 10
-    } else if (check && newContextCount > EXTENDED_CONTEXT_LIMIT) {
-      newContextCount = EXTENDED_CONTEXT_LIMIT
-    }
-
-    setContextCount(newContextCount)
-    onUpdateAssistantSettings({ contextCount: newContextCount })
-  })
-  return container
 }
 
 const Container = styled(Scrollbar)`

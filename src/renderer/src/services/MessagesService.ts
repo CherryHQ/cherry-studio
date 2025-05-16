@@ -41,7 +41,7 @@ export {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount
+  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
 
   const _messages = takeRight(messages, maxContextCount)
 

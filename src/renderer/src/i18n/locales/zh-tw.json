@@ -98,7 +98,10 @@
       "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",
-      "settings.knowledge_base.recognition.on": "意圖識別"
+      "settings.knowledge_base.recognition.on": "意圖識別",
+      "settings.tool_use_mode": "工具調用方式",
+      "settings.tool_use_mode.function": "函數",
+      "settings.tool_use_mode.prompt": "提示詞"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -222,10 +225,9 @@
       "settings.context_count": "上下文",
       "settings.context_count.tip": "在上下文中保留的前幾則訊息。",
       "settings.max": "最大",
-      "settings.max_contexts": "更多上下文長度限制",
-      "settings.max_tokens": "啟用最大 Token 限制",
-      "settings.max_tokens.confirm": "啟用訊息長度限制",
-      "settings.max_tokens.confirm_content": "啟用訊息長度限制後，單次互動所用的最大 Token 數，會影響返回結果的長度。要根據模型上下文限制來設定，否則會發生錯誤。",
+      "settings.max_tokens": "最大 Token 數",
+      "settings.max_tokens.confirm": "設置最大 Token 數",
+      "settings.max_tokens.confirm_content": "設置單次交互所用的最大 Token 數，會影響返回結果的長度。要根據模型上下文限制來設定，否則會發生錯誤。",
       "settings.max_tokens.tip": "模型可以生成的最大 Token 數。要根據模型上下文限制來設定，否則會發生錯誤。",
       "settings.reset": "重設",
       "settings.set_as_default": "設為預設助手",

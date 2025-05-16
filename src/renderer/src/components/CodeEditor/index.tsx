@@ -40,6 +40,7 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const initialContent = useRef(children?.trimEnd() ?? '')
   const [langExtension, setLangExtension] = useState<Extension[]>([])
+  const [editorReady, setEditorReady] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
   const { t } = useTranslation()
 
@@ -76,14 +77,11 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
         const scrollHeight = editorViewRef?.current?.scrollDOM?.scrollHeight
         return codeCollapsible && (scrollHeight ?? 0) > 350
       },
-      onClick: () => {
-        const newExpanded = !isExpanded
-        setIsExpanded(newExpanded)
-      }
+      onClick: () => setIsExpanded((prev) => !prev)
     })
 
-    return () => removeTool('expand')
-  }, [codeCollapsible, isExpanded, registerTool, removeTool, t])
+    return () => removeTool(TOOL_SPECS.expand.id)
+  }, [codeCollapsible, isExpanded, registerTool, removeTool, t, editorReady])
 
   // 自动换行工具
   useEffect(() => {
@@ -92,13 +90,10 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
       icon: isUnwrapped ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
       tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
       visible: () => codeWrappable,
-      onClick: () => {
-        const newUnwrapped = !isUnwrapped
-        setIsUnwrapped(newUnwrapped)
-      }
+      onClick: () => setIsUnwrapped((prev) => !prev)
     })
 
-    return () => removeTool('wrap')
+    return () => removeTool(TOOL_SPECS.wrap.id)
   }, [codeWrappable, isUnwrapped, registerTool, removeTool, t])
 
   const handleSave = useCallback(() => {
@@ -109,15 +104,13 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
   // 保存按钮
   useEffect(() => {
     registerTool({
-      id: 'save',
-      type: 'core',
+      ...TOOL_SPECS.save,
       icon: <SaveIcon className="icon" />,
       tooltip: t('code_block.edit.save'),
-      onClick: handleSave,
-      order: 3
+      onClick: handleSave
     })
 
-    return () => removeTool('save')
+    return () => removeTool(TOOL_SPECS.save.id)
   }, [handleSave, registerTool, removeTool, t])
 
   // 流式响应过程中计算 changes 来更新 EditorView
@@ -178,7 +171,10 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={enabledExtensions}
-      onCreateEditor={(view: EditorView) => (editorViewRef.current = view)}
+      onCreateEditor={(view: EditorView) => {
+        editorViewRef.current = view
+        setEditorReady(true)
+      }}
       onChange={(value, viewUpdate) => {
         if (onChange && viewUpdate.docChanged) onChange(value)
       }}

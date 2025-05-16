@@ -78,8 +78,8 @@ const StickyWrapper = styled.div`
 const ToolbarWrapper = styled(HStack)`
   position: absolute;
   align-items: center;
-  bottom: 0.2rem;
-  right: 1.5rem;
+  bottom: 0.3rem;
+  right: 0.5rem;
   height: 24px;
   gap: 4px;
 `
@@ -92,6 +92,7 @@ const ToolWrapper = styled.div`
   height: 24px;
   border-radius: 4px;
   cursor: pointer;
+  user-select: none;
   transition: all 0.2s ease;
   color: var(--color-text-3);
 

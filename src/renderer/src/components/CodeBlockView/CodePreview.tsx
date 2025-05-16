@@ -47,10 +47,10 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
         const scrollHeight = codeContentRef.current?.scrollHeight
         return codeCollapsible && (scrollHeight ?? 0) > 350
       },
-      onClick: () => setIsExpanded(!isExpanded)
+      onClick: () => setIsExpanded((prev) => !prev)
     })
 
-    return () => removeTool('expand')
+    return () => removeTool(TOOL_SPECS.expand.id)
   }, [codeCollapsible, isExpanded, registerTool, removeTool, t])
 
   // 自动换行工具
@@ -60,10 +60,10 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
       icon: isUnwrapped ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
       tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
       visible: () => codeWrappable,
-      onClick: () => setIsUnwrapped(!isUnwrapped)
+      onClick: () => setIsUnwrapped((prev) => !prev)
     })
 
-    return () => removeTool('wrap')
+    return () => removeTool(TOOL_SPECS.wrap.id)
   }, [codeWrappable, isUnwrapped, registerTool, removeTool, t])
 
   // 更新展开状态

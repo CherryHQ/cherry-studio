@@ -22,6 +22,11 @@ export const TOOL_SPECS: Record<string, CodeToolSpec> = {
     type: 'core',
     order: 12
   },
+  save: {
+    id: 'save',
+    type: 'core',
+    order: 13
+  },
   expand: {
     id: 'expand',
     type: 'core',
