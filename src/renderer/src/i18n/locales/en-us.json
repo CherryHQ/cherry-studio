@@ -198,6 +198,20 @@
       },
       "resend": "Resend",
       "save": "Save",
+      "settings.code.title": "Code Block Settings",
+      "settings.code_editor": {
+        "title": "Code Editor",
+        "highlight_active_line": "Highlight active line",
+        "fold_gutter": "Fold gutter",
+        "autocompletion": "Autocompletion",
+        "keymap": "Keymap"
+      },
+      "settings.code_execution": {
+        "title": "Code Execution",
+        "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
+        "timeout_minutes": "Timeout",
+        "timeout_minutes.tip": "The timeout time (minutes) of code execution"
+      },
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
       "settings.code_cacheable": "Code block cache",
@@ -303,9 +317,32 @@
     },
     "code_block": {
       "collapse": "Collapse",
-      "disable_wrap": "Unwrap",
-      "enable_wrap": "Wrap",
-      "expand": "Expand"
+      "copy.failed": "Copy failed",
+      "copy.source": "Copy Source Code",
+      "copy.success": "Copied",
+      "copy": "Copy",
+      "download.failed.network": "Download failed, please check the network",
+      "download.png": "Download PNG",
+      "download.source": "Download Source Code",
+      "download.svg": "Download SVG",
+      "download": "Download",
+      "edit.save.failed.message_not_found": "Save failed, message not found",
+      "edit.save.failed": "Save failed",
+      "edit.save.success": "Saved",
+      "edit.save": "Save Changes",
+      "edit": "Edit",
+      "expand": "Expand",
+      "more": "More",
+      "preview.copy.image": "Copy as image",
+      "preview.source": "View Source Code",
+      "preview.zoom_in": "Zoom In",
+      "preview.zoom_out": "Zoom Out",
+      "preview": "Preview",
+      "run": "Run",
+      "split.restore": "Restore Split View",
+      "split": "Split View",
+      "wrap.off": "Unwrap",
+      "wrap.on": "Wrap"
     },
     "common": {
       "add": "Add",
@@ -525,21 +562,6 @@
       "keep_alive_time.placeholder": "Minutes",
       "keep_alive_time.title": "Keep Alive Time",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "resize": {
-        "zoom-in": "Zoom In",
-        "zoom-out": "Zoom Out"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "Mermaid Diagram"
     },
     "message": {
       "agents": {
@@ -824,18 +846,6 @@
         "seed_tip": "Controls upscaling randomness",
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       }
-    },
-    "plantuml": {
-      "download": {
-        "failed": "Download failed, please check the network",
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "PlantUML Diagram"
     },
     "prompts": {
       "explanation": "Explain this concept to me",

@@ -212,6 +212,20 @@
       },
       "resend": "重新发送",
       "save": "保存",
+      "settings.code.title": "代码块设置",
+      "settings.code_editor": {
+        "title": "代码编辑器",
+        "highlight_active_line": "高亮当前行",
+        "fold_gutter": "折叠控件",
+        "autocompletion": "自动补全",
+        "keymap": "快捷键"
+      },
+      "settings.code_execution": {
+        "title": "代码执行",
+        "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
+        "timeout_minutes": "超时时间",
+        "timeout_minutes.tip": "代码执行超时时间（分钟）"
+      },
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_wrappable": "代码块可换行",
       "settings.code_cacheable": "代码块缓存",
@@ -303,9 +317,32 @@
     },
     "code_block": {
       "collapse": "收起",
-      "disable_wrap": "取消换行",
-      "enable_wrap": "换行",
-      "expand": "展开"
+      "copy.failed": "复制失败",
+      "copy.source": "复制源代码",
+      "copy.success": "复制成功",
+      "copy": "复制",
+      "download.failed.network": "下载失败，请检查网络",
+      "download.png": "下载 PNG",
+      "download.source": "下载源代码",
+      "download.svg": "下载 SVG",
+      "download": "下载",
+      "edit.save.failed.message_not_found": "保存失败，没有找到对应的消息",
+      "edit.save.failed": "保存失败",
+      "edit.save.success": "已保存",
+      "edit.save": "保存修改",
+      "edit": "编辑",
+      "expand": "展开",
+      "more": "更多",
+      "preview.copy.image": "复制为图片",
+      "preview.source": "查看源代码",
+      "preview.zoom_in": "放大",
+      "preview.zoom_out": "缩小",
+      "preview": "预览",
+      "run": "运行代码",
+      "split.restore": "取消分割视图",
+      "split": "分割视图",
+      "wrap.off": "取消换行",
+      "wrap.on": "换行"
     },
     "common": {
       "add": "添加",
@@ -525,21 +562,6 @@
       "keep_alive_time.placeholder": "分钟",
       "keep_alive_time.title": "保持活跃时间",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "resize": {
-        "zoom-in": "放大",
-        "zoom-out": "缩小"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "Mermaid 图表"
     },
     "message": {
       "agents": {
@@ -824,18 +846,6 @@
         "seed_tip": "控制放大结果的随机性",
         "magic_prompt_option_tip": "智能优化放大提示词"
       }
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "PlantUML 图表"
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",

@@ -73,7 +73,10 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: []
+      exclude: ['pyodide']
+    },
+    worker: {
+      format: 'es'
     },
     build: {
       rollupOptions: {
@@ -82,6 +85,16 @@ export default defineConfig({
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
           selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html')
+        },
+        output: {
+          manualChunks: (id) => {
+            // 检测所有 worker 文件，提取 worker 名称作为 chunk 名
+            if (id.includes('.worker') && id.endsWith('?worker')) {
+              const workerName = id.split('/').pop()?.split('.')[0] || 'worker'
+              return `workers/${workerName}`
+            }
+            return undefined
+          }
         }
       }
     }
