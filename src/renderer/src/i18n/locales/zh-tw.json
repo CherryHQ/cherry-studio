@@ -399,7 +399,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "no_results": "沒有結果"
     },
     "docs": {
       "title": "說明文件"

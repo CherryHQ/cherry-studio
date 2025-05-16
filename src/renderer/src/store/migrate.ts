@@ -1385,7 +1385,7 @@ const migrateConfig = {
           key: 'search_message_in_chat',
           shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
           editable: true,
-          enabled: false,
+          enabled: true,
           system: false
         })
         const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')

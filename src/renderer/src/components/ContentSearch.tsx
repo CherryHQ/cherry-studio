@@ -573,7 +573,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                 <SearchResultTotalCount>{totalCount}</SearchResultTotalCount>
               </>
             ) : (
-              <NoResults>无结果</NoResults>
+              <NoResults>{t('common.no_results')}</NoResults>
             )
           ) : (
             <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
@@ -635,7 +635,7 @@ const Separator = styled.div`
 const SearchResults = styled.div`
   display: flex;
   justify-content: center;
-  width: 60px; // 改进2: 固定宽度避免抖动
+  width: 80px;
   margin: 0 2px;
   flex: 0 0 auto;
   color: var(--color-text-secondary);

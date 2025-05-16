@@ -399,7 +399,8 @@
         "pinyin": "ピンインでソート",
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
-      }
+      },
+      "no_results": "検索結果なし"
     },
     "docs": {
       "title": "ドキュメント"
