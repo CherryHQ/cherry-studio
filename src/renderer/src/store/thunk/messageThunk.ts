@@ -734,6 +734,11 @@ export const loadTopicMessagesThunk =
 
     try {
       const topic = await db.topics.get(topicId)
+
+      if (!topic) {
+        await db.topics.add({ id: topicId, messages: [] })
+      }
+
       const messagesFromDB = topic?.messages || []
 
       if (messagesFromDB.length > 0) {

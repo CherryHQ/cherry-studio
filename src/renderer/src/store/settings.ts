@@ -50,17 +50,29 @@ export interface SettingsState {
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   renderInputMessageAsMarkdown: boolean
+  // 代码执行
+  codeExecution: {
+    enabled: boolean
+    timeoutMinutes: number
+  }
+  codeEditor: {
+    enabled: boolean
+    themeLight: string
+    themeDark: string
+    highlightActiveLine: boolean
+    foldGutter: boolean
+    autocompletion: boolean
+    keymap: boolean
+  }
+  codePreview: {
+    themeLight: CodeStyleVarious
+    themeDark: CodeStyleVarious
+  }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
-  // 代码块缓存
-  codeCacheable: boolean
-  codeCacheMaxSize: number
-  codeCacheTTL: number
-  codeCacheThreshold: number
   mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
-  codeStyle: CodeStyleVarious
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
@@ -164,16 +176,28 @@ export const initialState: SettingsState = {
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
+  codeExecution: {
+    enabled: false,
+    timeoutMinutes: 1
+  },
+  codeEditor: {
+    enabled: false,
+    themeLight: 'auto',
+    themeDark: 'auto',
+    highlightActiveLine: false,
+    foldGutter: false,
+    autocompletion: true,
+    keymap: false
+  },
+  codePreview: {
+    themeLight: 'auto',
+    themeDark: 'auto'
+  },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
-  codeCacheable: false,
-  codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
-  codeCacheTTL: 15, // 缓存过期时间，分钟
-  codeCacheThreshold: 2, // 允许缓存的最小代码长度，千字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
-  codeStyle: 'auto',
   foldDisplayMode: 'expanded',
   gridColumns: 2,
   gridPopoverTrigger: 'click',
@@ -353,6 +377,56 @@ const settingsSlice = createSlice({
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
     },
+    setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeExecution.enabled = action.payload.enabled
+      }
+      if (action.payload.timeoutMinutes !== undefined) {
+        state.codeExecution.timeoutMinutes = action.payload.timeoutMinutes
+      }
+    },
+    setCodeEditor: (
+      state,
+      action: PayloadAction<{
+        enabled?: boolean
+        themeLight?: string
+        themeDark?: string
+        highlightActiveLine?: boolean
+        foldGutter?: boolean
+        autocompletion?: boolean
+        keymap?: boolean
+      }>
+    ) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeEditor.enabled = action.payload.enabled
+      }
+      if (action.payload.themeLight !== undefined) {
+        state.codeEditor.themeLight = action.payload.themeLight
+      }
+      if (action.payload.themeDark !== undefined) {
+        state.codeEditor.themeDark = action.payload.themeDark
+      }
+      if (action.payload.highlightActiveLine !== undefined) {
+        state.codeEditor.highlightActiveLine = action.payload.highlightActiveLine
+      }
+      if (action.payload.foldGutter !== undefined) {
+        state.codeEditor.foldGutter = action.payload.foldGutter
+      }
+      if (action.payload.autocompletion !== undefined) {
+        state.codeEditor.autocompletion = action.payload.autocompletion
+      }
+      if (action.payload.keymap !== undefined) {
+        state.codeEditor.keymap = action.payload.keymap
+      }
+    },
+    setCodePreview: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
+      if (action.payload.themeLight !== undefined) {
+        state.codePreview.themeLight = action.payload.themeLight
+      }
+      if (action.payload.themeDark !== undefined) {
+        state.codePreview.themeDark = action.payload.themeDark
+      }
+    },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
     },
@@ -361,18 +435,6 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
-    },
-    setCodeCacheable: (state, action: PayloadAction<boolean>) => {
-      state.codeCacheable = action.payload
-    },
-    setCodeCacheMaxSize: (state, action: PayloadAction<number>) => {
-      state.codeCacheMaxSize = action.payload
-    },
-    setCodeCacheTTL: (state, action: PayloadAction<number>) => {
-      state.codeCacheTTL = action.payload
-    },
-    setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
-      state.codeCacheThreshold = action.payload
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
@@ -388,9 +450,6 @@ const settingsSlice = createSlice({
     },
     setMessageStyle: (state, action: PayloadAction<'plain' | 'bubble'>) => {
       state.messageStyle = action.payload
-    },
-    setCodeStyle: (state, action: PayloadAction<CodeStyleVarious>) => {
-      state.codeStyle = action.payload
     },
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
@@ -559,19 +618,17 @@ export const {
   setWebdavAutoSync,
   setWebdavSyncInterval,
   setWebdavMaxBackups,
+  setCodeExecution,
+  setCodeEditor,
+  setCodePreview,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
-  setCodeCacheable,
-  setCodeCacheMaxSize,
-  setCodeCacheTTL,
-  setCodeCacheThreshold,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
   setMessageStyle,
-  setCodeStyle,
   setTranslateModelPrompt,
   setAutoTranslateWithSpace,
   setShowTranslateConfirm,

@@ -1,1 +1,0 @@
-# Cherry Studio Artifacts

@@ -1,3 +1,4 @@
+import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
 import { fetchWebContent } from '@renderer/utils/fetch'
@@ -136,36 +137,44 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
   return (
     <WebSearchCard>
-      <WebSearchCardHeader>
-        {citation.showFavicon && citation.url && (
-          <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
+      <ContextMenu>
+        <WebSearchCardHeader>
+          {citation.showFavicon && citation.url && (
+            <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
+          )}
+          <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+            {citation.title || <span className="hostname">{citation.hostname}</span>}
+          </CitationLink>
+          {fetchedContent && <CopyButton content={fetchedContent} />}
+        </WebSearchCardHeader>
+        {isLoading ? (
+          <Skeleton active paragraph={{ rows: 1 }} title={false} />
+        ) : (
+          <WebSearchCardContent className="selectable-text">{fetchedContent}</WebSearchCardContent>
         )}
-        <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-          {citation.title || <span className="hostname">{citation.hostname}</span>}
-        </CitationLink>
-        {fetchedContent && <CopyButton content={fetchedContent} />}
-      </WebSearchCardHeader>
-      {isLoading ? (
-        <Skeleton active paragraph={{ rows: 1 }} title={false} />
-      ) : (
-        <WebSearchCardContent>{fetchedContent}</WebSearchCardContent>
-      )}
+      </ContextMenu>
     </WebSearchCard>
   )
 }
 
-const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => (
-  <WebSearchCard>
-    <WebSearchCardHeader>
-      {citation.showFavicon && <FileSearch width={16} />}
-      <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-        {citation.title}
-      </CitationLink>
-      {citation.content && <CopyButton content={citation.content} />}
-    </WebSearchCardHeader>
-    <WebSearchCardContent>{citation.content && truncateText(citation.content, 100)}</WebSearchCardContent>
-  </WebSearchCard>
-)
+const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
+  return (
+    <WebSearchCard>
+      <ContextMenu>
+        <WebSearchCardHeader>
+          {citation.showFavicon && <FileSearch width={16} />}
+          <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+            {citation.title}
+          </CitationLink>
+          {citation.content && <CopyButton content={citation.content} />}
+        </WebSearchCardHeader>
+        <WebSearchCardContent className="selectable-text">
+          {citation.content && truncateText(citation.content, 100)}
+        </WebSearchCardContent>
+      </ContextMenu>
+    </WebSearchCard>
+  )
+}
 
 const OpenButton = styled(Button)`
   display: flex;
@@ -237,6 +246,7 @@ const WebSearchCard = styled.div`
   border-radius: var(--list-item-border-radius);
   background-color: var(--color-background);
   transition: all 0.3s ease;
+  position: relative;
 `
 
 const WebSearchCardHeader = styled.div`
@@ -252,6 +262,15 @@ const WebSearchCardContent = styled.div`
   font-size: 13px;
   line-height: 1.6;
   color: var(--color-text-2);
+  user-select: text;
+  cursor: text;
+
+  &.selectable-text {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
 `
 
 export default CitationsList

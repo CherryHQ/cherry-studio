@@ -36,7 +36,7 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
 
   const defaultCollapseItemStyles = {
     header: {
-      padding: '8px 16px',
+      padding: '3px 16px',
       alignItems: 'center',
       justifyContent: 'space-between',
       background: 'var(--color-background-soft)',

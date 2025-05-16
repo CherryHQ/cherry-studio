@@ -43,6 +43,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
+  isEnabledToolUse,
   mcpToolCallResponseToAnthropicMessage,
   mcpToolsToAnthropicTools,
   parseAndCallTools
@@ -207,7 +208,7 @@ export default class AnthropicProvider extends BaseProvider {
   public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
 
@@ -229,7 +230,7 @@ export default class AnthropicProvider extends BaseProvider {
     const { tools } = this.setupToolsConfig<ToolUnion>({
       model,
       mcpTools,
-      enableToolUse
+      enableToolUse: isEnabledToolUse(assistant)
     })
 
     if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {

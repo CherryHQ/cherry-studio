@@ -725,46 +725,34 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   'gitee-ai': [
     {
-      id: 'DeepSeek-R1-Distill-Qwen-32B',
-      name: 'DeepSeek-R1-Distill-Qwen-32B',
+      id: 'Qwen3-30B-A3B',
+      name: 'Qwen3-30B-A3B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-R1-Distill-Qwen-1.5B',
-      name: 'DeepSeek-R1-Distill-Qwen-1.5B',
+      id: 'Qwen3-32B',
+      name: 'Qwen3-32B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-R1-Distill-Qwen-14B',
-      name: 'DeepSeek-R1-Distill-Qwen-14B',
+      id: 'Qwen3-8B',
+      name: 'Qwen3-8B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-R1-Distill-Qwen-7B',
-      name: 'DeepSeek-R1-Distill-Qwen-7B',
+      id: 'Qwen3-4B',
+      name: 'Qwen3-4B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-V3',
-      name: 'DeepSeek-V3',
+      id: 'Qwen3-0.6B',
+      name: 'Qwen3-0.6B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'DeepSeek-R1',
-      name: 'DeepSeek-R1',
-      provider: 'gitee-ai',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'deepseek-coder-33B-instruct',
-      name: 'deepseek-coder-33B-instruct',
-      provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
       id: 'Qwen2.5-72B-Instruct',
@@ -803,10 +791,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     },
     {
-      id: 'QwQ-32B-Preview',
-      name: 'QwQ-32B-Preview',
+      id: 'Qwen2.5-VL-32B-Instruct',
+      name: 'Qwen2.5-VL-32B-Instruct',
       provider: 'gitee-ai',
       group: 'Qwen'
+    },
+    {
+      id: 'QwQ-32B',
+      name: 'QwQ-32B',
+      provider: 'gitee-ai',
+      group: 'Qwen'
+    },
+    {
+      id: 'Align-DS-V',
+      name: 'Align-DS-V',
+      provider: 'gitee-ai',
+      group: 'Align'
     },
     {
       id: 'Yi-34B-Chat',
@@ -819,6 +819,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'glm-4-9b-chat',
       provider: 'gitee-ai',
       group: 'THUDM'
+    },
+    {
+      id: 'deepseek-coder-33B-instruct',
+      name: 'deepseek-coder-33B-instruct',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
     },
     {
       id: 'codegeex4-all-9b',
@@ -843,6 +849,48 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'InternVL2.5-78B',
       provider: 'gitee-ai',
       group: 'OpenGVLab'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-32B',
+      name: 'DeepSeek-R1-Distill-Qwen-32B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-1.5B',
+      name: 'DeepSeek-R1-Distill-Qwen-1.5B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-14B',
+      name: 'DeepSeek-R1-Distill-Qwen-14B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-7B',
+      name: 'DeepSeek-R1-Distill-Qwen-7B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-V3',
+      name: 'DeepSeek-V3',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1',
+      name: 'DeepSeek-R1',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'gemma-3-27b-it',
+      name: 'gemma-3-27b-it',
+      provider: 'gitee-ai',
+      group: 'Gemma'
     },
     {
       id: 'bge-large-zh-v1.5',

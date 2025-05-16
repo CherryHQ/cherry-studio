@@ -14,12 +14,12 @@ function escapeRegExp(str: string) {
 }
 
 // 支持泛型 T，默认 T = { type: string; textDelta: string }
-export function extractReasoningMiddleware<T extends { type: string } = { type: string; textDelta: string }>({
-  openingTag,
-  closingTag,
-  separator = '\n',
-  enableReasoning
-}: ExtractReasoningMiddlewareOptions) {
+export function extractReasoningMiddleware<
+  T extends { type: string } & (
+    | { type: 'text-delta' | 'reasoning'; textDelta: string }
+    | { type: string } // 其他类型
+  ) = { type: string; textDelta: string }
+>({ openingTag, closingTag, separator = '\n', enableReasoning }: ExtractReasoningMiddlewareOptions) {
   const openingTagEscaped = escapeRegExp(openingTag)
   const closingTagEscaped = escapeRegExp(closingTag)
 
@@ -71,8 +71,8 @@ export function extractReasoningMiddleware<T extends { type: string } = { type: 
                 controller.enqueue(chunk)
                 return
               }
-              // @ts-expect-error: textDelta 只在 text-delta/reasoning chunk 上
-              buffer += chunk.textDelta
+              // textDelta 只在 text-delta/reasoning chunk 上
+              buffer += (chunk as { textDelta: string }).textDelta
               function publish(text: string) {
                 if (text.length > 0) {
                   const prefix = afterSwitch && (isReasoning ? !isFirstReasoning : !isFirstText) ? separator : ''
@@ -80,7 +80,7 @@ export function extractReasoningMiddleware<T extends { type: string } = { type: 
                     ...chunk,
                     type: isReasoning ? 'reasoning' : 'text-delta',
                     textDelta: prefix + text
-                  })
+                  } as T)
                   afterSwitch = false
                   if (isReasoning) {
                     isFirstReasoning = false

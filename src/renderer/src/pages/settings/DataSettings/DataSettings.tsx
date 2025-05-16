@@ -240,7 +240,7 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>
                   {t('settings.data.clear_cache.title')}
-                  <CacheText>({cacheSize})</CacheText>
+                  {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
                 <HStack gap="5px">
                   <Button onClick={handleClearCache} danger>

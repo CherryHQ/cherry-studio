@@ -7,10 +7,18 @@ import {
 } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
 import Logger from '@renderer/config/logger'
-import { isVisionModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
-import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse, Model, ToolUseResponse } from '@renderer/types'
+import {
+  Assistant,
+  MCPCallToolResponse,
+  MCPServer,
+  MCPTool,
+  MCPToolResponse,
+  Model,
+  ToolUseResponse
+} from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { isArray, isObject, pull, transform } from 'lodash'
@@ -823,4 +831,14 @@ export function mcpToolCallResponseToGeminiMessage(
   }
 
   return message
+}
+
+export function isEnabledToolUse(assistant: Assistant) {
+  if (assistant.model) {
+    if (isFunctionCallingModel(assistant.model)) {
+      return assistant.settings?.toolUseMode === 'function'
+    }
+  }
+
+  return false
 }

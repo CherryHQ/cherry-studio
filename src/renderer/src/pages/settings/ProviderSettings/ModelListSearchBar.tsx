@@ -78,7 +78,7 @@ const ModelListSearchBar: React.FC<ModelListSearchBarProps> = ({ onSearch }) => 
           visible: { opacity: 1, transition: { duration: 0.1, delay: 0.3, ease: 'easeInOut' } },
           hidden: { opacity: 0, transition: { duration: 0.1, ease: 'easeInOut' } }
         }}
-        style={{ cursor: 'pointer' }}
+        style={{ cursor: 'pointer', display: 'flex' }}
         onClick={() => setSearchVisible(true)}>
         <Tooltip title={t('models.search')} mouseEnterDelay={0.5}>
           <Search size={14} color="var(--color-icon)" />

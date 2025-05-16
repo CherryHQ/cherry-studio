@@ -14,7 +14,7 @@ import {
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { Button, Input, Segmented, Switch } from 'antd'
-import { Minus, Plus } from 'lucide-react'
+import { Minus, Plus, RotateCcw } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -141,12 +141,10 @@ const DisplaySettings: FC = () => {
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
             <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} />
             <Button
-              onClick={() => {
-                handleZoomFactor(0, true)
-              }}
-              style={{ marginLeft: 8 }}>
-              {t('settings.zoom.reset')}
-            </Button>
+              onClick={() => handleZoomFactor(0, true)}
+              style={{ marginLeft: 8 }}
+              icon={<RotateCcw size="14" />}
+            />
           </ZoomButtonGroup>
         </SettingRow>
         {isMac && (

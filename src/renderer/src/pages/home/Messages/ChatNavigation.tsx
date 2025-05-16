@@ -73,7 +73,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     // Set a timer to hide the buttons
     const timer = setTimeout(() => {
       setIsVisible(false)
-    }, 1500)
+    }, 500)
     setHideTimer(timer)
   }, [])
 
@@ -256,7 +256,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       lastMoveTime.current = now
 
       // Calculate if the mouse is in the trigger area
-      const triggerWidth = 80 // Same as the width in styled component
+      const triggerWidth = 60 // Same as the width in styled component
 
       // Safe way to calculate position when using calc expressions
       let rightOffset = 16 // Default right offset
@@ -267,7 +267,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
       const topPosition = window.innerHeight * 0.3 // 30% from top
-      const height = window.innerHeight * 0.4 // 40% of window height
+      const height = window.innerHeight * 0.3 // 30% of window height
 
       const isInTriggerArea =
         e.clientX > rightPosition &&
