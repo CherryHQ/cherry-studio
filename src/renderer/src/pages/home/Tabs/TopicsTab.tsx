@@ -315,8 +315,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
-              const markdown = await topicToMarkdown(topic)
-              exportMarkdownToJoplin(topic.name, markdown)
+              const topicMessages = await TopicManager.getTopicMessages(topic.id)
+              exportMarkdownToJoplin(topic.name, topicMessages)
             }
           },
           exportMenuOptions.siyuan && {
