@@ -1108,8 +1108,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const body = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      max_completion_tokens: 1, // openAI
-      max_tokens: 1, // openAI deprecated 但大部分OpenAI兼容的提供商继续用这个头
       enable_thinking: false, // qwen3
       stream
     }

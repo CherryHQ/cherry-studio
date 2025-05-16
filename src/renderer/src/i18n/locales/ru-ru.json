@@ -198,6 +198,20 @@
       },
       "resend": "Переотправить",
       "save": "Сохранить",
+      "settings.code.title": "Настройки кода",
+      "settings.code_editor": {
+        "title": "Редактор кода",
+        "highlight_active_line": "Выделить активную строку",
+        "fold_gutter": "Свернуть",
+        "autocompletion": "Автодополнение",
+        "keymap": "Клавиатурные сокращения"
+      },
+      "settings.code_execution": {
+        "title": "Выполнение кода",
+        "tip": "Выполнение кода в блоке кода возможно, но не рекомендуется выполнять опасный код!",
+        "timeout_minutes": "Время выполнения",
+        "timeout_minutes.tip": "Время выполнения кода (минуты)"
+      },
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_wrappable": "Блок кода можно переносить",
       "settings.code_cacheable": "Кэш блока кода",
@@ -303,9 +317,32 @@
     },
     "code_block": {
       "collapse": "Свернуть",
-      "disable_wrap": "Отменить перенос строки",
-      "enable_wrap": "Перенос строки",
-      "expand": "Развернуть"
+      "copy.failed": "Не удалось скопировать",
+      "copy.source": "Копировать исходный код",
+      "copy.success": "Скопировано",
+      "copy": "Копировать",
+      "download.failed.network": "Не удалось скачать. Пожалуйста, проверьте ваше интернет-соединение",
+      "download.png": "Скачать PNG",
+      "download.source": "Скачать исходный код",
+      "download.svg": "Скачать SVG",
+      "download": "Скачать",
+      "edit.save.failed.message_not_found": "Не удалось сохранить изменения, не найдено сообщение",
+      "edit.save.failed": "Не удалось сохранить изменения",
+      "edit.save.success": "Изменения сохранены",
+      "edit.save": "Сохранить изменения",
+      "edit": "Редактировать",
+      "expand": "Развернуть",
+      "more": "Ещё",
+      "preview.copy.image": "Скопировать как изображение",
+      "preview.source": "Смотреть исходный код",
+      "preview.zoom_in": "Увеличить",
+      "preview.zoom_out": "Уменьшить",
+      "preview": "Предварительный просмотр",
+      "run": "Выполнить код",
+      "split.restore": "Вернуться к одному окну",
+      "split": "Разделить на два окна",
+      "wrap.off": "Отменить перенос строки",
+      "wrap.on": "Перенос строки"
     },
     "common": {
       "add": "Добавить",
@@ -525,21 +562,6 @@
       "keep_alive_time.placeholder": "Минуты",
       "keep_alive_time.title": "Время жизни модели",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "Скачать PNG",
-        "svg": "Скачать SVG"
-      },
-      "resize": {
-        "zoom-in": "Yвеличить",
-        "zoom-out": "Yменьшить масштаб"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "Диаграмма Mermaid"
     },
     "message": {
       "agents": {
@@ -824,18 +846,6 @@
         "seed_tip": "Контролирует случайный характер увеличения изображений для воспроизводимых результатов",
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
       }
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "PlantUML 图表"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",

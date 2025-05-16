@@ -18,6 +18,10 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 ❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
 
+# GitCode✖️Cherry Studio【新源力】贡献挑战赛
+
+![cherry-studio-gitcode](https://github.com/user-attachments/assets/3962ca3e-841a-4c60-8966-93ad65d3f487)
+
 # 📖 使用教程
 
 https://docs.cherry-ai.com

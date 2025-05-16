@@ -198,6 +198,20 @@
       },
       "resend": "再送信",
       "save": "保存",
+      "settings.code.title": "コード設定",
+      "settings.code_editor": {
+        "title": "コードエディター",
+        "highlight_active_line": "アクティブ行をハイライト",
+        "fold_gutter": "折りたたみガター",
+        "autocompletion": "自動補完",
+        "keymap": "キーマップ"
+      },
+      "settings.code_execution": {
+        "title": "コード実行",
+        "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
+        "timeout_minutes": "タイムアウト時間",
+        "timeout_minutes.tip": "コード実行のタイムアウト時間（分）"
+      },
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_wrappable": "コードブロック折り返し",
       "settings.code_cacheable": "コードブロックキャッシュ",
@@ -303,9 +317,32 @@
     },
     "code_block": {
       "collapse": "折りたたむ",
-      "disable_wrap": "改行解除",
-      "enable_wrap": "改行",
-      "expand": "展開する"
+      "copy.failed": "コピーに失敗しました",
+      "copy.source": "コピー源コード",
+      "copy.success": "コピーしました",
+      "copy": "コピー",
+      "download.failed.network": "ダウンロードに失敗しました。ネットワークを確認してください",
+      "download.png": "PNGとしてダウンロード",
+      "download.source": "ダウンロード源コード",
+      "download.svg": "SVGとしてダウンロード",
+      "download": "ダウンロード",
+      "edit.save.failed.message_not_found": "保存に失敗しました。対応するメッセージが見つかりませんでした",
+      "edit.save.failed": "保存に失敗しました",
+      "edit.save.success": "保存しました",
+      "edit.save": "保存する",
+      "edit": "編集",
+      "expand": "展開する",
+      "more": "もっと",
+      "preview.copy.image": "画像としてコピー",
+      "preview.source": "ソースコードを表示",
+      "preview.zoom_in": "拡大",
+      "preview.zoom_out": "縮小",
+      "preview": "プレビュー",
+      "run": "コードを実行",
+      "split.restore": "分割視圖を解除",
+      "split": "分割視圖",
+      "wrap.off": "改行解除",
+      "wrap.on": "改行"
     },
     "common": {
       "add": "追加",
@@ -525,21 +562,6 @@
       "keep_alive_time.placeholder": "分",
       "keep_alive_time.title": "保持時間",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "PNGをダウンロード",
-        "svg": "SVGをダウンロード"
-      },
-      "resize": {
-        "zoom-in": "拡大する",
-        "zoom-out": "ズームアウト"
-      },
-      "tabs": {
-        "preview": "プレビュー",
-        "source": "ソース"
-      },
-      "title": "Mermaid図"
     },
     "message": {
       "agents": {
@@ -824,18 +846,6 @@
         "seed_tip": "拡大結果のランダム性を制御します",
         "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
       }
-    },
-    "plantuml": {
-      "download": {
-        "failed": "ダウンロードに失敗しました。ネットワークを確認してください",
-        "png": "PNG をダウンロード",
-        "svg": "SVG をダウンロード"
-      },
-      "tabs": {
-        "preview": "プレビュー",
-        "source": "ソースコード"
-      },
-      "title": "PlantUML 図表"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
