@@ -3,7 +3,7 @@ import '@ant-design/v5-patch-for-react-19'
 
 import KeyvStorage from '@kangfenmao/keyv-storage'
 import AntdProvider from '@renderer/context/AntdProvider'
-import { SyntaxHighlighterProvider } from '@renderer/context/SyntaxHighlighterProvider'
+import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import storeSyncService from '@renderer/services/StoreSyncService'
 import store, { persistor } from '@renderer/store'
@@ -38,12 +38,12 @@ const App: FC = () => {
     <Provider store={store}>
       <ThemeProvider>
         <AntdProvider>
-          <SyntaxHighlighterProvider>
+          <CodeStyleProvider>
             <PersistGate loading={null} persistor={persistor}>
               {messageContextHolder}
               <SelectionActionApp />
             </PersistGate>
-          </SyntaxHighlighterProvider>
+          </CodeStyleProvider>
         </AntdProvider>
       </ThemeProvider>
     </Provider>

@@ -292,7 +292,7 @@ export class SelectionService {
     /** get ready to load the toolbar window */
 
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      this.toolbarWindow.loadURL(join(process.env['ELECTRON_RENDERER_URL'], 'selectionToolbar.html'))
+      this.toolbarWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionToolbar.html')
     } else {
       this.toolbarWindow.loadFile(join(__dirname, '../renderer/selectionToolbar.html'))
     }
@@ -637,18 +637,16 @@ export class SelectionService {
     }
 
     //data point is physical coordinates, convert to logical coordinates
-    const mousePoint = screen.dipToScreenPoint({ x: data.x, y: data.y })
+    const mousePoint = screen.screenToDipPoint({ x: data.x, y: data.y })
 
     const bounds = this.toolbarWindow!.getBounds()
-    const adjustedMouseX = Math.round(mousePoint.x)
-    const adjustedMouseY = Math.round(mousePoint.y)
 
     // Check if click is outside toolbar
     const isInsideToolbar =
-      adjustedMouseX >= bounds.x &&
-      adjustedMouseX <= bounds.x + bounds.width &&
-      adjustedMouseY >= bounds.y &&
-      adjustedMouseY <= bounds.y + bounds.height
+      mousePoint.x >= bounds.x &&
+      mousePoint.x <= bounds.x + bounds.width &&
+      mousePoint.y >= bounds.y &&
+      mousePoint.y <= bounds.y + bounds.height
 
     if (!isInsideToolbar) {
       this.hideToolbar()
@@ -757,7 +755,7 @@ export class SelectionService {
 
     // Load the base URL without action data
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      preloadedActionWindow.loadURL(join(process.env['ELECTRON_RENDERER_URL'], 'selectionAction.html'))
+      preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
     } else {
       preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
     }
