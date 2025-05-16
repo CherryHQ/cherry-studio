@@ -10,6 +10,7 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
@@ -258,6 +259,19 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         return { thinking: { type: 'disabled' } }
       }
 
+      if (isSupportedThinkingTokenGeminiModel(model)) {
+        // openrouter没有提供一个不推理的选项，先隐藏
+        if (this.provider.id === 'openrouter') {
+          return { reasoning: { maxTokens: 0, exclude: true } }
+        }
+        return {
+          thinkingConfig: {
+            includeThoughts: false,
+            thinkingBudget: 0
+          }
+        }
+      }
+
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
@@ -309,6 +323,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         thinking: {
           type: 'enabled',
           budget_tokens: budgetTokens
+        }
+      }
+    }
+
+    // Gemini models
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      return {
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
         }
       }
     }
