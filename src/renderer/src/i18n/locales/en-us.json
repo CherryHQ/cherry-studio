@@ -132,7 +132,9 @@
       "select_model": "Select Model",
       "show.all": "Show All",
       "update_available": "Update Available",
-      "includes_user_questions": "包含用户提问"
+      "includes_user_questions": "Include Your Questions",
+      "case_sensitive": "Case Sensitive",
+      "whole_word": "Whole Word"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",

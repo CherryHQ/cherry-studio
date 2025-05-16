@@ -132,7 +132,9 @@
       "select_model": "选择模型",
       "show.all": "显示全部",
       "update_available": "有可用更新",
-      "includes_user_questions": "包含用户提问"
+      "includes_user_questions": "包含用户提问",
+      "case_sensitive": "区分大小写",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -758,7 +760,8 @@
         "select": "选择模型类型",
         "text": "文本",
         "vision": "图像",
-        "function_calling": "函数调用"
+        "function_calling": "函数调用",
+        "websearch": "[to be translated]:WebSearch"
       }
     },
     "navbar": {

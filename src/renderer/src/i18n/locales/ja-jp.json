@@ -132,7 +132,9 @@
       "select_model": "モデルを選択",
       "show.all": "すべて表示",
       "update_available": "更新可能",
-      "includes_user_questions": "ユーザーからの質問を含む"
+      "includes_user_questions": "ユーザーからの質問を含む",
+      "case_sensitive": "大文字と小文字の区別",
+      "whole_word": "全語一致"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
@@ -1643,7 +1645,9 @@
         "title": "ページズーム",
         "reset": "リセット"
       },
-      "input.show_translate_confirm": "翻訳確認ダイアログを表示"
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示",
+      "about.debug.title": "デバッグ",
+      "about.debug.open": "開く"
     },
     "translate": {
       "any.language": "任意の言語",

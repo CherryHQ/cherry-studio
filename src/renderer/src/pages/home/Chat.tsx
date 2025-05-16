@@ -5,10 +5,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
-import { Flex, Tooltip } from 'antd'
-import { t } from 'i18next'
+import { Flex } from 'antd'
 import { debounce } from 'lodash'
-import { User } from 'lucide-react'
 import React, { FC, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
@@ -38,7 +36,8 @@ const Chat: FC<Props> = (props) => {
 
   useShortcut('search_message_in_chat', () => {
     try {
-      contentSearchRef.current?.enable()
+      const selectedText = window.getSelection()?.toString().trim()
+      contentSearchRef.current?.enable(selectedText)
     } catch (error) {
       console.error('Error enabling content search:', error)
     }
@@ -102,6 +101,13 @@ const Chat: FC<Props> = (props) => {
   return (
     <Container id="chat" className={messageStyle}>
       <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between">
+        <ContentSearch
+          ref={contentSearchRef}
+          searchTarget={mainRef as React.RefObject<HTMLElement>}
+          filter={contentSearchFilter}
+          includeUser={filterIncludeUser}
+          onIncludeUserChange={userOutlinedItemClickHandler}
+        />
         <Messages
           key={props.activeTopic.id}
           assistant={assistant}
@@ -113,14 +119,6 @@ const Chat: FC<Props> = (props) => {
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
         </QuickPanelProvider>
-        <ContentSearch
-          ref={contentSearchRef}
-          searchTarget={mainRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}>
-          <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-            <UserOutlinedItem className={filterIncludeUser ? 'active' : ''} onClick={userOutlinedItemClickHandler} />
-          </Tooltip>
-        </ContentSearch>
       </Main>
       {topicPosition === 'right' && showTopics && (
         <Tabs
@@ -148,21 +146,6 @@ const Main = styled(Flex)`
   // 设置为containing block，方便子元素fixed定位
   transform: translateZ(0);
   position: relative;
-`
-
-const UserOutlinedItem = styled(User)`
-  border-radius: 4px;
-  cursor: pointer;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  &.active {
-    color: var(--color-primary);
-  }
-
-  &:hover {
-    background-color: var(--color-hover);
-  }
 `
 
 export default Chat
