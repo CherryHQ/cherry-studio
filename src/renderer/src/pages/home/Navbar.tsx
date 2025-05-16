@@ -18,7 +18,7 @@ import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search 
 import { FC } from 'react'
 import styled from 'styled-components'
 
-import SelectModelOrFlowButton from './components/SelectModelButton'
+import SelectModelOrFlowButton from './components/SelectModelOrFlowButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
 interface Props {

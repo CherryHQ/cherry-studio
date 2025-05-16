@@ -30,7 +30,8 @@ export enum MessageBlockType {
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
   CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
-  FLOW = 'flow' // workflow
+  FLOW = 'flow', // 流程图
+  FORM = 'form' // 表格
 }
 
 // 块状态定义
@@ -137,10 +138,14 @@ export interface ErrorMessageBlock extends BaseMessageBlock {
 // flow 块
 export interface FlowMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.FLOW
-  // form data
   chunkType: ChunkType
-  workflow: Flow
+  flow: Flow
   nodes?: FlowNode[]
+}
+// form表格
+export interface FormMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.FORM
+  flow: Flow
 }
 
 // MessageBlock 联合类型
@@ -156,6 +161,7 @@ export type MessageBlock =
   | ErrorMessageBlock
   | CitationMessageBlock
   | FlowMessageBlock
+  | FormMessageBlock
 
 export enum UserMessageStatus {
   SUCCESS = 'success'

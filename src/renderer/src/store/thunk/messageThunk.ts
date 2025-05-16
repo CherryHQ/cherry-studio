@@ -38,6 +38,7 @@ import {
   createCitationBlock,
   createErrorBlock,
   createFlowBlock,
+  createFormBlock,
   createImageBlock,
   createMainTextBlock,
   createThinkingBlock,
@@ -706,27 +707,29 @@ export const sendMessage =
           askId: userMessage.id,
           flow: assistant.workflow
         })
-        // trigger workflow
         if (content === assistant.workflow.trigger) {
-          console.log('[DEBUG] Workflow trigger detected')
-
-          const flowBlock = createFlowBlock(assistantMessage.id, ChunkType.WORKFLOW_INIT, assistant.workflow)
-          await saveMessageAndBlocksToDB(assistantMessage, [flowBlock])
+          const formBlock = createFormBlock(assistantMessage.id, assistant.workflow)
+          await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
           dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-          dispatch(upsertOneBlock(flowBlock))
+          dispatch(upsertOneBlock(formBlock))
           dispatch(
             newMessagesActions.upsertBlockReference({
               messageId: assistantMessage.id,
-              blockId: flowBlock.id,
-              status: flowBlock.status
+              blockId: formBlock.id,
+              status: formBlock.status
             })
           )
         }
-      }
-      // trigger chatflow
-      else if (assistant.chatflow) {
+      } else if (assistant.chatflow) {
+        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+          askId: userMessage.id,
+          flow: assistant.chatflow
+        })
+        await saveMessageAndBlocksToDB(assistantMessage, [])
+        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+
         queue.add(async () => {
-          await fetchAndProcessChatflowResponseImpl(dispatch, getState, topicId, assistant)
+          await fetchAndProcessChatflowResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
         })
       } else {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
@@ -1691,11 +1694,12 @@ const fetchAndProcessChatflowResponseImpl = async (
   dispatch: AppDispatch,
   getState: () => RootState,
   topicId: string,
-  assistant: Assistant
+  assistant: Assistant,
+  assistantMessage: Message
 ) => {
-  const assistantMessage = createAssistantMessage(assistant.id, topicId)
-  await saveMessageAndBlocksToDB(assistantMessage, [])
-  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  // const assistantMessage = createAssistantMessage(assistant.id, topicId)
+  // await saveMessageAndBlocksToDB(assistantMessage, [])
+  // dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
   dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
   const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)

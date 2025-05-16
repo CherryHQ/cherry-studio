@@ -1,17 +1,13 @@
 import '@xyflow/react/dist/style.css'
 
-import WorkflowForm from '@renderer/components/Dify/WorkflowForm'
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
-import { Workflow } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
-import { FlowMessageBlock, Message, MessageBlockStatus } from '@renderer/types/newMessage'
+import { FlowMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Background, Edge, Node, Position, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react'
 import { Bot, House, LandPlot, Wrench } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 interface Props {
   block: FlowMessageBlock
-  message: Message
 }
 
 const NODE_HORIZONTAL_SPACING = 180
@@ -19,7 +15,7 @@ const NODE_VERTICAL_ROW_PITCH = 60
 const NODE_VISUAL_HEIGHT = 40
 
 const MIN_FLOW_AREA_HEIGHT = 60
-const FLOW_AREA_VERTICAL_PADDING = 40
+const FLOW_AREA_VERTICAL_PADDING = 60
 
 const getTypeIcon = (status: MessageBlockStatus, type?: string) => {
   if (status === MessageBlockStatus.PROCESSING) {
@@ -134,20 +130,28 @@ const createFlowEdges = (blockNodes: FlowMessageBlock['nodes']): Edge[] => {
   return edges
 }
 
-const FlowBlock: React.FC<Props> = ({ block, message }) => {
+const FlowBlock: React.FC<Props> = ({ block }) => {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [currentNodesPerRow, setCurrentNodesPerRow] = useState(1)
+  const [currentNodesPerRow, setCurrentNodesPerRow] = useState(1) // Initial value, will be updated
+  const [isLayoutReady, setIsLayoutReady] = useState(false) // New state to track layout readiness
 
   useEffect(() => {
     const calculateNodesPerRow = () => {
       if (containerRef.current) {
         const containerWidth = containerRef.current.offsetWidth
-
-        const newNodesPerRow = Math.max(1, Math.floor(containerWidth / NODE_HORIZONTAL_SPACING))
-        setCurrentNodesPerRow(newNodesPerRow)
+        // Ensure containerWidth is positive before calculating,
+        // as offsetWidth can be 0 if the element is not yet laid out or display:none.
+        if (containerWidth > 0) {
+          const newNodesPerRow = Math.max(1, Math.floor(containerWidth / NODE_HORIZONTAL_SPACING))
+          setCurrentNodesPerRow(newNodesPerRow)
+          setIsLayoutReady(true) // Set layout as ready only after a successful calculation
+        }
       }
     }
 
+    // Initial calculation attempt after component mounts and ref is available.
+    // If containerRef.current.offsetWidth is 0 initially (e.g. hidden parent),
+    // ResizeObserver will call calculateNodesPerRow again when size changes.
     calculateNodesPerRow()
 
     const resizeObserver = new ResizeObserver(calculateNodesPerRow)
@@ -162,7 +166,7 @@ const FlowBlock: React.FC<Props> = ({ block, message }) => {
       }
       resizeObserver.disconnect()
     }
-  }, [])
+  }, []) // Empty dependency array ensures this effect runs once on mount for setup
 
   const initialNodes = useMemo(
     () => createFlowNodes(block.nodes, currentNodesPerRow),
@@ -174,56 +178,64 @@ const FlowBlock: React.FC<Props> = ({ block, message }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
 
   useEffect(() => {
+    // This effect ensures nodes and edges are updated if block.nodes or currentNodesPerRow changes.
+    // When currentNodesPerRow is updated by calculateNodesPerRow, this will correctly update the nodes.
     setNodes(createFlowNodes(block.nodes, currentNodesPerRow))
     setEdges(createFlowEdges(block.nodes))
   }, [block.nodes, currentNodesPerRow, setNodes, setEdges])
 
   const renderBlockContent = () => {
-    switch (block.chunkType) {
-      case ChunkType.WORKFLOW_INIT:
-        return <WorkflowForm workflow={block.workflow as Workflow} message={message} />
-      default: {
-        if (!block.nodes || block.nodes.length === 0) {
-          return <div>No flow data available.</div>
-        }
-
-        const numNodes = block.nodes?.length || 0
-        const numRows = numNodes > 0 ? Math.ceil(numNodes / currentNodesPerRow) : 0
-
-        let contentHeight = 0
-        if (numRows > 0) {
-          contentHeight = (numRows - 1) * NODE_VERTICAL_ROW_PITCH + NODE_VISUAL_HEIGHT
-        }
-
-        const calculatedHeight = Math.max(MIN_FLOW_AREA_HEIGHT, contentHeight + FLOW_AREA_VERTICAL_PADDING)
-
-        return (
-          <div ref={containerRef} style={{ height: `${calculatedHeight}px`, width: 'auto' }}>
-            <ReactFlow
-              colorMode="dark"
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              defaultViewport={{ x: 20, y: 20, zoom: 1 }}
-              panOnDrag={false}
-              panOnScroll={false}
-              zoomOnScroll={false}
-              zoomOnPinch={false}
-              nodesDraggable={false}
-              nodesConnectable={false}
-              elementsSelectable={false}
-              fitViewOptions={{ padding: 0.2 }}
-              proOptions={{ hideAttribution: true }}>
-              <Background />
-            </ReactFlow>
-          </div>
-        )
-      }
+    // The div with containerRef must always be rendered for its width to be measurable.
+    if (!block.nodes || block.nodes.length === 0) {
+      // Ensure ref is present even if no nodes, for consistency, though width calc is less critical here.
+      return <div ref={containerRef}>No flow data available.</div>
     }
+
+    // Calculate height based on currentNodesPerRow.
+    // Before layout is ready, currentNodesPerRow might still be its initial value (e.g., 1),
+    // so the container height might be an estimate until isLayoutReady is true.
+    const numNodes = block.nodes?.length || 0
+    // Use currentNodesPerRow for height calculation. It gets updated by the effect.
+    const numRows = numNodes > 0 ? Math.ceil(numNodes / currentNodesPerRow) : 0
+
+    let contentHeight = 0
+    if (numRows > 0) {
+      contentHeight = (numRows - 1) * NODE_VERTICAL_ROW_PITCH + NODE_VISUAL_HEIGHT
+    }
+
+    const calculatedHeight = Math.max(MIN_FLOW_AREA_HEIGHT, contentHeight + FLOW_AREA_VERTICAL_PADDING)
+
+    return (
+      <div ref={containerRef} style={{ height: `${calculatedHeight}px`, width: 'auto' }}>
+        {isLayoutReady ? (
+          <ReactFlow
+            colorMode="dark"
+            nodes={nodes}
+            edges={edges}
+            viewport={{ x: 30, y: 30, zoom: 1 }}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            panOnDrag={false}
+            panOnScroll={false}
+            zoomOnScroll={false}
+            zoomOnPinch={false}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            proOptions={{ hideAttribution: true }}>
+            <Background />
+          </ReactFlow>
+        ) : (
+          // Show a loading indicator while waiting for layout calculation
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+            <SvgSpinners180Ring height={24} width={24} />
+          </div>
+        )}
+      </div>
+    )
   }
 
-  return <div>{renderBlockContent()}</div>
+  return <div style={{ marginTop: '10px', marginBottom: '10px' }}>{renderBlockContent()}</div>
 }
 
 export default React.memo(FlowBlock)

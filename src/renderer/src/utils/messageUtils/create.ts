@@ -9,6 +9,7 @@ import type {
   ErrorMessageBlock,
   FileMessageBlock,
   FlowMessageBlock,
+  FormMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
@@ -278,6 +279,7 @@ export function createCitationBlock(
 /**
  * Creates a Workflow Block.
  * @param messageId - The ID of the parent message.
+ * @param chunkType
  * @param workflowId - The ID of the workflow.
  * @param overrides - Optional properties to override the defaults.
  * @returns A WorkflowBlock object.
@@ -285,19 +287,33 @@ export function createCitationBlock(
 export function createFlowBlock(
   messageId: string,
   chunkType: ChunkType,
-  workflow: Flow,
-  overrides: Partial<Omit<FlowMessageBlock, 'id' | 'messageId' | 'type' | 'workflowId'>> = {}
+  flow: Flow,
+  overrides: Partial<Omit<FlowMessageBlock, 'id' | 'messageId' | 'type'>> = {}
 ): FlowMessageBlock {
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.FLOW, {
     status: MessageBlockStatus.SUCCESS,
     chunkType: chunkType,
-    workflow: workflow,
+    flow: flow,
     ...overrides
   })
-  console.log('createFlowBlock_baseBlock', baseBlock)
   return baseBlock as FlowMessageBlock
 }
 
+/**
+ *
+ */
+export function createFormBlock(
+  messageId: string,
+  flow: Flow,
+  overrides: Partial<Omit<FormMessageBlock, 'id' | 'messageId' | 'type'>> = {}
+): FormMessageBlock {
+  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.FORM, {
+    status: MessageBlockStatus.SUCCESS,
+    flow: flow,
+    ...overrides
+  })
+  return baseBlock as FormMessageBlock
+}
 /**
  * Creates a new Message object
  * @param role - The role of the message sender ('user' or 'assistant').

@@ -5,7 +5,7 @@ import i18n from '@renderer/i18n'
 import { uploadFile } from '@renderer/services/FlowEngineService'
 import { useAppDispatch } from '@renderer/store'
 import { fetchAndProcessWorkflowResponseImpl } from '@renderer/store/thunk/messageThunk'
-import { Workflow } from '@renderer/types'
+import { Flow } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { Button, Card, Form, Input, InputNumber, Select } from 'antd'
 import { UploadFile } from 'antd/lib'
@@ -23,13 +23,14 @@ export interface IUploadFileItem extends UploadFile {
 }
 
 interface Props {
-  workflow: Workflow
+  flow: Flow
   message: Message
 }
 
-const WorkflowForm: FC<Props> = ({ workflow, message }) => {
+const WorkflowForm: FC<Props> = ({ flow, message }) => {
+  console.log('WorkflowForm flow:', flow)
   const [form] = Form.useForm()
-  const { flowEngineProvider } = useFlowEngineProvider(workflow.providerId)
+  const { flowEngineProvider } = useFlowEngineProvider(flow.providerId)
   const { assistant } = useAssistant(message.assistantId)
 
   const dispatch = useAppDispatch()
@@ -59,7 +60,7 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
             disabled={false}
             allowed_file_types={item.allowed_file_types}
             uploadFile={uploadFile}
-            workflow={workflow}
+            workflow={flow}
             provider={flowEngineProvider}
           />
         )
@@ -70,7 +71,7 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
             disabled={false}
             allowed_file_types={item.allowed_file_types}
             uploadFile={uploadFile}
-            workflow={workflow}
+            workflow={flow}
             provider={flowEngineProvider}
           />
         )
@@ -84,15 +85,15 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
   const handleFinish = async (values: any) => {
     console.log('Form values:', values)
     // await dispatch(workflowCompletion(message.topicId, flowEngineProvider, workflow, values, assistant))
-    await dispatch(fetchAndProcessWorkflowResponseImpl(message.topicId, assistant, workflow, values))
+    await dispatch(fetchAndProcessWorkflowResponseImpl(message.topicId, assistant, flow, values))
   }
 
   // 处理可能是数组或Record的情况
   const formItems: Array<{ type: IUserInputFormItemType; item: IUserInputFormItemValueBase }> = []
 
-  if (workflow.parameters) {
-    if (Array.isArray(workflow.parameters)) {
-      workflow.parameters.forEach((param) => {
+  if (flow.parameters) {
+    if (Array.isArray(flow.parameters)) {
+      flow.parameters.forEach((param) => {
         const type = Object.keys(param)[0] as IUserInputFormItemType
         const item = param[type] as IUserInputFormItemValueBase
 
@@ -102,7 +103,7 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
       })
     } else {
       // 如果是Record格式，按照IUserInputForm的定义处理
-      Object.entries(workflow.parameters).forEach(([type, item]) => {
+      Object.entries(flow.parameters).forEach(([type, item]) => {
         formItems.push({
           type: type as IUserInputFormItemType,
           item: item as IUserInputFormItemValueBase
@@ -123,7 +124,7 @@ const WorkflowForm: FC<Props> = ({ workflow, message }) => {
   )
 
   return (
-    <Card title={workflow.name} variant={'outlined'} style={{ maxWidth: 400 }}>
+    <Card title={flow.name} variant={'outlined'} style={{ maxWidth: 400 }}>
       <Form
         form={form}
         layout="vertical"

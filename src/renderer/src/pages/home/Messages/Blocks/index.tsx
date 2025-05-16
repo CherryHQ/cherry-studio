@@ -17,6 +17,7 @@ import CitationBlock from './CitationBlock'
 import ErrorBlock from './ErrorBlock'
 import FileBlock from './FileBlock'
 import FlowBlock from './FlowBlock'
+import FormBlock from './FormBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
@@ -150,7 +151,10 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             blockComponent = <TranslationBlock key={block.id} block={block} />
             break
           case MessageBlockType.FLOW:
-            blockComponent = <FlowBlock key={block.id} block={block as FlowMessageBlock} message={message} />
+            blockComponent = <FlowBlock key={block.id} block={block as FlowMessageBlock} />
+            break
+          case MessageBlockType.FORM:
+            blockComponent = <FormBlock key={block.id} block={block} message={message} />
             break
           default:
             console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)

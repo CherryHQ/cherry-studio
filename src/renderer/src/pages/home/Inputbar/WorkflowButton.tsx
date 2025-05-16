@@ -79,7 +79,7 @@ const WorkflowButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   return (
     <Tooltip placement="top" title={t('chat.input.workflow')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+      <ToolbarButton disabled={assistant.chatflow} type="text" onClick={handleOpenQuickPanel}>
         <GitCompare
           size={18}
           style={{

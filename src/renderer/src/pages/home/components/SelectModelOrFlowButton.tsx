@@ -26,35 +26,32 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
   const onSelectModelOrFlow = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
     const selectedItem: ModelOrChatflowItem | undefined = await SelectItemPopup.show({ item: model })
-    console.log('Selected item:', selectedItem)
 
     if (selectedItem === undefined) return
 
     if (isModel(selectedItem)) {
       setModel(selectedItem)
-      // 避免更新数据造成关闭弹框的卡顿
       setTimeout(() => {
         const enabledWebSearch = isWebSearchModel(selectedItem)
         updateAssistant({
           ...assistant,
           model: selectedItem,
-          chatflow: undefined, // Clear chatflow when a model is selected
+          chatflow: undefined,
           enableWebSearch: enabledWebSearch && assistant.enableWebSearch
         })
       }, 200)
     }
     if (isFlow(selectedItem)) {
       setChatflow(selectedItem)
-      // 避免更新数据造成关闭弹框的卡顿
       setTimeout(() => {
         updateAssistant({
-          // Use the latest assistant state from the hook as base
           ...assistant,
-          model: undefined, // Clear model when a flow is selected
-          chatflow: selectedItem, // selectedItem is Flow
-          enableWebSearch: false // Model-based web search is not applicable
+          model: undefined,
+          workflow: undefined,
+          chatflow: selectedItem,
+          enableWebSearch: false
         })
-      }, 200) // Using 0 for minimal delay
+      }, 200)
     }
   }
 
@@ -65,11 +62,7 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
   return (
     <DropdownButton size="small" type="text" onClick={onSelectModelOrFlow}>
       <ButtonContent>
-        {chatflow ? (
-          <ChatflowAvatar chatflow={chatflow} size={20} /> // Placeholder/generic avatar for Flow
-        ) : (
-          <ModelAvatar model={model} size={20} />
-        )}
+        {chatflow ? <ChatflowAvatar chatflow={chatflow} size={20} /> : <ModelAvatar model={model} size={20} />}
         <ModelName>
           {displayName} {providerOrFlowType ? `| ${providerOrFlowType}` : ''}
         </ModelName>
