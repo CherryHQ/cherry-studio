@@ -102,6 +102,7 @@
         "tags": {
           "none": "No tags",
           "manage": "Tag Management",
+          "modify": "Modify Tag",
           "add": "Add Tag",
           "delete": "Delete Tag",
           "settings": {

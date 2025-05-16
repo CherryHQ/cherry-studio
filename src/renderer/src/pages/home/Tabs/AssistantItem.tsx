@@ -151,7 +151,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         icon: <TagsOutlined />,
         children: [
           {
-            label: t('assistants.tags.add'),
+            label: assistant.tags?.length ? t('assistants.tags.modify') : t('assistants.tags.add'),
             key: 'add-tag',
             onClick: () => {
               const listener = (updated: Assistant) => {

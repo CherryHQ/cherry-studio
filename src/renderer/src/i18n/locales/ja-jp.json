@@ -99,6 +99,7 @@
           "none": "タグなし",
           "manage": "タグ管理",
           "add": "タグ追加",
+          "modify": "タグ修正",
           "delete": "タグ削除",
           "settings": {
             "title": "タグ設定",

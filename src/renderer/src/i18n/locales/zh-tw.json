@@ -99,6 +99,7 @@
           "none": "暫無標籤",
           "manage": "標籤管理",
           "add": "添加標籤",
+          "modify": "修改標籤",
           "delete": "刪除標籤",
           "settings": {
             "title": "標籤設置",
