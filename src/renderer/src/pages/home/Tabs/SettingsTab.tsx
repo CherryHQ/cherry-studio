@@ -8,7 +8,7 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
-import { codeThemes } from '@renderer/context/SyntaxHighlighterProvider'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle, SettingSubtitle } from '@renderer/pages/settings'
@@ -17,13 +17,11 @@ import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
   setAutoTranslateWithSpace,
-  setCodeCacheable,
-  setCodeCacheMaxSize,
-  setCodeCacheThreshold,
-  setCodeCacheTTL,
   setCodeCollapsible,
+  setCodeEditor,
+  setCodeExecution,
+  setCodePreview,
   setCodeShowLineNumbers,
-  setCodeStyle,
   setCodeWrappable,
   setEnableBackspaceDeleteModel,
   setEnableQuickPanelTriggers,
@@ -53,7 +51,7 @@ import {
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -63,7 +61,8 @@ interface Props {
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
-  const { messageStyle, codeStyle, fontSize, language } = useSettings()
+  const { messageStyle, fontSize, language, theme } = useSettings()
+  const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
@@ -89,10 +88,9 @@ const SettingsTab: FC<Props> = (props) => {
     codeShowLineNumbers,
     codeCollapsible,
     codeWrappable,
-    codeCacheable,
-    codeCacheMaxSize,
-    codeCacheTTL,
-    codeCacheThreshold,
+    codeEditor,
+    codePreview,
+    codeExecution,
     mathEngine,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
@@ -143,6 +141,32 @@ const SettingsTab: FC<Props> = (props) => {
       }
     })
   }
+
+  const codeStyle = useMemo(() => {
+    return codeEditor.enabled
+      ? theme === ThemeMode.light
+        ? codeEditor.themeLight
+        : codeEditor.themeDark
+      : theme === ThemeMode.light
+        ? codePreview.themeLight
+        : codePreview.themeDark
+  }, [
+    codeEditor.enabled,
+    codeEditor.themeLight,
+    codeEditor.themeDark,
+    theme,
+    codePreview.themeLight,
+    codePreview.themeDark
+  ])
+
+  const onCodeStyleChange = useCallback(
+    (value: CodeStyleVarious) => {
+      const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
+      const action = codeEditor.enabled ? setCodeEditor : setCodePreview
+      dispatch(action({ [field]: value }))
+    },
+    [dispatch, theme, codeEditor.enabled]
+  )
 
   useEffect(() => {
     setTemperature(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
@@ -292,97 +316,6 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitleSmall>{t('chat.settings.show_line_numbers')}</SettingRowTitleSmall>
-          <Switch
-            size="small"
-            checked={codeShowLineNumbers}
-            onChange={(checked) => dispatch(setCodeShowLineNumbers(checked))}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitleSmall>{t('chat.settings.code_collapsible')}</SettingRowTitleSmall>
-          <Switch
-            size="small"
-            checked={codeCollapsible}
-            onChange={(checked) => dispatch(setCodeCollapsible(checked))}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
-          <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitleSmall>
-            {t('chat.settings.code_cacheable')}{' '}
-            <Tooltip title={t('chat.settings.code_cacheable.tip')}>
-              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-            </Tooltip>
-          </SettingRowTitleSmall>
-          <Switch size="small" checked={codeCacheable} onChange={(checked) => dispatch(setCodeCacheable(checked))} />
-        </SettingRow>
-        {codeCacheable && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitleSmall>
-                {t('chat.settings.code_cache_max_size')}
-                <Tooltip title={t('chat.settings.code_cache_max_size.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
-              </SettingRowTitleSmall>
-              <InputNumber
-                size="small"
-                min={1000}
-                max={10000}
-                step={1000}
-                value={codeCacheMaxSize}
-                onChange={(value) => dispatch(setCodeCacheMaxSize(value ?? 1000))}
-                style={{ width: 80 }}
-              />
-            </SettingRow>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitleSmall>
-                {t('chat.settings.code_cache_ttl')}
-                <Tooltip title={t('chat.settings.code_cache_ttl.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
-              </SettingRowTitleSmall>
-              <InputNumber
-                size="small"
-                min={15}
-                max={720}
-                step={15}
-                value={codeCacheTTL}
-                onChange={(value) => dispatch(setCodeCacheTTL(value ?? 15))}
-                style={{ width: 80 }}
-              />
-            </SettingRow>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitleSmall>
-                {t('chat.settings.code_cache_threshold')}
-                <Tooltip title={t('chat.settings.code_cache_threshold.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
-              </SettingRowTitleSmall>
-              <InputNumber
-                size="small"
-                min={0}
-                max={50}
-                step={1}
-                value={codeCacheThreshold}
-                onChange={(value) => dispatch(setCodeCacheThreshold(value ?? 2))}
-                style={{ width: 80 }}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
           <SettingRowTitleSmall>
             {t('chat.settings.thought_auto_collapse')}
             <Tooltip title={t('chat.settings.thought_auto_collapse.tip')}>
@@ -438,21 +371,6 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
-          <StyledSelect
-            value={codeStyle}
-            onChange={(value) => dispatch(setCodeStyle(value as CodeStyleVarious))}
-            style={{ width: 135 }}
-            size="small">
-            {codeThemes.map((theme) => (
-              <Select.Option key={theme} value={theme}>
-                {theme}
-              </Select.Option>
-            ))}
-          </StyledSelect>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
           <StyledSelect
             value={mathEngine}
@@ -487,7 +405,133 @@ const SettingsTab: FC<Props> = (props) => {
         </Row>
       </SettingGroup>
       <SettingGroup>
-        <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.input.title')}</SettingSubtitle>
+        <SettingSubtitle style={{ marginTop: 0 }}>{t('chat.settings.code.title')}</SettingSubtitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
+          <StyledSelect
+            value={codeStyle}
+            onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
+            style={{ width: 135 }}
+            size="small">
+            {themeNames.map((theme) => (
+              <Select.Option key={theme} value={theme}>
+                {theme}
+              </Select.Option>
+            ))}
+          </StyledSelect>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('chat.settings.code_execution.title')}
+            <Tooltip title={t('chat.settings.code_execution.tip')}>
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={codeExecution.enabled}
+            onChange={(checked) => dispatch(setCodeExecution({ enabled: checked }))}
+          />
+        </SettingRow>
+        {codeExecution.enabled && (
+          <>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>
+                {t('chat.settings.code_execution.timeout_minutes')}
+                <Tooltip title={t('chat.settings.code_execution.timeout_minutes.tip')}>
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <InputNumber
+                size="small"
+                min={1}
+                max={60}
+                step={1}
+                value={codeExecution.timeoutMinutes}
+                onChange={(value) => dispatch(setCodeExecution({ timeoutMinutes: value ?? 1 }))}
+                style={{ width: 80 }}
+              />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_editor.title')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={codeEditor.enabled}
+            onChange={(checked) => dispatch(setCodeEditor({ enabled: checked }))}
+          />
+        </SettingRow>
+        {codeEditor.enabled && (
+          <>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.highlight_active_line')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.highlightActiveLine}
+                onChange={(checked) => dispatch(setCodeEditor({ highlightActiveLine: checked }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.foldGutter}
+                onChange={(checked) => dispatch(setCodeEditor({ foldGutter: checked }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.autocompletion}
+                onChange={(checked) => dispatch(setCodeEditor({ autocompletion: checked }))}
+              />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall>
+              <Switch
+                size="small"
+                checked={codeEditor.keymap}
+                onChange={(checked) => dispatch(setCodeEditor({ keymap: checked }))}
+              />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.show_line_numbers')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={codeShowLineNumbers}
+            onChange={(checked) => dispatch(setCodeShowLineNumbers(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_collapsible')}</SettingRowTitleSmall>
+          <Switch
+            size="small"
+            checked={codeCollapsible}
+            onChange={(checked) => dispatch(setCodeCollapsible(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
+          <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup>
+        <SettingSubtitle style={{ marginTop: 10 }}>{t('settings.messages.input.title')}</SettingSubtitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>

@@ -48,7 +48,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       onCancel={onCancel}
       afterClose={onClose}
       transitionName="animation-move-down"
-      width={300}
+      width={400}
       centered>
       <Select
         value={model?.id}

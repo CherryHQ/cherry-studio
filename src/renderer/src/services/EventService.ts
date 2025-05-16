@@ -29,4 +29,5 @@ export const EVENT_NAMES = {
   QUOTE_TEXT: 'QUOTE_TEXT',
   TOGGLE_MULTI_SELECT: 'toggle_multi_select',
   SELECTED_MESSAGES_CHANGED: 'selected_messages_changed'
+  EDIT_CODE_BLOCK: 'EDIT_CODE_BLOCK'
 }

@@ -2,7 +2,6 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
-import { BuiltinTheme } from 'shiki'
 
 import type { Message } from './newMessage'
 
@@ -306,7 +305,7 @@ export type TranslateLanguageVarious =
   | 'portuguese'
   | 'russian'
 
-export type CodeStyleVarious = BuiltinTheme | 'auto'
+export type CodeStyleVarious = 'auto' | string
 
 export type WebDavConfig = {
   webdavHost: string
