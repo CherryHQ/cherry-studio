@@ -132,7 +132,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               maxHeight="60vh"
               options={{
                 collapsible: true,
-                wrapable: true,
+                wrappable: true,
                 lineNumbers: true,
                 foldGutter: true,
                 highlightActiveLine: true,

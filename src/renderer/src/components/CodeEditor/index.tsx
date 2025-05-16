@@ -26,7 +26,7 @@ interface Props {
   /** 用于覆写编辑器的某些设置 */
   options?: {
     collapsible?: boolean
-    wrapable?: boolean
+    wrappable?: boolean
     keymap?: boolean
   } & BasicSetupOptions
   /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
@@ -43,11 +43,11 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
     fontSize,
     codeShowLineNumbers: _lineNumbers,
     codeCollapsible: _collapsible,
-    codeWrappable: _wrapable,
+    codeWrappable: _wrappable,
     codeEditor
   } = useSettings()
   const collapsible = useMemo(() => options?.collapsible ?? _collapsible, [options?.collapsible, _collapsible])
-  const wrapable = useMemo(() => options?.wrapable ?? _wrapable, [options?.wrapable, _wrapable])
+  const wrappable = useMemo(() => options?.wrappable ?? _wrappable, [options?.wrappable, _wrappable])
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
 
   // 合并 codeEditor 和 options 的 basicSetup，options 优先
@@ -61,7 +61,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
 
   const { activeCmTheme, languageMap } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
-  const [isUnwrapped, setIsUnwrapped] = useState(!wrapable)
+  const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
   const initialContent = useRef(children?.trimEnd() ?? '')
   const [langExtension, setLangExtension] = useState<Extension[]>([])
   const [editorReady, setEditorReady] = useState(false)
@@ -113,12 +113,12 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
       ...TOOL_SPECS.wrap,
       icon: isUnwrapped ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
       tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
-      visible: () => wrapable,
+      visible: () => wrappable,
       onClick: () => setIsUnwrapped((prev) => !prev)
     })
 
     return () => removeTool(TOOL_SPECS.wrap.id)
-  }, [wrapable, isUnwrapped, registerTool, removeTool, t])
+  }, [wrappable, isUnwrapped, registerTool, removeTool, t])
 
   const handleSave = useCallback(() => {
     const currentDoc = editorViewRef.current?.state.doc.toString() ?? ''
@@ -160,8 +160,8 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
   }, [collapsible])
 
   useEffect(() => {
-    setIsUnwrapped(!wrapable)
-  }, [wrapable])
+    setIsUnwrapped(!wrappable)
+  }, [wrappable])
 
   // 保存功能的快捷键
   const saveKeymap = useMemo(() => {
