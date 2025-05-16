@@ -48,6 +48,11 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant }) 
           onChange={(value: string) => setTempTag(value)}
           options={allTags?.map((tag) => ({ value: tag, label: tag }))}
           showSearch
+          onSearch={(value: string) => {
+            if (value && !allTags?.includes(value)) {
+              setTempTag(value)
+            }
+          }}
           filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
         />
         {assistant.tags?.[0] !== tempTag && (
