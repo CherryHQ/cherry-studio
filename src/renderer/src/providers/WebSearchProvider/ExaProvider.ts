@@ -1,5 +1,6 @@
 import { ExaClient } from '@agentic/exa'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import { WebSearchState } from '@renderer/store/websearch'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
@@ -11,10 +12,13 @@ export default class ExaProvider extends BaseWebSearchProvider {
     if (!this.apiKey) {
       throw new Error('API key is required for Exa provider')
     }
-    this.exa = new ExaClient({ apiKey: this.apiKey })
+    if (!this.apiHost) {
+      throw new Error('API host is required for Exa provider')
+    }
+    this.exa = new ExaClient({ apiKey: this.apiKey, apiBaseUrl: this.apiHost })
   }
 
-  public async search(query: string, maxResults: number): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')
@@ -22,7 +26,7 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
       const response = await this.exa.search({
         query,
-        numResults: Math.max(1, maxResults),
+        numResults: Math.max(1, websearch.maxResults),
         contents: {
           text: true
         }
@@ -30,11 +34,18 @@ export default class ExaProvider extends BaseWebSearchProvider {
 
       return {
         query: response.autopromptString,
-        results: response.results.map((result) => ({
-          title: result.title || 'No title',
-          content: result.text || '',
-          url: result.url || ''
-        }))
+        results: response.results.slice(0, websearch.maxResults).map((result) => {
+          let content = result.text || ''
+          if (websearch.contentLimit && content.length > websearch.contentLimit) {
+            content = content.slice(0, websearch.contentLimit) + '...'
+          }
+
+          return {
+            title: result.title || 'No title',
+            content: content,
+            url: result.url || ''
+          }
+        })
       }
     } catch (error) {
       console.error('Exa search failed:', error)

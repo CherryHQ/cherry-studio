@@ -10,6 +10,7 @@ const NavigationService: INavigationService = {
 
   setNavigate: (navigateFunc: NavigateFunction): void => {
     NavigationService.navigate = navigateFunc
+    window.navigate = NavigationService.navigate
   }
 }
 

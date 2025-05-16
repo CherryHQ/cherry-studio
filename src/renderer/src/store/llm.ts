@@ -2,7 +2,6 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
 import { uniqBy } from 'lodash'
 
 type LlmSettings = {
@@ -47,32 +46,12 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'o3',
-    name: 'O3',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.o3.fan',
-    models: SYSTEM_MODELS.o3,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'ocoolai',
     name: 'ocoolAI',
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.ocoolai.com',
     models: SYSTEM_MODELS.ocoolai,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://openrouter.ai/api/v1/',
-    models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
   },
@@ -87,22 +66,12 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'ollama',
-    name: 'Ollama',
+    id: 'openrouter',
+    name: 'OpenRouter',
     type: 'openai',
     apiKey: '',
-    apiHost: 'http://localhost:11434',
-    models: SYSTEM_MODELS.ollama,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'lmstudio',
-    name: 'LM Studio',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'http://localhost:1234',
-    models: SYSTEM_MODELS.lmstudio,
+    apiHost: 'https://openrouter.ai/api/v1/',
+    models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
   },
@@ -147,12 +116,42 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'baidu-cloud',
-    name: 'Baidu Cloud',
+    id: 'dmxapi',
+    name: 'DMXAPI',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://qianfan.baidubce.com/v2/',
-    models: SYSTEM_MODELS['baidu-cloud'],
+    apiHost: 'https://www.dmxapi.cn',
+    models: SYSTEM_MODELS.dmxapi,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'o3',
+    name: 'O3',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.o3.fan',
+    models: SYSTEM_MODELS.o3,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:11434',
+    models: SYSTEM_MODELS.ollama,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'lmstudio',
+    name: 'LM Studio',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:1234',
+    models: SYSTEM_MODELS.lmstudio,
     isSystem: true,
     enabled: false
   },
@@ -169,7 +168,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: 'openai',
     name: 'OpenAI',
-    type: 'openai',
+    type: 'openai-response',
     apiKey: '',
     apiHost: 'https://api.openai.com',
     models: SYSTEM_MODELS.openai,
@@ -198,6 +197,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'zhipu',
+    name: 'ZhiPu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    models: SYSTEM_MODELS.zhipu,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'github',
     name: 'Github Models',
     type: 'openai',
@@ -219,32 +228,12 @@ export const INITIAL_PROVIDERS: Provider[] = [
     isAuthed: false
   },
   {
-    id: 'dmxapi',
-    name: 'DMXAPI',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://www.dmxapi.cn',
-    models: SYSTEM_MODELS.dmxapi,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'yi',
     name: 'Yi',
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.lingyiwanwu.com',
     models: SYSTEM_MODELS.yi,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'zhipu',
-    name: 'ZhiPu',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
-    models: SYSTEM_MODELS.zhipu,
     isSystem: true,
     enabled: false
   },
@@ -459,6 +448,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'baidu-cloud',
+    name: 'Baidu Cloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://qianfan.baidubce.com/v2/',
+    models: SYSTEM_MODELS['baidu-cloud'],
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'gpustack',
     name: 'GPUStack',
     type: 'openai',
@@ -541,7 +540,7 @@ export const moveProvider = (providers: Provider[], id: string, position: number
   return newProviders
 }
 
-const settingsSlice = createSlice({
+const llmSlice = createSlice({
   name: 'llm',
   initialState: isLocalAi ? getIntegratedInitialState() : initialState,
   reducers: {
@@ -583,7 +582,6 @@ const settingsSlice = createSlice({
     },
     setDefaultModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.defaultModel = action.payload.model
-      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTopicNamingModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.topicNamingModel = action.payload.model
@@ -632,6 +630,6 @@ export const {
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,
   updateModel
-} = settingsSlice.actions
+} = llmSlice.actions
 
-export default settingsSlice.reducer
+export default llmSlice.reducer

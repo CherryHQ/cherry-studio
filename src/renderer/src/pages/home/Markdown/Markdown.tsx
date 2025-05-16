@@ -4,16 +4,16 @@ import 'katex/dist/contrib/mhchem'
 
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
-import type { Message } from '@renderer/types'
+import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
-import { escapeBrackets, removeSvgEmptyLines, withGeminiGrounding } from '@renderer/utils/formats'
+import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
-// @ts-ignore next-line
+// @ts-ignore rehype-mathjax is not typed
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
@@ -26,44 +26,57 @@ import Link from './Link'
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
+const DISALLOWED_ELEMENTS = ['iframe']
 
 interface Props {
-  message: Message
+  // message: Message & { content: string }
+  block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
 }
 
-const remarkPlugins = [remarkMath, remarkGfm, remarkCjkFriendly]
-const disallowedElements = ['iframe']
-const Markdown: FC<Props> = ({ message }) => {
+const Markdown: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
-  const { renderInputMessageAsMarkdown, mathEngine } = useSettings()
+  const { mathEngine } = useSettings()
 
-  const rehypeMath = useMemo(() => (mathEngine === 'KaTeX' ? rehypeKatex : rehypeMathjax), [mathEngine])
+  const remarkPlugins = useMemo(() => {
+    const plugins = [remarkGfm, remarkCjkFriendly]
+    if (mathEngine !== 'none') {
+      plugins.push(remarkMath)
+    }
+    return plugins
+  }, [mathEngine])
 
   const messageContent = useMemo(() => {
-    const empty = isEmpty(message.content)
-    const paused = message.status === 'paused'
-    const content = empty && paused ? t('message.chat.completion.paused') : withGeminiGrounding(message)
+    const empty = isEmpty(block.content)
+    const paused = block.status === 'paused'
+    const content = empty && paused ? t('message.chat.completion.paused') : block.content
     return removeSvgEmptyLines(escapeBrackets(content))
-  }, [message, t])
+  }, [block, t])
 
   const rehypePlugins = useMemo(() => {
-    const hasElements = ALLOWED_ELEMENTS.test(messageContent)
-    return hasElements ? [rehypeRaw, rehypeMath] : [rehypeMath]
-  }, [messageContent, rehypeMath])
+    const plugins: any[] = []
+    if (ALLOWED_ELEMENTS.test(messageContent)) {
+      plugins.push(rehypeRaw)
+    }
+    if (mathEngine === 'KaTeX') {
+      plugins.push(rehypeKatex as any)
+    } else if (mathEngine === 'MathJax') {
+      plugins.push(rehypeMathjax as any)
+    }
+    return plugins
+  }, [mathEngine, messageContent])
 
   const components = useMemo(() => {
-    const baseComponents = {
+    return {
       a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
       code: CodeBlock,
       img: ImagePreview,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
     } as Partial<Components>
-    return baseComponents
   }, [])
 
-  if (message.role === 'user' && !renderInputMessageAsMarkdown) {
-    return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
-  }
+  // if (role === 'user' && !renderInputMessageAsMarkdown) {
+  //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
+  // }
 
   if (messageContent.includes('<style>')) {
     components.style = MarkdownShadowDOMRenderer as any
@@ -75,7 +88,7 @@ const Markdown: FC<Props> = ({ message }) => {
       remarkPlugins={remarkPlugins}
       className="markdown"
       components={components}
-      disallowedElements={disallowedElements}
+      disallowedElements={DISALLOWED_ELEMENTS}
       remarkRehypeOptions={{
         footnoteLabel: t('common.footnotes'),
         footnoteLabelTagName: 'h4',

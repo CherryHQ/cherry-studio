@@ -3,7 +3,8 @@ import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+// import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { SettingHelpText } from '@renderer/pages/settings'
@@ -23,6 +24,7 @@ interface FormData {
   name: string
   model: string
   documentCount?: number
+  dimensions?: number
   chunkSize?: number
   chunkOverlap?: number
   threshold?: number
@@ -67,7 +69,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
   const rerankSelectOptions = providers
     .filter((p) => p.models.length > 0)
-    .filter((p) => SUPPORTED_REANK_PROVIDERS.includes(p.id))
+    .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
     .map((p) => ({
       label: p.isSystem ? t(`provider.${p.id}`) : p.name,
       title: p.name,
@@ -87,6 +89,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         ...base,
         name: values.name,
         documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
+        dimensions: values.dimensions || base.dimensions,
         chunkSize: values.chunkSize,
         chunkOverlap: values.chunkOverlap,
         threshold: values.threshold ?? undefined,
@@ -122,6 +125,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       afterClose={onClose}
       destroyOnClose
       maskClosable={false}
+      transitionName="animation-move-down"
       centered>
       <Form form={form} layout="vertical" className="compact-form">
         <Form.Item
@@ -155,8 +159,8 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
           />
         </Form.Item>
         <SettingHelpText style={{ marginTop: -15, marginBottom: 20 }}>
-          {t('models.rerank_model_support_provider', {
-            provider: SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
+          {t('models.rerank_model_not_support_provider', {
+            provider: NOT_SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
           })}
         </SettingHelpText>
 
@@ -185,6 +189,32 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         </AdvancedSettingsButton>
 
         <div style={{ display: showAdvanced ? 'block' : 'none' }}>
+          <Form.Item
+            name="dimensions"
+            label={t('knowledge.dimensions')}
+            layout="horizontal"
+            initialValue={base.dimensions}
+            tooltip={{ title: t('knowledge.dimensions_size_tooltip') }}
+            rules={[
+              {
+                validator(_, value) {
+                  const maxContext = getEmbeddingMaxContext(base.model.id)
+                  if (value && maxContext && value > maxContext) {
+                    return Promise.reject(
+                      new Error(t('knowledge.dimensions_size_too_large', { max_context: maxContext }))
+                    )
+                  }
+                  return Promise.resolve()
+                }
+              }
+            ]}>
+            <InputNumber
+              style={{ width: '100%' }}
+              defaultValue={base.dimensions}
+              placeholder={t('knowledge.dimensions_size_placeholder')}
+              disabled={base.model.id !== 'voyage-3-large'}
+            />
+          </Form.Item>
           <Form.Item
             name="chunkSize"
             label={t('knowledge.chunk_size')}
@@ -261,7 +291,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             rules={[
               {
                 validator(_, value) {
-                  if (value && (value < 0 || value > 10)) {
+                  if (value && (value < 0 || value > 30)) {
                     return Promise.reject(new Error(t('knowledge.topN_too_large_or_small')))
                   }
                   return Promise.resolve()

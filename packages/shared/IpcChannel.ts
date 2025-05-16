@@ -1,4 +1,5 @@
 export enum IpcChannel {
+  App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
@@ -12,11 +13,15 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
+  App_SetAutoUpdate = 'app:set-auto-update',
+  App_HandleZoomFactor = 'app:handle-zoom-factor',
 
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+
+  Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
 
   // Open
   Open_Path = 'open:path',
@@ -34,11 +39,16 @@ export enum IpcChannel {
   MiniWindow_SetPin = 'miniwindow:set-pin',
 
   // Mcp
+  Mcp_AddServer = 'mcp:add-server',
   Mcp_RemoveServer = 'mcp:remove-server',
   Mcp_RestartServer = 'mcp:restart-server',
   Mcp_StopServer = 'mcp:stop-server',
   Mcp_ListTools = 'mcp:list-tools',
   Mcp_CallTool = 'mcp:call-tool',
+  Mcp_ListPrompts = 'mcp:list-prompts',
+  Mcp_GetPrompt = 'mcp:get-prompt',
+  Mcp_ListResources = 'mcp:list-resources',
+  Mcp_GetResource = 'mcp:get-resource',
   Mcp_GetInstallInfo = 'mcp:get-install-info',
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
@@ -73,8 +83,6 @@ export enum IpcChannel {
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
 
-  SelectionMenu_Action = 'selection-menu:action',
-
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
@@ -96,12 +104,13 @@ export enum IpcChannel {
   File_SelectFolder = 'file:selectFolder',
   File_Create = 'file:create',
   File_Write = 'file:write',
+  File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
   File_Base64Image = 'file:base64Image',
   File_Download = 'file:download',
   File_Copy = 'file:copy',
-  File_BinaryFile = 'file:binaryFile',
-
+  File_BinaryImage = 'file:binaryImage',
+  File_Base64File = 'file:base64File',
   Fs_Read = 'fs:read',
 
   Export_Word = 'export:word',
@@ -116,6 +125,7 @@ export enum IpcChannel {
   Backup_ListWebdavFiles = 'backup:listWebdavFiles',
   Backup_CheckConnection = 'backup:checkConnection',
   Backup_CreateDirectory = 'backup:createDirectory',
+  Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
 
   // zip
   Zip_Compress = 'zip:compress',
@@ -123,9 +133,12 @@ export enum IpcChannel {
 
   // system
   System_GetDeviceType = 'system:getDeviceType',
+  System_GetHostname = 'system:getHostname',
+
+  // DevTools
+  System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
-  SelectionAction = 'selection-action',
   BackupProgress = 'backup-progress',
   ThemeChange = 'theme:change',
   UpdateDownloadedCancelled = 'update-downloaded-cancelled',
@@ -143,7 +156,6 @@ export enum IpcChannel {
 
   HideMiniWindow = 'hide-mini-window',
   ShowMiniWindow = 'show-mini-window',
-  MiniWindowReload = 'miniwindow-reload',
 
   ReduxStateChange = 'redux-state-change',
   ReduxStoreReady = 'redux-store-ready',
@@ -151,5 +163,11 @@ export enum IpcChannel {
   // Search Window
   SearchWindow_Open = 'search-window:open',
   SearchWindow_Close = 'search-window:close',
-  SearchWindow_OpenUrl = 'search-window:open-url'
+  SearchWindow_OpenUrl = 'search-window:open-url',
+
+  //Store Sync
+  StoreSync_Subscribe = 'store-sync:subscribe',
+  StoreSync_Unsubscribe = 'store-sync:unsubscribe',
+  StoreSync_OnUpdate = 'store-sync:on-update',
+  StoreSync_BroadcastSync = 'store-sync:broadcast-sync'
 }

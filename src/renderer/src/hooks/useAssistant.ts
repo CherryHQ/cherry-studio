@@ -17,7 +17,7 @@ import {
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { TopicManager } from './useTopic'
 
@@ -43,9 +43,16 @@ export function useAssistant(id: string) {
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
 
+  const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
+  if (!model) {
+    throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
+  }
+
+  const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
+
   return {
-    assistant,
-    model: assistant?.model ?? assistant?.defaultModel ?? defaultModel,
+    assistant: assistantWithModel,
+    model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {
       TopicManager.removeTopic(topic.id)
@@ -84,11 +91,12 @@ export function useAssistant(id: string) {
 export function useDefaultAssistant() {
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
   const dispatch = useAppDispatch()
+  const memoizedTopics = useMemo(() => [getDefaultTopic(defaultAssistant.id)], [defaultAssistant.id])
 
   return {
     defaultAssistant: {
       ...defaultAssistant,
-      topics: [getDefaultTopic(defaultAssistant.id)]
+      topics: memoizedTopics
     },
     updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
   }

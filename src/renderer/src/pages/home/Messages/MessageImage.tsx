@@ -8,17 +8,17 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
-import { Message } from '@renderer/types'
+import type { ImageMessageBlock } from '@renderer/types/newMessage'
 import { Image as AntdImage, Space } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  message: Message
+  block: ImageMessageBlock
 }
 
-const MessageImage: FC<Props> = ({ message }) => {
+const MessageImage: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
 
   const onDownload = (imageBase64: string, index: number) => {
@@ -88,34 +88,42 @@ const MessageImage: FC<Props> = ({ message }) => {
     }
   }
 
+  const renderToolbar =
+    (currentImage: string, currentIndex: number) =>
+    (
+      _: any,
+      {
+        transform: { scale },
+        actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
+      }: any
+    ) => (
+      <ToobarWrapper size={12} className="toolbar-wrapper">
+        <SwapOutlined rotate={90} onClick={onFlipY} />
+        <SwapOutlined onClick={onFlipX} />
+        <RotateLeftOutlined onClick={onRotateLeft} />
+        <RotateRightOutlined onClick={onRotateRight} />
+        <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+        <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+        <UndoOutlined onClick={onReset} />
+        <CopyOutlined onClick={() => onCopy(block.metadata?.generateImageResponse?.type!, currentImage)} />
+        <DownloadOutlined onClick={() => onDownload(currentImage, currentIndex)} />
+      </ToobarWrapper>
+    )
+
+  const images = block.metadata?.generateImageResponse?.images?.length
+    ? block.metadata?.generateImageResponse?.images
+    : block?.file?.path
+      ? [`file://${block?.file?.path}`]
+      : []
+
   return (
     <Container style={{ marginBottom: 8 }}>
-      {message.metadata?.generateImage!.images.map((image, index) => (
+      {images.map((image, index) => (
         <Image
           src={image}
           key={`image-${index}`}
-          width="33%"
-          preview={{
-            toolbarRender: (
-              _,
-              {
-                transform: { scale },
-                actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
-              }
-            ) => (
-              <ToobarWrapper size={12} className="toolbar-wrapper">
-                <SwapOutlined rotate={90} onClick={onFlipY} />
-                <SwapOutlined onClick={onFlipX} />
-                <RotateLeftOutlined onClick={onRotateLeft} />
-                <RotateRightOutlined onClick={onRotateRight} />
-                <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-                <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-                <UndoOutlined onClick={onReset} />
-                <CopyOutlined onClick={() => onCopy(message.metadata?.generateImage?.type!, image)} />
-                <DownloadOutlined onClick={() => onDownload(image, index)} />
-              </ToobarWrapper>
-            )
-          }}
+          style={{ maxWidth: 500, maxHeight: 500 }}
+          preview={{ toolbarRender: renderToolbar(image, index) }}
         />
       ))}
     </Container>
@@ -128,13 +136,14 @@ const Container = styled.div`
   margin-top: 8px;
 `
 const Image = styled(AntdImage)`
-  border-radius: 10px;
+  padding: 5px;
+  border-radius: 8px;
 `
 const ToobarWrapper = styled(Space)`
   padding: 0px 24px;
   color: #fff;
   font-size: 20px;
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(238, 233, 233, 0.1);
   border-radius: 100px;
   .anticon {
     padding: 12px;

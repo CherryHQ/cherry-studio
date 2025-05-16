@@ -1,10 +1,12 @@
 import fs from 'node:fs'
+import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, session, shell } from 'electron'
+import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
@@ -23,11 +25,13 @@ import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { searchService } from './services/SearchService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
+import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
+import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -46,7 +50,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
-    logsPath: log.transports.file.getFile().path
+    logsPath: log.transports.file.getFile().path,
+    arch: arch(),
+    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env
   }))
 
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
@@ -98,6 +104,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setTrayOnClose(isActive)
   })
 
+  // auto update
+  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+    appUpdater.setAutoUpdate(isActive)
+    configManager.setAutoUpdate(isActive)
+  })
+
   ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
@@ -109,23 +121,41 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // theme
-  ipcMain.handle(IpcChannel.App_SetTheme, (event, theme: ThemeMode) => {
-    if (theme === configManager.getTheme()) return
+  ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const updateTitleBarOverlay = () => {
+      if (!mainWindow?.setTitleBarOverlay) return
+      const isDark = nativeTheme.shouldUseDarkColors
+      mainWindow.setTitleBarOverlay(isDark ? titleBarOverlayDark : titleBarOverlayLight)
+    }
 
+    const broadcastThemeChange = () => {
+      const isDark = nativeTheme.shouldUseDarkColors
+      const effectiveTheme = isDark ? ThemeMode.dark : ThemeMode.light
+      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send(IpcChannel.ThemeChange, effectiveTheme))
+    }
+
+    const notifyThemeChange = () => {
+      updateTitleBarOverlay()
+      broadcastThemeChange()
+    }
+
+    if (theme === ThemeMode.auto) {
+      nativeTheme.themeSource = 'system'
+      nativeTheme.on('updated', notifyThemeChange)
+    } else {
+      nativeTheme.themeSource = theme
+      nativeTheme.off('updated', notifyThemeChange)
+    }
+
+    updateTitleBarOverlay()
     configManager.setTheme(theme)
+    notifyThemeChange()
+  })
 
-    // should sync theme change to all windows
-    const senderWindowId = event.sender.id
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
-    // 向其他窗口广播主题变化
-    windows.forEach((win) => {
-      if (win.webContents.id !== senderWindowId) {
-        win.webContents.send(IpcChannel.ThemeChange, theme)
-      }
-    })
-
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight)
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache
@@ -150,13 +180,24 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  // get cache size
+  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
+    const cachePath = getCacheDir()
+    log.info(`Calculating cache size for path: ${cachePath}`)
+
+    try {
+      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
+      return `${sizeInMB}`
+    } catch (error: any) {
+      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      return '0'
+    }
+  })
+
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    const update = await appUpdater.autoUpdater.checkForUpdates()
-    return {
-      currentVersion: appUpdater.autoUpdater.currentVersion,
-      updateInfo: update?.updateInfo
-    }
+    await appUpdater.checkForUpdates()
   })
 
   // zip
@@ -171,6 +212,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Backup_ListWebdavFiles, backupManager.listWebdavFiles)
   ipcMain.handle(IpcChannel.Backup_CheckConnection, backupManager.checkConnection)
   ipcMain.handle(IpcChannel.Backup_CreateDirectory, backupManager.createDirectory)
+  ipcMain.handle(IpcChannel.Backup_DeleteWebdavFile, backupManager.deleteWebdavFile)
 
   // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open)
@@ -185,11 +227,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
-  ipcMain.handle(IpcChannel.File_BinaryFile, fileManager.binaryFile)
+  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
@@ -262,6 +306,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
   ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
   ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
+  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
+  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
+  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
+  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
@@ -303,4 +351,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.SearchWindow_OpenUrl, async (_, uid: string, url: string) => {
     return await searchService.openUrlInSearchWindow(uid, url)
   })
+
+  // webview
+  ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
+    setOpenLinkExternal(webviewId, isExternal)
+  )
+
+  // store sync
+  storeSyncService.registerIpcHandler()
 }

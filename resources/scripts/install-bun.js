@@ -6,8 +6,8 @@ const AdmZip = require('adm-zip')
 const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading bun binaries
-const BUN_RELEASE_BASE_URL = 'https://github.com/oven-sh/bun/releases/download'
-const DEFAULT_BUN_VERSION = '1.2.5' // Default fallback version
+const BUN_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/bun/releases/download'
+const DEFAULT_BUN_VERSION = '1.2.9' // Default fallback version
 
 // Mapping of platform+arch to binary package name
 const BUN_PACKAGES = {

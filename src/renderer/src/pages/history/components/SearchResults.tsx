@@ -1,7 +1,9 @@
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { getTopicById } from '@renderer/hooks/useTopic'
-import { Message, Topic } from '@renderer/types'
+import { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { List, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -63,7 +65,8 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       .filter((term) => term.length > 0)
 
     for (const message of messages) {
-      const cleanContent = removeMarkdown(message.content.toLowerCase())
+      const content = getMainTextContent(message)
+      const cleanContent = removeMarkdown(content.toLowerCase())
       if (newSearchTerms.every((term) => cleanContent.includes(term))) {
         results.push({ message, topic: await getTopicById(message.topicId)! })
       }
@@ -124,7 +127,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
                 {topic.name}
               </Title>
               <div style={{ cursor: 'pointer' }} onClick={() => onMessageClick(message)}>
-                <Text>{highlightText(message.content)}</Text>
+                <Text>{highlightText(getMainTextContent(message))}</Text>
               </div>
               <SearchResultTime>
                 <Text type="secondary">{new Date(message.createdAt).toLocaleString()}</Text>

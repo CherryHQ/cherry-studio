@@ -26,6 +26,7 @@ export default class WebDav {
     this.putFileContents = this.putFileContents.bind(this)
     this.getFileContents = this.getFileContents.bind(this)
     this.createDirectory = this.createDirectory.bind(this)
+    this.deleteFile = this.deleteFile.bind(this)
   }
 
   public putFileContents = async (
@@ -95,6 +96,21 @@ export default class WebDav {
       return await this.instance.createDirectory(path, options)
     } catch (error) {
       Logger.error('[WebDAV] Error creating directory on WebDAV:', error)
+      throw error
+    }
+  }
+
+  public deleteFile = async (filename: string) => {
+    if (!this.instance) {
+      throw new Error('WebDAV client not initialized')
+    }
+
+    const remoteFilePath = `${this.webdavPath}/${filename}`
+
+    try {
+      return await this.instance.deleteFile(remoteFilePath)
+    } catch (error) {
+      Logger.error('[WebDAV] Error deleting file on WebDAV:', error)
       throw error
     }
   }

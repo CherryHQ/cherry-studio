@@ -5,7 +5,8 @@ import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Assistant, Message, Topic } from '@renderer/types'
+import { Assistant, Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown } from 'antd'
 import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -47,7 +48,7 @@ const MessageItem: FC<Props> = ({
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize } = useSettings()
   const messageContainerRef = useRef<HTMLDivElement>(null)
-  // const topic = useTopic(assistant, _topic?.id)
+
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
   const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
   const [selectedText, setSelectedText] = useState<string>('')
@@ -145,7 +146,7 @@ const MessageItem: FC<Props> = ({
         className="message-content-container"
         style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
         <MessageErrorBoundary>
-          <MessageContent message={message} model={model} />
+          <MessageContent message={message} />
         </MessageErrorBoundary>
         {showMenubar && (
           <MessageFooter

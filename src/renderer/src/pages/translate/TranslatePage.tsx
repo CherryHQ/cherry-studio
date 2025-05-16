@@ -1,12 +1,4 @@
-import {
-  CheckOutlined,
-  DeleteOutlined,
-  HistoryOutlined,
-  SendOutlined,
-  SettingOutlined,
-  SyncOutlined,
-  WarningOutlined
-} from '@ant-design/icons'
+import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isLocalAi } from '@renderer/config/env'
@@ -15,13 +7,14 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Message, TranslateHistory } from '@renderer/types'
+import type { Assistant, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
+import { Mouse, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -92,23 +85,11 @@ const TranslatePage: FC = () => {
 
     const assistant: Assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const message: Message = {
-      id: uuid(),
-      role: 'user',
-      content: '',
-      assistantId: assistant.id,
-      topicId: uuid(),
-      model: translateModel,
-      createdAt: new Date().toISOString(),
-      type: 'text',
-      status: 'sending'
-    }
-
     setLoading(true)
     let translatedText = ''
     try {
       await fetchTranslate({
-        message,
+        content: text,
         assistant,
         onResponse: (text) => {
           translatedText = text.replace(/^\s*\n+/g, '')
@@ -167,18 +148,18 @@ const TranslatePage: FC = () => {
 
     if (translateModel) {
       return (
-        <Link to="/settings/model" style={{ color: 'var(--color-text-2)' }}>
-          <SettingOutlined />
+        <Link to="/settings/model" style={{ color: 'var(--color-text-2)', display: 'flex' }}>
+          <Settings2 size={18} />
         </Link>
       )
     }
 
     return (
-      <Link to="/settings/model" style={{ marginLeft: -10 }}>
+      <Link to="/settings/model" style={{ marginLeft: -10, display: 'flex' }}>
         <Button
           type="link"
           style={{ color: 'var(--color-error)', textDecoration: 'underline' }}
-          icon={<WarningOutlined />}>
+          icon={<TriangleAlert size={16} />}>
           {t('translate.error.not_configured')}
         </Button>
       </Link>
@@ -304,11 +285,11 @@ const TranslatePage: FC = () => {
               <Tooltip
                 mouseEnterDelay={0.5}
                 title={isScrollSyncEnabled ? t('translate.scroll_sync.disable') : t('translate.scroll_sync.enable')}>
-                <SyncOutlined
-                  style={{
-                    color: isScrollSyncEnabled ? 'var(--color-primary)' : 'var(--color-text-2)'
-                  }}
+                <Mouse
+                  size={16}
                   onClick={toggleScrollSync}
+                  style={{ cursor: 'pointer' }}
+                  color={isScrollSyncEnabled ? 'var(--color-primary)' : 'var(--color-icon)'}
                 />
               </Tooltip>
             </Flex>

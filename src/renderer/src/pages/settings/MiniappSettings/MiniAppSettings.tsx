@@ -4,7 +4,11 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
-import { setMaxKeepAliveMinapps, setShowOpenedMinappsInSidebar } from '@renderer/store/settings'
+import {
+  setMaxKeepAliveMinapps,
+  setMinappsOpenLinkExternal,
+  setShowOpenedMinappsInSidebar
+} from '@renderer/store/settings'
 import { Button, message, Slider, Switch, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +24,7 @@ const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { maxKeepAliveMinapps, showOpenedMinappsInSidebar } = useSettings()
+  const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
@@ -73,6 +77,7 @@ const MiniAppSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
         <SettingDivider />
+
         <SettingTitle
           style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{t('settings.miniapps.display_title')}</span>
@@ -89,9 +94,19 @@ const MiniAppSettings: FC = () => {
           />
         </BorderedContainer>
         <SettingDivider />
+        <SettingRow style={{ height: 40, alignItems: 'center' }}>
+          <SettingLabelGroup>
+            <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
+          </SettingLabelGroup>
+          <Switch
+            checked={minappsOpenLinkExternal}
+            onChange={(checked) => dispatch(setMinappsOpenLinkExternal(checked))}
+          />
+        </SettingRow>
+        <SettingDivider />
 
         {/* 缓存小程序数量设置 */}
-        <CacheSettingRow>
+        <SettingRow>
           <SettingLabelGroup>
             <SettingRowTitle>{t('settings.miniapps.cache_title')}</SettingRowTitle>
             <SettingDescription>{t('settings.miniapps.cache_description')}</SettingDescription>
@@ -117,9 +132,9 @@ const MiniAppSettings: FC = () => {
               />
             </SliderWithResetContainer>
           </CacheSettingControls>
-        </CacheSettingRow>
+        </SettingRow>
         <SettingDivider />
-        <SidebarSettingRow>
+        <SettingRow>
           <SettingLabelGroup>
             <SettingRowTitle>{t('settings.miniapps.sidebar_title')}</SettingRowTitle>
             <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
@@ -128,14 +143,14 @@ const MiniAppSettings: FC = () => {
             checked={showOpenedMinappsInSidebar}
             onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
           />
-        </SidebarSettingRow>
+        </SettingRow>
       </SettingGroup>
     </SettingContainer>
   )
 }
 
 // 修改和新增样式
-const CacheSettingRow = styled.div`
+const SettingRow = styled.div`
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -204,14 +219,6 @@ const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-`
-
-// 新增侧边栏设置行样式
-const SidebarSettingRow = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
 `
 
 // 新增: 带边框的容器组件

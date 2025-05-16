@@ -9,15 +9,19 @@ interface Props {
 
 interface State {
   hasError: boolean
+  error?: Error
 }
 
-const ErrorFallback = ({ fallback }: { fallback?: React.ReactNode }) => {
+const ErrorFallback = ({ fallback, error }: { fallback?: React.ReactNode; error?: Error }) => {
   const { t } = useTranslation()
-  return (
-    fallback || (
-      <Alert message={t('error.render.title')} description={t('error.render.description')} type="error" showIcon />
-    )
-  )
+
+  // 如果有详细错误信息，添加到描述中
+  const errorDescription =
+    process.env.NODE_ENV !== 'production' && error
+      ? `${t('error.render.description')}: ${error.message}`
+      : t('error.render.description')
+
+  return fallback || <Alert message={t('error.render.title')} description={errorDescription} type="error" showIcon />
 }
 
 class MessageErrorBoundary extends React.Component<Props, State> {
@@ -26,13 +30,13 @@ class MessageErrorBoundary extends React.Component<Props, State> {
     this.state = { hasError: false }
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
   }
 
   render() {
     if (this.state.hasError) {
-      return <ErrorFallback fallback={this.props.fallback} />
+      return <ErrorFallback fallback={this.props.fallback} error={this.state.error} />
     }
     return this.props.children
   }

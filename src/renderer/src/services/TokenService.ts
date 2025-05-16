@@ -1,6 +1,7 @@
-import { Assistant, FileType, FileTypes, Message } from '@renderer/types'
+import { Assistant, FileType, FileTypes, Usage } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'
-import { CompletionUsage } from 'openai/resources'
 import { approximateTokenSize } from 'tokenx'
 
 import { getAssistantSettings } from './AssistantService'
@@ -27,16 +28,19 @@ async function getFileContent(file: FileType) {
 async function getMessageParam(message: Message): Promise<MessageItem[]> {
   const param: MessageItem[] = []
 
+  const content = getMainTextContent(message)
+  const files = findFileBlocks(message)
+
   param.push({
     role: message.role,
-    content: message.content
+    content
   })
 
-  if (message.files) {
-    for (const file of message.files) {
+  if (files.length > 0) {
+    for (const file of files) {
       param.push({
         role: 'assistant',
-        content: await getFileContent(file)
+        content: await getFileContent(file.file)
       })
     }
   }
@@ -52,11 +56,28 @@ export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }
 
-export async function estimateMessageUsage(message: Message): Promise<CompletionUsage> {
+/**
+ * 估算用户输入内容（文本和文件）的 token 用量。
+ *
+ * 该函数只根据传入的 content（文本内容）和 files（文件列表）估算，
+ * 不依赖完整的 Message 结构，也不会处理消息块、上下文等信息。
+ *
+ * @param {Object} params - 输入参数对象
+ * @param {string} [params.content] - 用户输入的文本内容
+ * @param {FileType[]} [params.files] - 用户上传的文件列表（支持图片和文本）
+ * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
+ */
+export async function estimateUserPromptUsage({
+  content,
+  files
+}: {
+  content?: string
+  files?: FileType[]
+}): Promise<Usage> {
   let imageTokens = 0
 
-  if (message.files) {
-    const images = message.files.filter((f) => f.type === FileTypes.IMAGE)
+  if (files && files.length > 0) {
+    const images = files.filter((f) => f.type === FileTypes.IMAGE)
     if (images.length > 0) {
       for (const image of images) {
         imageTokens = estimateImageTokens(image) + imageTokens
@@ -64,7 +85,42 @@ export async function estimateMessageUsage(message: Message): Promise<Completion
     }
   }
 
-  const combinedContent = [message.content, message.reasoning_content].filter((s) => s !== undefined).join(' ')
+  const tokens = estimateTextTokens(content || '')
+
+  return {
+    prompt_tokens: tokens,
+    completion_tokens: tokens,
+    total_tokens: tokens + (imageTokens ? imageTokens - 7 : 0)
+  }
+}
+
+/**
+ * 估算完整消息（Message）的 token 用量。
+ *
+ * 该函数会自动从 message 中提取主文本内容、推理内容（reasoningContent）和所有文件块，
+ * 统计文本和图片的 token 数量，适用于对完整消息对象进行 usage 估算。
+ *
+ * @param {Partial<Message>} message - 消息对象，可以是完整或部分 Message
+ * @returns {Promise<Usage>} 返回一个 Usage 对象，包含 prompt_tokens、completion_tokens、total_tokens
+ */
+export async function estimateMessageUsage(message: Partial<Message>): Promise<Usage> {
+  const fileBlocks = findFileBlocks(message as Message)
+  const files = fileBlocks.map((f) => f.file)
+
+  let imageTokens = 0
+
+  if (files.length > 0) {
+    const images = files.filter((f) => f.type === FileTypes.IMAGE)
+    if (images.length > 0) {
+      for (const image of images) {
+        imageTokens = estimateImageTokens(image) + imageTokens
+      }
+    }
+  }
+
+  const content = getMainTextContent(message as Message)
+  const reasoningContent = getThinkingContent(message as Message)
+  const combinedContent = [content, reasoningContent].filter((s) => s !== undefined).join(' ')
   const tokens = estimateTextTokens(combinedContent)
 
   return {
@@ -80,17 +136,17 @@ export async function estimateMessagesUsage({
 }: {
   assistant: Assistant
   messages: Message[]
-}): Promise<CompletionUsage> {
+}): Promise<Usage> {
   const outputMessage = messages.pop()!
 
   const prompt_tokens = await estimateHistoryTokens(assistant, messages)
   const { completion_tokens } = await estimateMessageUsage(outputMessage)
 
   return {
-    prompt_tokens: await estimateHistoryTokens(assistant, messages),
+    prompt_tokens,
     completion_tokens,
     total_tokens: prompt_tokens + completion_tokens
-  } as CompletionUsage
+  } as Usage
 }
 
 export async function estimateHistoryTokens(assistant: Assistant, msgs: Message[]) {

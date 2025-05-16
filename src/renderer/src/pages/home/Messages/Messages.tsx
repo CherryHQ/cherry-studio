@@ -1,8 +1,8 @@
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useMessageOperations, useTopicLoading, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
@@ -11,25 +11,27 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import { useAppDispatch } from '@renderer/store'
-import type { Assistant, Message, Topic } from '@renderer/types'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
+import type { Assistant, Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { flatten, last, take } from 'lodash'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import ChatNavigation from './ChatNavigation'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
-import NewTopicButton from './NewTopicButton'
 import Prompt from './Prompt'
 
 interface MessagesProps {
@@ -38,45 +40,9 @@ interface MessagesProps {
   setActiveTopic: (topic: Topic) => void
 }
 
-const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
-  const reversedMessages = [...messages].reverse()
-
-  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息
-  if (reversedMessages.length - startIndex <= displayCount) {
-    return reversedMessages.slice(startIndex)
-  }
-
-  const userIdSet = new Set() // 用户消息 id 集合
-  const assistantIdSet = new Set() // 助手消息 askId 集合
-  const displayMessages: Message[] = []
-
-  // 处理单条消息的函数
-  const processMessage = (message: Message) => {
-    if (!message) return
-
-    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
-    const messageId = message.role === 'user' ? message.id : message.askId
-
-    if (!idSet.has(messageId)) {
-      idSet.add(messageId)
-      displayMessages.push(message)
-      return
-    }
-    // 如果是相同 askId 的助手消息，也要显示
-    displayMessages.push(message)
-  }
-
-  // 遍历消息直到满足显示数量要求
-  for (let i = startIndex; i < reversedMessages.length && userIdSet.size + assistantIdSet.size < displayCount; i++) {
-    processMessage(reversedMessages[i])
-  }
-
-  return displayMessages
-}
-
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
+  const { showPrompt, showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -86,9 +52,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const [isProcessingContext, setIsProcessingContext] = useState(false)
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
   const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
-  const messages = useTopicMessages(topic)
-  const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
+  const messages = useTopicMessages(topic.id)
+  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
@@ -161,24 +127,36 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     }
   }, [])
 
+  const clearTopic = useCallback(
+    async (data: Topic) => {
+      const defaultTopic = getDefaultTopic(assistant.id)
+
+      if (data && data.id !== topic.id) {
+        await clearTopicMessages(data.id)
+        updateTopic({ ...data, name: defaultTopic.name } as Topic)
+        return
+      }
+
+      await clearTopicMessages()
+
+      setDisplayMessages([])
+
+      const _topic = getTopic(assistant, topic.id)
+      _topic && updateTopic({ ..._topic, name: defaultTopic.name } as Topic)
+    },
+    [assistant, clearTopicMessages, topic.id, updateTopic]
+  )
+
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom),
       EventEmitter.on(EVENT_NAMES.CLEAR_MESSAGES, async (data: Topic) => {
-        const defaultTopic = getDefaultTopic(assistant.id)
-
-        if (data && data.id !== topic.id) {
-          await clearTopicMessages(data.id)
-          updateTopic({ ...data, name: defaultTopic.name } as Topic)
-          return
-        }
-
-        await clearTopicMessages()
-        setDisplayMessages([])
-        const _topic = getTopic(assistant, topic.id)
-        if (_topic) {
-          updateTopic({ ..._topic, name: defaultTopic.name } as Topic)
-        }
+        window.modal.confirm({
+          title: t('chat.input.clear.title'),
+          content: t('chat.input.clear.content'),
+          centered: true,
+          onOk: () => clearTopic(data)
+        })
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
         await captureScrollableDivAsBlob(containerRef, async (blob) => {
@@ -212,9 +190,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
             return
           }
 
-          const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
-          const newMessages = [...messages, clearMessage]
-          await updateMessages(newMessages)
+          const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
+          dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
+          await saveMessageAndBlocksToDB(clearMessage, [])
 
           scrollToBottom()
         } finally {
@@ -226,26 +204,29 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         newTopic.name = topic.name
         const currentMessages = messagesRef.current
 
-        // 复制消息并且更新 topicId
-        const branchMessages = take(currentMessages, currentMessages.length - index).map((msg) => ({
-          ...msg,
-          topicId: newTopic.id
-        }))
+        if (index < 0 || index > currentMessages.length) {
+          console.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
+          return
+        }
 
-        // 将分支的消息放入数据库
-        await db.topics.add({ id: newTopic.id, messages: branchMessages })
+        // 1. Add the new topic to Redux store FIRST
         addTopic(newTopic)
-        setActiveTopic(newTopic)
-        autoRenameTopic(assistant, newTopic.id)
 
-        // 由于复制了消息，消息中附带的文件的总数变了，需要更新
-        const filesArr = branchMessages.map((m) => m.files)
-        const files = flatten(filesArr).filter(Boolean)
+        // 2. Call the thunk to clone messages and update DB
+        const success = await createTopicBranch(topic.id, currentMessages.length - index, newTopic)
 
-        files.map(async (f) => {
-          const file = await db.files.get({ id: f?.id })
-          file && db.files.update(file.id, { count: file.count + 1 })
-        })
+        if (success) {
+          // 3. Set the new topic as active
+          setActiveTopic(newTopic)
+          // 4. Trigger auto-rename for the new topic
+          autoRenameTopic(assistant, newTopic.id)
+        } else {
+          // Optional: Handle cloning failure (e.g., show an error message)
+          // You might want to remove the added topic if cloning fails
+          // removeTopic(newTopic.id); // Assuming you have a removeTopic function
+          console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
+          window.message.error(t('message.branch.error')) // Example error message
+        }
       })
     ]
 
@@ -279,20 +260,20 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      navigator.clipboard.writeText(lastMessage.content)
+      navigator.clipboard.writeText(getMainTextContent(lastMessage))
       window.message.success(t('message.copy.success'))
     }
   })
 
+  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
-      style={{ maxWidth }}
+      style={{ maxWidth, paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
       ref={containerRef}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
-        {messages.length >= 2 && !loading && <NewTopicButton />}
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}
@@ -302,10 +283,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
-            <LoaderContainer $loading={isLoadingMore}>
-              <BeatLoader size={8} color="var(--color-text-2)" />
-            </LoaderContainer>
-            {Object.entries(getGroupedMessages(displayMessages)).map(([key, groupMessages]) => (
+            {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
                 messages={groupMessages}
@@ -316,9 +294,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 onSelectMessage={handleSelectMessage}
               />
             ))}
+            {isLoadingMore && (
+              <LoaderContainer>
+                <SvgSpinners180Ring color="var(--color-text-2)" />
+              </LoaderContainer>
+            )}
           </ScrollContainer>
         </InfiniteScroll>
-        <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
+        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
@@ -326,18 +309,48 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   )
 }
 
-interface LoaderProps {
-  $loading: boolean
+const computeDisplayMessages = (messages: Message[], startIndex: number, displayCount: number) => {
+  const reversedMessages = [...messages].reverse()
+
+  // 如果剩余消息数量小于 displayCount，直接返回所有剩余消息
+  if (reversedMessages.length - startIndex <= displayCount) {
+    return reversedMessages.slice(startIndex)
+  }
+
+  const userIdSet = new Set() // 用户消息 id 集合
+  const assistantIdSet = new Set() // 助手消息 askId 集合
+  const displayMessages: Message[] = []
+
+  // 处理单条消息的函数
+  const processMessage = (message: Message) => {
+    if (!message) return
+
+    const idSet = message.role === 'user' ? userIdSet : assistantIdSet
+    const messageId = message.role === 'user' ? message.id : message.askId
+
+    if (!idSet.has(messageId)) {
+      idSet.add(messageId)
+      displayMessages.push(message)
+      return
+    }
+    // 如果是相同 askId 的助手消息，也要显示
+    displayMessages.push(message)
+  }
+
+  // 遍历消息直到满足显示数量要求
+  for (let i = startIndex; i < reversedMessages.length && userIdSet.size + assistantIdSet.size < displayCount; i++) {
+    processMessage(reversedMessages[i])
+  }
+
+  return displayMessages
 }
 
-const LoaderContainer = styled.div<LoaderProps>`
+const LoaderContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 10px;
   width: 100%;
   background: var(--color-background);
-  opacity: ${(props) => (props.$loading ? 1 : 0)};
-  transition: opacity 0.3s ease;
   pointer-events: none;
 `
 

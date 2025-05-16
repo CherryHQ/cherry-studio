@@ -1,9 +1,9 @@
-import { SearchOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { Empty, Input } from 'antd'
 import { isEmpty } from 'lodash'
+import { Search } from 'lucide-react'
 import React, { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -23,7 +23,7 @@ const AppsPage: FC = () => {
 
   // Calculate the required number of lines
   const itemsPerRow = Math.floor(930 / 115) // Maximum width divided by the width of each item (including spacing)
-  const rowCount = Math.ceil(filteredApps.length / itemsPerRow)
+  const rowCount = Math.ceil((filteredApps.length + 1) / itemsPerRow) // +1 for the add button
   // Each line height is 85px (60px icon + 5px margin + 12px text + spacing)
   const containerHeight = rowCount * 85 + (rowCount - 1) * 25 // 25px is the line spacing.
 
@@ -40,10 +40,10 @@ const AppsPage: FC = () => {
           <Input
             placeholder={t('common.search')}
             className="nodrag"
-            style={{ width: '30%', height: 28 }}
+            style={{ width: '30%', height: 28, borderRadius: 15 }}
             size="small"
             variant="filled"
-            suffix={<SearchOutlined />}
+            suffix={<Search size={18} />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -60,6 +60,7 @@ const AppsPage: FC = () => {
             {filteredApps.map((app) => (
               <App key={app.id} app={app} />
             ))}
+            <App isLast app={filteredApps[0]} />
           </AppsContainer>
         )}
       </ContentContainer>

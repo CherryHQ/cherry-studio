@@ -40,7 +40,7 @@
   --color-border-soft: #ffffff10;
   --color-border-mute: #ffffff05;
   --color-error: #f44336;
-  --color-link: #1677ff;
+  --color-link: #338cff;
   --color-code-background: #323232;
   --color-hover: rgba(40, 40, 40, 1);
   --color-active: rgba(55, 55, 55, 1);
@@ -50,6 +50,8 @@
   --color-reference: #404040;
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
+
+  --modal-background: #1f1f1f;
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
@@ -122,6 +124,8 @@ body[theme-mode='light'] {
   --color-reference: #cfe1ff;
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
+
+  --modal-background: var(--color-white);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
   --navbar-background: rgba(244, 244, 244);
@@ -226,6 +230,7 @@ body,
   display: -webkit-box !important;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
+  line-clamp: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;
@@ -260,6 +265,7 @@ body,
     .markdown,
     .anticon,
     .iconfont,
+    .lucide,
     .message-tokens {
       color: var(--chat-text-user) !important;
     }
@@ -280,4 +286,8 @@ body,
   code {
     color: var(--color-text);
   }
+}
+
+.lucide {
+  color: var(--color-icon);
 }

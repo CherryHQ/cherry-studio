@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import store from '@renderer/store'
 import { LRUCache } from 'lru-cache'
 
@@ -135,7 +136,7 @@ export const CodeCacheService = {
 
         // 检查实际配置是否变化
         if (maxSize !== newMaxSize || ttl !== newTTLMilliseconds) {
-          console.log('[CodeCacheService] Cache config changed, recreating cache')
+          Logger.log('[CodeCacheService] Cache config changed, recreating cache')
           highlightCache.clear()
           highlightCache = new LRUCache<string, string>({
             max: 500,
@@ -150,7 +151,7 @@ export const CodeCacheService = {
         highlightCache = null
       }
     } catch (error) {
-      console.warn('[CodeCacheService] Failed to update cache config', error)
+      Logger.warn('[CodeCacheService] Failed to update cache config', error)
     }
   },
 
@@ -181,7 +182,7 @@ export const CodeCacheService = {
 
       return highlightCache?.get(key) || null
     } catch (error) {
-      console.warn('[CodeCacheService] Failed to get cached result', error)
+      Logger.warn('[CodeCacheService] Failed to get cached result', error)
       return null
     }
   },
@@ -205,7 +206,7 @@ export const CodeCacheService = {
 
       highlightCache?.set(key, html)
     } catch (error) {
-      console.warn('[CodeCacheService] Failed to set cached result', error)
+      Logger.warn('[CodeCacheService] Failed to set cached result', error)
     }
   },
 

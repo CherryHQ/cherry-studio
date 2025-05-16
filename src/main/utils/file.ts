@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { isMac } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileType, FileTypes } from '@types'
 import { app } from 'electron'
@@ -78,4 +79,21 @@ export function getFilesDir() {
 
 export function getConfigDir() {
   return path.join(os.homedir(), '.cherrystudio', 'config')
+}
+
+export function getCacheDir() {
+  return path.join(app.getPath('userData'), 'Cache')
+}
+
+export function getAppConfigDir(name: string) {
+  return path.join(getConfigDir(), name)
+}
+
+export function setUserDataDir() {
+  if (!isMac) {
+    const dir = path.join(path.dirname(app.getPath('exe')), 'data')
+    if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
+      app.setPath('userData', dir)
+    }
+  }
 }

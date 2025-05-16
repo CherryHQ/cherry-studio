@@ -33,7 +33,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       title={null}
       width="920px"
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       styles={{
         content: {
           padding: 0,

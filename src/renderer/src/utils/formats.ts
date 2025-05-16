@@ -1,6 +1,22 @@
-import { isReasoningModel } from '@renderer/config/models'
-import { getAssistantById } from '@renderer/services/AssistantService'
-import { Message } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+
+import { findImageBlocks, getMainTextContent } from './messageUtils/find'
+
+/**
+ * 清理Markdown内容
+ * @param text 要清理的文本
+ * @returns 清理后的文本
+ */
+export function cleanMarkdownContent(text: string): string {
+  if (!text) return ''
+  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '') // 移除图片
+  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1') // 替换链接为纯文本
+  cleaned = cleaned.replace(/https?:\/\/\S+/g, '') // 移除URL
+  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ') // 替换分隔符为空格
+  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '') // 移除特殊字符
+  cleaned = cleaned.replace(/\s+/g, ' ').trim() // 规范化空白
+  return cleaned
+}
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -20,7 +36,7 @@ export function escapeDollarNumber(text: string) {
 }
 
 export function escapeBrackets(text: string) {
-  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\\]|\\\((.*?)\\\)/g
+  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\]|\\\((.*?)\\\)/g
   return text.replace(pattern, (match, codeBlock, squareBracket, roundBracket) => {
     if (codeBlock) {
       return codeBlock
@@ -38,11 +54,20 @@ $$
 }
 
 export function extractTitle(html: string): string | null {
+  // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
   const match = html.match(titleRegex)
 
-  if (match && match[1]) {
-    return match[1].trim()
+  if (match) {
+    return match[1] ? match[1].trim() : ''
+  }
+
+  // 处理未闭合的标题标签
+  const malformedTitleRegex = /<title>(.*?)($|<(?!\/title))/i
+  const malformedMatch = html.match(malformedTitleRegex)
+
+  if (malformedMatch) {
+    return malformedMatch[1] ? malformedMatch[1].trim() : ''
   }
 
   return null
@@ -61,177 +86,76 @@ export function removeSvgEmptyLines(text: string): string {
   })
 }
 
-export function withGeminiGrounding(message: Message) {
-  const { groundingSupports } = message?.metadata?.groundingMetadata || {}
+// export function withGeminiGrounding(block: MainTextMessageBlock | TranslationMessageBlock): string {
+//   // TODO
+//   // const citationBlock = findCitationBlockWithGrounding(block)
+//   // const groundingSupports = citationBlock?.groundingMetadata?.groundingSupports
 
-  if (!groundingSupports) {
-    return message.content
-  }
+//   const content = block.content
 
-  let content = message.content
+//   // if (!groundingSupports || groundingSupports.length === 0) {
+//   //   return content
+//   // }
 
-  groundingSupports.forEach((support) => {
-    const text = support?.segment
-    const indices = support?.groundingChunckIndices
+//   // groundingSupports.forEach((support) => {
+//   //   const text = support?.segment?.text
+//   //   const indices = support?.groundingChunkIndices
 
-    if (!text || !indices) return
+//   //   if (!text || !indices) return
 
-    const nodes = indices.reduce<string[]>((acc, index) => {
-      acc.push(`<sup>${index + 1}</sup>`)
-      return acc
-    }, [])
+//   //   const nodes = indices.reduce((acc, index) => {
+//   //     acc.push(`<sup>${index + 1}</sup>`)
+//   //     return acc
+//   //   }, [] as string[])
 
-    content = content.replace(text, `${text} ${nodes.join(' ')}`)
+//   //   content = content.replace(text, `${text} ${nodes.join(' ')}`)
+//   // })
+
+//   return content
+// }
+
+export function withGenerateImage(message: Message): { content: string; images?: string[] } {
+  const originalContent = getMainTextContent(message)
+  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
+  const images: string[] = []
+  let processedContent: string
+
+  processedContent = originalContent.replace(imagePattern, (_, url) => {
+    if (url) {
+      images.push(url)
+    }
+    return ''
   })
 
-  return content
-}
+  processedContent = processedContent.replace(/\n\s*\n/g, '\n').trim()
 
-interface ThoughtProcessor {
-  canProcess: (content: string, message?: Message) => boolean
-  process: (content: string) => { reasoning: string; content: string }
-}
-
-const glmZeroPreviewProcessor: ThoughtProcessor = {
-  canProcess: (content: string, message?: Message) => {
-    if (!message) return false
-
-    const modelId = message.modelId || ''
-    const modelName = message.model?.name || ''
-    const isGLMZeroPreview =
-      modelId.toLowerCase().includes('glm-zero-preview') || modelName.toLowerCase().includes('glm-zero-preview')
-
-    return isGLMZeroPreview && content.includes('###Thinking')
-  },
-  process: (content: string) => {
-    const parts = content.split('###')
-    const thinkingMatch = parts.find((part) => part.trim().startsWith('Thinking'))
-    const responseMatch = parts.find((part) => part.trim().startsWith('Response'))
-
-    return {
-      reasoning: thinkingMatch ? thinkingMatch.replace('Thinking', '').trim() : '',
-      content: responseMatch ? responseMatch.replace('Response', '').trim() : ''
-    }
-  }
-}
-
-const thinkTagProcessor: ThoughtProcessor = {
-  canProcess: (content: string, message?: Message) => {
-    if (!message) return false
-
-    return content.startsWith('<think>') || content.includes('</think>')
-  },
-  process: (content: string) => {
-    // 处理正常闭合的 think 标签
-    const thinkPattern = /^<think>(.*?)<\/think>/s
-    const matches = content.match(thinkPattern)
-    if (matches) {
-      return {
-        reasoning: matches[1].trim(),
-        content: content.replace(thinkPattern, '').trim()
-      }
-    }
-
-    // 处理只有结束标签的情况
-    if (content.includes('</think>') && !content.startsWith('<think>')) {
-      const parts = content.split('</think>')
-      return {
-        reasoning: parts[0].trim(),
-        content: parts.slice(1).join('</think>').trim()
-      }
-    }
-
-    // 处理只有开始标签的情况
-    if (content.startsWith('<think>')) {
-      return {
-        reasoning: content.slice(7).trim(), // 跳过 '<think>' 标签
-        content: ''
-      }
-    }
-
-    return {
-      reasoning: '',
-      content
-    }
-  }
-}
-
-export function withMessageThought(message: Message) {
-  if (message.role !== 'assistant') {
-    return message
-  }
-
-  const model = message.model
-  if (!model || !isReasoningModel(model)) return message
-
-  const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
-  if (isClaude37Sonnet) {
-    const assistant = getAssistantById(message.assistantId)
-    if (!assistant?.settings?.reasoning_effort) return message
-  }
-
-  const content = message.content.trim()
-  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
-
-  const processor = processors.find((p) => p.canProcess(content, message))
-  if (processor) {
-    const { reasoning, content: processedContent } = processor.process(content)
-    message.reasoning_content = reasoning
-    message.content = processedContent
-  }
-
-  return message
-}
-
-export function withGenerateImage(message: Message) {
-  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const imageMatches = message.content.match(imagePattern)
-
-  if (!imageMatches || imageMatches[1] === null) {
-    return message
-  }
-
-  const cleanImgContent = message.content
-    .replace(imagePattern, '')
+  const downloadPattern = /\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g
+  processedContent = processedContent
+    .replace(downloadPattern, '')
     .replace(/\n\s*\n/g, '\n')
     .trim()
 
-  const downloadPattern = new RegExp(`\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const downloadMatches = cleanImgContent.match(downloadPattern)
-
-  let cleanContent = cleanImgContent
-  if (downloadMatches) {
-    cleanContent = cleanImgContent
-      .replace(downloadPattern, '')
-      .replace(/\n\s*\n/g, '\n')
-      .trim()
+  if (images.length > 0) {
+    return { content: processedContent, images }
   }
 
-  message = {
-    ...message,
-    content: cleanContent,
-    metadata: {
-      ...message.metadata,
-      generateImage: {
-        type: 'url',
-        images: [imageMatches[1]]
-      }
-    }
-  }
-  return message
+  return { content: originalContent }
 }
 
 export function addImageFileToContents(messages: Message[]) {
   const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
-  if (!lastAssistantMessage || !lastAssistantMessage.metadata || !lastAssistantMessage.metadata.generateImage) {
+  if (!lastAssistantMessage) return messages
+  const blocks = findImageBlocks(lastAssistantMessage)
+  if (!blocks || blocks.length === 0) return messages
+  if (blocks.every((v) => !v.metadata?.generateImage)) {
     return messages
   }
 
-  const imageFiles = lastAssistantMessage.metadata.generateImage.images
+  const imageFiles = blocks.map((v) => v.metadata?.generateImage?.images).flat()
   const updatedAssistantMessage = {
     ...lastAssistantMessage,
     images: imageFiles
   }
 
-  return messages.map((message) => (message.role === 'assistant' ? updatedAssistantMessage : message))
+  return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
 }

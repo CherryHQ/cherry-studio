@@ -1,6 +1,6 @@
 import 'emoji-picker-element'
 
-import { CheckOutlined, LoadingOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
@@ -38,6 +38,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showUndoButton, setShowUndoButton] = useState(false)
+  const [originalPrompt, setOriginalPrompt] = useState('')
   const [tokenCount, setTokenCount] = useState(0)
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
@@ -98,7 +100,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve(null)
   }
 
-  const handleButtonClick = async () => {
+  const handleGenerateButtonClick = async () => {
     const name = formRef.current?.getFieldValue('name')
     const content = formRef.current?.getFieldValue('prompt')
     const promptText = content || name
@@ -112,18 +114,26 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
 
     setLoading(true)
+    setShowUndoButton(false)
 
     try {
       const generatedText = await fetchGenerate({
         prompt: AGENT_PROMPT,
         content: promptText
       })
-      formRef.current?.setFieldValue('prompt', generatedText)
+      form.setFieldsValue({ prompt: generatedText })
+      setShowUndoButton(true)
+      setOriginalPrompt(content)
     } catch (error) {
       console.error('Error fetching data:', error)
     }
 
     setLoading(false)
+  }
+
+  const handleUndoButtonClick = async () => {
+    form.setFieldsValue({ prompt: originalPrompt })
+    setShowUndoButton(false)
   }
 
   // Compute label width based on the longest label
@@ -141,6 +151,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       okText={t('agents.add.title')}
       width={800}
+      transitionName="animation-move-down"
       centered>
       <Form
         ref={formRef}
@@ -154,6 +165,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           if (changedValues.prompt) {
             const count = await estimateTextTokens(changedValues.prompt)
             setTokenCount(count)
+            setShowUndoButton(false)
           }
         }}>
         <Form.Item name="name" label="Emoji">
@@ -170,17 +182,22 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             label={t('agents.add.prompt')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
-            <TextAreaContainer>
-              <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
-              <TokenCount>Tokens: {tokenCount}</TokenCount>
-            </TextAreaContainer>
+            <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
           </Form.Item>
+          <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
             icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
-            onClick={handleButtonClick}
+            onClick={handleGenerateButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
             disabled={loading}
           />
+          {showUndoButton && (
+            <Button
+              icon={<RollbackOutlined />}
+              onClick={handleUndoButtonClick}
+              style={{ position: 'absolute', top: 8, right: 48 }}
+            />
+          )}
         </div>
         {showKnowledgeIcon && (
           <Form.Item name="knowledge_base_ids" label={t('agents.add.knowledge_base')} rules={[{ required: false }]}>
@@ -202,11 +219,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     </Modal>
   )
 }
-
-const TextAreaContainer = styled.div`
-  position: relative;
-  width: 100%;
-`
 
 const TokenCount = styled.div`
   position: absolute;

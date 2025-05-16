@@ -1,5 +1,7 @@
 import ThreeMinTopAppLogo from '@renderer/assets/images/apps/3mintop.png?url'
 import AbacusLogo from '@renderer/assets/images/apps/abacus.webp?url'
+import AIStudioLogo from '@renderer/assets/images/apps/aistudio.svg?url'
+import ApplicationLogo from '@renderer/assets/images/apps/application.png?url'
 import BaiduAiAppLogo from '@renderer/assets/images/apps/baidu-ai.png?url'
 import BaiduAiSearchLogo from '@renderer/assets/images/apps/baidu-ai-search.webp?url'
 import BaicuanAppLogo from '@renderer/assets/images/apps/baixiaoying.webp?url'
@@ -17,6 +19,7 @@ import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
+import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
 import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
@@ -24,6 +27,7 @@ import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
+import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
 import NamiAiLogo from '@renderer/assets/images/apps/nm.png?url'
 import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
@@ -41,6 +45,7 @@ import XiaoYiAppLogo from '@renderer/assets/images/apps/xiaoyi.webp?url'
 import YouLogo from '@renderer/assets/images/apps/you.jpg?url'
 import TencentYuanbaoAppLogo from '@renderer/assets/images/apps/yuanbao.webp?url'
 import YuewenAppLogo from '@renderer/assets/images/apps/yuewen.png?url'
+import ZaiAppLogo from '@renderer/assets/images/apps/zai.png?url'
 import ZhihuAppLogo from '@renderer/assets/images/apps/zhihu.png?url'
 import ClaudeAppLogo from '@renderer/assets/images/models/claude.png?url'
 import HailuoModelLogo from '@renderer/assets/images/models/hailuo.png?url'
@@ -50,7 +55,36 @@ import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
 import { MinAppType } from '@renderer/types'
-export const DEFAULT_MIN_APPS: MinAppType[] = [
+
+// 加载自定义小应用
+const loadCustomMiniApp = async (): Promise<MinAppType[]> => {
+  try {
+    let content: string
+    try {
+      content = await window.api.file.read('custom-minapps.json')
+    } catch (error) {
+      // 如果文件不存在，创建一个空的 JSON 数组
+      content = '[]'
+      await window.api.file.writeWithId('custom-minapps.json', content)
+    }
+
+    const customApps = JSON.parse(content)
+    const now = new Date().toISOString()
+
+    return customApps.map((app: any) => ({
+      ...app,
+      type: 'Custom',
+      logo: app.logo && app.logo !== '' ? app.logo : ApplicationLogo,
+      addTime: app.addTime || now
+    }))
+  } catch (error) {
+    console.error('Failed to load custom mini apps:', error)
+    return []
+  }
+}
+
+// 初始化默认小应用
+const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'openai',
     name: 'ChatGPT',
@@ -289,6 +323,13 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     bodered: true
   },
   {
+    id: 'grok-x',
+    name: 'Grok / X',
+    logo: GrokXAppLogo,
+    url: 'https://x.com/i/grok',
+    bodered: true
+  },
+  {
     id: 'qwenlm',
     name: 'QwenLM',
     logo: QwenlmAppLogo,
@@ -307,6 +348,12 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: ThreeMinTopAppLogo,
     url: 'https://3min.top',
     bodered: false
+  },
+  {
+    id: 'aistudio',
+    name: 'AI Studio',
+    logo: AIStudioLogo,
+    url: 'https://aistudio.google.com/'
   },
   {
     id: 'xiaoyi',
@@ -392,5 +439,34 @@ export const DEFAULT_MIN_APPS: MinAppType[] = [
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
     bodered: true
+  },
+  {
+    id: `zai`,
+    name: `Z.ai`,
+    logo: ZaiAppLogo,
+    url: `https://chat.z.ai/`,
+    bodered: true,
+    style: {
+      padding: 10
+    }
+  },
+  {
+    id: 'n8n',
+    name: 'n8n',
+    logo: n8nLogo,
+    url: 'https://app.n8n.cloud/',
+    bodered: true,
+    style: {
+      padding: 5
+    }
   }
 ]
+
+// 加载自定义小应用并合并到默认应用中
+let DEFAULT_MIN_APPS = [...ORIGIN_DEFAULT_MIN_APPS, ...(await loadCustomMiniApp())]
+
+function updateDefaultMinApps(param) {
+  DEFAULT_MIN_APPS = param
+}
+
+export { DEFAULT_MIN_APPS, loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps }

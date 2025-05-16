@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      transitionName="ant-move-down"
+      transitionName="animation-move-down"
       footer={null}
       centered>
       <Divider style={{ margin: '10px 0' }} />

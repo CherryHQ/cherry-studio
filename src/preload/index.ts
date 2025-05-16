@@ -9,7 +9,7 @@ import { CreateDirectoryOptions } from 'webdav'
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
-  setProxy: (proxy: string) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
+  setProxy: (proxy: string | undefined) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
@@ -18,11 +18,19 @@ const api = {
   setTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTray, isActive),
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   restartTray: () => ipcRenderer.invoke(IpcChannel.App_RestartTray),
-  setTheme: (theme: 'light' | 'dark') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  setTheme: (theme: 'light' | 'dark' | 'auto') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  handleZoomFactor: (delta: number, reset: boolean = false) =>
+    ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
+  setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
+  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
-    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType)
+    getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
+    getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
+  },
+  devTools: {
+    toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),
@@ -41,27 +49,31 @@ const api = {
     checkConnection: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_CheckConnection, webdavConfig),
     createDirectory: (webdavConfig: WebDavConfig, path: string, options?: CreateDirectoryOptions) =>
-      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options)
+      ipcRenderer.invoke(IpcChannel.Backup_CreateDirectory, webdavConfig, path, options),
+    deleteWebdavFile: (fileName: string, webdavConfig: WebDavConfig) =>
+      ipcRenderer.invoke(IpcChannel.Backup_DeleteWebdavFile, fileName, webdavConfig)
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
-    upload: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Upload, filePath),
+    upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     create: (fileName: string) => ipcRenderer.invoke(IpcChannel.File_Create, fileName),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
-    open: (options?: { decompress: boolean }) => ipcRenderer.invoke(IpcChannel.File_Open, options),
+    writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
+    open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
-    save: (path: string, content: string, options?: { compress: boolean }) =>
+    save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
     download: (url: string) => ipcRenderer.invoke(IpcChannel.File_Download, url),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
-    binaryFile: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryFile, fileId)
+    binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
+    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId)
   },
   fs: {
     read: (path: string) => ipcRenderer.invoke(IpcChannel.Fs_Read, path)
@@ -103,10 +115,7 @@ const api = {
     base64File: (file: FileType) => ipcRenderer.invoke(IpcChannel.Gemini_Base64File, file),
     retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
     listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
-    deleteFile: (apiKey: string, fileId: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, apiKey, fileId)
-  },
-  selectionMenu: {
-    action: (action: string) => ipcRenderer.invoke(IpcChannel.SelectionMenu_Action, action)
+    deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
   },
   config: {
     set: (key: string, value: any) => ipcRenderer.invoke(IpcChannel.Config_Set, key, value),
@@ -132,10 +141,16 @@ const api = {
     listTools: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListTools, server),
     callTool: ({ server, name, args }: { server: MCPServer; name: string; args: any }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_CallTool, { server, name, args }),
+    listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
+    getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
+    listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
+    getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
+      ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
   },
   shell: {
-    openExternal: shell.openExternal
+    openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
   },
   copilot: {
     getAuthMessage: (headers?: Record<string, string>) =>
@@ -147,7 +162,6 @@ const api = {
     logout: () => ipcRenderer.invoke(IpcChannel.Copilot_Logout),
     getUser: (token: string) => ipcRenderer.invoke(IpcChannel.Copilot_GetUser, token)
   },
-
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
@@ -174,6 +188,15 @@ const api = {
     openSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid),
     closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
     openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
+  },
+  webview: {
+    setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal)
+  },
+  storeSync: {
+    subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
+    unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
+    onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
   }
 }
 
@@ -198,3 +221,5 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.api = api
 }
+
+export type WindowApiType = typeof api

@@ -34,6 +34,9 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             defaultShadow: 'none',
             dangerShadow: 'none',
             primaryShadow: 'none'
+          },
+          Collapse: {
+            headerBg: 'transparent'
           }
         },
         token: {

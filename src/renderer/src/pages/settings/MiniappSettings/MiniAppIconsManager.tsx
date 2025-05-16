@@ -112,7 +112,7 @@ const MiniAppIconsManager: FC<MiniAppManagerProps> = ({
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <ProgramSection>
+      <ProgramSection style={{ background: 'transparent' }}>
         {(['visible', 'disabled'] as const).map((listType) => (
           <ProgramColumn key={listType}>
             <h4>{t(`settings.miniapps.${listType}`)}</h4>

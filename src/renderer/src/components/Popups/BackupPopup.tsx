@@ -57,6 +57,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   BackupPopup.hide = onCancel
 
+  const isDisabled = progressData ? progressData.stage !== 'completed' : false
+
   return (
     <Modal
       title={t('backup.title')}
@@ -64,8 +66,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      transitionName="ant-move-down"
+      okButtonProps={{ disabled: isDisabled }}
+      cancelButtonProps={{ disabled: isDisabled }}
       okText={t('backup.confirm.button')}
+      maskClosable={false}
+      transitionName="animation-move-down"
       centered>
       {!progressData && <div>{t('backup.content')}</div>}
       {progressData && (

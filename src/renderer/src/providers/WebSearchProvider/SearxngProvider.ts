@@ -1,13 +1,18 @@
 import { SearxngClient } from '@agentic/searxng'
-import { WebSearchProvider, WebSearchResponse } from '@renderer/types'
+import Logger from '@renderer/config/logger'
+import { WebSearchState } from '@renderer/store/websearch'
+import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import { fetchWebContent, noContent } from '@renderer/utils/fetch'
 import axios from 'axios'
+import ky from 'ky'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 
 export default class SearxngProvider extends BaseWebSearchProvider {
   private searxng: SearxngClient
   private engines: string[] = []
-  private readonly apiHost: string
+  private readonly basicAuthUsername?: string
+  private readonly basicAuthPassword?: string
   private isInitialized = false
 
   constructor(provider: WebSearchProvider) {
@@ -15,9 +20,22 @@ export default class SearxngProvider extends BaseWebSearchProvider {
     if (!provider.apiHost) {
       throw new Error('API host is required for SearxNG provider')
     }
+
     this.apiHost = provider.apiHost
+    this.basicAuthUsername = provider.basicAuthUsername
+    this.basicAuthPassword = provider.basicAuthPassword ? provider.basicAuthPassword : ''
+
     try {
-      this.searxng = new SearxngClient({ apiBaseUrl: this.apiHost })
+      // `ky` do not support basic auth directly
+      const headers = this.basicAuthUsername
+        ? {
+            Authorization: `Basic ` + btoa(`${this.basicAuthUsername}:${this.basicAuthPassword}`)
+          }
+        : undefined
+      this.searxng = new SearxngClient({
+        apiBaseUrl: this.apiHost,
+        ky: ky.create({ headers })
+      })
     } catch (error) {
       throw new Error(
         `Failed to initialize SearxNG client: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -27,10 +45,17 @@ export default class SearxngProvider extends BaseWebSearchProvider {
   }
   private async initEngines(): Promise<void> {
     try {
-      console.log(`Initializing SearxNG with API host: ${this.apiHost}`)
+      Logger.log(`Initializing SearxNG with API host: ${this.apiHost}`)
+      const auth = this.basicAuthUsername
+        ? {
+            username: this.basicAuthUsername,
+            password: this.basicAuthPassword ? this.basicAuthPassword : ''
+          }
+        : undefined
       const response = await axios.get(`${this.apiHost}/config`, {
         timeout: 5000,
-        validateStatus: (status) => status === 200 // 仅接受 200 状态码
+        validateStatus: (status) => status === 200, // 仅接受 200 状态码
+        auth
       })
 
       if (!response.data) {
@@ -42,7 +67,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       }
 
       const allEngines = response.data.engines
-      console.log(`Found ${allEngines.length} total engines in SearxNG`)
+      Logger.log(`Found ${allEngines.length} total engines in SearxNG`)
 
       this.engines = allEngines
         .filter(
@@ -59,16 +84,16 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       }
 
       this.isInitialized = true
-      console.log(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
+      Logger.log(`SearxNG initialized successfully with ${this.engines.length} engines: ${this.engines.join(', ')}`)
     } catch (err) {
       this.isInitialized = false
 
-      console.error('Failed to fetch SearxNG engine configuration:', err)
+      Logger.error('Failed to fetch SearxNG engine configuration:', err)
       throw new Error(`Failed to initialize SearxNG: ${err}`)
     }
   }
 
-  public async search(query: string, maxResults: number): Promise<WebSearchResponse> {
+  public async search(query: string, websearch: WebSearchState): Promise<WebSearchProviderResponse> {
     try {
       if (!query) {
         throw new Error('Search query cannot be empty')
@@ -89,18 +114,30 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         throw new Error('Invalid search results from SearxNG')
       }
 
+      const validItems = result.results
+        .filter((item) => item.url.startsWith('http') || item.url.startsWith('https'))
+        .slice(0, websearch.maxResults)
+      // Logger.log('Valid search items:', validItems)
+
+      // Fetch content for each URL concurrently
+      const fetchPromises = validItems.map(async (item) => {
+        // Logger.log(`Fetching content for ${item.url}...`)
+        const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
+        if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
+          result.content = result.content.slice(0, websearch.contentLimit) + '...'
+        }
+        return result
+      })
+
+      // Wait for all fetches to complete
+      const results = await Promise.all(fetchPromises)
+
       return {
-        query: result.query,
-        results: result.results.slice(0, maxResults).map((result) => {
-          return {
-            title: result.title || 'No title',
-            content: result.content || '',
-            url: result.url || ''
-          }
-        })
+        query: query,
+        results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
-      console.error('Searxng search failed:', error)
+      Logger.error('Searxng search failed:', error)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

@@ -48,9 +48,10 @@ const MinAppsPopover: FC<Props> = ({ children }) => {
         ))}
         {isEmpty(minapps) && (
           <Center>
-            <Empty />
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
           </Center>
         )}
+        <App isLast app={minapps[0]} onClick={handleClose} size={50} />
       </AppsContainer>
     </PopoverContent>
   )

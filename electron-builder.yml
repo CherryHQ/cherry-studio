@@ -1,5 +1,14 @@
 appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
+electronLanguages:
+  - zh-CN
+  - zh-TW
+  - en-US
+  - ja # macOS/linux/win
+  - ru # macOS/linux/win
+  - zh_CN # for macOS
+  - zh_TW # for macOS
+  - en # for macOS
 directories:
   buildResources: build
 files:
@@ -29,7 +38,7 @@ files:
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
 asarUnpack:
   - resources/**
-  - '**/*.{node,dll,metal,exp,lib}'
+  - '**/*.{metal,exp,lib}'
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -44,8 +53,10 @@ nsis:
   allowToChangeInstallationDirectory: true
   oneClick: false
   include: build/nsis-installer.nsh
+  buildUniversalInstaller: false
 portable:
   artifactName: ${productName}-${version}-${arch}-portable.${ext}
+  buildUniversalInstaller: false
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
@@ -57,35 +68,31 @@ mac:
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   target:
     - target: dmg
-      arch:
-        - arm64
-        - x64
     - target: zip
-      arch:
-        - arm64
-        - x64
 linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage
-      arch:
-        - arm64
-        - x64
   maintainer: electronjs.org
   category: Utility
+  desktop:
+    entry:
+      StartupWMClass: CherryStudio
+  mimeTypes:
+    - x-scheme-handler/cherrystudio
 publish:
-  # provider: generic
-  # url: https://cherrystudio.ocool.online
-  provider: github
-  repo: cherry-studio
-  owner: CherryHQ
+  provider: generic
+  url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
+artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    知识库和服务商界面更新
-    增加 Dangbei 小程序
-    可以强制使用搜索引擎覆盖模型自带搜索能力
-    修复部分公式无法正常渲染问题
+    重构消息结构，支持不同类型消息按时间顺序显示
+    智能体支持导入和导出
+    快捷面板增加网络搜索引擎选择
+    显示设置增加缩放控制按钮
+    支持添加自定义小程序
+    性能优化和错误修复

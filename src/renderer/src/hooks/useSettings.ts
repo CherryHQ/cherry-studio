@@ -1,10 +1,12 @@
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
+  AssistantIconType,
   SendMessageShortcut,
+  setAssistantIconType,
+  setAutoCheckUpdate as _setAutoCheckUpdate,
   setLaunchOnBoot,
   setLaunchToTray,
   setSendMessageShortcut as _setSendMessageShortcut,
-  setShowAssistantIcon,
   setSidebarIcons,
   setTargetLanguage,
   setTheme,
@@ -49,6 +51,11 @@ export function useSettings() {
       }
     },
 
+    setAutoCheckUpdate(isAutoUpdate: boolean) {
+      dispatch(_setAutoCheckUpdate(isAutoUpdate))
+      window.api.setAutoUpdate(isAutoUpdate)
+    },
+
     setTheme(theme: ThemeMode) {
       dispatch(setTheme(theme))
     },
@@ -70,8 +77,8 @@ export function useSettings() {
     updateSidebarDisabledIcons(icons: SidebarIcon[]) {
       dispatch(setSidebarIcons({ disabled: icons }))
     },
-    setShowAssistantIcon(showAssistantIcon: boolean) {
-      dispatch(setShowAssistantIcon(showAssistantIcon))
+    setAssistantIconType(assistantIconType: AssistantIconType) {
+      dispatch(setAssistantIconType(assistantIconType))
     }
   }
 }

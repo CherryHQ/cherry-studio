@@ -1,45 +1,73 @@
-# Cherry Studio 贡献者指南
+[中文](./docs/CONTRIBUTING.zh.md) | [English](./CONTRIBUTING.md)
 
-欢迎来到 Cherry Studio 的贡献者社区！我们致力于将 Cherry Studio 打造成一个长期提供价值的项目，并希望邀请更多的开发者加入我们的行列。无论您是经验丰富的开发者还是刚刚起步的初学者，您的贡献都将帮助我们更好地服务用户，提升软件质量。
+# Cherry Studio Contributor Guide
 
-## 如何贡献
+Welcome to the Cherry Studio contributor community! We are committed to making Cherry Studio a project that provides long-term value and hope to invite more developers to join us. Whether you are an experienced developer or a beginner just starting out, your contributions will help us better serve users and improve software quality.
 
-以下是您可以参与的几种方式：
+## How to Contribute
 
-1. **贡献代码**：帮助我们开发新功能或优化现有代码。请确保您的代码符合我们的编码标准，并通过所有测试。
+Here are several ways you can participate:
 
-2. **修复 BUG**：如果您发现了 BUG，欢迎提交修复方案。请在提交前确认问题已被解决，并附上相关测试。
+1.  **Contribute Code**: Help us develop new features or optimize existing code. Please ensure your code adheres to our coding standards and passes all tests.
 
-3. **维护 Issue**：协助我们管理 GitHub 上的 issue，帮助标记、分类和解决问题。
+2.  **Fix Bugs**: If you find a bug, you are welcome to submit a fix. Please confirm the issue is resolved before submitting and include relevant tests.
 
-4. **产品设计**：参与产品设计讨论，帮助我们改进用户体验和界面设计。
+3.  **Maintain Issues**: Help us manage issues on GitHub by assisting with tagging, classifying, and resolving problems.
 
-5. **编写文档**：帮助我们完善用户手册、API 文档和开发者指南。
+4.  **Product Design**: Participate in product design discussions to help us improve user experience and interface design.
 
-6. **社区维护**：参与社区讨论，帮助解答用户问题，促进社区活跃。
+5.  **Write Documentation**: Help us improve the user manual, API documentation, and developer guides.
 
-7. **推广使用**：通过博客、社交媒体等渠道推广 Cherry Studio，吸引更多用户和开发者。
+6.  **Community Maintenance**: Participate in community discussions, help answer user questions, and promote community activity.
 
-## 开始贡献
+7.  **Promote Usage**: Promote Cherry Studio through blogs, social media, and other channels to attract more users and developers.
 
-1. **Fork 仓库**：在 GitHub 上 fork 我们的仓库，并将其克隆到本地。
+## Before You Start
 
-2. **创建分支**：为您要进行的更改创建一个新的分支。
+Please make sure you have read the [Code of Conduct](CODE_OF_CONDUCT.md) and the [LICENSE](LICENSE).
 
-3. **提交更改**：在本地进行更改并提交。请确保您的提交信息清晰明了。
+## Getting Started
 
-4. **发起 Pull Request**：将您的更改推送到 GitHub，并发起 Pull Request。请描述您的更改内容和原因。
+To help you get familiar with the codebase, we recommend tackling issues tagged with one or more of the following labels: [good-first-issue](https://github.com/CherryHQ/cherry-studio/labels/good%20first%20issue), [help-wanted](https://github.com/CherryHQ/cherry-studio/labels/help%20wanted), or [kind/bug](https://github.com/CherryHQ/cherry-studio/labels/kind%2Fbug). Any help is welcome.
 
-### 其他建议
+### Testing
 
-- **联系开发者**：在提交 PR 之前，您可以先和开发者进行联系，共同探讨或者获取帮助。
-- **成为核心开发者**：如果您能够稳定为项目贡献，恭喜您可以成为项目核心开发者，获取到项目成员身份。
+Features without tests are considered non-existent. To ensure code is truly effective, relevant processes should be covered by unit tests and functional tests. Therefore, when considering contributions, please also consider testability. All tests can be run locally without dependency on CI. Please refer to the "Testing" section in the [Developer Guide](docs/dev.md).
 
-## 联系我们
+### Automated Testing for Pull Requests
 
-如果您有任何问题或建议，欢迎通过以下方式联系我们：
+Automated tests are triggered on pull requests (PRs) opened by members of the Cherry Studio organization, except for draft PRs. PRs opened by new contributors will initially be marked with the `needs-ok-to-test` label and will not be automatically tested. Once a Cherry Studio organization member adds `/ok-to-test` to the PR, the test pipeline will be created.
 
-- 微信：kangfenmao
+### Consider Opening Your Pull Request as a Draft
+
+Not all pull requests are ready for review when created. This might be because the author wants to start a discussion, they are not entirely sure if the changes are heading in the right direction, or the changes are not yet complete. Please consider creating these PRs as [draft pull requests](https://github.blog/2019-02-14-introducing-draft-pull-requests/). Draft PRs are skipped by CI, thus saving CI resources. This also means reviewers will not be automatically assigned, and the community will understand that this PR is not yet ready for review.
+Reviewers will be assigned after you mark the draft pull request as ready for review.
+
+### Contributor Compliance with Project Terms
+
+We require every contributor to certify that they have the right to legally contribute to our project. Contributors express this by consciously signing their commits, thereby indicating their compliance with the [LICENSE](LICENSE).
+A signed commit is one where the commit message includes the following:
+
+You can generate a signed commit using the following command [git commit --signoff](https://git-scm.com/docs/git-commit#Documentation/git-commit.txt---signoff):
+
+```
+git commit --signoff -m "Your commit message"
+```
+
+### Getting Code Reviewed/Merged
+
+Maintainers are here to help you implement your use case within a reasonable timeframe. They will do their best to review your code and provide constructive feedback promptly. However, if you get stuck during the review process or feel your Pull Request is not receiving the attention it deserves, please contact us via comments in the Issue or through the [Community](README.md#-community).
+
+### Other Suggestions
+
+- **Contact Developers**: Before submitting a PR, you can contact the developers first to discuss or get help.
+- **Become a Core Developer**: If you contribute to the project consistently, congratulations, you can become a core developer and gain project membership status. Please check our [Membership Guide](https://github.com/CherryHQ/community/blob/main/docs/membership.en.md).
+
+## Contact Us
+
+If you have any questions or suggestions, feel free to contact us through the following ways:
+
+- WeChat: kangfenmao
 - [GitHub Issues](https://github.com/CherryHQ/cherry-studio/issues)
 
-感谢您的支持和贡献！我们期待与您一起将 Cherry Studio 打造成更好的产品。
+Thank you for your support and contributions! We look forward to working with you to make Cherry Studio a better product.

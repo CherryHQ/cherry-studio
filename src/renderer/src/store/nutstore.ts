@@ -32,7 +32,6 @@ const nutstoreSlice = createSlice({
       state.nutstoreToken = action.payload
     },
     setNutstorePath: (state, action: PayloadAction<string>) => {
-      console.log(state, action.payload)
       state.nutstorePath = action.payload
     },
     setNutstoreAutoSync: (state, action: PayloadAction<boolean>) => {

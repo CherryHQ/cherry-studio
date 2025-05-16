@@ -1,8 +1,8 @@
-import { PaperClipOutlined } from '@ant-design/icons'
-import { isVisionModel } from '@renderer/config/models'
+import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { FileType, Model } from '@renderer/types'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Tooltip } from 'antd'
+import { Paperclip } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,10 +22,19 @@ interface Props {
 const AttachmentButton: FC<Props> = ({ ref, model, files, setFiles, ToolbarButton, disabled }) => {
   const { t } = useTranslation()
 
-  const extensions = useMemo(
-    () => (isVisionModel(model) ? [...imageExts, ...documentExts, ...textExts] : [...documentExts, ...textExts]),
-    [model]
-  )
+  // const extensions = useMemo(
+  //   () => (isVisionModel(model) ? [...imageExts, ...documentExts, ...textExts] : [...documentExts, ...textExts]),
+  //   [model]
+  // )
+  const extensions = useMemo(() => {
+    if (isVisionModel(model)) {
+      return [...imageExts, ...documentExts, ...textExts]
+    } else if (isGenerateImageModel(model)) {
+      return [...imageExts]
+    } else {
+      return [...documentExts, ...textExts]
+    }
+  }, [model])
 
   const onSelectFile = useCallback(async () => {
     const _files = await window.api.file.select({
@@ -54,12 +63,12 @@ const AttachmentButton: FC<Props> = ({ ref, model, files, setFiles, ToolbarButto
   return (
     <Tooltip
       placement="top"
-      title={isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document')}
+      title={
+        isVisionModel(model) || isGenerateImageModel(model) ? t('chat.input.upload') : t('chat.input.upload.document')
+      }
       arrow>
       <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>
-        <PaperClipOutlined
-          style={{ fontSize: 17, color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }}
-        />
+        <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
       </ToolbarButton>
     </Tooltip>
   )

@@ -1,3 +1,4 @@
+import { isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
@@ -5,6 +6,7 @@ import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
 
 import icon from '../../../build/icon.png?asset'
+import { configManager } from './ConfigManager'
 
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
@@ -15,7 +17,8 @@ export default class AppUpdater {
 
     autoUpdater.logger = logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = true
+    autoUpdater.autoDownload = configManager.getAutoUpdate()
+    autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
 
     // 检测下载错误
     autoUpdater.on('error', (error) => {
@@ -51,6 +54,40 @@ export default class AppUpdater {
     })
 
     this.autoUpdater = autoUpdater
+  }
+
+  public setAutoUpdate(isActive: boolean) {
+    autoUpdater.autoDownload = isActive
+    autoUpdater.autoInstallOnAppQuit = isActive
+  }
+
+  public async checkForUpdates() {
+    if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
+
+    try {
+      const update = await this.autoUpdater.checkForUpdates()
+      if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
+        // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
+        // do not use await, because it will block the return of this function
+        this.autoUpdater.downloadUpdate()
+      }
+
+      return {
+        currentVersion: this.autoUpdater.currentVersion,
+        updateInfo: update?.updateInfo
+      }
+    } catch (error) {
+      logger.error('Failed to check for update:', error)
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
+    }
   }
 
   public async showUpdateDialog(mainWindow: BrowserWindow) {

@@ -1,7 +1,10 @@
-import axios, { AxiosRequestConfig } from 'axios'
+import { AxiosRequestConfig } from 'axios'
 import { app, safeStorage } from 'electron'
+import Logger from 'electron-log'
 import fs from 'fs/promises'
 import path from 'path'
+
+import aoxisProxy from './AxiosProxy'
 
 // 配置常量，集中管理
 const CONFIG = {
@@ -93,7 +96,7 @@ class CopilotService {
         }
       }
 
-      const response = await axios.get(CONFIG.API_URLS.GITHUB_USER, config)
+      const response = await aoxisProxy.axios.get(CONFIG.API_URLS.GITHUB_USER, config)
       return {
         login: response.data.login,
         avatar: response.data.avatar_url
@@ -114,7 +117,7 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const response = await axios.post<AuthResponse>(
+      const response = await aoxisProxy.axios.post<AuthResponse>(
         CONFIG.API_URLS.GITHUB_DEVICE_CODE,
         {
           client_id: CONFIG.GITHUB_CLIENT_ID,
@@ -146,7 +149,7 @@ class CopilotService {
       await this.delay(currentDelay)
 
       try {
-        const response = await axios.post<TokenResponse>(
+        const response = await aoxisProxy.axios.post<TokenResponse>(
           CONFIG.API_URLS.GITHUB_ACCESS_TOKEN,
           {
             client_id: CONFIG.GITHUB_CLIENT_ID,
@@ -208,7 +211,7 @@ class CopilotService {
         }
       }
 
-      const response = await axios.get<CopilotTokenResponse>(CONFIG.API_URLS.COPILOT_TOKEN, config)
+      const response = await aoxisProxy.axios.get<CopilotTokenResponse>(CONFIG.API_URLS.COPILOT_TOKEN, config)
 
       return response.data
     } catch (error) {
@@ -225,10 +228,10 @@ class CopilotService {
       try {
         await fs.access(this.tokenFilePath)
         await fs.unlink(this.tokenFilePath)
-        console.log('Successfully logged out from Copilot')
+        Logger.log('Successfully logged out from Copilot')
       } catch (error) {
         // 文件不存在不是错误，只是记录一下
-        console.log('Token file not found, nothing to delete')
+        Logger.log('Token file not found, nothing to delete')
       }
     } catch (error) {
       console.error('Failed to logout:', error)

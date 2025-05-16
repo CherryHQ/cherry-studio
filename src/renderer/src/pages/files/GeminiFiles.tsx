@@ -1,5 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
-import type { FileMetadataResponse } from '@google/generative-ai/server'
+import type { File } from '@google/genai'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { runAsyncFunction } from '@renderer/utils'
 import { MB } from '@shared/config/constant'
@@ -16,11 +16,11 @@ interface GeminiFilesProps {
 
 const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
   const { provider } = useProvider(id)
-  const [files, setFiles] = useState<FileMetadataResponse[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
 
   const fetchFiles = useCallback(async () => {
-    const { files } = await window.api.gemini.listFiles(provider.apiKey)
+    const files = await window.api.gemini.listFiles(provider.apiKey)
     files && setFiles(files.filter((file) => file.state === 'ACTIVE'))
   }, [provider])
 
@@ -60,14 +60,14 @@ const GeminiFiles: FC<GeminiFilesProps> = ({ id }) => {
             key={file.name}
             fileInfo={{
               name: file.displayName,
-              ext: `.${file.name.split('.').pop()}`,
-              extra: `${dayjs(file.createTime).format('MM-DD HH:mm')} · ${(parseInt(file.sizeBytes) / MB).toFixed(2)} MB`,
+              ext: `.${file.name?.split('.').pop()}`,
+              extra: `${dayjs(file.createTime).format('MM-DD HH:mm')} · ${(parseInt(file.sizeBytes || '0') / MB).toFixed(2)} MB`,
               actions: (
                 <DeleteOutlined
                   style={{ cursor: 'pointer', color: 'var(--color-error)' }}
                   onClick={() => {
                     setFiles(files.filter((f) => f.name !== file.name))
-                    window.api.gemini.deleteFile(provider.apiKey, file.name).catch((error) => {
+                    window.api.gemini.deleteFile(file.name!, provider.apiKey).catch((error) => {
                       console.error('Failed to delete file:', error)
                       setFiles((prev) => [...prev, file])
                     })

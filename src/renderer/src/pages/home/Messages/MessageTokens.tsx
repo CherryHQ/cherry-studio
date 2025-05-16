@@ -1,12 +1,16 @@
-import { useRuntime } from '@renderer/hooks/useRuntime'
+// import { useRuntime } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Message } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { t } from 'i18next'
 import styled from 'styled-components'
 
-const MessgeTokens: React.FC<{ message: Message; isLastMessage: boolean }> = ({ message, isLastMessage }) => {
-  const { generating } = useRuntime()
+interface MessageTokensProps {
+  message: Message
+  isLastMessage?: boolean
+}
 
+const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
+  // const { generating } = useRuntime()
   const locateMessage = () => {
     EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
   }
@@ -23,14 +27,9 @@ const MessgeTokens: React.FC<{ message: Message; isLastMessage: boolean }> = ({ 
     )
   }
 
-  if (isLastMessage && generating) {
-    return <div />
-  }
-
   if (message.role === 'assistant') {
     let metrixs = ''
     let hasMetrics = false
-
     if (message?.metrics?.completion_tokens && message?.metrics?.time_completion_millsec) {
       hasMetrics = true
       metrixs = t('settings.messages.metrics', {
@@ -45,7 +44,10 @@ const MessgeTokens: React.FC<{ message: Message; isLastMessage: boolean }> = ({ 
       <MessageMetadata className={`message-tokens ${hasMetrics ? 'has-metrics' : ''}`} onClick={locateMessage}>
         <span className="metrics">{metrixs}</span>
         <span className="tokens">
-          Tokens: {message?.usage?.total_tokens} ↑{message?.usage?.prompt_tokens} ↓{message?.usage?.completion_tokens}
+          Tokens:
+          <span>{message?.usage?.total_tokens}</span>
+          <span>↑{message?.usage?.prompt_tokens}</span>
+          <span>↓{message?.usage?.completion_tokens}</span>
         </span>
       </MessageMetadata>
     )
@@ -68,6 +70,10 @@ const MessageMetadata = styled.div`
 
   .tokens {
     display: block;
+
+    span {
+      padding: 0 2px;
+    }
   }
 
   &.has-metrics:hover {
