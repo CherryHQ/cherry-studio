@@ -42,7 +42,7 @@ interface MessagesProps {
 
 const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
+  const { showPrompt, showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -225,7 +225,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   return (
     <Container
       id="messages"
-      style={{ maxWidth }}
+      style={{ maxWidth, paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
       ref={containerRef}
       $right={topicPosition === 'left'}>
@@ -239,9 +239,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
-            <LoaderContainer $loading={isLoadingMore}>
-              <SvgSpinners180Ring color="var(--color-text-2)" />
-            </LoaderContainer>
             {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
@@ -250,9 +247,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 hidePresetMessages={assistant.settings?.hideMessages}
               />
             ))}
+            {isLoadingMore && (
+              <LoaderContainer>
+                <SvgSpinners180Ring color="var(--color-text-2)" />
+              </LoaderContainer>
+            )}
           </ScrollContainer>
         </InfiniteScroll>
-        <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
+        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
@@ -296,21 +298,18 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
   return displayMessages
 }
 
-const LoaderContainer = styled.div<{ $loading: boolean }>`
+const LoaderContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 10px;
   width: 100%;
   background: var(--color-background);
-  opacity: ${(props) => (props.$loading ? 1 : 0)};
-  transition: opacity 0.3s ease;
   pointer-events: none;
 `
 
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  margin-bottom: -20px; // 添加负的底部外边距来减少空间
 `
 
 interface ContainerProps {
@@ -320,7 +319,7 @@ interface ContainerProps {
 const Container = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0 10px;
+  padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;

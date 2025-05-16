@@ -38,6 +38,7 @@ import {
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
   setShowMessageDivider,
+  setShowPrompt,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
@@ -75,6 +76,7 @@ const SettingsTab: FC<Props> = (props) => {
   const dispatch = useAppDispatch()
 
   const {
+    showPrompt,
     showMessageDivider,
     messageFont,
     showInputEstimatedTokens,
@@ -150,10 +152,8 @@ const SettingsTab: FC<Props> = (props) => {
     setStreamOutput(assistant?.settings?.streamOutput ?? true)
   }, [assistant])
 
-  const formatSliderTooltip = (value?: number) => {
-    if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
-  }
+  const assistantContextCount = assistant?.settings?.contextCount || 20
+  const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
 
   return (
     <Container className="settings-tab">
@@ -201,12 +201,11 @@ const SettingsTab: FC<Props> = (props) => {
           <Col span={24}>
             <Slider
               min={0}
-              max={10}
+              max={maxContextCount}
               onChange={setContextCount}
               onChangeComplete={onContextCountChange}
               value={typeof contextCount === 'number' ? contextCount : 0}
               step={1}
-              tooltip={{ formatter: formatSliderTooltip }}
             />
           </Col>
         </Row>
@@ -268,6 +267,11 @@ const SettingsTab: FC<Props> = (props) => {
       </SettingGroup>
       <SettingGroup>
         <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.messages.title')}</SettingSubtitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
+          <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.divider')}</SettingRowTitleSmall>

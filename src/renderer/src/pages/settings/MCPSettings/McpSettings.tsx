@@ -167,6 +167,7 @@ const McpSettings: React.FC = () => {
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
       } catch (error) {
+        setLoadingServer(server.id)
         window.message.error({
           content: t('settings.mcp.tools.loadError') + ' ' + formatError(error),
           key: 'mcp-tools-error'
@@ -250,7 +251,7 @@ const McpSettings: React.FC = () => {
       }
 
       // set stdio or sse server
-      if (values.serverType === 'sse' || server.type === 'streamableHttp') {
+      if (values.serverType === 'sse' || values.serverType === 'streamableHttp') {
         mcpServer.baseUrl = values.baseUrl
       } else {
         mcpServer.command = values.command

@@ -7,7 +7,6 @@ interface Props {
 }
 
 const MessageContent: React.FC<Props> = ({ block }) => {
-  console.log('block', block)
   return (
     <>
       {/* <Flex gap="8px" wrap style={{ marginBottom: 10 }}>

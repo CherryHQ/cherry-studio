@@ -3,6 +3,7 @@ import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
@@ -28,10 +29,11 @@ import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
+
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -120,11 +122,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+    const updateTitleBarOverlay = () => {
+      if (!mainWindow?.setTitleBarOverlay) return
+      const isDark = nativeTheme.shouldUseDarkColors
+      mainWindow.setTitleBarOverlay(isDark ? titleBarOverlayDark : titleBarOverlayLight)
+    }
+
+    const broadcastThemeChange = () => {
+      const isDark = nativeTheme.shouldUseDarkColors
+      const effectiveTheme = isDark ? ThemeMode.dark : ThemeMode.light
+      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send(IpcChannel.ThemeChange, effectiveTheme))
+    }
+
     const notifyThemeChange = () => {
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) =>
-        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
-      )
+      updateTitleBarOverlay()
+      broadcastThemeChange()
     }
 
     if (theme === ThemeMode.auto) {
@@ -132,13 +144,18 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       nativeTheme.on('updated', notifyThemeChange)
     } else {
       nativeTheme.themeSource = theme
-      nativeTheme.removeAllListeners('updated')
+      nativeTheme.off('updated', notifyThemeChange)
     }
 
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
+    updateTitleBarOverlay()
     configManager.setTheme(theme)
     notifyThemeChange()
+  })
+
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
+    const windows = BrowserWindow.getAllWindows()
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache
@@ -160,6 +177,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     } catch (error: any) {
       log.error('Failed to clear cache:', error)
       return { success: false, error: error.message }
+    }
+  })
+
+  // get cache size
+  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
+    const cachePath = getCacheDir()
+    log.info(`Calculating cache size for path: ${cachePath}`)
+
+    try {
+      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
+      return `${sizeInMB}`
+    } catch (error: any) {
+      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      return '0'
     }
   })
 
@@ -195,6 +227,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
   ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)

@@ -37,3 +37,49 @@ index 7d19f5578040afa004bc887aab1725e8703d2bac..59ec725b6142299a62798ac4bdedb63b
          if (status === 400) {
              return new BadRequestError(status, error, message, headers);
          }
+diff --git a/resources/embeddings.js b/resources/embeddings.js
+index aae578404cb2d09a39ac33fc416f1c215c45eecd..25c54b05bdae64d5c3b36fbb30dc7c8221b14034 100644
+--- a/resources/embeddings.js
++++ b/resources/embeddings.js
+@@ -36,6 +36,9 @@ class Embeddings extends resource_1.APIResource {
+         // No encoding_format specified, defaulting to base64 for performance reasons
+         // See https://github.com/openai/openai-node/pull/1312
+         let encoding_format = hasUserProvidedEncodingFormat ? body.encoding_format : 'base64';
++        if (body.model.includes('jina')) {
++            encoding_format = undefined;
++        }
+         if (hasUserProvidedEncodingFormat) {
+             Core.debug('Request', 'User defined encoding_format:', body.encoding_format);
+         }
+@@ -47,7 +50,7 @@ class Embeddings extends resource_1.APIResource {
+             ...options,
+         });
+         // if the user specified an encoding_format, return the response as-is
+-        if (hasUserProvidedEncodingFormat) {
++        if (hasUserProvidedEncodingFormat || body.model.includes('jina')) {
+             return response;
+         }
+         // in this stage, we are sure the user did not specify an encoding_format
+diff --git a/resources/embeddings.mjs b/resources/embeddings.mjs
+index 0df3c6cc79a520e54acb4c2b5f77c43b774035ff..aa488b8a11b2c413c0a663d9a6059d286d7b5faf 100644
+--- a/resources/embeddings.mjs
++++ b/resources/embeddings.mjs
+@@ -10,6 +10,9 @@ export class Embeddings extends APIResource {
+         // No encoding_format specified, defaulting to base64 for performance reasons
+         // See https://github.com/openai/openai-node/pull/1312
+         let encoding_format = hasUserProvidedEncodingFormat ? body.encoding_format : 'base64';
++        if (body.model.includes('jina')) {
++            encoding_format = undefined;
++        }
+         if (hasUserProvidedEncodingFormat) {
+             Core.debug('Request', 'User defined encoding_format:', body.encoding_format);
+         }
+@@ -21,7 +24,7 @@ export class Embeddings extends APIResource {
+             ...options,
+         });
+         // if the user specified an encoding_format, return the response as-is
+-        if (hasUserProvidedEncodingFormat) {
++        if (hasUserProvidedEncodingFormat || body.model.includes('jina')) {
+             return response;
+         }
+         // in this stage, we are sure the user did not specify an encoding_format

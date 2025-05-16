@@ -1,5 +1,5 @@
+import Logger from '@renderer/config/logger'
 import { FileType } from '@renderer/types'
-import Logger from 'electron-log/renderer'
 
 export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileType[]> => {
   if (e.dataTransfer.files.length > 0) {

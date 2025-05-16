@@ -8,6 +8,7 @@ import {
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
+import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
@@ -104,7 +105,7 @@ const FilesPage: FC = () => {
         // This case should ideally not happen if relatedBlocks were found,
         // but handle it just in case: only delete blocks.
         await db.message_blocks.bulkDelete(blockIdsToDelete)
-        console.log(
+        Logger.log(
           `Deleted ${blockIdsToDelete.length} blocks related to file ${fileId}. No associated messages found (unexpected).`
         )
         return
@@ -151,9 +152,9 @@ const FilesPage: FC = () => {
         await db.message_blocks.bulkDelete(blockIdsToDelete)
       })
 
-      console.log(`Deleted ${blockIdsToDelete.length} blocks and updated relevant topic messages for file ${fileId}.`)
+      Logger.log(`Deleted ${blockIdsToDelete.length} blocks and updated relevant topic messages for file ${fileId}.`)
     } catch (error) {
-      console.error(`Error updating topics or deleting blocks for file ${fileId}:`, error)
+      Logger.error(`Error updating topics or deleting blocks for file ${fileId}:`, error)
       window.modal.error({ content: t('files.delete.db_error'), centered: true }) // 提示数据库操作失败
       // Consider whether to attempt to restore the physical file (usually difficult)
     }

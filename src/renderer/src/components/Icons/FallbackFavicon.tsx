@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 
@@ -120,7 +121,7 @@ const FallbackFavicon: React.FC<FallbackFaviconProps> = ({ hostname, alt }) => {
         setFaviconState({ status: 'loaded', src: url })
       })
       .catch((error) => {
-        console.log('All favicon requests failed:', error)
+        Logger.log('All favicon requests failed:', error)
         setFaviconState({ status: 'loaded', src: faviconUrls[0] })
       })
 

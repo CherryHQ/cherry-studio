@@ -8,7 +8,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isLinux, isMac, isWindows } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -24,9 +24,9 @@ import { Avatar, Drawer, Tooltip } from 'antd'
 import { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
-import SvgSpinners180Ring from '../Icons/SvgSpinners180Ring'
 import WebviewContainer from './WebviewContainer'
 
 interface AppExtraInfo {
@@ -285,7 +285,7 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWindows ? 'windows' : ''}>
+        <ButtonsGroup className={isWindows || isLinux ? 'windows' : ''}>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
@@ -367,7 +367,10 @@ const MinappPopupContainer: React.FC = () => {
       height={'100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{ marginLeft: 'var(--sidebar-width)', backgroundColor: 'var(--color-background)' }}>
+      style={{
+        marginLeft: 'var(--sidebar-width)',
+        backgroundColor: window.root.style.background
+      }}>
       {!isReady && (
         <EmptyView>
           <Avatar
@@ -375,7 +378,7 @@ const MinappPopupContainer: React.FC = () => {
             size={80}
             style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
           />
-          <SvgSpinners180Ring color="var(--color-text-2)" style={{ marginTop: 15 }} />
+          <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
         </EmptyView>
       )}
       {WebviewContainerGroup}
@@ -421,7 +424,7 @@ const ButtonsGroup = styled.div`
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWindows ? '130px' : 0};
+    margin-right: ${isWindows ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;

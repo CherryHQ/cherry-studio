@@ -168,7 +168,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: 'openai',
     name: 'OpenAI',
-    type: 'openai',
+    type: 'openai-response',
     apiKey: '',
     apiHost: 'https://api.openai.com',
     models: SYSTEM_MODELS.openai,

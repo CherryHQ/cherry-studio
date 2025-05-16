@@ -22,7 +22,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   }
 
   const formatMaxCount = (max: number) => {
-    if (max == 20) {
+    if (max == 100) {
       return (
         <span
           style={{

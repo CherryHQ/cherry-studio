@@ -183,7 +183,6 @@ async function searchFiles(
         }
       } catch (error) {
         // Skip invalid paths during search
-        continue
       }
     }
   }
