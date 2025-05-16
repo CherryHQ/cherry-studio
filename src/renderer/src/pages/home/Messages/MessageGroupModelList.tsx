@@ -98,6 +98,7 @@ const Container = styled(HStack)`
   flex: 1;
   overflow: hidden;
   align-items: center;
+  margin-left: 4px;
 `
 
 const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
