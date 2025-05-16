@@ -90,7 +90,22 @@
         "titleLabel": "タイトル",
         "titlePlaceholder": "タイトルを入力",
         "contentLabel": "内容",
-        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。"
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
+        "list": {
+          "showByList": "リスト表示",
+          "showByTags": "タグ表示"
+        },
+        "tags": {
+          "none": "タグなし",
+          "manage": "タグ管理",
+          "add": "タグ追加",
+          "delete": "タグ削除",
+          "settings": {
+            "title": "タグ設定",
+            "current": "現在のタグ",
+            "addTagsPlaceholder": "アシスタントのタグを選択または入力"
+          }
+        }
       },
       "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",

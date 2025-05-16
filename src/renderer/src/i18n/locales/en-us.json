@@ -94,7 +94,22 @@
         "titleLabel": "Title",
         "titlePlaceholder": "Enter title",
         "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "list": {
+          "showByList": "List View",
+          "showByTags": "Tag View"
+        },
+        "tags": {
+          "none": "No tags",
+          "manage": "Tag Management",
+          "add": "Add Tag",
+          "delete": "Delete Tag",
+          "settings": {
+            "title": "Tag Settings",
+            "current": "Current Tags",
+            "addTagsPlaceholder": "Select or enter tags for assistant"
+          }
+        }
       }
     },
     "auth": {

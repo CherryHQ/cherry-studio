@@ -90,7 +90,22 @@
         "titleLabel": "標題",
         "titlePlaceholder": "輸入標題",
         "contentLabel": "內容",
-        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。"
+        "contentPlaceholder": "請輸入短語內容，支持使用變量，然後按Tab鍵可以快速定位到變量進行修改。比如：\n幫我規劃從${from}到${to}的行程，然後發送到${email}。",
+        "list": {
+          "showByList": "列表展示",
+          "showByTags": "標籤展示"
+        },
+        "tags": {
+          "none": "暫無標籤",
+          "manage": "標籤管理",
+          "add": "添加標籤",
+          "delete": "刪除標籤",
+          "settings": {
+            "title": "標籤設置",
+            "current": "當前標籤",
+            "addTagsPlaceholder": "請選擇或者輸入助手的標籤"
+          }
+        }
       },
       "settings.knowledge_base.recognition.tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力",
       "settings.knowledge_base.recognition": "調用知識庫",

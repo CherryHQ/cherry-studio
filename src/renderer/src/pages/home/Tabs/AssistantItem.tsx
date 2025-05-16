@@ -5,13 +5,13 @@ import {
   SaveOutlined,
   SmileOutlined,
   SortAscendingOutlined,
-  SortDescendingOutlined
+  SortDescendingOutlined,
+  TagsOutlined
 } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
@@ -36,6 +36,7 @@ interface AssistantItemProps {
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
   addAssistant: (assistant: Assistant) => void
+  onTagClick?: (tag: string) => void
 }
 
 const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
@@ -145,6 +146,40 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       },
       { type: 'divider' },
       {
+        label: t('assistants.tags.manage'),
+        key: 'tags',
+        icon: <TagsOutlined />,
+        children: [
+          {
+            label: t('assistants.tags.add'),
+            key: 'add-tag',
+            onClick: () => {
+              const listener = (updated: Assistant) => {
+                if (updated.id === assistant.id) {
+                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                  EventEmitter.off(EVENT_NAMES.ADD_ASSISTANT, listener)
+                }
+              }
+              EventEmitter.on(EVENT_NAMES.ADD_ASSISTANT, listener)
+              AssistantSettingsPopup.show({
+                assistant,
+                tab: 'tags'
+              })
+            }
+          },
+          ...(assistant.tags || []).map((tag) => ({
+            label: tag,
+            danger: true,
+            icon: <DeleteOutlined />,
+            key: `tag-${tag}`,
+            onClick: () => {
+              const newTags = (assistant.tags || []).filter((t) => t !== tag)
+              updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: newTags } : a)))
+            }
+          }))
+        ]
+      },
+      {
         label: t('common.sort.pinyin.asc'),
         key: 'sort-asc',
         icon: <SortAscendingOutlined />,
@@ -176,13 +211,15 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     [
       addAgent,
       addAssistant,
+      assistants,
       onDelete,
       onSwitch,
       removeAllTopics,
       setAssistantIconType,
       sortByPinyinAsc,
       sortByPinyinDesc,
-      t
+      t,
+      updateAssistants
     ]
   )
 
