@@ -236,7 +236,7 @@ const ProviderSelector = styled.div`
 `
 
 const SelectorLabel = styled.div`
-  font-weight: 500;
+  font-weight: medium;
   white-space: nowrap;
 `
 

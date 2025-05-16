@@ -189,8 +189,7 @@ const ServerName = styled.div`
 
 const ServerNameText = styled.span`
   font-size: 15px;
-  font-weight: 500;
-  font-family: Ubuntu;
+  font-weight: medium;
 `
 
 const StatusIndicator = styled.div`

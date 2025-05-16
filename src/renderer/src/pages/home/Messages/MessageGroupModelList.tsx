@@ -250,7 +250,7 @@ const SegmentedLabel = styled.div`
 `
 
 const ModelName = styled.span`
-  font-weight: 500;
+  font-weight: medium;
   font-size: 12px;
 `
 

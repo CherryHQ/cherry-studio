@@ -446,7 +446,7 @@ const Container = styled.div`
 
 const Label = styled.p`
   margin-right: 5px;
-  font-weight: 500;
+  font-weight: medium;
 `
 
 const QuestionIcon = styled(QuestionCircleOutlined)`

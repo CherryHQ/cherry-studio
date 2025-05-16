@@ -48,7 +48,7 @@ const ListItemName = styled.div<{ $fontSize?: number }>`
   gap: 10px;
   color: var(--color-text);
   line-height: 1;
-  font-weight: 600;
+  font-weight: medium;
   font-size: ${(props) => props.$fontSize}px;
 `
 
@@ -57,7 +57,6 @@ const NameSpan = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: help;
-  font-family: 'Ubuntu';
   line-height: 30px;
 `
 

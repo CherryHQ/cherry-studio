@@ -520,7 +520,7 @@ const GroupItem = styled.div<{ $isSticky?: boolean }>`
   align-items: center;
   position: relative;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: medium;
   height: ${ITEM_HEIGHT}px;
   padding: 5px 10px 5px 18px;
   color: var(--color-text-3);

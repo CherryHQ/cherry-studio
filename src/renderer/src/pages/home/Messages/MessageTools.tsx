@@ -251,7 +251,7 @@ const TitleContent = styled.div`
 
 const ToolName = styled.span`
   color: var(--color-text);
-  font-weight: 500;
+  font-weight: medium;
   font-size: 13px;
 `
 

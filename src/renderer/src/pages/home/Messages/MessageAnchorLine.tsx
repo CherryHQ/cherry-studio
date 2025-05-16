@@ -312,7 +312,7 @@ const MessageItem = styled.div`
 `
 
 const MessageItemTitle = styled.div`
-  font-weight: 500;
+  font-weight: medium;
   color: var(--color-text);
   white-space: nowrap;
 `
