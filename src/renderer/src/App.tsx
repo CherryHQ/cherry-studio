@@ -8,8 +8,8 @@ import { PersistGate } from 'redux-persist/integration/react'
 import Sidebar from './components/app/Sidebar'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
+import { CodeStyleProvider } from './context/CodeStyleProvider'
 import StyleSheetManager from './context/StyleSheetManager'
-import { SyntaxHighlighterProvider } from './context/SyntaxHighlighterProvider'
 import { ThemeProvider } from './context/ThemeProvider'
 import NavigationHandler from './handler/NavigationHandler'
 import AgentsPage from './pages/agents/AgentsPage'
@@ -17,7 +17,7 @@ import AppsPage from './pages/apps/AppsPage'
 import FilesPage from './pages/files/FilesPage'
 import HomePage from './pages/home/HomePage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
-import PaintingsPage from './pages/paintings/PaintingsPage'
+import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 
@@ -27,7 +27,7 @@ function App(): React.ReactElement {
       <StyleSheetManager>
         <ThemeProvider>
           <AntdProvider>
-            <SyntaxHighlighterProvider>
+            <CodeStyleProvider>
               <PersistGate loading={null} persistor={persistor}>
                 <TopViewContainer>
                   <HashRouter>
@@ -36,7 +36,7 @@ function App(): React.ReactElement {
                     <Routes>
                       <Route path="/" element={<HomePage />} />
                       <Route path="/agents" element={<AgentsPage />} />
-                      <Route path="/paintings" element={<PaintingsPage />} />
+                      <Route path="/paintings/*" element={<PaintingsRoutePage />} />
                       <Route path="/translate" element={<TranslatePage />} />
                       <Route path="/files" element={<FilesPage />} />
                       <Route path="/knowledge" element={<KnowledgePage />} />
@@ -46,7 +46,7 @@ function App(): React.ReactElement {
                   </HashRouter>
                 </TopViewContainer>
               </PersistGate>
-            </SyntaxHighlighterProvider>
+            </CodeStyleProvider>
           </AntdProvider>
         </ThemeProvider>
       </StyleSheetManager>

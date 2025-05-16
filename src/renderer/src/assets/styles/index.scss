@@ -51,6 +51,8 @@
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
+  --modal-background: #1f1f1f;
+
   --color-heightlight: rgba(0, 0, 0, 1);
   --color-background-heightlight: rgba(255, 255, 0, 0.9);
   --color-background-heightlight-accent: rgba(255, 150, 50, 0.9);
@@ -126,6 +128,8 @@ body[theme-mode='light'] {
   --color-reference: #cfe1ff;
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
+
+  --modal-background: var(--color-white);
 
   --color-heightlight: initial;
   --color-background-heightlight: rgba(255, 255, 0, 0.5);
@@ -234,6 +238,7 @@ body,
   display: -webkit-box !important;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
+  line-clamp: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;

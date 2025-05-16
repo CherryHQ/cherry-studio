@@ -1,4 +1,5 @@
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
+import Logger from '@renderer/config/logger'
 import type { MCPConfig, MCPServer } from '@renderer/types'
 
 export const initialState: MCPConfig = {
@@ -135,7 +136,7 @@ export const initializeMCPServers = (existingServers: MCPServer[], dispatch: (ac
   // Filter out any built-in servers that are already present
   const newServers = builtinMCPServers.filter((server) => !serverIds.has(server.name))
 
-  console.log('Adding new servers:', newServers)
+  Logger.log('[initializeMCPServers] Adding new servers:', newServers)
   // Add the new built-in servers to the existing servers
   newServers.forEach((server) => {
     dispatch(addMCPServer(server))

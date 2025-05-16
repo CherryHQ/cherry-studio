@@ -86,6 +86,13 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: true,
       system: false
+    },
+    {
+      key: 'exit_fullscreen',
+      shortcut: ['Escape'],
+      editable: false,
+      enabled: true,
+      system: true
     }
   ]
 }
@@ -95,7 +102,8 @@ const getSerializableShortcuts = (shortcuts: Shortcut[]) => {
     key: shortcut.key,
     shortcut: [...shortcut.shortcut],
     enabled: shortcut.enabled,
-    system: shortcut.system
+    system: shortcut.system,
+    editable: shortcut.editable
   }))
 }
 

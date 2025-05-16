@@ -83,7 +83,7 @@ export class ExportService {
             }
             break
           case 'text':
-            runs.push(new TextRun({ text: token.content, bold: isHeaderRow ? true : false }))
+            runs.push(new TextRun({ text: token.content, bold: isHeaderRow }))
             break
           case 'strong':
             runs.push(new TextRun({ text: token.content, bold: true }))

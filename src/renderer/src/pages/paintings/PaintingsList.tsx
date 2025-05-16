@@ -3,7 +3,7 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import FileManager from '@renderer/services/FileManager'
-import { Painting } from '@renderer/types'
+import { Painting, PaintingsState } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Popconfirm } from 'antd'
 import { FC, useState } from 'react'
@@ -16,6 +16,7 @@ interface PaintingsListProps {
   onSelectPainting: (painting: Painting) => void
   onDeletePainting: (painting: Painting) => void
   onNewPainting: () => void
+  namespace: keyof PaintingsState
 }
 
 const PaintingsList: FC<PaintingsListProps> = ({
@@ -23,7 +24,8 @@ const PaintingsList: FC<PaintingsListProps> = ({
   selectedPainting,
   onSelectPainting,
   onDeletePainting,
-  onNewPainting
+  onNewPainting,
+  namespace
 }) => {
   const { t } = useTranslation()
   const [dragging, setDragging] = useState(false)
@@ -38,7 +40,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
       )}
       <DragableList
         list={paintings}
-        onUpdate={updatePaintings}
+        onUpdate={(value) => updatePaintings(namespace, value)}
         onDragStart={() => setDragging(true)}
         onDragEnd={() => setDragging(false)}>
         {(item: Painting) => (

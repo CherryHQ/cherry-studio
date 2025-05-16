@@ -1,7 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import { WebDAVSyncState } from './backup'
 
@@ -32,6 +31,7 @@ export interface SettingsState {
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  showPrompt: boolean
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
@@ -50,17 +50,29 @@ export interface SettingsState {
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   renderInputMessageAsMarkdown: boolean
+  // 代码执行
+  codeExecution: {
+    enabled: boolean
+    timeoutMinutes: number
+  }
+  codeEditor: {
+    enabled: boolean
+    themeLight: string
+    themeDark: string
+    highlightActiveLine: boolean
+    foldGutter: boolean
+    autocompletion: boolean
+    keymap: boolean
+  }
+  codePreview: {
+    themeLight: CodeStyleVarious
+    themeDark: CodeStyleVarious
+  }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
-  // 代码块缓存
-  codeCacheable: boolean
-  codeCacheMaxSize: number
-  codeCacheTTL: number
-  codeCacheThreshold: number
   mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
-  codeStyle: CodeStyleVarious
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
@@ -105,11 +117,14 @@ export interface SettingsState {
   joplinToken: string | null
   joplinUrl: string | null
   defaultObsidianVault: string | null
+  defaultAgent: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  // 订阅的助手地址
+  agentssubscribeUrl: string | null
   // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
@@ -142,6 +157,7 @@ export const initialState: SettingsState = {
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  showPrompt: true,
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
@@ -160,16 +176,28 @@ export const initialState: SettingsState = {
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
+  codeExecution: {
+    enabled: false,
+    timeoutMinutes: 1
+  },
+  codeEditor: {
+    enabled: false,
+    themeLight: 'auto',
+    themeDark: 'auto',
+    highlightActiveLine: false,
+    foldGutter: false,
+    autocompletion: true,
+    keymap: false
+  },
+  codePreview: {
+    themeLight: 'auto',
+    themeDark: 'auto'
+  },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
-  codeCacheable: false,
-  codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
-  codeCacheTTL: 15, // 缓存过期时间，分钟
-  codeCacheThreshold: 2, // 允许缓存的最小代码长度，千字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
-  codeStyle: 'auto',
   foldDisplayMode: 'expanded',
   gridColumns: 2,
   gridPopoverTrigger: 'click',
@@ -211,10 +239,12 @@ export const initialState: SettingsState = {
   joplinToken: '',
   joplinUrl: '',
   defaultObsidianVault: null,
+  defaultAgent: null,
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  agentssubscribeUrl: '',
   // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
@@ -256,7 +286,6 @@ const settingsSlice = createSlice({
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
-      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload
@@ -269,6 +298,9 @@ const settingsSlice = createSlice({
     },
     setUserName: (state, action: PayloadAction<string>) => {
       state.userName = action.payload
+    },
+    setShowPrompt: (state, action: PayloadAction<boolean>) => {
+      state.showPrompt = action.payload
     },
     setShowMessageDivider: (state, action: PayloadAction<boolean>) => {
       state.showMessageDivider = action.payload
@@ -345,6 +377,56 @@ const settingsSlice = createSlice({
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
     },
+    setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeExecution.enabled = action.payload.enabled
+      }
+      if (action.payload.timeoutMinutes !== undefined) {
+        state.codeExecution.timeoutMinutes = action.payload.timeoutMinutes
+      }
+    },
+    setCodeEditor: (
+      state,
+      action: PayloadAction<{
+        enabled?: boolean
+        themeLight?: string
+        themeDark?: string
+        highlightActiveLine?: boolean
+        foldGutter?: boolean
+        autocompletion?: boolean
+        keymap?: boolean
+      }>
+    ) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeEditor.enabled = action.payload.enabled
+      }
+      if (action.payload.themeLight !== undefined) {
+        state.codeEditor.themeLight = action.payload.themeLight
+      }
+      if (action.payload.themeDark !== undefined) {
+        state.codeEditor.themeDark = action.payload.themeDark
+      }
+      if (action.payload.highlightActiveLine !== undefined) {
+        state.codeEditor.highlightActiveLine = action.payload.highlightActiveLine
+      }
+      if (action.payload.foldGutter !== undefined) {
+        state.codeEditor.foldGutter = action.payload.foldGutter
+      }
+      if (action.payload.autocompletion !== undefined) {
+        state.codeEditor.autocompletion = action.payload.autocompletion
+      }
+      if (action.payload.keymap !== undefined) {
+        state.codeEditor.keymap = action.payload.keymap
+      }
+    },
+    setCodePreview: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
+      if (action.payload.themeLight !== undefined) {
+        state.codePreview.themeLight = action.payload.themeLight
+      }
+      if (action.payload.themeDark !== undefined) {
+        state.codePreview.themeDark = action.payload.themeDark
+      }
+    },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
     },
@@ -353,18 +435,6 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
-    },
-    setCodeCacheable: (state, action: PayloadAction<boolean>) => {
-      state.codeCacheable = action.payload
-    },
-    setCodeCacheMaxSize: (state, action: PayloadAction<number>) => {
-      state.codeCacheMaxSize = action.payload
-    },
-    setCodeCacheTTL: (state, action: PayloadAction<number>) => {
-      state.codeCacheTTL = action.payload
-    },
-    setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
-      state.codeCacheThreshold = action.payload
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
@@ -380,9 +450,6 @@ const settingsSlice = createSlice({
     },
     setMessageStyle: (state, action: PayloadAction<'plain' | 'bubble'>) => {
       state.messageStyle = action.payload
-    },
-    setCodeStyle: (state, action: PayloadAction<CodeStyleVarious>) => {
-      state.codeStyle = action.payload
     },
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
@@ -467,6 +534,15 @@ const settingsSlice = createSlice({
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
     },
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
+    },
+    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
+      state.defaultObsidianVault = action.payload
+    },
+    setDefaultAgent: (state, action: PayloadAction<string>) => {
+      state.defaultAgent = action.payload
+    },
     setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
       state.siyuanApiUrl = action.payload
     },
@@ -479,11 +555,8 @@ const settingsSlice = createSlice({
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
     },
-    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
-      state.messageNavigation = action.payload
-    },
-    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
-      state.defaultObsidianVault = action.payload
+    setAgentssubscribeUrl: (state, action: PayloadAction<string>) => {
+      state.agentssubscribeUrl = action.payload
     },
     setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
       state.maxKeepAliveMinapps = action.payload
@@ -520,6 +593,7 @@ export const {
   setProxyMode,
   setProxyUrl,
   setUserName,
+  setShowPrompt,
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
@@ -544,19 +618,17 @@ export const {
   setWebdavAutoSync,
   setWebdavSyncInterval,
   setWebdavMaxBackups,
+  setCodeExecution,
+  setCodeEditor,
+  setCodePreview,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
-  setCodeCacheable,
-  setCodeCacheMaxSize,
-  setCodeCacheTTL,
-  setCodeCacheThreshold,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
   setMessageStyle,
-  setCodeStyle,
   setTranslateModelPrompt,
   setAutoTranslateWithSpace,
   setShowTranslateConfirm,
@@ -586,9 +658,11 @@ export const {
   setJoplinUrl,
   setMessageNavigation,
   setDefaultObsidianVault,
+  setDefaultAgent,
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
+  setAgentssubscribeUrl,
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,

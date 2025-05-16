@@ -58,8 +58,9 @@ const ShortcutSettings: FC = () => {
   const isValidShortcut = (keys: string[]): boolean => {
     const hasModifier = keys.some((key) => ['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
     const hasNonModifier = keys.some((key) => !['Control', 'Ctrl', 'Command', 'Alt', 'Shift'].includes(key))
+    const hasFnKey = keys.some((key) => /^F\d+$/.test(key))
 
-    return hasModifier && hasNonModifier && keys.length >= 2
+    return (hasModifier && hasNonModifier && keys.length >= 2) || hasFnKey
   }
 
   const isDuplicateShortcut = (newShortcut: string[], currentKey: string): boolean => {

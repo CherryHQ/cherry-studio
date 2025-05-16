@@ -71,7 +71,7 @@ export default class AppUpdater {
 
     try {
       const update = await this.autoUpdater.checkForUpdates()
-      if (update?.updateInfo && !this.autoUpdater.autoDownload) {
+      if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
         this.autoUpdater.downloadUpdate()

@@ -1,25 +1,149 @@
+// Import Message, MessageBlock, and necessary enums
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// --- Mocks Setup ---
+
+// Mock i18n at the top level using vi.mock
+vi.mock('@renderer/i18n', () => ({
+  default: {
+    t: vi.fn((k: string) => k) // Pass-through mock using vi.fn
+  }
+}))
+
+// Mock the find utility functions - crucial for the test
+vi.mock('@renderer/utils/messageUtils/find', () => ({
+  // Provide type safety for mocked message
+  getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+    const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    return mainTextBlock?.content || '' // Assuming content exists on MainTextBlock
+  }),
+  getThinkingContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+    const thinkingBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.THINKING)
+    // Assuming content exists on ThinkingBlock
+    // Need to cast block to access content if not on base type
+    return (thinkingBlock as any)?.content || ''
+  })
+}))
+
+// Import the functions to test AFTER setting up mocks
 import { getTitleFromString, messagesToMarkdown, messageToMarkdown, messageToMarkdownWithReasoning } from '../export'
 
-// 辅助函数：生成完整 Message 对象
-function createMessage(partial) {
-  return {
-    id: partial.id || 'id',
-    assistantId: partial.assistantId || 'a',
-    role: partial.role,
-    content: partial.content,
-    topicId: partial.topicId || 't',
-    createdAt: partial.createdAt || '2024-01-01',
-    updatedAt: partial.updatedAt || 0,
-    status: partial.status || 'success',
-    type: partial.type || 'text',
-    ...partial
+// --- Helper Functions for Test Data ---
+
+// Helper function: Create a message block
+// Type for partialBlock needs to allow various block properties
+// Remove messageId requirement from the input type, as it's passed separately
+type PartialBlockInput = Partial<MessageBlock> & { type: MessageBlockType; content?: string }
+
+// Add explicit messageId parameter to createBlock
+function createBlock(messageId: string, partialBlock: PartialBlockInput): MessageBlock {
+  const blockId = partialBlock.id || `block-${Math.random().toString(36).substring(7)}`
+  // Base structure, assuming all required fields are provided or defaulted
+  const baseBlock = {
+    id: blockId,
+    messageId: messageId, // Use the passed messageId
+    type: partialBlock.type,
+    createdAt: partialBlock.createdAt || '2024-01-01T00:00:00Z',
+    status: partialBlock.status || MessageBlockStatus.SUCCESS
+    // Add other base fields if they become required
   }
+
+  // Conditionally add content if provided, satisfying MessageBlock union
+  const blockData = { ...baseBlock }
+  if ('content' in partialBlock && partialBlock.content !== undefined) {
+    blockData['content'] = partialBlock.content
+  }
+  // Add logic for other block-specific required fields if needed
+
+  // Use type assertion carefully, ensure the object matches one of the union types
+  return blockData as MessageBlock
 }
+
+// Updated helper function: Create a complete Message object with blocks
+// Define a type for the input partial message
+type PartialMessageInput = Partial<Message> & { role: 'user' | 'assistant' | 'system' }
+
+function createMessage(
+  partialMsg: PartialMessageInput,
+  blocksData: PartialBlockInput[] = []
+): Message & { _fullBlocks: MessageBlock[] } {
+  const messageId = partialMsg.id || `msg-${Math.random().toString(36).substring(7)}`
+  // Create blocks first, passing the messageId explicitly to createBlock
+  const blocks = blocksData.map((blockData, index) =>
+    createBlock(messageId, {
+      id: `block-${messageId}-${index}`,
+      // No need to spread messageId from blockData here
+      ...blockData
+    })
+  )
+
+  const message: Message & { _fullBlocks: MessageBlock[] } = {
+    // Core Message fields (provide defaults for required ones)
+    id: messageId,
+    role: partialMsg.role,
+    assistantId: partialMsg.assistantId || 'asst_default',
+    topicId: partialMsg.topicId || 'topic_default',
+    createdAt: partialMsg.createdAt || '2024-01-01T00:00:00Z',
+    status: partialMsg.status || AssistantMessageStatus.SUCCESS,
+    blocks: blocks.map((b) => b.id),
+
+    // --- Fields required by Message type definition (using defaults or from partialMsg) ---
+    modelId: partialMsg.modelId,
+    model: partialMsg.model,
+    type: partialMsg.type,
+    isPreset: partialMsg.isPreset,
+    useful: partialMsg.useful,
+    askId: partialMsg.askId,
+    mentions: partialMsg.mentions,
+    enabledMCPs: partialMsg.enabledMCPs,
+    usage: partialMsg.usage,
+    metrics: partialMsg.metrics,
+    multiModelMessageStyle: partialMsg.multiModelMessageStyle,
+    foldSelected: partialMsg.foldSelected,
+
+    // --- Special property for test helpers ---
+    _fullBlocks: blocks
+  }
+  // Manually assign remaining optional properties from partialMsg if needed
+  Object.keys(partialMsg).forEach((key) => {
+    // Avoid overwriting fields already set explicitly or handled by defaults
+    if (!(key in message) || message[key] === undefined) {
+      message[key] = partialMsg[key]
+    }
+  })
+
+  return message
+}
+
+// --- Global Test Setup ---
+
+// Store mocked messages generated in beforeEach blocks
+let mockedMessages: (Message & { _fullBlocks: MessageBlock[] })[] = []
+
+beforeEach(() => {
+  // Reset mocks and modules before each test suite (describe block)
+  vi.resetModules()
+  vi.clearAllMocks()
+
+  // Mock store - primarily for settings
+  vi.doMock('@renderer/store', () => ({
+    default: {
+      getState: () => ({
+        settings: { forceDollarMathInMarkdown: false }
+      })
+    }
+  }))
+
+  mockedMessages = [] // Clear messages for the next describe block
+})
+
+// --- Test Suites ---
 
 describe('export', () => {
   describe('getTitleFromString', () => {
+    // These tests are independent of message structure and remain unchanged
     it('should extract first line before punctuation', () => {
       expect(getTitleFromString('标题。其余内容')).toBe('标题')
       expect(getTitleFromString('标题，其余内容')).toBe('标题')
@@ -58,78 +182,121 @@ describe('export', () => {
 
   describe('messageToMarkdown', () => {
     beforeEach(() => {
-      vi.resetModules()
-      vi.doMock('@renderer/store', () => ({
-        default: { getState: () => ({ settings: { forceDollarMathInMarkdown: false } }) }
-      }))
+      // Use the specific Block type required by createBlock
+      const userMsg = createMessage({ role: 'user', id: 'u1' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'hello user' }
+      ])
+      const assistantMsg = createMessage({ role: 'assistant', id: 'a1' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'hi assistant' }
+      ])
+      mockedMessages = [userMsg, assistantMsg]
     })
 
-    it('should format user message', () => {
-      const msg = createMessage({ role: 'user', content: 'hello', id: '1' })
-      expect(messageToMarkdown(msg)).toContain('### 🧑‍💻 User')
-      expect(messageToMarkdown(msg)).toContain('hello')
+    it('should format user message using main text block', () => {
+      const msg = mockedMessages.find((m) => m.id === 'u1')
+      expect(msg).toBeDefined()
+      const markdown = messageToMarkdown(msg!)
+      expect(markdown).toContain('### 🧑‍💻 User')
+      expect(markdown).toContain('hello user')
     })
 
-    it('should format assistant message', () => {
-      const msg = createMessage({ role: 'assistant', content: 'hi', id: '2' })
-      expect(messageToMarkdown(msg)).toContain('### 🤖 Assistant')
-      expect(messageToMarkdown(msg)).toContain('hi')
+    it('should format assistant message using main text block', () => {
+      const msg = mockedMessages.find((m) => m.id === 'a1')
+      expect(msg).toBeDefined()
+      const markdown = messageToMarkdown(msg!)
+      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('hi assistant')
+    })
+
+    it('should handle message with no main text block gracefully', () => {
+      const msg = createMessage({ role: 'user', id: 'u2' }, [])
+      mockedMessages.push(msg)
+      const markdown = messageToMarkdown(msg)
+      expect(markdown).toContain('### 🧑‍💻 User')
+      expect(markdown.trim().endsWith('User')).toBe(true)
     })
   })
 
   describe('messageToMarkdownWithReasoning', () => {
     beforeEach(() => {
-      vi.resetModules()
-      vi.doMock('@renderer/store', () => ({
-        default: { getState: () => ({ settings: { forceDollarMathInMarkdown: false } }) }
-      }))
-      vi.doMock('@renderer/i18n', () => ({
-        default: { t: (k: string) => k }
-      }))
+      // Use the specific Block type required by createBlock
+      const msgWithReasoning = createMessage({ role: 'assistant', id: 'a2' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Main Answer' },
+        { type: MessageBlockType.THINKING, content: 'Detailed thought process' }
+      ])
+      const msgWithThinkTag = createMessage({ role: 'assistant', id: 'a3' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Answer B' },
+        { type: MessageBlockType.THINKING, content: '<think>\nLine1\nLine2</think>' }
+      ])
+      const msgWithoutReasoning = createMessage({ role: 'assistant', id: 'a4' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Simple Answer' }
+      ])
+      mockedMessages = [msgWithReasoning, msgWithThinkTag, msgWithoutReasoning]
     })
 
-    it('should include reasoning content in details', () => {
-      const msg = createMessage({ role: 'assistant', content: 'hi', reasoning_content: '思考内容', id: '5' })
-      expect(messageToMarkdownWithReasoning(msg)).toContain('<details')
-      expect(messageToMarkdownWithReasoning(msg)).toContain('思考内容')
+    it('should include reasoning content from thinking block in details section', () => {
+      const msg = mockedMessages.find((m) => m.id === 'a2')
+      expect(msg).toBeDefined()
+      const markdown = messageToMarkdownWithReasoning(msg!)
+      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('Main Answer')
+      expect(markdown).toContain('<details')
+      expect(markdown).toContain('<summary>common.reasoning_content</summary>')
+      expect(markdown).toContain('Detailed thought process')
     })
 
-    it('should handle <think> tag and newlines', () => {
-      const msg = createMessage({ role: 'assistant', content: 'hi', reasoning_content: '<think>\nA\nB', id: '6' })
-      expect(messageToMarkdownWithReasoning(msg)).toContain('A<br>B')
+    it('should handle <think> tag and replace newlines with <br> in reasoning', () => {
+      const msg = mockedMessages.find((m) => m.id === 'a3')
+      expect(msg).toBeDefined()
+      const markdown = messageToMarkdownWithReasoning(msg!)
+      expect(markdown).toContain('Answer B')
+      expect(markdown).toContain('<details')
+      expect(markdown).toContain('Line1<br>Line2')
+      expect(markdown).not.toContain('<think>')
     })
 
-    it('should fallback if no reasoning_content', () => {
-      const msg = createMessage({ role: 'assistant', content: 'hi', id: '7' })
-      expect(messageToMarkdownWithReasoning(msg)).toContain('hi')
+    it('should not include details section if no thinking block exists', () => {
+      const msg = mockedMessages.find((m) => m.id === 'a4')
+      expect(msg).toBeDefined()
+      const markdown = messageToMarkdownWithReasoning(msg!)
+      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('Simple Answer')
+      expect(markdown).not.toContain('<details')
     })
   })
 
   describe('messagesToMarkdown', () => {
     beforeEach(() => {
-      vi.resetModules()
-      vi.doMock('@renderer/store', () => ({
-        default: { getState: () => ({ settings: { forceDollarMathInMarkdown: false } }) }
-      }))
+      // Use the specific Block type required by createBlock
+      const userMsg = createMessage({ role: 'user', id: 'u3' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'User query A' }
+      ])
+      const assistantMsg = createMessage({ role: 'assistant', id: 'a5' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Assistant response B' }
+      ])
+      const singleUserMsg = createMessage({ role: 'user', id: 'u4' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Single user query' }
+      ])
+      mockedMessages = [userMsg, assistantMsg, singleUserMsg]
     })
 
-    it('should join multiple messages', () => {
-      const msgs = [
-        createMessage({ role: 'user', content: 'a', id: '9' }),
-        createMessage({ role: 'assistant', content: 'b', id: '10' })
-      ]
-      expect(messagesToMarkdown(msgs)).toContain('a')
-      expect(messagesToMarkdown(msgs)).toContain('b')
-      expect(messagesToMarkdown(msgs).split('---').length).toBe(2)
+    it('should join multiple messages with markdown separator', () => {
+      const msgs = mockedMessages.filter((m) => ['u3', 'a5'].includes(m.id))
+      const markdown = messagesToMarkdown(msgs)
+      expect(markdown).toContain('User query A')
+      expect(markdown).toContain('Assistant response B')
+      expect(markdown.split('\n\n---\n\n').length).toBe(2)
     })
 
-    it('should handle empty array', () => {
+    it('should handle an empty array of messages', () => {
       expect(messagesToMarkdown([])).toBe('')
     })
 
-    it('should handle single message', () => {
-      const msgs = [createMessage({ role: 'user', content: 'a', id: '13' })]
-      expect(messagesToMarkdown(msgs)).toContain('a')
+    it('should handle a single message without separator', () => {
+      const msgs = mockedMessages.filter((m) => m.id === 'u4')
+      const markdown = messagesToMarkdown(msgs)
+      expect(markdown).toContain('Single user query')
+      expect(markdown.split('\n\n---\n\n').length).toBe(1)
     })
   })
 })

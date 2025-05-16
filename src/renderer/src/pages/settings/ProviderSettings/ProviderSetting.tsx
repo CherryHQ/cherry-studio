@@ -8,14 +8,16 @@ import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useP
 import i18n from '@renderer/i18n'
 import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
-import { checkModelsHealth, ModelCheckStatus } from '@renderer/services/HealthCheckService'
+import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
+import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Settings, SquareArrowOutUpRight } from 'lucide-react'
+import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -177,22 +179,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       }
     )
 
-    // Show summary of results after checking
-    const failedModels = checkResults.filter((result) => result.status === ModelCheckStatus.FAILED)
-    const partialModels = checkResults.filter((result) => result.status === ModelCheckStatus.PARTIAL)
-    const successModels = checkResults.filter((result) => result.status === ModelCheckStatus.SUCCESS)
-
-    // Display statistics of all model check results
     window.message.info({
       key: 'health-check-summary',
       style: { marginTop: '3vh' },
-      duration: 10,
-      content: t('settings.models.check.model_status_summary', {
-        provider: provider.name,
-        count_passed: successModels.length + partialModels.length,
-        count_partial: partialModels.length,
-        count_failed: failedModels.length
-      })
+      duration: 5,
+      content: getModelCheckSummary(checkResults, provider.name)
     })
 
     // Reset health check status
@@ -235,8 +226,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       })
 
       if (result?.validKeys) {
-        setApiKey(result.validKeys.join(','))
-        updateProvider({ ...provider, apiKey: result.validKeys.join(',') })
+        const newApiKey = result.validKeys.join(',')
+        setInputValue(newApiKey)
+        setApiKey(newApiKey)
+        updateProvider({ ...provider, apiKey: newApiKey })
       }
     } else {
       setApiChecking(true)
@@ -269,8 +262,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
-
-    return formatApiHost(apiHost) + 'chat/completions'
+    if (provider.type === 'openai') {
+      return formatApiHost(apiHost) + 'chat/completions'
+    }
+    return formatApiHost(apiHost) + 'responses'
   }
 
   useEffect(() => {
@@ -293,19 +288,19 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex align="center" gap={5}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>
-          {officialWebsite! && (
+          {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
-              <SquareArrowOutUpRight size={14} color="var(--color-text)" />
+              <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
           )}
           {!provider.isSystem && (
-            <Settings
+            <Button
               type="text"
-              size={16}
-              style={{ cursor: 'pointer' }}
+              size="small"
               onClick={() => ProviderSettingsPopup.show({ provider })}
+              icon={<Settings2 size={14} />}
             />
           )}
         </Flex>
@@ -409,7 +404,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <HStack alignItems="center" gap={5}>
+          <HStack alignItems="center" gap={8} mb={5}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </HStack>
@@ -418,9 +413,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <Button
                 type="text"
                 size="small"
-                icon={<StreamlineGoodHealthAndWellBeing />}
                 onClick={onHealthCheck}
-                loading={isHealthChecking}
+                icon={
+                  <motion.span
+                    variants={lightbulbVariants}
+                    animate={isHealthChecking ? 'active' : 'idle'}
+                    initial="idle">
+                    <StreamlineGoodHealthAndWellBeing />
+                  </motion.span>
+                }
               />
             </Tooltip>
           )}
@@ -434,6 +435,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
+  margin-right: -2px;
 `
 
 export default ProviderSetting

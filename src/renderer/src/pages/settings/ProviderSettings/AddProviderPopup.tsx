@@ -152,6 +152,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       afterClose={onClose}
       width={360}
       closable={false}
+      transitionName="animation-move-down"
       centered
       title={t('settings.provider.add.title')}
       okButtonProps={{ disabled: buttonDisabled }}>
@@ -189,6 +190,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             onChange={setType}
             options={[
               { label: 'OpenAI', value: 'openai' },
+              { label: 'OpenAI-Response', value: 'openai-response' },
               { label: 'Gemini', value: 'gemini' },
               { label: 'Anthropic', value: 'anthropic' },
               { label: 'Azure OpenAI', value: 'azure-openai' }

@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
-import { selectCurrentTopicId } from '@renderer/store/messages'
+// import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Button, Drawer, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,7 +28,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
-  const currentTopicId = useSelector((state: RootState) => selectCurrentTopicId(state))
+  const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
   const lastMoveTime = useRef(0)
   const { topicPosition, showTopics } = useSettings()
   const showRightTopics = topicPosition === 'right' && showTopics
@@ -73,7 +73,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     // Set a timer to hide the buttons
     const timer = setTimeout(() => {
       setIsVisible(false)
-    }, 1500)
+    }, 500)
     setHideTimer(timer)
   }, [])
 
@@ -256,7 +256,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       lastMoveTime.current = now
 
       // Calculate if the mouse is in the trigger area
-      const triggerWidth = 80 // Same as the width in styled component
+      const triggerWidth = 60 // Same as the width in styled component
 
       // Safe way to calculate position when using calc expressions
       let rightOffset = 16 // Default right offset
@@ -267,7 +267,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
       const topPosition = window.innerHeight * 0.3 // 30% from top
-      const height = window.innerHeight * 0.4 // 40% of window height
+      const height = window.innerHeight * 0.3 // 30% of window height
 
       const isInTriggerArea =
         e.clientX > rightPosition &&
@@ -375,6 +375,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         width={680}
         destroyOnClose
         styles={{
+          header: { border: 'none' },
           body: {
             padding: 0,
             height: 'calc(100% - 55px)'
