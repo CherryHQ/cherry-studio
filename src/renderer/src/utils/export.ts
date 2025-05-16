@@ -11,7 +11,6 @@ import { convertMathFormula } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
-// TODO: OB、Joplin支持思维链导出
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -514,12 +513,24 @@ function transformObsidianFileName(fileName: string): string {
 
   return sanitized
 }
-export const exportMarkdownToJoplin = async (title: string, content: string) => {
-  const { joplinUrl, joplinToken } = store.getState().settings
+export const exportMarkdownToJoplin = async (title: string, contentOrMessages: string | Message | Message[]) => {
+  const { joplinUrl, joplinToken, joplinExportReasoning } = store.getState().settings
 
   if (!joplinUrl || !joplinToken) {
     window.message.error(i18n.t('message.error.joplin.no_config'))
     return
+  }
+
+  let content: string
+  if (typeof contentOrMessages === 'string') {
+    content = contentOrMessages
+  } else if (Array.isArray(contentOrMessages)) {
+    content = messagesToMarkdown(contentOrMessages, joplinExportReasoning)
+  } else {
+    // 单条Message
+    content = joplinExportReasoning
+      ? messageToMarkdownWithReasoning(contentOrMessages)
+      : messageToMarkdown(contentOrMessages)
   }
 
   try {
