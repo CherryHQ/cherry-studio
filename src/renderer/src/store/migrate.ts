@@ -1381,13 +1381,15 @@ const migrateConfig = {
   '103': (state: RootState) => {
     try {
       if (state.shortcuts) {
-        state.shortcuts.shortcuts.push({
-          key: 'search_message_in_chat',
-          shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
-          editable: true,
-          enabled: true,
-          system: false
-        })
+        if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
+          state.shortcuts.shortcuts.push({
+            key: 'search_message_in_chat',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+            editable: true,
+            enabled: true,
+            system: false
+          })
+        }
         const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
         if (searchMessageShortcut) {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
