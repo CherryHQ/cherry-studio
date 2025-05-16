@@ -1,6 +1,7 @@
 import { isDev, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, ipcMain, screen } from 'electron'
+import Logger from 'electron-log'
 import { join } from 'path'
 import type {
   KeyboardEventData,
@@ -19,7 +20,7 @@ try {
     SelectionHook = require('selection-hook')
   }
 } catch (error) {
-  console.error('Failed to load selection-hook:', error)
+  Logger.error('Failed to load selection-hook:', error)
 }
 
 // Type definitions
@@ -949,7 +950,7 @@ export class SelectionService {
   }
 
   private logError(...args: [...string[], Error]) {
-    console.error('[SelectionService] Error: ', ...args)
+    Logger.error('[SelectionService] Error: ', ...args)
   }
 }
 
