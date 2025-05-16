@@ -92,12 +92,11 @@ const ModelsWrapper = styled.div`
 
 const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
   position: absolute;
-  left: 4px; /* Add more space on the left */
+  left: 4px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 5;
-  width: 28px; /* Increase width */
-  height: 28px; /* Add height */
+  width: 28px;
+  height: 28px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -105,7 +104,6 @@ const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
   border-radius: 4px;
   padding: 2px;
 
-  /* Add hover effect */
   &:hover {
     background-color: var(--color-hover);
   }
@@ -121,7 +119,6 @@ const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
   padding: 0 8px;
   margin-left: 24px; /* Space for toggle button */
 
-  /* Hide scrollbar to match original code */
   &::-webkit-scrollbar {
     display: none;
   }
@@ -137,21 +134,18 @@ const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
     /* Base style - default overlapping effect */
     & > * {
       margin-left: -6px !important;
-      /* Separate transition properties to avoid conflicts */
       transition:
         transform 0.18s ease-out,
         margin 0.18s ease-out !important;
       position: relative;
-      /* Only use will-change for transform to reduce rendering overhead */
       will-change: transform;
     }
 
-    /* First element has no left margin */
     & > *:first-child {
       margin-left: 0 !important;
     }
 
-    /* Using :has() selector to handle the element before the hovered one */
+    /* Element before the hovered one */
     & > *:has(+ *:hover) {
       margin-right: 2px !important;
       /* Use transform instead of margin to reduce layout recalculations */
@@ -175,10 +169,8 @@ const AvatarWrapper = styled.div<{ isSelected: boolean }>`
   cursor: pointer;
   display: inline-flex;
   border-radius: 50%;
-  /* Keep z-index separate from transitions to avoid rendering issues */
-  z-index: ${(props) => (props.isSelected ? 2 : 0)};
+  z-index: ${(props) => (props.isSelected ? 1 : 0)};
   background: var(--color-background);
-  /* Simplify transitions to reduce jittering */
   transition:
     transform 0.18s ease-out,
     margin 0.18s ease-out,
@@ -186,14 +178,11 @@ const AvatarWrapper = styled.div<{ isSelected: boolean }>`
     filter 0.18s ease-out;
   box-shadow: 0 0 0 1px var(--color-background);
 
-  /* Use CSS variables to define animation parameters for easy adjustment */
   --hover-scale: 1.15;
   --hover-x-offset: 6px;
   --hover-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 
   &:hover {
-    /* z-index is applied immediately, not part of the transition */
-    z-index: 10;
     transform: translateX(var(--hover-x-offset)) scale(var(--hover-scale));
     box-shadow: var(--hover-shadow);
     filter: brightness(1.02);
@@ -208,8 +197,6 @@ const AvatarWrapper = styled.div<{ isSelected: boolean }>`
     z-index: 2;
 
     &:hover {
-      /* z-index is applied immediately, not part of the transition */
-      z-index: 10;
       border: 2px solid var(--color-primary);
       filter: brightness(1.02);
       transform: translateX(var(--hover-x-offset)) scale(var(--hover-scale));
