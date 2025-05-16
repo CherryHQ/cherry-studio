@@ -56,7 +56,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
-  console.log('messages:', messages, assistant)
 
   useEffect(() => {
     messagesRef.current = messages

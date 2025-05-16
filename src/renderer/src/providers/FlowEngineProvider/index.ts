@@ -14,8 +14,13 @@ export default class FlowEngineProvider {
     this.sdk = FlowEngineProviderFactory.create(provider)
   }
 
-  public async chatflowCompletion(flow: Flow, message: Message, onChunk: (chunk: Chunk) => void): Promise<void> {
-    return await this.sdk.chatflowCompletion(flow, message, onChunk)
+  public async chatflowCompletion(
+    flow: Flow,
+    message: Message,
+    conversationId: string,
+    onChunk: (chunk: Chunk) => void
+  ): Promise<void> {
+    return await this.sdk.chatflowCompletion(flow, message, conversationId, onChunk)
   }
 
   public async check(flow: Flow): Promise<{ valid: boolean; error: Error | null }> {

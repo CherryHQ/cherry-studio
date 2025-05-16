@@ -10,7 +10,12 @@ export default abstract class BaseFlowEngineProvider {
     this.provider = provider
   }
 
-  abstract chatflowCompletion(flow: Flow, message: Message, onChunk: (chunk: Chunk) => void): Promise<void>
+  abstract chatflowCompletion(
+    flow: Flow,
+    message: Message,
+    conversationId: string,
+    onChunk: (chunk: Chunk) => void
+  ): Promise<void>
 
   abstract check(flow: Flow): Promise<{ valid: boolean; error: Error | null }>
 

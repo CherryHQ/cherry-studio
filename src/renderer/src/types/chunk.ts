@@ -351,6 +351,7 @@ export interface WorkflowInitChunk {
 
 export interface WorkflowStartedChunk {
   type: ChunkType.WORKFLOW_STARTED
+  conversationId: string
 }
 
 export interface WorkflowNodeStartedChunk {

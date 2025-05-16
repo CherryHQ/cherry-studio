@@ -45,13 +45,18 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     return files
   }
 
-  public async chatflowCompletion(flow: Flow, message: Message, onChunk: (chunk: Chunk) => void): Promise<void> {
+  public async chatflowCompletion(
+    flow: Flow,
+    message: Message,
+    conversationId: string,
+    onChunk: (chunk: Chunk) => void
+  ): Promise<void> {
     const query = getMainTextContent(message)
     const files = await this.getFiles(flow, message)
 
     try {
       const difyApi = createDifyApiInstance({
-        user: uuidv4(),
+        user: message.topicId,
         apiKey: flow.apiKey,
         apiBase: flow.apiHost
       })
@@ -59,9 +64,12 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       const response = await difyApi.sendMessage({
         inputs: {},
         files: files,
-        user: uuidv4(),
+        // 如果客户端清空消息并不会清空工作流的上下文
+        // 理论上每次新的消息都应该是新的上下文，但topicId并不会因为清空上下文而改变，需要新建话题才行
+        user: message.topicId,
         response_mode: 'streaming',
-        query: query
+        query: query,
+        conversation_id: conversationId
       })
       await this.processStream(response, onChunk)
     } catch (error) {
@@ -179,7 +187,8 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
           switch (event) {
             case EventEnum.WORKFLOW_STARTED:
               onChunk({
-                type: ChunkType.WORKFLOW_STARTED
+                type: ChunkType.WORKFLOW_STARTED,
+                conversationId: parsedData.conversation_id
               })
               break
             case EventEnum.WORKFLOW_NODE_STARTED:

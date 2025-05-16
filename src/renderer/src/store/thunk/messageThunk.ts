@@ -1601,13 +1601,29 @@ function getCommonStreamLogic(
     }
   }
 
-  const onWorkflowStarted = (chunk: Chunk) => {
+  const onWorkflowStarted = async (chunk: Chunk) => {
     if (chunk.type === ChunkType.WORKFLOW_STARTED && flowDefinition) {
+      const conversationId = chunk.conversationId
+      if (conversationId) {
+        // 更新 Redux 状态中的 conversationId
+        dispatch(
+          newMessagesActions.updateMessage({
+            topicId,
+            messageId: assistantMessage.id,
+            updates: { conversationId }
+          })
+        )
+
+        // 保存 conversationId 到数据库
+        saveUpdatesToDB(assistantMessage.id, topicId, { conversationId }, [])
+      }
+
       const overrides = {
         status: MessageBlockStatus.PROCESSING
       }
       const flowBlock = createFlowBlock(assistantMessage.id, chunk.type, flowDefinition, overrides)
       streamState.flowBlockId = flowBlock.id
+
       console.log('[onWorkflowStarted] Flow block created:', flowBlock)
       handleBlockTransition(flowBlock, MessageBlockType.FLOW)
     }
@@ -1665,6 +1681,26 @@ function getCommonStreamLogic(
       }
       dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
       saveUpdatedBlockToDB(streamState.flowBlockId, assistantMessage.id, topicId, getState)
+
+      // 更新消息状态为成功
+      const messageUpdates: Partial<Message> = {
+        status: AssistantMessageStatus.SUCCESS
+      }
+      dispatch(
+        newMessagesActions.updateMessage({
+          topicId,
+          messageId: assistantMessage.id,
+          updates: messageUpdates
+        })
+      )
+      saveUpdatesToDB(assistantMessage.id, topicId, messageUpdates, [])
+
+      // 发送消息完成事件
+      EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
+        id: assistantMessage.id,
+        topicId,
+        status: 'success'
+      })
     }
   }
 
@@ -1726,13 +1762,13 @@ const fetchAndProcessChatflowResponseImpl = async (
   assistant: Assistant,
   assistantMessage: Message
 ) => {
-  // const assistantMessage = createAssistantMessage(assistant.id, topicId)
-  // await saveMessageAndBlocksToDB(assistantMessage, [])
-  // dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
   dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
   const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
   const lastUserMessage = findLast(allMessagesForTopic, (m) => m.role === 'user')
+  // 获取倒数第二条assistant消息
+  const conversationId = findLast(allMessagesForTopic, (m) => m.role === 'assistant', 2)?.conversationId
+
   if (!lastUserMessage) {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     return
@@ -1777,6 +1813,7 @@ const fetchAndProcessChatflowResponseImpl = async (
     await fetchChatflowCompletion({
       assistant: assistant,
       message: lastUserMessage,
+      conversationId: conversationId ?? '',
       onChunkReceived: streamProcessorCallbacks
     })
   } catch (error: any) {

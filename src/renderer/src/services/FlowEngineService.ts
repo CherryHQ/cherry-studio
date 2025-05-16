@@ -27,10 +27,12 @@ import { createStreamProcessor, StreamProcessorCallbacks } from './StreamProcess
 export async function fetchChatflowCompletion({
   assistant,
   message,
+  conversationId,
   onChunkReceived
 }: {
   assistant: Assistant
   message: Message
+  conversationId: string
   onChunkReceived: (chunk: Chunk) => void
 }) {
   if (!assistant.chatflow) {
@@ -39,7 +41,7 @@ export async function fetchChatflowCompletion({
   const provider = getAssistantFlowProvider(assistant.chatflow)
   const flowEngineProvider = new FlowEngineProvider(provider)
 
-  await flowEngineProvider.chatflowCompletion(assistant.chatflow, message, onChunkReceived)
+  await flowEngineProvider.chatflowCompletion(assistant.chatflow, message, conversationId, onChunkReceived)
 }
 
 export async function fetchWorkflowCompletion({

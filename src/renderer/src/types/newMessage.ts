@@ -195,6 +195,7 @@ export type Message = {
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
   flow?: Flow
+  conversationId?: string
 
   usage?: Usage
   metrics?: Metrics
