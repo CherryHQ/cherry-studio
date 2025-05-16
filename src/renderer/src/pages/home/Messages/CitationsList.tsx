@@ -1,12 +1,12 @@
+import ContextMenu from '@renderer/components/ContextMenu'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { HStack } from '@renderer/components/Layout'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Button, Drawer, Dropdown, message, Skeleton } from 'antd'
+import { Button, Drawer, message, Skeleton } from 'antd'
 import { Check, Copy, FileSearch } from 'lucide-react'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -123,37 +123,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
   return <CopyIconWrapper onClick={handleCopy}>{copied ? <Check size={14} /> : <Copy size={14} />}</CopyIconWrapper>
 }
 
-// 获取右键菜单项
-const getContextMenuItems = (t: (key: string) => string, selectedQuoteText: string, selectedText: string) => [
-  {
-    key: 'copy',
-    label: t('common.copy'),
-    onClick: () => {
-      if (selectedText) {
-        navigator.clipboard
-          .writeText(selectedText)
-          .then(() => {
-            message.success(t('message.copied'))
-          })
-          .catch(() => {
-            message.error(t('message.copy.failed'))
-          })
-      }
-    }
-  },
-  {
-    key: 'quote',
-    label: t('chat.message.quote'),
-    onClick: () => {
-      if (selectedQuoteText) {
-        EventEmitter.emit(EVENT_NAMES.QUOTE_TEXT, selectedQuoteText)
-      }
-    }
-  }
-]
-
 const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
-  const { t } = useTranslation()
   const { data: fetchedContent, isLoading } = useQuery({
     queryKey: ['webContent', citation.url],
     queryFn: async () => {
@@ -165,47 +135,9 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
     select: (content) => truncateText(content, 100)
   })
 
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
-  const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
-  const [selectedText, setSelectedText] = useState<string>('')
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const _selectedText = window.getSelection()?.toString()
-    if (_selectedText) {
-      const quotedText =
-        _selectedText
-          .split('\n')
-          .map((line) => `> ${line}`)
-          .join('\n') + '\n-------------'
-      setSelectedQuoteText(quotedText)
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
-      setSelectedText(_selectedText)
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleClick = () => {
-      setContextMenuPosition(null)
-    }
-    document.addEventListener('click', handleClick)
-    return () => {
-      document.removeEventListener('click', handleClick)
-    }
-  }, [])
-
   return (
     <WebSearchCard>
-      <div onContextMenu={handleContextMenu} style={{ width: '100%' }}>
-        {contextMenuPosition && (
-          <Dropdown
-            overlayStyle={{ position: 'fixed', left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
-            menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
-            open={true}
-            trigger={['contextMenu']}>
-            <div />
-          </Dropdown>
-        )}
+      <ContextMenu>
         <WebSearchCardHeader>
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
@@ -220,54 +152,15 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         ) : (
           <WebSearchCardContent className="selectable-text">{fetchedContent}</WebSearchCardContent>
         )}
-      </div>
+      </ContextMenu>
     </WebSearchCard>
   )
 }
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
-  const { t } = useTranslation()
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
-  const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
-  const [selectedText, setSelectedText] = useState<string>('')
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const _selectedText = window.getSelection()?.toString()
-    if (_selectedText) {
-      const quotedText =
-        _selectedText
-          .split('\n')
-          .map((line) => `> ${line}`)
-          .join('\n') + '\n-------------'
-      setSelectedQuoteText(quotedText)
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
-      setSelectedText(_selectedText)
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleClick = () => {
-      setContextMenuPosition(null)
-    }
-    document.addEventListener('click', handleClick)
-    return () => {
-      document.removeEventListener('click', handleClick)
-    }
-  }, [])
-
   return (
     <WebSearchCard>
-      <div onContextMenu={handleContextMenu} style={{ width: '100%' }}>
-        {contextMenuPosition && (
-          <Dropdown
-            overlayStyle={{ position: 'fixed', left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
-            menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
-            open={true}
-            trigger={['contextMenu']}>
-            <div />
-          </Dropdown>
-        )}
+      <ContextMenu>
         <WebSearchCardHeader>
           {citation.showFavicon && <FileSearch width={16} />}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
@@ -278,7 +171,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
         <WebSearchCardContent className="selectable-text">
           {citation.content && truncateText(citation.content, 100)}
         </WebSearchCardContent>
-      </div>
+      </ContextMenu>
     </WebSearchCard>
   )
 }
