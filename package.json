@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -120,7 +120,7 @@
     "@hello-pangea/dnd": "^16.6.0",
     "@iconify-json/svg-spinners": "^1.2.2",
     "@kangfenmao/keyv-storage": "^0.1.0",
-    "@modelcontextprotocol/sdk": "^1.10.2",
+    "@modelcontextprotocol/sdk": "^1.11.3",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@reduxjs/toolkit": "^2.2.5",
