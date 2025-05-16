@@ -22,6 +22,8 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
   const [thinkingTime, setThinkingTime] = useState(block.thinking_millsec || 0)
   const intervalId = useRef<NodeJS.Timeout>(null)
+  const [renderedContent, setRenderedContent] = useState(block.content)
+  const lastContentRef = useRef(block.content)
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
@@ -54,6 +56,13 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
         })
     }
   }, [block.content, t])
+
+  useEffect(() => {
+    if (block.content !== lastContentRef.current) {
+      setRenderedContent(block.content)
+      lastContentRef.current = block.content
+    }
+  }, [block.content])
 
   // FIXME: 这里统计的和请求处统计的有一定误差
   useEffect(() => {
@@ -122,12 +131,11 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
               )}
             </MessageTitleLabel>
           ),
-          children: (
-            //  FIXME: 临时兼容
+          children: renderedContent ? (
             <div style={{ fontFamily, fontSize }}>
-              <Markdown block={block} />
+              <Markdown block={{ ...block, content: renderedContent }} />
             </div>
-          )
+          ) : null
         }
       ]}
     />
