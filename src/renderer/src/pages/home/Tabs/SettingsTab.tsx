@@ -50,7 +50,7 @@ import {
   TranslateLanguageVarious
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -228,30 +228,14 @@ const SettingsTab: FC<Props> = (props) => {
             <Col span={24}>
               <Slider
                 min={0}
-                max={!enableMaxContexts ? 10 : EXTENDED_CONTEXT_LIMIT}
+                max={maxContextCount}
                 onChange={setContextCount}
                 onChangeComplete={onContextCountChange}
-                value={validAndChangeContextCount(contextCount, enableMaxContexts, EXTENDED_CONTEXT_LIMIT)}
-                step={!enableMaxContexts ? 1 : EXTENDED_CONTEXT_STEP}
-                tooltip={{ formatter: formatSliderTooltip }}
+                value={typeof contextCount === 'number' ? contextCount : 0}
+                step={1}
               />
             </Col>
           </Row>
-          <SettingRow>
-            <SettingRowTitleSmall>{t('chat.settings.max_contexts')}</SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={enableMaxContexts}
-              onChange={(checked) => {
-                setEnableMaxContexts(checked)
-                updateAssistantSettings({ enableMaxContexts: checked })
-                if (!checked && contextCount > 10) {
-                  setContextCount(10)
-                  onUpdateAssistantSettings({ contextCount: 10 })
-                }
-              }}
-            />
-          </SettingRow>
           <Divider style={{ margin: '10px 0' }} />
           <SettingRow>
             <SettingRowTitleSmall>{t('models.stream_output')}</SettingRowTitleSmall>
@@ -261,18 +245,6 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={(checked) => {
                 setStreamOutput(checked)
                 onUpdateAssistantSettings({ streamOutput: checked })
-              }}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('models.enable_tool_use')}</SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={enableToolUse}
-              onChange={(checked) => {
-                setEnableToolUse(checked)
-                updateAssistantSettings({ enableToolUse: checked })
               }}
             />
           </SettingRow>
