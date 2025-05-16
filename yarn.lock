@@ -4447,7 +4447,7 @@ __metadata:
     "@vitejs/plugin-react-swc": "npm:^3.9.0"
     "@vitest/coverage-v8": "npm:^3.1.1"
     "@vitest/ui": "npm:^3.1.1"
-    "@xyflow/react": "npm:^12.4.4"
+    "@xyflow/react": "npm:^12.6.1"
     antd: "npm:^5.22.5"
     applescript: "npm:^1.0.0"
     archiver: "npm:^7.0.1"
@@ -8633,7 +8633,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fresh@npm:^2.0.0":
+"fresh@npm:2.0.0, fresh@npm:^2.0.0":
   version: 2.0.0
   resolution: "fresh@npm:2.0.0"
   checksum: 10c0/0557548194cb9a809a435bf92bcfbc20c89e8b5eb38861b73ced36750437251e39a111fc3a18b98531be9dd91fe1411e4969f229dc579ec0251ce6c5d4900bbc

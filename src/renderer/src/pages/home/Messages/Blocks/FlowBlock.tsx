@@ -19,7 +19,7 @@ const NODE_VERTICAL_ROW_PITCH = 60
 const NODE_VISUAL_HEIGHT = 40
 
 const MIN_FLOW_AREA_HEIGHT = 60
-const FLOW_AREA_VERTICAL_PADDING = 60
+const FLOW_AREA_VERTICAL_PADDING = 40
 
 const getTypeIcon = (status: MessageBlockStatus, type?: string) => {
   if (status === MessageBlockStatus.PROCESSING) {

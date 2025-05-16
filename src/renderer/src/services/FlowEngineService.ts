@@ -8,7 +8,6 @@ import {
   saveMessageAndBlocksToDB,
   saveUpdatedBlockToDB,
   saveUpdatesToDB,
-  throttledBlockDbUpdate,
   throttledBlockUpdate
 } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Flow, FlowEngine } from '@renderer/types'
@@ -135,7 +134,6 @@ export const workflowCompletion =
               status: MessageBlockStatus.STREAMING
             }
             throttledBlockUpdate(lastBlockId, blockChanges)
-            throttledBlockDbUpdate(lastBlockId, blockChanges)
           } else {
             const newBlock = createMainTextBlock(assistantMessage.id, accumulatedContent, {
               status: MessageBlockStatus.STREAMING
