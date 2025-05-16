@@ -593,7 +593,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
               onChunk({
                 type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                 llm_web_search: {
-                  source: WebSearchSource.OPENAI,
+                  source: WebSearchSource.OPENAI_RESPONSE,
                   results: chunk.part.annotations
                 }
               })

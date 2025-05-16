@@ -287,7 +287,8 @@ export default class GeminiProvider extends BaseProvider {
       if (reasoningEffort === undefined) {
         return {
           thinkingConfig: {
-            includeThoughts: false
+            includeThoughts: false,
+            thinkingBudget: 0
           } as ThinkingConfig
         }
       }
@@ -921,7 +922,8 @@ export default class GeminiProvider extends BaseProvider {
       config = {
         ...config,
         thinkingConfig: {
-          includeThoughts: false
+          includeThoughts: false,
+          thinkingBudget: 0
         } as ThinkingConfig
       }
     }
