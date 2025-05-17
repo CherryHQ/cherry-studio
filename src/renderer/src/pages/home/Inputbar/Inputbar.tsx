@@ -1115,11 +1115,9 @@ const InputBarContainer = styled.div`
   padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 
-  /* 细绿色虚线边框与浅色蒙层 */
   &.file-dragging {
     border: 2px dashed #2ecc71;
 
-    /* 非常浅色的蒙层 */
     &::before {
       content: '';
       position: absolute;
@@ -1127,7 +1125,7 @@ const InputBarContainer = styled.div`
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: rgba(46, 204, 113, 0.03); /* 非常浅的绿色 */
+      background-color: rgba(46, 204, 113, 0.03);
       border-radius: 14px;
       z-index: 5;
       pointer-events: none;
