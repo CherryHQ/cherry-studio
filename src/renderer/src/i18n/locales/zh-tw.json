@@ -163,6 +163,7 @@
       "input.estimated_tokens.tip": "預估 Token 數",
       "input.expand": "展開",
       "input.file_not_supported": "模型不支援此檔案類型",
+      "input.file_error": "檔案處理錯誤",
       "input.generate_image": "生成圖片",
       "input.generate_image_not_supported": "模型不支援生成圖片",
       "input.knowledge_base": "知識庫",
