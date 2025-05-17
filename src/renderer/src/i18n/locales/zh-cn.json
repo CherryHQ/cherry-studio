@@ -1249,6 +1249,8 @@
         "addServerQuickly.placeholder": "粘贴 MCP 服务器 JSON 配置",
         "addServerQuickly.invalid": "无效输入，请检查 JSON 格式",
         "addServerQuickly.nameExists": "服务器已存在：{{name}}",
+        "addServerQuickly.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServerQuickly.connectionFailed": "連接失敗",
         "addSuccess": "服务器添加成功",
         "args": "参数",
         "argsTooltip": "每个参数占一行",

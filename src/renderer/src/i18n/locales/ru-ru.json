@@ -1245,6 +1245,8 @@
         "addServerQuickly.placeholder": "Вставьте JSON-конфигурацию сервера MCP",
         "addServerQuickly.invalid": "Неверный ввод, проверьте формат JSON",
         "addServerQuickly.nameExists": "Сервер уже существует: {{name}}",
+        "addServerQuickly.oneServer": "Можно сохранить только один конфигурационный файл MCP",
+        "addServerQuickly.connectionFailed": "Сбой подключения",
         "addSuccess": "Сервер успешно добавлен",
         "args": "Аргументы",
         "argsTooltip": "Каждый аргумент с новой строки",

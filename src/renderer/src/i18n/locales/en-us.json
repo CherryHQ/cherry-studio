@@ -1249,6 +1249,8 @@
         "addServerQuickly.placeholder": "Paste MCP server JSON config",
         "addServerQuickly.invalid": "Invalid input, please check JSON format",
         "addServerQuickly.nameExists": "Server already exists: {{name}}",
+        "addServerQuickly.oneServer": "Only one MCP server configuration at a time",
+        "addServerQuickly.connectionFailed": "Connection failed",
         "addSuccess": "Server added successfully",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",

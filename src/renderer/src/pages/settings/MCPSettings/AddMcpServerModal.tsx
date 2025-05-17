@@ -1,4 +1,6 @@
 import { nanoid } from '@reduxjs/toolkit'
+import { useAppDispatch } from '@renderer/store'
+import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Form, Input, Modal } from 'antd'
 import { FC, useState } from 'react'
@@ -15,7 +17,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
   const { t } = useTranslation()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
-
+  const dispatch = useAppDispatch()
   const handleOk = async () => {
     try {
       const values = await form.validateFields()
@@ -48,6 +50,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         return
       }
 
+      // 如果成功解析並通過重複檢查，立即加入伺服器（非啟用狀態）並關閉對話框
       if (serverToAdd) {
         const newServer: MCPServer = {
           id: nanoid(),
@@ -57,7 +60,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           command: serverToAdd.command || '',
           args: serverToAdd.args || [],
           env: serverToAdd.env || {},
-          isActive: serverToAdd.isActive === undefined ? false : serverToAdd.isActive,
+          isActive: false, // 初始設定為非啟用
           type: serverToAdd.type,
           logoUrl: serverToAdd.logoUrl,
           provider: serverToAdd.provider,
@@ -69,9 +72,27 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         onSuccess(newServer)
         form.resetFields()
         onClose()
+
+        // 在背景非同步檢查伺服器可用性並更新狀態
+        window.api.mcp
+          .checkMcpConnectivity(serverToAdd)
+          .then((isConnected) => {
+            console.log(`Connectivity check for ${serverToAdd.name}: ${isConnected}`)
+            // 直接 dispatch setMCPServerActive action 更新狀態
+            dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
+          })
+          .catch((connError: any) => {
+            console.error(`Connectivity check failed for ${serverToAdd.name}:`, connError)
+            // 顯示連線失敗通知
+            window.message.error({
+              content: t(`${serverToAdd.name} settings.mcp.addServerQuickly.connectionFailed`),
+              key: 'mcp-quick-add-failed'
+            })
+          })
       }
     } finally {
-      setLoading(false)
+      // 這裡不再需要 setLoading(false) 因為對話框已經關閉
+      // setLoading(false);
     }
   }
 
@@ -113,6 +134,17 @@ const parseAndExtractServer = (
   }
 
   let serverToAdd: Partial<MCPServer> | null = null
+
+  // 檢查是否包含多個伺服器配置
+  if (
+    parsedJson.mcpServers &&
+    typeof parsedJson.mcpServers === 'object' &&
+    Object.keys(parsedJson.mcpServers).length > 1
+  ) {
+    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.multipleServers') }
+  } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
+    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.multipleServers') }
+  }
 
   if (
     parsedJson.mcpServers &&
