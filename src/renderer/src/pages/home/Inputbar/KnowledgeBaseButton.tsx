@@ -86,7 +86,11 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
 
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
+      <ToolbarButton
+        type="text"
+        onClick={handleOpenQuickPanel}
+        disabled={disabled}
+        className={disabled ? 'disabled' : ''}>
         <FileSearch size={18} />
       </ToolbarButton>
     </Tooltip>
