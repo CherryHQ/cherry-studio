@@ -54,6 +54,8 @@ const AppsPage: FC = () => {
         {isEmpty(filteredApps) ? (
           <Center>
             <Empty />
+            <div style={{ width: 20 }} />
+            <App isLast app={filteredApps[0]} />
           </Center>
         ) : (
           <AppsContainer style={{ height: containerHeight }}>
