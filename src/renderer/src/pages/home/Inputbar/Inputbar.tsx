@@ -650,12 +650,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   // 添加全局粘贴事件处理
   useEffect(() => {
     const handleGlobalPaste = (event: ClipboardEvent) => {
-      // 如果当前焦点在文本区域内，不需要处理
       if (document.activeElement === textareaRef.current?.resizableTextArea?.textArea) {
         return
       }
 
-      // 否则，手动处理粘贴事件
       onPaste(event)
     }
 
