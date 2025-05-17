@@ -356,6 +356,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
         setSearchResultIndex(0)
         setSearchCompleted(SearchCompletedState.NotSearched)
       } else {
+        // 用户输入时允许滚动
         setShouldScroll(true)
         searchHandler()
       }
@@ -484,7 +485,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
         if (enableContentSearch) {
           const targetIndex = search()
           if (targetIndex !== null) {
-            setSearchResultIndex(targetIndex)
+            // 只更新索引，不触发滚动
+            locateByIndex(targetIndex, false)
           }
         }
       },

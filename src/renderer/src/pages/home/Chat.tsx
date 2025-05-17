@@ -7,7 +7,7 @@ import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
-import React, { FC, useState } from 'react'
+import React, { FC, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
@@ -24,11 +24,18 @@ interface Props {
 
 const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, messageStyle } = useSettings()
+  const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
+
+  const maxWidth = useMemo(() => {
+    const showRightTopics = showTopics && topicPosition === 'right'
+    const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
+    const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
+    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth} - 5px)`
+  }, [showAssistants, showTopics, topicPosition])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
@@ -81,26 +88,22 @@ const Chat: FC<Props> = (props) => {
   }
 
   let firstUpdateCompleted = false
-  const firstUpdateOrNoFirstUpdateHandler = debounce((type: 0 | 1) => {
-    if (type === 0) {
-      contentSearchRef.current?.search()
-    } else {
-      contentSearchRef.current?.silentSearch()
-    }
+  const firstUpdateOrNoFirstUpdateHandler = debounce(() => {
+    contentSearchRef.current?.silentSearch()
   }, 10)
   const messagesComponentUpdateHandler = () => {
     if (firstUpdateCompleted) {
-      firstUpdateOrNoFirstUpdateHandler(1)
+      firstUpdateOrNoFirstUpdateHandler()
     }
   }
   const messagesComponentFirstUpdateHandler = () => {
     setTimeout(() => (firstUpdateCompleted = true), 300)
-    firstUpdateOrNoFirstUpdateHandler(0)
+    firstUpdateOrNoFirstUpdateHandler()
   }
 
   return (
     <Container id="chat" className={messageStyle}>
-      <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between">
+      <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
         <ContentSearch
           ref={contentSearchRef}
           searchTarget={mainRef as React.RefObject<HTMLElement>}
@@ -108,14 +111,16 @@ const Chat: FC<Props> = (props) => {
           includeUser={filterIncludeUser}
           onIncludeUserChange={userOutlinedItemClickHandler}
         />
-        <Messages
-          key={props.activeTopic.id}
-          assistant={assistant}
-          topic={props.activeTopic}
-          setActiveTopic={props.setActiveTopic}
-          onComponentUpdate={messagesComponentUpdateHandler}
-          onFirstUpdate={messagesComponentFirstUpdateHandler}
-        />
+        <MessagesContainer>
+          <Messages
+            key={props.activeTopic.id}
+            assistant={assistant}
+            topic={props.activeTopic}
+            setActiveTopic={props.setActiveTopic}
+            onComponentUpdate={messagesComponentUpdateHandler}
+            onFirstUpdate={messagesComponentFirstUpdateHandler}
+          />
+        </MessagesContainer>
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
         </QuickPanelProvider>
@@ -132,6 +137,13 @@ const Chat: FC<Props> = (props) => {
     </Container>
   )
 }
+
+const MessagesContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+`
 
 const Container = styled.div`
   display: flex;
