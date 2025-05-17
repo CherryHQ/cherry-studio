@@ -1,7 +1,7 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { Center } from '@renderer/components/Layout'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { Empty, Input } from 'antd'
+import { Input } from 'antd'
 import { isEmpty } from 'lodash'
 import { Search } from 'lucide-react'
 import React, { FC, useState } from 'react'
@@ -53,8 +53,6 @@ const AppsPage: FC = () => {
       <ContentContainer id="content-container">
         {isEmpty(filteredApps) ? (
           <Center>
-            <Empty />
-            <div style={{ width: 20 }} />
             <App isLast app={filteredApps[0]} />
           </Center>
         ) : (
