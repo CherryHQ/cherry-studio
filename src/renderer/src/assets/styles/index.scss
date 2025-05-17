@@ -168,3 +168,11 @@ body,
 .lucide {
   color: var(--color-icon);
 }
+
+span.highlight {
+  background-color: var(--color-background-highlight);
+  color: var(--color-highlight);
+}
+span.highlight.selected {
+  background-color: var(--color-background-highlight-accent);
+}

@@ -1169,7 +1169,7 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-const ToolbarButton = styled(Button)`
+export const ToolbarButton = styled(Button)`
   width: 30px;
   height: 30px;
   font-size: 16px;

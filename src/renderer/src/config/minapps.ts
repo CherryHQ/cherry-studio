@@ -163,7 +163,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'minimax',
     name: '海螺',
-    url: 'https://hailuoai.com/',
+    url: 'https://chat.minimaxi.com/',
     logo: HailuoModelLogo
   },
   {
