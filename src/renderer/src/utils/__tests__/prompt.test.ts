@@ -37,24 +37,24 @@ describe('prompt', () => {
   })
 
   describe('buildSystemPrompt', () => {
-    it('should build prompt with tools', () => {
+    it('should build prompt with tools', async () => {
       const userPrompt = 'Custom user system prompt'
       const tools = [createMcpTool('test-tool', 'Test tool description', { type: 'object' })]
-      const result = buildSystemPrompt(userPrompt, tools)
+      const result = await buildSystemPrompt(userPrompt, tools)
 
       expect(result).toContain(userPrompt)
       expect(result).toContain('test-tool')
       expect(result).toContain('Test tool description')
     })
 
-    it('should return user prompt without tools', () => {
+    it('should return user prompt without tools', async () => {
       const userPrompt = 'Custom user system prompt'
-      const result = buildSystemPrompt(userPrompt, [])
+      const result = await buildSystemPrompt(userPrompt, [])
 
       expect(result).toBe(userPrompt)
     })
 
-    it('should handle null or undefined user prompt', () => {
+    it('should handle null or undefined user prompt', async () => {
       const tools = [createMcpTool('test-tool', 'Test tool description', { type: 'object' })]
 
       // 测试 userPrompt 为 null 的情况

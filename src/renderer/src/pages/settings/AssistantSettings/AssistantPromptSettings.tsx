@@ -1,12 +1,12 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled } from '@ant-design/icons'
+import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Input, Popover } from 'antd'
+import { Button, Input, Popover, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -90,9 +90,12 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           style={{ flex: 1 }}
         />
       </HStack>
-      <Box mt={8} mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.prompt')}
-      </Box>
+      <HStack mt={8} mb={8} alignItems="center" gap={4}>
+        <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
+        <Tooltip title={t('agents.add.prompt.variables.tip')}>
+          <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
+        </Tooltip>
+      </HStack>
       <TextAreaContainer>
         {showMarkdown ? (
           <MarkdownContainer onClick={() => setShowMarkdown(false)}>
