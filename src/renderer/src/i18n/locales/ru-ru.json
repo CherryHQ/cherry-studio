@@ -163,6 +163,7 @@
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
+      "input.file_error": "Ошибка обработки файла",
       "input.generate_image": "Сгенерировать изображение",
       "input.generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "input.knowledge_base": "База знаний",

@@ -1,3 +1,4 @@
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { HighlightChunkResult, ShikiPreProperties, shikiStreamService } from '@renderer/services/ShikiStreamService'
@@ -29,7 +30,8 @@ const defaultCodeStyleContext: CodeStyleContextType = {
 const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const { codeEditor, codePreview, theme } = useSettings()
+  const { codeEditor, codePreview } = useSettings()
+  const { theme } = useTheme()
   const [shikiThemes, setShikiThemes] = useState({})
   useMermaid()
 
