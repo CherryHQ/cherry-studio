@@ -1,6 +1,8 @@
 import { backup } from '@renderer/services/BackupService'
+import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
+import Logger from 'electron-log'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -20,6 +22,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
+  const skipBackupFile = store.getState().settings.skipBackupFile
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.BackupProgress, (_, data: ProgressData) => {
@@ -32,7 +35,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
-    await backup()
+    Logger.log('[BackupManager] ', skipBackupFile)
+    await backup(skipBackupFile)
     setOpen(false)
   }
 

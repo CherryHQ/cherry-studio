@@ -1,4 +1,4 @@
-import { DownloadOutlined, ExpandOutlined, LinkOutlined } from '@ant-design/icons'
+import { ExpandOutlined, LinkOutlined } from '@ant-design/icons'
 import { AppLogo } from '@renderer/config/env'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { extractTitle } from '@renderer/utils/formats'
@@ -46,13 +46,6 @@ const Artifacts: FC<Props> = ({ html }) => {
     }
   }
 
-  /**
-   * 下载文件
-   */
-  const onDownload = () => {
-    window.api.file.save(`${title}.html`, html)
-  }
-
   return (
     <Container>
       <Button icon={<ExpandOutlined />} onClick={handleOpenInApp}>
@@ -61,10 +54,6 @@ const Artifacts: FC<Props> = ({ html }) => {
 
       <Button icon={<LinkOutlined />} onClick={handleOpenExternal}>
         {t('chat.artifacts.button.openExternal')}
-      </Button>
-
-      <Button icon={<DownloadOutlined />} onClick={onDownload}>
-        {t('chat.artifacts.button.download')}
       </Button>
     </Container>
   )

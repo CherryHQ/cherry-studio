@@ -131,7 +131,10 @@
       "manage": "管理",
       "select_model": "選擇模型",
       "show.all": "顯示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含使用者提問",
+      "case_sensitive": "區分大小寫",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "新增助手",
@@ -163,6 +166,7 @@
       "input.estimated_tokens.tip": "預估 Token 數",
       "input.expand": "展開",
       "input.file_not_supported": "模型不支援此檔案類型",
+      "input.file_error": "檔案處理錯誤",
       "input.generate_image": "生成圖片",
       "input.generate_image_not_supported": "模型不支援生成圖片",
       "input.knowledge_base": "知識庫",
@@ -198,6 +202,20 @@
       },
       "resend": "重新傳送",
       "save": "儲存",
+      "settings.code.title": "程式碼區塊",
+      "settings.code_editor": {
+        "title": "程式碼編輯器",
+        "highlight_active_line": "高亮當前行",
+        "fold_gutter": "折疊控件",
+        "autocompletion": "自動補全",
+        "keymap": "快捷鍵"
+      },
+      "settings.code_execution": {
+        "title": "程式碼執行",
+        "tip": "可執行的程式碼塊工具欄中會顯示運行按鈕，注意不要執行危險程式碼！",
+        "timeout_minutes": "超時時間",
+        "timeout_minutes.tip": "程式碼執行超時時間（分鐘）"
+      },
       "settings.code_collapsible": "程式碼區塊可折疊",
       "settings.code_wrappable": "程式碼區塊可自動換行",
       "settings.code_cacheable": "程式碼區塊快取",
@@ -303,9 +321,32 @@
     },
     "code_block": {
       "collapse": "折疊",
-      "disable_wrap": "停用自動換行",
-      "enable_wrap": "自動換行",
-      "expand": "展開"
+      "copy.failed": "複製失敗",
+      "copy.source": "複製源碼",
+      "copy.success": "已複製",
+      "copy": "複製",
+      "download.failed.network": "下載失敗，請檢查網路連線",
+      "download.png": "下載 PNG",
+      "download.source": "下載源碼",
+      "download.svg": "下載 SVG",
+      "download": "下載",
+      "edit.save.failed.message_not_found": "保存失敗，沒有找到對應的消息",
+      "edit.save.failed": "保存失敗",
+      "edit.save.success": "已保存",
+      "edit.save": "保存修改",
+      "edit": "編輯",
+      "expand": "展開",
+      "more": "更多",
+      "preview.copy.image": "複製為圖片",
+      "preview.source": "查看源碼",
+      "preview.zoom_in": "放大",
+      "preview.zoom_out": "縮小",
+      "preview": "預覽",
+      "run": "運行代碼",
+      "split.restore": "取消分割視圖",
+      "split": "分割視圖",
+      "wrap.off": "停用自動換行",
+      "wrap.on": "自動換行"
     },
     "common": {
       "add": "新增",
@@ -359,7 +400,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "no_results": "沒有結果"
     },
     "docs": {
       "title": "說明文件"
@@ -525,21 +567,6 @@
       "keep_alive_time.placeholder": "分鐘",
       "keep_alive_time.title": "保持活躍時間",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "下載 PNG",
-        "svg": "下載 SVG"
-      },
-      "resize": {
-        "zoom-in": "放大",
-        "zoom-out": "縮小"
-      },
-      "tabs": {
-        "preview": "預覽",
-        "source": "原始碼"
-      },
-      "title": "Mermaid 圖表"
     },
     "message": {
       "agents": {
@@ -825,18 +852,6 @@
         "magic_prompt_option_tip": "智能優化放大提示詞"
       }
     },
-    "plantuml": {
-      "download": {
-        "failed": "下載失敗，請檢查網路",
-        "png": "下載 PNG",
-        "svg": "下載 SVG"
-      },
-      "tabs": {
-        "preview": "預覽",
-        "source": "原始碼"
-      },
-      "title": "PlantUML 圖表"
-    },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
       "summarize": "幫我總結一下這段話",
@@ -856,7 +871,7 @@
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee AI",
+      "gitee-ai": "模力方舟",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -945,6 +960,8 @@
         "app_knowledge.remove_all_confirm": "刪除知識庫文件可以減少儲存空間佔用，但不會刪除知識庫向量化資料，刪除之後將無法開啟原始檔，是否刪除？",
         "app_knowledge.remove_all_success": "檔案刪除成功",
         "app_logs": "應用程式日誌",
+        "backup.skip_file_data_title": "精簡備份",
+        "backup.skip_file_data_help": "備份時跳過備份圖片、知識庫等數據文件，僅備份聊天記錄和設置。減少空間佔用, 加快備份速度。",
         "clear_cache": {
           "button": "清除快取",
           "confirm": "清除快取將刪除應用快取資料，包括小工具資料。此操作不可恢復，是否繼續？",
@@ -1539,6 +1556,7 @@
         "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
         "reset_to_default": "重設為預設",
         "search_message": "搜尋訊息",
+        "search_message_in_chat": "在當前對話中搜尋訊息",
         "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
         "title": "快速方式",
@@ -1547,7 +1565,8 @@
         "toggle_show_topics": "切換話題顯示",
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
-        "zoom_reset": "重設縮放"
+        "zoom_reset": "重設縮放",
+        "exit_fullscreen": "退出全螢幕"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",
