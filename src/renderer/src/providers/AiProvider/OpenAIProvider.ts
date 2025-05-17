@@ -81,6 +81,7 @@ export type OpenAIStreamChunk =
   | { type: 'reasoning' | 'text-delta'; textDelta: string }
   | { type: 'tool-calls'; delta: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
+  | { type: 'unknown'; chunk: any }
 
 export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
@@ -601,21 +602,25 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             break
           }
 
-          const delta = chunk.choices[0]?.delta
-          if (delta?.reasoning_content || delta?.reasoning) {
-            yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-          }
-          if (delta?.content) {
-            yield { type: 'text-delta', textDelta: delta.content }
-          }
-          if (delta?.tool_calls) {
-            yield { type: 'tool-calls', delta: delta }
-          }
+          if (chunk.choices && chunk.choices.length > 0) {
+            const delta = chunk.choices[0]?.delta
+            if (delta?.reasoning_content || delta?.reasoning) {
+              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+            }
+            if (delta?.content) {
+              yield { type: 'text-delta', textDelta: delta.content }
+            }
+            if (delta?.tool_calls) {
+              yield { type: 'tool-calls', delta: delta }
+            }
 
-          const finishReason = chunk.choices[0]?.finish_reason
-          if (!isEmpty(finishReason)) {
-            yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
-            break
+            const finishReason = chunk?.choices[0]?.finish_reason
+            if (!isEmpty(finishReason)) {
+              yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+              break
+            }
+          } else {
+            yield { type: 'unknown', chunk }
           }
         }
       }
@@ -781,6 +786,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               }
             }
             break
+          }
+          case 'unknown': {
+            onChunk({
+              type: ChunkType.ERROR,
+              error: chunk.chunk
+            })
           }
         }
       }
