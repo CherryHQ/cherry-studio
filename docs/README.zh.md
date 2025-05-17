@@ -20,7 +20,11 @@ Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客
 
 # GitCode✖️Cherry Studio【新源力】贡献挑战赛
 
-![cherry-studio-gitcode](https://github.com/user-attachments/assets/3962ca3e-841a-4c60-8966-93ad65d3f487)
+<p align="center">
+  <a href="https://gitcode.com/CherryHQ/cherry-studio/discussion/2">
+    <img src="https://raw.gitcode.com/user-images/assets/5007375/8d8d7559-1141-4691-b90f-d154558c6896/cherry-studio-gitcode.jpg" width="100%" alt="banner" />
+  </a>
+</p>
 
 # 📖 使用教程
 
@@ -151,4 +155,4 @@ yinsenho@cherry-ai.com
 
 # ⭐️ Star 记录
 
-[![Star History Chart](https://api.star-history.com/svg?repos=kangfenmao/cherry-studio&type=Timeline)](https://star-history.com/#kangfenmao/cherry-studio&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=kangfenmao/cherry-studio&type=Timeline)](https://star-history.com/#kangfenmao/cherry-studio&Timeline)å
