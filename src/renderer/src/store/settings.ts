@@ -108,6 +108,8 @@ export interface SettingsState {
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
   useTopicNamingForMessageTitle: boolean
+  showModelNameInMarkdown: boolean
+  showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
   notionAutoSplit: boolean
   notionSplitSize: number
@@ -116,6 +118,7 @@ export interface SettingsState {
   yuqueRepoId: string | null
   joplinToken: string | null
   joplinUrl: string | null
+  joplinExportReasoning: boolean
   defaultObsidianVault: string | null
   defaultAgent: string | null
   // 思源笔记配置
@@ -230,6 +233,8 @@ export const initialState: SettingsState = {
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
   useTopicNamingForMessageTitle: false,
+  showModelNameInMarkdown: false,
+  showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
   notionAutoSplit: false,
   notionSplitSize: 90,
@@ -238,6 +243,7 @@ export const initialState: SettingsState = {
   yuqueRepoId: '',
   joplinToken: '',
   joplinUrl: '',
+  joplinExportReasoning: false,
   defaultObsidianVault: null,
   defaultAgent: null,
   siyuanApiUrl: null,
@@ -510,6 +516,12 @@ const settingsSlice = createSlice({
     setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
       state.useTopicNamingForMessageTitle = action.payload
     },
+    setShowModelNameInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelNameInMarkdown = action.payload
+    },
+    setShowModelProviderInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelProviderInMarkdown = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
@@ -533,6 +545,9 @@ const settingsSlice = createSlice({
     },
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
+    },
+    setJoplinExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.joplinExportReasoning = action.payload
     },
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
@@ -583,6 +598,8 @@ const settingsSlice = createSlice({
 })
 
 export const {
+  setShowModelNameInMarkdown,
+  setShowModelProviderInMarkdown,
   setShowAssistants,
   toggleShowAssistants,
   setShowTopics,
@@ -656,6 +673,7 @@ export const {
   setYuqueUrl,
   setJoplinToken,
   setJoplinUrl,
+  setJoplinExportReasoning,
   setMessageNavigation,
   setDefaultObsidianVault,
   setDefaultAgent,
