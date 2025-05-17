@@ -16,6 +16,7 @@ interface FlowBase {
   apiKey: string
   apiHost: string
   parameters?: IUserInputForm[]
+  inputs?: Record<string, string> // 保存工作流输入参数
 }
 
 export interface Workflow extends FlowBase {

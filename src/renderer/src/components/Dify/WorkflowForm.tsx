@@ -4,7 +4,7 @@ import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import i18n from '@renderer/i18n'
 import { uploadFile } from '@renderer/services/FlowEngineService'
 import { useAppDispatch } from '@renderer/store'
-import { fetchAndProcessWorkflowResponseImpl } from '@renderer/store/thunk/messageThunk'
+import { fetchAndProcessWorkflowResponseImpl } from '@renderer/store/thunk/flowThunk'
 import { Flow } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { Button, Card, Form, Input, InputNumber, Select } from 'antd'
@@ -24,10 +24,11 @@ export interface IUploadFileItem extends UploadFile {
 
 interface Props {
   flow: Flow
+  blockId: string
   message: Message
 }
 
-const WorkflowForm: FC<Props> = ({ flow, message }) => {
+const WorkflowForm: FC<Props> = ({ flow, blockId, message }) => {
   console.log('WorkflowForm flow:', flow)
   const [form] = Form.useForm()
   const { flowEngineProvider } = useFlowEngineProvider(flow.providerId)
@@ -83,9 +84,7 @@ const WorkflowForm: FC<Props> = ({ flow, message }) => {
   }
 
   const handleFinish = async (values: any) => {
-    console.log('Form values:', values)
-    // await dispatch(workflowCompletion(message.topicId, flowEngineProvider, workflow, values, assistant))
-    await dispatch(fetchAndProcessWorkflowResponseImpl(message.topicId, assistant, flow, values))
+    await dispatch(fetchAndProcessWorkflowResponseImpl(message.topicId, assistant, flow, values, blockId))
   }
 
   // 处理可能是数组或Record的情况
@@ -113,15 +112,7 @@ const WorkflowForm: FC<Props> = ({ flow, message }) => {
   }
 
   // 设置表单初始值
-  const initialValues = formItems.reduce(
-    (acc, { item }) => {
-      if (item.variable && item.default) {
-        acc[item.variable] = item.default
-      }
-      return acc
-    },
-    {} as Record<string, any>
-  )
+  const initialValues = flow.inputs || {}
 
   return (
     <Card title={flow.name} variant={'outlined'} style={{ maxWidth: 400 }}>

@@ -374,6 +374,7 @@ export interface WorkflowNodeFinishedChunk {
 
 export interface WorkflowFinishedChunk {
   type: ChunkType.WORKFLOW_FINISHED
+  inputs: Record<string, string>
 }
 
 export interface WorkflowCompletedChunk {

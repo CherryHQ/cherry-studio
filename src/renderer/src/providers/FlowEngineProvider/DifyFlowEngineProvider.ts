@@ -71,7 +71,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         query: query,
         conversation_id: conversationId
       })
-      await this.processStream(response, onChunk)
+      await this.processStream(response, {}, onChunk)
     } catch (error) {
       console.error('DifyFlowEngineProvider completion error', error)
     }
@@ -154,7 +154,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         }
       })
 
-      await this.processStream(response, onChunk)
+      await this.processStream(response, inputs, onChunk)
 
       return
     } catch (error) {
@@ -163,7 +163,11 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     }
   }
 
-  private async processStream(response: Response, onChunk: (chunk: Chunk) => void): Promise<void> {
+  private async processStream(
+    response: Response,
+    inputs: Record<string, string>,
+    onChunk: (chunk: Chunk) => void
+  ): Promise<void> {
     const readableStream = XStream({
       readableStream: response.body as NonNullable<ReadableStream>
     })
@@ -173,7 +177,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       const { value: chunk, done } = await reader.read()
       if (done) {
         console.log('流已结束')
-        onChunk({ type: ChunkType.WORKFLOW_FINISHED })
+        onChunk({ type: ChunkType.WORKFLOW_FINISHED, inputs: inputs })
         break
       }
       if (!chunk) {
@@ -217,7 +221,8 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
               break
             case EventEnum.WORKFLOW_FINISHED:
               onChunk({
-                type: ChunkType.WORKFLOW_FINISHED
+                type: ChunkType.WORKFLOW_FINISHED,
+                inputs: inputs
               })
               console.log('工作流完成')
               break
