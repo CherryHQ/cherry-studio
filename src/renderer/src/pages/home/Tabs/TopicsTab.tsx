@@ -1,4 +1,5 @@
 import {
+  BookOutlined,
   ClearOutlined,
   CloseOutlined,
   DeleteOutlined,
@@ -19,6 +20,7 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { getDefaultBookmarksAssistant } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { RootState } from '@renderer/store'
@@ -144,6 +146,19 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       moveTopic(topic, toAssistant)
     },
     [assistant.topics, moveTopic, setActiveTopic]
+  )
+
+  const onMoveToBookmarks = useCallback(
+    async (topic: Topic) => {
+      const bookmarksAssistant = await getDefaultBookmarksAssistant()
+      if (bookmarksAssistant) {
+        // await modelGenerating()
+        // const index = findIndex(assistant.topics, (t) => t.id === topic.id)
+        // setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? 0 : index + 1])
+        await moveTopic(topic, bookmarksAssistant)
+      }
+    },
+    [moveTopic]
   )
 
   const onSwitchTopic = useCallback(
@@ -328,7 +343,33 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           }
         ].filter(Boolean) as ItemType<MenuItemType>[]
       }
+      // {
+      //   label: t('chat.topics.move_to_bookmarks'),
+      //   key: 'bookmarks',
+      //   icon: <BookOutlined />,
+      //   onClick: () => {
+      //     onMoveToBookmarks(topic)
+      //     // If active topic is in selection, switch to next available topic
+      //     const activeIndex = findIndex(assistant.topics, (t) => t.id === activeTopic?.id)
+      //     if (activeIndex !== -1) {
+      //       const nextIndex = activeIndex + 1 < assistant.topics.length ? activeIndex + 1 : activeIndex - 1
+      //       if (nextIndex >= 0) {
+      //         setActiveTopic(assistant.topics[nextIndex])
+      //       }
+      //     }
+      //   }
+      // }
     ]
+    if (assistant.topics.length > 0) {
+      menus.push({
+        label: t('chat.topics.move_to_bookmarks'),
+        key: 'bookmarks',
+        icon: <BookOutlined />,
+        onClick: () => {
+          onMoveToBookmarks(topic)
+        }
+      })
+    }
 
     if (assistants.length > 1 && assistant.topics.length > 1) {
       menus.push({
@@ -373,6 +414,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     onClearMessages,
     onDeleteTopic,
     onMoveTopic,
+    onMoveToBookmarks,
     onPinTopic,
     setActiveTopic,
     t,

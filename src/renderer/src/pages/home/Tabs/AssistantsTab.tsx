@@ -3,8 +3,9 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { getDefaultBookmarksAssistant } from '@renderer/services/AssistantService'
 import { Assistant } from '@renderer/types'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -29,6 +30,20 @@ const Assistants: FC<AssistantsTabProps> = ({
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // 初始化時創建bookmarks助手
+  useEffect(() => {
+    const hasBookmarksAssistant = assistants.some((a) => a.id === 'bookmarks')
+    if (!hasBookmarksAssistant) {
+      const bookmarksAssistant = {
+        ...getDefaultBookmarksAssistant(),
+        isHidden: false
+      }
+      addAssistant(bookmarksAssistant)
+    }
+  }, [assistants, addAssistant])
+
+  const visibleAssistants = useMemo(() => assistants.filter((a) => a.id !== 'bookmarks'), [assistants])
+
   const onDelete = useCallback(
     (assistant: Assistant) => {
       const remaining = assistants.filter((a) => a.id !== assistant.id)
@@ -44,7 +59,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <DragableList
-        list={assistants}
+        list={visibleAssistants}
         onUpdate={updateAssistants}
         style={{ paddingBottom: dragging ? '34px' : 0 }}
         onDragStart={() => setDragging(true)}

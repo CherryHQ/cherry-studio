@@ -289,6 +289,7 @@
       "topics.export.yuque": "Экспорт в Yuque",
       "topics.list": "Список топиков",
       "topics.move_to": "Переместить в",
+      "topics.move_to_bookmarks": "Переместить в закладки",
       "topics.new": "Новый топик",
       "topics.pinned": "Закрепленные темы",
       "topics.prompt": "Тематические подсказки",
@@ -391,6 +392,7 @@
       "select": "Выбрать",
       "topics": "Топики",
       "warning": "Предупреждение",
+      "bookmarks": "Закладки",
       "you": "Вы",
       "reasoning_content": "Глубокий анализ",
       "sort": {

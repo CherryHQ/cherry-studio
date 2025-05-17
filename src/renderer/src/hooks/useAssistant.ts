@@ -90,13 +90,28 @@ export function useAssistant(id: string) {
 
 export function useDefaultAssistant() {
   const defaultAssistant = useAppSelector((state) => state.assistants.defaultAssistant)
+  // 新增書籤助手
+  const bookmarkAssistant = useAppSelector((state) => state.assistants.bookmarksAssistant)
+
+  // if (!defaultAssistant || !bookmarkAssistant) {
+  //   return { defaultAssistant: getDefaultAssistant(), bookmarkAssistant: getDefaultBookmarksAssistant() }
+  // }
+
   const dispatch = useAppDispatch()
-  const memoizedTopics = useMemo(() => [getDefaultTopic(defaultAssistant.id)], [defaultAssistant.id])
+  const memoizedTopics_defaultAssistant = useMemo(() => [getDefaultTopic(defaultAssistant.id)], [defaultAssistant.id])
+  const memoizedTopics_boookmarksAssistant = useMemo(
+    () => [getDefaultTopic(bookmarkAssistant.id)],
+    [bookmarkAssistant.id]
+  )
 
   return {
     defaultAssistant: {
       ...defaultAssistant,
-      topics: memoizedTopics
+      topics: memoizedTopics_defaultAssistant
+    },
+    bookmarkAssistant: {
+      ...bookmarkAssistant,
+      topics: memoizedTopics_boookmarksAssistant
     },
     updateDefaultAssistant: (assistant: Assistant) => dispatch(updateDefaultAssistant({ assistant }))
   }

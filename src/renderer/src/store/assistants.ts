@@ -1,18 +1,20 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
-import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultAssistant, getDefaultBookmarksAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
+  bookmarksAssistant: Assistant
   assistants: Assistant[]
 }
 
 const initialState: AssistantsState = {
   defaultAssistant: getDefaultAssistant(),
-  assistants: [getDefaultAssistant()]
+  assistants: [getDefaultAssistant()],
+  bookmarksAssistant: getDefaultBookmarksAssistant()
 }
 
 const assistantsSlice = createSlice({
