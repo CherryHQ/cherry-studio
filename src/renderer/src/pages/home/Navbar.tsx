@@ -123,8 +123,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
               <NavbarIcon
                 onClick={() => toggleShowAssistants()}
-                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
-                <PanelRightClose size={18} onMouseOut={() => setSidebarHideCooldown(false)} />
+                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}
+                onMouseOut={() => setSidebarHideCooldown(false)}>
+                <PanelRightClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
