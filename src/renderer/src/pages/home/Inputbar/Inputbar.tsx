@@ -117,6 +117,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
@@ -646,14 +647,44 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
 
+  // 添加全局粘贴事件处理
+  useEffect(() => {
+    const handleGlobalPaste = (event: ClipboardEvent) => {
+      if (document.activeElement === textareaRef.current?.resizableTextArea?.textArea) {
+        return
+      }
+
+      onPaste(event)
+    }
+
+    document.addEventListener('paste', handleGlobalPaste)
+    return () => {
+      document.removeEventListener('paste', handleGlobalPaste)
+    }
+  }, [onPaste])
+
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsFileDragging(true)
+  }
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsFileDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsFileDragging(false)
   }
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsFileDragging(false)
 
     const files = await getFilesFromDropEvent(e).catch((err) => {
       Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
@@ -661,11 +692,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     })
 
     if (files) {
+      let supportedFiles = 0
+
       files.forEach((file) => {
         if (supportExts.includes(getFileExtension(file.path))) {
           setFiles((prevFiles) => [...prevFiles, file])
+          supportedFiles++
         }
       })
+
+      // 如果有文件，但都不支持
+      if (files.length > 0 && supportedFiles === 0) {
+        window.message.info({
+          key: 'file_not_supported',
+          content: t('chat.input.file_not_supported')
+        })
+      }
     }
   }
 
@@ -881,12 +923,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   return (
-    <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
+    <Container
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
         <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
-          className={classNames('inputbar-container', inputFocus && 'focus')}
+          className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
           {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
           {selectedKnowledgeBases.length > 0 && (
@@ -1067,6 +1114,23 @@ const InputBarContainer = styled.div`
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
+
+  &.file-dragging {
+    border: 2px dashed #2ecc71;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(46, 204, 113, 0.03);
+      border-radius: 14px;
+      z-index: 5;
+      pointer-events: none;
+    }
+  }
 `
 
 const TextareaStyle: CSSProperties = {
