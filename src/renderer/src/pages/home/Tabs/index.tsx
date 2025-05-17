@@ -107,7 +107,9 @@ const HomeTabs: FC<Props> = ({
           style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
           options={
             [
-              (position === 'left' && topicPosition === 'left') || forceToSeeAllTab == true ? assistantTab : undefined,
+              (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
+                ? assistantTab
+                : undefined,
               {
                 label: t('common.topics'),
                 value: 'topic'

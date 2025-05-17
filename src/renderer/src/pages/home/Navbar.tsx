@@ -139,9 +139,18 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </MinAppsPopover>
           )}
           {topicPosition === 'right' && (
-            <NarrowIcon onClick={toggleShowTopics}>
-              {showTopics ? <PanelRightClose size={18} /> : <PanelLeftClose size={18} />}
-            </NarrowIcon>
+            <FloatingSidebar
+              activeAssistant={assistant}
+              setActiveAssistant={setActiveAssistant}
+              activeTopic={activeTopic}
+              setActiveTopic={setActiveTopic}
+              position={'right'}>
+              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+                <NavbarIcon onClick={() => toggleShowTopics()}>
+                  <PanelLeftClose size={18} />
+                </NavbarIcon>
+              </Tooltip>
+            </FloatingSidebar>
           )}
         </HStack>
       </NavbarRight>
