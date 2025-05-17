@@ -629,6 +629,7 @@ const SearchBarContainer = styled.div`
   transition: all 0.2s ease;
   position: relative;
   margin: 5px 20px;
+  margin-bottom: 0;
   padding: 6px 15px 8px;
   display: flex;
   align-items: center;
