@@ -37,13 +37,12 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
 
-  // 需要兼容 flow icon
   const avatarSource = useMemo(
     () =>
-      assistant.chatflow
-        ? getFlowEngineProviderLogo(assistant.chatflow.providerId)
+      message.flow && message.flow.type === 'chatflow'
+        ? getFlowEngineProviderLogo(message.flow.providerId)
         : getAvatarSource(isLocalAi, getMessageModelId(message)),
-    [message, assistant.chatflow]
+    [message]
   )
 
   const getUserName = useCallback(() => {
@@ -51,10 +50,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
       return APP_NAME
     }
 
-    // 需要兼容 flow name
     if (message.role === 'assistant') {
-      return assistant.chatflow
-        ? `${assistant.chatflow.name} | ${assistant.chatflow.providerId}`
+      return message.flow && message.flow.type === 'chatflow'
+        ? `${message.flow.name} | ${message.flow.providerId}`
         : getModelName(model) || getMessageModelId(message) || ''
     }
 

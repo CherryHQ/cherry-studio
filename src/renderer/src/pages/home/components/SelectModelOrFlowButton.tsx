@@ -40,18 +40,19 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
           enableWebSearch: enabledWebSearch && assistant.enableWebSearch
         })
       }, 200)
+      return
     }
     if (isFlow(selectedItem)) {
       setChatflow(selectedItem)
       setTimeout(() => {
         updateAssistant({
           ...assistant,
-          model: undefined,
           workflow: undefined,
           chatflow: selectedItem,
           enableWebSearch: false
         })
       }, 200)
+      return
     }
   }
 
