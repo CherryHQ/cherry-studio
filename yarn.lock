@@ -3204,13 +3204,13 @@ __metadata:
   linkType: hard
 
 "@lezer/sass@npm:^1.0.0":
-  version: 1.0.7
-  resolution: "@lezer/sass@npm:1.0.7"
+  version: 1.1.0
+  resolution: "@lezer/sass@npm:1.1.0"
   dependencies:
     "@lezer/common": "npm:^1.2.0"
     "@lezer/highlight": "npm:^1.0.0"
     "@lezer/lr": "npm:^1.0.0"
-  checksum: 10c0/6308873c74e10e2f075945f85068333e1cd95f65743a9bc054456e4f55b0a68563ccdfefa9f372d9c234640eca41455877d6a8d4db9c0a09eea5beb71f065009
+  checksum: 10c0/1b40310ad861b183fb525b1bcdfa27e2bd06e8ad913df4c044be4bfcda5bc5ddbb1d1b3675016bd7792ceaa934548ceb3dc9ad3d3d57b72a31babfe389ab9bab
   languageName: node
   linkType: hard
 
