@@ -48,7 +48,7 @@ const ListItemName = styled.div<{ $fontSize?: number }>`
   gap: 10px;
   color: var(--color-text);
   line-height: 1;
-  font-weight: medium;
+  font-weight: 600;
   font-size: ${(props) => props.$fontSize}px;
 `
 

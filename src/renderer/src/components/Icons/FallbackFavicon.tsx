@@ -168,7 +168,7 @@ const FaviconPlaceholder = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: medium;
+  font-weight: bold;
 `
 const Favicon = styled.img`
   width: 16px;

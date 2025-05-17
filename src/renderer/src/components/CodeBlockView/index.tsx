@@ -297,7 +297,7 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   justify-content: space-between;
   color: var(--color-text);
   font-size: 14px;
-  font-weight: medium;
+  font-weight: bold;
   height: 34px;
   padding: 0 10px;
   border-top-left-radius: 8px;

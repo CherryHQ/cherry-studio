@@ -45,7 +45,7 @@ const NavbarLeftContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  font-weight: medium;
+  font-weight: bold;
   color: var(--color-text-1);
 `
 
@@ -54,7 +54,7 @@ const NavbarCenterContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 ${isMac ? '20px' : 0};
-  font-weight: medium;
+  font-weight: bold;
   color: var(--color-text-1);
 `
 
