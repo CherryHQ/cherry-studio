@@ -95,7 +95,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               activeAssistant={assistant}
               setActiveAssistant={setActiveAssistant}
               activeTopic={activeTopic}
-              setActiveTopic={setActiveTopic}>
+              setActiveTopic={setActiveTopic}
+              position={'left'}>
               <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
                 <NavbarIcon
                   onClick={() => toggleShowAssistants()}

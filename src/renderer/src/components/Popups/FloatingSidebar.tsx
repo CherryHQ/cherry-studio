@@ -13,9 +13,17 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
   activeTopic: Topic
   setActiveTopic: (topic: Topic) => void
+  position: 'left' | 'right'
 }
 
-const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
+const FloatingSidebar: FC<Props> = ({
+  children,
+  activeAssistant,
+  setActiveAssistant,
+  activeTopic,
+  setActiveTopic,
+  position = 'left'
+}) => {
   const [open, setOpen] = useState(false)
 
   useHotkeys('esc', () => {
@@ -43,7 +51,7 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
         activeTopic={activeTopic}
         setActiveAssistant={setActiveAssistant}
         setActiveTopic={setActiveTopic}
-        position="left"
+        position={position}
         forceToSeeAllTab={true}></HomeTabs>
     </PopoverContent>
   )

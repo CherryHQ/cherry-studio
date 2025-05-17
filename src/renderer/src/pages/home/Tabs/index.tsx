@@ -39,7 +39,7 @@ const HomeTabs: FC<Props> = ({
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
   const { defaultAssistant } = useDefaultAssistant()
-  const { toggleShowTopics } = useShowTopics()
+  const { showTopics, toggleShowTopics } = useShowTopics()
 
   const { t } = useTranslation()
 
@@ -101,7 +101,7 @@ const HomeTabs: FC<Props> = ({
 
   return (
     <Container style={border} className="home-tabs">
-      {(showTab || forceToSeeAllTab == true) && (
+      {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
         <Segmented
           value={tab}
           style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
