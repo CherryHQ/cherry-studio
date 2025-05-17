@@ -164,6 +164,37 @@ const DataSettings: FC = () => {
     })
   }
 
+  const handleSelectAppDataPath = () => {
+    window.modal.confirm({
+      title: t('settings.data.app_data.select_title'),
+      content: (
+        <div>
+          <p>{t('settings.data.app_data.select_confirm')}</p>
+          <p style={{ marginTop: '12px', color: 'var(--color-warning)' }}>
+            {t('settings.data.app_data.restart_notice')}
+          </p>
+          <p style={{ marginTop: '8px', color: 'var(--color-text-3)' }}>
+            {t('settings.data.app_data.copy_data_notice')}
+          </p>
+        </div>
+      ),
+      centered: true,
+      onOk: async () => {
+        try {
+          const result = await window.api.selectAppDataPath()
+          if (result.success) {
+            window.api.getAppInfo().then(setAppInfo)
+            window.message.success(t('settings.data.app_data.select_success'))
+            // Reload the app to apply changes
+            window.api.relaunchApp()
+          }
+        } catch (error) {
+          window.message.error(t('settings.data.app_data.select_error'))
+        }
+      }
+    })
+  }
+
   return (
     <Container>
       <MenuList>
@@ -217,6 +248,9 @@ const DataSettings: FC = () => {
                 <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                  </HStack>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
