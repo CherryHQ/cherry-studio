@@ -45,6 +45,10 @@
 
   --modal-background: #1f1f1f;
 
+  --color-highlight: rgba(0, 0, 0, 1);
+  --color-background-highlight: rgba(255, 255, 0, 0.9);
+  --color-background-highlight-accent: rgba(255, 150, 50, 0.9);
+
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
 
@@ -111,6 +115,10 @@
   --color-reference-background: #f1f7ff;
 
   --modal-background: var(--color-white);
+
+  --color-highlight: initial;
+  --color-background-highlight: rgba(255, 255, 0, 0.5);
+  --color-background-highlight-accent: rgba(255, 150, 50, 0.5);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
   --navbar-background: rgba(244, 244, 244);
