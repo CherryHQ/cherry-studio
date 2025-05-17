@@ -388,9 +388,6 @@ const settingsSlice = createSlice({
     setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.webdavSkipBackupFile = action.payload
     },
-    setNutSkipBackupFile: (state, action: PayloadAction<boolean>) => {
-      state.nutSkipBackupFile = action.payload
-    },
     setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
       if (action.payload.enabled !== undefined) {
         state.codeExecution.enabled = action.payload.enabled
