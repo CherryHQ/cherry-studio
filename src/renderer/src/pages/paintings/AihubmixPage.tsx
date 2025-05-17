@@ -661,7 +661,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   // 渲染配置项的函数
   const renderConfigItem = (item: ConfigItem, index: number) => {
     switch (item.type) {
-      case 'title':
+      case 'title': {
         return (
           <SettingTitle key={index} style={{ marginBottom: 5, marginTop: 15 }}>
             {t(item.title!)}
@@ -672,7 +672,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
           </SettingTitle>
         )
-      case 'select':
+      }
+      case 'select': {
         // 处理函数类型的disabled属性
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
 
@@ -688,20 +689,25 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
-      case 'radio':
+      }
+      case 'radio': {
+        // 处理函数类型的options属性
+        const radioOptions = typeof item.options === 'function' ? item.options(item, painting) : item.options
+
         return (
           <Radio.Group
             key={index}
             value={painting[item.key!]}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
-            {item.options!.map((option) => (
+            {radioOptions!.map((option) => (
               <Radio.Button key={option.value} value={option.value}>
                 {option.label}
               </Radio.Button>
             ))}
           </Radio.Group>
         )
-      case 'slider':
+      }
+      case 'slider': {
         return (
           <SliderContainer key={index}>
             <Slider
@@ -720,7 +726,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             />
           </SliderContainer>
         )
-      case 'input':
+      }
+      case 'input': {
         // 处理随机种子按钮的特殊情况
         if (item.key === 'seed') {
           return (
@@ -742,7 +749,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             suffix={item.suffix}
           />
         )
-      case 'inputNumber':
+      }
+      case 'inputNumber': {
         return (
           <InputNumber
             key={index}
@@ -753,7 +761,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
-      case 'textarea':
+      }
+      case 'textarea': {
         return (
           <TextArea
             key={index}
@@ -763,7 +772,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             rows={4}
           />
         )
-      case 'switch':
+      }
+      case 'switch': {
         return (
           <HStack key={index}>
             <Switch
@@ -772,7 +782,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             />
           </HStack>
         )
-      case 'image':
+      }
+      case 'image': {
         return (
           <ImageUploadButton
             key={index}
@@ -794,6 +805,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
           </ImageUploadButton>
         )
+      }
       default:
         return null
     }

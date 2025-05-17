@@ -816,7 +816,8 @@
         "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
         "negative_prompt_tip": "画像に含めたくない内容を説明します",
         "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
-        "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+        "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "edit": {
         "image_file": "編集画像",
@@ -824,7 +825,8 @@
         "number_images_tip": "生成される編集結果の数",
         "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用",
         "seed_tip": "編集結果のランダム性を制御します",
-        "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します"
+        "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "remix": {
         "model_tip": "リミックスに使用する AI モデルのバージョンを選択します",
@@ -835,7 +837,8 @@
         "seed_tip": "リミックス結果のランダム性を制御します",
         "style_type_tip": "リミックス後の画像スタイル、V_2 以上のバージョンでのみ適用",
         "negative_prompt_tip": "リミックス結果に含めたくない内容を説明します",
-        "magic_prompt_option_tip": "リミックス効果を向上させるための提示詞を最適化します"
+        "magic_prompt_option_tip": "リミックス効果を向上させるための提示詞を最適化します",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "upscale": {
         "image_file": "拡大する画像",
@@ -846,7 +849,9 @@
         "number_images_tip": "生成される拡大結果の数",
         "seed_tip": "拡大結果のランダム性を制御します",
         "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
-      }
+      },
+      "rendering_speed": "[to be translated]:Rendering Speed",
+      "translating": "[to be translated]:Translating..."
     },
     "prompts": {
       "explanation": "この概念を説明してください",
@@ -1642,7 +1647,9 @@
         "title": "ページズーム",
         "reset": "リセット"
       },
-      "input.show_translate_confirm": "翻訳確認ダイアログを表示"
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示",
+      "about.debug.title": "[to be translated]:Debug",
+      "about.debug.open": "[to be translated]:Open"
     },
     "translate": {
       "any.language": "任意の言語",

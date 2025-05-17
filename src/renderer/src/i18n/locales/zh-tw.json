@@ -816,7 +816,8 @@
         "seed_tip": "控制圖像生成的隨機性，用於重現相同的生成結果",
         "negative_prompt_tip": "描述不想在圖像中出現的元素，僅支援 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
         "magic_prompt_option_tip": "智能優化提示詞以提升生成效果",
-        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "edit": {
         "image_file": "編輯的圖像",
@@ -824,7 +825,8 @@
         "number_images_tip": "生成的編輯結果數量",
         "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本",
         "seed_tip": "控制編輯結果的隨機性",
-        "magic_prompt_option_tip": "智能優化編輯提示詞"
+        "magic_prompt_option_tip": "智能優化編輯提示詞",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "remix": {
         "model_tip": "選擇重混使用的 AI 模型版本",
@@ -835,7 +837,8 @@
         "seed_tip": "控制重混結果的隨機性",
         "style_type_tip": "重混後的圖像風格，僅適用於 V_2 及以上版本",
         "negative_prompt_tip": "描述不想在重混結果中出現的元素",
-        "magic_prompt_option_tip": "智能優化重混提示詞"
+        "magic_prompt_option_tip": "智能優化重混提示詞",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "upscale": {
         "image_file": "需要放大的圖片",
@@ -846,7 +849,9 @@
         "number_images_tip": "生成的放大結果數量",
         "seed_tip": "控制放大結果的隨機性",
         "magic_prompt_option_tip": "智能優化放大提示詞"
-      }
+      },
+      "rendering_speed": "[to be translated]:Rendering Speed",
+      "translating": "[to be translated]:Translating..."
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -1558,7 +1563,8 @@
         "toggle_show_topics": "切換話題顯示",
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
-        "zoom_reset": "重設縮放"
+        "zoom_reset": "重設縮放",
+        "exit_fullscreen": "[to be translated]:Exit Fullscreen"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",

@@ -839,7 +839,8 @@
         "seed_tip": "控制重混结果的随机性",
         "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本",
         "negative_prompt_tip": "描述不想在重混结果中出现的元素",
-        "magic_prompt_option_tip": "智能优化重混提示词"
+        "magic_prompt_option_tip": "智能优化重混提示词",
+        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "upscale": {
         "image_file": "需要放大的图片",

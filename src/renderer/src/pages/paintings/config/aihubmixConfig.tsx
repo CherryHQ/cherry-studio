@@ -60,7 +60,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'renderingSpeed',
         options: RENDERING_SPEED_OPTIONS,
-        disabled: (config, painting) => {
+        disabled: (_config, painting) => {
           const model = painting?.model
           return !model || !model.includes('V_3')
         }
@@ -94,7 +94,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
       {
         type: 'select',
         key: 'styleType',
-        options: (config, painting) => {
+        options: (_config, painting) => {
           // 根据模型选择显示不同的样式类型选项
           return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
         },
@@ -153,7 +153,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'renderingSpeed',
         options: RENDERING_SPEED_OPTIONS,
-        disabled: (config, painting) => {
+        disabled: (_config, painting) => {
           const model = painting?.model
           return !model || !model.includes('V_3')
         }
@@ -177,7 +177,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
       {
         type: 'select',
         key: 'styleType',
-        options: (config, painting) => {
+        options: (_config, painting) => {
           // 根据模型选择显示不同的样式类型选项
           return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
         },
@@ -227,7 +227,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'renderingSpeed',
         options: RENDERING_SPEED_OPTIONS,
-        disabled: (config, painting) => {
+        disabled: (_config, painting) => {
           const model = painting?.model
           return !model || !model.includes('V_3')
         }
@@ -268,7 +268,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
       {
         type: 'select',
         key: 'styleType',
-        options: (config, painting) => {
+        options: (_config, painting) => {
           // 根据模型选择显示不同的样式类型选项
           return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
         },
