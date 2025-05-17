@@ -126,7 +126,18 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       {jsonConfig && (
         <div style={{ marginBottom: '16px' }}>
           <CodeToolbarProvider>
-            <CodeEditor language="json" onChange={handleChange} options={{ maxHeight: '60vh' }}>
+            <CodeEditor
+              language="json"
+              onChange={handleChange}
+              maxHeight="60vh"
+              options={{
+                collapsible: true,
+                wrappable: true,
+                lineNumbers: true,
+                foldGutter: true,
+                highlightActiveLine: true,
+                keymap: true
+              }}>
               {jsonConfig}
             </CodeEditor>
           </CodeToolbarProvider>
