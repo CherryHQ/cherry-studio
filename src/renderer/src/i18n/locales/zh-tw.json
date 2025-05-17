@@ -1676,6 +1676,32 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "dialogMap": {
+      "title": "對話地圖",
+      "click_to_select": "點擊選擇此路徑",
+      "no_data": "沒有對話數據，請先開始對話",
+      "loading": "正在加載對話地圖...",
+      "error": "加載對話地圖失敗，請重試",
+      "refresh": "重新整理",
+      "search": "搜尋節點",
+      "fit_view": "適應視圖",
+      "zoom_in": "放大",
+      "zoom_out": "縮小",
+      "follow_path": "跟隨此路徑繼續對話",
+      "create_new_branch": "建立新分支",
+      "tip": "提示：對話地圖以樹狀結構展示您的對話，每個節點代表一條訊息。您可以選擇不同的路徑來分支對話。",
+      "apply_selected_path": "切換路徑",
+      "delete_node": "刪除此節點",
+      "delete_node_confirm_title": "確認刪除節點",
+      "delete_node_confirm_content": "確定要刪除此節點及其所有子節點嗎？此操作不可撤銷。",
+      "delete_node_error": "刪除節點失敗",
+      "unknown_model": "未知模型",
+      "no_conversation": "暫無對話",
+      "navigate_to_node": "定位到對應訊息",
+      "collapse_nodes": "折疊節點",
+      "expand_nodes": "展開節點",
+      "create_branch": "添加分支"
     }
   }
 }

@@ -1675,6 +1675,32 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "dialogMap": {
+      "title": "対話マップ",
+      "click_to_select": "このパスを選択するにはクリックしてください",
+      "no_data": "対話データがありません。まず会話を開始してください",
+      "loading": "対話マップを読み込み中...",
+      "error": "対話マップの読み込みに失敗しました。もう一度お試しください",
+      "refresh": "更新",
+      "search": "ノードを検索",
+      "fit_view": "表示に合わせる",
+      "zoom_in": "拡大",
+      "zoom_out": "縮小",
+      "follow_path": "このパスに沿って対話を続ける",
+      "create_new_branch": "新しいブランチを作成",
+      "tip": "ヒント：対話マップは会話をツリー構造で表示し、各ノードはメッセージを表します。異なるパスを選択して会話を分岐させることができます。",
+      "apply_selected_path": "パスを切り替え",
+      "delete_node": "このノードを削除",
+      "delete_node_confirm_title": "ノード削除の確認",
+      "delete_node_confirm_content": "このノードとそのすべての子ノードを削除してもよろしいですか？この操作は元に戻せません。",
+      "delete_node_error": "ノードの削除に失敗しました",
+      "unknown_model": "不明なモデル",
+      "no_conversation": "会話がありません",
+      "navigate_to_node": "対応するメッセージに移動",
+      "collapse_nodes": "ノードを折りたたむ",
+      "expand_nodes": "ノードを展開",
+      "create_branch": "ブランチを作成"
     }
   }
 }

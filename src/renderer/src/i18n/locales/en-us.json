@@ -1677,6 +1677,32 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "dialogMap": {
+      "title": "Dialog Map",
+      "click_to_select": "Click to select this path",
+      "no_data": "No dialog data, please start a conversation first",
+      "loading": "Loading dialog map...",
+      "error": "Failed to load dialog map, please try again",
+      "refresh": "Refresh",
+      "search": "Search node",
+      "fit_view": "Fit view",
+      "zoom_in": "Zoom in",
+      "zoom_out": "Zoom out",
+      "follow_path": "Follow this path",
+      "create_new_branch": "Create new branch",
+      "tip": "Tip: Dialog map shows your conversation in a tree structure, each node represents a message. You can select different paths to branch the conversation.",
+      "apply_selected_path": "Switch Path",
+      "delete_node": "Delete this node",
+      "delete_node_confirm_title": "Confirm delete node",
+      "delete_node_confirm_content": "Are you sure you want to delete this node and all its child nodes? This operation cannot be undone.",
+      "delete_node_error": "Failed to delete node",
+      "unknown_model": "Unknown model",
+      "no_conversation": "No conversation",
+      "navigate_to_node": "Locate to message",
+      "collapse_nodes": "Collapse nodes",
+      "expand_nodes": "Expand nodes",
+      "create_branch": "Create branch"
     }
   }
 }
