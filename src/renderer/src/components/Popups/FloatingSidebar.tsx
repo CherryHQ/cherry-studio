@@ -43,7 +43,8 @@ const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssist
         activeTopic={activeTopic}
         setActiveAssistant={setActiveAssistant}
         setActiveTopic={setActiveTopic}
-        position="left"></HomeTabs>
+        position="left"
+        forceToSeeAllTab={true}></HomeTabs>
     </PopoverContent>
   )
 

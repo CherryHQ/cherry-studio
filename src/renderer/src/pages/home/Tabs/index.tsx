@@ -20,13 +20,21 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
+  forceToSeeAllTab?: boolean
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
 
 let _tab: any = ''
 
-const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant, setActiveTopic, position }) => {
+const HomeTabs: FC<Props> = ({
+  activeAssistant,
+  activeTopic,
+  setActiveAssistant,
+  setActiveTopic,
+  position,
+  forceToSeeAllTab
+}) => {
   const { addAssistant } = useAssistants()
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
@@ -93,13 +101,13 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
 
   return (
     <Container style={border} className="home-tabs">
-      {showTab && (
+      {(showTab || forceToSeeAllTab == true) && (
         <Segmented
           value={tab}
           style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
           options={
             [
-              position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
+              (position === 'left' && topicPosition === 'left') || forceToSeeAllTab == true ? assistantTab : undefined,
               {
                 label: t('common.topics'),
                 value: 'topic'
