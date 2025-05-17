@@ -37,8 +37,8 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (fileName: string, data: string, destinationPath?: string) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath),
+    backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
     restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
