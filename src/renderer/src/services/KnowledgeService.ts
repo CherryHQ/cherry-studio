@@ -4,12 +4,36 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import Logger from '@renderer/config/logger'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
+import { updateBases } from '@renderer/store/knowledge'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
+
+export const updateKnowledgeBaseFilePath = async () => {
+  const bases = store.getState().knowledge.bases
+  const updatedBases = await Promise.all(
+    bases.map(async (base) => {
+      const updatedBase = { ...base }
+      updatedBase.items = await Promise.all(
+        base.items.map(async (item) => {
+          const updatedItem = { ...item }
+          if (item.type === 'file' || item.type === 'directory') {
+            updatedItem.content = { ...(item.content as FileType) }
+            updatedItem.content.path = await FileManager.resolveFilePath(updatedItem.content.name)
+          }
+          return updatedItem
+        })
+      )
+      return updatedBase
+    })
+  )
+
+  // 使用 dispatch 更新状态
+  store.dispatch(updateBases(updatedBases))
+}
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)

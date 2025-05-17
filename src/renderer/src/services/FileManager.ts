@@ -12,6 +12,10 @@ class FileManager {
     return files
   }
 
+  static async resolveFilePath(name: string): Promise<string> {
+    return window.api.file.resolveFilePath(name)
+  }
+
   static async addFile(file: FileType): Promise<FileType> {
     const fileRecord = await db.files.get(file.id)
 
