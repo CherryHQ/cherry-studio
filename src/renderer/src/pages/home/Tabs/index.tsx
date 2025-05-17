@@ -94,10 +94,10 @@ const HomeTabs: FC<Props> = ({
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
       setTab('topic')
     }
-    if (position === 'left' && topicPosition === 'right' && tab !== 'assistants') {
+    if (position === 'left' && topicPosition === 'right' && forceToSeeAllTab != true && tab !== 'assistants') {
       setTab('assistants')
     }
-  }, [position, tab, topicPosition])
+  }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
     <Container style={border} className="home-tabs">
