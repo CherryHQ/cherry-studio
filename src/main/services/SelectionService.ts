@@ -63,7 +63,8 @@ export class SelectionService {
 
   private toolbarWindow: BrowserWindow | null = null
   private actionWindows = new Set<BrowserWindow>()
-  private preloadedActionWindow: BrowserWindow | null = null
+  private preloadedActionWindows: BrowserWindow[] = []
+  private readonly PRELOAD_ACTION_WINDOW_COUNT = 1
 
   private isHideByMouseKeyListenerActive: boolean = false
   private isCtrlkeyListenerActive: boolean = false
@@ -162,8 +163,8 @@ export class SelectionService {
       this.initConfig()
       //make sure the toolbar window is ready
       this.createToolbarWindow()
-      // Initialize preloaded window
-      this.createPreloadedActionWindow()
+      // Initialize preloaded windows
+      this.initPreloadedActionWindows()
       // Handle errors
       this.selectionHook.on('error', (error: { message: string }) => {
         this.logError('Error in SelectionHook:', error as Error)
@@ -726,10 +727,6 @@ export class SelectionService {
    * @returns Configured BrowserWindow instance
    */
   private createPreloadedActionWindow(): BrowserWindow {
-    if (this.preloadedActionWindow && !this.preloadedActionWindow.isDestroyed()) {
-      return this.preloadedActionWindow
-    }
-
     const preloadedActionWindow = new BrowserWindow({
       width: this.ACTION_WINDOW_WIDTH,
       height: this.ACTION_WINDOW_HEIGHT,
@@ -741,7 +738,6 @@ export class SelectionService {
       titleBarStyle: 'hidden',
       hasShadow: false,
       thickFrame: false,
-      // backgroundColor: 'rgba(128, 0, 0, 0.5)',
       show: false,
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -752,8 +748,6 @@ export class SelectionService {
       }
     })
 
-    this.preloadedActionWindow = preloadedActionWindow
-
     // Load the base URL without action data
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
       preloadedActionWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/selectionAction.html')
@@ -761,15 +755,45 @@ export class SelectionService {
       preloadedActionWindow.loadFile(join(__dirname, '../renderer/selectionAction.html'))
     }
 
-    return this.preloadedActionWindow
+    return preloadedActionWindow
   }
 
   /**
-   * Pop an action window from the preloadedActionWindow
+   * Initialize preloaded action windows
+   * Creates a pool of windows at startup for faster response
+   */
+  private async initPreloadedActionWindows() {
+    try {
+      // Create initial pool of preloaded windows
+      for (let i = 0; i < this.PRELOAD_ACTION_WINDOW_COUNT; i++) {
+        await this.pushNewActionWindow()
+      }
+    } catch (error) {
+      this.logError('Failed to initialize preloaded windows:', error as Error)
+    }
+  }
+
+  /**
+   * Preload a new action window asynchronously
+   * This method is called after popping a window to ensure we always have windows ready
+   */
+  private async pushNewActionWindow() {
+    try {
+      const actionWindow = this.createPreloadedActionWindow()
+      this.preloadedActionWindows.push(actionWindow)
+    } catch (error) {
+      this.logError('Failed to push new action window:', error as Error)
+    }
+  }
+
+  /**
+   * Pop an action window from the preloadedActionWindows queue
+   * Immediately returns a window and asynchronously creates a new one
    * @returns {BrowserWindow} The action window
    */
   private popActionWindow() {
-    const actionWindow = this.createPreloadedActionWindow()
+    // Get a window from the preloaded queue or create a new one if empty
+    const actionWindow = this.preloadedActionWindows.pop() || this.createPreloadedActionWindow()
 
     // Set up event listeners for this instance
     actionWindow.on('closed', () => {
@@ -780,14 +804,16 @@ export class SelectionService {
     })
 
     this.actionWindows.add(actionWindow)
-    this.preloadedActionWindow = null
 
-    this.createPreloadedActionWindow()
+    // Asynchronously create a new preloaded window
+    this.pushNewActionWindow()
 
     return actionWindow
   }
 
   public processAction(actionItem: ActionItem): void {
+    console.log('processAction', this.preloadedActionWindows.length, this.actionWindows.size)
+
     const actionWindow = this.popActionWindow()
 
     actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
