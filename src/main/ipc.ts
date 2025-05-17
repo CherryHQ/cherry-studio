@@ -6,6 +6,7 @@ import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/pro
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
+import { dialog } from 'electron'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
 
@@ -193,6 +194,34 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
       return '0'
     }
+  })
+
+  // Select app data path
+  ipcMain.handle(IpcChannel.App_SelectAppDataPath, async () => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        title: 'Select App Data Directory',
+        properties: ['openDirectory', 'createDirectory']
+      })
+
+      if (canceled || filePaths.length === 0) {
+        return { success: false }
+      }
+
+      const newPath = filePaths[0]
+      configManager.setAppDataPath(newPath)
+
+      return { success: true, path: newPath }
+    } catch (error: any) {
+      log.error('Failed to select app data path:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Relaunch app
+  ipcMain.handle(IpcChannel.App_RelaunchApp, () => {
+    app.relaunch()
+    app.exit(0)
   })
 
   // check for update

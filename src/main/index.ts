@@ -20,7 +20,6 @@ import {
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
 
@@ -42,8 +41,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
-  // Portable dir must be setup before app ready
-  setUserDataDir()
+  // Initialize app data path if needed
+  configManager.initializeAppDataPath()
 
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.

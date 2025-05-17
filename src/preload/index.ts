@@ -22,6 +22,8 @@ const api = {
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
+  selectAppDataPath: () => ipcRenderer.invoke(IpcChannel.App_SelectAppDataPath),
+  relaunchApp: () => ipcRenderer.invoke(IpcChannel.App_RelaunchApp),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
