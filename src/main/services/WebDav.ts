@@ -7,8 +7,12 @@ import {
   CreateDirectoryOptions,
   GetFileContentsOptions,
   PutFileContentsOptions,
-  WebDAVClient
+  WebDAVClient,
+  type WebDAVClientOptions
 } from 'webdav'
+
+import { proxyManager } from './ProxyManager'
+
 export default class WebDav {
   public instance: WebDAVClient | undefined
   private webdavPath: string
@@ -16,12 +20,21 @@ export default class WebDav {
   constructor(params: WebDavConfig) {
     this.webdavPath = params.webdavPath
 
-    this.instance = createClient(params.webdavHost, {
+    const clientOptions: WebDAVClientOptions = {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
       maxContentLength: Infinity
-    })
+    }
+
+    const proxyAgent = proxyManager.getProxyAgent()
+
+    if (proxyAgent) {
+      clientOptions.httpAgent = proxyAgent
+      clientOptions.httpsAgent = proxyAgent
+    }
+
+    this.instance = createClient(params.webdavHost, clientOptions)
 
     this.putFileContents = this.putFileContents.bind(this)
     this.getFileContents = this.getFileContents.bind(this)
