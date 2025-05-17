@@ -1377,6 +1377,34 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '103': (state: RootState) => {
+    try {
+      if (state.shortcuts) {
+        if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
+          state.shortcuts.shortcuts.push({
+            key: 'search_message_in_chat',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+            editable: true,
+            enabled: true,
+            system: false
+          })
+        }
+        const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
+        const targetShortcut = [isMac ? 'Command' : 'Ctrl', 'F']
+        if (
+          searchMessageShortcut &&
+          Array.isArray(searchMessageShortcut.shortcut) &&
+          searchMessageShortcut.shortcut.length === targetShortcut.length &&
+          searchMessageShortcut.shortcut.every((v, i) => v === targetShortcut[i])
+        ) {
+          searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
