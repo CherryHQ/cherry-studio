@@ -1391,7 +1391,13 @@ const migrateConfig = {
           })
         }
         const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
-        if (searchMessageShortcut) {
+        const targetShortcut = [isMac ? 'Command' : 'Ctrl', 'F']
+        if (
+          searchMessageShortcut &&
+          Array.isArray(searchMessageShortcut.shortcut) &&
+          searchMessageShortcut.shortcut.length === targetShortcut.length &&
+          searchMessageShortcut.shortcut.every((v, i) => v === targetShortcut[i])
+        ) {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
         }
       }
