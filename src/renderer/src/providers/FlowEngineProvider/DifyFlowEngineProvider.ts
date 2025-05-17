@@ -49,11 +49,11 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     flow: Flow,
     message: Message,
     conversationId: string,
+    inputs: Record<string, string>,
     onChunk: (chunk: Chunk) => void
   ): Promise<void> {
     const query = getMainTextContent(message)
     const files = await this.getFiles(flow, message)
-
     try {
       const difyApi = createDifyApiInstance({
         user: message.topicId,
@@ -62,7 +62,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       })
 
       const response = await difyApi.sendMessage({
-        inputs: {},
+        inputs: inputs,
         files: files,
         // 如果客户端清空消息并不会清空工作流的上下文
         // 理论上每次新的消息都应该是新的上下文，但topicId并不会因为清空上下文而改变，需要新建话题才行

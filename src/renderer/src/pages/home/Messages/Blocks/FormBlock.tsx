@@ -8,7 +8,8 @@ interface Props {
 }
 
 const FormBlock: React.FC<Props> = ({ block, message }) => {
-  return <WorkflowForm flow={block.flow} blockId={block.id} message={message} />
+  console.log('FormBlock', block, message)
+  return <WorkflowForm block={block} message={message} />
 }
 
 export default React.memo(FormBlock)

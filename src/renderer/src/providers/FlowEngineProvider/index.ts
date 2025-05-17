@@ -18,9 +18,10 @@ export default class FlowEngineProvider {
     flow: Flow,
     message: Message,
     conversationId: string,
+    inputs: Record<string, string>,
     onChunk: (chunk: Chunk) => void
   ): Promise<void> {
-    return await this.sdk.chatflowCompletion(flow, message, conversationId, onChunk)
+    return await this.sdk.chatflowCompletion(flow, message, conversationId, inputs, onChunk)
   }
 
   public async check(flow: Flow): Promise<{ valid: boolean; error: Error | null }> {

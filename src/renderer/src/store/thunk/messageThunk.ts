@@ -723,12 +723,32 @@ export const sendMessage =
         )
 
         // 将表单块与消息一起保存到数据库
-        await saveMessageAndBlocksToDB(assistantMessage, [])
+        await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
       } else if (assistant.chatflow) {
-        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+        let assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
           flow: assistant.chatflow
         })
+        if (getMainTextContent(userMessage) === assistant.chatflow.trigger) {
+          const formBlock = createFormBlock(assistantMessage.id, assistant.chatflow)
+          assistantMessage = {
+            ...assistantMessage,
+            blocks: [formBlock.id]
+          }
+          dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+          dispatch(upsertOneBlock(formBlock))
+          dispatch(
+            newMessagesActions.upsertBlockReference({
+              messageId: assistantMessage.id,
+              blockId: formBlock.id,
+              status: formBlock.status
+            })
+          )
+
+          // 将表单块与消息一起保存到数据库
+          await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
+          return
+        }
         await saveMessageAndBlocksToDB(assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 

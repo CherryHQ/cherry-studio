@@ -3,6 +3,7 @@ import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
+  FormMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
@@ -160,6 +161,29 @@ export const findTranslationBlocks = (message: Message): TranslationMessageBlock
     }
   }
   return translationBlocks
+}
+
+/**
+ * Finds the last FormMessageBlock associated with a given message.
+ * @param messages - The array of message objects.
+ * @returns The last FormMessageBlock or an empty object if not found.
+ */
+export const findLastFormBlock = (messages?: Message[]): FormMessageBlock => {
+  if (!messages || messages.length === 0) {
+    return {} as FormMessageBlock
+  }
+  const state = store.getState()
+  const blocks = messages.flatMap((message) => message.blocks)
+
+  const formBlocks: FormMessageBlock[] = []
+  for (const blockId of blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && block.type === MessageBlockType.FORM) {
+      formBlocks.push(block as FormMessageBlock)
+    }
+  }
+
+  return formBlocks[formBlocks.length - 1] || ({} as FormMessageBlock)
 }
 
 /**

@@ -28,11 +28,13 @@ export async function fetchChatflowCompletion({
   assistant,
   message,
   conversationId,
+  inputs,
   onChunkReceived
 }: {
   assistant: Assistant
   message: Message
   conversationId: string
+  inputs: Record<string, string>
   onChunkReceived: (chunk: Chunk) => void
 }) {
   if (!assistant.chatflow) {
@@ -41,7 +43,7 @@ export async function fetchChatflowCompletion({
   const provider = getAssistantFlowProvider(assistant.chatflow)
   const flowEngineProvider = new FlowEngineProvider(provider)
 
-  await flowEngineProvider.chatflowCompletion(assistant.chatflow, message, conversationId, onChunkReceived)
+  await flowEngineProvider.chatflowCompletion(assistant.chatflow, message, conversationId, inputs, onChunkReceived)
 }
 
 export async function fetchWorkflowCompletion({

@@ -18,7 +18,7 @@ interface Props {
 
 interface WorkflowFormValues {
   name: string
-  trigger?: string
+  trigger: string
   description?: string
   apiKey: string
   apiHost: string
@@ -146,7 +146,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
   useEffect(() => {
     form.setFieldsValue({
       name: flow.name,
-      trigger: flow.type === 'workflow' ? flow.trigger : undefined,
+      trigger: flow.trigger,
       description: flow.description,
       enabled: flow.enabled,
       apiKey: flow.apiKey,
@@ -193,7 +193,8 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           <Form.Item name="name" label={t('settings.workflow.name')} rules={[{ required: true, message: '' }]}>
             <Input placeholder={t('common.name')} />
           </Form.Item>
-          {flowType === 'workflow' && (
+          {/* 仅在工作流类型为 workflow 时显示触发器输入框 */}
+          {(flowType === 'workflow' || flowType === 'chatflow') && (
             <Form.Item
               name="trigger"
               label={t('settings.workflow.trigger')}

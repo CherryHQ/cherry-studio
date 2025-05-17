@@ -21,7 +21,7 @@ interface FlowBase {
 
 export interface Workflow extends FlowBase {
   type: 'workflow'
-  trigger?: string
+  trigger: string
 }
 
 /**
@@ -29,6 +29,7 @@ export interface Workflow extends FlowBase {
  */
 export interface Chatflow extends FlowBase {
   type: 'chatflow'
+  trigger: string
 }
 
 /**

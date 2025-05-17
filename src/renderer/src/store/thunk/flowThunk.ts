@@ -12,6 +12,7 @@ import {
   createFlowBlock,
   createMainTextBlock
 } from '@renderer/utils/messageUtils/create'
+import { findLastFormBlock } from '@renderer/utils/messageUtils/find'
 import { findLast } from 'lodash'
 
 import type { AppDispatch, RootState } from '../index'
@@ -191,15 +192,15 @@ function getCommonStreamLogic(
       dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
       saveUpdatedBlockToDB(streamState.flowBlockId, assistantMessage.id, topicId, getState)
 
+      console.log('formBlockId', streamState.formBlockId)
       if (streamState.formBlockId) {
-        console.log('form blockId:', streamState.formBlockId)
         const formChanges: Partial<FormMessageBlock> = {
           flow: {
             ...flowDefinition,
             inputs: chunk.inputs
-          }
+          },
+          isFinished: true
         }
-        console.log('form changes:', formChanges)
         dispatch(updateOneBlock({ id: streamState.formBlockId, changes: formChanges }))
         saveUpdatedBlockToDB(streamState.formBlockId, assistantMessage.id, topicId, getState)
       }
@@ -282,15 +283,18 @@ export const fetchAndProcessChatflowResponseImpl = async (
   getState: () => RootState,
   topicId: string,
   assistant: Assistant,
-  assistantMessage: Message,
-  formBlockId?: string
+  assistantMessage: Message
 ) => {
   dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
   const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
   const lastUserMessage = findLast(allMessagesForTopic, (m) => m.role === 'user')
+  const secondLastAssistantMessage = findLast(allMessagesForTopic, (m) => m.role === 'assistant', 2)
   // 获取倒数第二条assistant消息
-  const conversationId = findLast(allMessagesForTopic, (m) => m.role === 'assistant', 2)?.conversationId
+  const conversationId = secondLastAssistantMessage?.conversationId ?? ''
+  // 从最后一个FormBlock中获取inputs
+  const lastFormBlock = findLastFormBlock(allMessagesForTopic.filter((m) => m.role === 'assistant'))
+  const inputs = lastFormBlock?.flow?.inputs || {}
 
   if (!lastUserMessage) {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
@@ -308,7 +312,7 @@ export const fetchAndProcessChatflowResponseImpl = async (
     lastBlockId: null as string | null,
     lastBlockType: null as MessageBlockType | null,
     flowBlockId: null as string | null,
-    formBlockId: formBlockId
+    formBlockId: lastFormBlock.id
   }
 
   const commonLogic = getCommonStreamLogic(
@@ -338,6 +342,7 @@ export const fetchAndProcessChatflowResponseImpl = async (
       assistant: assistant,
       message: lastUserMessage,
       conversationId: conversationId ?? '',
+      inputs: inputs,
       onChunkReceived: streamProcessorCallbacks
     })
   } catch (error: any) {
@@ -365,7 +370,6 @@ export const fetchAndProcessWorkflowResponseImpl =
       flowBlockId: null as string | null,
       formBlockId: formBlockId
     }
-    console.log('form blockId:', formBlockId)
 
     const commonLogic = getCommonStreamLogic(dispatch, getState, topicId, assistantMessage, workflow, streamState)
     let callbacks: StreamProcessorCallbacks = {}

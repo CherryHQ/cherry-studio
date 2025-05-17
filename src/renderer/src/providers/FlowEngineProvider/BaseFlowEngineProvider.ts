@@ -14,6 +14,7 @@ export default abstract class BaseFlowEngineProvider {
     flow: Flow,
     message: Message,
     conversationId: string,
+    inputs: Record<string, string>,
     onChunk: (chunk: Chunk) => void
   ): Promise<void>
 

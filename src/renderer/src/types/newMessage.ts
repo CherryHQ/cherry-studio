@@ -146,6 +146,7 @@ export interface FlowMessageBlock extends BaseMessageBlock {
 export interface FormMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.FORM
   flow: Flow
+  isFinished: boolean
 }
 
 // MessageBlock 联合类型
