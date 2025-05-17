@@ -29,6 +29,8 @@ interface Props {
     wrappable?: boolean
     keymap?: boolean
   } & BasicSetupOptions
+  /** 用于追加 extensions */
+  extensions?: Extension[]
   /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
   style?: React.CSSProperties
 }
@@ -38,7 +40,7 @@ interface Props {
  *
  * 目前必须和 CodeToolbar 配合使用。
  */
-const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, style }: Props) => {
+const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, extensions, style }: Props) => {
   const {
     fontSize,
     codeShowLineNumbers: _lineNumbers,
@@ -177,9 +179,14 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
     ])
   }, [handleSave])
 
-  const enabledExtensions = useMemo(() => {
-    return [...langExtension, ...(isUnwrapped ? [] : [EditorView.lineWrapping]), ...(enableKeymap ? [saveKeymap] : [])]
-  }, [enableKeymap, langExtension, isUnwrapped, saveKeymap])
+  const customExtensions = useMemo(() => {
+    return [
+      ...(extensions ?? []),
+      ...langExtension,
+      ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
+      ...(enableKeymap ? [saveKeymap] : [])
+    ]
+  }, [extensions, langExtension, isUnwrapped, enableKeymap, saveKeymap])
 
   return (
     <CodeMirror
@@ -190,7 +197,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
       editable={true}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
-      extensions={enabledExtensions}
+      extensions={customExtensions}
       onCreateEditor={(view: EditorView) => {
         editorViewRef.current = view
         setEditorReady(true)
