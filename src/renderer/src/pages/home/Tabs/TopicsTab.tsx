@@ -19,6 +19,7 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { RootState } from '@renderer/store'
@@ -52,12 +53,14 @@ interface Props {
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic }) => {
   const { assistants } = useAssistants()
-  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
+  const { assistant, removeTopic, moveTopic, updateTopic, updateTopics, addTopic } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, topicPosition } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
+  const [selectedTopics, setSelectedTopics] = useState<Topic[]>([])
+  const [isMultiSelect, setIsMultiSelect] = useState(false)
   const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null)
   const deleteTimerRef = useRef<NodeJS.Timeout>(null)
 
@@ -114,6 +117,63 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       setDeletingTopicId(null)
     },
     [assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+  )
+
+  const onDeleteSelectedTopics = useCallback(async () => {
+    if (selectedTopics.length === 0) return
+
+    const originalTopicCount = assistant.topics.length
+
+    // If active topic is in selection, switch to next available topic
+    const activeIndex = findIndex(assistant.topics, (t) => t.id === activeTopic?.id)
+    if (activeIndex !== -1) {
+      const nextIndex = activeIndex + 1 < assistant.topics.length ? activeIndex + 1 : activeIndex - 1
+      if (nextIndex >= 0) {
+        setActiveTopic(assistant.topics[nextIndex])
+      }
+    }
+
+    // Remove all selected topics
+    selectedTopics.forEach((topic) => removeTopic(topic))
+    setSelectedTopics([])
+
+    // Auto-create new topic if all were deleted or active topic was deleted
+    if (selectedTopics.length === originalTopicCount) {
+      const newTopic = getDefaultTopic(assistant.id)
+      addTopic(newTopic)
+      setActiveTopic(newTopic)
+    }
+  }, [assistant.topics, activeTopic, selectedTopics, removeTopic, setActiveTopic, addTopic, assistant.id])
+
+  const onMoveSelectedTopics = useCallback(
+    async (toAssistant: Assistant) => {
+      if (selectedTopics.length === 0) return
+
+      const originalTopicCount = assistant.topics.length
+
+      // If active topic is in selection, switch to next available topic
+      const activeIndex = findIndex(assistant.topics, (t) => t.id === activeTopic?.id)
+      if (activeIndex !== -1) {
+        const nextIndex = activeIndex + 1 < assistant.topics.length ? activeIndex + 1 : activeIndex - 1
+        if (nextIndex >= 0) {
+          setActiveTopic(assistant.topics[nextIndex])
+        }
+      }
+
+      // Move each selected topic to target assistant
+      selectedTopics.forEach((topic) => moveTopic(topic, toAssistant))
+
+      // Clear selection after move
+      setSelectedTopics([])
+
+      // Auto-create new topic if all were deleted or active topic was deleted
+      if (selectedTopics.length === originalTopicCount) {
+        const newTopic = getDefaultTopic(assistant.id)
+        addTopic(newTopic)
+        setActiveTopic(newTopic)
+      }
+    },
+    [selectedTopics, assistant.topics, assistant.id, activeTopic?.id, setActiveTopic, moveTopic, addTopic]
   )
 
   const onPinTopic = useCallback(
@@ -330,7 +390,37 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       }
     ]
 
-    if (assistants.length > 1 && assistant.topics.length > 1) {
+    // Add batch operations to context menu when in multi-select mode
+    if (isMultiSelect && selectedTopics.length > 0) {
+      menus.push({ type: 'divider' })
+      menus.push({
+        label: t('chat.topics.delete.selected', { count: selectedTopics.length }),
+        key: 'batch-delete',
+        icon: <DeleteOutlined />,
+        danger: true,
+        onClick: () => {
+          onDeleteSelectedTopics()
+        }
+      })
+
+      if (assistants.length > 1) {
+        menus.push({
+          label: t('chat.topics.move_to'),
+          key: 'batch-move',
+          icon: <FolderOutlined />,
+          children: assistants
+            .filter((a) => a.id !== assistant.id)
+            .map((a) => ({
+              label: a.name,
+              key: a.id,
+              onClick: () => onMoveSelectedTopics(a)
+            }))
+        })
+      }
+    }
+
+    // Original move option (single topic) - only show when not in multi-select mode
+    if (!isMultiSelect && assistants.length > 1 && assistant.topics.length > 1) {
       menus.push({
         label: t('chat.topics.move_to'),
         key: 'move',
@@ -358,31 +448,59 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
     return menus
   }, [
-    activeTopic.id,
-    assistant,
-    assistants,
-    exportMenuOptions.docx,
+    targetTopic,
+    t,
     exportMenuOptions.image,
-    exportMenuOptions.joplin,
     exportMenuOptions.markdown,
     exportMenuOptions.markdown_reason,
+    exportMenuOptions.docx,
     exportMenuOptions.notion,
-    exportMenuOptions.obsidian,
-    exportMenuOptions.siyuan,
     exportMenuOptions.yuque,
-    onClearMessages,
-    onDeleteTopic,
-    onMoveTopic,
-    onPinTopic,
-    setActiveTopic,
-    t,
+    exportMenuOptions.obsidian,
+    exportMenuOptions.joplin,
+    exportMenuOptions.siyuan,
+    isMultiSelect,
+    selectedTopics.length,
+    assistants,
+    assistant,
     updateTopic,
-    targetTopic
+    activeTopic.id,
+    setActiveTopic,
+    onPinTopic,
+    onClearMessages,
+    onDeleteSelectedTopics,
+    onMoveSelectedTopics,
+    onMoveTopic,
+    onDeleteTopic
   ])
 
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
       <Container right={topicPosition === 'right'} className="topics-tab">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <Tooltip title={t('chat.topics.multi_select.hint', { key: 'shift' })} placement="bottom">
+            <button
+              type="button"
+              onClick={() => {
+                const newIsMultiSelect = !isMultiSelect
+                setIsMultiSelect(newIsMultiSelect)
+                if (!newIsMultiSelect) {
+                  setSelectedTopics([])
+                }
+              }}
+              style={{
+                background: isMultiSelect ? 'var(--color-primary)' : 'transparent',
+                color: isMultiSelect ? 'white' : 'var(--color-text-2)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '4px',
+                padding: '4px 8px',
+                fontSize: '12px',
+                cursor: 'pointer'
+              }}>
+              {isMultiSelect ? t('chat.topics.exit_multi_select') : t('chat.topics.enter_multi_select')}
+            </button>
+          </Tooltip>
+        </div>
         <DragableList list={assistant.topics} onUpdate={updateTopics}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id
@@ -392,8 +510,37 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             return (
               <TopicListItem
                 onContextMenu={() => setTargetTopic(topic)}
-                className={isActive ? 'active' : ''}
-                onClick={() => onSwitchTopic(topic)}
+                className={`${isActive ? 'active' : ''} ${
+                  selectedTopics.some((t) => t.id === topic.id) ? 'selected' : ''
+                }`}
+                onClick={(e) => {
+                  if (isMultiSelect) {
+                    if (e.shiftKey) {
+                      // Range selection logic
+                      setSelectedTopics((prev) => {
+                        const currentIndex = assistant.topics.findIndex((t) => t.id === topic.id)
+                        const lastSelectedIndex =
+                          prev.length > 0 ? assistant.topics.findIndex((t) => t.id === prev[0].id) : -1
+
+                        if (lastSelectedIndex === -1) {
+                          return [topic]
+                        }
+
+                        const start = Math.min(lastSelectedIndex, currentIndex)
+                        const end = Math.max(lastSelectedIndex, currentIndex)
+
+                        return assistant.topics.slice(start, end + 1)
+                      })
+                    } else {
+                      // Toggle individual selection
+                      setSelectedTopics((prev) =>
+                        prev.some((t) => t.id === topic.id) ? prev.filter((t) => t.id !== topic.id) : [...prev, topic]
+                      )
+                    }
+                  } else {
+                    onSwitchTopic(topic)
+                  }
+                }}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
                 <TopicName className="name" title={topicName}>
@@ -488,6 +635,10 @@ const TopicListItem = styled.div`
         color: var(--color-text-2);
       }
     }
+  }
+  &.selected {
+    background-color: var(--color-background-selected);
+    border: 0.5px solid var(--color-primary);
   }
 `
 
