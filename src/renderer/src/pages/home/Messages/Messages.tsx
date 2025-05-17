@@ -55,12 +55,131 @@ const Messages: FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onCompo
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [dragCurrent, setDragCurrent] = useState({ x: 0, y: 0 })
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
     messagesRef.current = messages
+  }, [messages])
+
+  const handleSelectMessage = useCallback((messageId: string, selected: boolean) => {
+    setSelectedMessages((prev) => {
+      const newSet = new Set(prev)
+      if (selected) {
+        newSet.add(messageId)
+      } else {
+        newSet.delete(messageId)
+      }
+      EventEmitter.emit(EVENT_NAMES.SELECTED_MESSAGES_CHANGED, Array.from(newSet))
+      return newSet
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isMultiSelectMode) return
+
+    const updateDragPos = (e: MouseEvent) => {
+      const container = containerRef.current!
+      const rect = container.getBoundingClientRect()
+      const x = e.clientX - rect.left + container.scrollLeft
+      const y = e.clientY - rect.top + container.scrollTop
+      return { x, y }
+    }
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('.ant-checkbox-wrapper')) return
+      setIsDragging(true)
+      const pos = updateDragPos(e)
+      setDragStart(pos)
+      setDragCurrent(pos)
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return
+      setDragCurrent(updateDragPos(e))
+    }
+
+    const handleMouseUp = () => {
+      if (!isDragging) return
+
+      // 计算选择框的边界
+      const left = Math.min(dragStart.x, dragCurrent.x)
+      const right = Math.max(dragStart.x, dragCurrent.x)
+      const top = Math.min(dragStart.y, dragCurrent.y)
+      const bottom = Math.max(dragStart.y, dragCurrent.y)
+
+      // 选择在框内的消息
+      messageElements.current.forEach((element, messageId) => {
+        const rect = element.getBoundingClientRect()
+
+        // 检查消息元素是否与选择框相交
+        const isIntersecting = !(rect.right < left || rect.left > right || rect.bottom < top || rect.top > bottom)
+
+        if (isIntersecting) {
+          handleSelectMessage(messageId, true)
+        }
+      })
+
+      setIsDragging(false)
+    }
+
+    const container = containerRef.current
+    if (container) {
+      container.addEventListener('mousedown', handleMouseDown)
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener('mousedown', handleMouseDown)
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isMultiSelectMode, isDragging, dragStart, dragCurrent, handleSelectMessage])
+
+  const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
+    if (element) {
+      messageElements.current.set(id, element)
+    } else {
+      messageElements.current.delete(id)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleToggleMultiSelect = (value: boolean) => {
+      setIsMultiSelectMode(value)
+      if (!value) {
+        setSelectedMessages(new Set())
+      }
+    }
+
+    EventEmitter.on(EVENT_NAMES.MESSAGE_MULTI_SELECT, handleToggleMultiSelect)
+
+    return () => {
+      EventEmitter.off(EVENT_NAMES.MESSAGE_MULTI_SELECT, handleToggleMultiSelect)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleRequestSelectedMessageDetails = (messageIds: string[]) => {
+      const selectedMessages = messages.filter((msg) => messageIds.includes(msg.id))
+      EventEmitter.emit('SELECTED_MESSAGE_DETAILS', selectedMessages)
+    }
+
+    EventEmitter.on('REQUEST_SELECTED_MESSAGE_DETAILS', handleRequestSelectedMessageDetails)
+
+    return () => {
+      EventEmitter.off('REQUEST_SELECTED_MESSAGE_DETAILS', handleRequestSelectedMessageDetails)
+    }
   }, [messages])
 
   useEffect(() => {
@@ -253,15 +372,19 @@ const Messages: FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onCompo
 
   useEffect(() => {
     requestAnimationFrame(() => onComponentUpdate?.())
-  }, [])
+  }, [onComponentUpdate])
 
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
-      style={{ maxWidth, paddingTop: showPrompt ? 10 : 0 }}
-      key={assistant.id}
       ref={containerRef}
+      style={{
+        position: 'relative',
+        maxWidth,
+        paddingTop: showPrompt ? 10 : 0,
+      }}
+      key={assistant.id}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
@@ -279,6 +402,10 @@ const Messages: FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onCompo
                 messages={groupMessages}
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
+                isMultiSelectMode={isMultiSelectMode}
+                selectedMessages={selectedMessages}
+                onSelectMessage={handleSelectMessage}
+                registerMessageElement={registerMessageElement}
               />
             ))}
             {isLoadingMore && (
@@ -292,6 +419,16 @@ const Messages: FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onCompo
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+      {isDragging && isMultiSelectMode && (
+        <SelectionBox
+          style={{
+            left: Math.min(dragStart.x, dragCurrent.x),
+            top: Math.min(dragStart.y, dragCurrent.y),
+            width: Math.abs(dragCurrent.x - dragStart.x),
+            height: Math.abs(dragCurrent.y - dragStart.y),
+          }}
+        />
+      )}
     </Container>
   )
 }
@@ -357,6 +494,14 @@ const Container = styled(Scrollbar)<ContainerProps>`
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;
+`
+
+const SelectionBox = styled.div`
+  position: absolute;
+  border: 1px dashed var(--color-primary);
+  background-color: rgba(0, 114, 245, 0.1);
+  pointer-events: none;
+  z-index: 100;
 `
 
 export default Messages

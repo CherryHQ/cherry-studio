@@ -1,4 +1,4 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
@@ -258,6 +258,14 @@ const MessageMenubar: FC<Props> = (props) => {
         key: 'new-branch',
         icon: <Split size={16} />,
         onClick: onNewBranch
+      },
+      {
+        label: t('chat.multiple.select'),
+        key: 'multi-select',
+        icon: <MenuOutlined size={16} />,
+        onClick: () => {
+          EventEmitter.emit(EVENT_NAMES.MESSAGE_MULTI_SELECT, true)
+        }
       },
       {
         label: t('chat.topics.export.title'),
