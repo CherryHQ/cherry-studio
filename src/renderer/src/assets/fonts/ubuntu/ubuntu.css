@@ -43,13 +43,13 @@
 @font-face {
   font-family: 'Ubuntu';
   src: url('Ubuntu-Medium.ttf') format('truetype');
-  font-weight: medium;
+  font-weight: 500;
   font-style: normal;
 }
 
 @font-face {
   font-family: 'Ubuntu';
   src: url('Ubuntu-MediumItalic.ttf') format('truetype');
-  font-weight: medium;
+  font-weight: 500;
   font-style: italic;
 }

@@ -144,7 +144,7 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
 }
 
 const ProviderName = styled.span`
-  font-weight: medium;
+  font-weight: 500;
 `
 
 export default memo(MentionModelsButton)

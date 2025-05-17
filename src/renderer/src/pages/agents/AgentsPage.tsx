@@ -299,7 +299,7 @@ const AgentsListHeader = styled.div`
 const AgentsListTitle = styled.div`
   font-size: 16px;
   line-height: 18px;
-  font-weight: medium;
+  font-weight: 500;
   color: var(--color-text-1);
   display: flex;
   align-items: center;

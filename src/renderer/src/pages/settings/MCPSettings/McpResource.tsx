@@ -95,7 +95,7 @@ const Section = styled.div`
 
 const SectionTitle = styled.h3`
   font-size: 14px;
-  font-weight: medium;
+  font-weight: 500;
   margin-bottom: 8px;
   color: var(--color-text-secondary);
 `

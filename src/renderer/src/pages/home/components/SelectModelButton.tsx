@@ -69,7 +69,7 @@ const ButtonContent = styled.div`
 `
 
 const ModelName = styled.span`
-  font-weight: medium;
+  font-weight: 500;
 `
 
 export default SelectModelButton

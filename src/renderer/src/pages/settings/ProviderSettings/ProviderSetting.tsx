@@ -434,7 +434,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
 const ProviderName = styled.span`
   font-size: 14px;
-  font-weight: medium;
+  font-weight: 500;
   margin-right: -2px;
 `
 

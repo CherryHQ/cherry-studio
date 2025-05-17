@@ -226,7 +226,7 @@ const ProviderInitialsLogo = styled.div`
   align-items: center;
   justify-content: center;
   font-size: 30px;
-  font-weight: medium;
+  font-weight: 500;
   transition: opacity 0.3s ease;
   background-color: var(--color-background-soft);
   border: 0.5px solid var(--color-border);

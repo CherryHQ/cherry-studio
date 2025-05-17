@@ -352,7 +352,7 @@ const ProviderLogo = styled(Avatar)`
 
 const ProviderItemName = styled.div`
   margin-left: 10px;
-  font-weight: medium;
+  font-weight: 500;
 `
 
 const AddButtonWrapper = styled.div`

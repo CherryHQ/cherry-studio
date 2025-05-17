@@ -163,7 +163,7 @@ const Container = styled.div`
 
 const Form = styled(FormAntd)`
   .ant-form-item-no-colon {
-    font-weight: medium;
+    font-weight: 500;
   }
 `
 

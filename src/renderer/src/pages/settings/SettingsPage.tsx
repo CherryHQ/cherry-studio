@@ -182,7 +182,7 @@ const MenuItem = styled.li`
   width: 100%;
   cursor: pointer;
   border-radius: var(--list-item-border-radius);
-  font-weight: medium;
+  font-weight: 500;
   transition: all 0.2s ease-in-out;
   border: 0.5px solid transparent;
   .anticon {

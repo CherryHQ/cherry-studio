@@ -665,7 +665,7 @@ const McpSettings: React.FC = () => {
 
 const ServerName = styled.span`
   font-size: 14px;
-  font-weight: medium;
+  font-weight: 500;
 `
 
 const AdvancedSettingsButton = styled.div`

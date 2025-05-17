@@ -196,7 +196,7 @@ const StyledModal = styled(Modal)`
     border: 0.5px solid var(--color-border);
     .ant-menu-title-content {
       color: var(--color-text-1);
-      font-weight: medium;
+      font-weight: 500;
     }
   }
 `
