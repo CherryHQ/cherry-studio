@@ -78,12 +78,10 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           .checkMcpConnectivity(serverToAdd)
           .then((isConnected) => {
             console.log(`Connectivity check for ${serverToAdd.name}: ${isConnected}`)
-            // 直接 dispatch setMCPServerActive action 更新狀態
             dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
           })
           .catch((connError: any) => {
             console.error(`Connectivity check failed for ${serverToAdd.name}:`, connError)
-            // 顯示連線失敗通知
             window.message.error({
               content: t(`${serverToAdd.name} settings.mcp.addServerQuickly.connectionFailed`),
               key: 'mcp-quick-add-failed'
@@ -91,8 +89,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           })
       }
     } finally {
-      // 這裡不再需要 setLoading(false) 因為對話框已經關閉
-      // setLoading(false);
+      setLoading(false)
     }
   }
 
@@ -120,14 +117,13 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
   )
 }
 
-// 輔助函式：解析 JSON 字串並提取伺服器資料
+// 解析 JSON 字串並提取伺服器資料
 const parseAndExtractServer = (
   inputValue: string,
   t: (key: string) => string
 ): { serverToAdd: Partial<MCPServer> | null; error: string | null } => {
   let parsedJson
   try {
-    // 嘗試解析為 JSON
     parsedJson = JSON.parse(inputValue)
   } catch (e) {
     return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
