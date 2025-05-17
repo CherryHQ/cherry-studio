@@ -34,7 +34,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  const { toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
   const [sidebarHideCooldown, setSidebarHideCooldown] = useState(false)
 
