@@ -325,7 +325,7 @@ const Container = styled.div<{ $isFullscreen: boolean }>`
   padding-bottom: 12px;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
+  height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
   margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'var(--navbar-height)' : 0)};
 
