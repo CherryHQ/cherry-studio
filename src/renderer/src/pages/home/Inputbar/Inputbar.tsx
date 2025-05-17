@@ -584,27 +584,33 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         for (const file of event.clipboardData.files) {
-          if (file.path === '') {
-            // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
-              const tempFilePath = await window.api.file.create(file.name)
-              const arrayBuffer = await file.arrayBuffer()
-              const uint8Array = new Uint8Array(arrayBuffer)
-              await window.api.file.write(tempFilePath, uint8Array)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-              break
-            } else {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
-            }
-          }
+          try {
+            // 使用新的API获取文件路径
+            const filePath = window.api.file.getPathForFile(file)
 
-          if (file.path) {
-            if (supportExts.includes(getFileExtension(file.path))) {
-              const selectedFile = await window.api.file.get(file.path)
+            // 如果没有路径，可能是剪贴板中的图像数据
+            if (!filePath) {
+              // 图像生成也支持图像编辑
+              if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
+                const tempFilePath = await window.api.file.create(file.name)
+                const arrayBuffer = await file.arrayBuffer()
+                const uint8Array = new Uint8Array(arrayBuffer)
+                await window.api.file.write(tempFilePath, uint8Array)
+                const selectedFile = await window.api.file.get(tempFilePath)
+                selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+                break
+              } else {
+                window.message.info({
+                  key: 'file_not_supported',
+                  content: t('chat.input.file_not_supported')
+                })
+              }
+              continue
+            }
+
+            // 有路径的情况
+            if (supportExts.includes(getFileExtension(filePath))) {
+              const selectedFile = await window.api.file.get(filePath)
               selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
             } else {
               window.message.info({
@@ -612,6 +618,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 content: t('chat.input.file_not_supported')
               })
             }
+          } catch (error) {
+            Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] onPaste:', error)
+            window.message.error(t('chat.input.file_error'))
           }
         }
         return

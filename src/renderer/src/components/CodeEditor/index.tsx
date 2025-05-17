@@ -1,7 +1,7 @@
 import { TOOL_SPECS, useCodeToolbar } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import CodeMirror, { Annotation, EditorView, Extension, keymap } from '@uiw/react-codemirror'
+import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension, keymap } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 import {
   ChevronsDownUp,
@@ -22,10 +22,15 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   onChange?: (newContent: string) => void
-  // options used to override the default behaviour
+  maxHeight?: string
+  /** 用于覆写编辑器的某些设置 */
   options?: {
-    maxHeight?: string
-  }
+    collapsible?: boolean
+    wrappable?: boolean
+    keymap?: boolean
+  } & BasicSetupOptions
+  /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
+  style?: React.CSSProperties
 }
 
 /**
@@ -33,11 +38,30 @@ interface Props {
  *
  * 目前必须和 CodeToolbar 配合使用。
  */
-const CodeEditor = ({ children, language, onSave, onChange, options }: Props) => {
-  const { fontSize, codeShowLineNumbers, codeCollapsible, codeWrappable, codeEditor } = useSettings()
+const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, style }: Props) => {
+  const {
+    fontSize,
+    codeShowLineNumbers: _lineNumbers,
+    codeCollapsible: _collapsible,
+    codeWrappable: _wrappable,
+    codeEditor
+  } = useSettings()
+  const collapsible = useMemo(() => options?.collapsible ?? _collapsible, [options?.collapsible, _collapsible])
+  const wrappable = useMemo(() => options?.wrappable ?? _wrappable, [options?.wrappable, _wrappable])
+  const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
+
+  // 合并 codeEditor 和 options 的 basicSetup，options 优先
+  const customBasicSetup = useMemo(() => {
+    return {
+      lineNumbers: _lineNumbers,
+      ...(codeEditor as BasicSetupOptions),
+      ...(options as BasicSetupOptions)
+    }
+  }, [codeEditor, _lineNumbers, options])
+
   const { activeCmTheme, languageMap } = useCodeStyle()
-  const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
-  const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
+  const [isExpanded, setIsExpanded] = useState(!collapsible)
+  const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
   const initialContent = useRef(children?.trimEnd() ?? '')
   const [langExtension, setLangExtension] = useState<Extension[]>([])
   const [editorReady, setEditorReady] = useState(false)
@@ -75,13 +99,13 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
       tooltip: isExpanded ? t('code_block.collapse') : t('code_block.expand'),
       visible: () => {
         const scrollHeight = editorViewRef?.current?.scrollDOM?.scrollHeight
-        return codeCollapsible && (scrollHeight ?? 0) > 350
+        return collapsible && (scrollHeight ?? 0) > 350
       },
       onClick: () => setIsExpanded((prev) => !prev)
     })
 
     return () => removeTool(TOOL_SPECS.expand.id)
-  }, [codeCollapsible, isExpanded, registerTool, removeTool, t, editorReady])
+  }, [collapsible, isExpanded, registerTool, removeTool, t, editorReady])
 
   // 自动换行工具
   useEffect(() => {
@@ -89,12 +113,12 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
       ...TOOL_SPECS.wrap,
       icon: isUnwrapped ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
       tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
-      visible: () => codeWrappable,
+      visible: () => wrappable,
       onClick: () => setIsUnwrapped((prev) => !prev)
     })
 
     return () => removeTool(TOOL_SPECS.wrap.id)
-  }, [codeWrappable, isUnwrapped, registerTool, removeTool, t])
+  }, [wrappable, isUnwrapped, registerTool, removeTool, t])
 
   const handleSave = useCallback(() => {
     const currentDoc = editorViewRef.current?.state.doc.toString() ?? ''
@@ -132,12 +156,12 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
   }, [children])
 
   useEffect(() => {
-    setIsExpanded(!codeCollapsible)
-  }, [codeCollapsible])
+    setIsExpanded(!collapsible)
+  }, [collapsible])
 
   useEffect(() => {
-    setIsUnwrapped(!codeWrappable)
-  }, [codeWrappable])
+    setIsUnwrapped(!wrappable)
+  }, [wrappable])
 
   // 保存功能的快捷键
   const saveKeymap = useMemo(() => {
@@ -154,19 +178,15 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
   }, [handleSave])
 
   const enabledExtensions = useMemo(() => {
-    return [
-      ...langExtension,
-      ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
-      ...(codeEditor.keymap ? [saveKeymap] : [])
-    ]
-  }, [codeEditor.keymap, langExtension, isUnwrapped, saveKeymap])
+    return [...langExtension, ...(isUnwrapped ? [] : [EditorView.lineWrapping]), ...(enableKeymap ? [saveKeymap] : [])]
+  }, [enableKeymap, langExtension, isUnwrapped, saveKeymap])
 
   return (
     <CodeMirror
       // 维持一个稳定值，避免触发 CodeMirror 重置
       value={initialContent.current}
       width="100%"
-      maxHeight={codeCollapsible && !isExpanded ? (options?.maxHeight ?? '350px') : 'none'}
+      maxHeight={collapsible && !isExpanded ? (maxHeight ?? '350px') : 'none'}
       editable={true}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
@@ -179,32 +199,30 @@ const CodeEditor = ({ children, language, onSave, onChange, options }: Props) =>
         if (onChange && viewUpdate.docChanged) onChange(value)
       }}
       basicSetup={{
-        lineNumbers: codeShowLineNumbers,
-        highlightActiveLineGutter: codeEditor.highlightActiveLine,
-        foldGutter: codeEditor.foldGutter,
         dropCursor: true,
         allowMultipleSelections: true,
         indentOnInput: true,
         bracketMatching: true,
         closeBrackets: true,
-        autocompletion: codeEditor.autocompletion,
         rectangularSelection: true,
         crosshairCursor: true,
-        highlightActiveLine: codeEditor.highlightActiveLine,
+        highlightActiveLineGutter: false,
         highlightSelectionMatches: true,
-        closeBracketsKeymap: codeEditor.keymap,
-        searchKeymap: codeEditor.keymap,
-        foldKeymap: codeEditor.keymap,
-        completionKeymap: codeEditor.keymap,
-        lintKeymap: codeEditor.keymap
+        closeBracketsKeymap: enableKeymap,
+        searchKeymap: enableKeymap,
+        foldKeymap: enableKeymap,
+        completionKeymap: enableKeymap,
+        lintKeymap: enableKeymap,
+        ...customBasicSetup // override basicSetup
       }}
       style={{
         fontSize: `${fontSize - 1}px`,
-        overflow: codeCollapsible && !isExpanded ? 'auto' : 'visible',
+        overflow: collapsible && !isExpanded ? 'auto' : 'visible',
         position: 'relative',
         border: '0.5px solid var(--color-code-background)',
         borderRadius: '5px',
-        marginTop: 0
+        marginTop: 0,
+        ...style
       }}
     />
   )

@@ -163,6 +163,7 @@
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
+      "input.file_error": "Error processing file",
       "input.generate_image": "Generate image",
       "input.generate_image_not_supported": "The model does not support generating images.",
       "input.knowledge_base": "Knowledge Base",
