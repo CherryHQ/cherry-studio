@@ -150,7 +150,6 @@ const Container = styled.div`
   flex-direction: row;
   height: 100%;
   flex: 1;
-  justify-content: space-between;
 `
 
 const Main = styled(Flex)`

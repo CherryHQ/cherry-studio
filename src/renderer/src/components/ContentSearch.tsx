@@ -1,3 +1,5 @@
+import { ToolbarButton } from '@renderer/pages/home/Inputbar/Inputbar'
+import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
@@ -553,37 +555,61 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
 
     return (
       <Container ref={containerRef} style={enableContentSearch ? {} : { display: 'none' }}>
-        <InputWrapper>
-          <Input ref={searchInputRef} onInput={userInputHandler} onKeyDown={keyDownHandler} />
-          <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-            <UserOutlinedButton onClick={userOutlinedButtonOnClick} $active={includeUser} />
-          </Tooltip>
-          <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
-            <CaseSensitiveButton onClick={caseSensitiveButtonOnClick} $active={isCaseSensitive} />
-          </Tooltip>
-          <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
-            <WholeWordButton onClick={wholeWordButtonOnClick} $active={isWholeWord} />
-          </Tooltip>
-        </InputWrapper>
-        <Separator></Separator>
-        <SearchResults>
-          {searchCompleted !== SearchCompletedState.NotSearched ? (
-            totalCount > 0 ? (
-              <>
-                <SearchResultCount>{searchResultIndex + 1}</SearchResultCount>
-                <SearchResultSeparator>/</SearchResultSeparator>
-                <SearchResultTotalCount>{totalCount}</SearchResultTotalCount>
-              </>
-            ) : (
-              <NoResults>{t('common.no_results')}</NoResults>
-            )
-          ) : (
-            <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
-          )}
-        </SearchResults>
-        <PrevButton onClick={prevButtonOnClick} disabled={totalCount === 0} />
-        <NextButton onClick={nextButtonOnClick} disabled={totalCount === 0} />
-        <CloseButton onClick={closeButtonOnClick} />
+        <NarrowLayout style={{ width: '100%' }}>
+          <SearchBarContainer>
+            <InputWrapper>
+              <Input ref={searchInputRef} onInput={userInputHandler} onKeyDown={keyDownHandler} />
+              <ToolBar>
+                <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
+                  <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
+                    <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                  </ToolbarButton>
+                </Tooltip>
+                <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
+                  <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
+                    <CaseSensitive
+                      size={18}
+                      style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
+                    />
+                  </ToolbarButton>
+                </Tooltip>
+                <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
+                  <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
+                    <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                  </ToolbarButton>
+                </Tooltip>
+              </ToolBar>
+            </InputWrapper>
+            <Separator></Separator>
+            <SearchResults>
+              {searchCompleted !== SearchCompletedState.NotSearched ? (
+                totalCount > 0 ? (
+                  <>
+                    <SearchResultCount>{searchResultIndex + 1}</SearchResultCount>
+                    <SearchResultSeparator>/</SearchResultSeparator>
+                    <SearchResultTotalCount>{totalCount}</SearchResultTotalCount>
+                  </>
+                ) : (
+                  <NoResults>{t('common.no_results')}</NoResults>
+                )
+              ) : (
+                <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
+              )}
+            </SearchResults>
+            <ToolBar>
+              <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={totalCount === 0}>
+                <ChevronUp size={18} />
+              </ToolbarButton>
+              <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={totalCount === 0}>
+                <ChevronDown size={18} />
+              </ToolbarButton>
+              <ToolbarButton type="text" onClick={closeButtonOnClick}>
+                <X size={18} />
+              </ToolbarButton>
+            </ToolBar>
+          </SearchBarContainer>
+        </NarrowLayout>
+        <Placeholder />
       </Container>
     )
   }
@@ -593,21 +619,29 @@ ContentSearch.displayName = 'ContentSearch'
 
 const Container = styled.div`
   display: flex;
+  flex-direction: row;
+  z-index: 2;
+`
+
+const SearchBarContainer = styled.div`
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+  margin: 5px 20px;
+  padding: 6px 15px 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 40px;
-  background-color: var(--color-background-mute);
-  border: var(--color-border) 1px solid;
-  padding: 4px;
-  border-radius: 8px;
-  user-select: none;
-  gap: 4px;
-  z-index: 10;
+  background-color: var(--color-background-opacity);
+  flex: 1 1 auto; /* Take up input's previous space */
+`
+
+const Placeholder = styled.div`
+  width: 5px;
 `
 
 const InputWrapper = styled.div`
-  position: relative;
   display: flex;
   align-items: center;
   flex: 1 1 auto; /* Take up input's previous space */
@@ -623,6 +657,13 @@ const Input = styled.input`
   flex: 1; /* Allow input to grow */
   font-size: 14px;
   font-family: Ubuntu;
+`
+
+const ToolBar = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: tpx;
 `
 
 const Separator = styled.div`
@@ -648,12 +689,10 @@ const SearchResults = styled.div`
 const SearchResultsPlaceholder = styled.span`
   color: var(--color-text-secondary);
   opacity: 0.5;
-  // 改进2: 预留占位符
 `
 
 const NoResults = styled.span`
   color: var(--color-text-secondary);
-  // 改进: NaN/1 显示为"无结果"
 `
 
 const SearchResultCount = styled.span`
@@ -667,89 +706,4 @@ const SearchResultSeparator = styled.span`
 
 const SearchResultTotalCount = styled.span`
   color: var(--color-text);
-`
-
-const PrevButton = styled(ChevronUp)<{ disabled: boolean }>`
-  border-radius: 4px;
-  cursor: ${(props) => (props.disabled ? 'default' : 'pointer')}; // 改进5: 匹配不到时按钮灰掉
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  opacity: ${(props) => (props.disabled ? 0.5 : 1)}; // 改进5: 匹配不到时按钮灰掉
-
-  &:hover {
-    background-color: ${(props) => (props.disabled ? 'transparent' : 'var(--color-hover)')};
-    color: ${(props) => (props.disabled ? 'inherit' : 'var(--color-text)')};
-  }
-`
-
-const NextButton = styled(ChevronDown)<{ disabled: boolean }>`
-  border-radius: 4px;
-  cursor: ${(props) => (props.disabled ? 'default' : 'pointer')};
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
-
-  &:hover {
-    background-color: ${(props) => (props.disabled ? 'transparent' : 'var(--color-hover)')};
-    color: ${(props) => (props.disabled ? 'inherit' : 'var(--color-text)')};
-  }
-`
-
-const CloseButton = styled(X)`
-  border-radius: 4px;
-  cursor: pointer;
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    background-color: var(--color-hover);
-    color: var(--color-icon);
-  }
-`
-
-const CaseSensitiveButton = styled(CaseSensitive)<{ $active: boolean }>`
-  border-radius: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0 1px;
-  margin-inline-end: 1px;
-  color: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-icon)')};
-
-  &:hover {
-    background-color: var(--color-hover);
-  }
-`
-const WholeWordButton = styled(WholeWord)<{ $active: boolean }>`
-  border-radius: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0 1px;
-  margin-inline-end: 1px;
-  color: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-icon)')};
-
-  &:hover {
-    background-color: var(--color-hover);
-  }
-`
-
-const UserOutlinedButton = styled(User)<{ $active: boolean }>`
-  border-radius: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0 1px;
-  margin-inline-end: 1px;
-  color: ${(props) => (props.$active ? 'var(--color-primary)' : 'var(--color-icon)')};
-
-  &:hover {
-    background-color: var(--color-hover);
-  }
 `

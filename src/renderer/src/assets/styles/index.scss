@@ -53,9 +53,9 @@
 
   --modal-background: #1f1f1f;
 
-  --color-heightlight: rgba(0, 0, 0, 1);
-  --color-background-heightlight: rgba(255, 255, 0, 0.9);
-  --color-background-heightlight-accent: rgba(255, 150, 50, 0.9);
+  --color-highlight: rgba(0, 0, 0, 1);
+  --color-background-highlight: rgba(255, 255, 0, 0.9);
+  --color-background-highlight-accent: rgba(255, 150, 50, 0.9);
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
@@ -131,9 +131,9 @@ body[theme-mode='light'] {
 
   --modal-background: var(--color-white);
 
-  --color-heightlight: initial;
-  --color-background-heightlight: rgba(255, 255, 0, 0.5);
-  --color-background-heightlight-accent: rgba(255, 150, 50, 0.5);
+  --color-highlight: initial;
+  --color-background-highlight: rgba(255, 255, 0, 0.5);
+  --color-background-highlight-accent: rgba(255, 150, 50, 0.5);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
   --navbar-background: rgba(244, 244, 244);
@@ -301,9 +301,9 @@ body,
 }
 
 span.highlight {
-  background-color: var(--color-background-heightlight);
-  color: var(--color-heightlight);
+  background-color: var(--color-background-highlight);
+  color: var(--color-highlight);
 }
 span.highlight.selected {
-  background-color: var(--color-background-heightlight-accent);
+  background-color: var(--color-background-highlight-accent);
 }
