@@ -56,7 +56,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           id: nanoid(),
           name: serverToAdd.name!,
           description: serverToAdd.description || '',
-          baseUrl: serverToAdd.baseUrl || serverToAdd.url || '',
+          baseUrl: serverToAdd.baseUrl || '',
           command: serverToAdd.command || '',
           args: serverToAdd.args || [],
           env: serverToAdd.env || {},
