@@ -1,9 +1,12 @@
 import { nanoid } from '@reduxjs/toolkit'
+import CodeEditor from '@renderer/components/CodeEditor'
+import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Form, Input, Modal } from 'antd'
-import { FC, useState } from 'react'
+import { Extension } from '@uiw/react-codemirror'
+import { Form, Modal } from 'antd'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface AddMcpServerModalProps {
@@ -13,11 +16,62 @@ interface AddMcpServerModalProps {
   existingServers: MCPServer[]
 }
 
+// 預設的 JSON 範例內容
+const initialJsonExample = `// 示例 JSON (stdio):
+// {
+//   "mcpServers": {
+//     "stdio-server-example": {
+//       "type": "stdio",
+//       "command": "npx",
+//       "args": ["-y", "mcp-server-example"]
+//     }
+//   }
+// }
+
+// 示例 JSON (sse):
+// {
+//   "mcpServers": {
+//     "sse-server-example": {
+//       "type": "sse",
+//       "url": "http://localhost:3000"
+//     }
+//   }
+// }
+
+// 示例 JSON (streamableHttp):
+// {
+//   "mcpServers": {
+//     "streamable-http-example": {
+//       "type": "streamableHttp",
+//       "url": "http://localhost:3001"
+//     }
+//   }
+// }
+`
+
 const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuccess, existingServers }) => {
   const { t } = useTranslation()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const dispatch = useAppDispatch()
+  const [editorExtensions, setEditorExtensions] = useState<Extension[]>([]) // 新增 editorExtensions 狀態
+
+  // 載入 CodeMirror JSON Linter 擴充功能
+  useEffect(() => {
+    let isMounted = true
+    Promise.all([
+      import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter),
+      import('@codemirror/lint').then((mod) => mod.linter)
+    ]).then(([jsonParseLinter, linter]) => {
+      if (isMounted) {
+        setEditorExtensions([linter(jsonParseLinter())])
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   const handleOk = async () => {
     try {
       const values = await form.validateFields()
@@ -55,9 +109,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         const newServer: MCPServer = {
           id: nanoid(),
           name: serverToAdd.name!,
-          description: serverToAdd.description || '',
-          baseUrl: serverToAdd.baseUrl || '',
-          command: serverToAdd.command || '',
+          description: serverToAdd.description ?? '',
+          baseUrl: serverToAdd.baseUrl ?? '',
+          command: serverToAdd.command ?? '',
           args: serverToAdd.args || [],
           env: serverToAdd.env || {},
           isActive: false,
@@ -74,7 +128,6 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         onClose()
 
         // 在背景非同步檢查伺服器可用性並更新狀態
-        // 將 serverToAdd 改為 newServer，確保傳遞完整的伺服器物件給後端
         window.api.mcp
           .checkMcpConnectivity(newServer)
           .then((isConnected) => {
@@ -94,6 +147,19 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
     }
   }
 
+  // CodeEditor 內容變更時的回呼函式
+  const handleEditorChange = useCallback(
+    (newContent: string) => {
+      form.setFieldsValue({ serverConfig: newContent })
+      // 可選：如果希望即時驗證，可以取消註解下一行
+      // form.validateFields(['serverConfig']);
+    },
+    [form]
+  )
+
+  // 取得表單中 serverConfig 的當前值
+  const serverConfigValue = form.getFieldValue('serverConfig')
+
   return (
     <Modal
       title={t('settings.mcp.addServerQuickly')}
@@ -108,40 +174,25 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           name="serverConfig"
           label={t('settings.mcp.addServerQuickly.tooltip')}
           rules={[{ required: true, message: t('settings.mcp.addServerQuickly.placeholder') }]}>
-          <Input.TextArea
-            rows={10}
-            placeholder={`// 示例 JSON (stdio):
-// {
-//   "mcpServers": {
-//     "stdio-server-example": {
-//       "type": "stdio",
-//       "command": "npx",
-//       "args": ["-y", "mcp-server-example"]
-//     }
-//   }
-// }
-
-// 示例 JSON (sse):
-// {
-//   "mcpServers": {
-//     "sse-server-example": {
-//       "type": "sse",
-//       "url": "http://localhost:3000"
-//     }
-//   }
-// }
-
-// 示例 JSON (streamableHttp):
-// {
-//   "mcpServers": {
-//     "streamable-http-example": {
-//       "type": "streamableHttp",
-//       "url": "http://localhost:3001"
-//     }
-//   }
-// }
-`}
-          />
+          <CodeToolbarProvider>
+            <CodeEditor
+              language="json"
+              onChange={handleEditorChange}
+              maxHeight="300px"
+              options={{
+                collapsible: true,
+                wrappable: true,
+                lineNumbers: true,
+                foldGutter: true,
+                highlightActiveLine: true,
+                keymap: true
+              }}
+              extensions={editorExtensions}
+              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+            >
+              {serverConfigValue ?? initialJsonExample}
+            </CodeEditor>
+          </CodeToolbarProvider>
         </Form.Item>
       </Form>
     </Modal>
