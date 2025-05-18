@@ -1677,6 +1677,32 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "dialogMap": {
+      "title": "对话地图",
+      "click_to_select": "点击选择此路径",
+      "no_data": "没有对话数据，请先开始对话",
+      "loading": "正在加载对话地图...",
+      "error": "加载对话地图失败，请重试",
+      "refresh": "刷新",
+      "search": "搜索节点",
+      "fit_view": "适应视图",
+      "zoom_in": "放大",
+      "zoom_out": "缩小",
+      "follow_path": "跟随此路径继续对话",
+      "create_new_branch": "创建新分支",
+      "tip": "提示：对话地图以树状结构展示您的对话，每个节点代表一条消息。您可以选择不同的路径来分支对话。",
+      "apply_selected_path": "切换路径",
+      "delete_node": "删除此节点",
+      "delete_node_confirm_title": "确认删除节点",
+      "delete_node_confirm_content": "确定要删除此节点及其所有子节点吗？此操作不可撤销。",
+      "delete_node_error": "删除节点失败",
+      "unknown_model": "未知模型",
+      "no_conversation": "暂无对话",
+      "navigate_to_node": "定位到对应消息",
+      "collapse_nodes": "折叠节点",
+      "expand_nodes": "展开节点",
+      "create_branch": "添加分支"
     }
   }
 }
