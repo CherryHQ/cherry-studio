@@ -165,14 +165,6 @@ const Messages: FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onCompo
         newTopic.name = topic.name
         const currentMessages = messagesRef.current
 
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[NEW_BRANCH] Cloning messages to new topic: ${newTopic.id}`)
-          console.log(`[NEW_BRANCH] Cloning messages from topic: ${topic.id}`)
-          console.log(`[NEW_BRANCH] Cloning messages from index: ${index}`)
-          console.log(`[NEW_BRANCH] Cloning messages count: ${currentMessages.length}`)
-          console.log(`[NEW_BRANCH] Cloning messages:`, currentMessages)
-        }
-
         if (index < 0 || index > currentMessages.length) {
           console.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
           return
