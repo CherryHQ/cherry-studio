@@ -206,32 +206,6 @@ const parseAndExtractServer = (
 ): { serverToAdd: Partial<ParsedServerData> | null; error: string | null } => {
   const trimmedInput = inputValue.trim()
 
-  // 1. 嘗試解析為 SSE
-  if (trimmedInput.startsWith('data:')) {
-    const lines = trimmedInput.split('\n')
-    for (const line of lines) {
-      if (line.startsWith('data:')) {
-        const sseData = line.substring(5).trim()
-        if (sseData) {
-          try {
-            const parsedJson = JSON.parse(sseData)
-            if (typeof parsedJson === 'object' && parsedJson !== null && Object.keys(parsedJson).length > 0) {
-              const serverToAdd: Partial<ParsedServerData> = { ...parsedJson }
-              serverToAdd.name = parsedJson.name ?? t('settings.mcp.newServer')
-              if (serverToAdd.name) {
-                return { serverToAdd, error: null }
-              }
-            }
-          } catch (e) {
-            console.warn('Failed to parse SSE data line as JSON:', sseData, e)
-          }
-        }
-      }
-    }
-    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
-  }
-
-  // 2. 如果不是 SSE，則嘗試解析 JSON
   let parsedJson
   try {
     parsedJson = JSON.parse(trimmedInput)
