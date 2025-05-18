@@ -51,9 +51,13 @@ export const useLanguageExtensions = (language: string, lint?: boolean) => {
 
     const loader = linterLoaders[language]
     if (loader) {
-      loader().then((extension) => {
-        setExtensions((prev) => [...prev, extension])
-      })
+      loader()
+        .then((extension) => {
+          setExtensions((prev) => [...prev, extension])
+        })
+        .catch((error) => {
+          console.error(`Failed to load linter for ${language}`, error)
+        })
     }
   }, [language, lint])
 
