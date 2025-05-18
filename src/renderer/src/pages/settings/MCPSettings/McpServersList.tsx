@@ -4,8 +4,8 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
-import { Button, Empty, Tag } from 'antd'
-import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight, Zap } from 'lucide-react'
+import { Button, Dropdown, Empty, Tag } from 'antd'
+import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -61,12 +61,26 @@ const McpServersList: FC = () => {
           <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
-          <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
-            {t('settings.mcp.addServer')}
-          </Button>
-          <Button icon={<Zap size={16} />} type="default" onClick={() => setIsAddModalVisible(true)} shape="round">
-            {t('settings.mcp.addServerQuickly')}
-          </Button>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'manual',
+                  label: t('settings.mcp.addServer'),
+                  onClick: () => onAddMcpServer
+                },
+                {
+                  key: 'quick',
+                  label: t('settings.mcp.addServerQuickly'),
+                  onClick: () => setIsAddModalVisible(true)
+                }
+              ]
+            }}
+            trigger={['click']}>
+            <Button icon={<Plus size={16} />} type="default" shape="round">
+              {t('settings.mcp.addServer')}
+            </Button>
+          </Dropdown>
           <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
             {t('settings.mcp.sync.title', 'Sync Servers')}
           </Button>
