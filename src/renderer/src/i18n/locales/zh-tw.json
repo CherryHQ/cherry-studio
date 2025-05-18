@@ -956,6 +956,8 @@
         "app_knowledge.remove_all_confirm": "刪除知識庫文件可以減少儲存空間佔用，但不會刪除知識庫向量化資料，刪除之後將無法開啟原始檔，是否刪除？",
         "app_knowledge.remove_all_success": "檔案刪除成功",
         "app_logs": "應用程式日誌",
+        "backup.skip_file_data_title": "精簡備份",
+        "backup.skip_file_data_help": "備份時跳過備份圖片、知識庫等數據文件，僅備份聊天記錄和設置。減少空間佔用, 加快備份速度。",
         "clear_cache": {
           "button": "清除快取",
           "confirm": "清除快取將刪除應用快取資料，包括小工具資料。此操作不可恢復，是否繼續？",

@@ -956,6 +956,8 @@
         "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
         "app_knowledge.remove_all_success": "Files removed successfully",
         "app_logs": "App Logs",
+        "backup.skip_file_data_title": "Slim Backup",
+        "backup.skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
         "clear_cache": {
           "button": "Clear Cache",
           "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",

@@ -953,6 +953,8 @@
         "app_knowledge.remove_all": "ナレッジベースファイルを削除",
         "app_knowledge.remove_all_confirm": "ナレッジベースファイルを削除すると、ナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
         "app_knowledge.remove_all_success": "ファイル削除成功",
+        "backup.skip_file_data_title": "精簡バックアップ",
+        "backup.skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
         "app_logs": "アプリログ",
         "clear_cache": {
           "button": "キャッシュをクリア",
