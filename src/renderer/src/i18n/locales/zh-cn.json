@@ -757,13 +757,13 @@
       "type": {
         "embedding": "嵌入",
         "free": "免费",
+        "function_calling": "工具",
         "reasoning": "推理",
         "rerank": "重排",
         "select": "选择模型类型",
         "text": "文本",
-        "vision": "图像",
-        "function_calling": "函数调用",
-        "websearch": "[to be translated]:WebSearch"
+        "vision": "视觉",
+        "websearch": "联网"
       }
     },
     "navbar": {
