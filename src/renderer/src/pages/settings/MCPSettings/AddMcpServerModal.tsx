@@ -99,7 +99,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         form.setFields([
           {
             name: 'serverConfig',
-            errors: [t('settings.mcp.addServerQuickly.nameExists', { name: serverToAdd!.name })]
+            errors: [t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd!.name })]
           }
         ])
         setLoading(false)
@@ -138,7 +138,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         .catch((connError: any) => {
           console.error(`Connectivity check failed for ${newServer.name}:`, connError)
           window.message.error({
-            content: t(`${newServer.name} settings.mcp.addServerQuickly.connectionFailed`),
+            content: t(`${newServer.name} settings.mcp.addServer.importFrom.connectionFailed`),
             key: 'mcp-quick-add-failed'
           })
         })
@@ -161,7 +161,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
 
   return (
     <Modal
-      title={t('settings.mcp.addServerQuickly')}
+      title={t('settings.mcp.addServer.importFrom')}
       open={visible}
       onOk={handleOk}
       onCancel={onClose}
@@ -171,8 +171,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
       <Form form={form} layout="vertical" name="add_mcp_server_form">
         <Form.Item
           name="serverConfig"
-          label={t('settings.mcp.addServerQuickly.tooltip')}
-          rules={[{ required: true, message: t('settings.mcp.addServerQuickly.placeholder') }]}>
+          label={t('settings.mcp.addServer.importFrom.tooltip')}
+          rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
           <CodeToolbarProvider>
             <CodeEditor
               language="json"
@@ -210,7 +210,7 @@ const parseAndExtractServer = (
     parsedJson = JSON.parse(trimmedInput)
   } catch (e) {
     // JSON 解析失敗，返回錯誤
-    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
   }
 
   let serverToAdd: Partial<ParsedServerData> | null = null
@@ -221,9 +221,9 @@ const parseAndExtractServer = (
     typeof parsedJson.mcpServers === 'object' &&
     Object.keys(parsedJson.mcpServers).length > 1
   ) {
-    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 1) {
-    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.multipleServers') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.multipleServers') }
   }
 
   if (
@@ -239,7 +239,7 @@ const parseAndExtractServer = (
       serverToAdd!.name = potentialServer.name ?? firstServerKey
     } else {
       console.error('Invalid server data under mcpServers key:', potentialServer)
-      return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
   } else if (Array.isArray(parsedJson) && parsedJson.length > 0) {
     // Case 2: [{...}, ...] - 取第一個伺服器，確保它是物件
@@ -248,7 +248,7 @@ const parseAndExtractServer = (
       serverToAdd!.name = parsedJson[0].name ?? t('settings.mcp.newServer')
     } else {
       console.error('Invalid server data in array:', parsedJson[0])
-      return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
   } else if (
     typeof parsedJson === 'object' &&
@@ -273,7 +273,7 @@ const parseAndExtractServer = (
   // 確保 serverToAdd 存在且 name 存在
   if (!serverToAdd || !serverToAdd.name) {
     console.error('Invalid JSON structure for server config or missing name:', parsedJson)
-    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
+    return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
   }
 
   return { serverToAdd, error: null }

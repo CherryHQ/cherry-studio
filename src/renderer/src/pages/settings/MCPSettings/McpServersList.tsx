@@ -73,7 +73,7 @@ const McpServersList: FC = () => {
                 },
                 {
                   key: 'quick',
-                  label: t('settings.mcp.addServerQuickly'),
+                  label: t('settings.mcp.addServer.importFrom'),
                   onClick: () => setIsAddModalVisible(true)
                 }
               ]
