@@ -372,7 +372,7 @@ export interface KnowledgeBase {
   chunkOverlap?: number
   threshold?: number
   rerankModel?: Model
-  topN?: number
+  // topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -388,7 +388,7 @@ export type KnowledgeBaseParams = {
   rerankBaseURL?: string
   rerankModel?: string
   rerankModelProvider?: string
-  topN?: number
+  documentCount?: number
 }
 
 export type GenerateImageParams = {
