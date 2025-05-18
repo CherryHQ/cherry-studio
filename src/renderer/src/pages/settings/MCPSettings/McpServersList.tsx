@@ -50,7 +50,7 @@ const McpServersList: FC = () => {
       // Optionally navigate to the new server's settings page
       // navigate(`/settings/mcp/settings`, { state: { server } })
     },
-    [addMCPServer, t] // 確保依賴項包含 mcpServers 和 t
+    [addMCPServer, t]
   )
 
   return (
@@ -66,8 +66,10 @@ const McpServersList: FC = () => {
               items: [
                 {
                   key: 'manual',
-                  label: t('settings.mcp.addServer'),
-                  onClick: () => onAddMcpServer
+                  label: t('settings.mcp.addServer.create'),
+                  onClick: () => {
+                    onAddMcpServer()
+                  }
                 },
                 {
                   key: 'quick',

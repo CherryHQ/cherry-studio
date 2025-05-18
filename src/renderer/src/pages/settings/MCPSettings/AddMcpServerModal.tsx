@@ -111,7 +111,6 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         id: nanoid(),
         name: serverToAdd!.name!,
         description: serverToAdd!.description ?? '',
-        // 這裡可以安全地存取 serverToAdd!.url，因為 ParsedServerData 包含了 url 屬性
         baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
         command: serverToAdd!.command ?? '',
         args: serverToAdd!.args || [],
