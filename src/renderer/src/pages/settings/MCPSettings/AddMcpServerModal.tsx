@@ -16,6 +16,10 @@ interface AddMcpServerModalProps {
   existingServers: MCPServer[]
 }
 
+interface ParsedServerData extends MCPServer {
+  url?: string // JSON 可能包含此欄位，而不是 baseUrl
+}
+
 // 預設的 JSON 範例內容
 const initialJsonExample = `// 示例 JSON (stdio):
 // {
@@ -107,7 +111,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         id: nanoid(),
         name: serverToAdd!.name!,
         description: serverToAdd!.description ?? '',
-        baseUrl: serverToAdd!.baseUrl ?? '',
+        // 這裡可以安全地存取 serverToAdd!.url，因為 ParsedServerData 包含了 url 屬性
+        baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
         command: serverToAdd!.command ?? '',
         args: serverToAdd!.args || [],
         env: serverToAdd!.env || {},
@@ -198,7 +203,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
 const parseAndExtractServer = (
   inputValue: string,
   t: (key: string, options?: any) => string
-): { serverToAdd: Partial<MCPServer> | null; error: string | null } => {
+): { serverToAdd: Partial<ParsedServerData> | null; error: string | null } => {
   const trimmedInput = inputValue.trim()
 
   // 1. 嘗試解析為 SSE
@@ -211,7 +216,7 @@ const parseAndExtractServer = (
           try {
             const parsedJson = JSON.parse(sseData)
             if (typeof parsedJson === 'object' && parsedJson !== null && Object.keys(parsedJson).length > 0) {
-              const serverToAdd: Partial<MCPServer> = { ...parsedJson }
+              const serverToAdd: Partial<ParsedServerData> = { ...parsedJson }
               serverToAdd.name = parsedJson.name ?? t('settings.mcp.newServer')
               if (serverToAdd.name) {
                 return { serverToAdd, error: null }
@@ -226,7 +231,7 @@ const parseAndExtractServer = (
     return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
   }
 
-  // 2. 如果不是 SSE，則嘗試解析 STDIO
+  // 2. 如果不是 SSE，則嘗試解析 JSON
   let parsedJson
   try {
     parsedJson = JSON.parse(trimmedInput)
@@ -235,7 +240,7 @@ const parseAndExtractServer = (
     return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
   }
 
-  let serverToAdd: Partial<MCPServer> | null = null
+  let serverToAdd: Partial<ParsedServerData> | null = null
 
   // 檢查是否包含多個伺服器配置 (適用於 JSON 格式)
   if (
@@ -292,7 +297,8 @@ const parseAndExtractServer = (
     serverToAdd = null
   }
 
-  if (!serverToAdd && !serverToAdd!.name) {
+  // 確保 serverToAdd 存在且 name 存在
+  if (!serverToAdd || !serverToAdd.name) {
     console.error('Invalid JSON structure for server config or missing name:', parsedJson)
     return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
   }
