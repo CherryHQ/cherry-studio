@@ -6,12 +6,12 @@ import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
 import dayjs from 'dayjs'
 
-export async function backup() {
+export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const fileContnet = await getBackupData()
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    await window.api.backup.backup(filename, fileContnet, selectFolder)
+    await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile)
     window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
   }
 }
@@ -83,7 +83,8 @@ export async function backupToWebdav({
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups } = store.getState().settings
+  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups, webdavSkipBackupFile } =
+    store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -104,7 +105,8 @@ export async function backupToWebdav({
       webdavUser,
       webdavPass,
       webdavPath,
-      fileName: finalFileName
+      fileName: finalFileName,
+      skipBackupFile: webdavSkipBackupFile
     })
     if (success) {
       store.dispatch(

@@ -131,7 +131,10 @@
       "manage": "管理",
       "select_model": "选择模型",
       "show.all": "显示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含用户提问",
+      "case_sensitive": "区分大小写",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -163,6 +166,7 @@
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
       "input.file_not_supported": "模型不支持此文件类型",
+      "input.file_error": "文件处理出错",
       "input.generate_image": "生成图片",
       "input.generate_image_not_supported": "模型不支持生成图片",
       "input.knowledge_base": "知识库",
@@ -212,6 +216,20 @@
       },
       "resend": "重新发送",
       "save": "保存",
+      "settings.code.title": "代码块设置",
+      "settings.code_editor": {
+        "title": "代码编辑器",
+        "highlight_active_line": "高亮当前行",
+        "fold_gutter": "折叠控件",
+        "autocompletion": "自动补全",
+        "keymap": "快捷键"
+      },
+      "settings.code_execution": {
+        "title": "代码执行",
+        "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
+        "timeout_minutes": "超时时间",
+        "timeout_minutes.tip": "代码执行超时时间（分钟）"
+      },
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_wrappable": "代码块可换行",
       "settings.code_cacheable": "代码块缓存",
@@ -303,9 +321,32 @@
     },
     "code_block": {
       "collapse": "收起",
-      "disable_wrap": "取消换行",
-      "enable_wrap": "换行",
-      "expand": "展开"
+      "copy.failed": "复制失败",
+      "copy.source": "复制源代码",
+      "copy.success": "复制成功",
+      "copy": "复制",
+      "download.failed.network": "下载失败，请检查网络",
+      "download.png": "下载 PNG",
+      "download.source": "下载源代码",
+      "download.svg": "下载 SVG",
+      "download": "下载",
+      "edit.save.failed.message_not_found": "保存失败，没有找到对应的消息",
+      "edit.save.failed": "保存失败",
+      "edit.save.success": "已保存",
+      "edit.save": "保存修改",
+      "edit": "编辑",
+      "expand": "展开",
+      "more": "更多",
+      "preview.copy.image": "复制为图片",
+      "preview.source": "查看源代码",
+      "preview.zoom_in": "放大",
+      "preview.zoom_out": "缩小",
+      "preview": "预览",
+      "run": "运行代码",
+      "split.restore": "取消分割视图",
+      "split": "分割视图",
+      "wrap.off": "取消换行",
+      "wrap.on": "换行"
     },
     "common": {
       "add": "添加",
@@ -359,7 +400,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "no_results": "无结果"
     },
     "docs": {
       "title": "帮助文档"
@@ -525,21 +567,6 @@
       "keep_alive_time.placeholder": "分钟",
       "keep_alive_time.title": "保持活跃时间",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "resize": {
-        "zoom-in": "放大",
-        "zoom-out": "缩小"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "Mermaid 图表"
     },
     "message": {
       "agents": {
@@ -825,18 +852,6 @@
         "magic_prompt_option_tip": "智能优化放大提示词"
       }
     },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "PlantUML 图表"
-    },
     "prompts": {
       "explanation": "帮我解释一下这个概念",
       "summarize": "帮我总结一下这段话",
@@ -856,7 +871,7 @@
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee AI",
+      "gitee-ai": "模力方舟",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -945,6 +960,8 @@
         "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "app_knowledge.remove_all_success": "文件删除成功",
         "app_logs": "应用日志",
+        "backup.skip_file_data_title": "精简备份",
+        "backup.skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用, 加快备份速度。",
         "clear_cache": {
           "button": "清除缓存",
           "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
@@ -1541,6 +1558,7 @@
         "reset_defaults_confirm": "确定要重置所有快捷键吗？",
         "reset_to_default": "重置为默认",
         "search_message": "搜索消息",
+        "search_message_in_chat": "在当前对话中搜索消息",
         "show_app": "显示/隐藏应用",
         "show_settings": "打开设置",
         "title": "快捷方式",

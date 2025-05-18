@@ -155,6 +155,8 @@ const TabContent = styled.div`
 `
 
 const Segmented = styled(AntSegmented)`
+  font-family: var(--font-family);
+
   &.ant-segmented {
     background-color: transparent;
     border-radius: 0 !important;

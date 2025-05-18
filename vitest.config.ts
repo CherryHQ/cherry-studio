@@ -31,7 +31,7 @@ export default defineConfig({
         test: {
           name: 'renderer',
           environment: 'jsdom',
-          setupFiles: ['./tests/renderer.setup.ts'],
+          setupFiles: ['@vitest/web-worker', 'tests/renderer.setup.ts'],
           include: ['src/renderer/**/*.{test,spec}.{ts,tsx}', 'src/renderer/**/__tests__/**/*.{test,spec}.{ts,tsx}']
         }
       }

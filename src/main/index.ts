@@ -1,3 +1,5 @@
+import '@main/config'
+
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -42,7 +44,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   // Portable dir must be setup before app ready
   setUserDataDir()
-  
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
