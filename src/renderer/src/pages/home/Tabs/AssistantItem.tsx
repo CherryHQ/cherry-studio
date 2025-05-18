@@ -241,7 +241,6 @@ const Container = styled.div`
   padding: 0 10px;
   height: 37px;
   position: relative;
-  font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
   width: calc(var(--assistants-width) - 20px);

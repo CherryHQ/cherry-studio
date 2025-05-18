@@ -313,6 +313,7 @@ export type WebDavConfig = {
   webdavPass: string
   webdavPath: string
   fileName?: string
+  skipBackupFile?: boolean
 }
 
 export type AppInfo = {

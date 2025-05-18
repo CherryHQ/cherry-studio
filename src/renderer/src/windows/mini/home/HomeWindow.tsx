@@ -90,6 +90,9 @@ const HomeWindow: FC = () => {
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
     // 输入法可以`Esc`终止候选词过程
     // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
+    if (e.nativeEvent.isComposing) {
+      return
+    }
     if (e.key === 'Process') {
       return
     }
