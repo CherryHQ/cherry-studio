@@ -317,7 +317,37 @@
       "input.thinking.mode.custom": "Custom",
       "input.thinking.mode.custom.tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported",
       "input.thinking.mode.tokens.tip": "Set the number of thinking tokens to use.",
-      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number"
+      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number",
+      "aidebates": {
+        "title": "AI Debates",
+        "experimental": "Experimental Feature",
+        "assistant": "User Assistant",
+        "auto_mode": "Auto Debates",
+        "rounds": "Rounds",
+        "mind_token_consumption": "Mind token consumption",
+        "start": "Start",
+        "stop": "Stop",
+        "topic_assistant": "Topic Assistant",
+        "use_topic_assistant": "Use Topic Assistant",
+        "return_topic": "Return to AI Debates Topic",
+        "question": {
+          "assistant": "The assistant representing the user. By default, it is the same as the topic assistant, but users can also choose other assistants they've created. By modifying the user assistant, different prompts, models, and context settings can be applied compared to the topic assistant.",
+          "auto_mode": "Auto: AI acts as user and debates automatically for specified rounds. Manual: AI generates reply but doesn't send automatically"
+        },
+        "hints": {
+          "error": "Generation failed, please check network or configs",
+          "generating_automode": "Debating, generating reply",
+          "generating": "Generating reply",
+          "user_message_response": "Waiting for user message to complete",
+          "response_waiting": "Debating, waiting for reply",
+          "response_received": "Debating, reply received",
+          "stopped": "Stopped by user",
+          "finish_automode": "Debates completed",
+          "finish": "Completed",
+          "not_empty_text": "Input already has content, AI Debates will send it as initial message. Continue?",
+          "running_noop": "Input operations disabled while debating"
+        }
+      }
     },
     "code_block": {
       "collapse": "Collapse",

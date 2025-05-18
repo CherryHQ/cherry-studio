@@ -8,9 +8,10 @@ import styled from 'styled-components'
 interface Props {
   onNewContext: () => void
   ToolbarButton: any
+  disabled?: boolean
 }
 
-const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton }) => {
+const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton, disabled }) => {
   const newContextShortcut = useShortcutDisplay('toggle_new_context')
   const { t } = useTranslation()
 
@@ -19,7 +20,7 @@ const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton }) => {
   return (
     <Container>
       <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
-        <ToolbarButton type="text" onClick={onNewContext}>
+        <ToolbarButton type="text" onClick={onNewContext} disabled={disabled} className={disabled ? 'disabled' : ''}>
           <Eraser size={18} />
         </ToolbarButton>
       </Tooltip>

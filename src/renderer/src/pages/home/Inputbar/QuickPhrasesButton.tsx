@@ -21,9 +21,17 @@ interface Props {
   resizeTextArea: () => void
   ToolbarButton: any
   assistantObj: Assistant
+  disabled?: boolean
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantObj }: Props) => {
+const QuickPhrasesButton = ({
+  ref,
+  setInputValue,
+  resizeTextArea,
+  ToolbarButton,
+  assistantObj,
+  disabled = false
+}: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
@@ -149,7 +157,11 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   return (
     <>
       <Tooltip placement="top" title={t('settings.quickPhrase.title')} arrow>
-        <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+        <ToolbarButton
+          type="text"
+          onClick={handleOpenQuickPanel}
+          disabled={disabled}
+          className={disabled ? 'disabled' : ''}>
           <Zap size={18} />
         </ToolbarButton>
       </Tooltip>

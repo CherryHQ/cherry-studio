@@ -122,7 +122,12 @@ const Chat: FC<Props> = (props) => {
           />
         </MessagesContainer>
         <QuickPanelProvider>
-          <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+          <Inputbar
+            assistant={assistant}
+            setActiveTopic={props.setActiveTopic}
+            setActiveAssistant={props.setActiveAssistant}
+            topic={props.activeTopic}
+          />
         </QuickPanelProvider>
       </Main>
       {topicPosition === 'right' && showTopics && (

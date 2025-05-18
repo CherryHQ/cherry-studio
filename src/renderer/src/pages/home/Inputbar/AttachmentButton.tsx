@@ -19,7 +19,7 @@ interface Props {
   disabled?: boolean
 }
 
-const AttachmentButton: FC<Props> = ({ ref, model, files, setFiles, ToolbarButton, disabled }) => {
+const AttachmentButton: FC<Props> = ({ ref, model, files, setFiles, ToolbarButton, disabled = false }) => {
   const { t } = useTranslation()
 
   // const extensions = useMemo(
@@ -67,8 +67,13 @@ const AttachmentButton: FC<Props> = ({ ref, model, files, setFiles, ToolbarButto
         isVisionModel(model) || isGenerateImageModel(model) ? t('chat.input.upload') : t('chat.input.upload.document')
       }
       arrow>
-      <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>
-        <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
+      <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled} className={disabled ? 'disabled' : ''}>
+        <Paperclip
+          size={18}
+          style={{
+            ...(!disabled && { color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' })
+          }}
+        />
       </ToolbarButton>
     </Tooltip>
   )

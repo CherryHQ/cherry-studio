@@ -317,7 +317,37 @@
       "input.thinking.mode.custom.tip": "モデルが最大で思考できるトークン数。モデルのコンテキスト制限を考慮する必要があります。そうしないとエラーが発生します",
       "input.thinking.mode.default.tip": "モデルが自動的に思考のトークン数を決定します",
       "input.thinking.mode.tokens.tip": "思考のトークン数を設定します",
-      "input.thinking.budget_exceeds_max": "思考予算が最大トークン数を超えました"
+      "input.thinking.budget_exceeds_max": "思考予算が最大トークン数を超えました",
+      "aidebates": {
+        "title": "AIディベート",
+        "experimental": "実験的機能",
+        "assistant": "ユーザーアシスタント",
+        "auto_mode": "自動ディベート",
+        "rounds": "ラウンド数",
+        "mind_token_consumption": "トークン消費量に注意してください",
+        "start": "開始",
+        "stop": "停止",
+        "topic_assistant": "トピックアシスタント",
+        "use_topic_assistant": "トピックアシスタントを使用",
+        "return_topic": "ディベートトピックに戻る",
+        "question": {
+          "assistant": "ディベートで使用するアシスタント。デフォルトはトピックと同じですが、既存のアシスタントから選択可能です。プロンプト、コンテキスト数、モデルなどを調整する場合は、新しいアシスタントを作成するか既存のアシスタントを編集してください",
+          "auto_mode": "自動：AIがユーザー代わりに指定ラウンド数で自動ディベート。手動：AIが返信を生成しますが自動送信しません"
+        },
+        "hints": {
+          "error": "生成に失敗しました。ネットワークまたは設定を確認してください",
+          "generating_automode": "ディベート中、返信を生成しています",
+          "generating": "返信を生成しています",
+          "user_message_response": "ユーザーメッセージの完了を待機中",
+          "response_waiting": "ディベート中、返信を待機中",
+          "response_received": "ディベート中、返信を受信しました",
+          "stopped": "ユーザーにより停止されました",
+          "finish_automode": "ディベートが完了しました",
+          "finish": "完了",
+          "not_empty_text": "入力欄に既に内容があります。AIディベートはこれを初期メッセージとして送信します。続行しますか？",
+          "running_noop": "ディベート実行中は入力操作ができません"
+        }
+      }
     },
     "code_block": {
       "collapse": "折りたたむ",
