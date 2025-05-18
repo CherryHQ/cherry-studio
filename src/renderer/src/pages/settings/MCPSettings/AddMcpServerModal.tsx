@@ -56,11 +56,11 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           id: nanoid(),
           name: serverToAdd.name!,
           description: serverToAdd.description || '',
-          baseUrl: serverToAdd.baseUrl || '',
+          baseUrl: serverToAdd.baseUrl || serverToAdd.url || '',
           command: serverToAdd.command || '',
           args: serverToAdd.args || [],
           env: serverToAdd.env || {},
-          isActive: false, // 初始設定為非啟用
+          isActive: false,
           type: serverToAdd.type,
           logoUrl: serverToAdd.logoUrl,
           provider: serverToAdd.provider,
@@ -74,16 +74,17 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         onClose()
 
         // 在背景非同步檢查伺服器可用性並更新狀態
+        // 將 serverToAdd 改為 newServer，確保傳遞完整的伺服器物件給後端
         window.api.mcp
-          .checkMcpConnectivity(serverToAdd)
+          .checkMcpConnectivity(newServer)
           .then((isConnected) => {
-            console.log(`Connectivity check for ${serverToAdd.name}: ${isConnected}`)
+            console.log(`Connectivity check for ${newServer.name}: ${isConnected}`)
             dispatch(setMCPServerActive({ id: newServer.id, isActive: isConnected }))
           })
           .catch((connError: any) => {
-            console.error(`Connectivity check failed for ${serverToAdd.name}:`, connError)
+            console.error(`Connectivity check failed for ${newServer.name}:`, connError)
             window.message.error({
-              content: t(`${serverToAdd.name} settings.mcp.addServerQuickly.connectionFailed`),
+              content: t(`${newServer.name} settings.mcp.addServerQuickly.connectionFailed`),
               key: 'mcp-quick-add-failed'
             })
           })
@@ -108,8 +109,38 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           label={t('settings.mcp.addServerQuickly.tooltip')}
           rules={[{ required: true, message: t('settings.mcp.addServerQuickly.placeholder') }]}>
           <Input.TextArea
-            rows={6}
-            placeholder={`// 示例: \n// { \n//   "mcpServers": { \n//     "example-server": { \n//       "command": "npx", \n//       "args": [ \n//         "-y", \n//         "mcp-server-example" \n//       ] \n//     } \n//   } \n// }`}
+            rows={10}
+            placeholder={`// 示例 JSON (stdio):
+// {
+//   "mcpServers": {
+//     "stdio-server-example": {
+//       "type": "stdio",
+//       "command": "npx",
+//       "args": ["-y", "mcp-server-example"]
+//     }
+//   }
+// }
+
+// 示例 JSON (sse):
+// {
+//   "mcpServers": {
+//     "sse-server-example": {
+//       "type": "sse",
+//       "url": "http://localhost:3000"
+//     }
+//   }
+// }
+
+// 示例 JSON (streamableHttp):
+// {
+//   "mcpServers": {
+//     "streamable-http-example": {
+//       "type": "streamableHttp",
+//       "url": "http://localhost:3001"
+//     }
+//   }
+// }
+`}
           />
         </Form.Item>
       </Form>
@@ -117,21 +148,58 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
   )
 }
 
-// 解析 JSON 字串並提取伺服器資料
+// 解析 JSON 提取伺服器資料
 const parseAndExtractServer = (
   inputValue: string,
-  t: (key: string) => string
+  t: (key: string, options?: any) => string
 ): { serverToAdd: Partial<MCPServer> | null; error: string | null } => {
+  const validTypes: MCPServer['type'][] = ['stdio', 'sse', 'streamableHttp']
+  const trimmedInput = inputValue.trim()
+
+  // 1. 嘗試解析為 SSE
+  if (trimmedInput.startsWith('data:')) {
+    const lines = trimmedInput.split('\n')
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        const sseData = line.substring(5).trim() // 提取 data: 後的內容
+        if (sseData) {
+          try {
+            const parsedJson = JSON.parse(sseData)
+            if (typeof parsedJson === 'object' && parsedJson !== null && Object.keys(parsedJson).length > 0) {
+              const serverToAdd: Partial<MCPServer> = { ...parsedJson }
+              serverToAdd.name = parsedJson.name || t('settings.mcp.newServer')
+              if (!parsedJson.type || !validTypes.includes(parsedJson.type as MCPServer['type'])) {
+                return {
+                  serverToAdd: null,
+                  error: t('settings.mcp.addServerQuickly.invalidType', { type: parsedJson.type ?? 'undefined' })
+                }
+              }
+              serverToAdd.type = parsedJson.type as MCPServer['type']
+
+              if (serverToAdd.name) {
+                return { serverToAdd, error: null }
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to parse SSE data line as JSON:', sseData, e)
+          }
+        }
+      }
+    }
+    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
+  }
+
+  // 2. 如果不是 SSE，則嘗試解析為 STDIO
   let parsedJson
   try {
-    parsedJson = JSON.parse(inputValue)
+    parsedJson = JSON.parse(trimmedInput)
   } catch (e) {
     return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
   }
 
   let serverToAdd: Partial<MCPServer> | null = null
 
-  // 檢查是否包含多個伺服器配置
+  // 檢查是否包含多個伺服器配置 (適用於 JSON 格式)
   if (
     parsedJson.mcpServers &&
     typeof parsedJson.mcpServers === 'object' &&
@@ -154,6 +222,14 @@ const parseAndExtractServer = (
       serverToAdd = { ...potentialServer }
       // 確保名稱被設定，優先使用 JSON 中的名稱，否則使用 key
       serverToAdd!.name = potentialServer.name || firstServerKey
+      // 檢查 type 欄位
+      if (!potentialServer.type || !validTypes.includes(potentialServer.type as MCPServer['type'])) {
+        return {
+          serverToAdd: null,
+          error: t('settings.mcp.addServerQuickly.invalidType', { type: potentialServer.type || 'undefined' })
+        }
+      }
+      serverToAdd!.type = potentialServer.type as MCPServer['type']
     } else {
       console.error('Invalid server data under mcpServers key:', potentialServer)
       serverToAdd = null
@@ -164,6 +240,14 @@ const parseAndExtractServer = (
       serverToAdd = { ...parsedJson[0] }
       // 確保名稱被設定，優先使用 JSON 中的名稱，否則使用預設名稱
       serverToAdd!.name = parsedJson[0].name || t('settings.mcp.newServer')
+      // 檢查 type 欄位
+      if (!parsedJson[0].type || !validTypes.includes(parsedJson[0].type as MCPServer['type'])) {
+        return {
+          serverToAdd: null,
+          error: t('settings.mcp.addServerQuickly.invalidType', { type: parsedJson[0].type || 'undefined' })
+        }
+      }
+      serverToAdd!.type = parsedJson[0].type as MCPServer['type']
     } else {
       console.error('Invalid server data in array:', parsedJson[0])
       serverToAdd = null
@@ -179,6 +263,14 @@ const parseAndExtractServer = (
     if (Object.keys(parsedJson).length > 0) {
       serverToAdd = { ...parsedJson }
       serverToAdd!.name = parsedJson.name || t('settings.mcp.newServer')
+      // 檢查 type 欄位
+      if (!parsedJson.type || !validTypes.includes(parsedJson.type as MCPServer['type'])) {
+        return {
+          serverToAdd: null,
+          error: t('settings.mcp.addServerQuickly.invalidType', { type: parsedJson.type || 'undefined' })
+        }
+      }
+      serverToAdd!.type = parsedJson.type as MCPServer['type']
     } else {
       serverToAdd = null
     }
@@ -189,8 +281,13 @@ const parseAndExtractServer = (
 
   // 最終檢查 serverToAdd 是否有效 (例如至少有名稱)
   if (!serverToAdd || !serverToAdd.name) {
-    // 如果因無效結構導致 serverToAdd 為 null，返回錯誤訊息
-    console.error('Invalid JSON structure for server config:', parsedJson)
+    console.error('Invalid JSON structure for server config or missing name:', parsedJson)
+    return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
+  }
+  // 確保 type 已被設定 (先前的檢查應該已保證，如果 serverToAdd 不是 null)
+  if (!serverToAdd.type) {
+    // 此檢查主要用於防禦，理論上 type 應該已經在前面被設定或因無效而返回
+    console.error('Server object created without a type, this should not happen:', serverToAdd)
     return { serverToAdd: null, error: t('settings.mcp.addServerQuickly.invalid') }
   }
 
