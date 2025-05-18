@@ -14,6 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useLanguageExtensions } from './hook'
+
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
 
@@ -28,6 +30,7 @@ interface Props {
   options?: {
     trimTrailingSpaces?: boolean // 与 react markdown 配合时需要这个
     placeholder?: string | HTMLElement
+    lint?: boolean
     collapsible?: boolean
     wrappable?: boolean
     keymap?: boolean
@@ -74,37 +77,17 @@ const CodeEditor = ({
     }
   }, [codeEditor, _lineNumbers, options])
 
-  const { activeCmTheme, languageMap } = useCodeStyle()
+  const { activeCmTheme } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
   const initialContent = useRef(options?.trimTrailingSpaces ? (children?.trimEnd() ?? '') : children)
-  const [langExtension, setLangExtension] = useState<Extension[]>([])
   const [editorReady, setEditorReady] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
   const { t } = useTranslation()
 
+  const langExtensions = useLanguageExtensions(language, options?.lint)
+
   const { registerTool, removeTool } = useCodeToolbar()
-
-  // 加载语言
-  useEffect(() => {
-    let normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
-
-    // 如果语言名包含 `-`，转换为驼峰命名法
-    if (normalizedLang.includes('-')) {
-      normalizedLang = normalizedLang.replace(/-([a-z])/g, (_, char) => char.toUpperCase())
-    }
-
-    import('@uiw/codemirror-extensions-langs')
-      .then(({ loadLanguage }) => {
-        const extension = loadLanguage(normalizedLang as any)
-        if (extension) {
-          setLangExtension([extension])
-        }
-      })
-      .catch((error) => {
-        console.debug(`Failed to load language: ${normalizedLang}`, error)
-      })
-  }, [language, languageMap])
 
   // 展开/折叠工具
   useEffect(() => {
@@ -195,11 +178,11 @@ const CodeEditor = ({
   const customExtensions = useMemo(() => {
     return [
       ...(extensions ?? []),
-      ...langExtension,
+      ...langExtensions,
       ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
       ...(enableKeymap ? [saveKeymap] : [])
     ]
-  }, [extensions, langExtension, isUnwrapped, enableKeymap, saveKeymap])
+  }, [extensions, langExtensions, isUnwrapped, enableKeymap, saveKeymap])
 
   return (
     <CodeMirror

@@ -4,7 +4,6 @@ import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Extension } from '@uiw/react-codemirror'
 import { Modal, Typography } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,7 +13,6 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
-  const [editorExtensions, setEditorExtensions] = useState<Extension[]>([])
   const [jsonConfig, setJsonConfig] = useState('')
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
@@ -22,21 +20,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
-
-  useEffect(() => {
-    let isMounted = true
-    Promise.all([
-      import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter),
-      import('@codemirror/lint').then((mod) => mod.linter)
-    ]).then(([jsonParseLinter, linter]) => {
-      if (isMounted) {
-        setEditorExtensions([linter(jsonParseLinter())])
-      }
-    })
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   useEffect(() => {
     try {
@@ -147,14 +130,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               onChange={handleChange}
               maxHeight="60vh"
               options={{
+                lint: true,
                 collapsible: true,
                 wrappable: true,
                 lineNumbers: true,
                 foldGutter: true,
                 highlightActiveLine: true,
                 keymap: true
-              }}
-              extensions={editorExtensions}>
+              }}>
               {jsonConfig}
             </CodeEditor>
           </CodeToolbarProvider>
