@@ -1,4 +1,6 @@
 import { SyncOutlined } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
+import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -13,7 +15,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
+import { Button, Segmented, Switch } from 'antd'
 import { Minus, Plus, RotateCcw } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -227,18 +229,24 @@ const DisplaySettings: FC = () => {
           </TitleExtra>
         </SettingTitle>
         <SettingDivider />
-        <Input.TextArea
-          value={customCss}
-          onChange={(e) => {
-            dispatch(setCustomCss(e.target.value))
-          }}
-          placeholder={t('settings.display.custom.css.placeholder')}
-          style={{
-            minHeight: 200,
-            fontFamily: 'monospace'
-          }}
-          spellCheck={false}
-        />
+        <CodeToolbarProvider>
+          <CodeEditor
+            language="css"
+            onChange={(value) => {
+              dispatch(setCustomCss(value))
+            }}
+            minHeight="200px"
+            maxHeight="50vh"
+            options={{
+              placeholder: t('settings.display.custom.css.placeholder'),
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              keymap: true
+            }}>
+            {customCss}
+          </CodeEditor>
+        </CodeToolbarProvider>
       </SettingGroup>
     </SettingContainer>
   )

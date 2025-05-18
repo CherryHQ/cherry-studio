@@ -199,12 +199,15 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 
   // 源代码视图组件
   const sourceView = useMemo(() => {
-    const SourceView = codeEditor.enabled ? CodeEditor : CodePreview
-    return (
-      <SourceView language={language} onSave={onSave}>
-        {children}
-      </SourceView>
-    )
+    if (codeEditor.enabled) {
+      return (
+        <CodeEditor language={language} onSave={onSave} options={{ trimTrailingSpaces: true }}>
+          {children}
+        </CodeEditor>
+      )
+    } else {
+      return <CodePreview language={language}>{children}</CodePreview>
+    }
   }, [children, codeEditor.enabled, language, onSave])
 
   // 特殊视图组件映射

@@ -22,9 +22,12 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   onChange?: (newContent: string) => void
+  minHeight?: string
   maxHeight?: string
   /** 用于覆写编辑器的某些设置 */
   options?: {
+    trimTrailingSpaces?: boolean // 与 react markdown 配合时需要这个
+    placeholder?: string | HTMLElement
     collapsible?: boolean
     wrappable?: boolean
     keymap?: boolean
@@ -40,7 +43,17 @@ interface Props {
  *
  * 目前必须和 CodeToolbar 配合使用。
  */
-const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, extensions, style }: Props) => {
+const CodeEditor = ({
+  children,
+  language,
+  onSave,
+  onChange,
+  minHeight,
+  maxHeight,
+  options,
+  extensions,
+  style
+}: Props) => {
   const {
     fontSize,
     codeShowLineNumbers: _lineNumbers,
@@ -64,7 +77,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
   const { activeCmTheme, languageMap } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
-  const initialContent = useRef(children?.trimEnd() ?? '')
+  const initialContent = useRef(options?.trimTrailingSpaces ? (children?.trimEnd() ?? '') : children)
   const [langExtension, setLangExtension] = useState<Extension[]>([])
   const [editorReady, setEditorReady] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
@@ -144,7 +157,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
   useEffect(() => {
     if (!editorViewRef.current) return
 
-    const newContent = children?.trimEnd() ?? ''
+    const newContent = options?.trimTrailingSpaces ? (children?.trimEnd() ?? '') : children
     const currentDoc = editorViewRef.current.state.doc.toString()
 
     const changes = prepareCodeChanges(currentDoc, newContent)
@@ -155,7 +168,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
         annotations: [External.of(true)]
       })
     }
-  }, [children])
+  }, [children, options?.trimTrailingSpaces])
 
   useEffect(() => {
     setIsExpanded(!collapsible)
@@ -192,7 +205,9 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
     <CodeMirror
       // 维持一个稳定值，避免触发 CodeMirror 重置
       value={initialContent.current}
+      placeholder={options?.placeholder}
       width="100%"
+      minHeight={minHeight}
       maxHeight={collapsible && !isExpanded ? (maxHeight ?? '350px') : 'none'}
       editable={true}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
