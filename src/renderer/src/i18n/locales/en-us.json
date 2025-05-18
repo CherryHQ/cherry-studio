@@ -131,7 +131,10 @@
       "manage": "Manage",
       "select_model": "Select Model",
       "show.all": "Show All",
-      "update_available": "Update Available"
+      "update_available": "Update Available",
+      "includes_user_questions": "Include Your Questions",
+      "case_sensitive": "Case Sensitive",
+      "whole_word": "Whole Word"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
@@ -397,7 +400,8 @@
         "pinyin": "Sort by Pinyin",
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
-      }
+      },
+      "no_results": "No results"
     },
     "docs": {
       "title": "Docs"
@@ -1554,6 +1558,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
+        "search_message_in_chat": "Search Message in Current Chat",
         "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",

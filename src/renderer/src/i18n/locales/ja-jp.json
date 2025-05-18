@@ -131,7 +131,10 @@
       "manage": "管理",
       "select_model": "モデルを選択",
       "show.all": "すべて表示",
-      "update_available": "更新可能"
+      "update_available": "更新可能",
+      "includes_user_questions": "ユーザーからの質問を含む",
+      "case_sensitive": "大文字と小文字の区別",
+      "whole_word": "全語一致"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
@@ -397,7 +400,8 @@
         "pinyin": "ピンインでソート",
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
-      }
+      },
+      "no_results": "検索結果なし"
     },
     "docs": {
       "title": "ドキュメント"
@@ -1550,6 +1554,7 @@
         "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
         "reset_to_default": "デフォルトにリセット",
         "search_message": "メッセージを検索",
+        "search_message_in_chat": "現在のチャットでメッセージを検索",
         "show_app": "アプリを表示/非表示",
         "show_settings": "設定を開く",
         "title": "ショートカット",
@@ -1644,7 +1649,9 @@
         "title": "ページズーム",
         "reset": "リセット"
       },
-      "input.show_translate_confirm": "翻訳確認ダイアログを表示"
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示",
+      "about.debug.title": "デバッグ",
+      "about.debug.open": "開く"
     },
     "translate": {
       "any.language": "任意の言語",

@@ -74,7 +74,6 @@ const Container = styled.div`
   z-index: 10;
   padding: 3px 10px;
   user-select: none;
-  font-family: Ubuntu;
   border: 0.5px solid var(--color-text-3);
   border-radius: 20px;
   display: flex;

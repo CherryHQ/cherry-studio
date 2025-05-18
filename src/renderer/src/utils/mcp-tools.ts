@@ -412,6 +412,7 @@ export function upsertMCPToolResponse(
     const cur = {
       ...results[index],
       response: resp.response,
+      arguments: resp.arguments,
       status: resp.status
     }
     results[index] = cur

@@ -10,6 +10,7 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
@@ -258,6 +259,19 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         return { thinking: { type: 'disabled' } }
       }
 
+      if (isSupportedThinkingTokenGeminiModel(model)) {
+        // openrouter没有提供一个不推理的选项，先隐藏
+        if (this.provider.id === 'openrouter') {
+          return { reasoning: { maxTokens: 0, exclude: true } }
+        }
+        return {
+          thinkingConfig: {
+            includeThoughts: false,
+            thinkingBudget: 0
+          }
+        }
+      }
+
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
@@ -309,6 +323,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         thinking: {
           type: 'enabled',
           budget_tokens: budgetTokens
+        }
+      }
+    }
+
+    // Gemini models
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      return {
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
         }
       }
     }
@@ -718,9 +742,17 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             const usage = chunk.usage
             const originalFinishDelta = chunk.delta
             const originalFinishRawChunk = chunk.chunk
-
             if (!isEmpty(finishReason)) {
-              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              if (content) {
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              }
+              if (thinkingContent) {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
               if (usage) {
                 finalUsage.completion_tokens += usage.completion_tokens || 0
                 finalUsage.prompt_tokens += usage.prompt_tokens || 0
@@ -812,7 +844,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       if (toolResults.length) {
         await processToolResults(toolResults, idx)
       }
-
       onChunk({
         type: ChunkType.BLOCK_COMPLETE,
         response: {

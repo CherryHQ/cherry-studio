@@ -131,7 +131,10 @@
       "manage": "管理",
       "select_model": "選擇模型",
       "show.all": "顯示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含使用者提問",
+      "case_sensitive": "區分大小寫",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "新增助手",
@@ -397,7 +400,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "no_results": "沒有結果"
     },
     "docs": {
       "title": "說明文件"
@@ -1552,6 +1556,7 @@
         "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
         "reset_to_default": "重設為預設",
         "search_message": "搜尋訊息",
+        "search_message_in_chat": "在當前對話中搜尋訊息",
         "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
         "title": "快速方式",
@@ -1560,7 +1565,8 @@
         "toggle_show_topics": "切換話題顯示",
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
-        "zoom_reset": "重設縮放"
+        "zoom_reset": "重設縮放",
+        "exit_fullscreen": "退出全螢幕"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",

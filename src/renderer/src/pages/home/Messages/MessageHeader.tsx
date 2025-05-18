@@ -143,7 +143,6 @@ const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
 const MessageTime = styled.div`
   font-size: 10px;
   color: var(--color-text-3);
-  font-family: 'Ubuntu';
 `
 
 export default MessageHeader
