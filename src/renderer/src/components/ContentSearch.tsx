@@ -236,8 +236,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             if (shouldScroll) {
               highlightTextNode.scrollIntoView({
                 behavior: 'smooth',
-                block: 'center',
-                inline: 'center'
+                block: 'center'
+                // inline: 'center' 水平方向居中可能会导致 content 页面整体偏右, 使得左半部的内容被遮挡. 因此先注释掉该代码
               })
             }
           }
