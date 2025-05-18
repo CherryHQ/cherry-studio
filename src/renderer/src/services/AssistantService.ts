@@ -22,6 +22,19 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
+export function getDefaultBookmarksAssistant(): Assistant {
+  return {
+    id: 'bookmarks',
+    name: i18n.t('common.bookmarks'),
+    emoji: '🔖',
+    prompt: '',
+    topics: [],
+    messages: [],
+    type: 'assistant',
+    regularPhrases: [] // Added regularPhrases
+  }
+}
+
 export function getDefaultTranslateAssistant(targetLanguage: string, text: string): Assistant {
   const translateModel = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()

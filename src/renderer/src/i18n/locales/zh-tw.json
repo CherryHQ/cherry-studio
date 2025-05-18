@@ -292,6 +292,7 @@
       "topics.export.yuque": "匯出到語雀",
       "topics.list": "話題列表",
       "topics.move_to": "移動到",
+      "topics.move_to_bookmarks": "收藏書籤",
       "topics.new": "開始新對話",
       "topics.pinned": "固定話題",
       "topics.prompt": "話題提示詞",
@@ -394,6 +395,7 @@
       "select": "選擇",
       "topics": "話題",
       "warning": "警告",
+      "bookmarks": "書籤",
       "you": "您",
       "reasoning_content": "已深度思考",
       "sort": {

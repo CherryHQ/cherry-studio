@@ -292,6 +292,7 @@
       "topics.export.yuque": "Export to Yuque",
       "topics.list": "Topic List",
       "topics.move_to": "Move to",
+      "topics.move_to_bookmarks": "Move to Bookmarks",
       "topics.new": "New Topic",
       "topics.pinned": "Pinned Topics",
       "topics.prompt": "Topic Prompts",
@@ -394,6 +395,7 @@
       "select": "Select",
       "topics": "Topics",
       "warning": "Warning",
+      "bookmarks": "Bookmarks",
       "you": "You",
       "reasoning_content": "Deep reasoning",
       "sort": {

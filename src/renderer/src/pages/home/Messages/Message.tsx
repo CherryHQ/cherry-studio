@@ -72,7 +72,7 @@ const MessageItem: FC<Props> = ({
   useEffect(() => {
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, messageHighlightHandler)]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [message.id, messageHighlightHandler])
+  }, [assistant.id, message.id, messageHighlightHandler, topic.id])
 
   if (hidePresetMessages && message.isPreset) {
     return null

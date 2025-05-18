@@ -292,6 +292,7 @@
       "topics.export.yuque": "語雀にエクスポート",
       "topics.list": "トピックリスト",
       "topics.move_to": "移動先",
+      "topics.move_to_bookmarks": "ブックマークに移動",
       "topics.new": "新しいトピック",
       "topics.pinned": "トピックを固定",
       "topics.prompt": "トピック提示語",
@@ -394,6 +395,7 @@
       "select": "選択",
       "topics": "トピック",
       "warning": "警告",
+      "bookmarks": "ブックマーク",
       "you": "あなた",
       "reasoning_content": "深く考察済み",
       "sort": {
