@@ -378,14 +378,11 @@ export class SelectionService {
   /**
    * Calculate optimal toolbar position based on selection context
    * Ensures toolbar stays within screen boundaries and follows selection direction
-   * @param point Reference point for positioning
+   * @param point Reference point for positioning, must be INTEGER
    * @param orientation Preferred position relative to reference point
    * @returns Calculated screen coordinates for toolbar
    */
   private calculateToolbarPosition(point: Point, orientation: RelativeOrientation): Point {
-    const adjustedX = Math.round(point.x)
-    const adjustedY = Math.round(point.y)
-
     // Calculate initial position based on the specified anchor
     let posX: number, posY: number
 
@@ -393,52 +390,53 @@ export class SelectionService {
 
     switch (orientation) {
       case 'topLeft':
-        posX = adjustedX - toolbarWidth
-        posY = adjustedY - toolbarHeight
+        posX = point.x - toolbarWidth
+        posY = point.y - toolbarHeight
         break
       case 'topRight':
-        posX = adjustedX
-        posY = adjustedY - toolbarHeight
+        posX = point.x
+        posY = point.y - toolbarHeight
         break
       case 'topMiddle':
-        posX = adjustedX - toolbarWidth / 2
-        posY = adjustedY - toolbarHeight
+        posX = point.x - toolbarWidth / 2
+        posY = point.y - toolbarHeight
         break
       case 'bottomLeft':
-        posX = adjustedX - toolbarWidth
-        posY = adjustedY
+        posX = point.x - toolbarWidth
+        posY = point.y
         break
       case 'bottomRight':
-        posX = adjustedX
-        posY = adjustedY
+        posX = point.x
+        posY = point.y
         break
       case 'bottomMiddle':
-        posX = adjustedX - toolbarWidth / 2
-        posY = adjustedY
+        posX = point.x - toolbarWidth / 2
+        posY = point.y
         break
       case 'middleLeft':
-        posX = adjustedX - toolbarWidth
-        posY = adjustedY - toolbarHeight / 2
+        posX = point.x - toolbarWidth
+        posY = point.y - toolbarHeight / 2
         break
       case 'middleRight':
-        posX = adjustedX
-        posY = adjustedY - toolbarHeight / 2
+        posX = point.x
+        posY = point.y - toolbarHeight / 2
         break
       case 'center':
-        posX = adjustedX - toolbarWidth / 2
-        posY = adjustedY - toolbarHeight / 2
+        posX = point.x - toolbarWidth / 2
+        posY = point.y - toolbarHeight / 2
         break
       default:
         // Default to 'topMiddle' if invalid position
-        posX = adjustedX - toolbarWidth / 2
-        posY = adjustedY - toolbarHeight / 2
+        posX = point.x - toolbarWidth / 2
+        posY = point.y - toolbarHeight / 2
     }
 
-    const display = screen.getDisplayNearestPoint({ x: posX, y: posY })
+    //use original point to get the display
+    const display = screen.getDisplayNearestPoint({ x: point.x, y: point.y })
 
     // Ensure toolbar stays within screen boundaries
-    posX = Math.round(Math.max(0, Math.min(posX, display.workAreaSize.width - toolbarWidth)))
-    posY = Math.round(Math.max(0, Math.min(posY, display.workAreaSize.height - toolbarHeight)))
+    posX = Math.max(display.workArea.x, Math.min(posX, display.workArea.x + display.workArea.width - toolbarWidth))
+    posY = Math.max(display.workArea.y, Math.min(posY, display.workArea.y + display.workArea.height - toolbarHeight))
 
     return { x: posX, y: posY }
   }
@@ -581,7 +579,9 @@ export class SelectionService {
     }
 
     if (!isLogical) {
+      //screenToDipPoint can be float, so we need to round it
       refPoint = screen.screenToDipPoint(refPoint)
+      refPoint = { x: Math.round(refPoint.x), y: Math.round(refPoint.y) }
     }
 
     this.showToolbarAtPosition(refPoint, refOrientation)
