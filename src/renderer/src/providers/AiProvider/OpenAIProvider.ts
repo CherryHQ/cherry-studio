@@ -1136,11 +1136,14 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return { valid: false, error: new Error('No model found') }
     }
 
-    const body = {
+    const body: any = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      enable_thinking: false, // qwen3
       stream
+    }
+
+    if (this.provider.id !== 'github') {
+      body.enable_thinking = false; // qwen3
     }
 
     try {
