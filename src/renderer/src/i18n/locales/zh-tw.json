@@ -177,6 +177,7 @@
       "input.upload": "上傳圖片或文件",
       "input.upload.document": "上傳文件（模型不支援圖片）",
       "input.web_search": "網路搜尋",
+      "input.web_search.settings": "網路搜尋設定",
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜尋",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜尋",
