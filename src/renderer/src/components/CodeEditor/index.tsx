@@ -80,7 +80,7 @@ const CodeEditor = ({
   const { activeCmTheme } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
-  const initialContent = useRef(options?.trimTrailingSpaces ? (children?.trimEnd() ?? '') : children)
+  const initialContent = useRef(options?.trimTrailingSpaces ? (children ?? '').trimEnd() : (children ?? ''))
   const [editorReady, setEditorReady] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
   const { t } = useTranslation()
@@ -140,7 +140,7 @@ const CodeEditor = ({
   useEffect(() => {
     if (!editorViewRef.current) return
 
-    const newContent = options?.trimTrailingSpaces ? (children?.trimEnd() ?? '') : children
+    const newContent = options?.trimTrailingSpaces ? (children ?? '').trimEnd() : (children ?? '')
     const currentDoc = editorViewRef.current.state.doc.toString()
 
     const changes = prepareCodeChanges(currentDoc, newContent)
