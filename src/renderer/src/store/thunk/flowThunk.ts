@@ -85,12 +85,10 @@ function getCommonStreamLogic(
       })
       handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
     } else {
-      // Existing main text block that is not null
       const blockChanges: Partial<MessageBlock> = {
         content: streamState.accumulatedContent,
         status: MessageBlockStatus.STREAMING
       }
-      throttledBlockUpdate(streamState.lastBlockId!, blockChanges)
       throttledBlockUpdate(streamState.lastBlockId!, blockChanges)
     }
   }
@@ -152,7 +150,7 @@ function getCommonStreamLogic(
         nodes: [...(currentFlowBlock?.nodes || []), node]
       }
       dispatch(updateOneBlock({ id: streamState.flowBlockId, changes }))
-      saveUpdatedBlockToDB(streamState.lastBlockId, assistantMessage.id, topicId, getState)
+      saveUpdatedBlockToDB(streamState.flowBlockId, assistantMessage.id, topicId, getState)
     }
   }
 
@@ -294,6 +292,7 @@ export const fetchAndProcessChatflowResponseImpl = async (
   const conversationId = secondLastAssistantMessage?.conversationId ?? ''
   // 从最后一个FormBlock中获取inputs
   const lastFormBlock = findLastFormBlock(allMessagesForTopic.filter((m) => m.role === 'assistant'))
+  console.log('lastFormBlock', lastFormBlock)
   const inputs = lastFormBlock?.flow?.inputs || {}
 
   if (!lastUserMessage) {
@@ -312,7 +311,7 @@ export const fetchAndProcessChatflowResponseImpl = async (
     lastBlockId: null as string | null,
     lastBlockType: null as MessageBlockType | null,
     flowBlockId: null as string | null,
-    formBlockId: lastFormBlock.id
+    formBlockId: lastFormBlock?.id ?? null
   }
 
   const commonLogic = getCommonStreamLogic(
@@ -356,9 +355,19 @@ export const fetchAndProcessChatflowResponseImpl = async (
 }
 
 export const fetchAndProcessWorkflowResponseImpl =
-  (topicId: string, assistant: Assistant, workflow: Flow, inputs: Record<string, string>, formBlockId: string) =>
+  (
+    topicId: string,
+    assistant: Assistant,
+    workflow: Flow,
+    inputs: Record<string, string>,
+    formBlockId: string,
+    askId: string
+  ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
-    const assistantMessage = createAssistantMessage(assistant.id, topicId)
+    const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+      askId: askId,
+      flow: workflow
+    })
     await saveMessageAndBlocksToDB(assistantMessage, [])
     dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))

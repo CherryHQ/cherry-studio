@@ -451,6 +451,7 @@ export const resetAssistantMessage = (
     assistantId: originalMessage.assistantId,
     model: originalMessage.model, // Keep the model information
     modelId: originalMessage.modelId,
+    flow: originalMessage.flow,
 
     // --- Reset Response Content & Status ---
     blocks: [], // <<< CRITICAL: Clear the blocks array

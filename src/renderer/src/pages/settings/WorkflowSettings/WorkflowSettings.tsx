@@ -36,8 +36,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
   const { updateFlow, removeFlow } = useFlowEngineProvider(flow.providerId)
   const [flowType, setFlowType] = useState<FlowType>(flow.type)
 
-  // 简化保存逻辑，统一表单验证和错误处理
-  const onSave = async (calledFromCheck = false): Promise<boolean> => {
+  const onSave = async (): Promise<boolean> => {
     try {
       await form.validateFields()
       const values = form.getFieldsValue()
@@ -55,59 +54,46 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       setFlow(newWorkflow)
       await updateFlow(newWorkflow)
 
-      if (!calledFromCheck) {
-        window.message.success({ content: t('settings.workflow.saveSuccess'), key: 'flow-list' })
+      window.message.success({ content: t('settings.workflow.saveSuccess'), key: 'flow-list' })
+
+      if (newWorkflow.apiHost && newWorkflow.apiKey) {
+        setApiChecking(true)
+        try {
+          const { valid, error } = await check(flowEngineProvider, newWorkflow)
+
+          if (valid) {
+            await getParameters()
+            window.message.success({ content: t('settings.workflow.checkSuccess'), key: 'flow-list' })
+          } else {
+            const errorMessage = error?.message ? ` ${error.message}` : ''
+            window.message.error({ content: t('settings.workflow.checkError') + errorMessage, key: 'flow-list' })
+          }
+        } catch (checkError) {
+          console.error('Error checking API after save:', checkError)
+          window.message.error({ content: t('settings.workflow.checkError'), key: 'flow-list' })
+        } finally {
+          setApiChecking(false)
+        }
       }
       return true
     } catch (errorInfo: any) {
       console.error('Error saving workflow settings:', errorInfo)
-      if (!calledFromCheck) {
-        const isValidationError = errorInfo.errorFields?.length > 0
-        window.message.error({
-          content: t(isValidationError ? 'common.formValidationError' : 'settings.workflow.saveError'),
-          key: 'flow-list'
-        })
-      }
+      const isValidationError = errorInfo.errorFields?.length > 0
+      window.message.error({
+        content: t(isValidationError ? 'common.formValidationError' : 'settings.workflow.saveError'),
+        key: 'flow-list'
+      })
       return false
     }
   }
 
-  // 优化API检查逻辑
-  const onCheckApi = async () => {
-    const savedSuccessfully = await onSave(true)
-    if (!savedSuccessfully) {
-      window.message.error({ content: t('settings.workflow.saveErrorBeforeCheck'), key: 'flow-list' })
-      return
-    }
-
-    try {
-      setApiChecking(true)
-      const { valid, error } = await check(flowEngineProvider, flow)
-
-      if (valid) {
-        await getParameters()
-        window.message.success({ content: t('settings.workflow.checkSuccess'), key: 'flow-list' })
-      } else {
-        const errorMessage = error?.message ? ` ${error.message}` : ''
-        window.message.error({ content: t('settings.workflow.checkError') + errorMessage, key: 'flow-list' })
-      }
-    } catch (error) {
-      console.error('Error checking API', error)
-      window.message.error({ content: t('settings.workflow.checkError'), key: 'flow-list' })
-    } finally {
-      setApiChecking(false)
-    }
-  }
-
-  // 简化参数获取逻辑
   const getParameters = async () => {
     const parameters = await getAppParameters(flowEngineProvider, flow)
     const updatedFlow = { ...flow, parameters }
     setFlow(updatedFlow)
-    await updateFlow(updatedFlow)
+    updateFlow(updatedFlow)
   }
 
-  // 重用 onSave 逻辑，简化启用状态更改
   const onEnabledChange = async (checked: boolean) => {
     try {
       await form.validateFields()
@@ -119,7 +105,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       }
 
       setFlow(updatedFlow)
-      await updateFlow(updatedFlow)
+      updateFlow(updatedFlow)
       window.message.success({ content: t('settings.workflow.saveSuccess'), key: 'flow-list' })
     } catch (error) {
       console.error('Error updating workflow state:', error)
@@ -137,12 +123,10 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
     })
   }, [flow, removeFlow, t])
 
-  // 添加类型声明
   const handleTypeChange = (e: RadioChangeEvent) => {
     setFlowType(e.target.value as FlowType)
   }
 
-  // 优化 useEffect 依赖
   useEffect(() => {
     form.setFieldsValue({
       name: flow.name,
@@ -153,9 +137,8 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       apiHost: flow.apiHost,
       type: flow.type
     })
-  }, [flow, form]) // 移除 flowType 依赖，直接使用 flow.type
+  }, [flow, form])
 
-  // 优化按钮禁用条件检查
   const isCheckDisabled =
     apiChecking || !((form.getFieldValue('apiHost') || flow.apiHost) && (form.getFieldValue('apiKey') || flow.apiKey))
 
@@ -169,11 +152,14 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           </Flex>
           <Flex align="center" gap={16}>
             <Switch checked={flow.enabled} onChange={onEnabledChange} />
-            <Button onClick={onCheckApi} disabled={isCheckDisabled}>
-              {apiChecking ? <LoadingOutlined spin /> : t('settings.provider.check')}
-            </Button>
-            <Button type="primary" icon={<SaveOutlined />} onClick={() => onSave()}>
-              {t('common.save')}
+            <Button type="primary" onClick={onSave} disabled={isCheckDisabled}>
+              {apiChecking ? (
+                <LoadingOutlined spin />
+              ) : (
+                <>
+                  <SaveOutlined /> <span>{t('common.save')}</span>
+                </>
+              )}
             </Button>
           </Flex>
         </SettingTitle>
@@ -193,16 +179,15 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           <Form.Item name="name" label={t('settings.workflow.name')} rules={[{ required: true, message: '' }]}>
             <Input placeholder={t('common.name')} />
           </Form.Item>
-          {/* 仅在工作流类型为 workflow 时显示触发器输入框 */}
-          {(flowType === 'workflow' || flowType === 'chatflow') && (
-            <Form.Item
-              name="trigger"
-              label={t('settings.workflow.trigger')}
-              rules={[{ required: true }]}
-              tooltip={t('settings.workflow.triggerTooltip')}>
-              <Input placeholder={t('settings.workflow.trigger')} />
-            </Form.Item>
-          )}
+
+          <Form.Item
+            name="trigger"
+            label={t('settings.workflow.trigger')}
+            rules={[{ required: true }]}
+            tooltip={t('settings.workflow.triggerTooltip')}>
+            <Input placeholder={t('settings.workflow.trigger')} />
+          </Form.Item>
+
           <Form.Item name="description" label={t('settings.workflow.description')}>
             <TextArea rows={2} placeholder={t('common.description')} />
           </Form.Item>

@@ -71,7 +71,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         query: query,
         conversation_id: conversationId
       })
-      await this.processStream(response, {}, onChunk)
+      await this.processStream(response, inputs, onChunk)
     } catch (error) {
       console.error('DifyFlowEngineProvider completion error', error)
     }

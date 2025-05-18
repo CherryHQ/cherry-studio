@@ -3,7 +3,7 @@ import { IFileType, IGetAppParametersResponse, IUploadFileResponse } from '@dify
 import i18n from '@renderer/i18n'
 import { Flow, FlowEngine } from '@renderer/types'
 import { getFileExtension } from '@renderer/utils'
-import { Button, GetProp, message, Upload } from 'antd'
+import { Button, message, Upload } from 'antd'
 import { RcFile, UploadFile } from 'antd/es/upload'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -35,16 +35,14 @@ FileTypeMap.set('video', ['mp4', 'mov', 'mpeg', 'mpga'])
 FileTypeMap.set('custom', [])
 
 export const getFileTypeByName = (filename: string): IFileType => {
-  const ext = filename.split('.').pop()
+  const ext = getFileExtension(filename)?.toLowerCase().replace('.', '') || ''
 
-  // 使用文件扩展名和 FileTypeMap 进行匹配
-  let fileType: IFileType = 'document'
-  FileTypeMap.forEach((extensions, type) => {
-    if (extensions.indexOf(ext as string) > -1) {
-      fileType = type
+  for (const [type, extensions] of FileTypeMap.entries()) {
+    if (extensions.includes(ext)) {
+      return type
     }
-  })
-  return fileType
+  }
+  return 'document'
 }
 
 export interface IUploadFileItem extends UploadFile {
@@ -53,7 +51,6 @@ export interface IUploadFileItem extends UploadFile {
   upload_file_id?: string
   related_id?: string
   remote_url?: string
-  filename?: string
 }
 
 interface IFileUploadCommonProps {
@@ -92,39 +89,43 @@ export default function FileUpload(props: IFileUploadProps) {
     onChange
   } = props
 
-  console.log('FileUpload props:', props)
-  const [files, setFiles] = useState<GetProp<typeof Upload, 'fileList'>>([])
+  const [files, setFiles] = useState<IUploadFileItem[]>([])
 
-  useEffect(() => {
-    if (mode === 'single') {
-      setFiles(value ? [value as IUploadFileItem] : [])
-    } else {
-      const multiModeValues = value as IUploadFileItem[] | undefined
-      if (multiModeValues?.length && multiModeValues?.length !== files.length) {
-        setFiles(multiModeValues)
+  const ensureFilesHaveType = (filesToFormat: IUploadFileItem[]): IUploadFileItem[] => {
+    return filesToFormat.map((file) => {
+      if (file.type && FileTypeMap.has(file.type as IFileType)) {
+        return file
       }
-    }
-  }, [value])
-
-  const formatFiles = (files: IUploadFileItem[]) => {
-    return files?.map((file) => {
-      const fileType = getFileTypeByName(file.name)
+      const fileType = file.name ? getFileTypeByName(file.name) : 'document'
       return {
         ...file,
-        type: fileType
+        type: fileType,
+        uid: file.uid,
+        name: file.name
       }
     })
   }
 
-  const updateFiles = (newFiles: IUploadFileItem[], action: 'update' | 'remove' = 'update') => {
-    const formattedNewFiles = formatFiles(newFiles)
-    const newFilesState =
-      mode === 'single' ? formattedNewFiles : action === 'remove' ? newFiles : [...files, ...formattedNewFiles]
-    setFiles(newFilesState)
+  useEffect(() => {
+    let newFileList: IUploadFileItem[] = []
     if (mode === 'single') {
-      ;(onChange as IFileUploadSingleProps['onChange'])?.(newFilesState[0])
+      newFileList = value ? [value as IUploadFileItem] : []
     } else {
-      ;(onChange as IFileUploadMultipleProps['onChange'])?.(newFilesState)
+      newFileList = (value as IUploadFileItem[] | undefined) || []
+    }
+    const formattedNewFileList = ensureFilesHaveType(newFileList)
+    if (JSON.stringify(files) !== JSON.stringify(formattedNewFileList)) {
+      setFiles(formattedNewFileList)
+    }
+  }, [value, mode])
+
+  const handleStateUpdateAndOnChange = (updatedFiles: IUploadFileItem[]) => {
+    const uniqueFiles = Array.from(new Map(updatedFiles.map((file) => [file.uid, file])).values())
+    setFiles(uniqueFiles)
+    if (mode === 'single') {
+      ;(onChange as IFileUploadSingleProps['onChange'])?.(uniqueFiles[0] || undefined)
+    } else {
+      ;(onChange as IFileUploadMultipleProps['onChange'])?.(uniqueFiles)
     }
   }
 
@@ -139,66 +140,72 @@ export default function FileUpload(props: IFileUploadProps) {
   }, [allowed_file_types])
 
   const handleUpload = async (file: RcFile) => {
-    const prevFiles = [...files]
-    console.log('handleUpload', prevFiles)
-
     const fileBaseInfo: IUploadFileItem = {
       uid: file.uid,
       name: file.name,
-      transfer_method: 'local_file'
+      status: 'uploading',
+      percent: 0,
+      transfer_method: 'local_file',
+      type: getFileTypeByName(file.name)
     }
 
-    const result = await uploadFile(provider, workflow, file)
-    console.log('uploadFile result:', result)
-    // const result = {
-    //   id: 'fa078ebc-7dcd-4afc-9df1-1b4a0981a052',
-    //   name: '1706.03762v7.pdf',
-    //   size: 2215244,
-    //   extension: 'pdf',
-    //   mime_type: 'application/pdf',
-    //   created_by: '57414477-3c1b-4728-b9bc-0b29742f6950',
-    //   created_at: 1746177704,
-    //   preview_url: null
-    // }
+    if (mode === 'single') {
+      setFiles([fileBaseInfo])
+    } else {
+      setFiles((prevFiles) => ensureFilesHaveType([...prevFiles.filter((pf) => pf.uid !== file.uid), fileBaseInfo]))
+    }
 
-    const fileType = getFileTypeByName(file.name)
-    updateFiles([
-      {
+    try {
+      const result = await uploadFile(provider, workflow, file)
+      const uploadedFile: IUploadFileItem = {
         ...fileBaseInfo,
         upload_file_id: result.id,
-        type: fileType || 'document'
-        // type: 'document'
+        status: 'done',
+        percent: 100
       }
-    ])
+      if (mode === 'single') {
+        handleStateUpdateAndOnChange([uploadedFile])
+      } else {
+        handleStateUpdateAndOnChange(files.map((f) => (f.uid === file.uid ? uploadedFile : f)))
+      }
+    } catch (error) {
+      console.error(i18n.t('translation.error.file.uploadFailed', { fileName: file.name }), error)
+      message.error(`${file.name} ${i18n.t('translation.error.file.uploadFailedSimple')}`)
+      const errorFile: IUploadFileItem = {
+        ...fileBaseInfo,
+        status: 'error',
+        percent: 0
+      }
+      if (mode === 'single') {
+        handleStateUpdateAndOnChange([errorFile])
+      } else {
+        handleStateUpdateAndOnChange(files.map((f) => (f.uid === file.uid ? errorFile : f)))
+      }
+    }
   }
 
   return (
     <Upload
       maxCount={mode === 'single' ? 1 : maxCount}
       disabled={disabled}
-      fileList={files}
+      fileList={files as UploadFile[]}
       beforeUpload={async (file) => {
-        // 校验文件类型
-        // 自定义上传
-        const ext = getFileExtension(file.name).replace('.', '') // 获取文件扩展名
+        const ext = getFileExtension(file.name).toLowerCase().replace('.', '')
 
-        // 校验文件类型
         if (allowedFileTypes.length > 0 && !allowedFileTypes.includes(ext!)) {
-          message.error(i18n.t('translation.error.file.ext'))
+          message.error(i18n.t('workflow.error.file.ext'))
           return false
         }
 
-        handleUpload(file)
+        handleUpload(file as RcFile)
         return false
       }}
       onRemove={(file) => {
-        updateFiles(
-          files.filter((item) => item.uid !== file.uid),
-          'remove'
-        )
+        const newFiles = files.filter((item) => item.uid !== file.uid)
+        handleStateUpdateAndOnChange(newFiles)
       }}>
       <Button disabled={disabled} icon={<UploadOutlined />}>
-        点击上传
+        {i18n.t('workflow.file.input.upload')}
       </Button>
     </Upload>
   )

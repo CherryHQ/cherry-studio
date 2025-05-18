@@ -1,4 +1,3 @@
-import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@dify-chat/api'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import i18n from '@renderer/i18n'
@@ -7,21 +6,12 @@ import store, { useAppDispatch } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
 import { fetchAndProcessWorkflowResponseImpl } from '@renderer/store/thunk/flowThunk'
 import { saveUpdatedBlockToDB } from '@renderer/store/thunk/messageThunk'
-import { FormMessageBlock, Message } from '@renderer/types/newMessage'
+import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@renderer/types'
+import { FormMessageBlock, Message, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Button, Card, Form, Input, InputNumber, Select } from 'antd'
-import { UploadFile } from 'antd/lib'
-import { FC } from 'react'
+import React, { FC } from 'react'
 
 import FileUpload from './FileUpload'
-
-export interface IUploadFileItem extends UploadFile {
-  type?: string
-  transfer_method?: 'local_file' | 'remote_url'
-  upload_file_id?: string
-  related_id?: string
-  remote_url?: string
-  filename?: string
-}
 
 interface Props {
   block: FormMessageBlock
@@ -29,7 +19,6 @@ interface Props {
 }
 
 const WorkflowForm: FC<Props> = ({ block, message }) => {
-  console.log('block', block)
   const [form] = Form.useForm()
   const { flowEngineProvider } = useFlowEngineProvider(block.flow.providerId)
   const { assistant } = useAssistant(message.assistantId)
@@ -58,7 +47,7 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
         return (
           <FileUpload
             mode="single"
-            disabled={false}
+            disabled={block.isFinished}
             allowed_file_types={item.allowed_file_types}
             uploadFile={uploadFile}
             workflow={block.flow}
@@ -69,7 +58,7 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
         return (
           <FileUpload
             maxCount={item.max_length}
-            disabled={false}
+            disabled={block.isFinished}
             allowed_file_types={item.allowed_file_types}
             uploadFile={uploadFile}
             workflow={block.flow}
@@ -84,45 +73,53 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
   }
 
   const handleFinish = async (values: any) => {
-    if (block.flow.type === 'workflow') {
-      await dispatch(fetchAndProcessWorkflowResponseImpl(message.topicId, assistant, block.flow, values, block.id))
-    } else {
-      const changes: Partial<FormMessageBlock> = {
-        flow: {
-          ...block.flow,
-          inputs: values
+    try {
+      if (block.flow.type === 'workflow') {
+        await dispatch(
+          fetchAndProcessWorkflowResponseImpl(
+            message.topicId,
+            assistant,
+            block.flow,
+            values,
+            block.id,
+            message.askId ?? ''
+          )
+        )
+      } else {
+        const changes: Partial<FormMessageBlock> = {
+          flow: {
+            ...block.flow,
+            inputs: values
+          },
+          status: MessageBlockStatus.SUCCESS
         }
+        dispatch(updateOneBlock({ id: block.id, changes }))
+        saveUpdatedBlockToDB(block.id, message.assistantId, message.topicId, store.getState)
       }
-      dispatch(updateOneBlock({ id: block.id, changes }))
-      saveUpdatedBlockToDB(block.id, message.assistantId, message.topicId, store.getState)
+    } catch (error) {
+      console.error('Error processing workflow response:', error)
+      window.message.error({ content: i18n.t('common.form.validation.error') })
     }
   }
 
-  // 处理可能是数组或Record的情况
-  const formItems: Array<{ type: IUserInputFormItemType; item: IUserInputFormItemValueBase }> = []
+  const formItems = React.useMemo(() => {
+    const items: Array<{ type: IUserInputFormItemType; item: IUserInputFormItemValueBase }> = []
+    if (block.flow.parameters) {
+      if (Array.isArray(block.flow.parameters)) {
+        block.flow.parameters.forEach((param) => {
+          const type = Object.keys(param)[0] as IUserInputFormItemType
+          const item = param[type] as IUserInputFormItemValueBase
 
-  if (block.flow.parameters) {
-    if (Array.isArray(block.flow.parameters)) {
-      block.flow.parameters.forEach((param) => {
-        const type = Object.keys(param)[0] as IUserInputFormItemType
-        const item = param[type] as IUserInputFormItemValueBase
-
-        if (type && item) {
-          formItems.push({ type: type, item: item })
-        }
-      })
-    } else {
-      // 如果是Record格式，按照IUserInputForm的定义处理
-      Object.entries(block.flow.parameters).forEach(([type, item]) => {
-        formItems.push({
-          type: type as IUserInputFormItemType,
-          item: item as IUserInputFormItemValueBase
+          if (type && item) {
+            items.push({ type: type, item: item })
+          }
         })
-      })
+      }
     }
-  }
+    return items
+  }, [block.flow.parameters])
 
-  // 设置表单初始值
+  // 设置表单初始值, 防止切换时丢失数据
   const initialValues = block.flow.inputs || {}
 
   return (
@@ -133,10 +130,7 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
         layout="vertical"
         onFinish={handleFinish}
         initialValues={initialValues}
-        size="small"
-        // 从 Form 移除 maxWidth 样式，因为它现在由 Card 控制
-        // style={{ maxWidth: 400 }}
-      >
+        size="small">
         {formItems.map(({ type, item }) => {
           if (!item.variable || !item.label) {
             console.error('Invalid parameter item:', item)
@@ -147,15 +141,15 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
               key={item.variable}
               name={item.variable}
               label={item.label}
-              rules={[{ required: item.required, message: `${item.label} 是必填项` }]}
-              style={{ marginBottom: 10 }} // 可以适当调整间距
-            >
+              rules={[
+                { required: item.required, message: i18n.t('common.form.validation.required', { field: item.label }) }
+              ]}
+              style={{ marginBottom: 10 }}>
               {renderFormItem(type, item)}
             </Form.Item>
           )
         })}
         <Form.Item style={{ marginBottom: 0, marginTop: 15 }}>
-          {/* 调整按钮的上边距 */}
           <Button type="primary" htmlType="submit">
             {i18n.t('common.submit')}
           </Button>

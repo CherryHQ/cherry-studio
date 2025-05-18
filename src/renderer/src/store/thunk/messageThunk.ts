@@ -704,6 +704,7 @@ export const sendMessage =
       } else if (assistant.workflow && getMainTextContent(userMessage) === assistant.workflow.trigger) {
         let assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
+          model: assistant.model,
           flow: assistant.workflow
         })
         const formBlock = createFormBlock(assistantMessage.id, assistant.workflow)
@@ -935,7 +936,73 @@ export const resendMessageThunk =
       const state = getState()
       // Use selector to get all messages for the topic
       const allMessagesForTopic = selectMessagesForTopic(state, topicId)
+      const mainUserMessageContent = getMainTextContent(userMessageToResend)
 
+      if (
+        (assistant.workflow && mainUserMessageContent === assistant.workflow.trigger) ||
+        (assistant.chatflow && mainUserMessageContent === assistant.chatflow.trigger)
+      ) {
+        const flow = assistant.workflow || assistant.chatflow
+        if (!flow) {
+          throw new Error('No workflow or chatflow found for the assistant.')
+        }
+        // 查找用户消息对应的所有助手回复
+        const assistantMessagesToReset = allMessagesForTopic.filter(
+          (m) => m.askId === userMessageToResend.id && m.role === 'assistant'
+        )
+
+        // 如果没有找到现有的助手消息，则创建新的表单消息
+        if (assistantMessagesToReset.length === 0) {
+          let assistantMessage = createAssistantMessage(assistant.id, topicId, {
+            askId: userMessageToResend.id,
+            flow: flow
+          })
+          const formBlock = createFormBlock(assistantMessage.id, flow)
+          assistantMessage = { ...assistantMessage, blocks: [formBlock.id] }
+
+          dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+          dispatch(upsertOneBlock(formBlock))
+
+          await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
+        } else {
+          // 重用现有助手消息，只重置其状态和块
+          const originalMsg = assistantMessagesToReset[0]
+          const blockIdsToDelete = [...(originalMsg.blocks || [])]
+
+          // 重置助手消息，保留原始ID和必要信息
+          const resetMsg = resetAssistantMessage(originalMsg, {
+            status: AssistantMessageStatus.PENDING,
+            updatedAt: new Date().toISOString()
+          })
+
+          // 为重置的消息创建新的表单块
+          const formBlock = createFormBlock(resetMsg.id, flow)
+          const updatedResetMsg = { ...resetMsg, blocks: [formBlock.id] }
+
+          // 更新Redux
+          dispatch(
+            newMessagesActions.updateMessage({
+              topicId,
+              messageId: resetMsg.id,
+              updates: updatedResetMsg
+            })
+          )
+          dispatch(upsertOneBlock(formBlock))
+
+          // 删除旧块
+          if (blockIdsToDelete.length > 0) {
+            dispatch(removeManyBlocks(blockIdsToDelete))
+            await db.message_blocks.bulkDelete(blockIdsToDelete)
+          }
+
+          // 保存到数据库
+          const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+        }
+
+        handleChangeLoadingOfTopic(topicId)
+        return
+      }
       // Filter to find the assistant messages to reset
       const assistantMessagesToReset = allMessagesForTopic.filter(
         (m) => m.askId === userMessageToResend.id && m.role === 'assistant'
@@ -961,7 +1028,11 @@ export const resendMessageThunk =
         const resetMsg = resetAssistantMessage(originalMsg, {
           status: AssistantMessageStatus.PENDING,
           updatedAt: new Date().toISOString(),
-          ...(assistantMessagesToReset.length === 1 ? { model: assistant.model } : {})
+          ...(assistantMessagesToReset.length === 1
+            ? assistant.chatflow
+              ? { flow: originalMsg.flow }
+              : { model: assistant.model }
+            : {})
         })
 
         resetDataList.push(resetMsg)
@@ -990,9 +1061,28 @@ export const resendMessageThunk =
           ...assistant,
           ...(resetMsg.model ? { model: resetMsg.model } : {})
         }
-        queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistantConfigForThisRegen, resetMsg)
-        })
+        if (assistant.chatflow) {
+          queue.add(async () => {
+            await fetchAndProcessChatflowResponseImpl(
+              dispatch,
+              getState,
+              topicId,
+              assistantConfigForThisRegen,
+              resetMsg
+            )
+          })
+        } else {
+          // Otherwise, use the standard assistant response implementation
+          queue.add(async () => {
+            await fetchAndProcessAssistantResponseImpl(
+              dispatch,
+              getState,
+              topicId,
+              assistantConfigForThisRegen,
+              resetMsg
+            )
+          })
+        }
       }
     } catch (error) {
       console.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
@@ -1107,17 +1197,33 @@ export const regenerateAssistantResponseThunk =
       const queue = getTopicQueue(topicId)
       const assistantConfigForRegen = {
         ...assistant,
-        ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
+        ...(assistant.chatflow
+          ? { flow: resetAssistantMsg.flow }
+          : resetAssistantMsg.model
+            ? { model: resetAssistantMsg.model }
+            : {})
       }
-      queue.add(async () => {
-        await fetchAndProcessAssistantResponseImpl(
-          dispatch,
-          getState,
-          topicId,
-          assistantConfigForRegen,
-          resetAssistantMsg
-        )
-      })
+      if (assistant.chatflow) {
+        queue.add(async () => {
+          await fetchAndProcessChatflowResponseImpl(
+            dispatch,
+            getState,
+            topicId,
+            assistantConfigForRegen,
+            resetAssistantMsg
+          )
+        })
+      } else {
+        queue.add(async () => {
+          await fetchAndProcessAssistantResponseImpl(
+            dispatch,
+            getState,
+            topicId,
+            assistantConfigForRegen,
+            resetAssistantMsg
+          )
+        })
+      }
     } catch (error) {
       console.error(
         `[regenerateAssistantResponseThunk] Error regenerating response for assistant message ${assistantMessageToRegenerate.id}:`,

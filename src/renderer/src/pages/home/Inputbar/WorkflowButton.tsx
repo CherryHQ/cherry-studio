@@ -18,12 +18,13 @@ interface Props {
   ToolbarButton: any
 }
 
-const WorkflowButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
+const WorkflowButton: FC<Props> = ({ ref, assistant: _assistant, ToolbarButton }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
   const { workflows } = useWorkflows()
-  const { updateAssistant } = useAssistant(assistant.id)
+  const { assistant, updateAssistant } = useAssistant(_assistant.id)
+  console.log('assistant', assistant)
 
   const updateSelectedWorkflow = useCallback(
     (workflow: Workflow | undefined) => {

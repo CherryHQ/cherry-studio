@@ -1,5 +1,3 @@
-import { IUserInputForm } from '@dify-chat/api'
-
 import { MessageBlockStatus } from './newMessage'
 
 export type FlowType = 'workflow' | 'chatflow'
@@ -19,6 +17,38 @@ interface FlowBase {
   inputs?: Record<string, string> // 保存工作流输入参数
 }
 
+/**
+ * 用户输入表单控件类型
+ */
+export type IUserInputFormItemType = 'text-input' | 'paragraph' | 'select' | 'number' | 'file' | 'file-list'
+
+/**
+ * 支持的文件类型
+ */
+export type IFileType = 'document' | 'image' | 'audio' | 'video' | 'custom'
+
+/**
+ * 用户输入表单控件对象
+ */
+export interface IUserInputFormItemValueBase {
+  default: string
+  label: string
+  required: boolean
+  variable: string
+  options?: string[]
+  /**
+   * 最大长度
+   */
+  max_length?: number
+  type: IUserInputFormItemType
+  allowed_file_types?: IFileType[]
+}
+
+/**
+ * 应用输入配置
+ */
+export type IUserInputForm = Record<IUserInputFormItemType, IUserInputFormItemValueBase>
+
 export interface Workflow extends FlowBase {
   type: 'workflow'
   trigger: string
@@ -36,19 +66,6 @@ export interface Chatflow extends FlowBase {
  * 定义单个工作流配置 (联合类型)
  */
 export type Flow = Workflow | Chatflow
-
-// /**
-//  * 定义单个工作流
-//  */
-// export interface FlowConfig {
-//   id: string // 工作流唯一标识
-//   providerId: string // 所属 Provider 的 ID
-//   name: string // 工作流名称
-//   description?: string // 工作流描述
-//   apiKey: string // 此工作流专属的 API Key
-//   apiHost: string // 此工作流专属的 API Host (可选, 可能继承自 Provider)
-//   enabled: boolean // 是否启用
-// }
 
 /**
  * 定义工作流提供者

@@ -398,7 +398,8 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "submit": "提交"
+      "submit": "提交",
+      "form.validation.required":"{{field}} 是必填项"
     },
     "docs": {
       "title": "帮助文档"
@@ -1721,7 +1722,9 @@
       "visualization": "可视化"
     },
     "workflow":{
-      "title":"工作流"
+      "title":"工作流",
+      "file.input.upload":"上传文件",
+      "error.file.ext":"不支持上传该格式的文件"
     }
   }
 }
