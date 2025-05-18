@@ -9,3 +9,28 @@ declare global {
     api: WindowApiType
   }
 }
+
+interface Api {
+  getAppInfo: () => Promise<{
+    version: string
+    appDataPath: string
+    electronVersion: string
+    isAppImage: boolean
+    appVersion: string
+    appPath: string
+    getSystemVersion: string
+    isMac: boolean
+    isWindows: boolean
+    isLinux: boolean
+    getSystemLanguage: string
+  }>
+  reload: () => void
+  setProxy: (proxy: string | undefined) => Promise<boolean>
+
+  // ... other methods ...
+
+  selectAppDataPath: () => Promise<{ success: boolean; path?: string; error?: string }>
+  setAppDataPath: (path: string) => Promise<{ success: boolean; error?: string }>
+  copyUserData: (oldPath: string, newPath: string) => Promise<{ success: boolean; error?: string }>
+  relaunchApp: () => void
+}

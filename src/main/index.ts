@@ -1,6 +1,7 @@
 import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { initUserDataDir } from '@main/utils/file'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain } from 'electron'
@@ -21,6 +22,7 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 
+initUserDataDir()
 Logger.initialize()
 
 // in production mode, handle uncaught exception and unhandled rejection globally
@@ -41,9 +43,6 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
-  // Initialize app data path if needed
-  configManager.initializeAppDataPath()
-
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.

@@ -1,7 +1,6 @@
 import { app } from 'electron'
 
-import { getDataPath } from './utils'
-
+import { getDataPath } from './utils/file'
 const isDev = process.env.NODE_ENV === 'development'
 
 if (isDev) {

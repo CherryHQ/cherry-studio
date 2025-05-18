@@ -2,8 +2,6 @@ import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
-import fs from 'fs'
-import path from 'path'
 
 import { locales } from '../utils/locales'
 
@@ -18,43 +16,16 @@ enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
-  EnableDataCollection = 'enableDataCollection',
-  AppDataPath = 'appDataPath'
+  EnableDataCollection = 'enableDataCollection'
 }
-
-// Global store for application settings that must be accessible before userData path is set
-const globalConfigPath = path.join(app.getPath('appData'), 'CherryStudioGlobal', 'config.json')
 
 export class ConfigManager {
   private store: Store
-  private globalStore: Store
   private subscribers: Map<string, Array<(newValue: any) => void>> = new Map()
 
   constructor() {
-    // Make sure directory exists
-    const globalConfigDir = path.dirname(globalConfigPath)
-    if (!fs.existsSync(globalConfigDir)) {
-      fs.mkdirSync(globalConfigDir, { recursive: true })
-    }
-
-    // Create a global store for settings that must be accessible before userData path is configured
-    this.globalStore = new Store({
-      cwd: path.dirname(globalConfigPath),
-      name: path.basename(globalConfigPath, '.json')
-    })
-
     // Regular store for app settings
     this.store = new Store()
-  }
-
-  // Initialize app data path if needed
-  initializeAppDataPath() {
-    const customPath = this.getAppDataPath()
-    if (customPath && fs.existsSync(customPath)) {
-      app.setPath('userData', customPath)
-      // Recreate store since userData path has changed
-      this.store = new Store()
-    }
   }
 
   getLanguage(): LanguageVarious {
@@ -174,14 +145,6 @@ export class ConfigManager {
 
   setEnableDataCollection(value: boolean) {
     this.set(ConfigKeys.EnableDataCollection, value)
-  }
-
-  getAppDataPath(): string | undefined {
-    return this.globalStore.get(ConfigKeys.AppDataPath) as string | undefined
-  }
-
-  setAppDataPath(path: string): void {
-    this.globalStore.set(ConfigKeys.AppDataPath, path)
   }
 
   set(key: string, value: unknown) {

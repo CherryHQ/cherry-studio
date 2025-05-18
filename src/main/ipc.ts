@@ -32,7 +32,13 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
+import {
+  copyUserDataToNewLocation,
+  getCacheDir,
+  getConfigDir,
+  getFilesDir,
+  writeUserDataPathToConfig
+} from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -209,11 +215,42 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       }
 
       const newPath = filePaths[0]
-      configManager.setAppDataPath(newPath)
 
       return { success: true, path: newPath }
     } catch (error: any) {
       log.error('Failed to select app data path:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Set app data path
+  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, path: string) => {
+    try {
+      log.info(`Setting app data path to: ${path}`)
+      writeUserDataPathToConfig(path)
+      app.setPath('userData', path)
+      return { success: true }
+    } catch (error: any) {
+      log.error('Failed to set app data path:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Copy user data to new location
+  ipcMain.handle(IpcChannel.App_CopyUserData, async (_, oldPath: string, newPath: string) => {
+    try {
+      log.info(`Copying data from ${oldPath} to ${newPath}`)
+      const result = await copyUserDataToNewLocation(oldPath, newPath)
+
+      if (!result.success) {
+        log.error(`Failed to copy user data: ${result.error}`)
+      } else {
+        log.info('User data successfully copied to new location')
+      }
+
+      return result
+    } catch (error: any) {
+      log.error('Failed to copy user data:', error)
       return { success: false, error: error.message }
     }
   })

@@ -17,6 +17,7 @@ export enum IpcChannel {
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_SelectAppDataPath = 'app:select-app-data-path',
   App_SetAppDataPath = 'app:set-app-data-path',
+  App_CopyUserData = 'app:copy-user-data',
   App_RelaunchApp = 'app:relaunch-app',
 
   App_IsBinaryExist = 'app:is-binary-exist',
