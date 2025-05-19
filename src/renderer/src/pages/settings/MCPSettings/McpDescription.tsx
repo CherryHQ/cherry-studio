@@ -1,4 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { runAsyncFunction } from '@renderer/utils'
 import { getShikiInstance } from '@renderer/utils/shiki'
 import { Card } from 'antd'
 import MarkdownIt from 'markdown-it'
@@ -30,9 +31,11 @@ const MCPDescription = ({ searchKey }: McpDescriptionProps) => {
   }, [md, searchKey])
 
   useEffect(() => {
-    const sk = getShikiInstance(theme)
-    md.current.use(sk)
-    getMcpInfo()
+    runAsyncFunction(async () => {
+      const sk = await getShikiInstance(theme)
+      md.current.use(sk)
+      getMcpInfo()
+    })
   }, [getMcpInfo, theme])
 
   return (

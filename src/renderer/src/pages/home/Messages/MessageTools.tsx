@@ -17,11 +17,6 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
-  const fontFamily = useMemo(() => {
-    return messageFont === 'serif'
-      ? 'serif'
-      : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
-  }, [messageFont])
 
   const toolResponse = blocks.metadata?.rawMcpToolResponse
 
@@ -39,7 +34,6 @@ const MessageTools: FC<Props> = ({ blocks }) => {
       return 'Invalid Result'
     }
   }, [toolResponse])
-  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(`\`\`\`json\n${resultString}\n\`\`\``)
 
   if (!toolResponse) {
     return null
@@ -59,8 +53,6 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
-    // Add tool responses
-    // for (const toolResponse of toolResponses) {
     const { id, tool, status, response } = toolResponse
     const isInvoking = status === 'invoking'
     const isDone = status === 'done'
@@ -122,12 +114,15 @@ const MessageTools: FC<Props> = ({ blocks }) => {
         </MessageTitleLabel>
       ),
       children: isDone && result && (
-        <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
-          <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
+        <ToolResponseContainer
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize: '12px'
+          }}>
+          <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
         </ToolResponseContainer>
       )
     })
-    // }
 
     return items
   }
@@ -140,7 +135,6 @@ const MessageTools: FC<Props> = ({ blocks }) => {
       switch (parsedResult.content[0]?.type) {
         case 'text':
           return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
-        // TODO: support other types
         default:
           return <PreviewBlock>{content}</PreviewBlock>
       }
@@ -173,8 +167,11 @@ const MessageTools: FC<Props> = ({ blocks }) => {
         transitionName="animation-move-down"
         styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
-          <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
-            {/* mode swtich tabs */}
+          <ExpandedResponseContainer
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize
+            }}>
             <Tabs
               tabBarExtraContent={
                 <ActionButton
@@ -200,7 +197,16 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                 {
                   key: 'raw',
                   label: t('message.tools.raw'),
-                  children: <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
+                  children: (
+                    <CollapsedContent
+                      isExpanded={true}
+                      resultString={
+                        typeof expandedResponse.content === 'string'
+                          ? expandedResponse.content
+                          : JSON.stringify(expandedResponse.content, null, 2)
+                      }
+                    />
+                  )
                 }
               ]}
             />
@@ -209,6 +215,19 @@ const MessageTools: FC<Props> = ({ blocks }) => {
       </Modal>
     </>
   )
+}
+
+// New component to handle collapsed content
+const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ isExpanded, resultString }) => {
+  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(
+    isExpanded ? `\`\`\`json\n${resultString}\n\`\`\`` : ''
+  )
+
+  if (!isExpanded) {
+    return null
+  }
+
+  return <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
 }
 
 const CollapseContainer = styled(Collapse)`
