@@ -1818,6 +1818,7 @@
             },
             "url": {
               "label": "検索URL",
+              "hint": "{{queryString}}で検索語を表す",
               "required": "URLを入力してください",
               "invalid_format": "http:// または https:// で始まるURLを入力",
               "missing_placeholder": "{{queryString}}を含めてください"

@@ -1819,6 +1819,7 @@
             },
             "url": {
               "label": "URL поиска",
+              "hint": "Используйте {{queryString}} для представления поискового запроса",
               "required": "Введите URL",
               "invalid_format": "URL должен начинаться с http:// или https://",
               "missing_placeholder": "Должен содержать {{queryString}}"

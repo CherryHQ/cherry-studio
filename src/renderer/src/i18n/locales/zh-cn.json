@@ -1818,6 +1818,7 @@
             },
             "url": {
               "label": "自定义搜索 URL",
+              "hint": "用 {{queryString}} 代表搜索词",
               "required": "请输入搜索 URL",
               "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
               "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"

@@ -195,6 +195,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                 <Form.Item
                   name="customUrl"
                   label={t('selection.settings.search_modal.custom.url.label')}
+                  tooltip={t('selection.settings.search_modal.custom.url.hint')}
                   rules={[
                     { required: true, message: t('selection.settings.search_modal.custom.url.required') },
                     {

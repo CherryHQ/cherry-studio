@@ -1818,6 +1818,7 @@
             },
             "url": {
               "label": "Custom Search URL",
+              "hint": "Use {{queryString}} to represent the search term",
               "required": "Please enter search URL",
               "invalid_format": "Please enter a valid URL starting with http:// or https://",
               "missing_placeholder": "URL must contain {{queryString}} placeholder"
