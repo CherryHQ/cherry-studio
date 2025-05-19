@@ -224,7 +224,7 @@ const CodeEditor = ({
         fontSize: `${fontSize - 1}px`,
         overflow: collapsible && !isExpanded ? 'auto' : 'visible',
         position: 'relative',
-        border: '0.5px solid var(--color-code-background)',
+        border: '0.5px solid transparent',
         borderRadius: '5px',
         marginTop: 0,
         ...style

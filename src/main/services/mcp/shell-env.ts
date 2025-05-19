@@ -47,7 +47,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       commandArgs = ['-ilc', shellCommandToGetEnv] // -i for interactive, -l for login, -c to execute command
     }
 
-    Logger.log(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
+    Logger.log(`[ShellEnv] Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
     const child = spawn(shellPath, commandArgs, {
       cwd: homeDirectory, // Run the command in the user's home directory
