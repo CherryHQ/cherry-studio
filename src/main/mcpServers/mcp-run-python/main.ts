@@ -1,6 +1,6 @@
 // port from https://ai.pydantic.dev/mcp/run-python/
 // https://jsr.io/@pydantic/mcp-run-python@0.0.13
-import './polyfill'
+// import './polyfill'
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { type LoggingLevel, SetLevelRequestSchema } from '@modelcontextprotocol/sdk/types.js'
