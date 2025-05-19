@@ -32,4 +32,13 @@ describe('CustomTag', () => {
     await userEvent.hover(screen.getByText('reasoning'))
     expect(await screen.findByText('reasoning model')).toBeInTheDocument()
   })
+
+  it('should not render Tooltip when tooltip is not set', () => {
+    render(<CustomTag color="#ff0000">no tooltip</CustomTag>)
+
+    expect(screen.getByText('no tooltip')).toBeInTheDocument()
+    // 不应有 tooltip 相关内容
+    expect(document.querySelector('.ant-tooltip')).toBeNull()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
 })
