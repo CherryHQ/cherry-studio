@@ -21,6 +21,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
+  quickAssistantModel: Model
   settings: LlmSettings
 }
 
@@ -483,6 +484,7 @@ const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.silicon[1],
   topicNamingModel: SYSTEM_MODELS.silicon[2],
   translateModel: SYSTEM_MODELS.silicon[3],
+  quickAssistantModel: SYSTEM_MODELS.silicon[1],
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {
@@ -589,6 +591,9 @@ const llmSlice = createSlice({
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
     },
+    setQuickAssistantModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.quickAssistantModel = action.payload.model
+    },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
     },
@@ -626,6 +631,7 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
+  setQuickAssistantModel,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,

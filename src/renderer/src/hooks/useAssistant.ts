@@ -16,8 +16,8 @@ import {
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
-import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Chatflow, Model, Topic } from '@renderer/types'
+import { setDefaultModel, setQuickAssistantModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { useCallback, useMemo } from 'react'
 
 import { TopicManager } from './useTopic'
@@ -111,15 +111,17 @@ export function useDefaultAssistant() {
 }
 
 export function useDefaultModel() {
-  const { defaultModel, topicNamingModel, translateModel } = useAppSelector((state) => state.llm)
+  const { defaultModel, topicNamingModel, translateModel, quickAssistantModel } = useAppSelector((state) => state.llm)
   const dispatch = useAppDispatch()
 
   return {
     defaultModel,
     topicNamingModel,
     translateModel,
+    quickAssistantModel,
     setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
     setTopicNamingModel: (model: Model) => dispatch(setTopicNamingModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
+    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model })),
+    setQuickAssistantModel: (model: Model) => dispatch(setQuickAssistantModel({ model }))
   }
 }
