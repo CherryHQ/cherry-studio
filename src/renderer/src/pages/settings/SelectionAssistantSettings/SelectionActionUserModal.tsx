@@ -98,8 +98,8 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       width={520}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <ModalSection>
-          <Row>
-            <Col flex="auto" style={{ paddingRight: '16px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row' }}>
+            <Col flex="auto" style={{ paddingRight: '16px', width: '70%' }}>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.name.label')}</ModalSectionTitleLabel>
               </ModalSectionTitle>
@@ -147,15 +147,15 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <IconPreview>
                   {formData.icon &&
                     (iconNames.includes(formData.icon as any) ? (
-                      <DynamicIcon name={formData.icon as any} size={24} />
+                      <DynamicIcon name={formData.icon as any} size={18} />
                     ) : (
-                      <OctagonX size={24} color="var(--color-error)" />
+                      <OctagonX size={18} color="var(--color-error)" />
                     ))}
                 </IconPreview>
               </Space>
               {errors.icon && <ErrorText>{errors.icon}</ErrorText>}
             </Col>
-          </Row>
+          </div>
         </ModalSection>
         <ModalSection>
           <Row>
