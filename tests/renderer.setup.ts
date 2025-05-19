@@ -24,21 +24,6 @@ vi.mock('electron-log/renderer', () => {
   }
 })
 
-vi.stubGlobal('window', {
-  electron: {
-    ipcRenderer: {
-      on: vi.fn(), // Mocking ipcRenderer.on
-      send: vi.fn() // Mocking ipcRenderer.send
-    }
-  },
-  api: {
-    file: {
-      read: vi.fn().mockResolvedValue('[]'), // Mock file.read to return an empty array (you can customize this)
-      writeWithId: vi.fn().mockResolvedValue(undefined) // Mock file.writeWithId to do nothing
-    }
-  }
-})
-
 vi.mock('axios', () => ({
   default: {
     get: vi.fn().mockResolvedValue({ data: {} }), // Mocking axios GET request
@@ -47,8 +32,15 @@ vi.mock('axios', () => ({
   }
 }))
 
-vi.stubGlobal('window', {
-  ...global.window, // Copy other global properties
-  addEventListener: vi.fn(), // Mock addEventListener
-  removeEventListener: vi.fn() // You can also mock removeEventListener if needed
+vi.stubGlobal('electron', {
+  ipcRenderer: {
+    on: vi.fn(),
+    send: vi.fn()
+  }
+})
+vi.stubGlobal('api', {
+  file: {
+    read: vi.fn().mockResolvedValue('[]'),
+    writeWithId: vi.fn().mockResolvedValue(undefined)
+  }
 })
