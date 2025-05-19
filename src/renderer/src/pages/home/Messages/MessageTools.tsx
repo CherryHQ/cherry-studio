@@ -197,11 +197,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                   children: (
                     <CollapsedContent
                       isExpanded={true}
-                      resultString={
-                        typeof expandedResponse.content === 'string'
-                          ? expandedResponse.content
-                          : JSON.stringify(expandedResponse.content, null, 2)
-                      }
+                      resultString={resultString}
                     />
                   )
                 }
