@@ -591,6 +591,7 @@
       "copied": "Copied!",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
+      "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "error.dimension_too_large": "Content size is too large",
       "error.enter.api.host": "Please enter your API host first",

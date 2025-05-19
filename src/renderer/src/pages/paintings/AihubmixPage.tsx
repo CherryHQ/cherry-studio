@@ -219,9 +219,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               const downloadedFiles = await Promise.all(
                 urls.map(async (url) => {
                   try {
+                    // 检查URL是否为空
+                    if (!url || url.trim() === '') {
+                      console.error('图像URL为空，可能是提示词违禁')
+                      window.modal.error({
+                        content: t('message.empty_url'),
+                        centered: true
+                      })
+                      return null
+                    }
                     return await window.api.file.download(url)
                   } catch (error) {
                     console.error('下载图像失败:', error)
+                    // 检查是否是URL解析错误
+                    if (
+                      error instanceof Error &&
+                      (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                    ) {
+                      window.modal.error({
+                        content: t('message.empty_url'),
+                        centered: true
+                      })
+                    }
                     return null
                   }
                 })
@@ -336,9 +355,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             const downloadedFiles = await Promise.all(
               urls.map(async (url) => {
                 try {
+                  // 检查URL是否为空
+                  if (!url || url.trim() === '') {
+                    console.error('图像URL为空，可能是提示词违禁')
+                    window.modal.error({
+                      content: t('message.empty_url'),
+                      centered: true
+                    })
+                    return null
+                  }
                   return await window.api.file.download(url)
                 } catch (error) {
                   console.error('下载图像失败:', error)
+                  // 检查是否是URL解析错误
+                  if (
+                    error instanceof Error &&
+                    (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                  ) {
+                    window.modal.error({
+                      content: t('message.empty_url'),
+                      centered: true
+                    })
+                  }
                   return null
                 }
               })
@@ -433,9 +471,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             const downloadedFiles = await Promise.all(
               urls.map(async (url) => {
                 try {
+                  // 检查URL是否为空
+                  if (!url || url.trim() === '') {
+                    console.error('图像URL为空，可能是提示词违禁')
+                    window.modal.error({
+                      content: t('message.empty_url'),
+                      centered: true
+                    })
+                    return null
+                  }
                   return await window.api.file.download(url)
                 } catch (error) {
                   console.error('下载图像失败:', error)
+                  // 检查是否是URL解析错误
+                  if (
+                    error instanceof Error &&
+                    (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                  ) {
+                    window.modal.error({
+                      content: t('message.empty_url'),
+                      centered: true
+                    })
+                  }
                   return null
                 }
               })
@@ -510,9 +567,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           const downloadedFiles = await Promise.all(
             urls.map(async (url) => {
               try {
+                // 检查URL是否为空
+                if (!url || url.trim() === '') {
+                  console.error('图像URL为空，可能是提示词违禁')
+                  window.modal.error({
+                    content: t('message.empty_url'),
+                    centered: true
+                  })
+                  return null
+                }
                 return await window.api.file.download(url)
               } catch (error) {
                 console.error('下载图像失败:', error)
+                // 检查是否是URL解析错误
+                if (
+                  error instanceof Error &&
+                  (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                ) {
+                  window.modal.error({
+                    content: t('message.empty_url'),
+                    centered: true
+                  })
+                }
                 return null
               }
             })
@@ -544,9 +620,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const downloadedFiles = await Promise.all(
       painting.urls.map(async (url) => {
         try {
+          // 检查URL是否为空
+          if (!url || url.trim() === '') {
+            console.error('图像URL为空，可能是提示词违禁')
+            window.modal.error({
+              content: t('message.empty_url'),
+              centered: true
+            })
+            return null
+          }
           return await window.api.file.download(url)
         } catch (error) {
           console.error('下载图像失败:', error)
+          // 检查是否是URL解析错误
+          if (
+            error instanceof Error &&
+            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+          ) {
+            window.modal.error({
+              content: t('message.empty_url'),
+              centered: true
+            })
+          }
           setIsLoading(false)
           return null
         }

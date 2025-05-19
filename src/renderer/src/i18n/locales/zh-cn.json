@@ -591,6 +591,7 @@
       "copied": "已复制",
       "copy.failed": "复制失败",
       "copy.success": "复制成功",
+      "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "error.dimension_too_large": "内容尺寸过大",
       "error.enter.api.host": "请输入您的 API 地址",
