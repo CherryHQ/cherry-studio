@@ -149,15 +149,6 @@ export const BaseTypography = styled(Box)<{
   text-align: ${(props) => props.textAlign || 'left'};
 `
 
-export const TypographyNormal = styled(BaseTypography)`
-  font-family: 'Ubuntu';
-`
-
-export const TypographyBold = styled(BaseTypography)`
-  font-family: 'Ubuntu';
-  font-weight: bold;
-`
-
 export const Container = styled.main<ContainerProps>`
   display: flex;
   flex-direction: column;

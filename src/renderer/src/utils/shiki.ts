@@ -1,10 +1,12 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
-import { MarkdownItShikiOptions, setupMarkdownIt } from '@shikijs/markdown-it'
+import { setupMarkdownIt } from '@shikijs/markdown-it'
 import MarkdownIt from 'markdown-it'
 import { useEffect, useRef, useState } from 'react'
-import { BuiltinLanguage, BuiltinTheme, bundledLanguages, createHighlighter } from 'shiki'
 import { getTokenStyleObject, ThemedToken } from 'shiki/core'
+
+import { runAsyncFunction } from '.'
+import { getHighlighter } from './highlighter'
 
 /**
  * Shiki token 样式转换为 React 样式对象
@@ -44,19 +46,9 @@ const defaultOptions = {
   defaultColor: 'light'
 }
 
-const initHighlighter = async (options: MarkdownItShikiOptions) => {
-  const themeNames = ('themes' in options ? Object.values(options.themes) : [options.theme]).filter(
-    Boolean
-  ) as BuiltinTheme[]
-  return await createHighlighter({
-    themes: themeNames,
-    langs: options.langs || (Object.keys(bundledLanguages) as BuiltinLanguage[])
-  })
-}
+export async function getShikiInstance(theme: ThemeMode) {
+  const highlighter = await getHighlighter()
 
-const highlighter = await initHighlighter(defaultOptions)
-
-export function getShikiInstance(theme: ThemeMode) {
   const options = {
     ...defaultOptions,
     defaultColor: theme
@@ -77,9 +69,11 @@ export function useShikiWithMarkdownIt(content: string) {
   )
   const { theme } = useTheme()
   useEffect(() => {
-    const sk = getShikiInstance(theme)
-    md.current.use(sk)
-    setRenderedMarkdown(md.current.render(content))
+    runAsyncFunction(async () => {
+      const sk = await getShikiInstance(theme)
+      md.current.use(sk)
+      setRenderedMarkdown(md.current.render(content))
+    })
   }, [content, theme])
   return {
     renderedMarkdown

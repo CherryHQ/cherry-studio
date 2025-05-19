@@ -3,6 +3,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
@@ -41,14 +42,18 @@ interface MessagesProps {
   assistant: Assistant
   topic: Topic
   setActiveTopic: (topic: Topic) => void
+  onComponentUpdate?(): void
+  onFirstUpdate?(): void
 }
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
+const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
+  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
+    `topic-${topic.id}`
+  )
   const { t } = useTranslation()
   const { showPrompt, showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
-  const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
@@ -75,16 +80,16 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   }, [showAssistants, showTopics, topicPosition])
 
   const scrollToBottom = useCallback(() => {
-    if (containerRef.current) {
+    if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTo({
-            top: containerRef.current.scrollHeight
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight
           })
         }
       })
     }
-  }, [])
+  }, [scrollContainerRef])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -118,14 +123,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         })
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
-        await captureScrollableDivAsBlob(containerRef, async (blob) => {
+        await captureScrollableDivAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           }
         })
       }),
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
-        const imageData = await captureScrollableDivAsDataURL(containerRef)
+        const imageData = await captureScrollableDivAsDataURL(scrollContainerRef)
         if (imageData) {
           window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
@@ -224,8 +229,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })
-    })
-  }, [assistant, messages])
+    }).then(() => onFirstUpdate?.())
+  }, [assistant, messages, onFirstUpdate])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return
@@ -249,13 +254,18 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     }
   })
 
+  useEffect(() => {
+    requestAnimationFrame(() => onComponentUpdate?.())
+  }, [])
+
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
       style={{ maxWidth, paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
-      ref={containerRef}
+      ref={scrollContainerRef}
+      onScroll={handleScrollPosition}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll

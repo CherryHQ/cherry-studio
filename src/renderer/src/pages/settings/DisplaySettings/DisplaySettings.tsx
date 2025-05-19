@@ -237,6 +237,7 @@ const DisplaySettings: FC = () => {
             minHeight: 200,
             fontFamily: 'monospace'
           }}
+          spellCheck={false}
         />
       </SettingGroup>
     </SettingContainer>

@@ -204,9 +204,26 @@ const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
         const downloadedFiles = await Promise.all(
           urls.map(async (url) => {
             try {
+              if (!url || url.trim() === '') {
+                console.error('图像URL为空，可能是提示词违禁')
+                window.message.warning({
+                  content: t('message.empty_url'),
+                  key: 'empty-url-warning'
+                })
+                return null
+              }
               return await window.api.file.download(url)
             } catch (error) {
               console.error('Failed to download image:', error)
+              if (
+                error instanceof Error &&
+                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+              ) {
+                window.message.warning({
+                  content: t('message.empty_url'),
+                  key: 'empty-url-warning'
+                })
+              }
               return null
             }
           })
@@ -564,7 +581,6 @@ const Textarea = styled(TextArea)`
   border-radius: 0;
   display: flex;
   flex: 1;
-  font-family: Ubuntu;
   resize: none !important;
   overflow: auto;
   width: auto;

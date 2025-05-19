@@ -136,21 +136,151 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     // 不使用 AiProvider 的通用规则，而是直接调用自定义接口
     try {
       if (mode === 'generate') {
-        const requestData = {
-          image_request: {
-            prompt,
-            model: painting.model,
-            aspect_ratio: painting.aspectRatio,
-            num_images: painting.numImages,
-            style_type: painting.styleType,
-            seed: painting.seed ? +painting.seed : undefined,
-            negative_prompt: painting.negativePrompt || undefined,
-            magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
+        if (painting.model === 'V_3') {
+          // V3 API uses different endpoint and parameters format
+          const formData = new FormData()
+          formData.append('prompt', prompt)
+
+          // 确保渲染速度参数正确传递
+          const renderSpeed = painting.renderingSpeed || 'DEFAULT'
+          console.log('使用渲染速度:', renderSpeed)
+          formData.append('rendering_speed', renderSpeed)
+
+          formData.append('num_images', String(painting.numImages || 1))
+
+          // Convert aspect ratio format from ASPECT_1_1 to 1x1 for V3 API
+          if (painting.aspectRatio) {
+            const aspectRatioValue = painting.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase()
+            console.log('转换后的宽高比:', aspectRatioValue)
+            formData.append('aspect_ratio', aspectRatioValue)
           }
+
+          if (painting.styleType && painting.styleType !== 'AUTO') {
+            // 确保样式类型与API文档一致，保持大写形式
+            // V3 API支持的样式类型: AUTO, GENERAL, REALISTIC, DESIGN
+            const styleType = painting.styleType
+            console.log('使用样式类型:', styleType)
+            formData.append('style_type', styleType)
+          } else {
+            // 确保明确设置默认样式类型
+            console.log('使用默认样式类型: AUTO')
+            formData.append('style_type', 'AUTO')
+          }
+
+          if (painting.seed) {
+            console.log('使用随机种子:', painting.seed)
+            formData.append('seed', painting.seed)
+          }
+
+          if (painting.negativePrompt) {
+            console.log('使用负面提示词:', painting.negativePrompt)
+            formData.append('negative_prompt', painting.negativePrompt)
+          }
+
+          if (painting.magicPromptOption !== undefined) {
+            const magicPrompt = painting.magicPromptOption ? 'ON' : 'OFF'
+            console.log('使用魔法提示词:', magicPrompt)
+            formData.append('magic_prompt', magicPrompt)
+          }
+
+          // 打印所有FormData内容
+          console.log('FormData内容:')
+          for (const pair of formData.entries()) {
+            console.log(pair[0] + ': ' + pair[1])
+          }
+
+          body = formData
+          // For V3 endpoints - 使用模板字符串而不是字符串连接
+          console.log('API 端点:', `${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`)
+
+          // 调整请求头，可能需要指定multipart/form-data
+          // 注意：FormData会自动设置Content-Type，不应手动设置
+          const apiHeaders = { 'Api-Key': aihubmixProvider.apiKey }
+
+          try {
+            const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
+              method: 'POST',
+              headers: apiHeaders,
+              body
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json()
+              console.error('V3 API错误:', errorData)
+              throw new Error(errorData.error?.message || '生成图像失败')
+            }
+
+            const data = await response.json()
+            console.log('V3 API响应:', data)
+            const urls = data.data.map((item) => item.url)
+
+            // Rest of the code for handling image downloads is the same
+            if (urls.length > 0) {
+              const downloadedFiles = await Promise.all(
+                urls.map(async (url) => {
+                  try {
+                    // 检查URL是否为空
+                    if (!url || url.trim() === '') {
+                      console.error('图像URL为空，可能是提示词违禁')
+                      window.message.warning({
+                        content: t('message.empty_url'),
+                        key: 'empty-url-warning'
+                      })
+                      return null
+                    }
+                    return await window.api.file.download(url)
+                  } catch (error) {
+                    console.error('下载图像失败:', error)
+                    // 检查是否是URL解析错误
+                    if (
+                      error instanceof Error &&
+                      (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                    ) {
+                      window.message.warning({
+                        content: t('message.empty_url'),
+                        key: 'empty-url-warning'
+                      })
+                    }
+                    return null
+                  }
+                })
+              )
+
+              const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+              await FileManager.addFiles(validFiles)
+              updatePaintingState({ files: validFiles, urls })
+            }
+            return
+          } catch (error: unknown) {
+            if (error instanceof Error && error.name !== 'AbortError') {
+              window.modal.error({
+                content: getErrorMessage(error),
+                centered: true
+              })
+            }
+          } finally {
+            setIsLoading(false)
+            dispatch(setGenerating(false))
+            setAbortController(null)
+          }
+        } else {
+          // Existing V1/V2 API
+          const requestData = {
+            image_request: {
+              prompt,
+              model: painting.model,
+              aspect_ratio: painting.aspectRatio,
+              num_images: painting.numImages,
+              style_type: painting.styleType,
+              seed: painting.seed ? +painting.seed : undefined,
+              negative_prompt: painting.negativePrompt || undefined,
+              magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
+            }
+          }
+          body = JSON.stringify(requestData)
+          headers['Content-Type'] = 'application/json'
         }
-        body = JSON.stringify(requestData)
-        headers['Content-Type'] = 'application/json'
-      } else {
+      } else if (mode === 'remix') {
         if (!painting.imageFile) {
           window.modal.error({
             content: t('paintings.image_file_required'),
@@ -165,67 +295,311 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
           return
         }
-        const form = new FormData()
-        let imageRequest: Record<string, any> = {
-          prompt,
-          num_images: painting.numImages,
-          seed: painting.seed ? +painting.seed : undefined,
-          magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
-        }
-        if (mode === 'remix') {
-          imageRequest = {
-            ...imageRequest,
+
+        if (painting.model === 'V_3') {
+          // V3 Remix API
+          const formData = new FormData()
+          formData.append('prompt', prompt)
+          formData.append('rendering_speed', painting.renderingSpeed || 'DEFAULT')
+          formData.append('num_images', String(painting.numImages || 1))
+
+          // Convert aspect ratio format for V3 API
+          if (painting.aspectRatio) {
+            const aspectRatioValue = painting.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase()
+            formData.append('aspect_ratio', aspectRatioValue)
+          }
+
+          if (painting.styleType) {
+            formData.append('style_type', painting.styleType)
+          }
+
+          if (painting.seed) {
+            formData.append('seed', painting.seed)
+          }
+
+          if (painting.negativePrompt) {
+            formData.append('negative_prompt', painting.negativePrompt)
+          }
+
+          if (painting.magicPromptOption !== undefined) {
+            formData.append('magic_prompt', painting.magicPromptOption ? 'ON' : 'OFF')
+          }
+
+          if (painting.imageWeight) {
+            formData.append('image_weight', String(painting.imageWeight))
+          }
+
+          // Add the image file
+          formData.append('image', fileMap[painting.imageFile] as unknown as Blob)
+
+          body = formData
+          // For V3 Remix endpoint
+          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/remix`, {
+            method: 'POST',
+            headers: { 'Api-Key': aihubmixProvider.apiKey },
+            body
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error('V3 Remix API错误:', errorData)
+            throw new Error(errorData.error?.message || '图像混合失败')
+          }
+
+          const data = await response.json()
+          console.log('V3 Remix API响应:', data)
+          const urls = data.data.map((item) => item.url)
+
+          // Handle the downloaded images
+          if (urls.length > 0) {
+            const downloadedFiles = await Promise.all(
+              urls.map(async (url) => {
+                try {
+                  // 检查URL是否为空
+                  if (!url || url.trim() === '') {
+                    console.error('图像URL为空，可能是提示词违禁')
+                    window.message.warning({
+                      content: t('message.empty_url'),
+                      key: 'empty-url-warning'
+                    })
+                    return null
+                  }
+                  return await window.api.file.download(url)
+                } catch (error) {
+                  console.error('下载图像失败:', error)
+                  // 检查是否是URL解析错误
+                  if (
+                    error instanceof Error &&
+                    (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                  ) {
+                    window.message.warning({
+                      content: t('message.empty_url'),
+                      key: 'empty-url-warning'
+                    })
+                  }
+                  return null
+                }
+              })
+            )
+
+            const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+          return
+        } else {
+          // Existing V1/V2 API for remix
+          const form = new FormData()
+          const imageRequest: Record<string, any> = {
+            prompt,
             model: painting.model,
             aspect_ratio: painting.aspectRatio,
             image_weight: painting.imageWeight,
-            style_type: painting.styleType
+            style_type: painting.styleType,
+            num_images: painting.numImages,
+            seed: painting.seed ? +painting.seed : undefined,
+            negative_prompt: painting.negativePrompt || undefined,
+            magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
           }
-        } else if (mode === 'upscale') {
-          imageRequest = {
-            ...imageRequest,
-            resemblance: painting.resemblance,
-            detail: painting.detail
+          form.append('image_request', JSON.stringify(imageRequest))
+          form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
+          body = form
+        }
+      } else if (mode === 'edit') {
+        if (!painting.imageFile) {
+          window.modal.error({
+            content: t('paintings.image_file_required'),
+            centered: true
+          })
+          return
+        }
+        if (!fileMap[painting.imageFile]) {
+          window.modal.error({
+            content: t('paintings.image_file_retry'),
+            centered: true
+          })
+          return
+        }
+
+        if (painting.model === 'V_3') {
+          // V3 Edit API
+          const formData = new FormData()
+          formData.append('prompt', prompt)
+          formData.append('rendering_speed', painting.renderingSpeed || 'DEFAULT')
+          formData.append('num_images', String(painting.numImages || 1))
+
+          if (painting.styleType) {
+            formData.append('style_type', painting.styleType)
           }
-        } else if (mode === 'edit') {
-          imageRequest = {
-            ...imageRequest,
+
+          if (painting.seed) {
+            formData.append('seed', painting.seed)
+          }
+
+          if (painting.magicPromptOption !== undefined) {
+            formData.append('magic_prompt', painting.magicPromptOption ? 'ON' : 'OFF')
+          }
+
+          // Add the image file
+          formData.append('image', fileMap[painting.imageFile] as unknown as Blob)
+
+          // Add the mask if available
+          if (painting.mask) {
+            formData.append('mask', painting.mask as unknown as Blob)
+          }
+
+          body = formData
+          // For V3 Edit endpoint
+          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/edit`, {
+            method: 'POST',
+            headers: { 'Api-Key': aihubmixProvider.apiKey },
+            body
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error('V3 Edit API错误:', errorData)
+            throw new Error(errorData.error?.message || '图像编辑失败')
+          }
+
+          const data = await response.json()
+          console.log('V3 Edit API响应:', data)
+          const urls = data.data.map((item) => item.url)
+
+          // Handle the downloaded images
+          if (urls.length > 0) {
+            const downloadedFiles = await Promise.all(
+              urls.map(async (url) => {
+                try {
+                  // 检查URL是否为空
+                  if (!url || url.trim() === '') {
+                    console.error('图像URL为空，可能是提示词违禁')
+                    window.message.warning({
+                      content: t('message.empty_url'),
+                      key: 'empty-url-warning'
+                    })
+                    return null
+                  }
+                  return await window.api.file.download(url)
+                } catch (error) {
+                  console.error('下载图像失败:', error)
+                  // 检查是否是URL解析错误
+                  if (
+                    error instanceof Error &&
+                    (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                  ) {
+                    window.message.warning({
+                      content: t('message.empty_url'),
+                      key: 'empty-url-warning'
+                    })
+                  }
+                  return null
+                }
+              })
+            )
+
+            const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+          return
+        } else {
+          // Existing V1/V2 API for edit
+          const form = new FormData()
+          const imageRequest: Record<string, any> = {
+            prompt,
             model: painting.model,
-            style_type: painting.styleType
+            style_type: painting.styleType,
+            num_images: painting.numImages,
+            seed: painting.seed ? +painting.seed : undefined,
+            magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
           }
+          form.append('image_request', JSON.stringify(imageRequest))
+          form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
+          body = form
+        }
+      } else if (mode === 'upscale') {
+        if (!painting.imageFile) {
+          window.modal.error({
+            content: t('paintings.image_file_required'),
+            centered: true
+          })
+          return
+        }
+        if (!fileMap[painting.imageFile]) {
+          window.modal.error({
+            content: t('paintings.image_file_retry'),
+            centered: true
+          })
+          return
+        }
+
+        const form = new FormData()
+        const imageRequest: Record<string, any> = {
+          prompt,
+          resemblance: painting.resemblance,
+          detail: painting.detail,
+          num_images: painting.numImages,
+          seed: painting.seed ? +painting.seed : undefined,
+          magic_prompt_option: painting.magicPromptOption ? 'AUTO' : 'OFF'
         }
         form.append('image_request', JSON.stringify(imageRequest))
         form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
         body = form
       }
 
-      // 直接调用自定义接口
-      const response = await fetch(aihubmixProvider.apiHost + `/ideogram/` + mode, { method: 'POST', headers, body })
+      // 只针对非V3模型使用通用接口
+      if (!painting.model?.includes('V_3')) {
+        // 直接调用自定义接口
+        const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/${mode}`, { method: 'POST', headers, body })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error?.message || '生成图像失败')
-      }
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error('通用API错误:', errorData)
+          throw new Error(errorData.error?.message || '生成图像失败')
+        }
 
-      const data = await response.json()
-      const urls = data.data.map((item: any) => item.url)
+        const data = await response.json()
+        console.log('通用API响应:', data)
+        const urls = data.data.map((item) => item.url)
 
-      if (urls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          urls.map(async (url) => {
-            try {
-              return await window.api.file.download(url)
-            } catch (error) {
-              console.error('下载图像失败:', error)
-              return null
-            }
-          })
-        )
+        if (urls.length > 0) {
+          const downloadedFiles = await Promise.all(
+            urls.map(async (url) => {
+              try {
+                // 检查URL是否为空
+                if (!url || url.trim() === '') {
+                  console.error('图像URL为空，可能是提示词违禁')
+                  window.message.warning({
+                    content: t('message.empty_url'),
+                    key: 'empty-url-warning'
+                  })
+                  return null
+                }
+                return await window.api.file.download(url)
+              } catch (error) {
+                console.error('下载图像失败:', error)
+                // 检查是否是URL解析错误
+                if (
+                  error instanceof Error &&
+                  (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+                ) {
+                  window.message.warning({
+                    content: t('message.empty_url'),
+                    key: 'empty-url-warning'
+                  })
+                }
+                return null
+              }
+            })
+          )
 
-        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+          const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
-        await FileManager.addFiles(validFiles)
+          await FileManager.addFiles(validFiles)
 
-        updatePaintingState({ files: validFiles, urls })
+          updatePaintingState({ files: validFiles, urls })
+        }
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {
@@ -246,9 +620,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const downloadedFiles = await Promise.all(
       painting.urls.map(async (url) => {
         try {
+          // 检查URL是否为空
+          if (!url || url.trim() === '') {
+            console.error('图像URL为空，可能是提示词违禁')
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+            return null
+          }
           return await window.api.file.download(url)
         } catch (error) {
           console.error('下载图像失败:', error)
+          // 检查是否是URL解析错误
+          if (
+            error instanceof Error &&
+            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+          ) {
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+          }
           setIsLoading(false)
           return null
         }
@@ -363,7 +756,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   // 渲染配置项的函数
   const renderConfigItem = (item: ConfigItem, index: number) => {
     switch (item.type) {
-      case 'title':
+      case 'title': {
         return (
           <SettingTitle key={index} style={{ marginBottom: 5, marginTop: 15 }}>
             {t(item.title!)}
@@ -374,30 +767,60 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
           </SettingTitle>
         )
-      case 'select':
+      }
+      case 'select': {
+        // 处理函数类型的disabled属性
+        const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
+
+        // 处理函数类型的options属性
+        const selectOptions =
+          typeof item.options === 'function'
+            ? item.options(item, painting).map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+            : item.options?.map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+
         return (
           <Select
             key={index}
-            disabled={item.disabled}
+            disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
-            options={item.options}
+            options={selectOptions}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
-      case 'radio':
+      }
+      case 'radio': {
+        // 处理函数类型的options属性
+        const radioOptions =
+          typeof item.options === 'function'
+            ? item.options(item, painting).map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+            : item.options?.map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+
         return (
           <Radio.Group
             key={index}
             value={painting[item.key!]}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
-            {item.options!.map((option) => (
+            {radioOptions!.map((option) => (
               <Radio.Button key={option.value} value={option.value}>
                 {option.label}
               </Radio.Button>
             ))}
           </Radio.Group>
         )
-      case 'slider':
+      }
+      case 'slider': {
         return (
           <SliderContainer key={index}>
             <Slider
@@ -416,7 +839,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             />
           </SliderContainer>
         )
-      case 'input':
+      }
+      case 'input': {
         // 处理随机种子按钮的特殊情况
         if (item.key === 'seed') {
           return (
@@ -438,7 +862,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             suffix={item.suffix}
           />
         )
-      case 'inputNumber':
+      }
+      case 'inputNumber': {
         return (
           <InputNumber
             key={index}
@@ -449,7 +874,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
-      case 'textarea':
+      }
+      case 'textarea': {
         return (
           <TextArea
             key={index}
@@ -459,7 +885,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             rows={4}
           />
         )
-      case 'switch':
+      }
+      case 'switch': {
         return (
           <HStack key={index}>
             <Switch
@@ -468,7 +895,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             />
           </HStack>
         )
-      case 'image':
+      }
+      case 'image': {
         return (
           <ImageUploadButton
             key={index}
@@ -490,6 +918,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
           </ImageUploadButton>
         )
+      }
       default:
         return null
     }
@@ -662,7 +1091,6 @@ const Textarea = styled(TextArea)`
   border-radius: 0;
   display: flex;
   flex: 1;
-  font-family: Ubuntu;
   resize: none !important;
   overflow: auto;
   width: auto;
