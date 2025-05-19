@@ -67,7 +67,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   }, [showTopics, toggleShowTopics])
 
   useShortcut('toggle_show_assistants', () => {
-    handleToggleShowAssistants()
+    toggleShowAssistants()
     EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS, { force: true })
   })
 
