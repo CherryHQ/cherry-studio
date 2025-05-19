@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
+import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -372,7 +373,7 @@ class McpService {
       tools.map((tool: any) => {
         const serverTool: MCPTool = {
           ...tool,
-          id: `f${nanoid()}`,
+          id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name
         }

@@ -1,11 +1,10 @@
-import { FONT_FAMILY } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 // import MessageContent from './MessageContent'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
 // import { LegacyMessage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { FC, memo, useMemo, useRef } from 'react'
+import { FC, memo, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -28,10 +27,6 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
 
   const isAssistantMessage = message.role === 'assistant'
 
-  const fontFamily = useMemo(() => {
-    return messageFont === 'serif' ? FONT_FAMILY.replace('sans-serif', 'serif').replace('Ubuntu, ', '') : FONT_FAMILY
-  }, [messageFont])
-
   const messageBackground = getMessageBackground(true, isAssistantMessage)
 
   const maxWidth = '800px'
@@ -48,7 +43,7 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
       <MessageContentContainer
         className="message-content-container"
         style={{
-          fontFamily,
+          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,
           background: messageBackground,
           ...(isAssistantMessage ? { paddingLeft: 5, paddingRight: 5 } : {})

@@ -88,6 +88,9 @@
       "settings.knowledge_base.recognition": "Использование базы знаний",
       "settings.knowledge_base.recognition.off": "Принудительный поиск",
       "settings.knowledge_base.recognition.on": "Распознавание намерений",
+      "settings.tool_use_mode": "Режим использования инструментов",
+      "settings.tool_use_mode.function": "Функция",
+      "settings.tool_use_mode.prompt": "Подсказка",
       "settings.regular_phrases": {
         "title": "Регулярные подсказки",
         "add": "Добавить подсказку",
@@ -128,7 +131,10 @@
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
       "show.all": "Показать все",
-      "update_available": "Доступно обновление"
+      "update_available": "Доступно обновление",
+      "includes_user_questions": "Включает вопросы пользователей",
+      "case_sensitive": "Чувствительность к регистру",
+      "whole_word": "Полное слово"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -160,6 +166,7 @@
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
+      "input.file_error": "Ошибка обработки файла",
       "input.generate_image": "Сгенерировать изображение",
       "input.generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "input.knowledge_base": "База знаний",
@@ -195,6 +202,20 @@
       },
       "resend": "Переотправить",
       "save": "Сохранить",
+      "settings.code.title": "Настройки кода",
+      "settings.code_editor": {
+        "title": "Редактор кода",
+        "highlight_active_line": "Выделить активную строку",
+        "fold_gutter": "Свернуть",
+        "autocompletion": "Автодополнение",
+        "keymap": "Клавиатурные сокращения"
+      },
+      "settings.code_execution": {
+        "title": "Выполнение кода",
+        "tip": "Выполнение кода в блоке кода возможно, но не рекомендуется выполнять опасный код!",
+        "timeout_minutes": "Время выполнения",
+        "timeout_minutes.tip": "Время выполнения кода (минуты)"
+      },
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_wrappable": "Блок кода можно переносить",
       "settings.code_cacheable": "Кэш блока кода",
@@ -208,9 +229,9 @@
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
-      "settings.max_tokens": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm_content": "Включить лимит максимальных токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
+      "settings.max_tokens": "Максимальное количество токенов",
+      "settings.max_tokens.confirm": "Максимальное количество токенов",
+      "settings.max_tokens.confirm_content": "Установить максимальное количество токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.max_tokens.tip": "Максимальное количество токенов, которые может сгенерировать модель. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.reset": "Сбросить",
       "settings.set_as_default": "Применить к ассистенту по умолчанию",
@@ -300,9 +321,32 @@
     },
     "code_block": {
       "collapse": "Свернуть",
-      "disable_wrap": "Отменить перенос строки",
-      "enable_wrap": "Перенос строки",
-      "expand": "Развернуть"
+      "copy.failed": "Не удалось скопировать",
+      "copy.source": "Копировать исходный код",
+      "copy.success": "Скопировано",
+      "copy": "Копировать",
+      "download.failed.network": "Не удалось скачать. Пожалуйста, проверьте ваше интернет-соединение",
+      "download.png": "Скачать PNG",
+      "download.source": "Скачать исходный код",
+      "download.svg": "Скачать SVG",
+      "download": "Скачать",
+      "edit.save.failed.message_not_found": "Не удалось сохранить изменения, не найдено сообщение",
+      "edit.save.failed": "Не удалось сохранить изменения",
+      "edit.save.success": "Изменения сохранены",
+      "edit.save": "Сохранить изменения",
+      "edit": "Редактировать",
+      "expand": "Развернуть",
+      "more": "Ещё",
+      "preview.copy.image": "Скопировать как изображение",
+      "preview.source": "Смотреть исходный код",
+      "preview.zoom_in": "Увеличить",
+      "preview.zoom_out": "Уменьшить",
+      "preview": "Предварительный просмотр",
+      "run": "Выполнить код",
+      "split.restore": "Вернуться к одному окну",
+      "split": "Разделить на два окна",
+      "wrap.off": "Отменить перенос строки",
+      "wrap.on": "Перенос строки"
     },
     "common": {
       "add": "Добавить",
@@ -356,7 +400,8 @@
         "pinyin": "Сортировать по пиньинь",
         "pinyin.asc": "Сортировать по пиньинь (А-Я)",
         "pinyin.desc": "Сортировать по пиньинь (Я-А)"
-      }
+      },
+      "no_results": "Результатов не найдено"
     },
     "docs": {
       "title": "Документация"
@@ -522,21 +567,6 @@
       "keep_alive_time.placeholder": "Минуты",
       "keep_alive_time.title": "Время жизни модели",
       "title": "LM Studio"
-    },
-    "mermaid": {
-      "download": {
-        "png": "Скачать PNG",
-        "svg": "Скачать SVG"
-      },
-      "resize": {
-        "zoom-in": "Yвеличить",
-        "zoom-out": "Yменьшить масштаб"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "Диаграмма Mermaid"
     },
     "message": {
       "agents": {
@@ -822,18 +852,6 @@
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
       }
     },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "PlantUML 图表"
-    },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
       "summarize": "Суммируйте этот текст",
@@ -890,6 +908,7 @@
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
       "confirm.button": "Выбрать файл резервной копии",
+
       "content": "Операция восстановления перезапишет все текущие данные приложения данными из резервной копии. Это может занять некоторое время.",
       "progress": {
         "completed": "Восстановление завершено",
@@ -940,6 +959,8 @@
         "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
         "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "app_logs": "Логи приложения",
+        "backup.skip_file_data_title": "Упрощенная резервная копия",
+        "backup.skip_file_data_help": "Пропустить при резервном копировании такие данные, как изображения, базы знаний и другие файлы данных, и сделать резервную копию только переписки и настроек. Это уменьшает использование места на диске и ускоряет процесс резервного копирования.",
         "clear_cache": {
           "button": "Очистка кэша",
           "confirm": "Очистка кэша удалит данные приложения. Это действие необратимо, продолжить?",
@@ -1525,6 +1546,7 @@
         "clear_shortcut": "Очистить сочетание клавиш",
         "clear_topic": "Очистить все сообщения",
         "copy_last_message": "Копировать последнее сообщение",
+        "exit_fullscreen": "Выйти из полноэкранного режима",
         "key": "Клавиша",
         "mini_window": "Быстрый помощник",
         "new_topic": "Новый топик",
@@ -1533,6 +1555,7 @@
         "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
         "reset_to_default": "Сбросить настройки по умолчанию",
         "search_message": "Поиск сообщения",
+        "search_message_in_chat": "Поиск сообщения в текущем диалоге",
         "show_app": "Показать/скрыть приложение",
         "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
@@ -1627,7 +1650,9 @@
         "title": "Масштаб страницы",
         "reset": "Сбросить"
       },
-      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода"
+      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
+      "about.debug.title": "Отладка",
+      "about.debug.open": "Открыть"
     },
     "translate": {
       "any.language": "Любой язык",

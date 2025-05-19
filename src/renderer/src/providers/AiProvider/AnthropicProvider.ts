@@ -13,7 +13,7 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isReasoningModel, isWebSearchModel } from '@renderer/config/models'
+import { isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -43,6 +43,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
+  isEnabledToolUse,
   mcpToolCallResponseToAnthropicMessage,
   mcpToolsToAnthropicTools,
   parseAndCallTools
@@ -152,24 +153,18 @@ export default class AnthropicProvider extends BaseProvider {
     } as WebSearchTool20250305
   }
 
-  /**
-   * Get the temperature
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The temperature
-   */
-  private getTemperature(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) ? undefined : assistant?.settings?.temperature
+  override getTemperature(assistant: Assistant, model: Model): number | undefined {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
+      return undefined
+    }
+    return assistant.settings?.temperature
   }
 
-  /**
-   * Get the top P
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The top P
-   */
-  private getTopP(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) ? undefined : assistant?.settings?.topP
+  override getTopP(assistant: Assistant, model: Model): number | undefined {
+    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
+      return undefined
+    }
+    return assistant.settings?.topP
   }
 
   /**
@@ -213,7 +208,7 @@ export default class AnthropicProvider extends BaseProvider {
   public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
 
@@ -235,7 +230,7 @@ export default class AnthropicProvider extends BaseProvider {
     const { tools } = this.setupToolsConfig<ToolUnion>({
       model,
       mcpTools,
-      enableToolUse
+      enableToolUse: isEnabledToolUse(assistant)
     })
 
     if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {

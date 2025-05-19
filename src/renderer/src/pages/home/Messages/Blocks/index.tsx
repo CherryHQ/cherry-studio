@@ -162,15 +162,19 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 export default React.memo(MessageBlockRenderer)
 
 const ImageBlockGroup = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
   gap: 8px;
   width: 100%;
-  margin: 8px 0;
+  max-width: 960px;
   > * {
-    flex: 0 0 auto;
     min-width: 200px;
+  }
+  @media (min-width: 1536px) {
+    grid-template-columns: repeat(4, minmax(250px, 1fr));
+    max-width: 1280px;
+    > * {
+      min-width: 250px;
+    }
   }
 `

@@ -57,7 +57,6 @@ const NameSpan = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: help;
-  font-family: 'Ubuntu';
   line-height: 30px;
 `
 
