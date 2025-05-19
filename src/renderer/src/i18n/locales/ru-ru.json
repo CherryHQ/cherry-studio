@@ -1505,6 +1505,9 @@
           "title": "Заметки модели",
           "placeholder": "Введите содержимое в формате Markdown...",
           "markdown_editor_default_value": "Область предварительного просмотра"
+        },
+        "openai": {
+          "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
         }
       },
       "proxy": {
@@ -1646,7 +1649,9 @@
         "service_tier.auto": "Авто",
         "service_tier.default": "По умолчанию",
         "service_tier.flex": "Гибкий"
-      }
+      },
+      "about.debug.title": "Отладка",
+      "about.debug.open": "Открыть"
     },
     "translate": {
       "any.language": "Любой язык",

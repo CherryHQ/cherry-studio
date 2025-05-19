@@ -1505,6 +1505,9 @@
           "title": "モデルノート",
           "placeholder": "Markdown形式の内容を入力してください...",
           "markdown_editor_default_value": "プレビュー領域"
+        },
+        "openai": {
+          "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
         }
       },
       "proxy": {
@@ -1633,6 +1636,8 @@
         "reset": "リセット"
       },
       "input.show_translate_confirm": "翻訳確認ダイアログを表示",
+      "about.debug.title": "デバッグ",
+      "about.debug.open": "開く",
       "openai": {
         "title": "OpenAIの設定",
         "summary_text_mode.title": "要約モード",

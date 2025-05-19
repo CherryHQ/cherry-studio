@@ -1,4 +1,5 @@
 import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -326,6 +327,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           }}
         />
       )}
+      {provider.id === 'openai' && <OpenAIAlert />}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password

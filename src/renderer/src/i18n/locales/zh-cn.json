@@ -1468,6 +1468,9 @@
           "description": "本服务由<website>{{provider}}</website>提供",
           "official_website": "官方网站"
         },
+        "openai": {
+          "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
+        },
         "copilot": {
           "auth_failed": "Github Copilot 认证失败",
           "auth_success": "Github Copilot 认证成功",

@@ -1468,6 +1468,9 @@
           "description": "This service is provided by <website>{{provider}}</website>",
           "official_website": "Official Website"
         },
+        "openai": {
+          "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
+        },
         "copilot": {
           "auth_failed": "Github Copilot authentication failed.",
           "auth_success": "GitHub Copilot authentication successful.",

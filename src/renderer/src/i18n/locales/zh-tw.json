@@ -1508,6 +1508,9 @@
           "title": "模型備註",
           "placeholder": "輸入Markdown格式內容...",
           "markdown_editor_default_value": "預覽區域"
+        },
+        "openai": {
+          "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商。"
         }
       },
       "proxy": {
@@ -1548,7 +1551,8 @@
         "toggle_show_topics": "切換話題顯示",
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
-        "zoom_reset": "重設縮放"
+        "zoom_reset": "重設縮放",
+        "exit_fullscreen": "退出螢幕"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",
