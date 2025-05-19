@@ -1,4 +1,5 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -213,34 +214,36 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
   )
 
   return (
-    <GroupContainer
-      id={`message-group-${messages[0].askId}`}
-      $isGrouped={isGrouped}
-      $layout={multiModelMessageStyle}
-      className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
-      <GridContainer
-        $count={messageLength}
+    <MessageEditingProvider>
+      <GroupContainer
+        id={`message-group-${messages[0].askId}`}
+        $isGrouped={isGrouped}
         $layout={multiModelMessageStyle}
-        $gridColumns={gridColumns}
-        className={classNames([isGrouped && 'group-grid-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
-        {messages.map(renderMessage)}
-      </GridContainer>
-      {isGrouped && (
-        <MessageGroupMenuBar
-          multiModelMessageStyle={multiModelMessageStyle}
-          setMultiModelMessageStyle={(style) => {
-            setMultiModelMessageStyle(style)
-            messages.forEach((message) => {
-              editMessage(message.id, { multiModelMessageStyle: style })
-            })
-          }}
-          messages={messages}
-          selectMessageId={selectedMessageId}
-          setSelectedMessage={setSelectedMessage}
-          topic={topic}
-        />
-      )}
-    </GroupContainer>
+        className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
+        <GridContainer
+          $count={messageLength}
+          $layout={multiModelMessageStyle}
+          $gridColumns={gridColumns}
+          className={classNames([isGrouped && 'group-grid-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
+          {messages.map(renderMessage)}
+        </GridContainer>
+        {isGrouped && (
+          <MessageGroupMenuBar
+            multiModelMessageStyle={multiModelMessageStyle}
+            setMultiModelMessageStyle={(style) => {
+              setMultiModelMessageStyle(style)
+              messages.forEach((message) => {
+                editMessage(message.id, { multiModelMessageStyle: style })
+              })
+            }}
+            messages={messages}
+            selectMessageId={selectedMessageId}
+            setSelectedMessage={setSelectedMessage}
+            topic={topic}
+          />
+        )}
+      </GroupContainer>
+    </MessageEditingProvider>
   )
 }
 

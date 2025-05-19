@@ -651,22 +651,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
 
-  // 添加全局粘贴事件处理
-  useEffect(() => {
-    const handleGlobalPaste = (event: ClipboardEvent) => {
-      if (document.activeElement === textareaRef.current?.resizableTextArea?.textArea) {
-        return
-      }
-
-      onPaste(event)
-    }
-
-    document.addEventListener('paste', handleGlobalPaste)
-    return () => {
-      document.removeEventListener('paste', handleGlobalPaste)
-    }
-  }, [onPaste])
-
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()

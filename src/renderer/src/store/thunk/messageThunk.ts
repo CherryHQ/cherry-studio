@@ -971,22 +971,7 @@ export const resendMessageThunk =
  * of its associated assistant responses using resendMessageThunk.
  */
 export const resendUserMessageWithEditThunk =
-  (
-    topicId: Topic['id'],
-    originalMessage: Message,
-    mainTextBlockId: string,
-    editedContent: string,
-    assistant: Assistant
-  ) =>
-  async (dispatch: AppDispatch) => {
-    const blockChanges = {
-      content: editedContent,
-      updatedAt: new Date().toISOString()
-    }
-    // Update block in Redux and DB
-    dispatch(updateOneBlock({ id: mainTextBlockId, changes: blockChanges }))
-    await db.message_blocks.update(mainTextBlockId, blockChanges)
-
+  (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
     // Trigger the regeneration logic for associated assistant messages
     dispatch(resendMessageThunk(topicId, originalMessage, assistant))
   }
@@ -1411,14 +1396,14 @@ export const updateMessageAndBlocksThunk =
     topicId: string,
     // Allow messageUpdates to be optional or just contain the ID if only blocks are updated
     messageUpdates: (Partial<Message> & Pick<Message, 'id'>) | null, // ID is always required for context
-    blockUpdatesList: Partial<MessageBlock>[] // Block updates remain required for this thunk's purpose
+    blockUpdatesList: MessageBlock[] // Block updates remain required for this thunk's purpose
   ) =>
-  async (dispatch: AppDispatch): Promise<boolean> => {
+  async (dispatch: AppDispatch): Promise<void> => {
     const messageId = messageUpdates?.id
 
     if (messageUpdates && !messageId) {
-      console.error('[updateMessageAndBlocksThunk] Message ID is required.')
-      return false
+      console.error('[updateMessageAndUpdateBlocksThunk] Message ID is required.')
+      return
     }
 
     try {
@@ -1434,14 +1419,7 @@ export const updateMessageAndBlocksThunk =
       }
 
       if (blockUpdatesList.length > 0) {
-        blockUpdatesList.forEach((blockUpdate) => {
-          const { id: blockId, ...blockChanges } = blockUpdate
-          if (blockId && Object.keys(blockChanges).length > 0) {
-            dispatch(updateOneBlock({ id: blockId, changes: blockChanges }))
-          } else if (!blockId) {
-            console.warn('[updateMessageAndBlocksThunk] Skipping block update due to missing block ID:', blockUpdate)
-          }
-        })
+        dispatch(upsertManyBlocks(blockUpdatesList))
       }
 
       // 2. 更新数据库 (在事务中)
@@ -1468,27 +1446,57 @@ export const updateMessageAndBlocksThunk =
           }
         }
 
-        // Always process block updates if the list is provided and not empty
         if (blockUpdatesList.length > 0) {
-          const validBlockUpdatesForDb = blockUpdatesList
-            .map((bu) => {
-              const { id, ...changes } = bu
-              if (id && Object.keys(changes).length > 0) {
-                return { key: id, changes: changes }
-              }
-              return null
-            })
-            .filter((bu) => bu !== null) as { key: string; changes: Partial<MessageBlock> }[]
+          await db.message_blocks.bulkPut(blockUpdatesList)
+        }
+      })
+    } catch (error) {
+      console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
+    }
+  }
 
-          if (validBlockUpdatesForDb.length > 0) {
-            await db.message_blocks.bulkUpdate(validBlockUpdatesForDb)
-          }
+export const removeBlocksThunk =
+  (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
+  async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
+    if (!blockIdsToRemove.length) {
+      console.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      return
+    }
+
+    try {
+      const state = getState()
+      const message = state.messages.entities[messageId]
+
+      if (!message) {
+        console.error(`[removeBlocksFromMessageThunk] Message ${messageId} not found in state.`)
+        return
+      }
+      const blockIdsToRemoveSet = new Set(blockIdsToRemove)
+
+      const updatedBlockIds = (message.blocks || []).filter((id) => !blockIdsToRemoveSet.has(id))
+
+      // 1. Update Redux state
+      dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
+
+      if (blockIdsToRemove.length > 0) {
+        dispatch(removeManyBlocks(blockIdsToRemove))
+      }
+
+      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+
+      // 2. Update database (in a transaction)
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+        // Update the message in the topic
+        await db.topics.update(topicId, { messages: finalMessagesToSave })
+        // Delete the blocks from the database
+        if (blockIdsToRemove.length > 0) {
+          await db.message_blocks.bulkDelete(blockIdsToRemove)
         }
       })
 
-      return true
+      return
     } catch (error) {
-      console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
-      return false
+      console.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error)
+      throw error
     }
   }
