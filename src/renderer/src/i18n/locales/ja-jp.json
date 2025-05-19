@@ -856,8 +856,8 @@
         "seed_tip": "拡大結果のランダム性を制御します",
         "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
       },
-      "rendering_speed": "[to be translated]:Rendering Speed",
-      "translating": "[to be translated]:Translating..."
+      "rendering_speed": "レンダリング速度",
+      "translating": "翻訳中..."
     },
     "prompts": {
       "explanation": "この概念を説明してください",
