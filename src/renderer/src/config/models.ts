@@ -419,6 +419,31 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     }
   ],
+
+  burncloud: [
+    { id: 'claude-3-7-sonnet-20250219-thinking', provider: 'burncloud', name: 'Claude 3.7 thinking', group: 'Claude' },
+    { id: 'claude-3-7-sonnet-20250219', provider: 'burncloud', name: 'Claude 3.7 Sonnet', group: 'Claude 3.7' },
+    { id: 'claude-3-5-sonnet-20241022', provider: 'burncloud', name: 'Claude 3.5 Sonnet', group: 'Claude 3.5' },
+    { id: 'claude-3-5-haiku-20241022', provider: 'burncloud', name: 'Claude 3.5 Haiku', group: 'Claude 3.5' },
+
+    { id: 'gpt-4.5-preview', provider: 'burncloud', name: 'gpt-4.5-preview', group: 'gpt-4.5' },
+    { id: 'gpt-4o', provider: 'burncloud', name: 'GPT-4o', group: 'GPT 4o' },
+    { id: 'gpt-4o-mini', provider: 'burncloud', name: 'GPT-4o-mini', group: 'GPT 4o' },
+    { id: 'o3', provider: 'burncloud', name: 'GPT-o1-mini', group: 'o1' },
+    { id: 'o3-mini', provider: 'burncloud', name: 'GPT-o1-preview', group: 'o1' },
+    { id: 'o1-mini', provider: 'burncloud', name: 'GPT-o1-mini', group: 'o1' },
+
+    { id: 'gemini-2.5-pro-preview-03-25', provider: 'burncloud', name: 'Gemini 2.5 Preview', group: 'Geminit 2.5' },
+    { id: 'gemini-2.5-pro-exp-03-25', provider: 'burncloud', name: 'Gemini 2.5 Pro Exp', group: 'Geminit 2.5' },
+    { id: 'gemini-2.0-flash-lite', provider: 'burncloud', name: 'Gemini 2.0 Flash Lite', group: 'Geminit 2.0' },
+    { id: 'gemini-2.0-flash-exp', provider: 'burncloud', name: 'Gemini 2.0 Flash Exp', group: 'Geminit 2.0' },
+    { id: 'gemini-2.0-flash', provider: 'burncloud', name: 'Gemini 2.0 Flash', group: 'Geminit 2.0' },
+
+    { id: 'deepseek-r1', name: 'DeepSeek-R1', provider: 'burncloud', group: 'deepseek-ai' },
+    { id: 'deepseek-v3', name: 'DeepSeek-V3', provider: 'burncloud', group: 'deepseek-ai' }
+
+  ],
+
   o3: [
     {
       id: 'gpt-4o',
