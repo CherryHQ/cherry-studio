@@ -86,7 +86,7 @@ if (!app.requestSingleInstanceLock()) {
         .catch((err) => console.log('An error occurred: ', err))
     }
 
-    //start selection assistant  service
+    //start selection assistant service
     initSelectionService()
   })
 

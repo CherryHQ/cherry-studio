@@ -155,6 +155,7 @@ export class SelectionService {
    */
   public start(): boolean {
     if (!this.selectionHook || this.started) {
+      this.logError(new Error('SelectionService start(): instance is null or already started'))
       return false
     }
 
@@ -988,10 +989,13 @@ export class SelectionService {
 export function initSelectionService(): boolean {
   if (!isWin) return false
 
-  configManager.subscribe('selectionAssistantEnabled', (enabled: boolean) => {
+  configManager.subscribe(ConfigKeys.SelectionAssistantEnabled, (enabled: boolean) => {
     //avoid closure
     const ss = SelectionService.getInstance()
-    if (!ss) return
+    if (!ss) {
+      Logger.error('SelectionService not initialized: instance is null')
+      return
+    }
 
     if (enabled) {
       ss.start()
@@ -1003,11 +1007,12 @@ export function initSelectionService(): boolean {
   if (!configManager.getSelectionAssistantEnabled()) return false
 
   const ss = SelectionService.getInstance()
-  if (!ss) return false
+  if (!ss) {
+    Logger.error('SelectionService not initialized: instance is null')
+    return false
+  }
 
-  ss.start()
-
-  return true
+  return ss.start()
 }
 
 const selectionService = SelectionService.getInstance()

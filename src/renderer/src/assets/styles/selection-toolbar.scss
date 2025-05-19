@@ -1,3 +1,9 @@
+@use './font.scss';
+
+html {
+  font-family: var(--font-family);
+}
+
 :root {
   --color-selection-toolbar-background: rgba(20, 20, 20, 0.95);
   --color-selection-toolbar-border: rgba(55, 55, 55, 0.5);
@@ -10,7 +16,7 @@
   --color-error: #f44336;
 }
 
-body[theme-mode='light'] {
+[theme-mode='light'] {
   --color-selection-toolbar-background: rgba(245, 245, 245, 0.95);
   --color-selection-toolbar-border: rgba(200, 200, 200, 0.5);
   --color-selection-toolbar-shadow: rgba(50, 50, 50, 0.3);
