@@ -290,6 +290,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBuiltinWebSearch = assistant.enableWebSearch
 
@@ -1126,7 +1127,7 @@ export default class OpenAIResponseProvider extends BaseOpenAIProvider {
   }
 
   private getProvider(model: Model): BaseOpenAIProvider {
-    if (isOpenAIWebSearch(model)) {
+    if (isOpenAIWebSearch(model) || model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
       return this.providers.get('openai-compatible')!
     } else {
       return this
