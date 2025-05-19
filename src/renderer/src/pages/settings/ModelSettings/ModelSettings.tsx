@@ -68,7 +68,6 @@ const ModelSettings: FC = () => {
     [translateModel]
   )
 
-  // 建議快捷助手預設模型
   const defaultQuickAssistantModel = useMemo(
     () => (hasModel(quickAssistantModel) ? getModelUniqId(quickAssistantModel) : undefined),
     [quickAssistantModel]
