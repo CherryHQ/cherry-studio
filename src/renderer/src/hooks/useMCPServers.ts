@@ -1,22 +1,25 @@
+import { createSelector } from '@reduxjs/toolkit'
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { useMemo } from 'react'
-
-const ipcRenderer = window.electron.ipcRenderer
 
 // Listen for server changes from main process
-ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
+window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
   store.dispatch(setMCPServers(servers))
 })
-ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
+window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
   store.dispatch(addMCPServer(server))
 })
 
+const selectMcpServers = (state) => state.mcp.servers
+const selectActiveMcpServers = createSelector([selectMcpServers], (servers) =>
+  servers.filter((server) => server.isActive)
+)
+
 export const useMCPServers = () => {
-  const mcpServers = useAppSelector((state) => state.mcp.servers)
-  const activedMcpServers = useMemo(() => mcpServers.filter((server) => server.isActive), [mcpServers])
+  const mcpServers = useAppSelector(selectMcpServers)
+  const activedMcpServers = useAppSelector(selectActiveMcpServers)
   const dispatch = useAppDispatch()
 
   return {

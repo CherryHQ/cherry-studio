@@ -228,7 +228,7 @@ const ContentContainer = styled.div<{
   $isCodeWrappable: boolean
 }>`
   position: relative;
-  border: 0.5px solid var(--color-code-background);
+  border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
   transition: opacity 0.3s ease;

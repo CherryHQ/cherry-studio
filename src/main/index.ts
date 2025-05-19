@@ -2,12 +2,11 @@ import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
-import { isDev, isMac, isWin } from './constant'
+import { isDev } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -85,18 +84,6 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
-    ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
-      return isMac ? 'mac' : isWin ? 'windows' : 'linux'
-    })
-
-    ipcMain.handle(IpcChannel.System_GetHostname, () => {
-      return require('os').hostname()
-    })
-
-    ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
-      const win = BrowserWindow.fromWebContents(e.sender)
-      win && win.webContents.toggleDevTools()
-    })
   })
 
   registerProtocolClient(app)
@@ -128,7 +115,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', async () => {
     // event.preventDefault()
     try {
-      await mcpService.cleanup()
+      await mcpService().cleanup()
     } catch (error) {
       Logger.error('Error cleaning up MCP service:', error)
     }

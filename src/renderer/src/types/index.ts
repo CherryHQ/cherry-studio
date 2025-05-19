@@ -206,6 +206,7 @@ export interface GeneratePainting extends PaintingParams {
   seed?: string
   negativePrompt?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export interface EditPainting extends PaintingParams {
@@ -217,6 +218,7 @@ export interface EditPainting extends PaintingParams {
   styleType?: string
   seed?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export interface RemixPainting extends PaintingParams {
@@ -230,6 +232,7 @@ export interface RemixPainting extends PaintingParams {
   seed?: string
   negativePrompt?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export interface ScalePainting extends PaintingParams {
@@ -240,6 +243,7 @@ export interface ScalePainting extends PaintingParams {
   numImages?: number
   seed?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
@@ -372,7 +376,7 @@ export interface KnowledgeBase {
   chunkOverlap?: number
   threshold?: number
   rerankModel?: Model
-  topN?: number
+  // topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -388,7 +392,7 @@ export type KnowledgeBaseParams = {
   rerankBaseURL?: string
   rerankModel?: string
   rerankModelProvider?: string
-  topN?: number
+  documentCount?: number
 }
 
 export type GenerateImageParams = {
