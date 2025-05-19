@@ -8,6 +8,8 @@ export * from './flow'
 import type { Message } from './newMessage'
 
 export type Assistant = {
+  // 为后续智能体规划添加模式
+  mode: 'system' | 'external'
   id: string
   name: string
   prompt: string

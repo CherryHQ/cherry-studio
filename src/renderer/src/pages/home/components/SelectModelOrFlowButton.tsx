@@ -35,6 +35,7 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
         const enabledWebSearch = isWebSearchModel(selectedItem)
         updateAssistant({
           ...assistant,
+          mode: 'system',
           model: selectedItem,
           chatflow: undefined,
           enableWebSearch: enabledWebSearch && assistant.enableWebSearch
@@ -47,6 +48,7 @@ const SelectModelOrFlowButton: FC<Props> = ({ assistant }) => {
       setTimeout(() => {
         updateAssistant({
           ...assistant,
+          mode: 'external',
           workflow: undefined,
           chatflow: selectedItem,
           enableWebSearch: false

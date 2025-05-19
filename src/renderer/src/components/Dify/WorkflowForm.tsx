@@ -7,7 +7,7 @@ import { updateOneBlock } from '@renderer/store/messageBlock'
 import { fetchAndProcessWorkflowResponseImpl } from '@renderer/store/thunk/flowThunk'
 import { saveUpdatedBlockToDB } from '@renderer/store/thunk/messageThunk'
 import { IUserInputFormItemType, IUserInputFormItemValueBase } from '@renderer/types'
-import { FormMessageBlock, Message, MessageBlockStatus } from '@renderer/types/newMessage'
+import { FormMessageBlock, Message } from '@renderer/types/newMessage'
 import { Button, Card, Form, Input, InputNumber, Select } from 'antd'
 import React, { FC } from 'react'
 
@@ -74,27 +74,17 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
 
   const handleFinish = async (values: any) => {
     try {
+      const formChanges: Partial<FormMessageBlock> = {
+        flow: {
+          ...block.flow,
+          inputs: values
+        },
+        isFinished: true
+      }
+      dispatch(updateOneBlock({ id: block.id, changes: formChanges }))
+      saveUpdatedBlockToDB(block.id, message.id, message.topicId, store.getState)
       if (block.flow.type === 'workflow') {
-        await dispatch(
-          fetchAndProcessWorkflowResponseImpl(
-            message.topicId,
-            assistant,
-            block.flow,
-            values,
-            block.id,
-            message.askId ?? ''
-          )
-        )
-      } else {
-        const changes: Partial<FormMessageBlock> = {
-          flow: {
-            ...block.flow,
-            inputs: values
-          },
-          status: MessageBlockStatus.SUCCESS
-        }
-        dispatch(updateOneBlock({ id: block.id, changes }))
-        saveUpdatedBlockToDB(block.id, message.assistantId, message.topicId, store.getState)
+        await fetchAndProcessWorkflowResponseImpl(dispatch, store.getState, message.topicId, assistant, message)
       }
     } catch (error) {
       console.error('Error processing workflow response:', error)

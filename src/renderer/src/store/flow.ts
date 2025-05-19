@@ -15,7 +15,6 @@ export const INITIAL_FLOW_ENGINE_PROVIDERS: FlowEngine[] = [
     id: 'dify',
     name: 'Dify',
     flows: [],
-    enabled: true,
     isSystem: true
   }
 ]

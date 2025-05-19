@@ -6,7 +6,7 @@ import { useAllFlowEngineProviders, useFlowEngineProviders } from '@renderer/hoo
 import ImageStorage from '@renderer/services/ImageStorage'
 import { FlowEngine } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter } from '@renderer/utils'
-import { Avatar, Dropdown, Input, MenuProps, Tag } from 'antd'
+import { Avatar, Dropdown, Input, MenuProps } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -127,11 +127,6 @@ const WorkflowProviderList: FC = () => {
                                 <ProviderItemName className="text-nowrap">
                                   {provider.isSystem ? t(`provider.${provider.id}`) : provider.name}
                                 </ProviderItemName>
-                                {provider.enabled && (
-                                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                                    ON
-                                  </Tag>
-                                )}
                               </ProviderListItem>
                             </Dropdown>
                           </div>

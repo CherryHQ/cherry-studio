@@ -4,7 +4,7 @@ import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import { check, getAppParameters } from '@renderer/services/FlowEngineService'
 import { Flow, FlowType } from '@renderer/types'
 import type { RadioChangeEvent } from 'antd'
-import { Button, Flex, Form, Input, Radio, Switch } from 'antd'
+import { Button, Flex, Form, Input, Radio } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +22,6 @@ interface WorkflowFormValues {
   description?: string
   apiKey: string
   apiHost: string
-  enabled: boolean
   type: FlowType
 }
 
@@ -94,25 +93,6 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
     updateFlow(updatedFlow)
   }
 
-  const onEnabledChange = async (checked: boolean) => {
-    try {
-      await form.validateFields()
-      const updatedFlow = {
-        ...flow,
-        ...form.getFieldsValue(),
-        enabled: checked,
-        type: flowType
-      }
-
-      setFlow(updatedFlow)
-      updateFlow(updatedFlow)
-      window.message.success({ content: t('settings.workflow.saveSuccess'), key: 'flow-list' })
-    } catch (error) {
-      console.error('Error updating workflow state:', error)
-      window.message.error({ content: t('settings.workflow.saveError'), key: 'flow-list' })
-    }
-  }
-
   const onDelete = useCallback(() => {
     window.modal.confirm({
       title: t('settings.workflow.deleteConfirm'),
@@ -132,7 +112,6 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
       name: flow.name,
       trigger: flow.trigger,
       description: flow.description,
-      enabled: flow.enabled,
       apiKey: flow.apiKey,
       apiHost: flow.apiHost,
       type: flow.type
@@ -151,7 +130,6 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
             <Button danger icon={<DeleteOutlined />} type="text" onClick={onDelete} />
           </Flex>
           <Flex align="center" gap={16}>
-            <Switch checked={flow.enabled} onChange={onEnabledChange} />
             <Button type="primary" onClick={onSave} disabled={isCheckDisabled}>
               {apiChecking ? (
                 <LoadingOutlined spin />

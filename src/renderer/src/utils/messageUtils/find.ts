@@ -187,6 +187,20 @@ export const findLastFormBlock = (messages?: Message[]): FormMessageBlock => {
 }
 
 /**
+ * Finds a FormMessageBlock by its ID.
+ * @param blockId - The ID of the block to find.
+ * @returns
+ */
+export const findFormBlockById = (blockId: string): FormMessageBlock => {
+  const state = store.getState()
+  const block = messageBlocksSelectors.selectById(state, blockId)
+  if (block && block.type === MessageBlockType.FORM) {
+    return block as FormMessageBlock
+  }
+  return {} as FormMessageBlock
+}
+
+/**
  * Finds the WebSearchMessageBlock associated with a given message.
  * Assumes only one web search block per message.
  * @param message - The message object.

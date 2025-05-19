@@ -699,74 +699,35 @@ export const sendMessage =
       const mentionedModels = userMessage.mentions
       const queue = getTopicQueue(topicId)
 
-      if (mentionedModels && mentionedModels.length > 0) {
-        await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
-      } else if (assistant.workflow && getMainTextContent(userMessage) === assistant.workflow.trigger) {
-        let assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessage.id,
-          model: assistant.model,
-          flow: assistant.workflow
-        })
-        const formBlock = createFormBlock(assistantMessage.id, assistant.workflow)
-
-        assistantMessage = {
-          ...assistantMessage,
-          blocks: [formBlock.id]
+      if (assistant.mode === 'system') {
+        if (mentionedModels && mentionedModels.length > 0) {
+          await _handleSystemMultiModelResponse(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+        } else if (assistant.workflow && getMainTextContent(userMessage) === assistant.workflow.trigger) {
+          await _handleSystemWorkflowTrigger(dispatch, topicId, assistant, userMessage.id)
+        } else {
+          await _handleSystemRegularResponse(dispatch, getState, topicId, userMessage, assistant, queue)
         }
-        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-        dispatch(upsertOneBlock(formBlock))
-        dispatch(
-          newMessagesActions.upsertBlockReference({
-            messageId: assistantMessage.id,
-            blockId: formBlock.id,
-            status: formBlock.status
-          })
-        )
-
-        // 将表单块与消息一起保存到数据库
-        await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
-      } else if (assistant.chatflow) {
-        let assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessage.id,
-          flow: assistant.chatflow
-        })
-        if (getMainTextContent(userMessage) === assistant.chatflow.trigger) {
-          const formBlock = createFormBlock(assistantMessage.id, assistant.chatflow)
-          assistantMessage = {
-            ...assistantMessage,
-            blocks: [formBlock.id]
-          }
-          dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-          dispatch(upsertOneBlock(formBlock))
-          dispatch(
-            newMessagesActions.upsertBlockReference({
-              messageId: assistantMessage.id,
-              blockId: formBlock.id,
-              status: formBlock.status
-            })
-          )
-
-          // 将表单块与消息一起保存到数据库
-          await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
-          return
-        }
-        await saveMessageAndBlocksToDB(assistantMessage, [])
-        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
-
-        queue.add(async () => {
-          await fetchAndProcessChatflowResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
-        })
       } else {
-        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessage.id,
-          model: assistant.model
-        })
-        await saveMessageAndBlocksToDB(assistantMessage, [])
-        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+        // Chatflow mode
+        if (assistant.chatflow) {
+          const assistantMessageForChatflow = createAssistantMessage(assistant.id, topicId, {
+            askId: userMessage.id,
+            flow: assistant.chatflow
+          })
 
-        queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
-        })
+          if (getMainTextContent(userMessage) === assistant.chatflow.trigger) {
+            await _handleChatflowTrigger(dispatch, topicId, assistant, assistantMessageForChatflow)
+          } else {
+            await _handleChatflowRegularResponse(
+              dispatch,
+              getState,
+              topicId,
+              assistant,
+              assistantMessageForChatflow,
+              queue
+            )
+          }
+        }
       }
     } catch (error) {
       console.error('Error in sendMessage thunk:', error)
@@ -1197,15 +1158,25 @@ export const regenerateAssistantResponseThunk =
       const queue = getTopicQueue(topicId)
       const assistantConfigForRegen = {
         ...assistant,
-        ...(assistant.chatflow
-          ? { flow: resetAssistantMsg.flow }
-          : resetAssistantMsg.model
-            ? { model: resetAssistantMsg.model }
-            : {})
+        ...(resetAssistantMsg.flow ? { flow: resetAssistantMsg.flow } : {}),
+        ...(resetAssistantMsg.model ? { model: resetAssistantMsg.model } : {})
       }
-      if (assistant.chatflow) {
+      if (assistantConfigForRegen.mode === 'system') {
+        if (
+          assistantConfigForRegen.workflow &&
+          getMainTextContent(originalUserQuery) === assistantConfigForRegen.workflow.trigger
+        ) {
+          await _handleSystemWorkflowTrigger(
+            dispatch,
+            topicId,
+            assistantConfigForRegen,
+            resetAssistantMsg.askId,
+            resetAssistantMsg
+          )
+          return
+        }
         queue.add(async () => {
-          await fetchAndProcessChatflowResponseImpl(
+          await fetchAndProcessAssistantResponseImpl(
             dispatch,
             getState,
             topicId,
@@ -1215,7 +1186,7 @@ export const regenerateAssistantResponseThunk =
         })
       } else {
         queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(
+          await fetchAndProcessChatflowResponseImpl(
             dispatch,
             getState,
             topicId,
@@ -1634,3 +1605,123 @@ export const updateMessageAndBlocksThunk =
       return false
     }
   }
+
+async function _handleSystemMultiModelResponse(
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  userMessage: Message,
+  assistant: Assistant,
+  mentionedModels: Model[]
+) {
+  await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+}
+
+async function _handleSystemWorkflowTrigger(
+  dispatch: AppDispatch,
+  topicId: string,
+  assistant: Assistant,
+  askId?: string,
+  resetAssistantMsg?: Message
+) {
+  if (resetAssistantMsg) {
+    const formBlock = createFormBlock(resetAssistantMsg.id, assistant.workflow!)
+    // 更新重置消息的块引用
+    dispatch(
+      newMessagesActions.updateMessage({
+        topicId,
+        messageId: resetAssistantMsg.id,
+        updates: { blocks: [formBlock.id] }
+      })
+    )
+    dispatch(upsertOneBlock(formBlock))
+    dispatch(
+      newMessagesActions.upsertBlockReference({
+        messageId: resetAssistantMsg.id,
+        blockId: formBlock.id,
+        status: formBlock.status
+      })
+    )
+    await saveUpdatesToDB(resetAssistantMsg.id, topicId, { blocks: [formBlock.id] }, [formBlock])
+  }
+  // 如果是创建新消息
+  else {
+    let assistantMessage = createAssistantMessage(assistant.id, topicId, {
+      askId: askId ?? '',
+      model: assistant.model,
+      flow: assistant.workflow
+    })
+    const formBlock = createFormBlock(assistantMessage.id, assistant.workflow!)
+    assistantMessage = {
+      ...assistantMessage,
+      blocks: [formBlock.id]
+    }
+    dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+    dispatch(upsertOneBlock(formBlock))
+    dispatch(
+      newMessagesActions.upsertBlockReference({
+        messageId: assistantMessage.id,
+        blockId: formBlock.id,
+        status: formBlock.status
+      })
+    )
+    await saveMessageAndBlocksToDB(assistantMessage, [formBlock])
+  }
+}
+
+async function _handleSystemRegularResponse(
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  userMessage: Message,
+  assistant: Assistant,
+  queue: any // Consider using a more specific type for queue if available (e.g., PQueue)
+) {
+  const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+    askId: userMessage.id,
+    model: assistant.model
+  })
+  await saveMessageAndBlocksToDB(assistantMessage, [])
+  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  queue.add(async () => {
+    await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+  })
+}
+
+async function _handleChatflowTrigger(
+  dispatch: AppDispatch,
+  topicId: string,
+  assistant: Assistant,
+  initialAssistantMessage: Message
+) {
+  const formBlock = createFormBlock(initialAssistantMessage.id, assistant.chatflow!)
+  const finalAssistantMessage = {
+    ...initialAssistantMessage,
+    blocks: [formBlock.id]
+  }
+  dispatch(newMessagesActions.addMessage({ topicId, message: finalAssistantMessage }))
+  dispatch(upsertOneBlock(formBlock))
+  dispatch(
+    newMessagesActions.upsertBlockReference({
+      messageId: finalAssistantMessage.id,
+      blockId: formBlock.id,
+      status: formBlock.status
+    })
+  )
+  await saveMessageAndBlocksToDB(finalAssistantMessage, [formBlock])
+}
+
+async function _handleChatflowRegularResponse(
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  topicId: string,
+  assistant: Assistant,
+  assistantMessage: Message,
+  queue: any // Consider using a more specific type for queue if available (e.g., PQueue)
+) {
+  await saveMessageAndBlocksToDB(assistantMessage, [])
+  dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+  queue.add(async () => {
+    await fetchAndProcessChatflowResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+  })
+}

@@ -1,12 +1,11 @@
 import { ArrowLeftOutlined, ExportOutlined, PartitionOutlined, PlusOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
-import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack, VStack } from '@renderer/components/Layout'
 import { FLOW_ENGINE_PROVIDER_CONFIG } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import { Flow, FlowEngine } from '@renderer/types'
-import { Divider, Flex, Switch } from 'antd'
+import { Divider, Flex } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +20,7 @@ interface Props {
 
 const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEngineProvider }) => {
   const { theme } = useTheme()
-  const { flowEngineProvider, flows, updateFlowEngineProvider, addFlow } = useFlowEngineProvider(_flowEngineProvider.id)
+  const { flowEngineProvider, flows, addFlow } = useFlowEngineProvider(_flowEngineProvider.id)
   const [selectedFlow, setSelectedFlow] = useState<Flow | null>(null)
   const { t } = useTranslation()
   const providerConfig = FLOW_ENGINE_PROVIDER_CONFIG[flowEngineProvider.id]
@@ -80,11 +79,6 @@ const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEnginePro
             </Link>
           )}
         </Flex>
-        <Switch
-          value={flowEngineProvider.enabled}
-          key={flowEngineProvider.id}
-          onChange={(enabled) => updateFlowEngineProvider({ ...flowEngineProvider, enabled })}
-        />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       <Container>
@@ -115,14 +109,6 @@ const WorkflowProviderSetting: FC<Props> = ({ flowEngineProvider: _flowEnginePro
                       <PartitionOutlined />
                     </WorkflowIcon>
                     <WorkflowName>{workflow.name}</WorkflowName>
-                    <StatusIndicator>
-                      <IndicatorLight
-                        size={6}
-                        color={workflow.enabled ? 'green' : 'var(--color-text-3)'}
-                        animation={workflow.enabled}
-                        shadow={false}
-                      />
-                    </StatusIndicator>
                   </WorkflowHeader>
                   <WorkflowDescription>
                     {workflow.description
@@ -216,10 +202,6 @@ const WorkflowName = styled.div`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-`
-
-const StatusIndicator = styled.div`
-  margin-left: 8px;
 `
 
 const WorkflowDescription = styled.div`

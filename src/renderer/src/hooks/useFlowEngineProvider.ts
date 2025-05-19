@@ -51,7 +51,7 @@ export function useWorkflows() {
   const workflows: Workflow[] = useAppSelector(selectEnabledFlowEngineProviders)
     .map((provider) => provider.flows)
     .flat()
-    .filter((flow) => flow.type === 'workflow' && flow.enabled)
+    .filter((flow) => flow.type === 'workflow')
 
   return {
     workflows
@@ -62,7 +62,7 @@ export function useChatflows() {
   const chatflows: Workflow[] = useAppSelector(selectEnabledFlowEngineProviders)
     .map((provider) => provider.flows)
     .flat()
-    .filter((flow) => flow.type === 'chat' && flow.enabled)
+    .filter((flow) => flow.type === 'chat')
 
   return {
     chatflows

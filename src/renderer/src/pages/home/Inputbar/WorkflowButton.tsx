@@ -24,7 +24,6 @@ const WorkflowButton: FC<Props> = ({ ref, assistant: _assistant, ToolbarButton }
   const quickPanel = useQuickPanel()
   const { workflows } = useWorkflows()
   const { assistant, updateAssistant } = useAssistant(_assistant.id)
-  console.log('assistant', assistant)
 
   const updateSelectedWorkflow = useCallback(
     (workflow: Workflow | undefined) => {
@@ -45,7 +44,6 @@ const WorkflowButton: FC<Props> = ({ ref, assistant: _assistant, ToolbarButton }
       description: p.description,
       icon: <GitCompare />,
       isSelected: p === assistant.workflow,
-      disabled: !p.enabled,
       action: () => updateSelectedWorkflow(p)
     }))
 

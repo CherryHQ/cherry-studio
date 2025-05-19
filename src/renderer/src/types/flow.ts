@@ -74,7 +74,6 @@ export interface FlowEngine {
   id: string // Provider 唯一标识
   name: string // Provider 名称
   flows: Flow[] // 该 Provider 下的所有工作流 (使用联合类型)
-  enabled: boolean // 是否启用该 Provider
   isSystem?: boolean // 是否为系统内置 Provider
 }
 
