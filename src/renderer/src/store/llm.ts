@@ -484,7 +484,7 @@ const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.silicon[1],
   topicNamingModel: SYSTEM_MODELS.silicon[2],
   translateModel: SYSTEM_MODELS.silicon[3],
-  quickAssistantModel: SYSTEM_MODELS.silicon[4],
+  quickAssistantModel: SYSTEM_MODELS.silicon[1],
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {
