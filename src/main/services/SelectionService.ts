@@ -381,7 +381,7 @@ export class SelectionService {
    * Ensures toolbar stays within screen boundaries and follows selection direction
    * @param point Reference point for positioning, must be INTEGER
    * @param orientation Preferred position relative to reference point
-   * @returns Calculated screen coordinates for toolbar
+   * @returns Calculated screen coordinates for toolbar, INTEGER
    */
   private calculateToolbarPosition(point: Point, orientation: RelativeOrientation): Point {
     // Calculate initial position based on the specified anchor
@@ -436,8 +436,12 @@ export class SelectionService {
     const display = screen.getDisplayNearestPoint({ x: point.x, y: point.y })
 
     // Ensure toolbar stays within screen boundaries
-    posX = Math.max(display.workArea.x, Math.min(posX, display.workArea.x + display.workArea.width - toolbarWidth))
-    posY = Math.max(display.workArea.y, Math.min(posY, display.workArea.y + display.workArea.height - toolbarHeight))
+    posX = Math.round(
+      Math.max(display.workArea.x, Math.min(posX, display.workArea.x + display.workArea.width - toolbarWidth))
+    )
+    posY = Math.round(
+      Math.max(display.workArea.y, Math.min(posY, display.workArea.y + display.workArea.height - toolbarHeight))
+    )
 
     return { x: posX, y: posY }
   }
