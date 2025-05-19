@@ -23,12 +23,6 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
-  const fontFamily = useMemo(() => {
-    return messageFont === 'serif'
-      ? 'serif'
-      : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
-  }, [messageFont])
-
   useEffect(() => {
     if (!isThinking && thoughtAutoCollapse) {
       setActiveKey('')
@@ -98,7 +92,11 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
           ),
           children: (
             //  FIXME: 临时兼容
-            <div style={{ fontFamily, fontSize }}>
+            <div
+              style={{
+                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+                fontSize
+              }}>
               <Markdown block={block} />
             </div>
           )
