@@ -181,6 +181,7 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Web search",
+      "input.web_search.settings": "Web Search Settings",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Need to check web search connectivity in settings first",

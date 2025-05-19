@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.3.5",
+  "version": "1.3.6",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -95,7 +95,6 @@
     "officeparser": "^4.1.1",
     "os-proxy-config": "^1.1.2",
     "proxy-agent": "^6.5.0",
-    "pyodide": "^0.27.5",
     "selection-hook": "^0.9.11",
     "tar": "^7.4.3",
     "turndown": "^7.2.0",

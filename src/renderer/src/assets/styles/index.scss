@@ -8,13 +8,6 @@
 @import '../fonts/icon-fonts/iconfont.css';
 @import '../fonts/ubuntu/ubuntu.css';
 
-body {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
 *,
 *::before,
 *::after {
@@ -31,8 +24,18 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-ul {
-  list-style: none;
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+#root {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
 }
 
 body {
@@ -44,9 +47,15 @@ body {
   overflow: hidden;
   font-family: var(--font-family);
   text-rendering: optimizeLegibility;
+  transition: background-color 0.3s linear;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s linear;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 input,
@@ -67,20 +76,8 @@ a {
   -webkit-user-drag: none;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-}
-
-#root {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  flex: 1;
+ul {
+  list-style: none;
 }
 
 .loader {
