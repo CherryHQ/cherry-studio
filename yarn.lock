@@ -5831,6 +5831,7 @@ __metadata:
     lru-cache: "npm:^11.1.0"
     lucide-react: "npm:^0.487.0"
     markdown-it: "npm:^14.1.0"
+    mem0ai: "npm:^2.1.25"
     mermaid: "npm:^11.6.0"
     mime: "npm:^4.0.4"
     motion: "npm:^12.10.5"
@@ -6439,6 +6440,17 @@ __metadata:
   version: 1.13.2
   resolution: "aws4@npm:1.13.2"
   checksum: 10c0/c993d0d186d699f685d73113733695d648ec7d4b301aba2e2a559d0cd9c1c902308cc52f4095e1396b23fddbc35113644e7f0a6a32753636306e41e3ed6f1e79
+  languageName: node
+  linkType: hard
+
+"axios@npm:1.7.7":
+  version: 1.7.7
+  resolution: "axios@npm:1.7.7"
+  dependencies:
+    follow-redirects: "npm:^1.15.6"
+    form-data: "npm:^4.0.0"
+    proxy-from-env: "npm:^1.1.0"
+  checksum: 10c0/4499efc89e86b0b49ffddc018798de05fab26e3bf57913818266be73279a6418c3ce8f9e934c7d2d707ab8c095e837fc6c90608fb7715b94d357720b5f568af7
   languageName: node
   linkType: hard
 
@@ -13406,6 +13418,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"mem0ai@npm:^2.1.25":
+  version: 2.1.25
+  resolution: "mem0ai@npm:2.1.25"
+  dependencies:
+    axios: "npm:1.7.7"
+    openai: "npm:^4.93.0"
+    uuid: "npm:9.0.1"
+    zod: "npm:^3.24.1"
+  peerDependencies:
+    "@anthropic-ai/sdk": ^0.40.1
+    "@google/genai": ^0.7.0
+    "@langchain/core": ^0.3.44
+    "@mistralai/mistralai": ^1.5.2
+    "@qdrant/js-client-rest": 1.13.0
+    "@supabase/supabase-js": ^2.49.1
+    "@types/jest": 29.5.14
+    "@types/pg": 8.11.0
+    "@types/sqlite3": 3.1.11
+    groq-sdk: 0.3.0
+    neo4j-driver: ^5.28.1
+    ollama: ^0.5.14
+    pg: 8.11.3
+    redis: ^4.6.13
+    sqlite3: 5.1.7
+  checksum: 10c0/a4727593f7ec060ff51c8ef10490b66754b0ce266825663f8b2934221a385d42fb667a787f34af4e8a20f49fd3e11914df508f434314d6f7c8b59730ae2bfe99
+  languageName: node
+  linkType: hard
+
 "memoize-one@npm:>=3.1.1 <6":
   version: 5.2.1
   resolution: "memoize-one@npm:5.2.1"
@@ -14852,6 +14892,31 @@ __metadata:
   bin:
     openai: bin/cli
   checksum: 10c0/d4c3fa76374730c856f774e07f375b51041b8e8429ae2cbd8605b168bf81673017f5dd1c0e42419ca54d8d3fd7cd93d57830d6bc6b9dcd317e70109018d599ea
+  languageName: node
+  linkType: hard
+
+"openai@npm:^4.93.0":
+  version: 4.100.0
+  resolution: "openai@npm:4.100.0"
+  dependencies:
+    "@types/node": "npm:^18.11.18"
+    "@types/node-fetch": "npm:^2.6.4"
+    abort-controller: "npm:^3.0.0"
+    agentkeepalive: "npm:^4.2.1"
+    form-data-encoder: "npm:1.7.2"
+    formdata-node: "npm:^4.3.2"
+    node-fetch: "npm:^2.6.7"
+  peerDependencies:
+    ws: ^8.18.0
+    zod: ^3.23.8
+  peerDependenciesMeta:
+    ws:
+      optional: true
+    zod:
+      optional: true
+  bin:
+    openai: bin/cli
+  checksum: 10c0/c938460659496c6fbf15c3f71ea4819cc64756721f162cd788311cadf6ce6a780a62ca0050cc74218a9e66f58010941717a27260ad9777dfb02e228047061430
   languageName: node
   linkType: hard
 
@@ -19219,6 +19284,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"uuid@npm:9.0.1, uuid@npm:^9.0.1":
+  version: 9.0.1
+  resolution: "uuid@npm:9.0.1"
+  bin:
+    uuid: dist/bin/uuid
+  checksum: 10c0/1607dd32ac7fc22f2d8f77051e6a64845c9bce5cd3dd8aa0070c074ec73e666a1f63c7b4e0f4bf2bc8b9d59dc85a15e17807446d9d2b17c8485fbc2147b27f9b
+  languageName: node
+  linkType: hard
+
 "uuid@npm:^10.0.0":
   version: 10.0.0
   resolution: "uuid@npm:10.0.0"
@@ -19252,15 +19326,6 @@ __metadata:
   bin:
     uuid: dist/bin/uuid
   checksum: 10c0/bcbb807a917d374a49f475fae2e87fdca7da5e5530820ef53f65ba1d12131bd81a92ecf259cc7ce317cbe0f289e7d79fdfebcef9bfa3087c8c8a2fa304c9be54
-  languageName: node
-  linkType: hard
-
-"uuid@npm:^9.0.1":
-  version: 9.0.1
-  resolution: "uuid@npm:9.0.1"
-  bin:
-    uuid: dist/bin/uuid
-  checksum: 10c0/1607dd32ac7fc22f2d8f77051e6a64845c9bce5cd3dd8aa0070c074ec73e666a1f63c7b4e0f4bf2bc8b9d59dc85a15e17807446d9d2b17c8485fbc2147b27f9b
   languageName: node
   linkType: hard
 
@@ -20141,6 +20206,13 @@ __metadata:
   version: 3.24.2
   resolution: "zod@npm:3.24.2"
   checksum: 10c0/c638c7220150847f13ad90635b3e7d0321b36cce36f3fc6050ed960689594c949c326dfe2c6fa87c14b126ee5d370ccdebd6efb304f41ef5557a4aaca2824565
+  languageName: node
+  linkType: hard
+
+"zod@npm:^3.24.1":
+  version: 3.24.4
+  resolution: "zod@npm:3.24.4"
+  checksum: 10c0/ab3112f017562180a41a0f83d870b333677f7d6b77f106696c56894567051b91154714a088149d8387a4f50806a2520efcb666f108cd384a35c236a191186d91
   languageName: node
   linkType: hard
 

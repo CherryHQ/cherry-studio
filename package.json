@@ -91,6 +91,7 @@
     "got-scraping": "^4.1.1",
     "jsdom": "^26.0.0",
     "markdown-it": "^14.1.0",
+    "mem0ai": "^2.1.25",
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.1.1",
     "os-proxy-config": "^1.1.2",
