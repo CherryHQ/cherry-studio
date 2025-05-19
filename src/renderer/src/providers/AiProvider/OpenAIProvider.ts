@@ -266,10 +266,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
           return { reasoning: { maxTokens: 0, exclude: true } }
         }
         return {
-          thinkingConfig: {
-            includeThoughts: false,
-            thinkingBudget: 0
-          }
+          reasoning_effort: 'none'
         }
       }
 
@@ -315,7 +312,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
+    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
       return {
         reasoning_effort: assistant?.settings?.reasoning_effort
       }
@@ -328,16 +325,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         thinking: {
           type: 'enabled',
           budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
-        }
-      }
-    }
-
-    // Gemini models
-    if (isSupportedThinkingTokenGeminiModel(model)) {
-      return {
-        thinkingConfig: {
-          thinkingBudget: budgetTokens,
-          includeThoughts: true
         }
       }
     }
@@ -392,6 +379,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
+        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+      }
+    }
+    if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+      systemMessage = {
+        role: 'assistant',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }

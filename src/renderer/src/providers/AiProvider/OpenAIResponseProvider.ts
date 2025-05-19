@@ -310,6 +310,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBuiltinWebSearch = assistant.enableWebSearch
 
@@ -544,6 +545,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         return
       }
       let content = ''
+      let thinkContent = ''
 
       const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
 
@@ -553,28 +555,39 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         }
         switch (chunk.type) {
           case 'response.output_item.added':
-            if (time_first_token_millsec === 0) {
-              time_first_token_millsec = new Date().getTime()
-            }
             if (chunk.item.type === 'function_call') {
               outputItems.push(chunk.item)
             }
             break
-
+          case 'response.reasoning_summary_part.added':
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
+            }
+            break
           case 'response.reasoning_summary_text.delta':
             onChunk({
               type: ChunkType.THINKING_DELTA,
               text: chunk.delta,
               thinking_millsec: new Date().getTime() - time_first_token_millsec
             })
+            thinkContent += chunk.delta
             break
-          case 'response.reasoning_summary_text.done':
-            onChunk({
-              type: ChunkType.THINKING_COMPLETE,
-              text: chunk.text,
-              thinking_millsec: new Date().getTime() - time_first_token_millsec
-            })
+          case 'response.output_item.done': {
+            if (thinkContent !== '' && chunk.item.type === 'reasoning') {
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinkContent,
+                thinking_millsec: new Date().getTime() - time_first_token_millsec
+              })
+            }
             break
+          }
+          case 'response.content_part.added': {
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
+            }
+            break
+          }
           case 'response.output_text.delta': {
             let delta = chunk.delta
             if (isEnabledBuiltinWebSearch) {
@@ -1146,7 +1159,7 @@ export default class OpenAIResponseProvider extends BaseOpenAIProvider {
   }
 
   private getProvider(model: Model): BaseOpenAIProvider {
-    if (isOpenAIWebSearch(model)) {
+    if (isOpenAIWebSearch(model) || model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
       return this.providers.get('openai-compatible')!
     } else {
       return this
