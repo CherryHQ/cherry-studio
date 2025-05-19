@@ -3,22 +3,10 @@ import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { CodeCacheService } from '@renderer/services/CodeCacheService'
 import { type CodeStyleVarious, ThemeMode } from '@renderer/types'
+import { getHighlighter, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/highlighter'
 import type React from 'react'
 import { createContext, type PropsWithChildren, use, useCallback, useMemo } from 'react'
-import { bundledLanguages, bundledThemes, createHighlighter, type Highlighter } from 'shiki'
-
-let highlighterPromise: Promise<Highlighter> | null = null
-
-async function getHighlighter() {
-  if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      langs: ['javascript', 'typescript', 'python', 'java', 'markdown'],
-      themes: ['one-light', 'material-theme-darker']
-    })
-  }
-
-  return await highlighterPromise
-}
+import { bundledThemes } from 'shiki'
 
 interface SyntaxHighlighterContextType {
   codeToHtml: (code: string, language: string, enableCache: boolean) => Promise<string>
@@ -60,19 +48,8 @@ export const SyntaxHighlighterProvider: React.FC<PropsWithChildren> = ({ childre
         try {
           const highlighter = await getHighlighter()
 
-          if (!highlighter.getLoadedThemes().includes(highlighterTheme)) {
-            const themeImportFn = bundledThemes[highlighterTheme]
-            if (themeImportFn) {
-              await highlighter.loadTheme(await themeImportFn())
-            }
-          }
-
-          if (!highlighter.getLoadedLanguages().includes(mappedLanguage)) {
-            const languageImportFn = bundledLanguages[mappedLanguage]
-            if (languageImportFn) {
-              await highlighter.loadLanguage(await languageImportFn())
-            }
-          }
+          await loadThemeIfNeeded(highlighter, highlighterTheme)
+          await loadLanguageIfNeeded(highlighter, mappedLanguage)
 
           // 生成高亮HTML
           const html = highlighter.codeToHtml(code, {

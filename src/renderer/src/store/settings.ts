@@ -119,6 +119,8 @@ export interface SettingsState {
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  // 订阅的助手地址
+  agentssubscribeUrl: string | null
   // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
@@ -231,6 +233,7 @@ export const initialState: SettingsState = {
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  agentssubscribeUrl: '',
   // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
@@ -511,6 +514,9 @@ const settingsSlice = createSlice({
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
     },
+    setAgentssubscribeUrl: (state, action: PayloadAction<string>) => {
+      state.agentssubscribeUrl = action.payload
+    },
     setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
       state.maxKeepAliveMinapps = action.payload
     },
@@ -623,6 +629,7 @@ export const {
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
+  setAgentssubscribeUrl,
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,

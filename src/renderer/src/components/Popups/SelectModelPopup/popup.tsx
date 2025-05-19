@@ -11,7 +11,16 @@ import { classNames } from '@renderer/utils/style'
 import { Avatar, Divider, Empty, Input, InputRef, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Search } from 'lucide-react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { FixedSizeList } from 'react-window'
@@ -34,7 +43,7 @@ interface Props extends PopupParams {
 const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
-  const { pinnedModels, togglePinnedModel, loading: loadingPinnedModels } = usePinnedModels()
+  const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
   const [open, setOpen] = useState(true)
   const inputRef = useRef<InputRef>(null)
   const listRef = useRef<FixedSizeList>(null)
@@ -49,29 +58,40 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     focusedItemKey,
     scrollTrigger,
     lastScrollOffset,
-    stickyGroup: _stickyGroup,
+    stickyGroup,
     isMouseOver,
-    setFocusedItemKey,
+    setFocusedItemKey: _setFocusedItemKey,
     setScrollTrigger,
-    setLastScrollOffset,
-    setStickyGroup,
+    setLastScrollOffset: _setLastScrollOffset,
+    setStickyGroup: _setStickyGroup,
     setIsMouseOver,
     focusNextItem,
     focusPage,
     searchChanged,
-    updateOnListChange,
-    initScroll
+    focusOnListChange
   } = useScrollState()
 
-  const stickyGroup = useDeferredValue(_stickyGroup)
   const firstGroupRef = useRef<FlatListItem | null>(null)
 
-  const togglePin = useCallback(
-    async (modelId: string) => {
-      await togglePinnedModel(modelId)
-      setScrollTrigger('none') // pin操作不触发滚动
+  const setFocusedItemKey = useCallback(
+    (key: string) => {
+      startTransition(() => _setFocusedItemKey(key))
     },
-    [togglePinnedModel, setScrollTrigger]
+    [_setFocusedItemKey]
+  )
+
+  const setLastScrollOffset = useCallback(
+    (offset: number) => {
+      startTransition(() => _setLastScrollOffset(offset))
+    },
+    [_setLastScrollOffset]
+  )
+
+  const setStickyGroup = useCallback(
+    (group: FlatListItem | null) => {
+      startTransition(() => _setStickyGroup(group))
+    },
+    [_setStickyGroup]
   )
 
   // 根据输入的文本筛选模型
@@ -89,14 +109,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
           const lowerFullName = fullName.toLowerCase()
           return keywords.every((keyword) => lowerFullName.includes(keyword))
         })
-      } else {
-        // 如果不是搜索状态，过滤掉已固定的模型
-        models = models.filter((m) => !pinnedModels.includes(getModelUniqId(m)))
       }
 
       return sortBy(models, ['group', 'name'])
     },
-    [searchText, t, pinnedModels]
+    [searchText, t]
   )
 
   // 创建模型列表项
@@ -116,7 +133,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
           </TagsContainer>
         ),
         icon: (
@@ -137,7 +154,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     const items: FlatListItem[] = []
 
     // 添加置顶模型分组（仅在无搜索文本时）
-    if (pinnedModels.length > 0 && searchText.length === 0) {
+    if (searchText.length === 0 && pinnedModels.length > 0) {
       const pinnedItems = providers.flatMap((p) =>
         p.models.filter((m) => pinnedModels.includes(getModelUniqId(m))).map((m) => createModelItem(m, p, true))
       )
@@ -158,7 +175,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
     // 添加常规模型分组
     providers.forEach((p) => {
       const filteredModels = getFilteredModels(p).filter(
-        (m) => !pinnedModels.includes(getModelUniqId(m)) || searchText.length > 0
+        (m) => searchText.length > 0 || !pinnedModels.includes(getModelUniqId(m))
       )
 
       if (filteredModels.length === 0) return
@@ -198,9 +215,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   const updateStickyGroup = useCallback(
     (scrollOffset?: number) => {
       if (listItems.length === 0) {
-        setStickyGroup(null)
+        stickyGroup && setStickyGroup(null)
         return
       }
+
+      let newStickyGroup: FlatListItem | null = null
 
       // 基于滚动位置计算当前可见的第一个项的索引
       const estimatedIndex = Math.floor((scrollOffset ?? lastScrollOffset) / ITEM_HEIGHT)
@@ -208,38 +227,41 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       // 从该索引向前查找最近的分组标题
       for (let i = estimatedIndex - 1; i >= 0; i--) {
         if (i < listItems.length && listItems[i]?.type === 'group') {
-          setStickyGroup(listItems[i])
-          return
+          newStickyGroup = listItems[i]
+          break
         }
       }
 
       // 找不到则使用第一个分组标题
-      setStickyGroup(firstGroupRef.current)
-    },
-    [listItems, lastScrollOffset, setStickyGroup]
-  )
+      if (!newStickyGroup) newStickyGroup = firstGroupRef.current
 
-  // 在listItems变化时更新sticky group
-  useEffect(() => {
-    updateStickyGroup()
-  }, [listItems, updateStickyGroup])
+      if (stickyGroup?.key !== newStickyGroup?.key) {
+        setStickyGroup(newStickyGroup)
+      }
+    },
+    [listItems, lastScrollOffset, setStickyGroup, stickyGroup]
+  )
 
   // 处理列表滚动事件，更新lastScrollOffset并更新sticky分组
   const handleScroll = useCallback(
     ({ scrollOffset }) => {
       setLastScrollOffset(scrollOffset)
-      updateStickyGroup(scrollOffset)
     },
-    [updateStickyGroup, setLastScrollOffset]
+    [setLastScrollOffset]
   )
 
-  // 在列表项更新时，更新焦点项
+  // 列表项更新时，更新焦点
   useEffect(() => {
-    updateOnListChange(modelItems)
-  }, [modelItems, updateOnListChange])
+    if (!loading) focusOnListChange(modelItems)
+  }, [modelItems, focusOnListChange, loading])
+
+  // 列表项更新时，更新sticky分组
+  useEffect(() => {
+    if (!loading) updateStickyGroup()
+  }, [modelItems, updateStickyGroup, loading])
 
   // 滚动到聚焦项
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (scrollTrigger === 'none' || !focusedItemKey) return
 
     const index = listItems.findIndex((item) => item.key === focusedItemKey)
@@ -301,23 +323,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
           break
         case 'Escape':
           e.preventDefault()
-          setScrollTrigger('none')
           setOpen(false)
           resolve(undefined)
           break
       }
     },
-    [
-      focusedItemKey,
-      modelItems,
-      handleItemClick,
-      open,
-      resolve,
-      setIsMouseOver,
-      focusNextItem,
-      focusPage,
-      setScrollTrigger
-    ]
+    [focusedItemKey, modelItems, handleItemClick, open, resolve, setIsMouseOver, focusNextItem, focusPage]
   )
 
   useEffect(() => {
@@ -326,11 +337,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
   }, [handleKeyDown])
 
   const onCancel = useCallback(() => {
-    setScrollTrigger('initial')
     setOpen(false)
-  }, [setScrollTrigger])
+  }, [])
 
-  const onClose = useCallback(async () => {
+  const onAfterClose = useCallback(async () => {
     setScrollTrigger('initial')
     resolve(undefined)
     SelectModelPopup.hide()
@@ -338,10 +348,16 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
 
   // 初始化焦点和滚动位置
   useEffect(() => {
-    if (!open || loadingPinnedModels) return
+    if (!open) return
     setTimeout(() => inputRef.current?.focus(), 0)
-    initScroll()
-  }, [open, initScroll, loadingPinnedModels])
+  }, [open])
+
+  const togglePin = useCallback(
+    async (modelId: string) => {
+      await togglePinnedModel(modelId)
+    },
+    [togglePinnedModel]
+  )
 
   const RowData = useMemo(
     (): VirtualizedRowData => ({
@@ -364,7 +380,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       centered
       open={open}
       onCancel={onCancel}
-      afterClose={onClose}
+      afterClose={onAfterClose}
       width={600}
       transitionName="animation-move-down"
       styles={{
@@ -407,7 +423,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve }) => {
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       {listItems.length > 0 ? (
-        <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
+        <ListContainer onMouseMove={() => !isMouseOver && startTransition(() => setIsMouseOver(true))}>
           {/* Sticky Group Banner，它会替换第一个分组名称 */}
           <StickyGroupBanner>{stickyGroup?.name}</StickyGroupBanner>
           <FixedSizeList
@@ -455,6 +471,8 @@ const VirtualizedRow = React.memo(
       return <div style={style} />
     }
 
+    const isFocused = item.key === focusedItemKey
+
     return (
       <div style={style}>
         {item.type === 'group' ? (
@@ -462,11 +480,11 @@ const VirtualizedRow = React.memo(
         ) : (
           <ModelItem
             className={classNames({
-              focused: item.key === focusedItemKey,
+              focused: isFocused,
               selected: item.isSelected
             })}
             onClick={() => handleItemClick(item)}
-            onMouseEnter={() => setFocusedItemKey(item.key)}>
+            onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
             <ModelItemLeft>
               {item.icon}
               {item.name}

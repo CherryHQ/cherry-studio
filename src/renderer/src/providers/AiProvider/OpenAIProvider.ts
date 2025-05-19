@@ -1,15 +1,17 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
+  isClaudeReasoningModel,
   isHunyuanSearchModel,
   isOpenAIReasoningModel,
-  isOpenAIWebSearch,
   isReasoningModel,
   isSupportedModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
@@ -53,6 +55,7 @@ import {
   convertLinksToZhipu
 } from '@renderer/utils/linkConverter'
 import {
+  isEnabledToolUse,
   mcpToolCallResponseToOpenAICompatibleMessage,
   mcpToolsToOpenAIChatTools,
   openAIToolsToMcpTool,
@@ -192,14 +195,18 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     } as ChatCompletionMessageParam
   }
 
-  /**
-   * Get the temperature for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The temperature
-   */
-  override getTemperature(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) || isOpenAIWebSearch(model) ? undefined : assistant?.settings?.temperature
+  override getTemperature(assistant: Assistant, model: Model): number | undefined {
+    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+      return undefined
+    }
+    return assistant.settings?.temperature
+  }
+
+  override getTopP(assistant: Assistant, model: Model): number | undefined {
+    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+      return undefined
+    }
+    return assistant.settings?.topP
   }
 
   /**
@@ -230,20 +237,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
   }
 
   /**
-   * Get the top P for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The top P
-   */
-  override getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model) || isOpenAIWebSearch(model)) {
-      return undefined
-    }
-
-    return assistant?.settings?.topP
-  }
-
-  /**
    * Get the reasoning effort for the assistant
    * @param assistant - The assistant
    * @param model - The model
@@ -267,10 +260,26 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         return { thinking: { type: 'disabled' } }
       }
 
+      if (isSupportedThinkingTokenGeminiModel(model)) {
+        // openrouter没有提供一个不推理的选项，先隐藏
+        if (this.provider.id === 'openrouter') {
+          return { reasoning: { maxTokens: 0, exclude: true } }
+        }
+        return {
+          thinkingConfig: {
+            includeThoughts: false,
+            thinkingBudget: 0
+          }
+        }
+      }
+
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    const budgetTokens = Math.floor(
+      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
+    )
+
     // OpenRouter models
     if (model.provider === 'openrouter') {
       if (isSupportedReasoningEffortModel(model)) {
@@ -314,10 +323,21 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // Claude models
     if (isSupportedThinkingTokenClaudeModel(model)) {
+      const maxTokens = assistant.settings?.maxTokens
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: budgetTokens
+          budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+        }
+      }
+    }
+
+    // Gemini models
+    if (isSupportedThinkingTokenGeminiModel(model)) {
+      return {
+        thinkingConfig: {
+          thinkingBudget: budgetTokens,
+          includeThoughts: true
         }
       }
     }
@@ -361,7 +381,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
 
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBultinWebSearch = assistant.enableWebSearch
     messages = addImageFileToContents(messages)
     const enableReasoning =
@@ -375,7 +395,11 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }
-    const { tools } = this.setupToolsConfig<ChatCompletionTool>({ mcpTools, model, enableToolUse })
+    const { tools } = this.setupToolsConfig<ChatCompletionTool>({
+      mcpTools,
+      model,
+      enableToolUse: isEnabledToolUse(assistant)
+    })
 
     if (this.useSystemPromptForTools) {
       systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
@@ -724,9 +748,17 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             const usage = chunk.usage
             const originalFinishDelta = chunk.delta
             const originalFinishRawChunk = chunk.chunk
-
             if (!isEmpty(finishReason)) {
-              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              if (content) {
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              }
+              if (thinkingContent) {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
               if (usage) {
                 finalUsage.completion_tokens += usage.completion_tokens || 0
                 finalUsage.prompt_tokens += usage.prompt_tokens || 0
@@ -818,7 +850,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       if (toolResults.length) {
         await processToolResults(toolResults, idx)
       }
-
       onChunk({
         type: ChunkType.BLOCK_COMPLETE,
         response: {
@@ -1111,10 +1142,14 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return { valid: false, error: new Error('No model found') }
     }
 
-    const body = {
+    const body: any = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
       stream
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      body.enable_thinking = false // qwen3
     }
 
     try {
@@ -1200,11 +1235,15 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     await this.checkIsCopilot()
 
-    const data = await this.sdk.embeddings.create({
-      model: model.id,
-      input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
-    })
-    return data.data[0].embedding.length
+    try {
+      const data = await this.sdk.embeddings.create({
+        model: model.id,
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
+      })
+      return data.data[0].embedding.length
+    } catch (e) {
+      return 0
+    }
   }
 
   public async checkIsCopilot() {

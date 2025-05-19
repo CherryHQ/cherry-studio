@@ -19,7 +19,7 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
-import mcpService from './services/MCPService'
+import { getMcpInstance } from './services/MCPService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
@@ -29,10 +29,11 @@ import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
+
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
@@ -179,6 +180,21 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  // get cache size
+  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
+    const cachePath = getCacheDir()
+    log.info(`Calculating cache size for path: ${cachePath}`)
+
+    try {
+      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
+      return `${sizeInMB}`
+    } catch (error: any) {
+      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      return '0'
+    }
+  })
+
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
     await appUpdater.checkForUpdates()
@@ -187,6 +203,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
+
+  // system
+  ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
+  ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
+  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    win && win.webContents.toggleDevTools()
+  })
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup)
@@ -285,16 +309,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
 
   // Register MCP handlers
-  ipcMain.handle(IpcChannel.Mcp_RemoveServer, mcpService.removeServer)
-  ipcMain.handle(IpcChannel.Mcp_RestartServer, mcpService.restartServer)
-  ipcMain.handle(IpcChannel.Mcp_StopServer, mcpService.stopServer)
-  ipcMain.handle(IpcChannel.Mcp_ListTools, mcpService.listTools)
-  ipcMain.handle(IpcChannel.Mcp_CallTool, mcpService.callTool)
-  ipcMain.handle(IpcChannel.Mcp_ListPrompts, mcpService.listPrompts)
-  ipcMain.handle(IpcChannel.Mcp_GetPrompt, mcpService.getPrompt)
-  ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
-  ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
-  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
+  ipcMain.handle(IpcChannel.Mcp_RemoveServer, (event, server) => getMcpInstance().removeServer(event, server))
+  ipcMain.handle(IpcChannel.Mcp_RestartServer, (event, server) => getMcpInstance().restartServer(event, server))
+  ipcMain.handle(IpcChannel.Mcp_StopServer, (event, server) => getMcpInstance().stopServer(event, server))
+  ipcMain.handle(IpcChannel.Mcp_ListTools, (event, server) => getMcpInstance().listTools(event, server))
+  ipcMain.handle(IpcChannel.Mcp_CallTool, (event, params) => getMcpInstance().callTool(event, params))
+  ipcMain.handle(IpcChannel.Mcp_ListPrompts, (event, server) => getMcpInstance().listPrompts(event, server))
+  ipcMain.handle(IpcChannel.Mcp_GetPrompt, (event, params) => getMcpInstance().getPrompt(event, params))
+  ipcMain.handle(IpcChannel.Mcp_ListResources, (event, server) => getMcpInstance().listResources(event, server))
+  ipcMain.handle(IpcChannel.Mcp_GetResource, (event, params) => getMcpInstance().getResource(event, params))
+  ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, () => getMcpInstance().getInstallInfo())
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))

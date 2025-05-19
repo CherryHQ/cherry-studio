@@ -41,6 +41,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import { convertLinks } from '@renderer/utils/linkConverter'
 import {
+  isEnabledToolUse,
   mcpToolCallResponseToOpenAIMessage,
   mcpToolsToOpenAIResponseTools,
   openAIToolsToMcpTool,
@@ -203,26 +204,6 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     return 5 * 1000 * 60
   }
 
-  /**
-   * Get the temperature for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The temperature
-   */
-  protected getTemperature(assistant: Assistant, model: Model) {
-    return isOpenAIReasoningModel(model) || isOpenAILLMModel(model) ? undefined : assistant?.settings?.temperature
-  }
-
-  /**
-   * Get the top P for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The top P
-   */
-  protected getTopP(assistant: Assistant, model: Model) {
-    return isOpenAIReasoningModel(model) || isOpenAILLMModel(model) ? undefined : assistant?.settings?.topP
-  }
-
   private getResponseReasoningEffort(assistant: Assistant, model: Model) {
     if (!isSupportedReasoningEffortOpenAIModel(model)) {
       return {}
@@ -329,7 +310,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBuiltinWebSearch = assistant.enableWebSearch
 
     let tools: OpenAI.Responses.Tool[] = []
@@ -358,7 +339,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const { tools: extraTools } = this.setupToolsConfig<OpenAI.Responses.Tool>({
       mcpTools,
       model,
-      enableToolUse
+      enableToolUse: isEnabledToolUse(assistant)
     })
 
     tools = tools.concat(extraTools)
@@ -632,7 +613,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
               onChunk({
                 type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                 llm_web_search: {
-                  source: WebSearchSource.OPENAI,
+                  source: WebSearchSource.OPENAI_RESPONSE,
                   results: chunk.part.annotations
                 }
               })
@@ -948,14 +929,10 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         input: [{ role: 'user', content: 'hi' }],
         stream: true
       })
-      let hasContent = false
       for await (const chunk of response) {
         if (chunk.type === 'response.output_text.delta') {
-          hasContent = true
+          return { valid: true, error: null }
         }
-      }
-      if (hasContent) {
-        return { valid: true, error: null }
       }
       throw new Error('Empty streaming response')
     } else {

@@ -2400,6 +2400,18 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   return !NOT_SUPPORTED_REGEX.test(model.id)
 }
 
+export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+  if (!model) {
+    return true
+  }
+
+  if (isOpenAIReasoningModel(model) || isOpenAIWebSearch(model)) {
+    return true
+  }
+
+  return false
+}
+
 export function isWebSearchModel(model: Model): boolean {
   if (!model) {
     return false
@@ -2618,7 +2630,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen3-.*$': { min: 0, max: 38912 },
 
   // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 0, max: 64000 }
+  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

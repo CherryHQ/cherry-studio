@@ -29,7 +29,6 @@ interface FormData {
   chunkOverlap?: number
   threshold?: number
   rerankModel?: string
-  topN?: number
 }
 
 interface Props extends ShowParams {
@@ -95,8 +94,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
         threshold: values.threshold ?? undefined,
         rerankModel: values.rerankModel
           ? providers.flatMap((p) => p.models).find((m) => getModelUniqId(m) === values.rerankModel)
-          : undefined,
-        topN: values.topN
+          : undefined
       }
       updateKnowledgeBase(newBase)
       setOpen(false)
@@ -283,23 +281,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
             <InputNumber placeholder={t('knowledge.threshold_placeholder')} step={0.1} style={{ width: '100%' }} />
           </Form.Item>
 
-          <Form.Item
-            name="topN"
-            label={t('knowledge.topN')}
-            layout="horizontal"
-            initialValue={base.topN}
-            rules={[
-              {
-                validator(_, value) {
-                  if (value && (value < 0 || value > 10)) {
-                    return Promise.reject(new Error(t('knowledge.topN_too_large_or_small')))
-                  }
-                  return Promise.resolve()
-                }
-              }
-            ]}>
-            <InputNumber placeholder={t('knowledge.topN_placeholder')} style={{ width: '100%' }} />
-          </Form.Item>
           <Alert
             message={t('knowledge.chunk_size_change_warning')}
             type="warning"

@@ -74,33 +74,34 @@ const updateExistingMessageAndBlocksInDB = async (
   updatedBlocks: MessageBlock[]
 ) => {
   try {
-    // Always update blocks if provided
-    if (updatedBlocks.length > 0) {
-      await db.message_blocks.bulkPut(updatedBlocks)
-    }
-
-    // Check if there are message properties to update beyond id and topicId
-    const messageKeysToUpdate = Object.keys(updatedMessage).filter((key) => key !== 'id' && key !== 'topicId')
-
-    // Only proceed with topic update if there are actual message changes
-    if (messageKeysToUpdate.length > 0) {
-      const topic = await db.topics.get(updatedMessage.topicId)
-      if (topic) {
-        const messageIndex = topic.messages.findIndex((m) => m.id === updatedMessage.id)
-        if (messageIndex !== -1) {
-          const newMessages = [...topic.messages]
-          // Apply the updates passed in updatedMessage
-          Object.assign(newMessages[messageIndex], updatedMessage)
-          // Logger.log('updateExistingMessageAndBlocksInDB', updatedMessage)
-          await db.topics.update(updatedMessage.topicId, { messages: newMessages })
-        } else {
-          console.error(`[updateExistingMsg] Message ${updatedMessage.id} not found in topic ${updatedMessage.topicId}`)
-        }
-      } else {
-        console.error(`[updateExistingMsg] Topic ${updatedMessage.topicId} not found.`)
+    await db.transaction('rw', db.topics, db.message_blocks, async () => {
+      // Always update blocks if provided
+      if (updatedBlocks.length > 0) {
+        await db.message_blocks.bulkPut(updatedBlocks)
       }
-    }
-    // If messageKeysToUpdate.length === 0, we skip topic fetch/update entirely
+
+      // Check if there are message properties to update beyond id and topicId
+      const messageKeysToUpdate = Object.keys(updatedMessage).filter((key) => key !== 'id' && key !== 'topicId')
+
+      // Only proceed with topic update if there are actual message changes
+      if (messageKeysToUpdate.length > 0) {
+        // 使用 where().modify() 进行原子更新
+        await db.topics
+          .where('id')
+          .equals(updatedMessage.topicId)
+          .modify((topic) => {
+            if (!topic) return
+
+            const messageIndex = topic.messages.findIndex((m) => m.id === updatedMessage.id)
+            if (messageIndex !== -1) {
+              // 直接在原对象上更新需要修改的属性
+              messageKeysToUpdate.forEach((key) => {
+                topic.messages[messageIndex][key] = updatedMessage[key]
+              })
+            }
+          })
+      }
+    })
   } catch (error) {
     console.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error)
   }
@@ -622,6 +623,14 @@ const fetchAndProcessAssistantResponseImpl = async (
           const contextForUsage = userMsgIndex !== -1 ? orderedMsgs.slice(0, userMsgIndex + 1) : []
           const finalContextWithAssistant = [...contextForUsage, finalAssistantMsg]
 
+          if (lastBlockId) {
+            const changes: Partial<MessageBlock> = {
+              status: MessageBlockStatus.SUCCESS
+            }
+            dispatch(updateOneBlock({ id: lastBlockId, changes }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          }
+
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
@@ -726,6 +735,7 @@ export const loadTopicMessagesThunk =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
+    dispatch(newMessagesActions.setCurrentTopicId(topicId))
 
     if (topicMessagesExist && !forceReload) {
       return
@@ -733,7 +743,6 @@ export const loadTopicMessagesThunk =
 
     try {
       const topic = await db.topics.get(topicId)
-
       if (!topic) {
         await db.topics.add({ id: topicId, messages: [] })
       }
@@ -797,21 +806,19 @@ export const deleteMessageGroupThunk =
     const currentState = getState()
     const topicMessageIds = currentState.messages.messageIdsByTopic[topicId] || []
     const messagesToDelete: Message[] = []
-    const idsToDelete: string[] = []
 
     topicMessageIds.forEach((id) => {
       const msg = currentState.messages.entities[id]
       if (msg && msg.askId === askId) {
         messagesToDelete.push(msg)
-        idsToDelete.push(id)
       }
     })
 
-    const userQuery = currentState.messages.entities[askId]
-    if (userQuery && userQuery.topicId === topicId && !idsToDelete.includes(askId)) {
-      messagesToDelete.push(userQuery)
-      idsToDelete.push(askId)
-    }
+    // const userQuery = currentState.messages.entities[askId]
+    // if (userQuery && userQuery.topicId === topicId && !idsToDelete.includes(askId)) {
+    //   messagesToDelete.push(userQuery)
+    //   idsToDelete.push(askId)
+    // }
 
     if (messagesToDelete.length === 0) {
       console.warn(`[deleteMessageGroup] No messages found with askId ${askId} in topic ${topicId}.`)
@@ -886,13 +893,29 @@ export const resendMessageThunk =
       const resetDataList: Message[] = []
 
       if (assistantMessagesToReset.length === 0) {
-        // 没有用户消息,就创建一个
-        const assistantMessage = createAssistantMessage(assistant.id, topicId, {
-          askId: userMessageToResend.id,
-          model: assistant.model
+        // 没有用户消息,就创建一个或多个
+
+        if (userMessageToResend?.mentions?.length) {
+          console.log('userMessageToResend.mentions', userMessageToResend.mentions)
+          for (const mention of userMessageToResend.mentions) {
+            const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+              askId: userMessageToResend.id,
+              model: mention,
+              modelId: mention.id
+            })
+            resetDataList.push(assistantMessage)
+          }
+        } else {
+          const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+            askId: userMessageToResend.id,
+            model: assistant.model
+          })
+          resetDataList.push(assistantMessage)
+        }
+
+        resetDataList.forEach((message) => {
+          dispatch(newMessagesActions.addMessage({ topicId, message }))
         })
-        resetDataList.push(assistantMessage)
-        dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
       }
 
       const allBlockIdsToDelete: string[] = []

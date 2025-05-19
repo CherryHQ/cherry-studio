@@ -5,7 +5,7 @@ import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
 import { Lightbulb } from 'lucide-react'
 import { motion } from 'motion/react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -20,8 +20,6 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const { t } = useTranslation()
   const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
-  const [thinkingTime, setThinkingTime] = useState(block.thinking_millsec || 0)
-  const intervalId = useRef<NodeJS.Timeout>(null)
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
@@ -55,28 +53,6 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
     }
   }, [block.content, t])
 
-  // FIXME: 这里统计的和请求处统计的有一定误差
-  useEffect(() => {
-    if (isThinking) {
-      intervalId.current = setInterval(() => {
-        setThinkingTime((prev) => prev + 100)
-      }, 100)
-    } else if (intervalId.current) {
-      // 立即清除计时器
-      clearInterval(intervalId.current)
-      intervalId.current = null
-    }
-
-    return () => {
-      if (intervalId.current) {
-        clearInterval(intervalId.current)
-        intervalId.current = null
-      }
-    }
-  }, [isThinking])
-
-  const thinkingTimeSeconds = useMemo(() => (thinkingTime / 1000).toFixed(1), [thinkingTime])
-
   if (!block.content) {
     return null
   }
@@ -101,9 +77,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                 <Lightbulb size={18} />
               </motion.span>
               <ThinkingText>
-                {t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
-                  seconds: thinkingTimeSeconds
-                })}
+                <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
               </ThinkingText>
               {/* {isThinking && <BarLoader color="#9254de" />} */}
               {!isThinking && (
@@ -133,6 +107,41 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
     />
   )
 }
+
+const ThinkingTimeSeconds = memo(
+  ({ blockThinkingTime, isThinking }: { blockThinkingTime?: number; isThinking: boolean }) => {
+    const { t } = useTranslation()
+
+    const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
+
+    // FIXME: 这里统计的和请求处统计的有一定误差
+    useEffect(() => {
+      let timer: NodeJS.Timeout | null = null
+      if (isThinking) {
+        timer = setInterval(() => {
+          setThinkingTime((prev) => prev + 100)
+        }, 100)
+      } else if (timer) {
+        // 立即清除计时器
+        clearInterval(timer)
+        timer = null
+      }
+
+      return () => {
+        if (timer) {
+          clearInterval(timer)
+          timer = null
+        }
+      }
+    }, [isThinking])
+
+    const thinkingTimeSeconds = useMemo(() => (thinkingTime / 1000).toFixed(1), [thinkingTime])
+
+    return t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
+      seconds: thinkingTimeSeconds
+    })
+  }
+)
 
 const CollapseContainer = styled(Collapse)`
   margin-bottom: 15px;

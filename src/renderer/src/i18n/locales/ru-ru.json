@@ -48,6 +48,9 @@
       },
       "export": {
         "agent": "Экспорт агента"
+      },
+      "settings": {
+        "title": "Настройки агента"
       }
     },
     "assistants": {
@@ -85,6 +88,9 @@
       "settings.knowledge_base.recognition": "Использование базы знаний",
       "settings.knowledge_base.recognition.off": "Принудительный поиск",
       "settings.knowledge_base.recognition.on": "Распознавание намерений",
+      "settings.tool_use_mode": "Режим использования инструментов",
+      "settings.tool_use_mode.function": "Функция",
+      "settings.tool_use_mode.prompt": "Подсказка",
       "settings.regular_phrases": {
         "title": "Регулярные подсказки",
         "add": "Добавить подсказку",
@@ -171,6 +177,7 @@
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
       "input.web_search": "Веб-поиск",
+      "input.web_search.settings": "Настройки веб-поиска",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
       "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
@@ -205,9 +212,9 @@
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
-      "settings.max_tokens": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm_content": "Включить лимит максимальных токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
+      "settings.max_tokens": "Максимальное количество токенов",
+      "settings.max_tokens.confirm": "Максимальное количество токенов",
+      "settings.max_tokens.confirm_content": "Установить максимальное количество токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.max_tokens.tip": "Максимальное количество токенов, которые может сгенерировать модель. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.reset": "Сбросить",
       "settings.set_as_default": "Применить к ассистенту по умолчанию",
@@ -1522,6 +1529,7 @@
         "clear_shortcut": "Очистить сочетание клавиш",
         "clear_topic": "Очистить все сообщения",
         "copy_last_message": "Копировать последнее сообщение",
+        "exit_fullscreen": "Выйти из полноэкранного режима",
         "key": "Клавиша",
         "mini_window": "Быстрый помощник",
         "new_topic": "Новый топик",

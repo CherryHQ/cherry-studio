@@ -102,13 +102,13 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 
   return {
-    contextCount: contextCount === 20 ? 100000 : contextCount,
+    contextCount: contextCount === 100 ? 100000 : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     topP: assistant?.settings?.topP ?? 1,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
-    enableToolUse: assistant?.settings?.enableToolUse ?? false,
+    toolUseMode: assistant?.settings?.toolUseMode ?? 'prompt',
     hideMessages: assistant?.settings?.hideMessages ?? false,
     defaultModel: assistant?.defaultModel ?? undefined,
     customParameters: assistant?.settings?.customParameters ?? []

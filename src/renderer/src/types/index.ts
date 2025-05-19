@@ -56,12 +56,12 @@ export type AssistantSettings = {
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
-  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
   qwenThinkMode?: boolean
+  toolUseMode?: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -372,7 +372,7 @@ export interface KnowledgeBase {
   chunkOverlap?: number
   threshold?: number
   rerankModel?: Model
-  topN?: number
+  // topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -388,7 +388,7 @@ export type KnowledgeBaseParams = {
   rerankBaseURL?: string
   rerankModel?: string
   rerankModelProvider?: string
-  topN?: number
+  documentCount?: number
 }
 
 export type GenerateImageParams = {
