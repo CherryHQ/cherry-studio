@@ -581,7 +581,27 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      // 1. 文件/图片粘贴
+      // 优先处理文本粘贴
+      const clipboardText = event.clipboardData?.getData('text')
+      if (clipboardText) {
+        // 1. 文本粘贴
+        if (pasteLongTextAsFile && clipboardText.length > pasteLongTextThreshold) {
+          // 长文本直接转文件，阻止默认粘贴
+          event.preventDefault()
+
+          const tempFilePath = await window.api.file.create('pasted_text.txt')
+          await window.api.file.write(tempFilePath, clipboardText)
+          const selectedFile = await window.api.file.get(tempFilePath)
+          selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+          setText(text) // 保持输入框内容不变
+          setTimeout(() => resizeTextArea(), 50)
+          return
+        }
+        // 短文本走默认粘贴行为，直接返回
+        return
+      }
+
+      // 2. 文件/图片粘贴（仅在无文本时处理）
       if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         for (const file of event.clipboardData.files) {
@@ -626,23 +646,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
         return
       }
-
-      // 2. 文本粘贴
-      const clipboardText = event.clipboardData?.getData('text')
-      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
-        // 长文本直接转文件，阻止默认粘贴
-        event.preventDefault()
-
-        const tempFilePath = await window.api.file.create('pasted_text.txt')
-        await window.api.file.write(tempFilePath, clipboardText)
-        const selectedFile = await window.api.file.get(tempFilePath)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-        setText(text) // 保持输入框内容不变
-        setTimeout(() => resizeTextArea(), 50)
-        return
-      }
-
-      // 短文本走默认粘贴行为
+      // 其他情况默认粘贴
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )

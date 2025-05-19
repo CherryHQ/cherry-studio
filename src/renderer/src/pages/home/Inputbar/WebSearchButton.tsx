@@ -79,7 +79,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     }
 
     items.push({
-      label: '前往设置' + '...',
+      label: t('chat.input.web_search.settings'),
       icon: <Settings />,
       action: () => navigate('/settings/web-search')
     })
