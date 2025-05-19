@@ -318,7 +318,8 @@
       "input.thinking.mode.custom": "自定義",
       "input.thinking.mode.custom.tip": "模型最多可以思考的 token 數。需要考慮模型的上下文限制，否則會報錯",
       "input.thinking.mode.tokens.tip": "設置思考的 token 數",
-      "input.thinking.budget_exceeds_max": "思考預算超過最大 token 數"
+      "input.thinking.budget_exceeds_max": "思考預算超過最大 token 數",
+      "input.workflow": "工作流"
     },
     "code_block": {
       "collapse": "折疊",
@@ -402,7 +403,10 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "沒有結果"
+      "no_results": "沒有結果",
+      "submit": "提交",
+      "form.validation.required": "{{field}} 是必填項",
+      "goto.settings": "前往設定..."
     },
     "docs": {
       "title": "說明文件"
@@ -430,7 +434,9 @@
       },
       "user_message_not_found": "無法找到原始用戶訊息",
       "unknown": "未知錯誤",
-      "pause_placeholder": "回應已暫停"
+      "pause_placeholder": "回應已暫停",
+      "file.upload": "檔案上傳失敗",
+      "file.ext": "檔案格式不支援"
     },
     "export": {
       "assistant": "助手",
@@ -923,7 +929,8 @@
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛雲"
+      "qiniu": "七牛雲",
+      "dify": "Dify"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1671,6 +1678,30 @@
       "zoom": {
         "title": "縮放",
         "reset": "重置"
+      },
+      "workflow": {
+        "title": "工作流服務",
+        "search": "搜尋工作流平台...",
+        "addWorkflow": "新增工作流",
+        "newWorkflow": "新建工作流",
+        "addSuccess": "工作流新增成功",
+        "noDescription": "沒有描述",
+        "name": "名稱",
+        "description": "描述",
+        "url": "訪問url地址",
+        "apiKey": "API 金鑰",
+        "apiHost": "API 位址",
+        "saveSuccess": "工作流儲存成功",
+        "saveError": "工作流儲存失敗",
+        "deleteConfirm": "確定要刪除此工作流嗎？",
+        "deleteSuccess": "工作流刪除成功",
+        "deleteError": "工作流刪除失敗",
+        "type": "類型",
+        "workflow": "工作流",
+        "chatflow": "對話流",
+        "checkSuccess": "工作流檢查成功",
+        "checkError": "工作流檢查失敗",
+        "trigger": "觸發詞"
       }
     },
     "translate": {
@@ -1715,6 +1746,12 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "workflow": {
+      "title": "工作流",
+      "file.input.upload": "上傳檔案",
+      "error.file.ext": "不支援上傳該格式的檔案",
+      "pinned": "已固定工作流"
     }
   }
 }

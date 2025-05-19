@@ -1272,7 +1272,6 @@ const migrateConfig = {
   },
   '98': (state: RootState) => {
     try {
-      addFlowEngineProvider(state, 'dify')
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'openai' && provider.id !== 'openai') {
           // @ts-ignore eslint-disable-next-line
@@ -1415,6 +1414,27 @@ const migrateConfig = {
         }
       }
       return state
+    } catch (error) {
+      return state
+    }
+  },
+  '104': (state: RootState) => {
+    try {
+      addFlowEngineProvider(state, 'dify')
+      return {
+        ...state,
+        assistants: {
+          ...state.assistants,
+          defaultAssistant: {
+            ...state.assistants.defaultAssistant,
+            mode: 'system'
+          },
+          assistants: state.assistants.assistants.map((assistant) => ({
+            ...assistant,
+            mode: 'system'
+          }))
+        }
+      }
     } catch (error) {
       return state
     }

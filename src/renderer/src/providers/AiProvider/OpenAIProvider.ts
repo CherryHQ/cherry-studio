@@ -1143,7 +1143,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     if (this.provider.id !== 'github') {
-      body.enable_thinking = false; // qwen3
+      body.enable_thinking = false // qwen3
     }
 
     try {

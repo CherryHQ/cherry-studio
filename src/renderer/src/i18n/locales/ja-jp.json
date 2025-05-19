@@ -318,7 +318,8 @@
       "input.thinking.mode.custom.tip": "モデルが最大で思考できるトークン数。モデルのコンテキスト制限を考慮する必要があります。そうしないとエラーが発生します",
       "input.thinking.mode.default.tip": "モデルが自動的に思考のトークン数を決定します",
       "input.thinking.mode.tokens.tip": "思考のトークン数を設定します",
-      "input.thinking.budget_exceeds_max": "思考予算が最大トークン数を超えました"
+      "input.thinking.budget_exceeds_max": "思考予算が最大トークン数を超えました",
+      "input.workflow": "ワークフロー"
     },
     "code_block": {
       "collapse": "折りたたむ",
@@ -402,7 +403,10 @@
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
       },
-      "no_results": "検索結果なし"
+      "no_results": "検索結果なし",
+      "submit": "提出",
+      "form.validation.required": "{{field}} は必須項目です。",
+      "goto.settings": "設定へ移動..."
     },
     "docs": {
       "title": "ドキュメント"
@@ -430,7 +434,9 @@
       },
       "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
       "unknown": "不明なエラー",
-      "pause_placeholder": "応答を一時停止しました"
+      "pause_placeholder": "応答を一時停止しました",
+      "file.upload": "ファイルのアップロードに失敗しました。",
+      "file.ext": "ファイル形式がサポートされていません。"
     },
     "export": {
       "assistant": "アシスタント",
@@ -923,7 +929,8 @@
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云"
+      "qiniu": "七牛云",
+      "dify": "Dify"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -1671,7 +1678,31 @@
       },
       "input.show_translate_confirm": "翻訳確認ダイアログを表示",
       "about.debug.title": "デバッグ",
-      "about.debug.open": "開く"
+      "about.debug.open": "開く",
+      "workflow": {
+        "title": "ワークフローサービス",
+        "search": "検索ワークフロープラットフォーム...",
+        "addWorkflow": "ワークフローの追加",
+        "newWorkflow": "新しいワークフローを作成する",
+        "addSuccess": "ワークフローの追加に成功しました。",
+        "noDescription": "説明がありません。",
+        "name": "名称",
+        "description": "説明",
+        "url": "URLアドレスにアクセスする",
+        "apiKey": "API キー",
+        "apiHost": "API アドレス",
+        "saveSuccess": "ワークフローの保存に成功しました。",
+        "saveError": "ワークフローの保存に失敗しました。",
+        "deleteConfirm": "このワークフローを削除してもよろしいですか？",
+        "deleteSuccess": "ワークフローの削除が成功しました。",
+        "deleteError": "ワークフローの削除に失敗しました。",
+        "type": "タイプ",
+        "workflow": "ワークフロー",
+        "chatflow": "ダイアログフロー",
+        "checkSuccess": "ワークフローのチェックが成功しました。",
+        "checkError": "ワークフローチェックが失敗しました。",
+        "trigger": "トリガーワード"
+      }
     },
     "translate": {
       "any.language": "任意の言語",
@@ -1715,6 +1746,12 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "workflow": {
+      "title": "ワークフロー",
+      "file.input.upload": "ファイルをアップロードする",
+      "error.file.ext": "この形式のファイルのアップロードはサポートされていません。",
+      "pinned": "既定ワークフロー"
     }
   }
 }

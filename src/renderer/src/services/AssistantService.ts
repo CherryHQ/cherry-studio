@@ -12,6 +12,7 @@ import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
+    mode: 'system',
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',

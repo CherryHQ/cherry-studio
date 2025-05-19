@@ -70,13 +70,15 @@ const flowSlice = createSlice({
       )
     },
     updateFlow: (state, action: PayloadAction<Flow>) => {
-      const provider = state.providers.find((p) => p.id === action.payload.providerId)
-      if (provider) {
-        const workflowIndex = provider.flows.findIndex((w) => w.id === action.payload.id)
-        if (workflowIndex !== -1) {
-          provider.flows[workflowIndex] = action.payload
+      state.providers = state.providers.map((provider) => {
+        if (provider.id === action.payload.providerId) {
+          return {
+            ...provider,
+            flows: provider.flows.map((flow) => (flow.id === action.payload.id ? action.payload : flow))
+          }
         }
-      }
+        return provider
+      })
     }
   }
 })

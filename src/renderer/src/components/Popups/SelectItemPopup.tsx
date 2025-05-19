@@ -316,6 +316,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ item, resolve }) => {
     const pinnedItems = flowEngineProviders
       .flatMap((f) =>
         f.flows
+          .filter((fl) => fl.type === 'chatflow')
           .filter((fl) => pinnedFlows.includes(fl.id))
           .map((fl) => ({
             key: fl.id + '_pinned',
@@ -354,8 +355,8 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ item, resolve }) => {
       }))
     if (pinnedItems.length > 0) {
       filteredItems.unshift({
-        key: 'pinned-flows',
-        label: t('flows.pinned'),
+        key: 'pinned-workflows',
+        label: t('workflow.pinned'),
         type: 'group',
         children: pinnedItems
       } as MenuItem)

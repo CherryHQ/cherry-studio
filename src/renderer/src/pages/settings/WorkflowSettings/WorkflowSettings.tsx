@@ -3,7 +3,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFlowEngineProvider } from '@renderer/hooks/useFlowEngineProvider'
 import { check, getAppParameters } from '@renderer/services/FlowEngineService'
 import { Flow, FlowType } from '@renderer/types'
-import type { RadioChangeEvent } from 'antd'
 import { Button, Flex, Form, Input, Radio } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -26,14 +25,12 @@ interface WorkflowFormValues {
 }
 
 const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
-  const { flowEngineProvider } = useFlowEngineProvider(_flow.providerId)
+  const { flowEngineProvider, updateFlow, removeFlow } = useFlowEngineProvider(_flow.providerId)
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [form] = Form.useForm<WorkflowFormValues>()
   const [flow, setFlow] = useState<Flow>(_flow)
   const [apiChecking, setApiChecking] = useState(false)
-  const { updateFlow, removeFlow } = useFlowEngineProvider(flow.providerId)
-  const [flowType, setFlowType] = useState<FlowType>(flow.type)
 
   const onSave = async (): Promise<boolean> => {
     try {
@@ -47,11 +44,11 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
         description: values.description,
         apiKey: values.apiKey || '',
         apiHost: values.apiHost || '',
-        type: flowType
+        type: values.type
       }
-
+      console.log('newWorkflow', newWorkflow)
       setFlow(newWorkflow)
-      await updateFlow(newWorkflow)
+      updateFlow(newWorkflow)
 
       window.message.success({ content: t('settings.workflow.saveSuccess'), key: 'flow-list' })
 
@@ -61,7 +58,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           const { valid, error } = await check(flowEngineProvider, newWorkflow)
 
           if (valid) {
-            await getParameters()
+            await getParameters(newWorkflow)
             window.message.success({ content: t('settings.workflow.checkSuccess'), key: 'flow-list' })
           } else {
             const errorMessage = error?.message ? ` ${error.message}` : ''
@@ -86,9 +83,9 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
     }
   }
 
-  const getParameters = async () => {
-    const parameters = await getAppParameters(flowEngineProvider, flow)
-    const updatedFlow = { ...flow, parameters }
+  const getParameters = async (newWorkflow) => {
+    const parameters = await getAppParameters(flowEngineProvider, newWorkflow)
+    const updatedFlow = { ...newWorkflow, parameters }
     setFlow(updatedFlow)
     updateFlow(updatedFlow)
   }
@@ -103,23 +100,17 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
     })
   }, [flow, removeFlow, t])
 
-  const handleTypeChange = (e: RadioChangeEvent) => {
-    setFlowType(e.target.value as FlowType)
-  }
-
   useEffect(() => {
+    setFlow(_flow)
     form.setFieldsValue({
-      name: flow.name,
-      trigger: flow.trigger,
-      description: flow.description,
-      apiKey: flow.apiKey,
-      apiHost: flow.apiHost,
-      type: flow.type
+      name: _flow.name,
+      trigger: _flow.trigger,
+      description: _flow.description,
+      apiKey: _flow.apiKey,
+      apiHost: _flow.apiHost,
+      type: _flow.type
     })
-  }, [flow, form])
-
-  const isCheckDisabled =
-    apiChecking || !((form.getFieldValue('apiHost') || flow.apiHost) && (form.getFieldValue('apiKey') || flow.apiKey))
+  }, [_flow])
 
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
@@ -130,7 +121,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
             <Button danger icon={<DeleteOutlined />} type="text" onClick={onDelete} />
           </Flex>
           <Flex align="center" gap={16}>
-            <Button type="primary" onClick={onSave} disabled={isCheckDisabled}>
+            <Button type="primary" onClick={onSave} disabled={apiChecking}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : (
@@ -171,7 +162,7 @@ const WorkflowSettings: FC<Props> = ({ flow: _flow }) => {
           </Form.Item>
 
           <Form.Item name="type" label={t('settings.workflow.type')}>
-            <Radio.Group onChange={handleTypeChange} value={flowType}>
+            <Radio.Group>
               <Radio value="workflow">{t('settings.workflow.workflow')}</Radio>
               <Radio value="chatflow">{t('settings.workflow.chatflow')}</Radio>
             </Radio.Group>

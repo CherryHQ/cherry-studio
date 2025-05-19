@@ -24,6 +24,7 @@ const WorkflowButton: FC<Props> = ({ ref, assistant: _assistant, ToolbarButton }
   const quickPanel = useQuickPanel()
   const { workflows } = useWorkflows()
   const { assistant, updateAssistant } = useAssistant(_assistant.id)
+  console.log('assistant', assistant)
 
   const updateSelectedWorkflow = useCallback(
     (workflow: Workflow | undefined) => {
@@ -43,12 +44,12 @@ const WorkflowButton: FC<Props> = ({ ref, assistant: _assistant, ToolbarButton }
       label: p.name,
       description: p.description,
       icon: <GitCompare />,
-      isSelected: p === assistant.workflow,
+      isSelected: p.id === assistant.workflow?.id,
       action: () => updateSelectedWorkflow(p)
     }))
 
     items.push({
-      label: '前往设置' + '...',
+      label: t('common.goto.settings'),
       icon: <Settings />,
       action: () => navigate('/settings/workflow')
     })
@@ -82,7 +83,7 @@ const WorkflowButton: FC<Props> = ({ ref, assistant: _assistant, ToolbarButton }
         <GitCompare
           size={18}
           style={{
-            color: assistant?.workflow ? 'var(--color-link)' : 'var(--color-icon)'
+            color: assistant.workflow ? 'var(--color-link)' : 'var(--color-icon)'
           }}
         />
       </ToolbarButton>

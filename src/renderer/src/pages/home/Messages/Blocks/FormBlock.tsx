@@ -8,7 +8,6 @@ interface Props {
 }
 
 const FormBlock: React.FC<Props> = ({ block, message }) => {
-  console.log('FormBlock', block, message)
   return <WorkflowForm block={block} message={message} />
 }
 

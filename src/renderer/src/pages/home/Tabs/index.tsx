@@ -64,7 +64,7 @@ const HomeTabs: FC<Props> = ({
   }
 
   const onCreateDefaultAssistant = () => {
-    const assistant = { ...defaultAssistant, id: uuid() }
+    const assistant = { ...defaultAssistant, id: uuid(), mode: 'system' } as Assistant
     addAssistant(assistant)
     setActiveAssistant(assistant)
   }

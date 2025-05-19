@@ -318,7 +318,8 @@
       "input.thinking.mode.custom": "Custom",
       "input.thinking.mode.custom.tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported",
       "input.thinking.mode.tokens.tip": "Set the number of thinking tokens to use.",
-      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number"
+      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number",
+      "input.workflow": "工作流"
     },
     "code_block": {
       "collapse": "Collapse",
@@ -402,7 +403,10 @@
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
       },
-      "no_results": "No results"
+      "no_results": "No results",
+      "submit": "提交",
+      "form.validation.required": "{{field}} 是必填项",
+      "goto.settings": "Go To Settings..."
     },
     "docs": {
       "title": "Docs"
@@ -430,7 +434,9 @@
       },
       "user_message_not_found": "Cannot find original user message to resend",
       "unknown": "Unknown error",
-      "pause_placeholder": "Paused"
+      "pause_placeholder": "Paused",
+      "file.upload": "文件上传失败",
+      "file.ext": "文件格式不支持"
     },
     "export": {
       "assistant": "Assistant",
@@ -923,7 +929,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu",
+      "dify": "Dify"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1640,6 +1647,30 @@
         "content_limit": "Content length limit",
         "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
       },
+      "workflow": {
+        "title": "工作流服务",
+        "search": "搜索工作流平台...",
+        "addWorkflow": "添加工作流",
+        "newWorkflow": "新建工作流",
+        "addSuccess": "工作流添加成功",
+        "noDescription": "没有描述",
+        "name": "名称",
+        "description": "描述",
+        "url": "访问url地址",
+        "apiKey": "API 密钥",
+        "apiHost": "API 地址",
+        "saveSuccess": "工作流保存成功",
+        "saveError": "工作流保存失败",
+        "deleteConfirm": "确定要删除此工作流吗？",
+        "deleteSuccess": "工作流删除成功",
+        "deleteError": "工作流删除失败",
+        "type": "类型",
+        "workflow": "工作流",
+        "chatflow": "对话流",
+        "checkSuccess": "工作流检查成功",
+        "checkError": "工作流检查失败",
+        "trigger": "触发词"
+      },
       "quickPhrase": {
         "title": "Quick Phrases",
         "add": "Add Phrase",
@@ -1715,6 +1746,12 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "workflow": {
+      "title": "工作流",
+      "file.input.upload": "上传文件",
+      "error.file.ext": "不支持上传该格式的文件",
+      "pinned": "已固定工作流"
     }
   }
 }

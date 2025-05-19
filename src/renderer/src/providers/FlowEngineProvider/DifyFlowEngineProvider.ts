@@ -4,7 +4,7 @@ import { EventEnum, Flow, FlowEngine } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { FileMessageBlock, ImageMessageBlock, Message } from '@renderer/types/newMessage'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import XStream from '@renderer/utils/stream'
+import XStream from '@renderer/utils/xstream'
 import { v4 as uuidv4 } from 'uuid'
 
 import BaseFlowEngineProvider from './BaseFlowEngineProvider'
