@@ -266,10 +266,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
           return { reasoning: { maxTokens: 0, exclude: true } }
         }
         return {
-          thinkingConfig: {
-            includeThoughts: false,
-            thinkingBudget: 0
-          }
+          reasoning_effort: 'none'
         }
       }
 
