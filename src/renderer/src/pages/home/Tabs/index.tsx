@@ -71,14 +71,14 @@ const HomeTabs: FC<Props> = ({
 
   useEffect(() => {
     const unsubscribes = [
-      EventEmitter.on(EVENT_NAMES.SHOW_ASSISTANTS, (): any => {
-        showTab && setTab('assistants')
+      EventEmitter.on(EVENT_NAMES.SHOW_ASSISTANTS, ({ force }: { force: boolean }): any => {
+        if (showTab || force) setTab('assistants')
       }),
-      EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, (): any => {
-        showTab && setTab('topic')
+      EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, ({ force }: { force: boolean }): any => {
+        if (showTab || force) setTab('topic')
       }),
-      EventEmitter.on(EVENT_NAMES.SHOW_CHAT_SETTINGS, (): any => {
-        showTab && setTab('settings')
+      EventEmitter.on(EVENT_NAMES.SHOW_CHAT_SETTINGS, ({ force }: { force: boolean }): any => {
+        if (showTab || force) setTab('settings')
       }),
       EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
         showTab && setTab('topic')
@@ -88,7 +88,7 @@ const HomeTabs: FC<Props> = ({
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
+  }, [showTab, position, topicPosition, toggleShowTopics])
 
   useEffect(() => {
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {

@@ -66,13 +66,17 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     }
   }, [showTopics, toggleShowTopics])
 
-  useShortcut('toggle_show_assistants', handleToggleShowAssistants)
+  useShortcut('toggle_show_assistants', () => {
+    handleToggleShowAssistants()
+    EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS, { force: true })
+  })
 
   useShortcut('toggle_show_topics', () => {
     if (topicPosition === 'right') {
       toggleShowTopics()
     } else {
-      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      handleToggleShowAssistants()
+      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, { force: true })
     }
   })
 
