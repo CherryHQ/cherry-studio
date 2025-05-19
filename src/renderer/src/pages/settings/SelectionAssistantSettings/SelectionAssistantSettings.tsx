@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { TriggerMode } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import { Radio, Row, Switch } from 'antd'
+import { Radio, Row, Slider, Switch } from 'antd'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -30,12 +30,14 @@ const SelectionAssistantSettings: FC = () => {
     isAutoPin,
     isFollowToolbar,
     actionItems,
+    actionWindowOpacity,
     setSelectionEnabled,
     setTriggerMode,
     setIsCompact,
     setIsAutoClose,
     setIsAutoPin,
     setIsFollowToolbar,
+    setActionWindowOpacity,
     setActionItems
   } = useSelectionAssistant()
 
@@ -131,6 +133,23 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
               </SettingLabel>
               <Switch checked={isAutoPin} onChange={(checked) => setIsAutoPin(checked)} />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingLabel>
+                <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
+                <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
+              </SettingLabel>
+              <div style={{ marginRight: '16px' }}>{actionWindowOpacity}%</div>
+              <Slider
+                style={{ width: 100 }}
+                min={20}
+                max={100}
+                reverse
+                value={actionWindowOpacity}
+                onChange={setActionWindowOpacity}
+                tooltip={{ open: false }}
+              />
             </SettingRow>
           </SettingGroup>
 

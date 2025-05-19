@@ -19,5 +19,6 @@ export interface SelectionState {
   isAutoClose: boolean
   isAutoPin: boolean
   isFollowToolbar: boolean
+  actionWindowOpacity: number
   actionItems: ActionItem[]
 }

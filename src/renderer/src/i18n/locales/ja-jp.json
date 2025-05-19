@@ -1753,6 +1753,10 @@
           "auto_pin": {
             "title": "自動で最前面に固定",
             "description": "デフォルトで最前面表示"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "デフォルトの透明度を設定（100%は完全不透明）"
           }
         },
         "actions": {

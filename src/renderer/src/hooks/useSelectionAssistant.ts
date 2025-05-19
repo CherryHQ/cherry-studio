@@ -1,6 +1,7 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setActionItems,
+  setActionWindowOpacity,
   setIsAutoClose,
   setIsAutoPin,
   setIsCompact,
@@ -36,6 +37,9 @@ export function useSelectionAssistant() {
     setIsFollowToolbar: (isFollowToolbar: boolean) => {
       dispatch(setIsFollowToolbar(isFollowToolbar))
       window.api.selection.setFollowToolbar(isFollowToolbar)
+    },
+    setActionWindowOpacity: (opacity: number) => {
+      dispatch(setActionWindowOpacity(opacity))
     },
     setActionItems: (items: ActionItem[]) => {
       dispatch(setActionItems(items))

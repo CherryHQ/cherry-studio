@@ -499,13 +499,13 @@ export class SelectionService {
               refOrientation = 'bottomLeft'
               refPoint = {
                 x: selectionData.mousePosEnd.x,
-                y: selectionData.mousePosEnd.y + 18
+                y: selectionData.mousePosEnd.y + 16
               }
             } else {
               refOrientation = 'topRight'
               refPoint = {
                 x: selectionData.mousePosEnd.x,
-                y: selectionData.mousePosEnd.y - 18
+                y: selectionData.mousePosEnd.y - 16
               }
             }
           } else {
@@ -749,7 +749,7 @@ export class SelectionService {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        devTools: isDev ? true : false
+        devTools: true
       }
     })
 

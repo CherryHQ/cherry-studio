@@ -1753,6 +1753,10 @@
           "auto_pin": {
             "title": "Auto Pin",
             "description": "Pin the window by default"
+          },
+          "opacity": {
+            "title": "Opacity",
+            "description": "Set the default opacity of the window, 100% is fully opaque"
           }
         },
         "actions": {

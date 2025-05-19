@@ -24,6 +24,7 @@ export const initialState: SelectionState = {
   isAutoClose: false,
   isAutoPin: false,
   isFollowToolbar: true,
+  actionWindowOpacity: 100,
   actionItems: defaultActionItems
 }
 
@@ -49,6 +50,9 @@ const selectionSlice = createSlice({
     setIsFollowToolbar: (state, action: PayloadAction<boolean>) => {
       state.isFollowToolbar = action.payload
     },
+    setActionWindowOpacity: (state, action: PayloadAction<number>) => {
+      state.actionWindowOpacity = action.payload
+    },
     setActionItems: (state, action: PayloadAction<ActionItem[]>) => {
       state.actionItems = action.payload
     }
@@ -62,6 +66,7 @@ export const {
   setIsAutoClose,
   setIsAutoPin,
   setIsFollowToolbar,
+  setActionWindowOpacity,
   setActionItems
 } = selectionSlice.actions
 

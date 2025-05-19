@@ -15,13 +15,14 @@ const SelectionActionApp: FC = () => {
   const { t } = useTranslation()
 
   const [action, setAction] = useState<ActionItem | null>(null)
+  const isActionLoaded = useRef(false)
 
-  const { isAutoClose, isAutoPin } = useSelectionAssistant()
+  const { isAutoClose, isAutoPin, actionWindowOpacity } = useSelectionAssistant()
   const [isPinned, setIsPinned] = useState(isAutoPin)
   const [isWindowFocus, setIsWindowFocus] = useState(true)
 
   const [showOpacitySlider, setShowOpacitySlider] = useState(false)
-  const [opacity, setOpacity] = useState(100)
+  const [opacity, setOpacity] = useState(actionWindowOpacity)
 
   const contentElementRef = useRef<HTMLDivElement>(null)
   const isAutoScrollEnabled = useRef(true)
@@ -36,6 +37,7 @@ const SelectionActionApp: FC = () => {
       IpcChannel.Selection_UpdateActionData,
       (_, actionItem: ActionItem) => {
         setAction(actionItem)
+        isActionLoaded.current = true
       }
     )
 
@@ -73,6 +75,13 @@ const SelectionActionApp: FC = () => {
   useEffect(() => {
     shouldCloseWhenBlur.current = isAutoClose && !isPinned
   }, [isAutoClose, isPinned])
+
+  useEffect(() => {
+    //if the action is loaded, we should not set the opacity update from settings
+    if (!isActionLoaded.current) {
+      setOpacity(actionWindowOpacity)
+    }
+  }, [actionWindowOpacity])
 
   const handleMinimize = () => {
     window.api.selection.minimizeActionWindow()
@@ -167,6 +176,7 @@ const SelectionActionApp: FC = () => {
               icon={<Droplet size={14} />}
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
               className={showOpacitySlider ? 'active' : ''}
+              style={{ paddingBottom: '2px' }}
             />
           </Tooltip>
           {showOpacitySlider && (

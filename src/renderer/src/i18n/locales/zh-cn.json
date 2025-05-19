@@ -1753,6 +1753,10 @@
           "auto_pin": {
             "title": "自动置顶",
             "description": "默认将窗口置于顶部"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "设置窗口的默认透明度，100%为完全不透明"
           }
         },
         "actions": {
