@@ -40,7 +40,9 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
-  const { defaultModel: model } = useDefaultModel()
+  const { defaultModel, quickAssistantModel } = useDefaultModel()
+  // 如果 quickAssistantModel 未設定，則使用 defaultModel
+  const model = quickAssistantModel || defaultModel
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
@@ -182,7 +184,7 @@ const HomeWindow: FC = () => {
 
       fetchChatCompletion({
         messages: [userMessage],
-        assistant: { ...assistant, model: getDefaultModel() },
+        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
         onChunkReceived: (chunk: Chunk) => {
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
@@ -219,7 +221,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant, topic]
+    [content, defaultAssistant, topic, quickAssistantModel]
   )
 
   const clearClipboard = () => {

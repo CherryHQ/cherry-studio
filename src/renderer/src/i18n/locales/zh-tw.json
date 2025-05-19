@@ -1471,6 +1471,8 @@
       "models.translate_model_description": "翻譯服務使用的模型",
       "models.translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "models.translate_model_prompt_title": "翻譯模型提示詞",
+      "models.quick_assistant_model": "快捷助手模型",
+      "models.quick_assistant_model_description": "快捷助手使用的預設模型",
       "moresetting": "更多設定",
       "moresetting.check.confirm": "確認勾選",
       "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
@@ -1544,6 +1546,9 @@
           "title": "模型備註",
           "placeholder": "輸入Markdown格式內容...",
           "markdown_editor_default_value": "預覽區域"
+        },
+        "openai": {
+          "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商。"
         }
       },
       "proxy": {
@@ -1586,7 +1591,7 @@
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
         "zoom_reset": "重設縮放",
-        "exit_fullscreen": "退出全螢幕"
+        "exit_fullscreen": "退出螢幕"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",
@@ -1671,6 +1676,20 @@
       "zoom": {
         "title": "縮放",
         "reset": "重置"
+      },
+      "openai": {
+        "title": "OpenAI設定",
+        "summary_text_mode.title": "摘要模式",
+        "summary_text_mode.tip": "模型所執行的推理摘要",
+        "summary_text_mode.auto": "自動",
+        "summary_text_mode.concise": "簡潔",
+        "summary_text_mode.detailed": "詳細",
+        "summary_text_mode.off": "關閉",
+        "service_tier.title": "服務層級",
+        "service_tier.tip": "指定用於處理請求的延遲層級",
+        "service_tier.auto": "自動",
+        "service_tier.default": "預設",
+        "service_tier.flex": "彈性"
       }
     },
     "translate": {

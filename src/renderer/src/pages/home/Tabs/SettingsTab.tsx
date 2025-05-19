@@ -8,12 +8,19 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
+import {
+  isOpenAIModel,
+  isSupportedFlexServiceTier,
+  isSupportedReasoningEffortOpenAIModel
+} from '@renderer/config/models'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -56,12 +63,16 @@ import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import OpenAISettingsTab from './OpenAISettingsTab'
+
 interface Props {
   assistant: Assistant
 }
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
+  const { provider } = useProvider(assistant.model.provider)
+
   const { messageStyle, fontSize, language, theme } = useSettings()
   const { themeNames } = useCodeStyle()
 
@@ -180,6 +191,15 @@ const SettingsTab: FC<Props> = (props) => {
   const assistantContextCount = assistant?.settings?.contextCount || 20
   const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
 
+  const model = assistant.model || getDefaultModel()
+
+  const isOpenAI = isOpenAIModel(model)
+  const isOpenAIReasoning =
+    isSupportedReasoningEffortOpenAIModel(model) &&
+    !model.id.includes('o1-pro') &&
+    (provider.type === 'openai-response' || provider.id === 'aihubmix')
+  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
+
   return (
     <Container className="settings-tab">
       <CollapsibleSettingGroup
@@ -294,6 +314,12 @@ const SettingsTab: FC<Props> = (props) => {
           )}
           <SettingDivider />
         </SettingGroup>
+        {isOpenAI && (
+          <OpenAISettingsTab
+            isOpenAIReasoning={isOpenAIReasoning}
+            isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
+          />
+        )}
       </CollapsibleSettingGroup>
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
@@ -684,11 +710,11 @@ const Label = styled.p`
   margin-right: 5px;
 `
 
-const SettingRowTitleSmall = styled(SettingRowTitle)`
+export const SettingRowTitleSmall = styled(SettingRowTitle)`
   font-size: 13px;
 `
 
-const SettingGroup = styled.div<{ theme?: ThemeMode }>`
+export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   padding: 0 5px;
   width: 100%;
   margin-top: 0;

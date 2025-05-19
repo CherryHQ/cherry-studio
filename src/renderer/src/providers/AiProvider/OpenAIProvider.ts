@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
@@ -265,17 +266,17 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
           return { reasoning: { maxTokens: 0, exclude: true } }
         }
         return {
-          thinkingConfig: {
-            includeThoughts: false,
-            thinkingBudget: 0
-          }
+          reasoning_effort: 'none'
         }
       }
 
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    const budgetTokens = Math.floor(
+      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
+    )
+
     // OpenRouter models
     if (model.provider === 'openrouter') {
       if (isSupportedReasoningEffortModel(model)) {
@@ -311,7 +312,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
+    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
       return {
         reasoning_effort: assistant?.settings?.reasoning_effort
       }
@@ -319,20 +320,11 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // Claude models
     if (isSupportedThinkingTokenClaudeModel(model)) {
+      const maxTokens = assistant.settings?.maxTokens
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: budgetTokens
-        }
-      }
-    }
-
-    // Gemini models
-    if (isSupportedThinkingTokenGeminiModel(model)) {
-      return {
-        thinkingConfig: {
-          thinkingBudget: budgetTokens,
-          includeThoughts: true
+          budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
         }
       }
     }
@@ -387,6 +379,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
+        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+      }
+    }
+    if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+      systemMessage = {
+        role: 'assistant',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }
@@ -478,6 +476,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             keep_alive: this.keepAliveTime,
             stream: isSupportStreamOutput(),
             tools: !isEmpty(tools) ? tools : undefined,
+            service_tier: this.getServiceTier(model),
             ...getOpenAIWebSearchParams(assistant, model),
             ...this.getReasoningEffort(assistant, model),
             ...this.getProviderSpecificParameters(assistant, model),
@@ -1142,8 +1141,8 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       stream
     }
 
-    if (this.provider.id !== 'github') {
-      body.enable_thinking = false; // qwen3
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      body.enable_thinking = false // qwen3
     }
 
     try {

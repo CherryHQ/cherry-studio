@@ -1351,6 +1351,11 @@ const migrateConfig = {
   },
   '102': (state: RootState) => {
     try {
+      state.settings.openAI = {
+        summaryText: 'off',
+        serviceTier: 'auto'
+      }
+
       state.settings.codeExecution = settingsInitialState.codeExecution
       state.settings.codeEditor = settingsInitialState.codeEditor
       state.settings.codePreview = settingsInitialState.codePreview
