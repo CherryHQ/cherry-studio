@@ -77,7 +77,8 @@ class BackupManager {
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
     data: string,
-    destinationPath: string = this.backupDir
+    destinationPath: string = this.backupDir,
+    skipBackupFile: boolean = false
   ): Promise<string> {
     const mainWindow = windowService.getMainWindow()
 
@@ -104,23 +105,30 @@ class BackupManager {
 
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
-      // 复制 Data 目录到临时目录
-      const sourcePath = path.join(app.getPath('userData'), 'Data')
-      const tempDataDir = path.join(this.tempDir, 'Data')
+      Logger.log('[BackupManager IPC] ', skipBackupFile)
 
-      // 获取源目录总大小
-      const totalSize = await this.getDirSize(sourcePath)
-      let copiedSize = 0
+      if (!skipBackupFile) {
+        // 复制 Data 目录到临时目录
+        const sourcePath = path.join(app.getPath('userData'), 'Data')
+        const tempDataDir = path.join(this.tempDir, 'Data')
 
-      // 使用流式复制
-      await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-        copiedSize += size
-        const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
-        onProgress({ stage: 'copying_files', progress, total: 100 })
-      })
+        // 获取源目录总大小
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
 
-      await this.setWritableRecursive(tempDataDir)
-      onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
+        // 使用流式复制
+        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
+          copiedSize += size
+          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+
+        await this.setWritableRecursive(tempDataDir)
+        onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
+      } else {
+        Logger.log('[BackupManager] Skip the backup of the file')
+        await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // 不创建空 Data 目录会导致 restore 失败
+      }
 
       // 创建输出文件流
       const backupedFilePath = path.join(destinationPath, fileName)
@@ -279,7 +287,7 @@ class BackupManager {
 
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename, data)
+    const backupedFilePath = await this.backup(_, filename, data, undefined, webdavConfig.skipBackupFile)
     const webdavClient = new WebDav(webdavConfig)
     try {
       const result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {

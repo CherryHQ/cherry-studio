@@ -1,4 +1,5 @@
 import CustomTag from '@renderer/components/CustomTag'
+import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -64,6 +65,14 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     setEditedBlocks((prev) => prev.map((block) => (block.id === blockId ? { ...block, content } : block)))
   }
 
+  const onTranslated = (translatedText: string) => {
+    const mainTextBlock = editedBlocks.find((b) => b.type === MessageBlockType.MAIN_TEXT)
+    if (mainTextBlock) {
+      handleTextChange(mainTextBlock.id, translatedText)
+    }
+    setTimeout(() => resizeTextArea(), 0)
+  }
+
   // 处理文件删除
   const handleFileRemove = async (blockId: string) => {
     setEditedBlocks((prev) => prev.filter((block) => block.id !== blockId))
@@ -112,7 +121,21 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      // 1. 文件/图片粘贴
+      // 1. 文本粘贴
+      const clipboardText = event.clipboardData?.getData('text')
+      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
+        // 长文本直接转文件，阻止默认粘贴
+        event.preventDefault()
+
+        const tempFilePath = await window.api.file.create('pasted_text.txt')
+        await window.api.file.write(tempFilePath, clipboardText)
+        const selectedFile = await window.api.file.get(tempFilePath)
+        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+        setTimeout(() => resizeTextArea(), 50)
+        return
+      }
+
+      // 2. 文件/图片粘贴
       if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         for (const file of event.clipboardData.files) {
@@ -149,20 +172,6 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
         return
       }
 
-      // 2. 文本粘贴
-      const clipboardText = event.clipboardData?.getData('text')
-      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
-        // 长文本直接转文件，阻止默认粘贴
-        event.preventDefault()
-
-        const tempFilePath = await window.api.file.create('pasted_text.txt')
-        await window.api.file.write(tempFilePath, clipboardText)
-        const selectedFile = await window.api.file.get(tempFilePath)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-        setTimeout(() => resizeTextArea(), 50)
-        return
-      }
-
       // 短文本走默认粘贴行为
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t]
@@ -196,8 +205,9 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               style={{
                 fontSize,
                 padding: '0px 15px 8px 15px'
-              }}
-            />
+              }}>
+              <TranslateButton onTranslated={onTranslated} />
+            </Textarea>
           ))}
         {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
           files.length > 0) && (

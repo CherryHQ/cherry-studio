@@ -647,7 +647,6 @@ const QuickPanelItem = styled.div`
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.1s ease;
-  font-family: Ubuntu;
   &.selected {
     background-color: var(--selected-color);
     &.focused {

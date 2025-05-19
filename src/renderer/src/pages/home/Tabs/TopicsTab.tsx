@@ -457,13 +457,11 @@ const Container = styled(Scrollbar)`
 const TopicListItem = styled.div`
   padding: 7px 12px;
   border-radius: var(--list-item-border-radius);
-  font-family: Ubuntu;
   font-size: 13px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  font-family: Ubuntu;
   cursor: pointer;
   border: 0.5px solid transparent;
   position: relative;

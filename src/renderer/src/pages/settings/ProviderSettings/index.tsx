@@ -353,7 +353,6 @@ const ProviderLogo = styled(Avatar)`
 const ProviderItemName = styled.div`
   margin-left: 10px;
   font-weight: 500;
-  font-family: Ubuntu;
 `
 
 const AddButtonWrapper = styled.div`

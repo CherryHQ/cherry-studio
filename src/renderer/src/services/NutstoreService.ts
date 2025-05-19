@@ -98,9 +98,13 @@ export async function backupToNutstore({
   store.dispatch(setNutstoreSyncState({ syncing: true, lastSyncError: null }))
 
   const backupData = await getBackupData()
-
+  const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
   try {
-    const isSuccess = await window.api.backup.backupToWebdav(backupData, { ...config, fileName: finalFileName })
+    const isSuccess = await window.api.backup.backupToWebdav(backupData, {
+      ...config,
+      fileName: finalFileName,
+      skipBackupFile: skipBackupFile
+    })
 
     if (isSuccess) {
       store.dispatch(

@@ -542,6 +542,7 @@ const migrateConfig = {
   },
   '39': (state: RootState) => {
     try {
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeStyle = 'auto'
       return state
     } catch (error) {
@@ -1167,9 +1168,13 @@ const migrateConfig = {
   },
   '91': (state: RootState) => {
     try {
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheable = false
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheMaxSize = 1000
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheTTL = 15
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheThreshold = 2
       addProvider(state, 'qiniu')
       return state
@@ -1319,6 +1324,17 @@ const migrateConfig = {
   },
   '101': (state: RootState) => {
     try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings) {
+          // @ts-ignore eslint-disable-next-line
+          if (assistant.settings.enableToolUse) {
+            // @ts-ignore eslint-disable-next-line
+            assistant.settings.toolUseMode = assistant.settings.enableToolUse ? 'function' : 'prompt'
+            // @ts-ignore eslint-disable-next-line
+            delete assistant.settings.enableToolUse
+          }
+        }
+      })
       if (state.shortcuts) {
         state.shortcuts.shortcuts.push({
           key: 'exit_fullscreen',
@@ -1327,6 +1343,63 @@ const migrateConfig = {
           enabled: true,
           system: true
         })
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '102': (state: RootState) => {
+    try {
+      state.settings.codeExecution = settingsInitialState.codeExecution
+      state.settings.codeEditor = settingsInitialState.codeEditor
+      state.settings.codePreview = settingsInitialState.codePreview
+
+      // @ts-ignore eslint-disable-next-line
+      if (state.settings.codeStyle) {
+        // @ts-ignore eslint-disable-next-line
+        state.settings.codePreview.themeLight = state.settings.codeStyle
+        // @ts-ignore eslint-disable-next-line
+        state.settings.codePreview.themeDark = state.settings.codeStyle
+      }
+
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeStyle
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheable
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheMaxSize
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheTTL
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheThreshold
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '103': (state: RootState) => {
+    try {
+      if (state.shortcuts) {
+        if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
+          state.shortcuts.shortcuts.push({
+            key: 'search_message_in_chat',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+            editable: true,
+            enabled: true,
+            system: false
+          })
+        }
+        const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
+        const targetShortcut = [isMac ? 'Command' : 'Ctrl', 'F']
+        if (
+          searchMessageShortcut &&
+          Array.isArray(searchMessageShortcut.shortcut) &&
+          searchMessageShortcut.shortcut.length === targetShortcut.length &&
+          searchMessageShortcut.shortcut.every((v, i) => v === targetShortcut[i])
+        ) {
+          searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
+        }
       }
       return state
     } catch (error) {

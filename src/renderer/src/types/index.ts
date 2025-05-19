@@ -2,7 +2,6 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
-import { BuiltinTheme } from 'shiki'
 
 import type { Message } from './newMessage'
 
@@ -51,18 +50,17 @@ export const EFFORT_RATIO: EffortRatio = {
 
 export type AssistantSettings = {
   contextCount: number
-  enableMaxContexts: boolean
   temperature: number
   topP: number
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
-  enableToolUse: boolean
   hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
   qwenThinkMode?: boolean
+  toolUseMode?: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -307,7 +305,7 @@ export type TranslateLanguageVarious =
   | 'portuguese'
   | 'russian'
 
-export type CodeStyleVarious = BuiltinTheme | 'auto'
+export type CodeStyleVarious = 'auto' | string
 
 export type WebDavConfig = {
   webdavHost: string
@@ -315,6 +313,7 @@ export type WebDavConfig = {
   webdavPass: string
   webdavPath: string
   fileName?: string
+  skipBackupFile?: boolean
 }
 
 export type AppInfo = {
