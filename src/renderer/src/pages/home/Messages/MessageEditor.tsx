@@ -6,7 +6,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import { FileType, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { getFileExtension } from '@renderer/utils'
+import { classNames, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
@@ -34,6 +34,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
   const [files, setFiles] = useState<FileType[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
@@ -82,17 +83,28 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsFileDragging(false)
 
     const files = await getFilesFromDropEvent(e).catch((err) => {
       console.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
       return null
     })
     if (files) {
+      let supportedFiles = 0
       files.forEach((file) => {
         if (supportExts.includes(getFileExtension(file.path))) {
           setFiles((prevFiles) => [...prevFiles, file])
+          supportedFiles++
         }
       })
+
+      // 如果有文件，但都不支持
+      if (files.length > 0 && supportedFiles === 0) {
+        window.message.info({
+          key: 'file_not_supported',
+          content: t('chat.input.file_not_supported')
+        })
+      }
     }
   }
 
@@ -123,15 +135,19 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     async (event: ClipboardEvent) => {
       // 1. 文本粘贴
       const clipboardText = event.clipboardData?.getData('text')
-      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
-        // 长文本直接转文件，阻止默认粘贴
-        event.preventDefault()
+      if (clipboardText) {
+        if (pasteLongTextAsFile && clipboardText.length > pasteLongTextThreshold) {
+          // 长文本直接转文件，阻止默认粘贴
+          event.preventDefault()
 
-        const tempFilePath = await window.api.file.create('pasted_text.txt')
-        await window.api.file.write(tempFilePath, clipboardText)
-        const selectedFile = await window.api.file.get(tempFilePath)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-        setTimeout(() => resizeTextArea(), 50)
+          const tempFilePath = await window.api.file.create('pasted_text.txt')
+          await window.api.file.write(tempFilePath, clipboardText)
+          const selectedFile = await window.api.file.get(tempFilePath)
+          selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+          setTimeout(() => resizeTextArea(), 50)
+          return
+        }
+        // 短文本走默认粘贴行为，直接返回
         return
       }
 
@@ -139,7 +155,8 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
       if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         for (const file of event.clipboardData.files) {
-          if (file.path === '') {
+          const filePath = window.api.file.getPathForFile(file)
+          if (!filePath) {
             // 图像生成也支持图像编辑
             if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
               const tempFilePath = await window.api.file.create(file.name)
@@ -157,16 +174,14 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             }
           }
 
-          if (file.path) {
-            if (supportExts.includes(getFileExtension(file.path))) {
-              const selectedFile = await window.api.file.get(file.path)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-            } else {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
-            }
+          if (supportExts.includes(getFileExtension(filePath))) {
+            const selectedFile = await window.api.file.get(filePath)
+            selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
+          } else {
+            window.message.info({
+              key: 'file_not_supported',
+              content: t('chat.input.file_not_supported')
+            })
           }
         }
         return
@@ -190,6 +205,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
           .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
           .map((block) => (
             <Textarea
+              className={classNames(isFileDragging && 'file-dragging')}
               key={block.id}
               ref={textareaRef}
               variant="borderless"
@@ -292,6 +308,23 @@ const EditorContainer = styled.div`
   border-radius: 15px;
   margin-top: 0;
   background-color: var(--color-background-opacity);
+
+  &.file-dragging {
+    border: 2px dashed #2ecc71;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(46, 204, 113, 0.03);
+      border-radius: 14px;
+      z-index: 5;
+      pointer-events: none;
+    }
+  }
 `
 
 const Textarea = styled(TextArea)`
