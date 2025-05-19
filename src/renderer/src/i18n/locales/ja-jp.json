@@ -810,6 +810,19 @@
       "image_file_retry": "画像を先にアップロードしてください",
       "image_placeholder": "画像がありません",
       "image_retry": "再試行",
+      "style_types": {
+        "auto": "自動",
+        "general": "一般",
+        "realistic": "リアル",
+        "design": "デザイン",
+        "3d": "3D",
+        "anime": "アニメ"
+      },
+      "rendering_speeds": {
+        "default": "デフォルト",
+        "turbo": "高速",
+        "quality": "高品質"
+      },
       "mode": {
         "generate": "画像生成",
         "edit": "部分編集",
@@ -823,7 +836,7 @@
         "negative_prompt_tip": "画像に含めたくない内容を説明します",
         "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
         "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
-        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
       },
       "edit": {
         "image_file": "編集画像",
@@ -832,7 +845,7 @@
         "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用",
         "seed_tip": "編集結果のランダム性を制御します",
         "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
-        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
       },
       "remix": {
         "model_tip": "リミックスに使用する AI モデルのバージョンを選択します",
@@ -844,7 +857,7 @@
         "style_type_tip": "リミックス後の画像スタイル、V_2 以上のバージョンでのみ適用",
         "negative_prompt_tip": "リミックス結果に含めたくない内容を説明します",
         "magic_prompt_option_tip": "リミックス効果を向上させるための提示詞を最適化します",
-        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
       },
       "upscale": {
         "image_file": "拡大する画像",

@@ -87,28 +87,28 @@ export const ASPECT_RATIOS = [
 
 export const STYLE_TYPES = [
   {
-    label: '自动',
+    label: 'paintings.style_types.auto',
     value: 'AUTO'
   },
   {
-    label: '通用',
+    label: 'paintings.style_types.general',
     value: 'GENERAL'
   },
   {
-    label: '写实',
+    label: 'paintings.style_types.realistic',
     value: 'REALISTIC'
   },
   {
-    label: '设计',
+    label: 'paintings.style_types.design',
     value: 'DESIGN'
   },
   {
-    label: '3D',
+    label: 'paintings.style_types.3d',
     value: 'RENDER_3D',
     onlyV2: true // 仅V2模型支持
   },
   {
-    label: '动漫',
+    label: 'paintings.style_types.anime',
     value: 'ANIME',
     onlyV2: true // 仅V2模型支持
   }
@@ -120,15 +120,15 @@ export const V3_STYLE_TYPES = STYLE_TYPES.filter((style) => !style.onlyV2)
 // 新增V3渲染速度选项
 export const RENDERING_SPEED_OPTIONS = [
   {
-    label: '默认',
+    label: 'paintings.rendering_speeds.default',
     value: 'DEFAULT'
   },
   {
-    label: '快速',
+    label: 'paintings.rendering_speeds.turbo',
     value: 'TURBO'
   },
   {
-    label: '高质量',
+    label: 'paintings.rendering_speeds.quality',
     value: 'QUALITY'
   }
 ]

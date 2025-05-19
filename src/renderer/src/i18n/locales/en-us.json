@@ -812,6 +812,19 @@
       "image_placeholder": "No image available",
       "image_retry": "Retry",
       "translating": "Translating...",
+      "style_types": {
+        "auto": "Auto",
+        "general": "General",
+        "realistic": "Realistic",
+        "design": "Design",
+        "3d": "3D",
+        "anime": "Anime"
+      },
+      "rendering_speeds": {
+        "default": "Default",
+        "turbo": "Turbo",
+        "quality": "Quality"
+      },
       "mode": {
         "generate": "Draw",
         "edit": "Edit",

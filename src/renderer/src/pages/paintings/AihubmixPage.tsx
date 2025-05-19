@@ -773,7 +773,16 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
 
         // 处理函数类型的options属性
-        const selectOptions = typeof item.options === 'function' ? item.options(item, painting) : item.options
+        const selectOptions =
+          typeof item.options === 'function'
+            ? item.options(item, painting).map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+            : item.options?.map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
 
         return (
           <Select
@@ -787,7 +796,16 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'radio': {
         // 处理函数类型的options属性
-        const radioOptions = typeof item.options === 'function' ? item.options(item, painting) : item.options
+        const radioOptions =
+          typeof item.options === 'function'
+            ? item.options(item, painting).map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+            : item.options?.map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
 
         return (
           <Radio.Group

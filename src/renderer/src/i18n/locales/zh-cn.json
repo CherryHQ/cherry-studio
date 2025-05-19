@@ -812,6 +812,19 @@
       "image_placeholder": "暂无图片",
       "image_retry": "重试",
       "translating": "翻译中...",
+      "style_types": {
+        "auto": "自动",
+        "general": "通用",
+        "realistic": "写实",
+        "design": "设计",
+        "3d": "3D",
+        "anime": "动漫"
+      },
+      "rendering_speeds": {
+        "default": "默认",
+        "turbo": "快速",
+        "quality": "高质量"
+      },
       "mode": {
         "generate": "绘图",
         "edit": "编辑",
@@ -846,7 +859,7 @@
         "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本",
         "negative_prompt_tip": "描述不想在重混结果中出现的元素",
         "magic_prompt_option_tip": "智能优化重混提示词",
-        "rendering_speed_tip": "[to be translated]:Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "控制渲染速度与质量之间的平衡，仅适用于V_3版本"
       },
       "upscale": {
         "image_file": "需要放大的图片",
