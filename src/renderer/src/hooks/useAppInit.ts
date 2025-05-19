@@ -24,6 +24,11 @@ export function useAppInit() {
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
 
+  useEffect(() => {
+    document.getElementById('spinner')?.remove()
+    console.timeEnd('init')
+  }, [])
+
   useUpdateHandler()
   useFullScreenNotice()
 
@@ -32,7 +37,6 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
-    document.getElementById('spinner')?.remove()
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {

@@ -1,8 +1,11 @@
 export function buildFunctionCallToolName(serverName: string, toolName: string) {
+  const sanitizedServer = serverName.trim().replace(/-/g, '_')
+  const sanitizedTool = toolName.trim().replace(/-/g, '_')
+
   // Combine server name and tool name
-  let name = toolName
-  if (!toolName.includes(serverName.slice(0, 7))) {
-    name = `${serverName.slice(0, 7) || ''}_${toolName || ''}`
+  let name = sanitizedTool
+  if (!sanitizedTool.includes(sanitizedServer.slice(0, 7))) {
+    name = `${sanitizedServer.slice(0, 7) || ''}-${sanitizedTool || ''}`
   }
 
   // Replace invalid characters with underscores or dashes
@@ -11,7 +14,7 @@ export function buildFunctionCallToolName(serverName: string, toolName: string) 
 
   // Ensure name starts with a letter or underscore (for valid JavaScript identifier)
   if (!/^[a-zA-Z]/.test(name)) {
-    name = `tool_${name}`
+    name = `tool-${name}`
   }
 
   // Remove consecutive underscores/dashes (optional improvement)
