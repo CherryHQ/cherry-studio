@@ -131,7 +131,10 @@
       "manage": "Manage",
       "select_model": "Select Model",
       "show.all": "Show All",
-      "update_available": "Update Available"
+      "update_available": "Update Available",
+      "includes_user_questions": "Include Your Questions",
+      "case_sensitive": "Case Sensitive",
+      "whole_word": "Whole Word"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
@@ -163,6 +166,7 @@
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
+      "input.file_error": "Error processing file",
       "input.generate_image": "Generate image",
       "input.generate_image_not_supported": "The model does not support generating images.",
       "input.knowledge_base": "Knowledge Base",
@@ -177,6 +181,7 @@
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
       "input.web_search": "Web search",
+      "input.web_search.settings": "Web Search Settings",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Need to check web search connectivity in settings first",
@@ -396,7 +401,8 @@
         "pinyin": "Sort by Pinyin",
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
-      }
+      },
+      "no_results": "No results"
     },
     "docs": {
       "title": "Docs"
@@ -585,6 +591,7 @@
       "copied": "Copied!",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
+      "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "error.dimension_too_large": "Content size is too large",
       "error.enter.api.host": "Please enter your API host first",
@@ -796,6 +803,7 @@
       "model": "Model Version",
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
+      "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
@@ -803,6 +811,20 @@
       "image_file_retry": "Please re-upload an image first",
       "image_placeholder": "No image available",
       "image_retry": "Retry",
+      "translating": "Translating...",
+      "style_types": {
+        "auto": "Auto",
+        "general": "General",
+        "realistic": "Realistic",
+        "design": "Design",
+        "3d": "3D",
+        "anime": "Anime"
+      },
+      "rendering_speeds": {
+        "default": "Default",
+        "turbo": "Turbo",
+        "quality": "Quality"
+      },
       "mode": {
         "generate": "Draw",
         "edit": "Edit",
@@ -810,20 +832,22 @@
         "upscale": "Upscale"
       },
       "generate": {
-        "model_tip": "Model version: V2 is the latest model of the interface, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+        "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
         "number_images_tip": "Number of images to generate",
         "seed_tip": "Controls image generation randomness for reproducible results",
         "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
         "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
-        "style_type_tip": "Image generation style for V_2 and above"
+        "style_type_tip": "Image generation style for V_2 and above",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "edit": {
         "image_file": "Edited Image",
-        "model_tip": "Only supports V_2 and V_2_TURBO versions",
+        "model_tip": "V3 and V2 versions supported",
         "number_images_tip": "Number of edited results to generate",
         "style_type_tip": "Style for edited image, only for V_2 and above",
         "seed_tip": "Controls editing randomness",
-        "magic_prompt_option_tip": "Intelligently enhances editing prompts"
+        "magic_prompt_option_tip": "Intelligently enhances editing prompts",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "remix": {
         "model_tip": "Select AI model version for remixing",
@@ -834,7 +858,8 @@
         "seed_tip": "Control the randomness of the mixed result",
         "style_type_tip": "Style for remixed image, only for V_2 and above",
         "negative_prompt_tip": "Describe unwanted elements in remix results",
-        "magic_prompt_option_tip": "Intelligently enhances remix prompts"
+        "magic_prompt_option_tip": "Intelligently enhances remix prompts",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
       },
       "upscale": {
         "image_file": "Image to upscale",
@@ -955,6 +980,8 @@
         "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
         "app_knowledge.remove_all_success": "Files removed successfully",
         "app_logs": "App Logs",
+        "backup.skip_file_data_title": "Slim Backup",
+        "backup.skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
         "clear_cache": {
           "button": "Clear Cache",
           "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
@@ -1551,6 +1578,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
+        "search_message_in_chat": "Search Message in Current Chat",
         "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",

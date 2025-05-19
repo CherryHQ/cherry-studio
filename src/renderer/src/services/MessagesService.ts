@@ -215,10 +215,9 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
     try {
       window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
 
-      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
-        blocks: [tempTextBlock.id]
+        blocks: message.blocks,
       })
 
       const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })

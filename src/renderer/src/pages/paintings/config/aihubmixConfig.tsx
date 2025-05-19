@@ -1,6 +1,6 @@
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 
-import { ASPECT_RATIOS, STYLE_TYPES } from './constants'
+import { ASPECT_RATIOS, RENDERING_SPEED_OPTIONS, STYLE_TYPES, V3_STYLE_TYPES } from './constants'
 
 // 配置项类型定义
 export type ConfigItem = {
@@ -18,13 +18,18 @@ export type ConfigItem = {
   key?: keyof PaintingAction | 'commonModel'
   title?: string
   tooltip?: string
-  options?: Array<{ label: string; value: string | number; icon?: string }>
+  options?:
+    | Array<{ label: string; value: string | number; icon?: string; onlyV2?: boolean }>
+    | ((
+        config: ConfigItem,
+        painting: Partial<PaintingAction>
+      ) => Array<{ label: string; value: string | number; icon?: string; onlyV2?: boolean }>)
   min?: number
   max?: number
   step?: number
   suffix?: React.ReactNode
   content?: string
-  disabled?: boolean
+  disabled?: boolean | ((config: ConfigItem, painting: Partial<PaintingAction>) => boolean)
   initialValue?: string | number
   required?: boolean
 }
@@ -41,13 +46,24 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'model',
         options: [
-          { label: 'ideogram_V_1', value: 'V_1' },
-          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' },
+          { label: 'ideogram_V_3', value: 'V_3' },
           { label: 'ideogram_V_2', value: 'V_2' },
           { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
           { label: 'ideogram_V_2A', value: 'V_2A' },
-          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' }
+          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
+          { label: 'ideogram_V_1', value: 'V_1' },
+          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
         ]
+      },
+      { type: 'title', title: 'paintings.rendering_speed', tooltip: 'paintings.generate.rendering_speed_tip' },
+      {
+        type: 'select',
+        key: 'renderingSpeed',
+        options: RENDERING_SPEED_OPTIONS,
+        disabled: (_config, painting) => {
+          const model = painting?.model
+          return !model || !model.includes('V_3')
+        }
       },
       { type: 'title', title: 'paintings.aspect_ratio' },
       {
@@ -78,7 +94,11 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
       {
         type: 'select',
         key: 'styleType',
-        options: STYLE_TYPES
+        options: (_config, painting) => {
+          // 根据模型选择显示不同的样式类型选项
+          return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
+        },
+        disabled: false
       },
       {
         type: 'title',
@@ -119,9 +139,24 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'model',
         options: [
+          { label: 'ideogram_V_3', value: 'V_3' },
           { label: 'ideogram_V_2', value: 'V_2' },
-          { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' }
+          { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
+          { label: 'ideogram_V_2A', value: 'V_2A' },
+          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
+          { label: 'ideogram_V_1', value: 'V_1' },
+          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
         ]
+      },
+      { type: 'title', title: 'paintings.rendering_speed', tooltip: 'paintings.edit.rendering_speed_tip' },
+      {
+        type: 'select',
+        key: 'renderingSpeed',
+        options: RENDERING_SPEED_OPTIONS,
+        disabled: (_config, painting) => {
+          const model = painting?.model
+          return !model || !model.includes('V_3')
+        }
       },
       {
         type: 'title',
@@ -142,7 +177,11 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
       {
         type: 'select',
         key: 'styleType',
-        options: STYLE_TYPES
+        options: (_config, painting) => {
+          // 根据模型选择显示不同的样式类型选项
+          return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
+        },
+        disabled: false
       },
       {
         type: 'title',
@@ -174,13 +213,24 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'model',
         options: [
-          { label: 'ideogram_V_1', value: 'V_1' },
-          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' },
+          { label: 'ideogram_V_3', value: 'V_3' },
           { label: 'ideogram_V_2', value: 'V_2' },
           { label: 'ideogram_V_2_TURBO', value: 'V_2_TURBO' },
           { label: 'ideogram_V_2A', value: 'V_2A' },
-          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' }
+          { label: 'ideogram_V_2A_TURBO', value: 'V_2A_TURBO' },
+          { label: 'ideogram_V_1', value: 'V_1' },
+          { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
         ]
+      },
+      { type: 'title', title: 'paintings.rendering_speed', tooltip: 'paintings.remix.rendering_speed_tip' },
+      {
+        type: 'select',
+        key: 'renderingSpeed',
+        options: RENDERING_SPEED_OPTIONS,
+        disabled: (_config, painting) => {
+          const model = painting?.model
+          return !model || !model.includes('V_3')
+        }
       },
       { type: 'title', title: 'paintings.aspect_ratio' },
       {
@@ -218,7 +268,11 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
       {
         type: 'select',
         key: 'styleType',
-        options: STYLE_TYPES
+        options: (_config, painting) => {
+          // 根据模型选择显示不同的样式类型选项
+          return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
+        },
+        disabled: false
       },
       {
         type: 'title',

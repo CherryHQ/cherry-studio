@@ -131,7 +131,10 @@
       "manage": "管理",
       "select_model": "選擇模型",
       "show.all": "顯示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含使用者提問",
+      "case_sensitive": "區分大小寫",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "新增助手",
@@ -163,6 +166,7 @@
       "input.estimated_tokens.tip": "預估 Token 數",
       "input.expand": "展開",
       "input.file_not_supported": "模型不支援此檔案類型",
+      "input.file_error": "檔案處理錯誤",
       "input.generate_image": "生成圖片",
       "input.generate_image_not_supported": "模型不支援生成圖片",
       "input.knowledge_base": "知識庫",
@@ -177,6 +181,7 @@
       "input.upload": "上傳圖片或文件",
       "input.upload.document": "上傳文件（模型不支援圖片）",
       "input.web_search": "網路搜尋",
+      "input.web_search.settings": "網路搜尋設定",
       "input.web_search.button.ok": "去設定",
       "input.web_search.enable": "開啟網路搜尋",
       "input.web_search.enable_content": "需要先在設定中開啟網路搜尋",
@@ -396,7 +401,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "no_results": "沒有結果"
     },
     "docs": {
       "title": "說明文件"
@@ -584,7 +590,8 @@
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
-      "copy.success": "已複製！",
+      "copy.success": "複製成功",
+      "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
       "error.enter.api.host": "請先輸入您的 API 主機地址",
@@ -803,6 +810,20 @@
       "image_file_retry": "請重新上傳圖片",
       "image_placeholder": "無圖片",
       "image_retry": "重試",
+      "translating": "翻譯中...",
+      "style_types": {
+        "auto": "自動",
+        "general": "通用",
+        "realistic": "寫實",
+        "design": "設計",
+        "3d": "3D",
+        "anime": "動漫"
+      },
+      "rendering_speeds": {
+        "default": "預設",
+        "turbo": "快速",
+        "quality": "高品質"
+      },
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -810,20 +831,22 @@
         "upscale": "放大"
       },
       "generate": {
-        "model_tip": "模型版本：V2 為接口最新模型，V2A 為快速模型、V_1 為初代模型，_TURBO 為加速版本",
-        "number_images_tip": "單次出圖數量",
-        "seed_tip": "控制圖像生成的隨機性，用於重現相同的生成結果",
-        "negative_prompt_tip": "描述不想在圖像中出現的元素，僅支援 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
-        "magic_prompt_option_tip": "智能優化提示詞以提升生成效果",
-        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+        "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
+        "number_images_tip": "一次生成的圖片數量",
+        "seed_tip": "控制圖像生成的隨機性，以重現相同的生成結果",
+        "negative_prompt_tip": "描述不想在圖像中出現的內容",
+        "magic_prompt_option_tip": "智能優化生成效果的提示詞",
+        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
       },
       "edit": {
-        "image_file": "編輯的圖像",
-        "model_tip": "局部編輯僅支援 V_2 和 V_2_TURBO 版本",
+        "image_file": "編輯圖像",
+        "model_tip": "部分編輯僅支持 V_2 和 V_2_TURBO 版本",
         "number_images_tip": "生成的編輯結果數量",
         "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本",
         "seed_tip": "控制編輯結果的隨機性",
-        "magic_prompt_option_tip": "智能優化編輯提示詞"
+        "magic_prompt_option_tip": "智能優化編輯提示詞",
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
       },
       "remix": {
         "model_tip": "選擇重混使用的 AI 模型版本",
@@ -834,7 +857,8 @@
         "seed_tip": "控制重混結果的隨機性",
         "style_type_tip": "重混後的圖像風格，僅適用於 V_2 及以上版本",
         "negative_prompt_tip": "描述不想在重混結果中出現的元素",
-        "magic_prompt_option_tip": "智能優化重混提示詞"
+        "magic_prompt_option_tip": "智能優化重混提示詞",
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
       },
       "upscale": {
         "image_file": "需要放大的圖片",
@@ -845,7 +869,8 @@
         "number_images_tip": "生成的放大結果數量",
         "seed_tip": "控制放大結果的隨機性",
         "magic_prompt_option_tip": "智能優化放大提示詞"
-      }
+      },
+      "rendering_speed": "渲染速度"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -866,7 +891,7 @@
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee AI",
+      "gitee-ai": "模力方舟",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -955,6 +980,8 @@
         "app_knowledge.remove_all_confirm": "刪除知識庫文件可以減少儲存空間佔用，但不會刪除知識庫向量化資料，刪除之後將無法開啟原始檔，是否刪除？",
         "app_knowledge.remove_all_success": "檔案刪除成功",
         "app_logs": "應用程式日誌",
+        "backup.skip_file_data_title": "精簡備份",
+        "backup.skip_file_data_help": "備份時跳過備份圖片、知識庫等數據文件，僅備份聊天記錄和設置。減少空間佔用, 加快備份速度。",
         "clear_cache": {
           "button": "清除快取",
           "confirm": "清除快取將刪除應用快取資料，包括小工具資料。此操作不可恢復，是否繼續？",
@@ -1549,6 +1576,7 @@
         "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
         "reset_to_default": "重設為預設",
         "search_message": "搜尋訊息",
+        "search_message_in_chat": "在當前對話中搜尋訊息",
         "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
         "title": "快速方式",
@@ -1557,7 +1585,8 @@
         "toggle_show_topics": "切換話題顯示",
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
-        "zoom_reset": "重設縮放"
+        "zoom_reset": "重設縮放",
+        "exit_fullscreen": "退出全螢幕"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",

@@ -131,7 +131,10 @@
       "manage": "管理",
       "select_model": "选择模型",
       "show.all": "显示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含用户提问",
+      "case_sensitive": "区分大小写",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -163,6 +166,7 @@
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
       "input.file_not_supported": "模型不支持此文件类型",
+      "input.file_error": "文件处理出错",
       "input.generate_image": "生成图片",
       "input.generate_image_not_supported": "模型不支持生成图片",
       "input.knowledge_base": "知识库",
@@ -186,6 +190,7 @@
       "input.upload.upload_from_local": "上传本地文件...",
       "input.upload.document": "上传文档（模型不支持图片）",
       "input.web_search": "网络搜索",
+      "input.web_search.settings": "网络搜索设置",
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
       "input.web_search.enable_content": "需要先在设置中检查网络搜索连通性",
@@ -399,7 +404,8 @@
         "pinyin.desc": "按拼音降序"
       },
       "submit": "提交",
-      "form.validation.required":"{{field}} 是必填项"
+      "form.validation.required":"{{field}} 是必填项",
+      "no_results": "无结果"
     },
     "docs": {
       "title": "帮助文档"
@@ -593,6 +599,7 @@
       "copied": "已复制",
       "copy.failed": "复制失败",
       "copy.success": "复制成功",
+      "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "error.dimension_too_large": "内容尺寸过大",
       "error.enter.api.host": "请输入您的 API 地址",
@@ -804,6 +811,7 @@
       "model": "版本",
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
+      "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
@@ -811,6 +819,20 @@
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
       "image_retry": "重试",
+      "translating": "翻译中...",
+      "style_types": {
+        "auto": "自动",
+        "general": "通用",
+        "realistic": "写实",
+        "design": "设计",
+        "3d": "3D",
+        "anime": "动漫"
+      },
+      "rendering_speeds": {
+        "default": "默认",
+        "turbo": "快速",
+        "quality": "高质量"
+      },
       "mode": {
         "generate": "绘图",
         "edit": "编辑",
@@ -818,20 +840,22 @@
         "upscale": "放大"
       },
       "generate": {
-        "model_tip": "模型版本：V2 为接口最新模型，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
+        "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
         "number_images_tip": "单次出图数量",
         "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
         "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
         "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
-        "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本"
+        "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
       },
       "edit": {
         "image_file": "编辑的图像",
-        "model_tip": "局部编辑仅支持 V_2 和 V_2_TURBO 版本",
+        "model_tip": "支持 V3 和 V2 版本",
         "number_images_tip": "生成的编辑结果数量",
         "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本",
         "seed_tip": "控制编辑结果的随机性",
-        "magic_prompt_option_tip": "智能优化编辑提示词"
+        "magic_prompt_option_tip": "智能优化编辑提示词",
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
       },
       "remix": {
         "model_tip": "选择重混使用的 AI 模型版本",
@@ -842,7 +866,8 @@
         "seed_tip": "控制重混结果的随机性",
         "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本",
         "negative_prompt_tip": "描述不想在重混结果中出现的元素",
-        "magic_prompt_option_tip": "智能优化重混提示词"
+        "magic_prompt_option_tip": "智能优化重混提示词",
+        "rendering_speed_tip": "控制渲染速度与质量之间的平衡，仅适用于V_3版本"
       },
       "upscale": {
         "image_file": "需要放大的图片",
@@ -874,7 +899,7 @@
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee AI",
+      "gitee-ai": "模力方舟",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -964,6 +989,8 @@
         "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "app_knowledge.remove_all_success": "文件删除成功",
         "app_logs": "应用日志",
+        "backup.skip_file_data_title": "精简备份",
+        "backup.skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用, 加快备份速度。",
         "clear_cache": {
           "button": "清除缓存",
           "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
@@ -1560,6 +1587,7 @@
         "reset_defaults_confirm": "确定要重置所有快捷键吗？",
         "reset_to_default": "重置为默认",
         "search_message": "搜索消息",
+        "search_message_in_chat": "在当前对话中搜索消息",
         "show_app": "显示/隐藏应用",
         "show_settings": "打开设置",
         "title": "快捷方式",
