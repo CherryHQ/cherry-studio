@@ -13,7 +13,7 @@ import { Flow, FlowEngine, Workflow } from '@renderer/types'
 
 const selectEnabledFlowEngineProviders = createSelector(
   (state) => state.flow.providers,
-  (providers) => providers.filter((p) => p.enabled)
+  (providers) => providers
 )
 
 export function useFlowEngineProviders() {
