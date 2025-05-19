@@ -222,9 +222,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                     // 检查URL是否为空
                     if (!url || url.trim() === '') {
                       console.error('图像URL为空，可能是提示词违禁')
-                      window.modal.error({
+                      window.message.warning({
                         content: t('message.empty_url'),
-                        centered: true
+                        key: 'empty-url-warning'
                       })
                       return null
                     }
@@ -236,9 +236,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                       error instanceof Error &&
                       (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
                     ) {
-                      window.modal.error({
+                      window.message.warning({
                         content: t('message.empty_url'),
-                        centered: true
+                        key: 'empty-url-warning'
                       })
                     }
                     return null
@@ -358,9 +358,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                   // 检查URL是否为空
                   if (!url || url.trim() === '') {
                     console.error('图像URL为空，可能是提示词违禁')
-                    window.modal.error({
+                    window.message.warning({
                       content: t('message.empty_url'),
-                      centered: true
+                      key: 'empty-url-warning'
                     })
                     return null
                   }
@@ -372,9 +372,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                     error instanceof Error &&
                     (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
                   ) {
-                    window.modal.error({
+                    window.message.warning({
                       content: t('message.empty_url'),
-                      centered: true
+                      key: 'empty-url-warning'
                     })
                   }
                   return null
@@ -474,9 +474,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                   // 检查URL是否为空
                   if (!url || url.trim() === '') {
                     console.error('图像URL为空，可能是提示词违禁')
-                    window.modal.error({
+                    window.message.warning({
                       content: t('message.empty_url'),
-                      centered: true
+                      key: 'empty-url-warning'
                     })
                     return null
                   }
@@ -488,9 +488,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                     error instanceof Error &&
                     (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
                   ) {
-                    window.modal.error({
+                    window.message.warning({
                       content: t('message.empty_url'),
-                      centered: true
+                      key: 'empty-url-warning'
                     })
                   }
                   return null
@@ -570,9 +570,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                 // 检查URL是否为空
                 if (!url || url.trim() === '') {
                   console.error('图像URL为空，可能是提示词违禁')
-                  window.modal.error({
+                  window.message.warning({
                     content: t('message.empty_url'),
-                    centered: true
+                    key: 'empty-url-warning'
                   })
                   return null
                 }
@@ -584,9 +584,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
                   error instanceof Error &&
                   (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
                 ) {
-                  window.modal.error({
+                  window.message.warning({
                     content: t('message.empty_url'),
-                    centered: true
+                    key: 'empty-url-warning'
                   })
                 }
                 return null
@@ -623,9 +623,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           // 检查URL是否为空
           if (!url || url.trim() === '') {
             console.error('图像URL为空，可能是提示词违禁')
-            window.modal.error({
+            window.message.warning({
               content: t('message.empty_url'),
-              centered: true
+              key: 'empty-url-warning'
             })
             return null
           }
@@ -637,9 +637,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
           ) {
-            window.modal.error({
+            window.message.warning({
               content: t('message.empty_url'),
-              centered: true
+              key: 'empty-url-warning'
             })
           }
           setIsLoading(false)
