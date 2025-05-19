@@ -76,7 +76,8 @@ export class WindowService {
         webSecurity: false,
         webviewTag: true,
         allowRunningInsecureContent: true,
-        zoomFactor: configManager.getZoomFactor()
+        zoomFactor: configManager.getZoomFactor(),
+        backgroundThrottling: false
       }
     })
 
@@ -330,6 +331,11 @@ export class WindowService {
 
       event.preventDefault()
 
+      if (mainWindow.isFullScreen()) {
+        mainWindow.setFullScreen(false)
+        return
+      }
+
       mainWindow.hide()
 
       //for mac users, should hide dock icon if close to tray
@@ -447,7 +453,8 @@ export class WindowService {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         webSecurity: false,
-        webviewTag: true
+        webviewTag: true,
+        backgroundThrottling: false
       }
     })
 
