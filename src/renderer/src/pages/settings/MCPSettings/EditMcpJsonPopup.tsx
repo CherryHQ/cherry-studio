@@ -4,17 +4,16 @@ import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Extension } from '@uiw/react-codemirror'
 import { Modal, Typography } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 interface Props {
   resolve: (data: any) => void
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
-  const [editorExtensions, setEditorExtensions] = useState<Extension[]>([])
   const [jsonConfig, setJsonConfig] = useState('')
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
@@ -22,21 +21,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
-
-  useEffect(() => {
-    let isMounted = true
-    Promise.all([
-      import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter),
-      import('@codemirror/lint').then((mod) => mod.linter)
-    ]).then(([jsonParseLinter, linter]) => {
-      if (isMounted) {
-        setEditorExtensions([linter(jsonParseLinter())])
-      }
-    })
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   useEffect(() => {
     try {
@@ -116,10 +100,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve({})
   }
 
-  const handleChange = useCallback((newContent: string) => {
-    setJsonConfig(newContent)
-  }, [])
-
   EditMcpJsonPopup.hide = onCancel
 
   return (
@@ -143,10 +123,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <div style={{ marginBottom: '16px' }}>
           <CodeToolbarProvider>
             <CodeEditor
+              value={jsonConfig}
               language="json"
-              onChange={handleChange}
+              onChange={(value) => setJsonConfig(value)}
               maxHeight="60vh"
               options={{
+                lint: true,
                 collapsible: true,
                 wrappable: true,
                 lineNumbers: true,
@@ -154,9 +136,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 highlightActiveLine: true,
                 keymap: true
               }}
-              extensions={editorExtensions}>
-              {jsonConfig}
-            </CodeEditor>
+            />
           </CodeToolbarProvider>
         </div>
       )}
