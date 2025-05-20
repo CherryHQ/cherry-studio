@@ -23,6 +23,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
+import PasteService from '@renderer/services/PasteService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
@@ -581,72 +582,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      // 优先处理文本粘贴
-      const clipboardText = event.clipboardData?.getData('text')
-      if (clipboardText) {
-        // 1. 文本粘贴
-        if (pasteLongTextAsFile && clipboardText.length > pasteLongTextThreshold) {
-          // 长文本直接转文件，阻止默认粘贴
-          event.preventDefault()
-
-          const tempFilePath = await window.api.file.create('pasted_text.txt')
-          await window.api.file.write(tempFilePath, clipboardText)
-          const selectedFile = await window.api.file.get(tempFilePath)
-          selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-          setText(text) // 保持输入框内容不变
-          setTimeout(() => resizeTextArea(), 50)
-          return
-        }
-        // 短文本走默认粘贴行为，直接返回
-        return
-      }
-
-      // 2. 文件/图片粘贴（仅在无文本时处理）
-      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
-        event.preventDefault()
-        for (const file of event.clipboardData.files) {
-          try {
-            // 使用新的API获取文件路径
-            const filePath = window.api.file.getPathForFile(file)
-
-            // 如果没有路径，可能是剪贴板中的图像数据
-            if (!filePath) {
-              // 图像生成也支持图像编辑
-              if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
-                const tempFilePath = await window.api.file.create(file.name)
-                const arrayBuffer = await file.arrayBuffer()
-                const uint8Array = new Uint8Array(arrayBuffer)
-                await window.api.file.write(tempFilePath, uint8Array)
-                const selectedFile = await window.api.file.get(tempFilePath)
-                selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-                break
-              } else {
-                window.message.info({
-                  key: 'file_not_supported',
-                  content: t('chat.input.file_not_supported')
-                })
-              }
-              continue
-            }
-
-            // 有路径的情况
-            if (supportExts.includes(getFileExtension(filePath))) {
-              const selectedFile = await window.api.file.get(filePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-            } else {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
-            }
-          } catch (error) {
-            Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] onPaste:', error)
-            window.message.error(t('chat.input.file_error'))
-          }
-        }
-        return
-      }
-      // 其他情况默认粘贴
+      return await PasteService.handlePaste(
+        event,
+        isVisionModel(model),
+        isGenerateImageModel(model),
+        supportExts,
+        setFiles,
+        setText,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
+        text,
+        resizeTextArea,
+        t
+      )
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
@@ -748,6 +696,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       document.removeEventListener('mouseup', handleDragEnd)
     }
   }, [isDragging, handleDrag, handleDragEnd])
+
+  // 注册粘贴处理函数并初始化全局监听
+  useEffect(() => {
+    // 确保全局paste监听器仅初始化一次
+    PasteService.init()
+
+    // 注册当前组件的粘贴处理函数
+    PasteService.registerHandler('inputbar', onPaste)
+
+    // 卸载时取消注册
+    return () => {
+      PasteService.unregisterHandler('inputbar')
+    }
+  }, [onPaste])
 
   useShortcut('new_topic', () => {
     addNewTopic()
@@ -951,6 +913,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
+              // 记录当前聚焦的组件
+              PasteService.setLastFocusedComponent('inputbar')
               if (e.target.value.length === 0) {
                 e.target.setSelectionRange(0, 0)
               }
