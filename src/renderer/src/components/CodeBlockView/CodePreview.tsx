@@ -304,6 +304,8 @@ const CodePlaceholder = styled.div`
   white-space: pre-wrap;
   word-break: break-all;
   overflow-x: hidden;
+  display: block;
+  min-height: 1.3rem;
 `
 
 CodePreview.displayName = 'CodePreview'
