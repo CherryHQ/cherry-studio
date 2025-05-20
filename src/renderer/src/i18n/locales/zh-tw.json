@@ -810,7 +810,6 @@
       "image_file_retry": "請重新上傳圖片",
       "image_placeholder": "無圖片",
       "image_retry": "重試",
-      "translating": "翻譯中...",
       "style_types": {
         "auto": "自動",
         "general": "通用",
@@ -870,7 +869,8 @@
         "seed_tip": "控制放大結果的隨機性",
         "magic_prompt_option_tip": "智能優化放大提示詞"
       },
-      "rendering_speed": "渲染速度"
+      "rendering_speed": "渲染速度",
+      "translating": "翻譯中..."
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",

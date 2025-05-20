@@ -803,7 +803,6 @@
       "model": "版本",
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
-      "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
@@ -811,7 +810,6 @@
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
       "image_retry": "重试",
-      "translating": "翻译中...",
       "style_types": {
         "auto": "自动",
         "general": "通用",
@@ -870,7 +868,9 @@
         "number_images_tip": "生成的放大结果数量",
         "seed_tip": "控制放大结果的随机性",
         "magic_prompt_option_tip": "智能优化放大提示词"
-      }
+      },
+      "rendering_speed": "渲染速度",
+      "translating": "翻译中..."
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",

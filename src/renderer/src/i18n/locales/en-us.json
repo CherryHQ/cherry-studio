@@ -803,7 +803,6 @@
       "model": "Model Version",
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
-      "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
@@ -811,7 +810,6 @@
       "image_file_retry": "Please re-upload an image first",
       "image_placeholder": "No image available",
       "image_retry": "Retry",
-      "translating": "Translating...",
       "style_types": {
         "auto": "Auto",
         "general": "General",
@@ -870,7 +868,9 @@
         "number_images_tip": "Number of upscaled results to generate",
         "seed_tip": "Controls upscaling randomness",
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
-      }
+      },
+      "rendering_speed": "Rendering Speed",
+      "translating": "Translating..."
     },
     "prompts": {
       "explanation": "Explain this concept to me",
