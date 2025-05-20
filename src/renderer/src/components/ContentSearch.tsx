@@ -3,6 +3,7 @@ import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -554,100 +555,105 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
     }
 
     return (
-      <Container ref={containerRef} style={enableContentSearch ? {} : { display: 'none' }}>
-        <NarrowLayout style={{ width: '100%' }}>
-          <SearchBarContainer>
-            <InputWrapper>
-              <Input
-                ref={searchInputRef}
-                onInput={userInputHandler}
-                onKeyDown={keyDownHandler}
-                placeholder={t('chat.assistant.search.placeholder')}
-                style={{ lineHeight: '20px' }}
-              />
-              <ToolBar>
-                <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
-                    <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+      <AnimatePresence mode="popLayout">
+        {enableContentSearch && (
+          <Container
+            ref={containerRef}
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            transition={{ duration: 0.2 }}>
+            <NarrowLayout style={{ width: '100%' }}>
+              <SearchBarContainer>
+                <InputWrapper>
+                  <Input
+                    ref={searchInputRef}
+                    onInput={userInputHandler}
+                    onKeyDown={keyDownHandler}
+                    placeholder={t('chat.assistant.search.placeholder')}
+                    style={{ lineHeight: '20px' }}
+                  />
+                  <ToolBar>
+                    <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
+                      <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
+                        <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                      </ToolbarButton>
+                    </Tooltip>
+                    <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
+                      <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
+                        <CaseSensitive
+                          size={18}
+                          style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
+                        />
+                      </ToolbarButton>
+                    </Tooltip>
+                    <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
+                      <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
+                        <WholeWord
+                          size={18}
+                          style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }}
+                        />
+                      </ToolbarButton>
+                    </Tooltip>
+                  </ToolBar>
+                </InputWrapper>
+                <Separator></Separator>
+                <SearchResults>
+                  {searchCompleted !== SearchCompletedState.NotSearched ? (
+                    totalCount > 0 ? (
+                      <>
+                        <SearchResultCount>{searchResultIndex + 1}</SearchResultCount>
+                        <SearchResultSeparator>/</SearchResultSeparator>
+                        <SearchResultTotalCount>{totalCount}</SearchResultTotalCount>
+                      </>
+                    ) : (
+                      <NoResults>{t('common.no_results')}</NoResults>
+                    )
+                  ) : (
+                    <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
+                  )}
+                </SearchResults>
+                <ToolBar>
+                  <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={totalCount === 0}>
+                    <ChevronUp size={18} />
                   </ToolbarButton>
-                </Tooltip>
-                <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
-                    <CaseSensitive
-                      size={18}
-                      style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
-                    />
+                  <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={totalCount === 0}>
+                    <ChevronDown size={18} />
                   </ToolbarButton>
-                </Tooltip>
-                <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
-                    <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                  <ToolbarButton type="text" onClick={closeButtonOnClick}>
+                    <X size={18} />
                   </ToolbarButton>
-                </Tooltip>
-              </ToolBar>
-            </InputWrapper>
-            <Separator></Separator>
-            <SearchResults>
-              {searchCompleted !== SearchCompletedState.NotSearched ? (
-                totalCount > 0 ? (
-                  <>
-                    <SearchResultCount>{searchResultIndex + 1}</SearchResultCount>
-                    <SearchResultSeparator>/</SearchResultSeparator>
-                    <SearchResultTotalCount>{totalCount}</SearchResultTotalCount>
-                  </>
-                ) : (
-                  <NoResults>{t('common.no_results')}</NoResults>
-                )
-              ) : (
-                <SearchResultsPlaceholder>0/0</SearchResultsPlaceholder>
-              )}
-            </SearchResults>
-            <ToolBar>
-              <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={totalCount === 0}>
-                <ChevronUp size={18} />
-              </ToolbarButton>
-              <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={totalCount === 0}>
-                <ChevronDown size={18} />
-              </ToolbarButton>
-              <ToolbarButton type="text" onClick={closeButtonOnClick}>
-                <X size={18} />
-              </ToolbarButton>
-            </ToolBar>
-          </SearchBarContainer>
-        </NarrowLayout>
-        <Placeholder />
-      </Container>
+                </ToolBar>
+              </SearchBarContainer>
+            </NarrowLayout>
+          </Container>
+        )}
+      </AnimatePresence>
     )
   }
 )
 
 ContentSearch.displayName = 'ContentSearch'
 
-const Container = styled.div`
+const Container = styled(motion.div)`
   display: flex;
   flex-direction: row;
   z-index: 2;
 `
 
 const SearchBarContainer = styled.div`
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-bottom: 1px solid var(--color-border);
   transition: all 0.2s ease;
-  position: fixed;
   top: 15px;
   left: 20px;
   right: 20px;
   margin-bottom: 5px;
-  padding: 5px 15px;
+  padding: 0.5rem 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: var(--color-background);
   flex: 1 1 auto; /* Take up input's previous space */
-`
-
-const Placeholder = styled.div`
-  width: 5px;
 `
 
 const InputWrapper = styled.div`
