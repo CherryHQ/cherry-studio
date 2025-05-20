@@ -128,8 +128,8 @@ export const PROVIDER_CONFIG = {
       url: 'https://ai.burncloud.com'
     },
     websites: {
-      official: 'https://ai.burncloud.com/',
-      apiKey: 'https://ai.burncloud.com/token',
+      official: 'https://www.burncloud.com/ai_NwHk.html',
+      apiKey: 'https://www.burncloud.com/ai_NwHk.html',
       docs: 'https://ai.burncloud.com/docs',
       models: 'https://ai.burncloud.com/pricing'
     }
