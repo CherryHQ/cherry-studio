@@ -14,6 +14,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
+import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
@@ -24,7 +25,7 @@ import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import { omit } from 'lodash'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -54,7 +55,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
 }) => {
   const { t } = useTranslation()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
-  const { assistantIconType, setAssistantIconType } = useSettings()
+  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
@@ -244,12 +245,27 @@ const AssistantItem: FC<AssistantItemProps> = ({
     ]
   )
 
+  const handleSwitch = useCallback(async () => {
+    await modelGenerating()
+
+    if (clickAssistantToShowTopic) {
+      if (topicPosition === 'left') {
+        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+      }
+      onSwitch(assistant)
+    } else {
+      startTransition(() => {
+        onSwitch(assistant)
+      })
+    }
+  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
+
   const assistantName = assistant.name || t('chat.default.name')
   const fullAssistantName = assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName
 
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
-      <Container className={isActive ? 'active' : ''}>
+      <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           {assistantIconType === 'model' ? (
             <ModelAvatar
