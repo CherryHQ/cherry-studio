@@ -152,7 +152,7 @@ const CodeEditor = ({
         annotations: [External.of(true)]
       })
     }
-  }, [value])
+  }, [options?.stream, value])
 
   useEffect(() => {
     setIsExpanded(!collapsible)
