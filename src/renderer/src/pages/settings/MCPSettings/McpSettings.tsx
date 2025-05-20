@@ -167,6 +167,7 @@ const McpSettings: React.FC = () => {
         const localTools = await window.api.mcp.listTools(server)
         setTools(localTools)
       } catch (error) {
+        setLoadingServer(server.id)
         window.message.error({
           content: t('settings.mcp.tools.loadError') + ' ' + formatError(error),
           key: 'mcp-tools-error'

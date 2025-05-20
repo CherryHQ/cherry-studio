@@ -41,9 +41,9 @@ export {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
+  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
 
-  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
+  const _messages = takeRight(messages, maxContextCount)
 
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
 
@@ -215,10 +215,9 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
     try {
       window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
 
-      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
-        blocks: [tempTextBlock.id]
+        blocks: message.blocks
       })
 
       const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })

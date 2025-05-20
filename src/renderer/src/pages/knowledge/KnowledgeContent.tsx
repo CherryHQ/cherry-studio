@@ -93,7 +93,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         .map((file) => ({
           id: file.name,
           name: file.name,
-          path: file.path,
+          path: window.api.file.getPathForFile(file),
           size: file.size,
           ext: `.${file.name.split('.').pop()}`.toLowerCase(),
           count: 1,
@@ -245,9 +245,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 </Tag>
               </div>
             </Tooltip>
-            <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
-              {t('models.dimensions', { dimensions: base.dimensions || 0 })}
-            </Tag>
+            {base.rerankModel && (
+              <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
+                {base.rerankModel.name}
+              </Tag>
+            )}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">

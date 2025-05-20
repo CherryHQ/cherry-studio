@@ -1,18 +1,20 @@
+import CodeEditor from '@renderer/components/CodeEditor'
+import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
+import { Extension } from '@uiw/react-codemirror'
 import { Modal, Typography } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 interface Props {
   resolve: (data: any) => void
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
+  const [editorExtensions, setEditorExtensions] = useState<Extension[]>([])
   const [jsonConfig, setJsonConfig] = useState('')
   const [jsonSaving, setJsonSaving] = useState(false)
   const [jsonError, setJsonError] = useState('')
@@ -20,6 +22,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+
+  useEffect(() => {
+    let isMounted = true
+    Promise.all([
+      import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter),
+      import('@codemirror/lint').then((mod) => mod.linter)
+    ]).then(([jsonParseLinter, linter]) => {
+      if (isMounted) {
+        setEditorExtensions([linter(jsonParseLinter())])
+      }
+    })
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -99,6 +116,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve({})
   }
 
+  const handleChange = useCallback((newContent: string) => {
+    setJsonConfig(newContent)
+  }, [])
+
   EditMcpJsonPopup.hide = onCancel
 
   return (
@@ -118,17 +139,27 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
         </Typography.Text>
       </div>
-      <TextArea
-        value={jsonConfig}
-        onChange={(e) => setJsonConfig(e.target.value)}
-        style={{
-          width: '100%',
-          fontFamily: 'monospace',
-          minHeight: '60vh',
-          marginBottom: '16px'
-        }}
-        onFocus={() => setJsonError('')}
-      />
+      {jsonConfig && (
+        <div style={{ marginBottom: '16px' }}>
+          <CodeToolbarProvider>
+            <CodeEditor
+              language="json"
+              onChange={handleChange}
+              maxHeight="60vh"
+              options={{
+                collapsible: true,
+                wrappable: true,
+                lineNumbers: true,
+                foldGutter: true,
+                highlightActiveLine: true,
+                keymap: true
+              }}
+              extensions={editorExtensions}>
+              {jsonConfig}
+            </CodeEditor>
+          </CodeToolbarProvider>
+        </div>
+      )}
       <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>
     </Modal>
   )

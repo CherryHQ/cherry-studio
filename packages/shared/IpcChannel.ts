@@ -1,4 +1,5 @@
 export enum IpcChannel {
+  App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
@@ -51,6 +52,7 @@ export enum IpcChannel {
   Mcp_GetInstallInfo = 'mcp:get-install-info',
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
+  Mcp_CheckConnectivity = 'mcp:check-connectivity',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
@@ -111,7 +113,7 @@ export enum IpcChannel {
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
   Fs_Read = 'fs:read',
-
+  File_ResolveFilePath = 'file:resolveFilePath',
   Export_Word = 'export:word',
 
   Shortcuts_Update = 'shortcuts:update',
@@ -133,6 +135,9 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+
+  // DevTools
+  System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
   BackupProgress = 'backup-progress',

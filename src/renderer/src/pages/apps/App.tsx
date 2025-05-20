@@ -156,14 +156,16 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
           : [])
       ]
 
-  if (!isVisible && !isLast) return null
+  if (!isVisible && !isLast) {
+    return null
+  }
 
   return (
     <>
       <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
         <Container onClick={handleClick}>
           {isLast ? (
-            <AddButton>
+            <AddButton size={size}>
               <PlusOutlined />
             </AddButton>
           ) : (
@@ -252,9 +254,9 @@ const AppTitle = styled.div`
   white-space: nowrap;
 `
 
-const AddButton = styled.div`
-  width: 60px;
-  height: 60px;
+const AddButton = styled.div<{ size?: number }>`
+  width: ${({ size }) => size || 60}px;
+  height: ${({ size }) => size || 60}px;
   border-radius: 12px;
   display: flex;
   align-items: center;

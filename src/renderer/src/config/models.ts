@@ -725,46 +725,34 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   'gitee-ai': [
     {
-      id: 'DeepSeek-R1-Distill-Qwen-32B',
-      name: 'DeepSeek-R1-Distill-Qwen-32B',
+      id: 'Qwen3-30B-A3B',
+      name: 'Qwen3-30B-A3B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-R1-Distill-Qwen-1.5B',
-      name: 'DeepSeek-R1-Distill-Qwen-1.5B',
+      id: 'Qwen3-32B',
+      name: 'Qwen3-32B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-R1-Distill-Qwen-14B',
-      name: 'DeepSeek-R1-Distill-Qwen-14B',
+      id: 'Qwen3-8B',
+      name: 'Qwen3-8B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-R1-Distill-Qwen-7B',
-      name: 'DeepSeek-R1-Distill-Qwen-7B',
+      id: 'Qwen3-4B',
+      name: 'Qwen3-4B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
-      id: 'DeepSeek-V3',
-      name: 'DeepSeek-V3',
+      id: 'Qwen3-0.6B',
+      name: 'Qwen3-0.6B',
       provider: 'gitee-ai',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'DeepSeek-R1',
-      name: 'DeepSeek-R1',
-      provider: 'gitee-ai',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'deepseek-coder-33B-instruct',
-      name: 'deepseek-coder-33B-instruct',
-      provider: 'gitee-ai',
-      group: 'DeepSeek'
+      group: 'Qwen'
     },
     {
       id: 'Qwen2.5-72B-Instruct',
@@ -803,10 +791,22 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     },
     {
-      id: 'QwQ-32B-Preview',
-      name: 'QwQ-32B-Preview',
+      id: 'Qwen2.5-VL-32B-Instruct',
+      name: 'Qwen2.5-VL-32B-Instruct',
       provider: 'gitee-ai',
       group: 'Qwen'
+    },
+    {
+      id: 'QwQ-32B',
+      name: 'QwQ-32B',
+      provider: 'gitee-ai',
+      group: 'Qwen'
+    },
+    {
+      id: 'Align-DS-V',
+      name: 'Align-DS-V',
+      provider: 'gitee-ai',
+      group: 'Align'
     },
     {
       id: 'Yi-34B-Chat',
@@ -819,6 +819,12 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'glm-4-9b-chat',
       provider: 'gitee-ai',
       group: 'THUDM'
+    },
+    {
+      id: 'deepseek-coder-33B-instruct',
+      name: 'deepseek-coder-33B-instruct',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
     },
     {
       id: 'codegeex4-all-9b',
@@ -843,6 +849,48 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'InternVL2.5-78B',
       provider: 'gitee-ai',
       group: 'OpenGVLab'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-32B',
+      name: 'DeepSeek-R1-Distill-Qwen-32B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-1.5B',
+      name: 'DeepSeek-R1-Distill-Qwen-1.5B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-14B',
+      name: 'DeepSeek-R1-Distill-Qwen-14B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1-Distill-Qwen-7B',
+      name: 'DeepSeek-R1-Distill-Qwen-7B',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-V3',
+      name: 'DeepSeek-V3',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'DeepSeek-R1',
+      name: 'DeepSeek-R1',
+      provider: 'gitee-ai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'gemma-3-27b-it',
+      name: 'gemma-3-27b-it',
+      provider: 'gitee-ai',
+      group: 'Gemma'
     },
     {
       id: 'bge-large-zh-v1.5',
@@ -2233,6 +2281,9 @@ export function isOpenAILLMModel(model: Model): boolean {
   if (!model) {
     return false
   }
+  if (model.id.includes('gpt-4o-image')) {
+    return false
+  }
   if (isOpenAIReasoningModel(model)) {
     return true
   }
@@ -2240,6 +2291,20 @@ export function isOpenAILLMModel(model: Model): boolean {
     return true
   }
   return false
+}
+
+export function isOpenAIModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return model.id.includes('gpt') || isOpenAIReasoningModel(model)
+}
+
+export function isSupportedFlexServiceTier(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+  return (model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')
 }
 
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
@@ -2383,6 +2448,18 @@ export function isSupportedModel(model: OpenAI.Models.Model): boolean {
   return !NOT_SUPPORTED_REGEX.test(model.id)
 }
 
+export function isNotSupportTemperatureAndTopP(model: Model): boolean {
+  if (!model) {
+    return true
+  }
+
+  if (isOpenAIReasoningModel(model) || isOpenAIWebSearch(model)) {
+    return true
+  }
+
+  return false
+}
+
 export function isWebSearchModel(model: Model): boolean {
   if (!model) {
     return false
@@ -2410,7 +2487,7 @@ export function isWebSearchModel(model: Model): boolean {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
   }
 
-  if (provider.type === 'openai') {
+  if (provider.type === 'openai-response') {
     if (
       isOpenAILLMModel(model) &&
       !isTextToImageModel(model) &&
@@ -2441,7 +2518,7 @@ export function isWebSearchModel(model: Model): boolean {
     return models.includes(model?.id)
   }
 
-  if (provider?.type === 'openai-compatible') {
+  if (provider?.type === 'openai') {
     if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
       return true
     }
@@ -2598,10 +2675,10 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen-turbo-.*$': { min: 0, max: 38912 },
   'qwen3-0\\.6b$': { min: 0, max: 30720 },
   'qwen3-1\\.7b$': { min: 0, max: 30720 },
-  'qwen3-.*$': { min: 0, max: 38912 },
+  'qwen3-.*$': { min: 1024, max: 38912 },
 
   // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 0, max: 64000 }
+  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

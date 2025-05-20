@@ -10,6 +10,7 @@
     "composite": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
+    "moduleResolution": "bundler",
     "paths": {
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"],

@@ -96,7 +96,7 @@ Refer to the [development documentation](docs/dev.md)
 
 Refer to the [Architecture overview documentation](https://deepwiki.com/CherryHQ/cherry-studio)
 
-Refer to the [Branching Strategy](docs/branching-strategy.md) for contribution guidelines
+Refer to the [Branching Strategy](docs/branching-strategy-en.md) for contribution guidelines
 
 # 🤝 Contributing
 
@@ -130,7 +130,7 @@ Thank you for your support and contributions!
 # 🚀 Contributors
 
 <a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
+  <img src="https://contrib.rocks/image?repo=CherryHQ/cherry-studio" />
 </a>
 <br /><br />
 

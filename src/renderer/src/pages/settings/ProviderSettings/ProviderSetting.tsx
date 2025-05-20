@@ -1,4 +1,5 @@
 import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -12,10 +13,12 @@ import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/Heal
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
+import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -260,7 +263,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     if (apiHost.endsWith('#')) {
       return apiHost.replace('#', '')
     }
-    if (provider.type === 'openai-compatible') {
+    if (provider.type === 'openai') {
       return formatApiHost(apiHost) + 'chat/completions'
     }
     return formatApiHost(apiHost) + 'responses'
@@ -324,6 +327,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           }}
         />
       )}
+      {provider.id === 'openai' && <OpenAIAlert />}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
@@ -402,7 +406,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <HStack alignItems="center" gap={5}>
+          <HStack alignItems="center" gap={8} mb={5}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </HStack>
@@ -411,9 +415,15 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
               <Button
                 type="text"
                 size="small"
-                icon={<StreamlineGoodHealthAndWellBeing />}
                 onClick={onHealthCheck}
-                loading={isHealthChecking}
+                icon={
+                  <motion.span
+                    variants={lightbulbVariants}
+                    animate={isHealthChecking ? 'active' : 'idle'}
+                    initial="idle">
+                    <StreamlineGoodHealthAndWellBeing />
+                  </motion.span>
+                }
               />
             </Tooltip>
           )}

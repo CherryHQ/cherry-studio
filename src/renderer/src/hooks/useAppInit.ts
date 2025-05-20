@@ -3,6 +3,7 @@ import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
@@ -24,6 +25,11 @@ export function useAppInit() {
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
 
+  useEffect(() => {
+    document.getElementById('spinner')?.remove()
+    console.timeEnd('init')
+  }, [])
+
   useUpdateHandler()
   useFullScreenNotice()
 
@@ -32,7 +38,6 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
-    document.getElementById('spinner')?.remove()
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
@@ -61,7 +66,8 @@ export function useAppInit() {
     const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
 
     if (minappShow) {
-      window.root.style.background = theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)'
+      window.root.style.background =
+        windowStyle === 'transparent' && isMac ? 'var(--color-background)' : 'var(--navbar-background)'
       return
     }
 
@@ -87,7 +93,7 @@ export function useAppInit() {
   }, [dispatch])
 
   useEffect(() => {
-    import('@renderer/queue/KnowledgeQueue')
+    KnowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {

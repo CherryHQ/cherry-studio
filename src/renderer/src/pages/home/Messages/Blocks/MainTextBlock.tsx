@@ -5,6 +5,7 @@ import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model, WebSearchSource } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { Flex } from 'antd'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
@@ -37,9 +38,14 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
   // Use the passed citationBlockId directly in the selector
   const { renderInputMessageAsMarkdown } = useSettings()
 
-  const formattedCitations = useSelector((state: RootState) =>
-    selectFormattedCitationsByBlockId(state, citationBlockId)
-  )
+  const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
+
+  const formattedCitations = useMemo(() => {
+    return rawCitations.map((citation) => ({
+      ...citation,
+      content: citation.content ? cleanMarkdownContent(citation.content) : citation.content
+    }))
+  }, [rawCitations])
 
   const processedContent = useMemo(() => {
     let content = block.content
@@ -49,8 +55,8 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     }
 
     switch (block.citationReferences[0].citationBlockSource) {
-      case WebSearchSource.OPENAI_COMPATIBLE:
-      case WebSearchSource.OPENAI: {
+      case WebSearchSource.OPENAI:
+      case WebSearchSource.OPENAI_RESPONSE: {
         formattedCitations.forEach((citation) => {
           const citationNum = citation.number
           const supData = {
