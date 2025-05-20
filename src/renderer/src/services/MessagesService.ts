@@ -217,7 +217,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
-        blocks: message.blocks,
+        blocks: message.blocks
       })
 
       const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })

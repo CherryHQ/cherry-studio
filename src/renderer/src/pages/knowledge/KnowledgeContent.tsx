@@ -93,7 +93,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         .map((file) => ({
           id: file.name,
           name: file.name,
-          path: file.path,
+          path: window.api.file.getPathForFile(file),
           size: file.size,
           ext: `.${file.name.split('.').pop()}`.toLowerCase(),
           count: 1,

@@ -10,10 +10,6 @@ class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
   private readonly MAX_RETRIES = 1
 
-  constructor() {
-    this.checkAllBases().catch(console.error)
-  }
-
   public async checkAllBases(): Promise<void> {
     const state = store.getState()
     const bases = state.knowledge.bases

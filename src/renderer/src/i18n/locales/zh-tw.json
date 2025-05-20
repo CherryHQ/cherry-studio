@@ -590,7 +590,8 @@
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
-      "copy.success": "已複製！",
+      "copy.success": "複製成功",
+      "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
       "error.enter.api.host": "請先輸入您的 API 主機地址",
@@ -809,6 +810,20 @@
       "image_file_retry": "請重新上傳圖片",
       "image_placeholder": "無圖片",
       "image_retry": "重試",
+      "translating": "翻譯中...",
+      "style_types": {
+        "auto": "自動",
+        "general": "通用",
+        "realistic": "寫實",
+        "design": "設計",
+        "3d": "3D",
+        "anime": "動漫"
+      },
+      "rendering_speeds": {
+        "default": "預設",
+        "turbo": "快速",
+        "quality": "高品質"
+      },
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -816,20 +831,22 @@
         "upscale": "放大"
       },
       "generate": {
-        "model_tip": "模型版本：V2 為接口最新模型，V2A 為快速模型、V_1 為初代模型，_TURBO 為加速版本",
-        "number_images_tip": "單次出圖數量",
-        "seed_tip": "控制圖像生成的隨機性，用於重現相同的生成結果",
-        "negative_prompt_tip": "描述不想在圖像中出現的元素，僅支援 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
-        "magic_prompt_option_tip": "智能優化提示詞以提升生成效果",
-        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+        "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
+        "number_images_tip": "一次生成的圖片數量",
+        "seed_tip": "控制圖像生成的隨機性，以重現相同的生成結果",
+        "negative_prompt_tip": "描述不想在圖像中出現的內容",
+        "magic_prompt_option_tip": "智能優化生成效果的提示詞",
+        "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
       },
       "edit": {
-        "image_file": "編輯的圖像",
-        "model_tip": "局部編輯僅支援 V_2 和 V_2_TURBO 版本",
+        "image_file": "編輯圖像",
+        "model_tip": "部分編輯僅支持 V_2 和 V_2_TURBO 版本",
         "number_images_tip": "生成的編輯結果數量",
         "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本",
         "seed_tip": "控制編輯結果的隨機性",
-        "magic_prompt_option_tip": "智能優化編輯提示詞"
+        "magic_prompt_option_tip": "智能優化編輯提示詞",
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
       },
       "remix": {
         "model_tip": "選擇重混使用的 AI 模型版本",
@@ -840,7 +857,8 @@
         "seed_tip": "控制重混結果的隨機性",
         "style_type_tip": "重混後的圖像風格，僅適用於 V_2 及以上版本",
         "negative_prompt_tip": "描述不想在重混結果中出現的元素",
-        "magic_prompt_option_tip": "智能優化重混提示詞"
+        "magic_prompt_option_tip": "智能優化重混提示詞",
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
       },
       "upscale": {
         "image_file": "需要放大的圖片",
@@ -851,7 +869,8 @@
         "number_images_tip": "生成的放大結果數量",
         "seed_tip": "控制放大結果的隨機性",
         "magic_prompt_option_tip": "智能優化放大提示詞"
-      }
+      },
+      "rendering_speed": "渲染速度"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -860,6 +879,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -1250,6 +1270,14 @@
         "active": "啟用",
         "addError": "添加伺服器失敗",
         "addServer": "新增伺服器",
+        "addServer.create": "快速創建",
+        "addServer.importFrom": "從 JSON 導入",
+        "addServer.importFrom.tooltip": "請從 MCP Servers 的介紹頁面複製配置JSON（優先使用\n NPX或 UVX 配置），並粘貼到輸入框中。",
+        "addServer.importFrom.placeholder": "貼上 MCP 伺服器 JSON 設定",
+        "addServer.importFrom.invalid": "無效的輸入，請檢查 JSON 格式",
+        "addServer.importFrom.nameExists": "伺服器已存在：{{name}}",
+        "addServer.importFrom.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServer.importFrom.connectionFailed": "連線失敗",
         "addSuccess": "伺服器新增成功",
         "args": "參數",
         "argsTooltip": "每個參數佔一行",
@@ -1452,6 +1480,8 @@
       "models.translate_model_description": "翻譯服務使用的模型",
       "models.translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "models.translate_model_prompt_title": "翻譯模型提示詞",
+      "models.quick_assistant_model": "快捷助手模型",
+      "models.quick_assistant_model_description": "快捷助手使用的預設模型",
       "moresetting": "更多設定",
       "moresetting.check.confirm": "確認勾選",
       "moresetting.check.warn": "請謹慎勾選此選項，勾選錯誤會導致模型無法正常使用！！！",
@@ -1525,6 +1555,9 @@
           "title": "模型備註",
           "placeholder": "輸入Markdown格式內容...",
           "markdown_editor_default_value": "預覽區域"
+        },
+        "openai": {
+          "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商。"
         }
       },
       "proxy": {
@@ -1567,7 +1600,7 @@
         "zoom_in": "放大介面",
         "zoom_out": "縮小介面",
         "zoom_reset": "重設縮放",
-        "exit_fullscreen": "退出全螢幕"
+        "exit_fullscreen": "退出螢幕"
       },
       "theme.auto": "自動",
       "theme.dark": "深色",
@@ -1652,6 +1685,20 @@
       "zoom": {
         "title": "縮放",
         "reset": "重置"
+      },
+      "openai": {
+        "title": "OpenAI設定",
+        "summary_text_mode.title": "摘要模式",
+        "summary_text_mode.tip": "模型所執行的推理摘要",
+        "summary_text_mode.auto": "自動",
+        "summary_text_mode.concise": "簡潔",
+        "summary_text_mode.detailed": "詳細",
+        "summary_text_mode.off": "關閉",
+        "service_tier.title": "服務層級",
+        "service_tier.tip": "指定用於處理請求的延遲層級",
+        "service_tier.auto": "自動",
+        "service_tier.default": "預設",
+        "service_tier.flex": "彈性"
       }
     },
     "translate": {

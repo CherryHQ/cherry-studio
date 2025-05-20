@@ -839,6 +839,7 @@ const migrateConfig = {
   },
   '66': (state: RootState) => {
     try {
+      addProvider(state, 'burncloud')
       addProvider(state, 'gitee-ai')
       addProvider(state, 'ppio')
       addMiniApp(state, 'aistudio')
@@ -1025,6 +1026,7 @@ const migrateConfig = {
   },
   '78': (state: RootState) => {
     try {
+      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 9)
       state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
       state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
       removeMiniAppIconsFromState(state)
@@ -1351,6 +1353,11 @@ const migrateConfig = {
   },
   '102': (state: RootState) => {
     try {
+      state.settings.openAI = {
+        summaryText: 'off',
+        serviceTier: 'auto'
+      }
+
       state.settings.codeExecution = settingsInitialState.codeExecution
       state.settings.codeEditor = settingsInitialState.codeEditor
       state.settings.codePreview = settingsInitialState.codePreview
@@ -1401,6 +1408,8 @@ const migrateConfig = {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
         }
       }
+      // Quick assistant model
+      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
       return state
     } catch (error) {
       return state

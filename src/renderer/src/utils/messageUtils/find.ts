@@ -1,15 +1,32 @@
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { FileType } from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
   Message,
+  MessageBlock,
   ThinkingMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
+
+export const findAllBlocks = (message: Message): MessageBlock[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  const allBlocks: MessageBlock[] = []
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block) {
+      allBlocks.push(block)
+    }
+  }
+  return allBlocks
+}
 
 /**
  * Finds all MainTextMessageBlocks associated with a given message, in order.
@@ -120,6 +137,28 @@ export const getThinkingContent = (message: Message): string => {
 export const getKnowledgeBaseIds = (message: Message): string[] | undefined => {
   const firstTextBlock = findMainTextBlocks(message)
   return firstTextBlock?.flatMap((block) => block.knowledgeBaseIds).filter((id): id is string => Boolean(id))
+}
+
+/**
+ * Gets the file content from all FileMessageBlocks and ImageMessageBlocks of a message.
+ * @param message - The message object.
+ * @returns The file content or an empty string if no file blocks are found.
+ */
+export const getFileContent = (message: Message): FileType[] => {
+  const files: FileType[] = []
+  const fileBlocks = findFileBlocks(message)
+  for (const block of fileBlocks) {
+    if (block.file) {
+      files.push(block.file)
+    }
+  }
+  const imageBlocks = findImageBlocks(message)
+  for (const block of imageBlocks) {
+    if (block.file) {
+      files.push(block.file)
+    }
+  }
+  return files
 }
 
 /**

@@ -10,7 +10,7 @@ import {
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import { message } from 'antd'
-import { Folder, Languages, LayoutGrid, LibraryBig, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
+import { Folder, Languages, LayoutGrid, FileSearch, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -114,7 +114,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       paintings: <Palette size={16} />,
       translate: <Languages size={16} />,
       minapp: <LayoutGrid size={16} />,
-      knowledge: <LibraryBig size={16} />,
+      knowledge: <FileSearch size={16} />,
       files: <Folder size={15} />
     }),
     []

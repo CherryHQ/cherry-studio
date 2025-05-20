@@ -4,13 +4,11 @@ import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@
 import { MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 
-const ipcRenderer = window.electron.ipcRenderer
-
 // Listen for server changes from main process
-ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
+window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
   store.dispatch(setMCPServers(servers))
 })
-ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
+window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
   store.dispatch(addMCPServer(server))
 })
 

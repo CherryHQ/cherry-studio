@@ -27,6 +27,10 @@ class FileStorage {
     this.initStorageDir()
   }
 
+  public resolveFilePath = (name: string): string => {
+    return path.join(this.storageDir, name)
+  }
+
   private initStorageDir = (): void => {
     try {
       if (!fs.existsSync(this.storageDir)) {

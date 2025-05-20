@@ -1,6 +1,14 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import {
+  CodeStyleVarious,
+  LanguageVarious,
+  MathEngine,
+  OpenAIServiceTier,
+  OpenAISummaryText,
+  ThemeMode,
+  TranslateLanguageVarious
+} from '@renderer/types'
 
 import { WebDAVSyncState } from './backup'
 
@@ -147,6 +155,11 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
   }
+  // OpenAI
+  openAI: {
+    summaryText: OpenAISummaryText
+    serviceTier: OpenAIServiceTier
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -267,6 +280,11 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
+  },
+  // OpenAI
+  openAI: {
+    summaryText: 'off',
+    serviceTier: 'auto'
   }
 }
 
@@ -589,6 +607,12 @@ const settingsSlice = createSlice({
     },
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
+    },
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+      state.openAI.summaryText = action.payload
+    },
+    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
+      state.openAI.serviceTier = action.payload
     }
   }
 })
@@ -683,7 +707,9 @@ export const {
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
-  setEnableBackspaceDeleteModel
+  setEnableBackspaceDeleteModel,
+  setOpenAISummaryText,
+  setOpenAIServiceTier
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
