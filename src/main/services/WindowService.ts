@@ -331,11 +331,6 @@ export class WindowService {
 
       event.preventDefault()
 
-      if (mainWindow.isFullScreen()) {
-        mainWindow.setFullScreen(false)
-        return
-      }
-
       mainWindow.hide()
 
       //for mac users, should hide dock icon if close to tray

@@ -869,7 +869,8 @@
         "number_images_tip": "Количество увеличенных результатов для генерации",
         "seed_tip": "Контролирует случайный характер увеличения изображений для воспроизводимых результатов",
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
-      }
+      },
+      "rendering_speed": "Скорость рендеринга"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -928,7 +929,6 @@
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
       "confirm.button": "Выбрать файл резервной копии",
-
       "content": "Операция восстановления перезапишет все текущие данные приложения данными из резервной копии. Это может занять некоторое время.",
       "progress": {
         "completed": "Восстановление завершено",
@@ -1267,6 +1267,14 @@
         "active": "Активен",
         "addError": "Ошибка добавления сервера",
         "addServer": "Добавить сервер",
+        "addServer.create": "Быстрое создание",
+        "addServer.importFrom": "Импорт из JSON",
+        "addServer.importFrom.tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода.",
+        "addServer.importFrom.placeholder": "Вставьте JSON-конфигурацию сервера MCP",
+        "addServer.importFrom.invalid": "Неверный ввод, проверьте формат JSON",
+        "addServer.importFrom.nameExists": "Сервер уже существует: {{name}}",
+        "addServer.importFrom.oneServer": "Можно сохранить только один конфигурационный файл MCP",
+        "addServer.importFrom.connectionFailed": "Сбой подключения",
         "addSuccess": "Сервер успешно добавлен",
         "args": "Аргументы",
         "argsTooltip": "Каждый аргумент с новой строки",
@@ -1469,6 +1477,8 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "models.quick_assistant_model": "Модель быстрого помощника",
+      "models.quick_assistant_model_description": "Модель по умолчанию, используемая быстрым помощником",
       "moresetting": "Дополнительные настройки",
       "moresetting.check.confirm": "Подтвердить выбор",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
@@ -1542,6 +1552,9 @@
           "title": "Заметки модели",
           "placeholder": "Введите содержимое в формате Markdown...",
           "markdown_editor_default_value": "Область предварительного просмотра"
+        },
+        "openai": {
+          "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
         }
       },
       "proxy": {
@@ -1671,6 +1684,20 @@
         "reset": "Сбросить"
       },
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
+      "openai": {
+        "title": "Настройки OpenAI",
+        "summary_text_mode.title": "Режим резюме",
+        "summary_text_mode.tip": "Резюме рассуждений, выполненных моделью",
+        "summary_text_mode.auto": "Авто",
+        "summary_text_mode.concise": "Краткий",
+        "summary_text_mode.detailed": "Подробный",
+        "summary_text_mode.off": "Выключен",
+        "service_tier.title": "Уровень сервиса",
+        "service_tier.tip": "Указывает уровень задержки, который следует использовать для обработки запроса",
+        "service_tier.auto": "Авто",
+        "service_tier.default": "По умолчанию",
+        "service_tier.flex": "Гибкий"
+      },
       "about.debug.title": "Отладка",
       "about.debug.open": "Открыть"
     },

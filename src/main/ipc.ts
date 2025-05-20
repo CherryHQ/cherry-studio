@@ -242,6 +242,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
+  ipcMain.handle(IpcChannel.File_ResolveFilePath, (_, name) => fileManager.resolveFilePath(name))
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
@@ -319,6 +320,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_ListResources, (event, server) => getMcpInstance().listResources(event, server))
   ipcMain.handle(IpcChannel.Mcp_GetResource, (event, params) => getMcpInstance().getResource(event, params))
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, () => getMcpInstance().getInstallInfo())
+  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, (event, params) =>
+    getMcpInstance().checkMcpConnectivity(event, params)
+  )
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))

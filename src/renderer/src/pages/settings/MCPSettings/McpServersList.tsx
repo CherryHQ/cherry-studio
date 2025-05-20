@@ -4,14 +4,15 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
-import { Button, Empty, Tag } from 'antd'
+import { Button, Dropdown, Empty, Tag } from 'antd'
 import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingTitle } from '..'
+import AddMcpServerModal from './AddMcpServerModal'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import SyncServersPopup from './SyncServersPopup'
 
@@ -19,6 +20,7 @@ const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, updateMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [isAddModalVisible, setIsAddModalVisible] = useState(false)
 
   const onAddMcpServer = useCallback(async () => {
     const newServer = {
@@ -31,7 +33,7 @@ const McpServersList: FC = () => {
       env: {},
       isActive: false
     }
-    await addMCPServer(newServer)
+    addMCPServer(newServer)
     navigate(`/settings/mcp/settings`, { state: { server: newServer } })
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
@@ -39,6 +41,17 @@ const McpServersList: FC = () => {
   const onSyncServers = useCallback(() => {
     SyncServersPopup.show(mcpServers)
   }, [mcpServers])
+
+  const handleAddServerSuccess = useCallback(
+    async (server: MCPServer) => {
+      addMCPServer(server)
+      setIsAddModalVisible(false)
+      window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-quick-add' })
+      // Optionally navigate to the new server's settings page
+      // navigate(`/settings/mcp/settings`, { state: { server } })
+    },
+    [addMCPServer, t]
+  )
 
   return (
     <Container>
@@ -48,9 +61,28 @@ const McpServersList: FC = () => {
           <Button icon={<EditOutlined />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
-          <Button icon={<Plus size={16} />} type="default" onClick={onAddMcpServer} shape="round">
-            {t('settings.mcp.addServer')}
-          </Button>
+          <Dropdown
+            menu={{
+              items: [
+                {
+                  key: 'manual',
+                  label: t('settings.mcp.addServer.create'),
+                  onClick: () => {
+                    onAddMcpServer()
+                  }
+                },
+                {
+                  key: 'quick',
+                  label: t('settings.mcp.addServer.importFrom'),
+                  onClick: () => setIsAddModalVisible(true)
+                }
+              ]
+            }}
+            trigger={['click']}>
+            <Button icon={<Plus size={16} />} type="default" shape="round">
+              {t('settings.mcp.addServer')}
+            </Button>
+          </Dropdown>
           <Button icon={<RefreshCw size={16} />} type="default" onClick={onSyncServers} shape="round">
             {t('settings.mcp.sync.title', 'Sync Servers')}
           </Button>
@@ -111,6 +143,12 @@ const McpServersList: FC = () => {
           style={{ marginTop: 20 }}
         />
       )}
+      <AddMcpServerModal
+        visible={isAddModalVisible}
+        onClose={() => setIsAddModalVisible(false)}
+        onSuccess={handleAddServerSuccess}
+        existingServers={mcpServers} // 傳遞現有的伺服器列表
+      />
     </Container>
   )
 }

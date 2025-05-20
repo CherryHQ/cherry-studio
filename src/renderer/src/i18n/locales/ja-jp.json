@@ -1267,6 +1267,14 @@
         "active": "有効",
         "addError": "サーバーの追加に失敗しました",
         "addServer": "サーバーを追加",
+        "addServer.create": "クイック作成",
+        "addServer.importFrom": "JSONからインポート",
+        "addServer.importFrom.tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。",
+        "addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
+        "addServer.importFrom.invalid": "無効な入力です。JSON形式を確認してください。",
+        "addServer.importFrom.nameExists": "サーバーはすでに存在します: {{name}}",
+        "addServer.importFrom.oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
+        "addServer.importFrom.connectionFailed": "接続に失敗しました",
         "addSuccess": "サーバーが正常に追加されました",
         "args": "引数",
         "argsTooltip": "1行に1つの引数を入力してください",
@@ -1469,6 +1477,8 @@
       "models.translate_model_description": "翻訳サービスに使用されるモデル",
       "models.translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
       "models.translate_model_prompt_title": "翻訳モデルのプロンプト",
+      "models.quick_assistant_model": "クイックアシスタントモデル",
+      "models.quick_assistant_model_description": "クイックアシスタントで使用されるデフォルトモデル",
       "moresetting": "詳細設定",
       "moresetting.check.confirm": "選択を確認",
       "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",
@@ -1542,6 +1552,9 @@
           "title": "モデルノート",
           "placeholder": "Markdown形式の内容を入力してください...",
           "markdown_editor_default_value": "プレビュー領域"
+        },
+        "openai": {
+          "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
         }
       },
       "proxy": {
@@ -1672,7 +1685,21 @@
       },
       "input.show_translate_confirm": "翻訳確認ダイアログを表示",
       "about.debug.title": "デバッグ",
-      "about.debug.open": "開く"
+      "about.debug.open": "開く",
+      "openai": {
+        "title": "OpenAIの設定",
+        "summary_text_mode.title": "要約モード",
+        "summary_text_mode.tip": "モデルが行った推論の要約",
+        "summary_text_mode.auto": "自動",
+        "summary_text_mode.concise": "簡潔",
+        "summary_text_mode.detailed": "詳細",
+        "summary_text_mode.off": "オフ",
+        "service_tier.title": "サービスティア",
+        "service_tier.tip": "リクエスト処理に使用するレイテンシティアを指定します",
+        "service_tier.auto": "自動",
+        "service_tier.default": "デフォルト",
+        "service_tier.flex": "フレックス"
+      }
     },
     "translate": {
       "any.language": "任意の言語",

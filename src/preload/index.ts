@@ -55,6 +55,7 @@ const api = {
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
+    resolveFilePath: (name: string) => ipcRenderer.invoke(IpcChannel.File_ResolveFilePath, name),
     upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
@@ -148,7 +149,8 @@ const api = {
     listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
-    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
+    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
+    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)

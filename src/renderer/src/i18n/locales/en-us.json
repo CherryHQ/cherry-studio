@@ -1271,6 +1271,14 @@
         "active": "Active",
         "addError": "Failed to add server",
         "addServer": "Add Server",
+        "addServer.create": "Quick Create",
+        "addServer.importFrom": "Import from JSON",
+        "addServer.importFrom.tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box.",
+        "addServer.importFrom.placeholder": "Paste MCP server JSON config",
+        "addServer.importFrom.invalid": "Invalid input, please check JSON format",
+        "addServer.importFrom.nameExists": "Server already exists: {{name}}",
+        "addServer.importFrom.oneServer": "Only one MCP server configuration at a time",
+        "addServer.importFrom.connectionFailed": "Connection failed",
         "addSuccess": "Server added successfully",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",
@@ -1473,6 +1481,8 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "models.quick_assistant_model": "Quick Assistant Model",
+      "models.quick_assistant_model_description": "Default model used by Quick Assistant",
       "moresetting": "More Settings",
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
@@ -1504,6 +1514,9 @@
           "button": "Login with {{provider}}",
           "description": "This service is provided by <website>{{provider}}</website>",
           "official_website": "Official Website"
+        },
+        "openai": {
+          "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
         },
         "copilot": {
           "auth_failed": "Github Copilot authentication failed.",
@@ -1672,6 +1685,20 @@
       "zoom": {
         "title": "Page Zoom",
         "reset": "Reset"
+      },
+      "openai": {
+        "title": "OpenAI Settings",
+        "summary_text_mode.title": "Summary Mode",
+        "summary_text_mode.tip": "A summary of the reasoning performed by the model",
+        "summary_text_mode.auto": "auto",
+        "summary_text_mode.concise": "concise",
+        "summary_text_mode.detailed": "detailed",
+        "summary_text_mode.off": "off",
+        "service_tier.title": "Service Tier",
+        "service_tier.tip": "Specifies the latency tier to use for processing the request",
+        "service_tier.auto": "auto",
+        "service_tier.default": "default",
+        "service_tier.flex": "flex"
       }
     },
     "translate": {

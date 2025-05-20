@@ -8,12 +8,19 @@ import {
   isMac,
   isWindows
 } from '@renderer/config/constant'
+import {
+  isOpenAIModel,
+  isSupportedFlexServiceTier,
+  isSupportedReasoningEffortOpenAIModel
+} from '@renderer/config/models'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
@@ -56,12 +63,16 @@ import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import OpenAISettingsGroup from './components/OpenAISettingsGroup'
+
 interface Props {
   assistant: Assistant
 }
 
 const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
+  const { provider } = useProvider(assistant.model.provider)
+
   const { messageStyle, fontSize, language, theme } = useSettings()
   const { themeNames } = useCodeStyle()
 
@@ -180,15 +191,29 @@ const SettingsTab: FC<Props> = (props) => {
   const assistantContextCount = assistant?.settings?.contextCount || 20
   const maxContextCount = assistantContextCount > 20 ? assistantContextCount : 20
 
+  const model = assistant.model || getDefaultModel()
+
+  const isOpenAI = isOpenAIModel(model)
+  const isOpenAIReasoning =
+    isSupportedReasoningEffortOpenAIModel(model) &&
+    !model.id.includes('o1-pro') &&
+    (provider.type === 'openai-response' || provider.id === 'aihubmix')
+  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
+
   return (
     <Container className="settings-tab">
       <CollapsibleSettingGroup
         title={t('assistants.settings.title')}
         defaultExpanded={true}
         extra={
-          <HStack alignItems="center">
+          <HStack alignItems="center" gap={2}>
             <Tooltip title={t('chat.settings.reset')}>
-              <RotateCcw size={20} onClick={onReset} style={{ cursor: 'pointer', padding: '0 3px' }} />
+              <Button
+                type="text"
+                size="small"
+                onClick={onReset}
+                icon={<RotateCcw size={20} style={{ cursor: 'pointer', padding: '0 3px', opacity: 0.8 }} />}
+              />
             </Tooltip>
             <Button
               type="text"
@@ -198,8 +223,7 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </HStack>
         }>
-        <SettingGroup style={{ marginTop: 10 }}>
-          <SettingDivider />
+        <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
             <Label>{t('chat.settings.temperature')}</Label>
             <Tooltip title={t('chat.settings.temperature.tip')}>
@@ -207,7 +231,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <Col span={24}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={2}
@@ -225,7 +249,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <Col span={24}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={maxContextCount}
@@ -276,7 +300,7 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </SettingRow>
           {enableMaxTokens && (
-            <Row align="middle" gutter={10}>
+            <Row align="middle" gutter={10} style={{ marginTop: 10 }}>
               <Col span={24}>
                 <InputNumber
                   disabled={!enableMaxTokens}
@@ -295,9 +319,16 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
+      {isOpenAI && (
+        <OpenAISettingsGroup
+          isOpenAIReasoning={isOpenAIReasoning}
+          isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
+          SettingGroup={SettingGroup}
+          SettingRowTitleSmall={SettingRowTitleSmall}
+        />
+      )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
             <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
@@ -414,7 +445,6 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={true}>
         <SettingGroup>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <StyledSelect
@@ -542,7 +572,6 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={true}>
         <SettingGroup>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>
             <Switch

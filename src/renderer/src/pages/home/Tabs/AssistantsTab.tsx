@@ -8,7 +8,7 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AssistantItem from './AssistantItem'
+import AssistantItem from './components/AssistantItem'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant

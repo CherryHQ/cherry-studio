@@ -657,3 +657,6 @@ export interface StoreSyncAction {
     source?: string
   }
 }
+
+export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
+export type OpenAIServiceTier = 'auto' | 'default' | 'flex'

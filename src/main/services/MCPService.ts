@@ -396,6 +396,26 @@ class McpService {
     }
   }
 
+  /**
+   * Check connectivity for an MCP server
+   */
+  public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
+    Logger.info(`[MCP] Checking connectivity for server: ${server.name}`)
+    try {
+      const client = await this.initClient(server)
+      // Attempt to list tools as a way to check connectivity
+      await client.listTools()
+      Logger.info(`[MCP] Connectivity check successful for server: ${server.name}`)
+      return true
+    } catch (error) {
+      Logger.error(`[MCP] Connectivity check failed for server: ${server.name}`, error)
+      // Close the client if connectivity check fails to ensure a clean state for the next attempt
+      const serverKey = this.getServerKey(server)
+      await this.closeClient(serverKey)
+      return false
+    }
+  }
+
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     Logger.info(`[MCP] Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)

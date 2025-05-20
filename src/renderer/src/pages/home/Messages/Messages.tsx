@@ -256,6 +256,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   useEffect(() => {
     requestAnimationFrame(() => onComponentUpdate?.())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])

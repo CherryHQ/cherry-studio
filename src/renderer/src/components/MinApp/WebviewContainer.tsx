@@ -67,6 +67,7 @@ const WebviewContainer = memo(
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"
+        useragent="Chrome"
       />
     )
   }
