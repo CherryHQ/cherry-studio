@@ -1,8 +1,9 @@
-import { createDifyApiInstance, IFile, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
+import { createDifyApiInstance, DifyApi, IFile, IUploadFileResponse, IUserInputForm } from '@dify-chat/api'
 import { getFileTypeByName } from '@renderer/components/Dify/FileUpload'
 import { EventEnum, Flow, FlowEngine } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { FileMessageBlock, ImageMessageBlock, Message } from '@renderer/types/newMessage'
+import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import XStream from '@renderer/utils/xstream'
 import { v4 as uuidv4 } from 'uuid'
@@ -26,7 +27,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
       if (!block.file) return
       const fileData = await window.api.file.readAsFile(block.file.path, block.file.origin_name)
       const file = new File([fileData.buffer], fileData.name, { type: fileData.type })
-      const response = await this.uploadFile(flow, file)
+      const response = await this.uploadFile(flow, file, message.topicId)
 
       files.push({
         type: getFileTypeByName(response.name),
@@ -55,6 +56,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     const query = getMainTextContent(message)
     const files = await this.getFiles(flow, message)
     try {
+      // chatflow使用topicId
       const difyApi = createDifyApiInstance({
         user: message.topicId,
         apiKey: flow.apiKey,
@@ -71,7 +73,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         query: query,
         conversation_id: conversationId
       })
-      await this.processStream(response, inputs, onChunk)
+      await this.processStream(difyApi, response, inputs, message.id, onChunk)
     } catch (error) {
       console.error('DifyFlowEngineProvider completion error', error)
     }
@@ -111,10 +113,10 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     }
   }
 
-  public async uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse> {
+  public async uploadFile(flow: Flow, file: File, userId: string): Promise<IUploadFileResponse> {
     try {
       const difyApi = createDifyApiInstance({
-        user: uuidv4(),
+        user: userId,
         apiKey: flow.apiKey,
         apiBase: flow.apiHost
       })
@@ -129,20 +131,22 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
   }
 
   public async workflowCompletion(
+    message: Message,
     flow: Flow,
     inputs: Record<string, string>,
     onChunk: (chunk: Chunk) => void
   ): Promise<void> {
     try {
+      // workflow使用message.id
       const difyApi = createDifyApiInstance({
-        user: uuidv4(),
+        user: message.id,
         apiKey: flow.apiKey,
         apiBase: flow.apiHost
       })
 
       const body = {
         response_mode: 'streaming',
-        user: uuidv4(),
+        user: message.id,
         inputs: inputs
       }
 
@@ -154,7 +158,7 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
         }
       })
 
-      await this.processStream(response, inputs, onChunk)
+      await this.processStream(difyApi, response, inputs, message.id, onChunk)
 
       return
     } catch (error) {
@@ -164,8 +168,10 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
   }
 
   private async processStream(
+    difyApi: DifyApi,
     response: Response,
     inputs: Record<string, string>,
+    messageId: string,
     onChunk: (chunk: Chunk) => void
   ): Promise<void> {
     const readableStream = XStream({
@@ -173,11 +179,15 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
     })
     const reader = readableStream.getReader()
     let text = ''
+    let abortRegistered = false
     while (reader) {
       const { value: chunk, done } = await reader.read()
       if (done) {
         console.log('流已结束')
         onChunk({ type: ChunkType.WORKFLOW_FINISHED, inputs: inputs })
+        if (abortRegistered && messageId) {
+          removeAbortController(messageId, () => {})
+        }
         break
       }
       if (!chunk) {
@@ -189,12 +199,25 @@ export default class DifyFlowEngineProvider extends BaseFlowEngineProvider {
           const parsedData = JSON.parse(chunk.data)
           const event = parsedData.event
           switch (event) {
-            case EventEnum.WORKFLOW_STARTED:
+            case EventEnum.WORKFLOW_STARTED: {
+              if (parsedData.task_id && !abortRegistered && messageId) {
+                const abortFn = async () => {
+                  try {
+                    await difyApi.stopTask(parsedData.task_id)
+                  } catch (e) {
+                    throw new Error('Stop task failed')
+                  }
+                }
+                addAbortController(messageId, abortFn)
+                abortRegistered = true
+              }
               onChunk({
                 type: ChunkType.WORKFLOW_STARTED,
-                conversationId: parsedData.conversation_id
+                conversationId: parsedData.conversation_id,
+                taskId: parsedData.task_id
               })
               break
+            }
             case EventEnum.WORKFLOW_NODE_STARTED:
               onChunk({
                 type: ChunkType.WORKFLOW_NODE_STARTED,

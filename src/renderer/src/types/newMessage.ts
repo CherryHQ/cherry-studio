@@ -141,6 +141,8 @@ export interface FlowMessageBlock extends BaseMessageBlock {
   chunkType: ChunkType
   flow: Flow
   nodes?: FlowNode[]
+  conversationId: string
+  taskId: string
 }
 // form表格
 export interface FormMessageBlock extends BaseMessageBlock {
@@ -196,7 +198,6 @@ export type Message = {
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
   flow?: Flow
-  conversationId?: string
 
   usage?: Usage
   metrics?: Metrics

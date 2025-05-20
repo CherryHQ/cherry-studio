@@ -32,14 +32,15 @@ export default class FlowEngineProvider {
     return await this.sdk.getAppParameters(flow)
   }
 
-  public async uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse> {
-    return await this.sdk.uploadFile(flow, file)
+  public async uploadFile(flow: Flow, file: File, userId: string): Promise<IUploadFileResponse> {
+    return await this.sdk.uploadFile(flow, file, userId)
   }
   public async workflowCompletion(
+    message: Message,
     flow: Flow,
     inputs: Record<string, string>,
     onChunk: (chunk: Chunk) => void
   ): Promise<void> {
-    return await this.sdk.workflowCompletion(flow, inputs, onChunk)
+    return await this.sdk.workflowCompletion(message, flow, inputs, onChunk)
   }
 }

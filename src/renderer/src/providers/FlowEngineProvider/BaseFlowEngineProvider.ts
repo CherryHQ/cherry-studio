@@ -22,9 +22,10 @@ export default abstract class BaseFlowEngineProvider {
 
   abstract getAppParameters(flow: Flow): Promise<IUserInputForm[]>
 
-  abstract uploadFile(flow: Flow, file: File): Promise<IUploadFileResponse>
+  abstract uploadFile(flow: Flow, file: File, userId: string): Promise<IUploadFileResponse>
 
   abstract workflowCompletion(
+    message: Message,
     flow: Flow,
     inputs: Record<string, string>,
     onChunk: (chunk: Chunk) => void

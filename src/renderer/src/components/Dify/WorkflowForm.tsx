@@ -46,6 +46,7 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
       case 'file':
         return (
           <FileUpload
+            userId={message.id}
             mode="single"
             disabled={block.isFinished}
             allowed_file_types={item.allowed_file_types}
@@ -57,6 +58,7 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
       case 'file-list':
         return (
           <FileUpload
+            userId={message.id}
             maxCount={item.max_length}
             disabled={block.isFinished}
             allowed_file_types={item.allowed_file_types}
@@ -84,7 +86,7 @@ const WorkflowForm: FC<Props> = ({ block, message }) => {
       dispatch(updateOneBlock({ id: block.id, changes: formChanges }))
       saveUpdatedBlockToDB(block.id, message.id, message.topicId, store.getState)
       if (block.flow.type === 'workflow') {
-        await fetchAndProcessWorkflowResponseImpl(dispatch, store.getState, message.topicId, assistant, message)
+        await fetchAndProcessWorkflowResponseImpl(dispatch, store.getState, assistant, message)
       }
     } catch (error) {
       console.error('Error processing workflow response:', error)

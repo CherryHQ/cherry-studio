@@ -4,6 +4,7 @@ import { FileType } from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
+  FlowMessageBlock,
   FormMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
@@ -237,6 +238,26 @@ export const findFormBlockById = (blockId: string): FormMessageBlock => {
     return block as FormMessageBlock
   }
   return {} as FormMessageBlock
+}
+
+/**
+ * Finds all FlowMessageBlocks associated with a given message.
+ *@param message - The message object.
+ * @returns An array of FlowMessageBlocks (empty if none found).
+ */
+export const findFlowBlocks = (message?: Message): FlowMessageBlock[] => {
+  if (!message || !message.blocks || message.blocks.length === 0) {
+    return []
+  }
+  const state = store.getState()
+  const flowBlocks: FlowMessageBlock[] = []
+  for (const blockId of message.blocks) {
+    const block = messageBlocksSelectors.selectById(state, blockId)
+    if (block && block.type === MessageBlockType.FLOW) {
+      flowBlocks.push(block as FlowMessageBlock)
+    }
+  }
+  return flowBlocks
 }
 
 /**

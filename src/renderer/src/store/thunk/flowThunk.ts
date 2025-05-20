@@ -7,7 +7,7 @@ import type { FlowMessageBlock, Message, MessageBlock } from '@renderer/types/ne
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
 import { createErrorBlock, createFlowBlock, createMainTextBlock } from '@renderer/utils/messageUtils/create'
-import { findLastFormBlock } from '@renderer/utils/messageUtils/find'
+import { findFlowBlocks, findLastFormBlock } from '@renderer/utils/messageUtils/find'
 import { findLast } from 'lodash'
 
 import type { AppDispatch, RootState } from '../index'
@@ -99,24 +99,21 @@ function getCommonStreamLogic(
 
   const onWorkflowStarted = async (chunk: Chunk) => {
     if (chunk.type === ChunkType.WORKFLOW_STARTED && flowDefinition) {
-      const conversationId = chunk.conversationId
+      // dispatch(
+      //   newMessagesActions.updateMessage({
+      //     topicId,
+      //     messageId: assistantMessage.id,
+      //     updates: { conversationId: conversationId }
+      //   })
+      // )
 
-      if (conversationId) {
-        // 更新 Redux 状态中的 conversationId
-        dispatch(
-          newMessagesActions.updateMessage({
-            topicId,
-            messageId: assistantMessage.id,
-            updates: { conversationId }
-          })
-        )
-
-        // 保存 conversationId 到数据库
-        saveUpdatesToDB(assistantMessage.id, topicId, { conversationId }, [])
-      }
+      // // 保存 conversationId 到数据库
+      // saveUpdatesToDB(assistantMessage.id, topicId, { conversationId }, [])
 
       const overrides = {
-        status: MessageBlockStatus.PROCESSING
+        status: MessageBlockStatus.PROCESSING,
+        conversationId: chunk.conversationId,
+        taskId: chunk.taskId
       }
 
       const flowBlock = createFlowBlock(assistantMessage.id, chunk.type, flowDefinition, overrides)
@@ -264,10 +261,11 @@ export const fetchAndProcessChatflowResponseImpl = async (
   const lastUserMessage = findLast(allMessagesForTopic, (m) => m.role === 'user')
   const secondLastAssistantMessage = findLast(allMessagesForTopic, (m) => m.role === 'assistant', 2)
   // 获取倒数第二条assistant消息
-  const conversationId = secondLastAssistantMessage?.conversationId ?? ''
+  // const conversationId = secondLastAssistantMessage?.conversationId ?? ''
+  const lastFlowBlock = findFlowBlocks(secondLastAssistantMessage).pop()
+  const conversationId = lastFlowBlock?.conversationId ?? ''
   // 从最后一个FormBlock中获取inputs
   const lastFormBlock = findLastFormBlock(allMessagesForTopic.filter((m) => m.role === 'assistant'))
-  console.log('lastFormBlock', lastFormBlock)
   const inputs = lastFormBlock?.flow?.inputs || {}
 
   if (!lastUserMessage) {
@@ -332,7 +330,6 @@ export const fetchAndProcessChatflowResponseImpl = async (
 export const fetchAndProcessWorkflowResponseImpl = async (
   dispatch: AppDispatch,
   getState: () => RootState,
-  topicId: string,
   assistant: Assistant,
   assistantMessage: Message
 ) => {
@@ -343,17 +340,17 @@ export const fetchAndProcessWorkflowResponseImpl = async (
     const messageErrorUpdate = { status: AssistantMessageStatus.ERROR }
     dispatch(
       newMessagesActions.updateMessage({
-        topicId,
+        topicId: assistantMessage.topicId,
         messageId: assistantMessage.id,
         updates: messageErrorUpdate
       })
     )
-    saveUpdatesToDB(assistantMessage.id, topicId, messageErrorUpdate, [])
-    handleChangeLoadingOfTopic(topicId)
+    saveUpdatesToDB(assistantMessage.id, assistantMessage.topicId, messageErrorUpdate, [])
+    handleChangeLoadingOfTopic(assistantMessage.topicId)
     return
   }
 
-  const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
+  const allMessagesForTopic = selectMessagesForTopic(getState(), assistantMessage.topicId)
 
   const assistantMessages = allMessagesForTopic.filter((m) => m.role === 'assistant')
   const lastFormBlock = findLastFormBlock(assistantMessages)
@@ -362,7 +359,7 @@ export const fetchAndProcessWorkflowResponseImpl = async (
 
   const formBlockIdForStreamState: string | null = lastFormBlock?.id ?? null
 
-  dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+  dispatch(newMessagesActions.setTopicLoading({ topicId: assistantMessage.topicId, loading: true }))
 
   const streamState = {
     accumulatedContent: '',
@@ -375,7 +372,7 @@ export const fetchAndProcessWorkflowResponseImpl = async (
   const commonLogic = getCommonStreamLogic(
     dispatch,
     getState,
-    topicId,
+    assistantMessage.topicId,
     assistantMessage,
     assistantMessage.flow,
     streamState
@@ -395,6 +392,7 @@ export const fetchAndProcessWorkflowResponseImpl = async (
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
     await fetchWorkflowCompletion({
+      message: assistantMessage,
       assistant: assistant,
       inputs: inputs,
       onChunkReceived: streamProcessorCallbacks
@@ -405,6 +403,6 @@ export const fetchAndProcessWorkflowResponseImpl = async (
       callbacks.onError(error)
     }
   } finally {
-    handleChangeLoadingOfTopic(topicId)
+    handleChangeLoadingOfTopic(assistantMessage.topicId)
   }
 }

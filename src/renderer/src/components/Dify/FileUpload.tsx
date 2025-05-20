@@ -54,10 +54,11 @@ export interface IUploadFileItem extends UploadFile {
 }
 
 interface IFileUploadCommonProps {
+  userId: string
   workflow: Flow
   provider: FlowEngine
   allowed_file_types?: IGetAppParametersResponse['file_upload']['allowed_file_types']
-  uploadFile: (provider: FlowEngine, workflow: Flow, file: File) => Promise<IUploadFileResponse>
+  uploadFile: (provider: FlowEngine, workflow: Flow, file: File, userId: string) => Promise<IUploadFileResponse>
   disabled?: boolean
   maxCount?: number
 }
@@ -156,7 +157,7 @@ export default function FileUpload(props: IFileUploadProps) {
     }
 
     try {
-      const result = await uploadFile(provider, workflow, file)
+      const result = await uploadFile(provider, workflow, file, props.userId)
       const uploadedFile: IUploadFileItem = {
         ...fileBaseInfo,
         upload_file_id: result.id,
