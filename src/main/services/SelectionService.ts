@@ -493,8 +493,6 @@ export class SelectionService {
           const yDistance = selectionData.mousePosEnd.y - selectionData.mousePosStart.y
           const xDistance = selectionData.mousePosEnd.x - selectionData.mousePosStart.x
 
-          console.log('mouse dual', selectionData)
-
           // not in the same line
           if (Math.abs(yDistance) > 14) {
             if (yDistance > 0) {
@@ -526,8 +524,6 @@ export class SelectionService {
               }
             }
           }
-
-          console.log('mouse dual', refOrientation, refPoint)
         }
         break
       case SelectionHook?.PositionLevel.SEL_FULL:
