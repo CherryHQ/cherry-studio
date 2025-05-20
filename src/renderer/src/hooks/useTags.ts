@@ -1,5 +1,6 @@
 import { Assistant } from '@renderer/types'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useAssistants } from './useAssistant'
 
@@ -10,6 +11,7 @@ import { useAssistants } from './useAssistant'
 export const useTags = () => {
   const { assistants } = useAssistants()
   const [allTags, setAllTags] = useState<string[]>([])
+  const { t } = useTranslation()
 
   // 计算所有标签
   const calculateTags = useCallback(() => {
@@ -52,13 +54,13 @@ export const useTags = () => {
     const untagged = assistants.filter((a) => !a.tags?.length)
     if (untagged.length > 0) {
       grouped.unshift({
-        tag: '未分类',
+        tag: t('assistants.tags.untagged'),
         assistants: untagged.sort((a, b) => a.name.localeCompare(b.name))
       })
     }
 
     return grouped
-  }, [assistants, allTags])
+  }, [allTags, assistants, t])
 
   return {
     allTags,

@@ -1,9 +1,10 @@
-import { CheckOutlined, CloseOutlined } from '@ant-design/icons'
+import { CheckOutlined, CloseOutlined, PlusCircleOutlined } from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant } from '@renderer/types'
-import { Divider, Select, Space, Tag } from 'antd'
-import { useState } from 'react'
+import type { InputRef } from 'antd'
+import { Divider, Input, Select, Space, Tag } from 'antd'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -16,6 +17,19 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant }) 
   const { t } = useTranslation()
   const { allTags } = useTags()
   const [tempTag, setTempTag] = useState<string | undefined>(assistant.tags?.[0])
+  const [isInputMode, setIsInputMode] = useState(false)
+  const inputRef = useRef<InputRef>(null)
+
+  const handleAddClick = () => {
+    setIsInputMode(true)
+    setTempTag('')
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  const handleCancel = () => {
+    setIsInputMode(false)
+    setTempTag(assistant.tags?.[0])
+  }
   const handleClose = (removedTag: string) => {
     const newTags = assistant.tags?.filter((tag) => tag !== removedTag) || []
     setTempTag(newTags?.[0])
@@ -42,20 +56,46 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant }) 
         {t('assistants.tags.settings.addTagsPlaceholder')}
       </Box>
       <Space.Compact style={{ width: '100%', gap: 8 }}>
-        <Select
-          value={tempTag}
-          style={{ width: '80%' }}
-          onChange={(value: string) => setTempTag(value)}
-          options={allTags?.map((tag) => ({ value: tag, label: tag }))}
-          showSearch
-          onSearch={(value: string) => {
-            if (value && !allTags?.includes(value)) {
-              setTempTag(value)
+        {isInputMode ? (
+          <Input
+            ref={inputRef}
+            value={tempTag}
+            onChange={(e) => setTempTag(e.target.value)}
+            style={{ width: '80%' }}
+            suffix={
+              <>
+                <CheckOutlined
+                  onClick={() => {
+                    if (tempTag) {
+                      updateAssistant({ ...assistant, tags: [tempTag] })
+                    }
+                    setIsInputMode(false)
+                  }}
+                  style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
+                />
+                <CloseOutlined onClick={handleCancel} style={{ color: 'var(--color-error)', cursor: 'pointer' }} />
+              </>
             }
-          }}
-          filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-        />
-        {assistant.tags?.[0] !== tempTag && (
+          />
+        ) : (
+          <>
+            <Select
+              value={tempTag}
+              style={{ width: '80%' }}
+              onChange={(value: string) => setTempTag(value)}
+              options={allTags?.map((tag) => ({ value: tag, label: tag }))}
+              showSearch
+              onSearch={(value: string) => {
+                if (value && !allTags?.includes(value)) {
+                  setTempTag(value)
+                }
+              }}
+              filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            />
+            <PlusCircleOutlined onClick={handleAddClick} style={{ color: 'var(--color-primary)', cursor: 'pointer' }} />
+          </>
+        )}
+        {!isInputMode && assistant.tags?.[0] !== tempTag && (
           <>
             <CheckOutlined
               size={40}

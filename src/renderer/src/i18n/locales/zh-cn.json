@@ -104,12 +104,13 @@
         "none": "暂无标签",
         "manage": "标签管理",
         "add": "添加标签",
+        "untagged": "未分组标签",
         "modify": "修改标签",
         "delete": "删除标签",
         "settings": {
           "title": "标签设置",
           "current": "当前标签",
-          "addTagsPlaceholder": "请选择或者输入助手的标签"
+          "addTagsPlaceholder": "请选择标签，或者点击右侧图标新增标签"
         }
       }
     },

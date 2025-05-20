@@ -1,18 +1,19 @@
 import {
   DeleteOutlined,
   EditOutlined,
+  MenuOutlined,
   MinusCircleOutlined,
   SaveOutlined,
   SmileOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined,
+  TagsFilled,
   TagsOutlined
 } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
@@ -23,7 +24,7 @@ import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import { omit } from 'lodash'
-import { FC, startTransition, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -31,18 +32,29 @@ import * as tinyPinyin from 'tiny-pinyin'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
+  sortBy: 'tags' | 'list'
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
   addAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
+  handleSortByChange?: (sortType: '' | 'tags' | 'list') => void
 }
 
-const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
+const AssistantItem: FC<AssistantItemProps> = ({
+  assistant,
+  isActive,
+  sortBy,
+  onSwitch,
+  onDelete,
+  addAgent,
+  addAssistant,
+  handleSortByChange
+}) => {
   const { t } = useTranslation()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
-  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
+  const { assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
@@ -148,7 +160,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       {
         label: t('assistants.tags.manage'),
         key: 'tags',
-        icon: <TagsOutlined />,
+        icon: <TagsFilled />,
         children: [
           {
             label: assistant.tags?.length ? t('assistants.tags.modify') : t('assistants.tags.add'),
@@ -178,6 +190,14 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
             }
           }))
         ]
+      },
+      {
+        label: sortBy === 'list' ? t('assistants.list.showByTags') : t('assistants.list.showByList'),
+        key: 'switch-view',
+        icon: sortBy === 'list' ? <TagsOutlined /> : <MenuOutlined />,
+        onClick: () => {
+          sortBy === 'list' ? handleSortByChange?.('tags') : handleSortByChange?.('list')
+        }
       },
       {
         label: t('common.sort.pinyin.asc'),
@@ -212,6 +232,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       addAgent,
       addAssistant,
       assistants,
+      handleSortByChange,
       onDelete,
       onSwitch,
       removeAllTopics,
@@ -223,27 +244,12 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     ]
   )
 
-  const handleSwitch = useCallback(async () => {
-    await modelGenerating()
-
-    if (clickAssistantToShowTopic) {
-      if (topicPosition === 'left') {
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
-      }
-      onSwitch(assistant)
-    } else {
-      startTransition(() => {
-        onSwitch(assistant)
-      })
-    }
-  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
-
   const assistantName = assistant.name || t('chat.default.name')
   const fullAssistantName = assistant.emoji ? `${assistant.emoji} ${assistantName}` : assistantName
 
   return (
     <Dropdown menu={{ items: getMenuItems(assistant) }} trigger={['contextMenu']}>
-      <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
+      <Container className={isActive ? 'active' : ''}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           {assistantIconType === 'model' ? (
             <ModelAvatar
