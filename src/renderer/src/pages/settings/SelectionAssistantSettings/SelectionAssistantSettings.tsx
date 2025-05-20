@@ -3,7 +3,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { TriggerMode } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import { Radio, Row, Slider, Switch } from 'antd'
+import { Radio, Row, Slider, Switch, Tooltip } from 'antd'
+import { CircleHelp } from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -83,11 +84,13 @@ const SelectionAssistantSettings: FC = () => {
 
             <SettingRow>
               <SettingLabel>
-                <SettingRowTitle>{t('selection.settings.toolbar.trigger_mode.title')}</SettingRowTitle>
-                <SettingDescription>
-                  {t('selection.settings.toolbar.trigger_mode.description')} <br />
-                  {t('selection.settings.toolbar.trigger_mode.description_note')}
-                </SettingDescription>
+                <SettingRowTitle>
+                  <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
+                  <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.description_note')} arrow>
+                    <QuestionIcon size={14} />
+                  </Tooltip>
+                </SettingRowTitle>
+                <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
               <Radio.Group
                 value={triggerMode}
@@ -178,6 +181,11 @@ const DemoContainer = styled.div`
   align-items: center;
   margin-top: 15px;
   margin-bottom: 5px;
+`
+
+const QuestionIcon = styled(CircleHelp)`
+  cursor: pointer;
+  color: var(--color-text-3);
 `
 
 export default SelectionAssistantSettings

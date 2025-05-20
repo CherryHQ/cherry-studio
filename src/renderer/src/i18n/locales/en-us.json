@@ -1778,7 +1778,7 @@
           "trigger_mode": {
             "title": "Trigger Mode",
             "description": "Show toolbar immediately when text is selected, or show only when Ctrl key is held after selection.",
-            "description_note": "Note: The Ctrl key may not work to trigger the toolbar in some applications.",
+            "description_note": "The Ctrl key may not work in some apps. If you use AHK or other tools to remap the Ctrl key, it may not work.",
             "selected": "Selection",
             "ctrlkey": "Ctrl Key"
           },

@@ -179,7 +179,7 @@ export class SelectionService {
         this.processTriggerMode()
 
         this.started = true
-        this.logInfo('started')
+        this.logInfo('SelectionService Started')
         return true
       }
 
@@ -206,7 +206,7 @@ export class SelectionService {
       this.toolbarWindow = null
     }
     this.started = false
-    this.logInfo('stopped')
+    this.logInfo('SelectionService Stopped')
     return true
   }
 
@@ -222,7 +222,7 @@ export class SelectionService {
     this.selectionHook = null
     this.initStatus = false
     SelectionService.instance = null
-    this.logInfo('quit')
+    this.logInfo('SelectionService Quitted')
   }
 
   /**
@@ -493,6 +493,8 @@ export class SelectionService {
           const yDistance = selectionData.mousePosEnd.y - selectionData.mousePosStart.y
           const xDistance = selectionData.mousePosEnd.x - selectionData.mousePosStart.x
 
+          console.log('mouse dual', selectionData)
+
           // not in the same line
           if (Math.abs(yDistance) > 14) {
             if (yDistance > 0) {
@@ -524,6 +526,8 @@ export class SelectionService {
               }
             }
           }
+
+          console.log('mouse dual', refOrientation, refPoint)
         }
         break
       case SelectionHook?.PositionLevel.SEL_FULL:

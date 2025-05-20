@@ -1778,7 +1778,7 @@
           "trigger_mode": {
             "title": "觸發方式",
             "description": "劃詞立即顯示工具列，或者劃詞後按住 Ctrl 鍵才顯示工具列。",
-            "description_note": "注意：在某些應用中可能無法透過 Ctrl 鍵叫出工具列。",
+            "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了AHK等工具對Ctrl鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
             "selected": "劃詞",
             "ctrlkey": "Ctrl 鍵"
           },

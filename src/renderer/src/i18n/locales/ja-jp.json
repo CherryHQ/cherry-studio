@@ -1778,7 +1778,7 @@
           "trigger_mode": {
             "title": "表示方法",
             "description": "テキスト選択時に即時表示、またはCtrlキー押下時のみ表示",
-            "description_note": "※一部アプリではCtrlキーでの表示ができない場合があります",
+            "description_note": "一部のアプリはCtrlキーでのテキスト選択に対応していません。AHKなどでCtrlキーをリマップすると、選択できなくなる場合があります。",
             "selected": "選択時",
             "ctrlkey": "Ctrlキー"
           },
