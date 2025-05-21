@@ -39,7 +39,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return new Promise<void>((resolve) => {
         api.open({
           message: notification.title,
-          description: notification.message,
+          description:
+            notification.message.length > 50 ? notification.message.slice(0, 47) + '...' : notification.message,
           duration: 3,
           placement: 'topRight',
           type: typeMap[notification.type] || 'info',

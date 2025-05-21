@@ -36,6 +36,7 @@ import {
 } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
 import { throttle } from 'lodash'
 
@@ -589,15 +590,17 @@ const fetchAndProcessAssistantResponseImpl = async (
           status: error.status || error.code,
           requestId: error.request_id
         }
-        await notificationService.send({
-          id: uuid(),
-          type: 'error',
-          title: t('notification.assistant'),
-          message: serializableError.message,
-          silent: false,
-          timestamp: Date.now(),
-          source: 'assistant'
-        })
+        if (!isOnHomePage()) {
+          await notificationService.send({
+            id: uuid(),
+            type: 'error',
+            title: t('notification.assistant'),
+            message: serializableError.message,
+            silent: false,
+            timestamp: Date.now(),
+            source: 'assistant'
+          })
+        }
 
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR
@@ -646,15 +649,17 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
 
           const content = getMainTextContent(finalAssistantMsg)
-          await notificationService.send({
-            id: uuid(),
-            type: 'success',
-            title: t('notification.assistant'),
-            message: content.length > 50 ? content.slice(0, 47) + '...' : content,
-            silent: false,
-            timestamp: Date.now(),
-            source: 'assistant'
-          })
+          if (!isOnHomePage()) {
+            await notificationService.send({
+              id: uuid(),
+              type: 'success',
+              title: t('notification.assistant'),
+              message: content.length > 50 ? content.slice(0, 47) + '...' : content,
+              silent: false,
+              timestamp: Date.now(),
+              source: 'assistant'
+            })
+          }
 
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
