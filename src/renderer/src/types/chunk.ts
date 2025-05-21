@@ -31,7 +31,15 @@ export enum ChunkType {
   BLOCK_COMPLETE = 'block_complete',
   ERROR = 'error',
   SEARCH_IN_PROGRESS_UNION = 'search_in_progress_union',
-  SEARCH_COMPLETE_UNION = 'search_complete_union'
+  SEARCH_COMPLETE_UNION = 'search_complete_union',
+  // init workflow form
+  WORKFLOW_INIT = 'workflow_init',
+  WORKFLOW_STARTED = 'workflow_started',
+  WORKFLOW_NODE_STARTED = 'workflow_node_started',
+  WORKFLOW_NODE_FINISHED = 'workflow_node_finished',
+  WORKFLOW_FINISHED = 'workflow_finished',
+  // complete workflow form
+  WORKFLOW_COMPLETED = 'workflow_completed'
 }
 
 export interface LLMResponseCreatedChunk {
@@ -337,6 +345,43 @@ export interface SearchCompleteUnionChunk {
   type: ChunkType.SEARCH_COMPLETE_UNION
 }
 
+export interface WorkflowInitChunk {
+  type: ChunkType.WORKFLOW_INIT
+}
+
+export interface WorkflowStartedChunk {
+  type: ChunkType.WORKFLOW_STARTED
+  conversationId: string
+  taskId: string
+}
+
+export interface WorkflowNodeStartedChunk {
+  type: ChunkType.WORKFLOW_NODE_STARTED
+  metadata: {
+    id: string
+    title: string
+    type: string
+  }
+}
+
+export interface WorkflowNodeFinishedChunk {
+  type: ChunkType.WORKFLOW_NODE_FINISHED
+  metadata: {
+    id: string
+    title: string
+    type: string
+  }
+}
+
+export interface WorkflowFinishedChunk {
+  type: ChunkType.WORKFLOW_FINISHED
+  inputs: Record<string, string>
+}
+
+export interface WorkflowCompletedChunk {
+  type: ChunkType.WORKFLOW_COMPLETED
+}
+
 export type Chunk =
   | BlockCreatedChunk // 消息块创建，无意义
   | BlockInProgressChunk // 消息块进行中，无意义
@@ -366,3 +411,9 @@ export type Chunk =
   | ErrorChunk // 错误
   | SearchInProgressUnionChunk // 搜索(知识库/互联网)进行中
   | SearchCompleteUnionChunk // 搜索(知识库/互联网)完成
+  | WorkflowInitChunk // 工作流初始化
+  | WorkflowStartedChunk // 工作流开始
+  | WorkflowNodeStartedChunk // 工作流节点开始
+  | WorkflowNodeFinishedChunk // 工作流节点结束
+  | WorkflowFinishedChunk // 工作流结束
+  | WorkflowCompletedChunk // 工作流完成

@@ -1,6 +1,12 @@
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type {
+  FlowMessageBlock,
+  ImageMessageBlock,
+  MainTextMessageBlock,
+  Message,
+  MessageBlock
+} from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { useMemo } from 'react'
@@ -10,6 +16,8 @@ import styled from 'styled-components'
 import CitationBlock from './CitationBlock'
 import ErrorBlock from './ErrorBlock'
 import FileBlock from './FileBlock'
+import FlowBlock from './FlowBlock'
+import FormBlock from './FormBlock'
 import ImageBlock from './ImageBlock'
 import MainTextBlock from './MainTextBlock'
 import PlaceholderBlock from './PlaceholderBlock'
@@ -141,6 +149,12 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             break
           case MessageBlockType.TRANSLATION:
             blockComponent = <TranslationBlock key={block.id} block={block} />
+            break
+          case MessageBlockType.FLOW:
+            blockComponent = <FlowBlock key={block.id} block={block as FlowMessageBlock} />
+            break
+          case MessageBlockType.FORM:
+            blockComponent = <FormBlock key={block.id} block={block} message={message} />
             break
           default:
             console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)

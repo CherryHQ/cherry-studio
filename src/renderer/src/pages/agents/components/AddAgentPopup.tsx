@@ -75,6 +75,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
     const _agent: Agent = {
       id: uuid(),
+      mode: 'system',
       name: values.name,
       knowledge_bases: values.knowledge_base_ids
         ?.map((id) => knowledgeState.bases.find((t) => t.id === id))

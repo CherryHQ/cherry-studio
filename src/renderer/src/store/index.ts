@@ -8,6 +8,7 @@ import agents from './agents'
 import assistants from './assistants'
 import backup from './backup'
 import copilot from './copilot'
+import flow from './flow'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
@@ -39,14 +40,15 @@ const rootReducer = combineReducers({
   copilot,
   // messages: messagesReducer,
   messages: newMessagesReducer,
-  messageBlocks: messageBlocksReducer
+  messageBlocks: messageBlocksReducer,
+  flow
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 105,
+    version: 106,
     blacklist: ['runtime', 'messages', 'messageBlocks'],
     migrate
   },

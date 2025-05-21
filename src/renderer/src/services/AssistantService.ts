@@ -3,7 +3,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { Agent, Assistant, AssistantSettings, Model, Provider, Topic } from '@renderer/types'
+import type { Agent, Assistant, AssistantSettings, Flow, FlowEngine, Model, Provider, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -12,6 +12,7 @@ import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
+    mode: 'system',
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',
@@ -186,4 +187,13 @@ export async function createAssistantFromAgent(agent: Agent) {
   })
 
   return assistant
+}
+
+export function getAssistantFlowProvider(flow: Flow): FlowEngine {
+  const providers = store.getState().flow.providers
+  const provider = providers.find((p) => p.id === flow?.providerId)
+  if (!provider) {
+    throw new Error(`Provider with id ${flow?.providerId} not found`)
+  }
+  return provider
 }

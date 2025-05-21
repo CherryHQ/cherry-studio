@@ -320,7 +320,8 @@
       "topics.export.siyuan": "导出到思源笔记",
       "topics.export.wait_for_title_naming": "正在生成标题...",
       "topics.export.title_naming_success": "标题生成成功",
-      "topics.export.title_naming_failed": "标题生成失败，使用默认标题"
+      "topics.export.title_naming_failed": "标题生成失败，使用默认标题",
+      "input.workflow": "工作流"
     },
     "code_block": {
       "collapse": "收起",
@@ -405,7 +406,10 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "无结果"
+      "no_results": "无结果",
+      "submit": "提交",
+      "form.validation.required": "{{field}} 是必填项。",
+      "goto.settings": "前往设置..."
     },
     "docs": {
       "title": "帮助文档"
@@ -433,7 +437,9 @@
       },
       "user_message_not_found": "无法找到原始用户消息",
       "unknown": "未知错误",
-      "pause_placeholder": "已中断"
+      "pause_placeholder": "已中断",
+      "file.upload": "文件上传失败",
+      "file.ext": "文件格式不受支持。"
     },
     "export": {
       "assistant": "助手",
@@ -755,7 +761,7 @@
         "number": "数字",
         "string": "文本"
       },
-      "pinned": "已固定",
+      "pinned": "已固定模型",
       "rerank_model": "重排模型",
       "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
       "rerank_model_not_support_provider": "目前重排序模型不支持该服务商 ({{provider}})",
@@ -936,7 +942,8 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云"
+      "qiniu": "七牛云",
+      "dify": "Dify"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -1704,6 +1711,30 @@
         "title": "缩放",
         "reset": "重置"
       },
+      "workflow": {
+        "title": "工作流服务",
+        "search": "搜索工作流平台...",
+        "addWorkflow": "添加工作流",
+        "newWorkflow": "新建工作流",
+        "addSuccess": "工作流添加成功",
+        "noDescription": "没有描述",
+        "name": "名称",
+        "description": "描述",
+        "url": "访问URL地址",
+        "apiKey": "API 密钥",
+        "apiHost": "API 地址",
+        "saveSuccess": "工作流保存成功",
+        "saveError": "工作流保存失败",
+        "deleteConfirm": "确定要删除此工作流吗？",
+        "deleteSuccess": "工作流删除成功",
+        "deleteError": "工作流删除失败",
+        "type": "类型",
+        "workflow": "工作流",
+        "chatflow": "对话流",
+        "checkSuccess": "工作流检查成功",
+        "checkError": "工作流检查失败",
+        "trigger": "触发词"
+      },
       "openai": {
         "title": "OpenAI 设置",
         "summary_text_mode.title": "摘要模式",
@@ -1761,6 +1792,12 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "workflow": {
+      "title": "工作流",
+      "file.input.upload": "上传文件",
+      "error.file.ext": "不支持上传该格式的文件",
+      "pinned": "已固定工作流"
     }
   }
 }

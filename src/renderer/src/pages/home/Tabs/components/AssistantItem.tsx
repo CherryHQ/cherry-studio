@@ -87,7 +87,12 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
         key: 'duplicate',
         icon: <CopyIcon />,
         onClick: async () => {
-          const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
+          const _assistant: Assistant = {
+            ...assistant,
+            id: uuid(),
+            topics: [getDefaultTopic(assistant.id)],
+            mode: 'system'
+          }
           addAssistant(_assistant)
           onSwitch(_assistant)
         }

@@ -56,6 +56,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
         const newAgent: Agent = {
           id: uuid(),
+          mode: 'system',
           name: agent.name,
           emoji: agent.emoji || '🤖',
           group: agent.group || [],

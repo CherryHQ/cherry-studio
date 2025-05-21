@@ -44,6 +44,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (searchText.trim()) {
       const newAgent: Agent = {
         id: 'new',
+        mode: 'system',
         name: searchText.trim(),
         prompt: '',
         topics: [],

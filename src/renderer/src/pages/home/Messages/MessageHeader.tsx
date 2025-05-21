@@ -2,6 +2,7 @@ import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
+import { getFlowEngineProviderLogo } from '@renderer/config/workflowProviders'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -36,7 +37,13 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
 
-  const avatarSource = useMemo(() => getAvatarSource(isLocalAi, getMessageModelId(message)), [message])
+  const avatarSource = useMemo(
+    () =>
+      message.flow && message.flow.type === 'chatflow'
+        ? getFlowEngineProviderLogo(message.flow.providerId)
+        : getAvatarSource(isLocalAi, getMessageModelId(message)),
+    [message]
+  )
 
   const getUserName = useCallback(() => {
     if (isLocalAi && message.role !== 'user') {
@@ -44,7 +51,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
     }
 
     if (message.role === 'assistant') {
-      return getModelName(model) || getMessageModelId(message) || ''
+      return message.flow && message.flow.type === 'chatflow'
+        ? `${message.flow.name} | ${message.flow.providerId}`
+        : getModelName(model) || getMessageModelId(message) || ''
     }
 
     return userName || t('common.you')

@@ -3,9 +3,13 @@ import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
 
+import { Chatflow, Workflow } from './flow'
+export * from './flow'
 import type { Message } from './newMessage'
 
 export type Assistant = {
+  // 为后续智能体规划添加模式
+  mode: 'system' | 'external'
   id: string
   name: string
   prompt: string
@@ -23,6 +27,8 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  workflow?: Workflow
+  chatflow?: Chatflow
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
 }
@@ -639,6 +645,15 @@ export interface QuickPhrase {
   order?: number
 }
 
+export type ModelOrChatflowItem = Model | Chatflow
+
+export function isFlow(item: ModelOrChatflowItem): item is Chatflow {
+  return 'type' in item && item.type === 'chatflow'
+}
+
+export function isModel(item: ModelOrChatflowItem): item is Model {
+  return !isFlow(item)
+}
 export interface Citation {
   number: number
   url: string
