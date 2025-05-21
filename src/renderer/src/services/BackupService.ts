@@ -6,6 +6,9 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
 import dayjs from 'dayjs'
+import FileManager from '@renderer/services/FileManager'
+import { FileType } from '@renderer/types'
+import { KnowledgeState } from '@renderer/store/knowledge'
 
 export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
@@ -372,6 +375,50 @@ export async function getBackupData() {
 }
 
 /************************************* Backup Utils ************************************** */
+async function updateFilePath() {
+  const needsPathUpdate = (path: string) => path && !path.startsWith(store.getState().runtime.filesPath)
+  const updatePath = (fileObj: FileType) => ({ ...fileObj, path: FileManager.getFilePath(fileObj) })
+
+  // 更新数据库文件路径
+  const files = await db.files.toArray()
+  for (const file of files) {
+    if (needsPathUpdate(file.path)) {
+      await FileManager.updateFile(updatePath(file))
+    }
+  }
+
+  // 更新localStorage中knowledge路径
+  try {
+    const persistStr = localStorage.getItem('persist:cherry-studio')
+    if (!persistStr) return
+
+    const persist = JSON.parse(persistStr)
+    if (!persist.knowledge) return
+
+    const knowledge: KnowledgeState = JSON.parse(persist.knowledge)
+    let updated = false
+
+    // 遍历并更新知识库文件路径
+    knowledge.bases?.forEach((base) => {
+      base.items?.forEach((item) => {
+        const content = item.content
+        if (item.type === 'file' && typeof content === 'object' && content && needsPathUpdate(content.path)) {
+          item.content = updatePath(content)
+          updated = true
+        }
+      })
+    })
+
+    // 保存更新
+    if (updated) {
+      persist.knowledge = JSON.stringify(knowledge)
+      localStorage.setItem('persist:cherry-studio', JSON.stringify(persist))
+    }
+  } catch (error) {
+    Logger.error('[BackupService] Error updating localStorage knowledge paths:', error)
+  }
+}
+
 export async function handleData(data: Record<string, any>) {
   if (data.version === 1) {
     await clearDatabase()
@@ -385,7 +432,8 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    await updateFilePath()
     window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
     setTimeout(() => window.api.reload(), 1000)
     return
@@ -402,6 +450,7 @@ export async function handleData(data: Record<string, any>) {
       })
     }
 
+    await updateFilePath()
     window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
     setTimeout(() => window.api.reload(), 1000)
     return
