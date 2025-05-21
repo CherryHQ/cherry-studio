@@ -1449,7 +1449,7 @@ const migrateConfig = {
       return state
     }
   },
-  '104': (state: RootState) => {
+  '106': (state: RootState) => {
     try {
       addFlowEngineProvider(state, 'dify')
       return {

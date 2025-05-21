@@ -3177,7 +3177,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@modelcontextprotocol/sdk@npm:^1.11.3":
+"@modelcontextprotocol/sdk@npm:^1.11.4":
   version: 1.11.4
   resolution: "@modelcontextprotocol/sdk@npm:1.11.4"
   dependencies:
@@ -5609,7 +5609,7 @@ __metadata:
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
-    "@modelcontextprotocol/sdk": "npm:^1.11.3"
+    "@modelcontextprotocol/sdk": "npm:^1.11.4"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
@@ -5691,6 +5691,7 @@ __metadata:
     p-queue: "npm:^8.1.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
+    pyodide: "npm:^0.27.5"
     rc-virtual-list: "npm:^3.18.6"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
@@ -15792,6 +15793,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"pyodide@npm:^0.27.5":
+  version: 0.27.6
+  resolution: "pyodide@npm:0.27.6"
+  dependencies:
+    ws: "npm:^8.5.0"
+  checksum: 10c0/f4f1e6c2cdc49ae3540a874570821d20f52a8db7b2e54e977f0399766bd93fcf6e320c7a036721fb12ce7be94510cef70f3f9df473e0853a72066541e960d724
+  languageName: node
+  linkType: hard
+
 "qs@npm:^6.14.0":
   version: 6.14.0
   resolution: "qs@npm:6.14.0"
@@ -19810,7 +19820,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:^8.13.0, ws@npm:^8.18.0, ws@npm:^8.18.1":
+"ws@npm:^8.13.0, ws@npm:^8.18.0, ws@npm:^8.18.1, ws@npm:^8.5.0":
   version: 8.18.2
   resolution: "ws@npm:8.18.2"
   peerDependencies:
