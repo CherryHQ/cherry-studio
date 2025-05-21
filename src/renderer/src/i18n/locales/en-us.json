@@ -1365,6 +1365,9 @@
           "noToolsAvailable": "No tools available",
           "loadError": "Get tools Error"
         },
+        "descriptions": {
+          "empty": "description not available"
+        },
         "prompts": {
           "availablePrompts": "Available Prompts",
           "noPromptsAvailable": "No prompts available",

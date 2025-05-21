@@ -1362,6 +1362,9 @@
           "noToolsAvailable": "Нет доступных инструментов",
           "loadError": "Ошибка получения инструментов"
         },
+        "descriptions": {
+          "empty": "Описание недоступно"
+        },
         "prompts": {
           "availablePrompts": "Доступные подсказки",
           "noPromptsAvailable": "Нет доступных подсказок",

@@ -1362,6 +1362,9 @@
           "noToolsAvailable": "利用可能なツールなし",
           "loadError": "ツール取得エラー"
         },
+        "descriptions": {
+          "empty": "説明はありません"
+        },
         "prompts": {
           "availablePrompts": "利用可能なプロンプト",
           "noPromptsAvailable": "利用可能なプロンプトはありません",

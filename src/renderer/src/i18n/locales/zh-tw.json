@@ -1365,6 +1365,9 @@
           "noToolsAvailable": "無可用工具",
           "loadError": "獲取工具失敗"
         },
+        "descriptions": {
+          "empty": "暫無描述"
+        },
         "prompts": {
           "availablePrompts": "可用提示",
           "noPromptsAvailable": "無可用提示",

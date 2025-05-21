@@ -1,6 +1,6 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
-import { setupMarkdownIt } from '@shikijs/markdown-it'
+import { MarkdownItShikiSetupOptions, setupMarkdownIt } from '@shikijs/markdown-it'
 import MarkdownIt from 'markdown-it'
 import { useEffect, useRef, useState } from 'react'
 import { getTokenStyleObject, ThemedToken } from 'shiki/core'
@@ -38,12 +38,14 @@ export function getReactStyleFromToken(token: ThemedToken): Record<string, strin
   return reactStyle
 }
 
-const defaultOptions = {
+const defaultOptions: MarkdownItShikiSetupOptions = {
   themes: {
     light: 'one-light',
     dark: 'material-theme-darker'
   },
-  defaultColor: 'light'
+  defaultColor: 'light',
+  defaultLanguage: 'json',
+  fallbackLanguage: 'json'
 }
 
 export async function getShikiInstance(theme: ThemeMode) {
