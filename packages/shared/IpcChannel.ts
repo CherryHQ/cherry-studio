@@ -21,6 +21,9 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  App_Notification = 'app:notification',
+  App_OnNotificationClick = 'app:on-notification-click',
+
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
 
   // Open
@@ -113,7 +116,7 @@ export enum IpcChannel {
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
   Fs_Read = 'fs:read',
-  File_ResolveFilePath = 'file:resolveFilePath',
+
   Export_Word = 'export:word',
 
   Shortcuts_Update = 'shortcuts:update',

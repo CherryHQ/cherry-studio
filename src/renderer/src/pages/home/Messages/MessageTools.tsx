@@ -192,17 +192,17 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                 {
                   key: 'preview',
                   label: t('message.tools.preview'),
-                  children: renderPreview(expandedResponse.content)
-                },
-                {
-                  key: 'raw',
-                  label: t('message.tools.raw'),
                   children: (
                     <CollapsedContent
                       isExpanded={true}
                       resultString={resultString}
                     />
                   )
+                },
+                {
+                  key: 'raw',
+                  label: t('message.tools.raw'),
+                  children: renderPreview(expandedResponse.content)
                 }
               ]}
             />
@@ -223,7 +223,7 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
     return null
   }
 
-  return <div className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
+  return <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
 }
 
 const CollapseContainer = styled(Collapse)`
@@ -243,6 +243,12 @@ const CollapseContainer = styled(Collapse)`
 
   .ant-collapse-content-box {
     padding: 0 !important;
+  }
+`
+
+const MarkdownContainer = styled.div`
+  & pre span {
+    white-space: pre-wrap;
   }
 `
 

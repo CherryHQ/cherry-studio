@@ -160,6 +160,12 @@ export interface SettingsState {
     summaryText: OpenAISummaryText
     serviceTier: OpenAIServiceTier
   }
+  // Notification
+  notification: {
+    assistant: boolean
+    backup: boolean
+    knowledgeEmbed: boolean
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -285,6 +291,11 @@ export const initialState: SettingsState = {
   openAI: {
     summaryText: 'off',
     serviceTier: 'auto'
+  },
+  notification: {
+    assistant: true,
+    backup: true,
+    knowledgeEmbed: true
   }
 }
 
@@ -613,6 +624,9 @@ const settingsSlice = createSlice({
     },
     setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
       state.openAI.serviceTier = action.payload
+    },
+    setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
+      state.notification = action.payload
     }
   }
 })
@@ -709,7 +723,8 @@ export const {
   setExportMenuOptions,
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
-  setOpenAIServiceTier
+  setOpenAIServiceTier,
+  setNotificationSettings
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

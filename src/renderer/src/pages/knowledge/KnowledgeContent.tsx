@@ -328,7 +328,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         key={item.id}
                         fileInfo={{
                           name: (
-                            <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                            <ClickableSpan onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
                               <Ellipsis>
                                 <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
                               </Ellipsis>

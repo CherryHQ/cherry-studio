@@ -274,7 +274,7 @@ const FileBlocksContainer = styled.div`
   gap: 8px;
   padding: 0 15px;
   margin: 8px 0;
-  background: transplant;
+  background: transparent;
   border-radius: 4px;
 `
 

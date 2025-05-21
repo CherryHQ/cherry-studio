@@ -69,8 +69,14 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
       }
     : undefined
 
+  const containerStyle = isBubbleStyle
+    ? {
+        justifyContent: isAssistantMessage ? 'flex-start' : 'flex-end'
+      }
+    : undefined
+
   return (
-    <Container className="message-header">
+    <Container className="message-header" style={containerStyle}>
       <AvatarWrapper style={avatarStyle}>
         {isAssistantMessage ? (
           <Avatar

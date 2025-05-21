@@ -1,5 +1,6 @@
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
@@ -27,6 +28,7 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
   useEffect(() => {
     if (activeTopic) {
       store.dispatch(loadTopicMessagesThunk(activeTopic.id))
+      EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
     }
   }, [activeTopic])
 

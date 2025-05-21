@@ -47,16 +47,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'burncloud',
-    name: 'BurnCloud',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://ai.burncloud.com',
-    models: SYSTEM_MODELS.burncloud,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'ocoolai',
     name: 'ocoolAI',
     type: 'openai',
@@ -133,6 +123,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://www.dmxapi.cn',
     models: SYSTEM_MODELS.dmxapi,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'burncloud',
+    name: 'BurnCloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ai.burncloud.com',
+    models: SYSTEM_MODELS.burncloud,
     isSystem: true,
     enabled: false
   },

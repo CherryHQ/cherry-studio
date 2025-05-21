@@ -226,10 +226,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      Logger.log('[DEBUG] Created message and blocks:', message, blocks)
-      Logger.log('[DEBUG] Dispatching _sendMessage')
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
-      Logger.log('[DEBUG] _sendMessage dispatched')
 
       // Clear input
       setText('')

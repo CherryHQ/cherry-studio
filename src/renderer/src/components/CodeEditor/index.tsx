@@ -14,17 +14,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useLanguageExtensions } from './hook'
+
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
 
 interface Props {
-  children: string
+  value: string
+  placeholder?: string | HTMLElement
   language: string
   onSave?: (newContent: string) => void
   onChange?: (newContent: string) => void
+  minHeight?: string
   maxHeight?: string
   /** 用于覆写编辑器的某些设置 */
   options?: {
+    stream?: boolean // 用于流式响应场景，默认 false
+    lint?: boolean
     collapsible?: boolean
     wrappable?: boolean
     keymap?: boolean
@@ -36,11 +42,22 @@ interface Props {
 }
 
 /**
- * 源代码编辑器，基于 CodeMirror
+ * 源代码编辑器，基于 CodeMirror，封装了 ReactCodeMirror。
  *
  * 目前必须和 CodeToolbar 配合使用。
  */
-const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, extensions, style }: Props) => {
+const CodeEditor = ({
+  value,
+  placeholder,
+  language,
+  onSave,
+  onChange,
+  minHeight,
+  maxHeight,
+  options,
+  extensions,
+  style
+}: Props) => {
   const {
     fontSize,
     codeShowLineNumbers: _lineNumbers,
@@ -61,37 +78,17 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
     }
   }, [codeEditor, _lineNumbers, options])
 
-  const { activeCmTheme, languageMap } = useCodeStyle()
+  const { activeCmTheme } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!collapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
-  const initialContent = useRef(children?.trimEnd() ?? '')
-  const [langExtension, setLangExtension] = useState<Extension[]>([])
+  const initialContent = useRef(options?.stream ? (value ?? '').trimEnd() : (value ?? ''))
   const [editorReady, setEditorReady] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
   const { t } = useTranslation()
 
+  const langExtensions = useLanguageExtensions(language, options?.lint)
+
   const { registerTool, removeTool } = useCodeToolbar()
-
-  // 加载语言
-  useEffect(() => {
-    let normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
-
-    // 如果语言名包含 `-`，转换为驼峰命名法
-    if (normalizedLang.includes('-')) {
-      normalizedLang = normalizedLang.replace(/-([a-z])/g, (_, char) => char.toUpperCase())
-    }
-
-    import('@uiw/codemirror-extensions-langs')
-      .then(({ loadLanguage }) => {
-        const extension = loadLanguage(normalizedLang as any)
-        if (extension) {
-          setLangExtension([extension])
-        }
-      })
-      .catch((error) => {
-        console.debug(`Failed to load language: ${normalizedLang}`, error)
-      })
-  }, [language, languageMap])
 
   // 展开/折叠工具
   useEffect(() => {
@@ -144,7 +141,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
   useEffect(() => {
     if (!editorViewRef.current) return
 
-    const newContent = children?.trimEnd() ?? ''
+    const newContent = options?.stream ? (value ?? '').trimEnd() : (value ?? '')
     const currentDoc = editorViewRef.current.state.doc.toString()
 
     const changes = prepareCodeChanges(currentDoc, newContent)
@@ -155,7 +152,7 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
         annotations: [External.of(true)]
       })
     }
-  }, [children])
+  }, [options?.stream, value])
 
   useEffect(() => {
     setIsExpanded(!collapsible)
@@ -182,17 +179,19 @@ const CodeEditor = ({ children, language, onSave, onChange, maxHeight, options, 
   const customExtensions = useMemo(() => {
     return [
       ...(extensions ?? []),
-      ...langExtension,
+      ...langExtensions,
       ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
       ...(enableKeymap ? [saveKeymap] : [])
     ]
-  }, [extensions, langExtension, isUnwrapped, enableKeymap, saveKeymap])
+  }, [extensions, langExtensions, isUnwrapped, enableKeymap, saveKeymap])
 
   return (
     <CodeMirror
       // 维持一个稳定值，避免触发 CodeMirror 重置
       value={initialContent.current}
+      placeholder={placeholder}
       width="100%"
+      minHeight={minHeight}
       maxHeight={collapsible && !isExpanded ? (maxHeight ?? '350px') : 'none'}
       editable={true}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
