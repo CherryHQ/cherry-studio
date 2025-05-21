@@ -24,12 +24,16 @@ function initFileTypeMap() {
 initFileTypeMap()
 
 function getAppDataPathFromConfig() {
-  const configPath = path.join(getConfigDir(), 'config.json')
-  if (fs.existsSync(configPath)) {
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    if (config.appDataPath) {
-      return config.appDataPath
+  try {
+    const configPath = path.join(getConfigDir(), 'config.json')
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      if (config.appDataPath) {
+        return config.appDataPath
+      }
     }
+  } catch (error) {
+    return null
   }
   return null
 }

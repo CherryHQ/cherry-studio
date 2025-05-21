@@ -985,7 +985,7 @@
         "app_data.select": "修改目录",
         "app_data.select_title": "更改应用数据目录",
         "app_data.select_confirm": "您确定要更改应用数据目录吗？",
-        "app_data.restart_notice": "更改数据目录后需要重启应用才能生效",
+        "app_data.restart_notice": "更改数据目录后会自重启应用生效",
         "app_data.copy_time_notice": "从原数据目录复制数据将需要一些时间，请耐心等待",
         "app_data.copying": "正在复制数据到新位置...",
         "app_data.copy_success": "成功复制数据到新位置",
