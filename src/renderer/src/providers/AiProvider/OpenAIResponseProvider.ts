@@ -210,9 +210,12 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     if (!isSupportedReasoningEffortOpenAIModel(model)) {
       return {}
     }
+
     const openAI = getStoreSetting('openAI') as any
-    const summaryText = openAI.summaryText as OpenAISummaryText
+    const summaryText = (openAI?.summaryText as OpenAISummaryText) || 'off'
+
     let summary: string | undefined = undefined
+
     if (summaryText === 'off' || model.id.includes('o1-pro')) {
       summary = undefined
     } else {
