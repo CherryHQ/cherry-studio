@@ -168,10 +168,6 @@ const McpSettings: React.FC = () => {
         setTools(localTools)
       } catch (error) {
         setLoadingServer(server.id)
-        window.message.error({
-          content: t('settings.mcp.tools.loadError') + ' ' + formatError(error),
-          key: 'mcp-tools-error'
-        })
       } finally {
         setLoadingServer(null)
       }
@@ -185,10 +181,6 @@ const McpSettings: React.FC = () => {
         const localPrompts = await window.api.mcp.listPrompts(server)
         setPrompts(localPrompts)
       } catch (error) {
-        window.message.error({
-          content: t('settings.mcp.prompts.loadError') + ' ' + formatError(error),
-          key: 'mcp-prompts-error'
-        })
         setPrompts([])
       } finally {
         setLoadingServer(null)
@@ -203,10 +195,6 @@ const McpSettings: React.FC = () => {
         const localResources = await window.api.mcp.listResources(server)
         setResources(localResources)
       } catch (error) {
-        window.message.error({
-          content: t('settings.mcp.resources.loadError') + ' ' + formatError(error),
-          key: 'mcp-resources-error'
-        })
         setResources([])
       } finally {
         setLoadingServer(null)

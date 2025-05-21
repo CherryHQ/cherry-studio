@@ -69,18 +69,10 @@ function withCache<T extends unknown[], R>(
 }
 
 class McpService {
-  private static instance: McpService | null = null
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
 
-  public static getInstance(): McpService {
-    if (!McpService.instance) {
-      McpService.instance = new McpService()
-    }
-    return McpService.instance
-  }
-
-  private constructor() {
+  constructor() {
     this.initClient = this.initClient.bind(this)
     this.listTools = this.listTools.bind(this)
     this.callTool = this.callTool.bind(this)
@@ -661,13 +653,4 @@ class McpService {
   })
 }
 
-let mcpInstance: ReturnType<typeof McpService.getInstance> | null = null
-
-export const getMcpInstance = () => {
-  if (!mcpInstance) {
-    mcpInstance = McpService.getInstance()
-  }
-  return mcpInstance
-}
-
-export default McpService.getInstance
+export default new McpService()

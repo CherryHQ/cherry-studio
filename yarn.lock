@@ -3337,10 +3337,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@modelcontextprotocol/sdk@npm:^1.11.3":
-  version: 1.11.3
-  resolution: "@modelcontextprotocol/sdk@npm:1.11.3"
+"@modelcontextprotocol/sdk@npm:^1.11.4":
+  version: 1.11.4
+  resolution: "@modelcontextprotocol/sdk@npm:1.11.4"
   dependencies:
+    ajv: "npm:^8.17.1"
     content-type: "npm:^1.0.5"
     cors: "npm:^2.8.5"
     cross-spawn: "npm:^7.0.5"
@@ -3351,7 +3352,7 @@ __metadata:
     raw-body: "npm:^3.0.0"
     zod: "npm:^3.23.8"
     zod-to-json-schema: "npm:^3.24.1"
-  checksum: 10c0/5bcaf6fb97d886e1a262ba9b44ede91c209bb474a2e5193c9f7d9e2c82829d83775e50f5c37977bc156376e0eca84837da531fe0dfafdc5ad8921db4bf5039c0
+  checksum: 10c0/797694937e65ccc02e8dc63db711d9d96fbc49b49e6d246e6fed95d8d2bfe98ef203207224e39c9fc3b54da182da865a5d311ea06ef939c5c57ce0cd27c0f546
   languageName: node
   linkType: hard
 
@@ -5760,7 +5761,7 @@ __metadata:
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
-    "@modelcontextprotocol/sdk": "npm:^1.11.3"
+    "@modelcontextprotocol/sdk": "npm:^1.11.4"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
     "@reduxjs/toolkit": "npm:^2.2.5"
@@ -6011,7 +6012,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ajv@npm:^8.0.0, ajv@npm:^8.6.3":
+"ajv@npm:^8.0.0, ajv@npm:^8.17.1, ajv@npm:^8.6.3":
   version: 8.17.1
   resolution: "ajv@npm:8.17.1"
   dependencies:
