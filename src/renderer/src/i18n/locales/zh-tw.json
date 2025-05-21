@@ -982,7 +982,7 @@
       "assistant.icon.type.none": "不顯示",
       "assistant.title": "預設助手",
       "data": {
-        "app_data": "應用數據目錄",
+        "app_data": "應用數據",
         "app_data.select": "修改目錄",
         "app_data.select_title": "變更應用數據目錄",
         "app_data.select_confirm": "您確定要變更應用數據目錄嗎？",

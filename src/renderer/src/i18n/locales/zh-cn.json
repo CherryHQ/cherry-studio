@@ -981,7 +981,7 @@
       "assistant.icon.type.none": "隐藏",
       "assistant.title": "默认助手",
       "data": {
-        "app_data": "应用数据目录",
+        "app_data": "应用数据",
         "app_data.select": "修改目录",
         "app_data.select_title": "更改应用数据目录",
         "app_data.select_confirm": "您确定要更改应用数据目录吗？",

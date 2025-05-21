@@ -9,7 +9,7 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
-import { getDataPath } from '../utils/file'
+import { getDataPath } from '../utils'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
