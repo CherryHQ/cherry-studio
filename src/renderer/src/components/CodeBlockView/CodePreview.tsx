@@ -1,4 +1,4 @@
-import { TOOL_SPECS, useCodeToolbar } from '@renderer/components/CodeToolbar'
+import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
@@ -12,6 +12,7 @@ import styled from 'styled-components'
 interface CodePreviewProps {
   children: string
   language: string
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
 /**
@@ -20,7 +21,7 @@ interface CodePreviewProps {
  * - 通过 shiki tokenizer 处理流式响应
  * - 为了正确执行语法高亮，必须保证流式响应都依次到达 tokenizer，不能跳过
  */
-const CodePreview = ({ children, language }: CodePreviewProps) => {
+const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const { activeShikiTheme, highlightCodeChunk, cleanupTokenizers } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
@@ -35,7 +36,7 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
 
   const { t } = useTranslation()
 
-  const { registerTool, removeTool } = useCodeToolbar()
+  const { registerTool, removeTool } = useCodeTool(setTools)
 
   // 展开/折叠工具
   useEffect(() => {

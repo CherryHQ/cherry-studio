@@ -1,4 +1,4 @@
-import { TOOL_SPECS, useCodeToolbar } from '@renderer/components/CodeToolbar'
+import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension, keymap } from '@uiw/react-codemirror'
@@ -25,6 +25,7 @@ interface Props {
   language: string
   onSave?: (newContent: string) => void
   onChange?: (newContent: string) => void
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
   minHeight?: string
   maxHeight?: string
   /** 用于覆写编辑器的某些设置 */
@@ -52,6 +53,7 @@ const CodeEditor = ({
   language,
   onSave,
   onChange,
+  setTools,
   minHeight,
   maxHeight,
   options,
@@ -88,7 +90,7 @@ const CodeEditor = ({
 
   const langExtensions = useLanguageExtensions(language, options?.lint)
 
-  const { registerTool, removeTool } = useCodeToolbar()
+  const { registerTool, removeTool } = useCodeTool(setTools)
 
   // 展开/折叠工具
   useEffect(() => {
