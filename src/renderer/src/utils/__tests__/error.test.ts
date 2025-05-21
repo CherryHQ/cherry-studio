@@ -50,19 +50,21 @@ describe('error', () => {
   })
 
   describe('formatErrorMessage', () => {
-    it('should format error as JSON string', () => {
-      console.error = vi.fn() // Mock console.error
+    it('should format error with indentation and header', () => {
+      console.error = vi.fn()
 
       const error = new Error('Test error')
       const result = formatErrorMessage(error)
 
       expect(console.error).toHaveBeenCalled()
-      expect(result).toContain('```json')
-      expect(result).toContain('"message": "Test error"')
+      expect(result).toContain('Error Details:')
+      expect(result).toContain('  {')
+      expect(result).toContain('    "message": "Test error"')
+      expect(result).toContain('  }')
       expect(result).not.toContain('"stack":')
     })
 
-    it('should remove sensitive information', () => {
+    it('should remove sensitive information and format with proper indentation', () => {
       console.error = vi.fn()
 
       const error = {
@@ -74,27 +76,30 @@ describe('error', () => {
 
       const result = formatErrorMessage(error)
 
-      expect(result).toContain('"message": "API error"')
+      expect(result).toContain('Error Details:')
+      expect(result).toContain('  {')
+      expect(result).toContain('    "message": "API error"')
+      expect(result).toContain('  }')
       expect(result).not.toContain('Authorization')
       expect(result).not.toContain('stack')
       expect(result).not.toContain('request_id')
     })
 
-    it('should handle errors during formatting', () => {
+    it('should handle errors during formatting with simple error message', () => {
       console.error = vi.fn()
 
       const problematicError = {
         get message() {
-          throw new Error('Cannot access message')
+          throw new Error('Cannot access')
         }
       }
 
       const result = formatErrorMessage(problematicError)
-      expect(result).toContain('```')
-      expect(result).toContain('Unable')
+      expect(result).toContain('Error Details:')
+      expect(result).toContain('"message": "<Unable to access property>"')
     })
 
-    it('should handle non-serializable errors', () => {
+    it('should handle non-serializable errors with simple error message', () => {
       console.error = vi.fn()
 
       const nonSerializableError = {
@@ -114,7 +119,8 @@ describe('error', () => {
       }
 
       const result = formatErrorMessage(nonSerializableError)
-      expect(result).toBeTruthy()
+      expect(result).toContain('Error Details:')
+      expect(result).toContain('"toString": "<Unable to access property>"')
     })
   })
 
