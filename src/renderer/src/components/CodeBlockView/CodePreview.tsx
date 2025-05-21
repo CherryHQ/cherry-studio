@@ -165,13 +165,11 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
   return (
     <ContentContainer
       ref={codeContentRef}
-      $isShowLineNumbers={codeShowLineNumbers}
-      $isUnwrapped={isUnwrapped}
-      $isCodeWrappable={codeWrappable}
+      $lineNumbers={codeShowLineNumbers}
+      $wrap={codeWrappable && !isUnwrapped}
       style={{
         fontSize: fontSize - 1,
-        maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none',
-        overflow: codeCollapsible && !isExpanded ? 'auto' : 'visible'
+        maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
       }}>
       {tokenLines.length > 0 ? (
         <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
@@ -223,15 +221,21 @@ const ShikiTokensRenderer: React.FC<{ language: string; tokenLines: ThemedToken[
 )
 
 const ContentContainer = styled.div<{
-  $isShowLineNumbers: boolean
-  $isUnwrapped: boolean
-  $isCodeWrappable: boolean
+  $lineNumbers: boolean
+  $wrap: boolean
 }>`
   position: relative;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
   border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
   transition: opacity 0.3s ease;
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+  }
 
   .shiki {
     padding: 1em;
@@ -244,13 +248,18 @@ const ContentContainer = styled.div<{
       .line {
         display: block;
         min-height: 1.3rem;
-        padding-left: ${(props) => (props.$isShowLineNumbers ? '2rem' : '0')};
+        padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
+
+        * {
+          word-wrap: ${(props) => (props.$wrap ? 'break-word' : undefined)};
+          white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
+        }
       }
     }
   }
 
   ${(props) =>
-    props.$isShowLineNumbers &&
+    props.$lineNumbers &&
     `
       code {
         counter-reset: step;
@@ -266,16 +275,6 @@ const ContentContainer = styled.div<{
         left: 0;
         text-align: right;
         opacity: 0.35;
-      }
-    `}
-
-  ${(props) =>
-    props.$isCodeWrappable &&
-    !props.$isUnwrapped &&
-    `
-      code .line * {
-        word-wrap: break-word;
-        white-space: pre-wrap;
       }
     `}
 `
