@@ -9,7 +9,7 @@ import dayjs from 'dayjs'
 import { CirclePlay, CodeXml, Copy, Download, Eye, Square, SquarePen, SquareSplitHorizontal } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
 
 import CodePreview from './CodePreview'
 import HtmlArtifacts from './HtmlArtifacts'
@@ -252,6 +252,9 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
 
   .code-toolbar {
+    margin-top: ${(props) => (props.$isInSpecialView ? '20px' : '0')};
+    background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
+    border-radius: ${(props) => (props.$isInSpecialView ? '0' : '4px')};
     opacity: 0;
     transition: opacity 0.2s ease;
     transform: translateZ(0);
@@ -265,23 +268,6 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
       opacity: 1;
     }
   }
-
-  ${(props) =>
-    props.$isInSpecialView &&
-    css`
-      .code-toolbar {
-        margin-top: 20px;
-      }
-    `}
-
-  ${(props) =>
-    !props.$isInSpecialView &&
-    css`
-      .code-toolbar {
-        background-color: var(--color-background-mute);
-        border-radius: 4px;
-      }
-    `}
 `
 
 const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
@@ -291,16 +277,10 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   color: var(--color-text);
   font-size: 14px;
   font-weight: bold;
-  height: 34px;
   padding: 0 10px;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
-
-  ${(props) =>
-    props.$isInSpecialView &&
-    css`
-      height: 16px;
-    `}
+  height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
 `
 
 const SplitViewWrapper = styled.div`
@@ -309,8 +289,9 @@ const SplitViewWrapper = styled.div`
 
   > * {
     flex: 1 1 0;
+    width: 0;
     min-width: 0;
-    overflow: auto;
+    max-width: 100%;
   }
 `
 
