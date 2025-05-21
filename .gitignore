@@ -51,3 +51,4 @@ local
 coverage
 .vitest-cache
 vitest.config.*.timestamp-*
+YOUR_MEMORY_FILE_PATH

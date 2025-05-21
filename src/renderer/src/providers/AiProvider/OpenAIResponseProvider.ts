@@ -179,11 +179,14 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
   }
 
   protected getServiceTier(model: Model) {
-    if (!isOpenAIModel(model)) return undefined
+    if (!isOpenAIModel(model)) {
+      return undefined
+    }
+
     const openAI = getStoreSetting('openAI') as any
     let serviceTier = 'auto' as OpenAIServiceTier
 
-    if (openAI.serviceTier === 'flex') {
+    if (openAI && openAI?.serviceTier === 'flex') {
       if (isSupportedFlexServiceTier(model)) {
         serviceTier = 'flex'
       } else {

@@ -115,7 +115,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('will-quit', async () => {
     // event.preventDefault()
     try {
-      await mcpService().cleanup()
+      await mcpService.cleanup()
     } catch (error) {
       Logger.error('Error cleaning up MCP service:', error)
     }

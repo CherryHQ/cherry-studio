@@ -2,6 +2,7 @@ import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
@@ -18,6 +19,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { Response } from '@renderer/types/newMessage'
+import { uuid } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
@@ -32,9 +34,10 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { t } from 'i18next'
 import { throttle } from 'lodash'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
@@ -254,6 +257,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     let citationBlockId: string | null = null
     let mainTextBlockId: string | null = null
     const toolCallIdToBlockIdMap = new Map<string, string>()
+    const notificationService = NotificationService.getInstance()
 
     const handleBlockTransition = async (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
       lastBlockId = newBlock.id
@@ -585,6 +589,16 @@ const fetchAndProcessAssistantResponseImpl = async (
           status: error.status || error.code,
           requestId: error.request_id
         }
+        await notificationService.send({
+          id: uuid(),
+          type: 'error',
+          title: t('notification.assistant'),
+          message: serializableError.message,
+          silent: false,
+          timestamp: Date.now(),
+          source: 'assistant'
+        })
+
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR
           const changes: Partial<MessageBlock> = {
@@ -630,6 +644,17 @@ const fetchAndProcessAssistantResponseImpl = async (
             dispatch(updateOneBlock({ id: lastBlockId, changes }))
             saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
           }
+
+          const content = getMainTextContent(finalAssistantMsg)
+          await notificationService.send({
+            id: uuid(),
+            type: 'success',
+            title: t('notification.assistant'),
+            message: content.length > 50 ? content.slice(0, 47) + '...' : content,
+            silent: false,
+            timestamp: Date.now(),
+            source: 'assistant'
+          })
 
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
@@ -1287,7 +1312,7 @@ export const cloneMessagesToNewTopicThunk =
 
       // 3. Clone Messages and Blocks with New IDs
       for (const oldMessage of messagesToClone) {
-        const newMsgId = uuidv4()
+        const newMsgId = uuid()
         originalToNewMsgIdMap.set(oldMessage.id, newMsgId) // Store mapping for all cloned messages
 
         let newAskId: string | undefined = undefined // Initialize newAskId
@@ -1313,7 +1338,7 @@ export const cloneMessagesToNewTopicThunk =
           for (const oldBlockId of oldMessage.blocks) {
             const oldBlock = state.messageBlocks.entities[oldBlockId]
             if (oldBlock) {
-              const newBlockId = uuidv4()
+              const newBlockId = uuid()
               const newBlock: MessageBlock = {
                 ...oldBlock,
                 id: newBlockId,
