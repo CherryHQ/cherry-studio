@@ -1,4 +1,3 @@
-import { fromHighlighter } from '@shikijs/markdown-it/core'
 import { getTokenStyleObject, type HighlighterGeneric, SpecialLanguage, ThemedToken } from 'shiki/core'
 
 import { AsyncInitializer } from './asyncInitializer'
@@ -145,6 +144,7 @@ const mdInitializer = new AsyncInitializer(async () => {
 export async function getMarkdownIt(theme: string) {
   const highlighter = await getHighlighter()
   const md = await mdInitializer.get()
+  const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
   md.use(
     fromHighlighter(highlighter, {
