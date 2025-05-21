@@ -396,9 +396,46 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
+                <TopicNameContainer>
+                  <TopicName className="name" title={topicName}>
+                    {topicName}
+                  </TopicName>
+                  {isActive && !topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      title={
+                        <div>
+                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                          </div>
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                        ) : (
+                          <CloseOutlined />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PushpinOutlined />
+                    </MenuButton>
+                  )}
+                </TopicNameContainer>
                 {topicPrompt && (
                   <TopicPromptText className="prompt" title={fullTopicPrompt}>
                     {fullTopicPrompt}
@@ -406,37 +443,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 )}
                 {showTopicTime && (
                   <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
-                )}
-                <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
-                {isActive && !topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    title={
-                      <div>
-                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                        </div>
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
-                      }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-                      ) : (
-                        <CloseOutlined />
-                      )}
-                    </MenuButton>
-                  </Tooltip>
                 )}
               </TopicListItem>
             )
@@ -489,6 +495,14 @@ const TopicListItem = styled.div`
   }
 `
 
+const TopicNameContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
+`
+
 const TopicName = styled.div`
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -532,11 +546,8 @@ const MenuButton = styled.div`
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  min-width: 22px;
-  min-height: 22px;
-  position: absolute;
-  right: 8px;
-  top: 6px;
+  min-width: 20px;
+  min-height: 20px;
   .anticon {
     font-size: 12px;
   }

@@ -293,9 +293,9 @@ export const initialState: SettingsState = {
     serviceTier: 'auto'
   },
   notification: {
-    assistant: true,
-    backup: true,
-    knowledgeEmbed: true
+    assistant: false,
+    backup: false,
+    knowledgeEmbed: false
   }
 }
 
