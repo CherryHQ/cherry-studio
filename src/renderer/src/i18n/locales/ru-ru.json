@@ -191,6 +191,8 @@
       "message.quote": "Цитата",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
+      "multiple.select": "Множественный выбор",
+      "multiple.select.empty": "Ничего не выбрано",
       "navigation": {
         "first": "Уже первое сообщение",
         "history": "История чата",
@@ -394,6 +396,7 @@
       "save": "Сохранить",
       "search": "Поиск",
       "select": "Выбрать",
+      "selectedMessages": "Выбрано {{count}} сообщений",
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
@@ -597,8 +600,12 @@
       "copied": "Скопировано!",
       "copy.failed": "Не удалось скопировать",
       "copy.success": "Скопировано!",
-      "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
+      "delete.confirm.title": "Подтверждение удаления",
+      "delete.confirm.content": "Вы уверены, что хотите удалить выбранные {{count}} сообщения?",
+      "delete.failed": "Ошибка удаления",
+      "delete.success": "Удаление успешно",
       "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
+      "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
       "error.dimension_too_large": "Размер содержимого слишком велик",
       "error.enter.api.host": "Пожалуйста, введите ваш API хост",
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
@@ -779,6 +786,11 @@
       "hide_sidebar": "Скрыть боковую панель",
       "show_sidebar": "Показать боковую панель"
     },
+    "notification": {
+      "assistant": "Ответ ассистента",
+      "knowledge.success": "Успешно добавлено {{type}} в базу знаний",
+      "knowledge.error": "Не удалось добавить {{type}} в базу знаний: {{error}}"
+    },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
       "keep_alive_time.placeholder": "Минуты",
@@ -809,6 +821,7 @@
       "model": "Версия",
       "aspect_ratio": "Пропорции изображения",
       "style_type": "Стиль",
+      "rendering_speed": "Скорость рендеринга",
       "learn_more": "Узнать больше",
       "prompt_placeholder_edit": "Введите ваше описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
       "proxy_required": "Сейчас необходимо открыть прокси для просмотра сгенерированных изображений, в будущем будет поддерживаться прямое соединение",
@@ -875,8 +888,7 @@
         "number_images_tip": "Количество увеличенных результатов для генерации",
         "seed_tip": "Контролирует случайный характер увеличения изображений для воспроизводимых результатов",
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
-      },
-      "rendering_speed": "Скорость рендеринга"
+      }
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -885,6 +897,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -1273,6 +1286,14 @@
         "active": "Активен",
         "addError": "Ошибка добавления сервера",
         "addServer": "Добавить сервер",
+        "addServer.create": "Быстрое создание",
+        "addServer.importFrom": "Импорт из JSON",
+        "addServer.importFrom.tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода.",
+        "addServer.importFrom.placeholder": "Вставьте JSON-конфигурацию сервера MCP",
+        "addServer.importFrom.invalid": "Неверный ввод, проверьте формат JSON",
+        "addServer.importFrom.nameExists": "Сервер уже существует: {{name}}",
+        "addServer.importFrom.oneServer": "Можно сохранить только один конфигурационный файл MCP",
+        "addServer.importFrom.connectionFailed": "Сбой подключения",
         "addSuccess": "Сервер успешно добавлен",
         "args": "Аргументы",
         "argsTooltip": "Каждый аргумент с новой строки",
@@ -1550,6 +1571,9 @@
           "title": "Заметки модели",
           "placeholder": "Введите содержимое в формате Markdown...",
           "markdown_editor_default_value": "Область предварительного просмотра"
+        },
+        "openai": {
+          "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
         }
       },
       "proxy": {
@@ -1679,6 +1703,20 @@
         "reset": "Сбросить"
       },
       "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
+      "openai": {
+        "title": "Настройки OpenAI",
+        "summary_text_mode.title": "Режим резюме",
+        "summary_text_mode.tip": "Резюме рассуждений, выполненных моделью",
+        "summary_text_mode.auto": "Авто",
+        "summary_text_mode.concise": "Краткий",
+        "summary_text_mode.detailed": "Подробный",
+        "summary_text_mode.off": "Выключен",
+        "service_tier.title": "Уровень сервиса",
+        "service_tier.tip": "Указывает уровень задержки, который следует использовать для обработки запроса",
+        "service_tier.auto": "Авто",
+        "service_tier.default": "По умолчанию",
+        "service_tier.flex": "Гибкий"
+      },
       "about.debug.title": "Отладка",
       "about.debug.open": "Открыть",
       "workflow": {
@@ -1704,6 +1742,12 @@
         "checkSuccess": "Проверка рабочего процесса успешно завершена",
         "checkError": "Проверка рабочего процесса не удалась",
         "trigger": "триггерное слово"
+      },
+      "notification": {
+        "title": "Настройки уведомлений",
+        "assistant": "Сообщение ассистента",
+        "backup": "Резервное сообщение",
+        "knowledge_embed": "Сообщение базы знаний"
       }
     },
     "translate": {

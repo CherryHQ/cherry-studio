@@ -191,6 +191,8 @@
       "message.quote": "Quote",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
+      "multiple.select": "Multiple Select",
+      "multiple.select.empty": "No Messages Selected",
       "navigation": {
         "first": "Already at the first message",
         "history": "Chat History",
@@ -394,6 +396,7 @@
       "save": "Save",
       "search": "Search",
       "select": "Select",
+      "selectedMessages": "Selected {{count}} messages",
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
@@ -597,6 +600,10 @@
       "copied": "Copied!",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
+      "delete.confirm.title": "Delete Confirmation",
+      "delete.confirm.content": "Are you sure you want to delete the selected {{count}} message(s)?",
+      "delete.failed": "Delete Failed",
+      "delete.success": "Delete Successful",
       "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "error.dimension_too_large": "Content size is too large",
@@ -779,6 +786,11 @@
       "hide_sidebar": "Hide Sidebar",
       "show_sidebar": "Show Sidebar"
     },
+    "notification": {
+      "assistant": "Assistant Response",
+      "knowledge.success": "Successfully added {{type}} to the knowledge base",
+      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
+    },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
       "keep_alive_time.placeholder": "Minutes",
@@ -885,6 +897,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -1277,6 +1290,14 @@
         "active": "Active",
         "addError": "Failed to add server",
         "addServer": "Add Server",
+        "addServer.create": "Quick Create",
+        "addServer.importFrom": "Import from JSON",
+        "addServer.importFrom.tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box.",
+        "addServer.importFrom.placeholder": "Paste MCP server JSON config",
+        "addServer.importFrom.invalid": "Invalid input, please check JSON format",
+        "addServer.importFrom.nameExists": "Server already exists: {{name}}",
+        "addServer.importFrom.oneServer": "Only one MCP server configuration at a time",
+        "addServer.importFrom.connectionFailed": "Connection failed",
         "addSuccess": "Server added successfully",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",
@@ -1485,6 +1506,12 @@
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
       "moresetting.warn": "Risk Warning",
+      "notification": {
+        "title": "Notification Settings",
+        "assistant": "Assistant Message",
+        "backup": "Backup Message",
+        "knowledge_embed": "KnowledgeBase Message"
+      },
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -1512,6 +1539,9 @@
           "button": "Login with {{provider}}",
           "description": "This service is provided by <website>{{provider}}</website>",
           "official_website": "Official Website"
+        },
+        "openai": {
+          "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
         },
         "copilot": {
           "auth_failed": "Github Copilot authentication failed.",
@@ -1704,6 +1734,20 @@
       "zoom": {
         "title": "Page Zoom",
         "reset": "Reset"
+      },
+      "openai": {
+        "title": "OpenAI Settings",
+        "summary_text_mode.title": "Summary Mode",
+        "summary_text_mode.tip": "A summary of the reasoning performed by the model",
+        "summary_text_mode.auto": "auto",
+        "summary_text_mode.concise": "concise",
+        "summary_text_mode.detailed": "detailed",
+        "summary_text_mode.off": "off",
+        "service_tier.title": "Service Tier",
+        "service_tier.tip": "Specifies the latency tier to use for processing the request",
+        "service_tier.auto": "auto",
+        "service_tier.default": "default",
+        "service_tier.flex": "flex"
       }
     },
     "translate": {

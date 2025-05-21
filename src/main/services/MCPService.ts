@@ -69,18 +69,10 @@ function withCache<T extends unknown[], R>(
 }
 
 class McpService {
-  private static instance: McpService | null = null
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
 
-  public static getInstance(): McpService {
-    if (!McpService.instance) {
-      McpService.instance = new McpService()
-    }
-    return McpService.instance
-  }
-
-  private constructor() {
+  constructor() {
     this.initClient = this.initClient.bind(this)
     this.listTools = this.listTools.bind(this)
     this.callTool = this.callTool.bind(this)
@@ -396,6 +388,26 @@ class McpService {
     }
   }
 
+  /**
+   * Check connectivity for an MCP server
+   */
+  public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
+    Logger.info(`[MCP] Checking connectivity for server: ${server.name}`)
+    try {
+      const client = await this.initClient(server)
+      // Attempt to list tools as a way to check connectivity
+      await client.listTools()
+      Logger.info(`[MCP] Connectivity check successful for server: ${server.name}`)
+      return true
+    } catch (error) {
+      Logger.error(`[MCP] Connectivity check failed for server: ${server.name}`, error)
+      // Close the client if connectivity check fails to ensure a clean state for the next attempt
+      const serverKey = this.getServerKey(server)
+      await this.closeClient(serverKey)
+      return false
+    }
+  }
+
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     Logger.info(`[MCP] Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)
@@ -641,13 +653,4 @@ class McpService {
   })
 }
 
-let mcpInstance: ReturnType<typeof McpService.getInstance> | null = null
-
-export const getMcpInstance = () => {
-  if (!mcpInstance) {
-    mcpInstance = McpService.getInstance()
-  }
-  return mcpInstance
-}
-
-export default McpService.getInstance
+export default new McpService()

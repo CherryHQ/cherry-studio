@@ -46,8 +46,11 @@ const GroupHeader = styled.div`
   display: flex;
   align-items: center;
   cursor: pointer;
-  padding: 6px 0;
+  padding: 8px 0;
+  padding-bottom: 12px;
   user-select: none;
+  margin-bottom: 10px;
+  border-bottom: 0.5px solid var(--color-border);
 `
 
 const GroupTitle = styled.div`

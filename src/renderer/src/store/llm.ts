@@ -127,6 +127,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'burncloud',
+    name: 'BurnCloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ai.burncloud.com',
+    models: SYSTEM_MODELS.burncloud,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'o3',
     name: 'O3',
     type: 'openai',

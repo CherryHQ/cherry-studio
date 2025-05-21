@@ -52,29 +52,28 @@ const FloatingSidebar: FC<Props> = ({
         setActiveAssistant={setActiveAssistant}
         setActiveTopic={setActiveTopic}
         position={position}
-        forceToSeeAllTab={true}></HomeTabs>
+        forceToSeeAllTab={true}
+        style={{
+          background: 'transparent',
+          border: 'none'
+        }}
+      />
     </PopoverContent>
   )
 
   return (
     <Popover
       open={open}
-      onOpenChange={(visible) => {
-        setOpen(visible)
-      }}
+      onOpenChange={setOpen}
       content={content}
-      trigger={['hover', 'click']}
+      trigger={['hover', 'click', 'contextMenu']}
       placement="bottomRight"
-      arrow={false}
+      showArrow
       mouseEnterDelay={0.8} // 800ms delay before showing
       mouseLeaveDelay={20}
       styles={{
         body: {
-          padding: 0,
-          background: 'var(--color-background)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '8px',
-          boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12)'
+          padding: 0
         }
       }}>
       {children}
