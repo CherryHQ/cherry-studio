@@ -32,13 +32,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import {
-  copyUserDataToNewLocation,
-  getCacheDir,
-  getConfigDir,
-  getFilesDir,
-  writeUserDataPathToConfig
-} from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, updateConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -203,52 +197,34 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // Select app data path
-  ipcMain.handle(IpcChannel.App_SelectAppDataPath, async () => {
+  ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
     try {
-      const { canceled, filePaths } = await dialog.showOpenDialog({
-        title: 'Select App Data Directory',
-        properties: ['openDirectory', 'createDirectory']
-      })
-
+      const { canceled, filePaths } = await dialog.showOpenDialog(options)
       if (canceled || filePaths.length === 0) {
-        return { success: false }
+        return null
       }
-
-      const newPath = filePaths[0]
-
-      return { success: true, path: newPath }
+      return filePaths[0]
     } catch (error: any) {
       log.error('Failed to select app data path:', error)
-      return { success: false, error: error.message }
+      return null
     }
   })
 
   // Set app data path
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, path: string) => {
     try {
-      log.info(`Setting app data path to: ${path}`)
-      writeUserDataPathToConfig(path)
+      updateConfig(path)
       app.setPath('userData', path)
-      return { success: true }
     } catch (error: any) {
       log.error('Failed to set app data path:', error)
-      return { success: false, error: error.message }
     }
   })
 
   // Copy user data to new location
-  ipcMain.handle(IpcChannel.App_CopyUserData, async (_, oldPath: string, newPath: string) => {
+  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string) => {
     try {
-      log.info(`Copying data from ${oldPath} to ${newPath}`)
-      const result = await copyUserDataToNewLocation(oldPath, newPath)
-
-      if (!result.success) {
-        log.error(`Failed to copy user data: ${result.error}`)
-      } else {
-        log.info('User data successfully copied to new location')
-      }
-
-      return result
+      await fs.promises.cp(oldPath, newPath, { recursive: true })
+      return { success: true }
     } catch (error: any) {
       log.error('Failed to copy user data:', error)
       return { success: false, error: error.message }

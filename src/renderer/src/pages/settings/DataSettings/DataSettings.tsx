@@ -20,7 +20,7 @@ import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Switch, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -44,7 +44,7 @@ import SiyuanSettings from './SiyuanSettings'
 import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
-const DataSettings: FC = () => {
+const DataSettings = () => {
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
@@ -195,57 +195,55 @@ const DataSettings: FC = () => {
       ),
       centered: true,
       onOk: async () => {
-        try {
-          // First select new app data path
-          const result = await window.api.selectAppDataPath()
-          if (!result.success) {
-            return
-          }
-
-          // Show copy progress message
-          const copyingKey = 'copying-data'
-          window.message.loading({ content: t('settings.data.app_data.copying'), key: copyingKey, duration: 0 })
-
-          // Copy data from old path to new path
-          const copyResult = await window.api.copyUserData(appInfo?.appDataPath || '', result.path as string)
-
-          // Handle copy result
-          if (!copyResult.success) {
-            window.message.error({
-              content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-              key: copyingKey,
-              duration: 5
-            })
-            return
-          }
-
-          // 在复制成功后才设置新的 AppDataPath
-          const res = await window.api.setAppDataPath(result.path as string)
-          if (!res.success) {
-            window.message.error(t('settings.data.app_data.set_error'))
-            return
-          }
-
-          setAppInfo(await window.api.getAppInfo())
-
-          // Success, close the loading message
-          window.message.success({
-            content: t('settings.data.app_data.copy_success'),
-            key: copyingKey,
-            duration: 2
-          })
-
-          // Inform user about restart
-          setTimeout(() => {
-            window.message.success(t('settings.data.app_data.select_success'))
-            // Reload the app to apply changes
-            window.api.relaunchApp()
-          }, 1000)
-        } catch (error) {
-          window.message.error(t('settings.data.app_data.select_error'))
+        if (!appInfo) {
+          return
         }
+
+        const newAppDataPath = await window.api.select({
+          properties: ['openDirectory', 'createDirectory'],
+          title: t('settings.data.app_data.select_title')
+        })
+
+        if (!newAppDataPath) {
+          return
+        }
+
+        // Show copy progress message
+        const copyingKey = 'copying-data'
+        window.message.loading({ content: t('settings.data.app_data.copying'), key: copyingKey, duration: 0 })
+
+        const copyResult = await window.api.copy(appInfo.appDataPath, newAppDataPath)
+        if (!copyResult.success) {
+          window.message.error({
+            content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+            key: copyingKey,
+            duration: 5
+          })
+          return
+        }
+
+        // 在复制成功后才能设置新的 AppDataPath
+        await window.api.setAppDataPath(newAppDataPath)
+
+        // 更新store中的appInfo
+        setAppInfo(await window.api.getAppInfo())
+
+        // Success, close the loading message
+        window.message.success({
+          content: t('settings.data.app_data.copy_success'),
+          key: copyingKey,
+          duration: 2
+        })
+
+        // Inform user about restart
+        setTimeout(() => {
+          window.message.success(t('settings.data.app_data.select_success'))
+          // Reload the app to apply changes
+          window.api.relaunchApp()
+        }, 1000)
       }
     })
+  }
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
     dispatch(_setSkipBackupFile(value))

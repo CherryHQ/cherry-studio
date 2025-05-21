@@ -51,7 +51,7 @@ export function getDataPath() {
   return path.join(app.getPath('userData'), 'Data')
 }
 
-export function writeUserDataPathToConfig(userDataPath: string) {
+export function updateConfig(appDataPath: string) {
   const configDir = getConfigDir()
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true })
@@ -59,12 +59,12 @@ export function writeUserDataPathToConfig(userDataPath: string) {
 
   const configPath = path.join(getConfigDir(), 'config.json')
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify({ appDataPath: userDataPath }, null, 2))
+    fs.writeFileSync(configPath, JSON.stringify({ appDataPath }, null, 2))
     return
   }
 
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  config.appDataPath = userDataPath
+  config.appDataPath = appDataPath
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
 
@@ -134,66 +134,4 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
-}
-
-export async function copyUserDataToNewLocation(
-  sourcePath: string,
-  targetPath: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Create target directory if it doesn't exist
-    if (!fs.existsSync(targetPath)) {
-      fs.mkdirSync(targetPath, { recursive: true })
-    }
-
-    // Check if source and target are the same
-    if (path.resolve(sourcePath) === path.resolve(targetPath)) {
-      return { success: true }
-    }
-
-    // Copy files and directories recursively
-    await copyFolderRecursive(sourcePath, targetPath)
-
-    return { success: true }
-  } catch (error: any) {
-    console.error('Error copying user data:', error)
-    return {
-      success: false,
-      error: error?.message || 'Failed to copy data to new location'
-    }
-  }
-}
-
-async function copyFolderRecursive(source: string, target: string): Promise<void> {
-  // Create target folder if it doesn't exist
-  if (!fs.existsSync(target)) {
-    fs.mkdirSync(target, { recursive: true })
-  }
-
-  // Get all files and directories in the source folder
-  const entries = fs.readdirSync(source, { withFileTypes: true })
-
-  // Process each entry
-  for (const entry of entries) {
-    const sourcePath = path.join(source, entry.name)
-    const targetPath = path.join(target, entry.name)
-
-    if (entry.isDirectory()) {
-      // Skip node_modules and other large directories that shouldn't be copied
-      if (['node_modules', '.git', 'Cache'].includes(entry.name)) {
-        continue
-      }
-
-      // Recursively copy the directory
-      await copyFolderRecursive(sourcePath, targetPath)
-    } else {
-      // Skip temp files and logs
-      if (entry.name.startsWith('.') || entry.name.endsWith('.log')) {
-        continue
-      }
-
-      // Copy the file
-      fs.copyFileSync(sourcePath, targetPath)
-    }
-  }
 }

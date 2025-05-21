@@ -15,11 +15,10 @@ export enum IpcChannel {
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
-  App_SelectAppDataPath = 'app:select-app-data-path',
+  App_Select = 'app:select',
+  App_Copy = 'app:copy',
   App_SetAppDataPath = 'app:set-app-data-path',
-  App_CopyUserData = 'app:copy-user-data',
   App_RelaunchApp = 'app:relaunch-app',
-
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
