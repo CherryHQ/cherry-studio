@@ -983,7 +983,7 @@
       "assistant.title": "預設助手",
       "data": {
         "app_data": "應用數據目錄",
-        "app_data.select": "選擇目錄",
+        "app_data.select": "修改目錄",
         "app_data.select_title": "變更應用數據目錄",
         "app_data.select_confirm": "您確定要變更應用數據目錄嗎？",
         "app_data.restart_notice": "變更數據目錄後需要重啟應用才能生效",

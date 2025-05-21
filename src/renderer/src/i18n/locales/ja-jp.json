@@ -981,7 +981,7 @@
       "assistant.title": "デフォルトアシスタント",
       "data": {
         "app_data": "アプリデータディレクトリ",
-        "app_data.select": "Select Directory",
+        "app_data.select": "Modify Directory",
         "app_data.select_title": "Change App Data Directory",
         "app_data.select_confirm": "Are you sure you want to change the app data directory?",
         "app_data.restart_notice": "The app will need to restart to apply the changes",

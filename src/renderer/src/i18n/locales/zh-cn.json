@@ -982,7 +982,7 @@
       "assistant.title": "默认助手",
       "data": {
         "app_data": "应用数据目录",
-        "app_data.select": "选择目录",
+        "app_data.select": "修改目录",
         "app_data.select_title": "更改应用数据目录",
         "app_data.select_confirm": "您确定要更改应用数据目录吗？",
         "app_data.restart_notice": "更改数据目录后需要重启应用才能生效",
