@@ -70,6 +70,11 @@ class FileManager {
     return file
   }
 
+  static getFilePath(file: FileType) {
+    const filesPath = store.getState().runtime.filesPath
+    return filesPath + '/' + file.id + file.ext
+  }
+
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 

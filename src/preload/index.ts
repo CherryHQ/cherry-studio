@@ -41,8 +41,8 @@ const api = {
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (fileName: string, data: string, destinationPath?: string) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath),
+    backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
     restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
@@ -152,7 +152,8 @@ const api = {
     listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
-    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
+    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
+    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)

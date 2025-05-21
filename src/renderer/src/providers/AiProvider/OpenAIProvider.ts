@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
@@ -10,6 +11,7 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
@@ -258,10 +260,23 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         return { thinking: { type: 'disabled' } }
       }
 
+      if (isSupportedThinkingTokenGeminiModel(model)) {
+        // openrouter没有提供一个不推理的选项，先隐藏
+        if (this.provider.id === 'openrouter') {
+          return { reasoning: { maxTokens: 0, exclude: true } }
+        }
+        return {
+          reasoning_effort: 'none'
+        }
+      }
+
       return {}
     }
     const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
+    const budgetTokens = Math.floor(
+      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
+    )
+
     // OpenRouter models
     if (model.provider === 'openrouter') {
       if (isSupportedReasoningEffortModel(model)) {
@@ -297,7 +312,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
+    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
       return {
         reasoning_effort: assistant?.settings?.reasoning_effort
       }
@@ -305,10 +320,11 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // Claude models
     if (isSupportedThinkingTokenClaudeModel(model)) {
+      const maxTokens = assistant.settings?.maxTokens
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: budgetTokens
+          budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
         }
       }
     }
@@ -363,6 +379,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
+        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+      }
+    }
+    if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+      systemMessage = {
+        role: 'assistant',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }
@@ -454,6 +476,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             keep_alive: this.keepAliveTime,
             stream: isSupportStreamOutput(),
             tools: !isEmpty(tools) ? tools : undefined,
+            service_tier: this.getServiceTier(model),
             ...getOpenAIWebSearchParams(assistant, model),
             ...this.getReasoningEffort(assistant, model),
             ...this.getProviderSpecificParameters(assistant, model),
@@ -718,9 +741,17 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             const usage = chunk.usage
             const originalFinishDelta = chunk.delta
             const originalFinishRawChunk = chunk.chunk
-
             if (!isEmpty(finishReason)) {
-              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              if (content) {
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              }
+              if (thinkingContent) {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
               if (usage) {
                 finalUsage.completion_tokens += usage.completion_tokens || 0
                 finalUsage.prompt_tokens += usage.prompt_tokens || 0
@@ -812,7 +843,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       if (toolResults.length) {
         await processToolResults(toolResults, idx)
       }
-
       onChunk({
         type: ChunkType.BLOCK_COMPLETE,
         response: {
@@ -1105,11 +1135,14 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return { valid: false, error: new Error('No model found') }
     }
 
-    const body = {
+    const body: any = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      enable_thinking: false, // qwen3
       stream
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      body.enable_thinking = false // qwen3
     }
 
     try {
@@ -1198,7 +1231,8 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     try {
       const data = await this.sdk.embeddings.create({
         model: model.id,
-        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+        encoding_format: 'float'
       })
       return data.data[0].embedding.length
     } catch (e) {

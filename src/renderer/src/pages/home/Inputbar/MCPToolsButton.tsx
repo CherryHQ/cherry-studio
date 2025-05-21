@@ -3,6 +3,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { delay, runAsyncFunction } from '@renderer/utils'
 import { Form, Input, Tooltip } from 'antd'
 import { Plus, SquareTerminal } from 'lucide-react'
 import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -108,6 +109,11 @@ const extractPromptContent = (response: any): string | null => {
 
   return null
 }
+
+// Add static variable before component definition
+let isFirstResourcesListCall = true
+let isFirstPromptListCall = true
+const initMcpDelay = 3
 
 const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, ToolbarButton, ...props }) => {
   const { activedMcpServers } = useMCPServers()
@@ -308,6 +314,11 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   const promptList = useMemo(async () => {
     const prompts: MCPPrompt[] = []
 
+    if (isFirstPromptListCall) {
+      await delay(initMcpDelay)
+      isFirstPromptListCall = false
+    }
+
     for (const server of activedMcpServers) {
       const serverPrompts = await window.api.mcp.listPrompts(server)
       prompts.push(...serverPrompts)
@@ -319,7 +330,8 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       icon: <SquareTerminal />,
       action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
     }))
-  }, [handlePromptSelect, activedMcpServers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activedMcpServers])
 
   const openPromptList = useCallback(async () => {
     const prompts = await promptList
@@ -380,33 +392,42 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   const [resourcesList, setResourcesList] = useState<QuickPanelListItem[]>([])
 
   useEffect(() => {
-    let isMounted = true
+    runAsyncFunction(async () => {
+      let isMounted = true
 
-    const fetchResources = async () => {
-      const resources: MCPResource[] = []
-      for (const server of activedMcpServers) {
-        const serverResources = await window.api.mcp.listResources(server)
-        resources.push(...serverResources)
+      const fetchResources = async () => {
+        const resources: MCPResource[] = []
+
+        for (const server of activedMcpServers) {
+          const serverResources = await window.api.mcp.listResources(server)
+          resources.push(...serverResources)
+        }
+
+        if (isMounted) {
+          setResourcesList(
+            resources.map((resource) => ({
+              label: resource.name,
+              description: resource.description,
+              icon: <SquareTerminal />,
+              action: () => handleResourceSelect(resource)
+            }))
+          )
+        }
       }
 
-      if (isMounted) {
-        setResourcesList(
-          resources.map((resource) => ({
-            label: resource.name,
-            description: resource.description,
-            icon: <SquareTerminal />,
-            action: () => handleResourceSelect(resource)
-          }))
-        )
+      // Avoid mcp following the software startup, affecting the startup speed
+      if (isFirstResourcesListCall) {
+        await delay(initMcpDelay)
+        isFirstResourcesListCall = false
+        fetchResources()
       }
-    }
 
-    fetchResources()
-
-    return () => {
-      isMounted = false
-    }
-  }, [activedMcpServers, handleResourceSelect])
+      return () => {
+        isMounted = false
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activedMcpServers])
 
   const openResourcesList = useCallback(async () => {
     const resources = resourcesList

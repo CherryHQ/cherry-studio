@@ -2,12 +2,13 @@ import { throttle } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-interface Props extends React.HTMLAttributes<HTMLDivElement> {
+interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   right?: boolean
-  ref?: any
+  ref?: React.RefObject<HTMLDivElement | null>
+  onScroll?: () => void // Custom onScroll prop for useScrollPosition's handleScroll
 }
 
-const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject<HTMLDivElement | null> }) => {
+const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnScroll, ...htmlProps }) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -21,18 +22,31 @@ const Scrollbar: FC<Props> = ({ ref, ...props }: Props & { ref?: React.RefObject
     timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500)
   }, [])
 
-  const throttledHandleScroll = throttle(handleScroll, 200)
+  const throttledInternalScrollHandler = throttle(handleScroll, 200)
+
+  // Combined scroll handler
+  const combinedOnScroll = useCallback(() => {
+    // Event is available if needed by internal handler
+    throttledInternalScrollHandler() // Call internal logic
+    if (externalOnScroll) {
+      externalOnScroll() // Call external logic (from useScrollPosition)
+    }
+  }, [throttledInternalScrollHandler, externalOnScroll])
 
   useEffect(() => {
     return () => {
       timeoutRef.current && clearTimeout(timeoutRef.current)
-      throttledHandleScroll.cancel()
+      throttledInternalScrollHandler.cancel()
     }
-  }, [throttledHandleScroll])
+  }, [throttledInternalScrollHandler])
 
   return (
-    <Container {...props} isScrolling={isScrolling} onScroll={throttledHandleScroll} ref={ref}>
-      {props.children}
+    <Container
+      {...htmlProps} // Pass other HTML attributes
+      isScrolling={isScrolling}
+      onScroll={combinedOnScroll} // Use the combined handler
+      ref={passedRef}>
+      {children}
     </Container>
   )
 }

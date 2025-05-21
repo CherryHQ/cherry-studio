@@ -63,7 +63,7 @@ export class ConfigManager {
   }
 
   getTrayOnClose(): boolean {
-    return !!this.get(ConfigKeys.TrayOnClose, false)
+    return !!this.get(ConfigKeys.TrayOnClose, true)
   }
 
   setTrayOnClose(value: boolean) {

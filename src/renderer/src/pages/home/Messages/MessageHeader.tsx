@@ -69,8 +69,14 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
       }
     : undefined
 
+  const containerStyle = isBubbleStyle
+    ? {
+        justifyContent: isAssistantMessage ? 'flex-start' : 'flex-end'
+      }
+    : undefined
+
   return (
-    <Container className="message-header">
+    <Container className="message-header" style={containerStyle}>
       <AvatarWrapper style={avatarStyle}>
         {isAssistantMessage ? (
           <Avatar
@@ -143,7 +149,6 @@ const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
 const MessageTime = styled.div`
   font-size: 10px;
   color: var(--color-text-3);
-  font-family: 'Ubuntu';
 `
 
 export default MessageHeader

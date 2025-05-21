@@ -21,6 +21,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
+  quickAssistantModel: Model
   settings: LlmSettings
 }
 
@@ -122,6 +123,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://www.dmxapi.cn',
     models: SYSTEM_MODELS.dmxapi,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'burncloud',
+    name: 'BurnCloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ai.burncloud.com',
+    models: SYSTEM_MODELS.burncloud,
     isSystem: true,
     enabled: false
   },
@@ -483,6 +494,7 @@ const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.silicon[1],
   topicNamingModel: SYSTEM_MODELS.silicon[2],
   translateModel: SYSTEM_MODELS.silicon[3],
+  quickAssistantModel: SYSTEM_MODELS.silicon[1],
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {
@@ -589,6 +601,9 @@ const llmSlice = createSlice({
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
     },
+    setQuickAssistantModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.quickAssistantModel = action.payload.model
+    },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
     },
@@ -626,6 +641,7 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
+  setQuickAssistantModel,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,

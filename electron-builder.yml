@@ -91,9 +91,15 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    重构消息结构，支持不同类型消息按时间顺序显示
-    智能体支持导入和导出
-    快捷面板增加网络搜索引擎选择
-    显示设置增加缩放控制按钮
-    支持添加自定义小程序
-    性能优化和错误修复
+    ⚠️ 注意：升级前请备份数据，否则将无法降级
+    Electron 版本升级到 35
+    快捷助手支持自定义模型
+    新增 BurnCloud 模型提供商
+    消息编辑功能改进
+    新增 aihubmix-ideogram-v3 模型支持
+    通过 JSON 快速添加 MCP 服务器
+    新增浮动侧边栏方便小窗口快速切换助手和对话
+    优化粘贴逻辑处理
+    新增 OpenAI 设置和提示
+    增加消息快捷搜索功能
+    常规错误修复和功能优化

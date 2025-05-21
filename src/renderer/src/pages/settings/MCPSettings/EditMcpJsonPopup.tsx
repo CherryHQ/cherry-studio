@@ -5,7 +5,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Modal, Typography } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -100,10 +100,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve({})
   }
 
-  const handleChange = useCallback((newContent: string) => {
-    setJsonConfig(newContent)
-  }, [])
-
   EditMcpJsonPopup.hide = onCancel
 
   return (
@@ -127,19 +123,20 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <div style={{ marginBottom: '16px' }}>
           <CodeToolbarProvider>
             <CodeEditor
+              value={jsonConfig}
               language="json"
-              onChange={handleChange}
+              onChange={(value) => setJsonConfig(value)}
               maxHeight="60vh"
               options={{
+                lint: true,
                 collapsible: true,
                 wrappable: true,
                 lineNumbers: true,
                 foldGutter: true,
                 highlightActiveLine: true,
                 keymap: true
-              }}>
-              {jsonConfig}
-            </CodeEditor>
+              }}
+            />
           </CodeToolbarProvider>
         </div>
       )}
