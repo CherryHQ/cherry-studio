@@ -1,7 +1,7 @@
 import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { initUserDataDir } from '@main/utils/file'
+import { initAppDataDir } from '@main/utils/file'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
@@ -21,7 +21,7 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 
-initUserDataDir()
+initAppDataDir()
 Logger.initialize()
 
 // in production mode, handle uncaught exception and unhandled rejection globally

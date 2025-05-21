@@ -24,7 +24,6 @@ export class ConfigManager {
   private subscribers: Map<string, Array<(newValue: any) => void>> = new Map()
 
   constructor() {
-    // Regular store for app settings
     this.store = new Store()
   }
 

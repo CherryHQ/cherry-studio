@@ -34,7 +34,7 @@ function getAppDataPathFromConfig() {
   return null
 }
 
-export function initUserDataDir() {
+export function initAppDataDir() {
   const appDataPath = getAppDataPathFromConfig()
   if (appDataPath) {
     app.setPath('userData', appDataPath)
@@ -45,10 +45,6 @@ export function initUserDataDir() {
     app.setPath('userData', path.join(path.dirname(app.getPath('exe')), 'data'))
     return
   }
-}
-
-export function getDataPath() {
-  return path.join(app.getPath('userData'), 'Data')
 }
 
 export function updateConfig(appDataPath: string) {
@@ -119,8 +115,6 @@ export function getTempDir() {
 }
 
 export function getFilesDir() {
-  console.log('getFilesDir', app.getPath('userData'))
-
   return path.join(app.getPath('userData'), 'Data', 'Files')
 }
 
