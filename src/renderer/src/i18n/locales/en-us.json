@@ -191,6 +191,8 @@
       "message.quote": "Quote",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
+      "multiple.select": "Multiple Select",
+      "multiple.select.empty": "No Messages Selected",
       "navigation": {
         "first": "Already at the first message",
         "history": "Chat History",
@@ -393,6 +395,7 @@
       "save": "Save",
       "search": "Search",
       "select": "Select",
+      "selectedMessages": "Selected {{count}} messages",
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
@@ -591,6 +594,10 @@
       "copied": "Copied!",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
+      "delete.confirm.title": "Delete Confirmation",
+      "delete.confirm.content": "Are you sure you want to delete the selected {{count}} message(s)?",
+      "delete.failed": "Delete Failed",
+      "delete.success": "Delete Successful",
       "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "error.dimension_too_large": "Content size is too large",
@@ -772,6 +779,11 @@
       "expand": "Expand Dialog",
       "hide_sidebar": "Hide Sidebar",
       "show_sidebar": "Show Sidebar"
+    },
+    "notification": {
+      "assistant": "Assistant Response",
+      "knowledge.success": "Successfully added {{type}} to the knowledge base",
+      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -1294,6 +1306,7 @@
         "dependenciesInstall": "Install Dependencies",
         "dependenciesInstalling": "Installing dependencies...",
         "description": "Description",
+        "noDescriptionAvailable": "No description available",
         "duplicateName": "A server with this name already exists",
         "editJson": "Edit JSON",
         "editServer": "Edit Server",
@@ -1487,6 +1500,12 @@
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
       "moresetting.warn": "Risk Warning",
+      "notification": {
+        "title": "Notification Settings",
+        "assistant": "Assistant Message",
+        "backup": "Backup Message",
+        "knowledge_embed": "KnowledgeBase Message"
+      },
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",

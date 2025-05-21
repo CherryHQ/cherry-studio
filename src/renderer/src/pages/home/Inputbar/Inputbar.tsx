@@ -27,7 +27,7 @@ import PasteService from '@renderer/services/PasteService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
@@ -127,6 +127,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
+  const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
 
   const quickPanel = useQuickPanel()
 
@@ -218,7 +219,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (topic.prompt) {
-        baseUserMessage.assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
+        assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
       }
 
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
@@ -226,10 +227,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      Logger.log('[DEBUG] Created message and blocks:', message, blocks)
-      Logger.log('[DEBUG] Dispatching _sendMessage')
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
-      Logger.log('[DEBUG] _sendMessage dispatched')
 
       // Clear input
       setText('')
@@ -871,6 +869,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const isExpended = expended || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
+
+  if (isMultiSelectMode) {
+    return null
+  }
 
   return (
     <Container

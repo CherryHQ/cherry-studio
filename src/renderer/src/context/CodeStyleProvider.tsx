@@ -3,6 +3,7 @@ import { useMermaid } from '@renderer/hooks/useMermaid'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { HighlightChunkResult, ShikiPreProperties, shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { ThemeMode } from '@renderer/types'
+import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import * as cmThemes from '@uiw/codemirror-themes-all'
 import type React from 'react'
 import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useState } from 'react'
@@ -11,6 +12,8 @@ interface CodeStyleContextType {
   highlightCodeChunk: (trunk: string, language: string, callerId: string) => Promise<HighlightChunkResult>
   cleanupTokenizers: (callerId: string) => void
   getShikiPreProperties: (language: string) => Promise<ShikiPreProperties>
+  highlightCode: (code: string, language: string) => Promise<string>
+  shikiMarkdownIt: (code: string) => Promise<string>
   themeNames: string[]
   activeShikiTheme: string
   activeCmTheme: any
@@ -21,6 +24,8 @@ const defaultCodeStyleContext: CodeStyleContextType = {
   highlightCodeChunk: async () => ({ lines: [], recall: 0 }),
   cleanupTokenizers: () => {},
   getShikiPreProperties: async () => ({ class: '', style: '', tabindex: 0 }),
+  highlightCode: async () => '',
+  shikiMarkdownIt: async () => '',
   themeNames: ['auto'],
   activeShikiTheme: 'auto',
   activeCmTheme: null,
@@ -37,7 +42,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
 
   useEffect(() => {
     if (!codeEditor.enabled) {
-      import('shiki').then(({ bundledThemes }) => {
+      getShiki().then(({ bundledThemes }) => {
         setShikiThemes(bundledThemes)
       })
     }
@@ -118,11 +123,35 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     [activeShikiTheme, languageMap]
   )
 
+  const highlightCode = useCallback(
+    async (code: string, language: string) => {
+      const highlighter = await getHighlighter()
+      await loadLanguageIfNeeded(highlighter, language)
+      await loadThemeIfNeeded(highlighter, activeShikiTheme)
+      return highlighter.codeToHtml(code, { lang: language, theme: activeShikiTheme })
+    },
+    [activeShikiTheme]
+  )
+
+  // 使用 Shiki 和 Markdown-it 渲染代码
+  const shikiMarkdownIt = useCallback(
+    async (code: string) => {
+      const renderer = await getMarkdownIt(activeShikiTheme)
+      if (!renderer) {
+        return code
+      }
+      return renderer.render(code)
+    },
+    [activeShikiTheme]
+  )
+
   const contextValue = useMemo(
     () => ({
       highlightCodeChunk,
       cleanupTokenizers,
       getShikiPreProperties,
+      highlightCode,
+      shikiMarkdownIt,
       themeNames,
       activeShikiTheme,
       activeCmTheme,
@@ -132,6 +161,8 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       highlightCodeChunk,
       cleanupTokenizers,
       getShikiPreProperties,
+      highlightCode,
+      shikiMarkdownIt,
       themeNames,
       activeShikiTheme,
       activeCmTheme,

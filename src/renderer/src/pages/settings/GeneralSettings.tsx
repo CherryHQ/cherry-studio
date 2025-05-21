@@ -1,15 +1,17 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { useAppDispatch } from '@renderer/store'
-import { setEnableDataCollection, setLanguage } from '@renderer/store/settings'
+import { RootState, useAppDispatch } from '@renderer/store'
+import { setEnableDataCollection, setLanguage, setNotificationSettings } from '@renderer/store/settings'
 import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
+import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { Input, Select, Space, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSelector } from 'react-redux'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
@@ -107,6 +109,12 @@ const GeneralSettings: FC = () => {
     { value: 'pt-PT', label: 'Português', flag: '🇵🇹' }
   ]
 
+  const notificationSettings = useSelector((state: RootState) => state.settings.notification)
+
+  const handleNotificationChange = (type: NotificationSource, value: boolean) => {
+    dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
+  }
+
   return (
     <SettingContainer theme={themeMode}>
       <SettingGroup theme={theme}>
@@ -153,6 +161,27 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.notification.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.notification.assistant')}</SettingRowTitle>
+          <Switch checked={notificationSettings.assistant} onChange={(v) => handleNotificationChange('assistant', v)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
+          <Switch checked={notificationSettings.backup} onChange={(v) => handleNotificationChange('backup', v)} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
+          <Switch
+            checked={notificationSettings.knowledgeEmbed}
+            onChange={(v) => handleNotificationChange('knowledgeEmbed', v)}
+          />
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>

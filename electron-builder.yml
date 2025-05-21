@@ -92,14 +92,10 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ⚠️ 注意：升级前请备份数据，否则将无法降级
-    Electron 版本升级到 35
-    快捷助手支持自定义模型
-    新增 BurnCloud 模型提供商
-    消息编辑功能改进
-    新增 aihubmix-ideogram-v3 模型支持
-    通过 JSON 快速添加 MCP 服务器
-    新增浮动侧边栏方便小窗口快速切换助手和对话
-    优化粘贴逻辑处理
-    新增 OpenAI 设置和提示
-    增加消息快捷搜索功能
-    常规错误修复和功能优化
+    增加消息通知功能
+    增加 Google 小程序
+    MCP 支持运行 Python 代码
+    修复 MCP SSE 连接问题
+    修复消息编辑和消息多选相关问题
+    修复消息显示问题
+    修复话题提示词无效问题

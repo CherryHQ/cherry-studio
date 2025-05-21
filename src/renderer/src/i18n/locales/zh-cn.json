@@ -205,6 +205,8 @@
       "message.quote": "引用",
       "message.regenerate.model": "切换模型",
       "message.useful": "有用",
+      "multiple.select": "多选",
+      "multiple.select.empty": "未选中任何消息",
       "navigation": {
         "first": "已经是第一条消息",
         "history": "聊天历史",
@@ -393,6 +395,7 @@
       "save": "保存",
       "search": "搜索",
       "select": "选择",
+      "selectedMessages": "选中 {{count}} 条消息",
       "topics": "话题",
       "warning": "警告",
       "you": "用户",
@@ -591,6 +594,10 @@
       "copied": "已复制",
       "copy.failed": "复制失败",
       "copy.success": "复制成功",
+      "delete.confirm.title": "删除确认",
+      "delete.confirm.content": "确认删除选中的{{count}}条消息吗？",
+      "delete.failed": "删除失败",
+      "delete.success": "删除成功",
       "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "error.dimension_too_large": "内容尺寸过大",
@@ -772,6 +779,11 @@
       "expand": "伸缩对话框",
       "hide_sidebar": "隐藏侧边栏",
       "show_sidebar": "显示侧边栏"
+    },
+    "notification": {
+      "assistant": "助手响应",
+      "knowledge.success": "成功添加 {{type}} 到知识库",
+      "knowledge.error": "添加 {{type}} 到知识库失败: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -1294,6 +1306,7 @@
         "dependenciesInstall": "安装依赖项",
         "dependenciesInstalling": "正在安装依赖项...",
         "description": "描述",
+        "noDescriptionAvailable": "暂无描述",
         "duplicateName": "已存在同名服务器",
         "editJson": "编辑JSON",
         "editServer": "编辑服务器",
@@ -1487,6 +1500,12 @@
       "moresetting.check.confirm": "确认勾选",
       "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
       "moresetting.warn": "风险警告",
+      "notification": {
+        "title": "通知设置",
+        "assistant": "助手消息",
+        "backup": "备份",
+        "knowledge_embed": "知识嵌入"
+      },
       "provider": {
         "add.name": "提供商名称",
         "add.name.placeholder": "例如 OpenAI",

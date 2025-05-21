@@ -172,119 +172,110 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   }
 
   return (
-    <>
-      <EditorContainer onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
-        {editedBlocks
-          .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
-          .map((block) => (
-            <Textarea
-              className={classNames('editing-message', isFileDragging && 'file-dragging')}
-              key={block.id}
-              ref={textareaRef}
-              variant="borderless"
-              value={block.content}
-              onChange={(e) => {
-                handleTextChange(block.id, e.target.value)
-                autoResizeTextArea(e)
-              }}
-              autoFocus
-              contextMenu="true"
-              spellCheck={false}
-              onPaste={(e) => onPaste(e.nativeEvent)}
-              onFocus={() => {
-                // 记录当前聚焦的组件
-                PasteService.setLastFocusedComponent('messageEditor')
-              }}
-              style={{
-                fontSize,
-                padding: '0px 15px 8px 15px'
-              }}>
-              <TranslateButton onTranslated={onTranslated} />
-            </Textarea>
+    <EditorContainer onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+      {editedBlocks
+        .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
+        .map((block) => (
+          <Textarea
+            className={classNames('editing-message', isFileDragging && 'file-dragging')}
+            key={block.id}
+            ref={textareaRef}
+            variant="borderless"
+            value={block.content}
+            onChange={(e) => {
+              handleTextChange(block.id, e.target.value)
+              autoResizeTextArea(e)
+            }}
+            autoFocus
+            contextMenu="true"
+            spellCheck={false}
+            onPaste={(e) => onPaste(e.nativeEvent)}
+            onFocus={() => {
+              // 记录当前聚焦的组件
+              PasteService.setLastFocusedComponent('messageEditor')
+            }}
+            style={{
+              fontSize,
+              padding: '0px 15px 8px 15px'
+            }}>
+            <TranslateButton onTranslated={onTranslated} />
+          </Textarea>
+        ))}
+      {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
+        files.length > 0) && (
+        <FileBlocksContainer>
+          {editedBlocks
+            .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+            .map(
+              (block) =>
+                block.file && (
+                  <CustomTag
+                    key={block.id}
+                    icon={getFileIcon(block.file.ext)}
+                    color="#37a5aa"
+                    closable
+                    onClose={() => handleFileRemove(block.id)}>
+                    <FileNameRender file={block.file} />
+                  </CustomTag>
+                )
+            )}
+
+          {files.map((file) => (
+            <CustomTag
+              key={file.id}
+              icon={getFileIcon(file.ext)}
+              color="#37a5aa"
+              closable
+              onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+              <FileNameRender file={file} />
+            </CustomTag>
           ))}
-        {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
-          files.length > 0) && (
-          <FileBlocksContainer>
-            {editedBlocks
-              .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-              .map(
-                (block) =>
-                  block.file && (
-                    <CustomTag
-                      key={block.id}
-                      icon={getFileIcon(block.file.ext)}
-                      color="#37a5aa"
-                      closable
-                      onClose={() => handleFileRemove(block.id)}>
-                      <FileNameRender file={block.file} />
-                    </CustomTag>
-                  )
-              )}
+        </FileBlocksContainer>
+      )}
 
-            {files.map((file) => (
-              <CustomTag
-                key={file.id}
-                icon={getFileIcon(file.ext)}
-                color="#37a5aa"
-                closable
-                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-                <FileNameRender file={file} />
-              </CustomTag>
-            ))}
-          </FileBlocksContainer>
-        )}
-
-        <ActionBar>
-          <ActionBarLeft>
-            <AttachmentButton
-              ref={attachmentButtonRef}
-              model={model}
-              files={files}
-              setFiles={setFiles}
-              ToolbarButton={ToolbarButton}
-            />
-          </ActionBarLeft>
-          <ActionBarMiddle />
-          <ActionBarRight>
-            <Tooltip title={t('common.cancel')}>
-              <ToolbarButton type="text" onClick={onCancel}>
-                <X size={16} />
-              </ToolbarButton>
-            </Tooltip>
-            <Tooltip title={t('common.save')}>
-              <ToolbarButton type="text" onClick={() => handleClick()}>
-                <Save size={16} />
-              </ToolbarButton>
-            </Tooltip>
+      <ActionBar>
+        <ActionBarLeft>
+          <AttachmentButton
+            ref={attachmentButtonRef}
+            model={model}
+            files={files}
+            setFiles={setFiles}
+            ToolbarButton={ToolbarButton}
+          />
+        </ActionBarLeft>
+        <ActionBarMiddle />
+        <ActionBarRight>
+          <Tooltip title={t('common.cancel')}>
+            <ToolbarButton type="text" onClick={onCancel}>
+              <X size={16} />
+            </ToolbarButton>
+          </Tooltip>
+          <Tooltip title={t('common.save')}>
+            <ToolbarButton type="text" onClick={() => handleClick()}>
+              <Save size={16} />
+            </ToolbarButton>
+          </Tooltip>
+          {message.role === 'assistant' && (
             <Tooltip title={t('chat.resend')}>
               <ToolbarButton type="text" onClick={() => handleClick(true)}>
                 <Send size={16} />
               </ToolbarButton>
             </Tooltip>
-          </ActionBarRight>
-        </ActionBar>
-      </EditorContainer>
-    </>
+          )}
+        </ActionBarRight>
+      </ActionBar>
+    </EditorContainer>
   )
 }
-
-const FileBlocksContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 15px;
-  margin: 8px 0;
-  background: transplant;
-  border-radius: 4px;
-`
 
 const EditorContainer = styled.div`
   padding: 8px 0;
   border: 1px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
-  margin-top: 0;
+  margin-top: 5px;
   background-color: var(--color-background-opacity);
+  width: 100%;
 
   &.file-dragging {
     border: 2px dashed #2ecc71;
@@ -302,6 +293,16 @@ const EditorContainer = styled.div`
       pointer-events: none;
     }
   }
+`
+
+const FileBlocksContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 15px;
+  margin: 8px 0;
+  background: transparent;
+  border-radius: 4px;
 `
 
 const Textarea = styled(TextArea)`

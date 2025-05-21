@@ -1,6 +1,8 @@
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -22,10 +24,12 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
 }
 
-const Chat: FC<Props> = (props) => {
+const ChatContent: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
   const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
+  const { isMultiSelectMode } = useChatContext(props.activeTopic)
+
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
@@ -123,6 +127,7 @@ const Chat: FC<Props> = (props) => {
         </MessagesContainer>
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+          {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
         </QuickPanelProvider>
       </Main>
       {topicPosition === 'right' && showTopics && (
@@ -136,6 +141,10 @@ const Chat: FC<Props> = (props) => {
       )}
     </Container>
   )
+}
+
+const Chat: FC<Props> = (props) => {
+  return <ChatContent {...props} />
 }
 
 const MessagesContainer = styled.div`
@@ -154,7 +163,6 @@ const Container = styled.div`
 
 const Main = styled(Flex)`
   height: calc(100vh - var(--navbar-height));
-  // 设置为containing block，方便子元素fixed定位
   transform: translateZ(0);
   position: relative;
 `

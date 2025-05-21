@@ -630,7 +630,7 @@ const Container = styled.div`
 `
 
 const SearchBarContainer = styled.div`
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-primary);
   border-radius: 10px;
   transition: all 0.2s ease;
   position: fixed;

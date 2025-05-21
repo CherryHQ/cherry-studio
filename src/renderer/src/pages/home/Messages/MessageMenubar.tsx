@@ -1,8 +1,9 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
@@ -50,6 +51,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
     props
   const { t } = useTranslation()
+  const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
@@ -172,6 +174,14 @@ const MessageMenubar: FC<Props> = (props) => {
         onClick: onNewBranch
       },
       {
+        label: t('chat.multiple.select'),
+        key: 'multi-select',
+        icon: <MenuOutlined size={16} />,
+        onClick: () => {
+          toggleMultiSelectMode(true)
+        }
+      },
+      {
         label: t('chat.topics.export.title'),
         key: 'export',
         icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
@@ -265,7 +275,18 @@ const MessageMenubar: FC<Props> = (props) => {
         ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, isEditable, onEdit, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
+    [
+      t,
+      isEditable,
+      onEdit,
+      onNewBranch,
+      exportMenuOptions,
+      message,
+      mainTextContent,
+      toggleMultiSelectMode,
+      messageContainerRef,
+      topic.name
+    ]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {

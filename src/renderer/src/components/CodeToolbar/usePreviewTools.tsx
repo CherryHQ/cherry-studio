@@ -284,16 +284,6 @@ export const usePreviewTools = ({ handleZoom, handleCopyImage, handleDownload }:
   const { t } = useTranslation()
   const { registerTool, removeTool } = useCodeToolbar()
 
-  const toolIds = useCallback(() => {
-    return {
-      zoomIn: 'preview-zoom-in',
-      zoomOut: 'preview-zoom-out',
-      copyImage: 'preview-copy-image',
-      downloadSvg: 'preview-download-svg',
-      downloadPng: 'preview-download-png'
-    }
-  }, [])
-
   useEffect(() => {
     // 根据提供的功能有选择性地注册工具
     if (handleZoom) {
@@ -356,5 +346,5 @@ export const usePreviewTools = ({ handleZoom, handleCopyImage, handleDownload }:
         removeTool(TOOL_SPECS['download-png'].id)
       }
     }
-  }, [handleCopyImage, handleDownload, handleZoom, registerTool, removeTool, t, toolIds])
+  }, [handleCopyImage, handleDownload, handleZoom, registerTool, removeTool, t])
 }

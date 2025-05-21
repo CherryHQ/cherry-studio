@@ -191,6 +191,8 @@
       "message.quote": "引用",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
+      "multiple.select": "多選",
+      "multiple.select.empty": "未選中任何訊息",
       "navigation": {
         "first": "已經是第一條訊息",
         "history": "聊天歷史",
@@ -393,6 +395,7 @@
       "save": "儲存",
       "search": "搜尋",
       "select": "選擇",
+      "selectedMessages": "选中 {{count}} 条消息",
       "topics": "話題",
       "warning": "警告",
       "you": "您",
@@ -590,6 +593,11 @@
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
+      "copy.success": "已複製！",
+      "delete.confirm.title": "刪除確認",
+      "delete.confirm.content": "確認刪除選中的 {{count}} 條訊息嗎？",
+      "delete.failed": "刪除失敗",
+      "delete.success": "刪除成功",
       "copy.success": "複製成功",
       "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
@@ -772,6 +780,11 @@
       "expand": "伸縮對話框",
       "hide_sidebar": "隱藏側邊欄",
       "show_sidebar": "顯示側邊欄"
+    },
+    "notification": {
+      "assistant": "助手回應",
+      "knowledge.success": "成功將{{type}}新增至知識庫",
+      "knowledge.error": "無法將 {{type}} 加入知識庫: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）。",
@@ -1293,6 +1306,7 @@
         "dependenciesInstall": "安裝相依套件",
         "dependenciesInstalling": "正在安裝相依套件...",
         "description": "描述",
+        "noDescriptionAvailable": "描述不存在",
         "duplicateName": "已存在相同名稱的伺服器",
         "editJson": "編輯JSON",
         "editServer": "編輯伺服器",
@@ -1699,6 +1713,12 @@
         "service_tier.auto": "自動",
         "service_tier.default": "預設",
         "service_tier.flex": "彈性"
+      },
+      "notification": {
+        "title": "通知設定",
+        "assistant": "助手訊息",
+        "backup": "備份訊息",
+        "knowledge_embed": "知識庫訊息"
       }
     },
     "translate": {
