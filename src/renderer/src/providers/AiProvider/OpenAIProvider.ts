@@ -1231,7 +1231,8 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     try {
       const data = await this.sdk.embeddings.create({
         model: model.id,
-        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+        encoding_format: 'float'
       })
       return data.data[0].embedding.length
     } catch (e) {

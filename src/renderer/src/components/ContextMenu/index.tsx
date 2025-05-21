@@ -73,7 +73,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
   ]
 
   return (
-    <div onContextMenu={handleContextMenu} style={{ width: '100%' }}>
+    <div onContextMenu={handleContextMenu}>
       {contextMenuPosition && (
         <Dropdown
           overlayStyle={{ position: 'fixed', left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}

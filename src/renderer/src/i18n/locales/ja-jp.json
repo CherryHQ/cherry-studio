@@ -191,6 +191,8 @@
       "message.quote": "引用",
       "message.regenerate.model": "モデルを切り替え",
       "message.useful": "役立つ",
+      "multiple.select": "選択",
+      "multiple.select.empty": "メッセージが選択されていません",
       "navigation": {
         "first": "最初のメッセージです",
         "history": "チャット履歴",
@@ -393,6 +395,7 @@
       "save": "保存",
       "search": "検索",
       "select": "選択",
+      "selectedMessages": "{{count}}件のメッセージを選択しました",
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
@@ -591,6 +594,11 @@
       "copied": "コピーしました！",
       "copy.failed": "コピーに失敗しました",
       "copy.success": "コピーしました！",
+      "delete.confirm.title": "削除確認",
+      "delete.confirm.content": "選択した{{count}}件のメッセージを削除しますか？",
+      "delete.failed": "削除に失敗しました",
+      "delete.success": "削除が成功しました",
+      "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",
       "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
       "error.chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "error.dimension_too_large": "内容のサイズが大きすぎます",
@@ -773,6 +781,11 @@
       "hide_sidebar": "サイドバーを非表示",
       "show_sidebar": "サイドバーを表示"
     },
+    "notification": {
+      "assistant": "助手回應",
+      "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました",
+      "knowledge.error": "ナレッジベースへの{{type}}の追加に失敗しました: {{error}}"
+    },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
       "keep_alive_time.placeholder": "分",
@@ -879,6 +892,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -1266,6 +1280,14 @@
         "active": "有効",
         "addError": "サーバーの追加に失敗しました",
         "addServer": "サーバーを追加",
+        "addServer.create": "クイック作成",
+        "addServer.importFrom": "JSONからインポート",
+        "addServer.importFrom.tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。",
+        "addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
+        "addServer.importFrom.invalid": "無効な入力です。JSON形式を確認してください。",
+        "addServer.importFrom.nameExists": "サーバーはすでに存在します: {{name}}",
+        "addServer.importFrom.oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
+        "addServer.importFrom.connectionFailed": "接続に失敗しました",
         "addSuccess": "サーバーが正常に追加されました",
         "args": "引数",
         "argsTooltip": "1行に1つの引数を入力してください",
@@ -1690,6 +1712,12 @@
         "service_tier.auto": "自動",
         "service_tier.default": "デフォルト",
         "service_tier.flex": "フレックス"
+      },
+      "notification": {
+        "title": "通知設定",
+        "assistant": "アシスタントメッセージ",
+        "backup": "バックアップメッセージ",
+        "knowledge_embed": "ナレッジベースメッセージ"
       }
     },
     "translate": {

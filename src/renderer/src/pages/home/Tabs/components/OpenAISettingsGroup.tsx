@@ -1,4 +1,5 @@
-import { SettingDivider, SettingRow, SettingSubtitle } from '@renderer/pages/settings'
+import { SettingDivider, SettingRow } from '@renderer/pages/settings'
+import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setOpenAIServiceTier, setOpenAISummaryText } from '@renderer/store/settings'
 import { OpenAIServiceTier, OpenAISummaryText } from '@renderer/types'
@@ -9,11 +10,11 @@ import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
-import { SettingGroup, SettingRowTitleSmall } from './SettingsTab'
-
 interface Props {
   isOpenAIReasoning: boolean
   isSupportedFlexServiceTier: boolean
+  SettingGroup: FC<{ children: React.ReactNode }>
+  SettingRowTitleSmall: FC<{ children: React.ReactNode }>
 }
 
 const FALL_BACK_SERVICE_TIER: Record<OpenAIServiceTier, OpenAIServiceTier> = {
@@ -22,7 +23,12 @@ const FALL_BACK_SERVICE_TIER: Record<OpenAIServiceTier, OpenAIServiceTier> = {
   flex: 'default'
 }
 
-const OpenAISettingsTab: FC<Props> = (props) => {
+const OpenAISettingsGroup: FC<Props> = ({
+  isOpenAIReasoning,
+  isSupportedFlexServiceTier,
+  SettingGroup,
+  SettingRowTitleSmall
+}) => {
   const { t } = useTranslation()
   const summaryText = useSelector((state: RootState) => state.settings.openAI.summaryText)
   const serviceTierMode = useSelector((state: RootState) => state.settings.openAI.serviceTier)
@@ -74,11 +80,11 @@ const OpenAISettingsTab: FC<Props> = (props) => {
     ]
     return baseOptions.filter((option) => {
       if (option.value === 'flex') {
-        return props.isSupportedFlexServiceTier
+        return isSupportedFlexServiceTier
       }
       return true
     })
-  }, [props.isSupportedFlexServiceTier, t])
+  }, [isSupportedFlexServiceTier, t])
 
   useEffect(() => {
     if (serviceTierMode && !serviceTierOptions.some((option) => option.value === serviceTierMode)) {
@@ -87,49 +93,49 @@ const OpenAISettingsTab: FC<Props> = (props) => {
   }, [serviceTierMode, serviceTierOptions, setServiceTierMode])
 
   return (
-    <SettingGroup>
-      <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.openai.title')}</SettingSubtitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitleSmall>
-          {t('settings.openai.service_tier.title')}{' '}
-          <Tooltip title={t('settings.openai.service_tier.tip')}>
-            <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-          </Tooltip>
-        </SettingRowTitleSmall>
-        <StyledSelect
-          value={serviceTierMode}
-          style={{ width: 135 }}
-          onChange={(value) => {
-            setServiceTierMode(value as OpenAIServiceTier)
-          }}
-          size="small"
-          options={serviceTierOptions}
-        />
-      </SettingRow>
-      {props.isOpenAIReasoning && (
-        <>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>
-              {t('settings.openai.summary_text_mode.title')}{' '}
-              <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
-                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-              </Tooltip>
-            </SettingRowTitleSmall>
-            <StyledSelect
-              value={summaryText}
-              style={{ width: 135 }}
-              onChange={(value) => {
-                setSummaryText(value as OpenAISummaryText)
-              }}
-              size="small"
-              options={summaryTextOptions}
-            />
-          </SettingRow>
-        </>
-      )}
-    </SettingGroup>
+    <CollapsibleSettingGroup title={t('settings.openai.title')} defaultExpanded={true}>
+      <SettingGroup>
+        <SettingRow>
+          <SettingRowTitleSmall>
+            {t('settings.openai.service_tier.title')}{' '}
+            <Tooltip title={t('settings.openai.service_tier.tip')}>
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+            </Tooltip>
+          </SettingRowTitleSmall>
+          <StyledSelect
+            value={serviceTierMode}
+            style={{ width: 135 }}
+            onChange={(value) => {
+              setServiceTierMode(value as OpenAIServiceTier)
+            }}
+            size="small"
+            options={serviceTierOptions}
+          />
+        </SettingRow>
+        {isOpenAIReasoning && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitleSmall>
+                {t('settings.openai.summary_text_mode.title')}{' '}
+                <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
+                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+                </Tooltip>
+              </SettingRowTitleSmall>
+              <StyledSelect
+                value={summaryText}
+                style={{ width: 135 }}
+                onChange={(value) => {
+                  setSummaryText(value as OpenAISummaryText)
+                }}
+                size="small"
+                options={summaryTextOptions}
+              />
+            </SettingRow>
+          </>
+        )}
+      </SettingGroup>
+    </CollapsibleSettingGroup>
   )
 }
 
@@ -141,4 +147,4 @@ const StyledSelect = styled(Select)`
   }
 `
 
-export default OpenAISettingsTab
+export default OpenAISettingsGroup

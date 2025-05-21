@@ -63,7 +63,7 @@ import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import OpenAISettingsTab from './OpenAISettingsTab'
+import OpenAISettingsGroup from './components/OpenAISettingsGroup'
 
 interface Props {
   assistant: Assistant
@@ -206,9 +206,14 @@ const SettingsTab: FC<Props> = (props) => {
         title={t('assistants.settings.title')}
         defaultExpanded={true}
         extra={
-          <HStack alignItems="center">
+          <HStack alignItems="center" gap={2}>
             <Tooltip title={t('chat.settings.reset')}>
-              <RotateCcw size={20} onClick={onReset} style={{ cursor: 'pointer', padding: '0 3px' }} />
+              <Button
+                type="text"
+                size="small"
+                onClick={onReset}
+                icon={<RotateCcw size={20} style={{ cursor: 'pointer', padding: '0 3px', opacity: 0.8 }} />}
+              />
             </Tooltip>
             <Button
               type="text"
@@ -218,8 +223,7 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </HStack>
         }>
-        <SettingGroup style={{ marginTop: 10 }}>
-          <SettingDivider />
+        <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
             <Label>{t('chat.settings.temperature')}</Label>
             <Tooltip title={t('chat.settings.temperature.tip')}>
@@ -227,7 +231,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <Col span={24}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={2}
@@ -245,7 +249,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <Col span={24}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={maxContextCount}
@@ -296,7 +300,7 @@ const SettingsTab: FC<Props> = (props) => {
             />
           </SettingRow>
           {enableMaxTokens && (
-            <Row align="middle" gutter={10}>
+            <Row align="middle" gutter={10} style={{ marginTop: 10 }}>
               <Col span={24}>
                 <InputNumber
                   disabled={!enableMaxTokens}
@@ -314,16 +318,17 @@ const SettingsTab: FC<Props> = (props) => {
           )}
           <SettingDivider />
         </SettingGroup>
-        {isOpenAI && (
-          <OpenAISettingsTab
-            isOpenAIReasoning={isOpenAIReasoning}
-            isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
-          />
-        )}
       </CollapsibleSettingGroup>
+      {isOpenAI && (
+        <OpenAISettingsGroup
+          isOpenAIReasoning={isOpenAIReasoning}
+          isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
+          SettingGroup={SettingGroup}
+          SettingRowTitleSmall={SettingRowTitleSmall}
+        />
+      )}
       <CollapsibleSettingGroup title={t('settings.messages.title')} defaultExpanded={true}>
         <SettingGroup>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
             <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
@@ -440,7 +445,6 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={true}>
         <SettingGroup>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <StyledSelect
@@ -568,7 +572,6 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={true}>
         <SettingGroup>
-          <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>
             <Switch
@@ -710,11 +713,11 @@ const Label = styled.p`
   margin-right: 5px;
 `
 
-export const SettingRowTitleSmall = styled(SettingRowTitle)`
+const SettingRowTitleSmall = styled(SettingRowTitle)`
   font-size: 13px;
 `
 
-export const SettingGroup = styled.div<{ theme?: ThemeMode }>`
+const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   padding: 0 5px;
   width: 100%;
   margin-top: 0;

@@ -17,7 +17,7 @@ const OpenAIAlert = () => {
 
   return (
     <Alert
-      style={{ width: '100%', marginTop: 5 }}
+      style={{ width: '100%', marginTop: 5, marginBottom: 5 }}
       message={t('settings.provider.openai.alert')}
       closable
       afterClose={() => {

@@ -1,6 +1,6 @@
 import { isLinux, isMac, isWindows } from '@renderer/config/constant'
-import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
+import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
