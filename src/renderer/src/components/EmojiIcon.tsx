@@ -7,13 +7,12 @@ interface EmojiIconProps {
   className?: string
 }
 
-const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
-  const _emoji = getLeadingEmoji(emoji || '⭐️') || '⭐️'
+const EmojiIcon: FC<EmojiIconProps> = ({ emoji = '⭐️', className }) => {
 
   return (
     <Container className={className}>
-      <EmojiBackground>{_emoji}</EmojiBackground>
-      {_emoji}
+      <EmojiBackground>{emoji}</EmojiBackground>
+      {emoji}
     </Container>
   )
 }
