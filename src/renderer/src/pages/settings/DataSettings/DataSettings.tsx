@@ -228,7 +228,6 @@ const DataSettings = () => {
         // 更新store中的appInfo
         setAppInfo(await window.api.getAppInfo())
 
-        // Success, close the loading message
         window.message.success({
           content: t('settings.data.app_data.copy_success'),
           key: copyingKey,
@@ -238,7 +237,6 @@ const DataSettings = () => {
         // Inform user about restart
         setTimeout(() => {
           window.message.success(t('settings.data.app_data.select_success'))
-          // Reload the app to apply changes
           window.api.relaunchApp()
         }, 1000)
       }
