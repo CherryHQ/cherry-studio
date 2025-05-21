@@ -208,10 +208,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             title: t('chat.topics.prompt.edit.title'),
             message: '',
             defaultValue: topic?.prompt || '',
-            inputProps: {
-              rows: 8,
-              allowClear: true
-            }
+            inputProps: { rows: 8, allowClear: true }
           })
 
           prompt !== null &&
@@ -252,11 +249,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             key: 'img',
             onClick: () => EventEmitter.emit(EVENT_NAMES.COPY_TOPIC_IMAGE, topic)
           },
-          {
-            label: t('chat.topics.copy.md'),
-            key: 'md',
-            onClick: () => copyTopicAsMarkdown(topic)
-          }
+          { label: t('chat.topics.copy.md'), key: 'md', onClick: () => copyTopicAsMarkdown(topic) }
         ]
       },
       {
@@ -337,11 +330,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         icon: <FolderOutlined />,
         children: assistants
           .filter((a) => a.id !== assistant.id)
-          .map((a) => ({
-            label: a.name,
-            key: a.id,
-            onClick: () => onMoveTopic(topic, a)
-          }))
+          .map((a) => ({ label: a.name, key: a.id, onClick: () => onMoveTopic(topic, a) }))
       })
     }
 
@@ -394,7 +383,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 onContextMenu={() => setTargetTopic(topic)}
                 className={isActive ? 'active' : ''}
                 onClick={() => onSwitchTopic(topic)}
-                style={{ borderRadius }}>
+                style={{ borderRadius, width: '100%' }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
                 <TopicNameContainer>
                   <TopicName className="name" title={topicName}>
@@ -511,9 +500,7 @@ const TopicName = styled.div`
   font-size: 13px;
 `
 
-const PendingIndicator = styled.div.attrs({
-  className: 'animation-pulse'
-})`
+const PendingIndicator = styled.div.attrs({ className: 'animation-pulse' })`
   --pulse-size: 5px;
   width: 5px;
   height: 5px;

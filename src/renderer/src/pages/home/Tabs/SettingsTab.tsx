@@ -59,7 +59,7 @@ import {
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -69,7 +69,7 @@ interface Props {
   assistant: Assistant
 }
 
-const SettingsTab: FC<Props> = (props) => {
+const SettingsTab: FC<Props> = memo((props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
@@ -288,9 +288,7 @@ const SettingsTab: FC<Props> = (props) => {
                   const confirmed = await modalConfirm({
                     title: t('chat.settings.max_tokens.confirm'),
                     content: t('chat.settings.max_tokens.confirm_content'),
-                    okButtonProps: {
-                      danger: true
-                    }
+                    okButtonProps: { danger: true }
                   })
                   if (!confirmed) return
                 }
@@ -695,7 +693,7 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
     </Container>
   )
-}
+})
 
 const Container = styled(Scrollbar)`
   display: flex;
