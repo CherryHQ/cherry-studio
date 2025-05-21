@@ -238,10 +238,6 @@ const ContentContainer = styled.div<{
   border-radius: 5px;
   margin-top: 0;
 
-  ::-webkit-scrollbar-thumb {
-    border-radius: 10px;
-  }
-
   .shiki {
     padding: 1em;
 
