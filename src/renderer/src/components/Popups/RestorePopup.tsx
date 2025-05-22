@@ -1,3 +1,4 @@
+import { useSettings } from '@renderer/hooks/useSettings'
 import { restore } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
@@ -20,7 +21,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
-
+  const { skipBackupFile } = useSettings()
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.RestoreProgress, (_, data: ProgressData) => {
       setProgressData(data)
@@ -32,7 +33,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
-    await restore()
+    await restore(skipBackupFile)
     setOpen(false)
   }
 
