@@ -238,12 +238,13 @@ const ContentContainer = styled.div<{
   margin-top: 0;
 
   .shiki {
+    display: inline-block;
+    min-width: 100%;
     padding: 1em;
 
     code {
       display: flex;
       flex-direction: column;
-      width: 100%;
 
       .line {
         display: block;
@@ -251,7 +252,7 @@ const ContentContainer = styled.div<{
         padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
 
         * {
-          word-wrap: ${(props) => (props.$wrap ? 'break-word' : undefined)};
+          overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
           white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         }
       }
