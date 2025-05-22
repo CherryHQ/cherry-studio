@@ -399,6 +399,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       searchInputFocus()
     }
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const implementation = {
       disable() {
         setEnableContentSearch(false)
