@@ -172,14 +172,13 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
       ref={codeContentRef}
       $lineNumbers={codeShowLineNumbers}
       $wrap={codeWrappable && !isUnwrapped}
+      $fadeIn={hasHighlightedCode}
       style={{
         fontSize: fontSize - 1,
         maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
       }}>
       {hasHighlightedCode ? (
-        <div className="fade-in-effect">
-          <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
-        </div>
+        <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
       ) : (
         <CodePlaceholder>{children}</CodePlaceholder>
       )}
@@ -230,18 +229,13 @@ const ShikiTokensRenderer: React.FC<{ language: string; tokenLines: ThemedToken[
 const ContentContainer = styled.div<{
   $lineNumbers: boolean
   $wrap: boolean
+  $fadeIn: boolean
 }>`
   position: relative;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
   border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
-
-  ::-webkit-scrollbar-thumb {
-    border-radius: 10px;
-  }
 
   .shiki {
     padding: 1em;
@@ -293,9 +287,7 @@ const ContentContainer = styled.div<{
     }
   }
 
-  .fade-in-effect {
-    animation: contentFadeIn 0.3s ease-in-out forwards;
-  }
+  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.3s ease-in-out forwards' : 'none')};
 `
 
 const CodePlaceholder = styled.div`
