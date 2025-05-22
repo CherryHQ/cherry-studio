@@ -249,6 +249,8 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 }
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
+  /* FIXME: 在 bubble style 中撑开一些宽度*/
+  min-width: min(calc(60vw - var(--sidebar-width)), 700px);
   position: relative;
 
   .code-toolbar {
@@ -272,7 +274,6 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
 const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   color: var(--color-text);
   font-size: 14px;
   font-weight: bold;

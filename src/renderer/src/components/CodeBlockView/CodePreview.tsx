@@ -231,6 +231,7 @@ const ContentContainer = styled.div<{
   $wrap: boolean
   $fadeIn: boolean
 }>`
+  display: block;
   position: relative;
   overflow: auto;
   border: 0.5px solid transparent;
@@ -243,8 +244,7 @@ const ContentContainer = styled.div<{
     padding: 1em;
 
     code {
-      display: flex;
-      flex-direction: column;
+      display: block;
 
       .line {
         display: block;
@@ -292,12 +292,11 @@ const ContentContainer = styled.div<{
 `
 
 const CodePlaceholder = styled.div`
+  display: block;
   opacity: 0.1;
-  flex-direction: column;
   white-space: pre-wrap;
   word-break: break-all;
   overflow-x: hidden;
-  display: block;
   min-height: 1.3rem;
 `
 
