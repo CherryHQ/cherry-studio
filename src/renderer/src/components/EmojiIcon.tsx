@@ -6,11 +6,11 @@ interface EmojiIconProps {
   className?: string
 }
 
-const EmojiIcon: FC<EmojiIconProps> = ({ emoji = '⭐️', className }) => {
+const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
 
   return (
     <Container className={className}>
-      <EmojiBackground>{emoji}</EmojiBackground>
+      <EmojiBackground>{emoji || '⭐️'}</EmojiBackground>
       {emoji}
     </Container>
   )
