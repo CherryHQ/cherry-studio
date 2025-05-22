@@ -550,15 +550,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         // Separate onChunk calls for text and usage/metrics
         let content = ''
         stream.choices.forEach((choice) => {
+          const reasoning = choice.message.reasoning || choice.message.reasoning_content
           // reasoning
-          if (choice.message.reasoning || choice.message.reasoning_content) {
+          if (reasoning) {
             onChunk({
               type: ChunkType.THINKING_DELTA,
-              text: choice.message.reasoning || choice.message.reasoning_content
+              text: reasoning
             })
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
-              text: choice.message.reasoning || choice.message.reasoning_content,
+              text: reasoning,
               thinking_millsec: new Date().getTime() - start_time_millsec
             })
           }
