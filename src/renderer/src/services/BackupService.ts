@@ -19,7 +19,7 @@ export async function backup(skipBackupFile: boolean) {
   }
 }
 
-export async function restore() {
+export async function restore(skipBackupFile: boolean) {
   const notificationService = NotificationService.getInstance()
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
 
@@ -29,7 +29,7 @@ export async function restore() {
 
       // zip backup file
       if (file?.fileName.endsWith('.zip')) {
-        const restoreData = await window.api.backup.restore(file.filePath)
+        const restoreData = await window.api.backup.restore(file.filePath, skipBackupFile)
         data = JSON.parse(restoreData)
       } else {
         data = JSON.parse(await window.api.zip.decompress(file.content))
@@ -138,10 +138,6 @@ export async function backupToWebdav({
         source: 'backup'
       })
 
-      if (showMessage && !autoBackupProcess) {
-        window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
-      }
-
       // 清理旧备份文件
       if (webdavMaxBackups > 0) {
         try {
@@ -199,19 +195,14 @@ export async function backupToWebdav({
     notificationService.send({
       id: uuid(),
       type: 'error',
-      title: i18n.t('common.error'),
-      message: i18n.t('message.backup.failed'),
+      title: i18n.t('message.backup.failed'),
+      message: error.message,
       silent: false,
       timestamp: Date.now(),
       source: 'backup'
     })
     store.dispatch(setWebDAVSyncState({ lastSyncError: error.message }))
     console.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
-    showMessage &&
-      window.modal.error({
-        title: i18n.t('message.backup.failed'),
-        content: error.message
-      })
     throw error
   } finally {
     if (!autoBackupProcess) {
@@ -227,12 +218,15 @@ export async function backupToWebdav({
 }
 
 // 从 webdav 恢复
-export async function restoreFromWebdav(fileName?: string) {
+export async function restoreFromWebdav(fileName?: string, skipBackupFile?: boolean) {
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
   let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
+    data = await window.api.backup.restoreFromWebdav(
+      { webdavHost, webdavUser, webdavPass, webdavPath, fileName },
+      skipBackupFile
+    )
   } catch (error: any) {
     console.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
     window.modal.error({

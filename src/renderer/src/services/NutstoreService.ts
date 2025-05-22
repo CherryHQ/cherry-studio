@@ -127,7 +127,7 @@ export async function backupToNutstore({
   }
 }
 
-export async function restoreFromNutstore(fileName?: string) {
+export async function restoreFromNutstore(fileName?: string, skipBackupFile?: boolean) {
   const nutstoreToken = getNutstoreToken()
   if (!nutstoreToken) {
     return
@@ -141,7 +141,7 @@ export async function restoreFromNutstore(fileName?: string) {
   let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav({ ...config, fileName })
+    data = await window.api.backup.restoreFromWebdav({ ...config, fileName }, skipBackupFile)
   } catch (error: any) {
     console.error('[backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
     window.modal.error({

@@ -43,11 +43,12 @@ const api = {
   backup: {
     backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
       ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
-    restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
+    restore: (backupPath: string, skipBackupFile?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath, skipBackupFile),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
-    restoreFromWebdav: (webdavConfig: WebDavConfig) =>
-      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig),
+    restoreFromWebdav: (webdavConfig: WebDavConfig, skipBackupFile?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_RestoreFromWebdav, webdavConfig, skipBackupFile),
     listWebdavFiles: (webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_ListWebdavFiles, webdavConfig),
     checkConnection: (webdavConfig: WebDavConfig) =>

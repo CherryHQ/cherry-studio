@@ -224,7 +224,7 @@ class BackupManager {
     }
   }
 
-  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string> {
+  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string, skipBackupFile: boolean = false): Promise<string> {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
@@ -251,23 +251,27 @@ class BackupManager {
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       Logger.log('[backup] step 3: restore Data directory')
-      // 恢复 Data 目录
-      const sourcePath = path.join(this.tempDir, 'Data')
-      const destPath = path.join(app.getPath('userData'), 'Data')
+      if (!skipBackupFile) {
+        // 恢复 Data 目录
+        const sourcePath = path.join(this.tempDir, 'Data')
+        const destPath = path.join(app.getPath('userData'), 'Data')
 
-      // 获取源目录总大小
-      const totalSize = await this.getDirSize(sourcePath)
-      let copiedSize = 0
+        // 获取源目录总大小
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
 
-      await this.setWritableRecursive(destPath)
-      await fs.remove(destPath)
+        await this.setWritableRecursive(destPath)
+        await fs.remove(destPath)
 
-      // 使用流式复制
-      await this.copyDirWithProgress(sourcePath, destPath, (size) => {
-        copiedSize += size
-        const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
-        onProgress({ stage: 'copying_files', progress, total: 100 })
-      })
+        // 使用流式复制
+        await this.copyDirWithProgress(sourcePath, destPath, (size) => {
+          copiedSize += size
+          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+      } else {
+        Logger.log('[backup] skipBackupFile is true, skip restoring Data directory')
+      }
 
       Logger.log('[backup] step 4: clean up temp directory')
       // 清理临时目录
@@ -303,7 +307,7 @@ class BackupManager {
     }
   }
 
-  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
+  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig, skipBackupFile: boolean = false) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const webdavClient = new WebDav(webdavConfig)
     try {
@@ -324,7 +328,7 @@ class BackupManager {
         writeStream.on('error', (error) => reject(error))
       })
 
-      return await this.restore(_, backupedFilePath)
+      return await this.restore(_, backupedFilePath, skipBackupFile)
     } catch (error: any) {
       Logger.error('[backup] Failed to restore from WebDAV:', error)
       throw new Error(error.message || 'Failed to restore backup file')
