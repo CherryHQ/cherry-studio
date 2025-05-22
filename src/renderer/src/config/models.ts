@@ -146,6 +146,8 @@ const visionAllowedModels = [
   'gemini-2\\.5',
   'gemini-exp',
   'claude-3',
+  'claude-sonnet-4',
+  'claude-opus-4',
   'vision',
   'glm-4v',
   'qwen-vl',
@@ -232,7 +234,7 @@ export const FUNCTION_CALLING_REGEX = new RegExp(
 )
 
 export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+))\\b`,
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
   'i'
 )
 
@@ -710,6 +712,18 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     }
   ],
   anthropic: [
+    {
+      id: 'claude-sonnet-4-20250514',
+      provider: 'anthropic',
+      name: 'Claude Sonnet 4',
+      group: 'Claude 4'
+    },
+    {
+      id: 'claude-opus-4-20250514',
+      provider: 'anthropic',
+      name: 'Claude Opus 4',
+      group: 'Claude 4'
+    },
     {
       id: 'claude-3-7-sonnet-20250219',
       provider: 'anthropic',
@@ -2436,7 +2450,12 @@ export function isClaudeReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
-  return model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
+  return (
+    model.id.includes('claude-3-7-sonnet') ||
+    model.id.includes('claude-3.7-sonnet') ||
+    model.id.includes('claude-sonnet-4') ||
+    model.id.includes('claude-opus-4')
+  )
 }
 
 export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
@@ -2716,7 +2735,8 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen3-.*$': { min: 1024, max: 38912 },
 
   // Claude models
-  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 }
+  'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 },
+  'claude-(:?sonnet|opus)-4.*$': { min: 1024, max: 64000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
