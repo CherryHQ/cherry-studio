@@ -252,7 +252,6 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
 
   .code-toolbar {
-    margin-top: ${(props) => (props.$isInSpecialView ? '20px' : '0')};
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
     border-radius: ${(props) => (props.$isInSpecialView ? '0' : '4px')};
     opacity: 0;
@@ -280,6 +279,7 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   padding: 0 10px;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
+  margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};
   height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
 `
 
