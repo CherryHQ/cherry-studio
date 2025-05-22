@@ -19,7 +19,7 @@ export async function backup(skipBackupFile: boolean) {
   }
 }
 
-export async function restore(skipBackupFile: boolean) {
+export async function restore() {
   const notificationService = NotificationService.getInstance()
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
 
@@ -29,7 +29,7 @@ export async function restore(skipBackupFile: boolean) {
 
       // zip backup file
       if (file?.fileName.endsWith('.zip')) {
-        const restoreData = await window.api.backup.restore(file.filePath, skipBackupFile)
+        const restoreData = await window.api.backup.restore(file.filePath)
         data = JSON.parse(restoreData)
       } else {
         data = JSON.parse(await window.api.zip.decompress(file.content))
@@ -218,15 +218,12 @@ export async function backupToWebdav({
 }
 
 // 从 webdav 恢复
-export async function restoreFromWebdav(fileName?: string, skipBackupFile?: boolean) {
+export async function restoreFromWebdav(fileName?: string) {
   const { webdavHost, webdavUser, webdavPass, webdavPath } = store.getState().settings
   let data = ''
 
   try {
-    data = await window.api.backup.restoreFromWebdav(
-      { webdavHost, webdavUser, webdavPass, webdavPath, fileName },
-      skipBackupFile
-    )
+    data = await window.api.backup.restoreFromWebdav({ webdavHost, webdavUser, webdavPass, webdavPath, fileName })
   } catch (error: any) {
     console.error('[Backup] restoreFromWebdav: Error downloading file from WebDAV:', error)
     window.modal.error({

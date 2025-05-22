@@ -224,7 +224,7 @@ class BackupManager {
     }
   }
 
-  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string, skipBackupFile: boolean = false): Promise<string> {
+  async restore(_: Electron.IpcMainInvokeEvent, backupPath: string): Promise<string> {
     const mainWindow = windowService.getMainWindow()
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
@@ -251,11 +251,14 @@ class BackupManager {
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       Logger.log('[backup] step 3: restore Data directory')
-      if (!skipBackupFile) {
-        // 恢复 Data 目录
-        const sourcePath = path.join(this.tempDir, 'Data')
-        const destPath = path.join(app.getPath('userData'), 'Data')
+      // 恢复 Data 目录
+      const sourcePath = path.join(this.tempDir, 'Data')
+      const destPath = path.join(app.getPath('userData'), 'Data')
 
+      const dataExists = await fs.pathExists(sourcePath)
+      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
+
+      if (dataExists && dataFiles.length > 0) {
         // 获取源目录总大小
         const totalSize = await this.getDirSize(sourcePath)
         let copiedSize = 0
@@ -307,7 +310,7 @@ class BackupManager {
     }
   }
 
-  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig, skipBackupFile: boolean = false) {
+  async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const webdavClient = new WebDav(webdavConfig)
     try {
@@ -328,7 +331,7 @@ class BackupManager {
         writeStream.on('error', (error) => reject(error))
       })
 
-      return await this.restore(_, backupedFilePath, skipBackupFile)
+      return await this.restore(_, backupedFilePath)
     } catch (error: any) {
       Logger.error('[backup] Failed to restore from WebDAV:', error)
       throw new Error(error.message || 'Failed to restore backup file')
