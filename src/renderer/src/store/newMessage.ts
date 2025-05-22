@@ -59,6 +59,13 @@ interface RemoveMessagesPayload {
   messageIds: string[]
 }
 
+// Payload for inserting a message at a specific index
+interface InsertMessageAtIndexPayload {
+  topicId: string
+  message: Message
+  index: number
+}
+
 // 4. Create the Slice with Refactored Reducers
 const messagesSlice = createSlice({
   name: 'newMessages',
@@ -91,6 +98,20 @@ const messagesSlice = createSlice({
         state.messageIdsByTopic[topicId] = []
       }
       state.messageIdsByTopic[topicId].push(message.id)
+      if (!(topicId in state.loadingByTopic)) {
+        state.loadingByTopic[topicId] = false
+      }
+    },
+    insertMessageAtIndex(state, action: PayloadAction<InsertMessageAtIndexPayload>) {
+      const { topicId, message, index } = action.payload
+      messagesAdapter.addOne(state, message) // Add message to entities
+      if (!state.messageIdsByTopic[topicId]) {
+        state.messageIdsByTopic[topicId] = []
+      }
+      // Ensure index is within bounds
+      const safeIndex = Math.max(0, Math.min(index, state.messageIdsByTopic[topicId].length))
+      state.messageIdsByTopic[topicId].splice(safeIndex, 0, message.id) // Insert ID at specified index
+
       if (!(topicId in state.loadingByTopic)) {
         state.loadingByTopic[topicId] = false
       }

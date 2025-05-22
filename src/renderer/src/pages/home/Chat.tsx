@@ -24,7 +24,7 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
 }
 
-const ChatContent: FC<Props> = (props) => {
+const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
   const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
@@ -141,10 +141,6 @@ const ChatContent: FC<Props> = (props) => {
       )}
     </Container>
   )
-}
-
-const Chat: FC<Props> = (props) => {
-  return <ChatContent {...props} />
 }
 
 const MessagesContainer = styled.div`

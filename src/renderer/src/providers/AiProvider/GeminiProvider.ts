@@ -113,7 +113,10 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     // If file is not found, upload it to Gemini
-    const result = await window.api.gemini.uploadFile(file, this.apiKey)
+    const result = await window.api.gemini.uploadFile(file, {
+      apiKey: this.apiKey,
+      baseURL: this.getBaseURL()
+    })
 
     return {
       fileData: {

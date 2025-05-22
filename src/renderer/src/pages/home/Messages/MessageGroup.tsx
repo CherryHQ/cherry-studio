@@ -1,7 +1,9 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -24,6 +26,7 @@ interface Props {
 const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const { isMultiSelectMode } = useChatContext(topic)
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
@@ -59,7 +62,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
     [editMessage, selectedMessageId]
   )
 
-  const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
+  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
@@ -113,19 +116,48 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, selectedIndex, isGrouped, messageLength])
 
+  // 添加对LOCATE_MESSAGE事件的监听
+  useEffect(() => {
+    // 为每个消息注册一个定位事件监听器
+    const eventHandlers: { [key: string]: () => void } = {}
+
+    messages.forEach((message) => {
+      const eventName = EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id
+      const handler = () => {
+        // 检查消息是否处于可见状态
+        const element = document.getElementById(`message-${message.id}`)
+        if (element) {
+          const display = window.getComputedStyle(element).display
+
+          if (display === 'none') {
+            // 如果消息隐藏，先切换标签
+            setSelectedMessage(message)
+          } else {
+            // 直接滚动
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        }
+      }
+
+      eventHandlers[eventName] = handler
+      EventEmitter.on(eventName, handler)
+    })
+
+    // 清理函数
+    return () => {
+      // 移除所有事件监听器
+      Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+        EventEmitter.off(eventName, handler)
+      })
+    }
+  }, [messages, setSelectedMessage])
+
   useEffect(() => {
     messages.forEach((message) => {
       const element = document.getElementById(`message-${message.id}`)
-      if (element) {
-        registerMessageElement?.(message.id, element)
-      }
+      element && registerMessageElement?.(message.id, element)
     })
-
-    return () => {
-      messages.forEach((message) => {
-        registerMessageElement?.(message.id, null)
-      })
-    }
+    return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
   }, [messages, registerMessageElement])
 
   const renderMessage = useCallback(
@@ -297,6 +329,19 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
+
+  &.horizontal {
+    display: inline-block;
+  }
+  &.grid {
+    display: inline-block;
+  }
+  &.fold {
+    display: none;
+    &.selected {
+      display: inline-block;
+    }
+  }
 
   ${({ $layout, $isGrouped }) => {
     if ($layout === 'horizontal' && $isGrouped) {

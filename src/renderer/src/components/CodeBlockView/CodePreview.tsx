@@ -163,6 +163,10 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     }
   }, [highlightCode])
 
+  const hasHighlightedCode = useMemo(() => {
+    return tokenLines.length > 0
+  }, [tokenLines.length])
+
   return (
     <ContentContainer
       ref={codeContentRef}
@@ -172,10 +176,12 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
         fontSize: fontSize - 1,
         maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
       }}>
-      {tokenLines.length > 0 ? (
-        <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
+      {hasHighlightedCode ? (
+        <div className="fade-in-effect">
+          <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
+        </div>
       ) : (
-        <div style={{ opacity: 0.1 }}>{children}</div>
+        <CodePlaceholder>{children}</CodePlaceholder>
       )}
     </ContentContainer>
   )
@@ -232,7 +238,6 @@ const ContentContainer = styled.div<{
   border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
-  transition: opacity 0.3s ease;
 
   ::-webkit-scrollbar-thumb {
     border-radius: 10px;
@@ -278,6 +283,29 @@ const ContentContainer = styled.div<{
         opacity: 0.35;
       }
     `}
+
+  @keyframes contentFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .fade-in-effect {
+    animation: contentFadeIn 0.3s ease-in-out forwards;
+  }
+`
+
+const CodePlaceholder = styled.div`
+  opacity: 0.1;
+  flex-direction: column;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: hidden;
+  display: block;
+  min-height: 1.3rem;
 `
 
 CodePreview.displayName = 'CodePreview'
