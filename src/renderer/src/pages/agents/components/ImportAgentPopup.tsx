@@ -1,9 +1,11 @@
+import { InfoCircleOutlined } from '@ant-design/icons'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { Tooltip } from 'antd'
 import { Button, Form, Input, Modal, Radio, Space } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -93,6 +95,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve(null)
   }
 
+  const agentDocUrl = 'https://github.com/CherryHQ/cherry-studio/blob/main/resources/data/agents.json'
+
   return (
     <Modal
       title={t('agents.import.title')}
@@ -107,6 +111,25 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             <Radio.Button value="url">{t('agents.import.type.url')}</Radio.Button>
             <Radio.Button value="file">{t('agents.import.type.file')}</Radio.Button>
           </Radio.Group>
+          <Tooltip
+            title={
+              <span>
+                {t('agents.import.format')}{' '}
+                <a
+                  href={agentDocUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.api.shell.openExternal(agentDocUrl)
+                  }}>
+                  {t('agents.import.format.link')}
+                </a>
+              </span>
+            }
+            placement="right">
+            <InfoCircleOutlined style={{ cursor: 'pointer', marginLeft: 5 }} />
+          </Tooltip>
         </Form.Item>
 
         {importType === 'url' && (
