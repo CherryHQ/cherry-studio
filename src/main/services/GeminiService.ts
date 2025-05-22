@@ -8,8 +8,19 @@ export class GeminiService {
   private static readonly FILE_LIST_CACHE_KEY = 'gemini_file_list'
   private static readonly CACHE_DURATION = 3000
 
-  static async uploadFile(_: Electron.IpcMainInvokeEvent, file: FileType, apiKey: string): Promise<File> {
-    const sdk = new GoogleGenAI({ vertexai: false, apiKey })
+  static async uploadFile(
+    _: Electron.IpcMainInvokeEvent,
+    file: FileType,
+    { apiKey, baseURL }: { apiKey: string; baseURL: string }
+  ): Promise<File> {
+    const sdk = new GoogleGenAI({
+      vertexai: false,
+      apiKey,
+      httpOptions: {
+        baseUrl: baseURL
+      }
+    })
+
     return await sdk.files.upload({
       file: file.path,
       config: {

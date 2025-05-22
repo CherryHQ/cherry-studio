@@ -324,7 +324,9 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          budget_tokens: Math.floor(
+            Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          )
         }
       }
     }
