@@ -232,8 +232,6 @@ const ContentContainer = styled.div<{
 }>`
   position: relative;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
   border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
