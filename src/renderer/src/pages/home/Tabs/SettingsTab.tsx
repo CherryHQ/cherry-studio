@@ -14,6 +14,7 @@ import {
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -73,7 +74,8 @@ const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
-  const { messageStyle, fontSize, language, theme } = useSettings()
+  const { messageStyle, fontSize, language } = useSettings()
+  const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
@@ -166,18 +168,18 @@ const SettingsTab: FC<Props> = (props) => {
     codeEditor.enabled,
     codeEditor.themeLight,
     codeEditor.themeDark,
-    theme,
+    theme, // This now refers to the theme from useTheme()
     codePreview.themeLight,
     codePreview.themeDark
   ])
 
   const onCodeStyleChange = useCallback(
     (value: CodeStyleVarious) => {
-      const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
+      const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark' // This now refers to the theme from useTheme()
       const action = codeEditor.enabled ? setCodeEditor : setCodePreview
       dispatch(action({ [field]: value }))
     },
-    [dispatch, theme, codeEditor.enabled]
+    [dispatch, theme, codeEditor.enabled] // theme dependency is updated
   )
 
   useEffect(() => {
