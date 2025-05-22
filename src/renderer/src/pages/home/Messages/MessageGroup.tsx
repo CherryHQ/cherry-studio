@@ -1,5 +1,6 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
@@ -24,6 +25,7 @@ interface Props {
 const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const { isMultiSelectMode } = useChatContext(topic)
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
@@ -59,7 +61,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
     [editMessage, selectedMessageId]
   )
 
-  const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
+  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
@@ -297,6 +299,19 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
+
+  &.horizontal {
+    display: inline-block;
+  }
+  &.grid {
+    display: inline-block;
+  }
+  &.fold {
+    display: none;
+    &.selected {
+      display: inline-block;
+    }
+  }
 
   ${({ $layout, $isGrouped }) => {
     if ($layout === 'horizontal' && $isGrouped) {
