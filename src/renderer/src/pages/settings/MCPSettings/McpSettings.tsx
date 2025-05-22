@@ -3,6 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { formatMcpError } from '@renderer/utils/error'
 import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown } from 'lucide-react'
@@ -332,14 +333,6 @@ const McpSettings: React.FC = () => {
     [server, t]
   )
 
-  const formatError = (error: any) => {
-    if (error.message.includes('32000')) {
-      return t('settings.mcp.errors.32000')
-    }
-
-    return error.message
-  }
-
   const onToggleActive = async (active: boolean) => {
     if (isFormChanged && active) {
       await onSave()
@@ -367,7 +360,7 @@ const McpSettings: React.FC = () => {
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
-        content: formatError(error),
+        content: formatMcpError(error),
         centered: true
       })
       updateMCPServer({ ...server, isActive: oldActiveState })
