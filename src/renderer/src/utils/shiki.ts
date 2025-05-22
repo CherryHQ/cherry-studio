@@ -2,7 +2,7 @@ import { getTokenStyleObject, type HighlighterGeneric, SpecialLanguage, ThemedTo
 
 import { AsyncInitializer } from './asyncInitializer'
 
-export const DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown']
+export const DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown', 'json']
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 
 /**
@@ -149,10 +149,12 @@ export async function getMarkdownIt(theme: string) {
   md.use(
     fromHighlighter(highlighter, {
       themes: {
-        light: 'one-light',
-        dark: 'material-theme-darker'
+        'one-light': 'one-light',
+        'material-theme-darker': 'material-theme-darker'
       },
-      defaultColor: theme
+      defaultColor: theme,
+      defaultLanguage: 'json',
+      fallbackLanguage: 'json'
     })
   )
 
