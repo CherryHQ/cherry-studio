@@ -526,8 +526,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       if (enableContentSearch && searchInputRef.current?.value.trim()) {
         implementation.search()
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isCaseSensitive, isWholeWord, enableContentSearch]) // Add enableContentSearch dependency
+    }, [isCaseSensitive, isWholeWord, enableContentSearch, implementation]) // Add enableContentSearch dependency
 
     const prevButtonOnClick = () => {
       implementation.searchPrev()
@@ -690,18 +689,18 @@ const SearchResults = styled.div`
   width: 80px;
   margin: 0 2px;
   flex: 0 0 auto;
-  color: var(--color-text-secondary);
+  color: var(--color-text-1);
   font-size: 14px;
   font-family: Ubuntu;
 `
 
 const SearchResultsPlaceholder = styled.span`
-  color: var(--color-text-secondary);
+  color: var(--color-text-1);
   opacity: 0.5;
 `
 
 const NoResults = styled.span`
-  color: var(--color-text-secondary);
+  color: var(--color-text-1);
 `
 
 const SearchResultCount = styled.span`
