@@ -168,18 +168,18 @@ const SettingsTab: FC<Props> = (props) => {
     codeEditor.enabled,
     codeEditor.themeLight,
     codeEditor.themeDark,
-    theme, // This now refers to the theme from useTheme()
+    theme,
     codePreview.themeLight,
     codePreview.themeDark
   ])
 
   const onCodeStyleChange = useCallback(
     (value: CodeStyleVarious) => {
-      const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark' // This now refers to the theme from useTheme()
+      const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
       const action = codeEditor.enabled ? setCodeEditor : setCodePreview
       dispatch(action({ [field]: value }))
     },
-    [dispatch, theme, codeEditor.enabled] // theme dependency is updated
+    [dispatch, theme, codeEditor.enabled]
   )
 
   useEffect(() => {
