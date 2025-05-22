@@ -551,11 +551,14 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         let content = ''
         stream.choices.forEach((choice) => {
           // reasoning
-          if (choice.message.reasoning) {
-            onChunk({ type: ChunkType.THINKING_DELTA, text: choice.message.reasoning })
+          if (choice.message.reasoning || choice.message.reasoning_content) {
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: choice.message.reasoning || choice.message.reasoning_content
+            })
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
-              text: choice.message.reasoning,
+              text: choice.message.reasoning || choice.message.reasoning_content,
               thinking_millsec: new Date().getTime() - start_time_millsec
             })
           }
