@@ -396,6 +396,7 @@
       "search": "Search",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
+      "success": "Success",
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",

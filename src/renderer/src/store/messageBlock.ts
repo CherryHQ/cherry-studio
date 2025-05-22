@@ -160,6 +160,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
             }
           }) || []
         break
+      case WebSearchSource.GROK:
       case WebSearchSource.OPENROUTER:
       case WebSearchSource.PERPLEXITY:
         formattedCitations =

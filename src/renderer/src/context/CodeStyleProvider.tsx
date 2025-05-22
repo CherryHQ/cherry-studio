@@ -136,7 +136,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 使用 Shiki 和 Markdown-it 渲染代码
   const shikiMarkdownIt = useCallback(
     async (code: string) => {
-      const renderer = await getMarkdownIt(activeShikiTheme)
+      const renderer = await getMarkdownIt(activeShikiTheme, code)
       if (!renderer) {
         return code
       }

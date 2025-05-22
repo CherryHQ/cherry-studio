@@ -434,7 +434,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const text = textArea.value
 
       let match = text.slice(cursorPosition + selectionLength).match(/\$\{[^}]+\}/)
-      let startIndex = -1
+      let startIndex: number
 
       if (!match) {
         match = text.match(/\$\{[^}]+\}/)
@@ -764,7 +764,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (document.activeElement?.closest('.ant-modal')) {
         return
       }
-      textareaRef.current?.focus()
+
+      const lastFocusedComponent = PasteService.getLastFocusedComponent()
+
+      if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
+        textareaRef.current?.focus()
+      }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)

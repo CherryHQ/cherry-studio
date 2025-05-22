@@ -221,7 +221,7 @@
     "openai@npm:^4.87.3": "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch",
     "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch"
   },
-  "packageManager": "yarn@4.6.0",
+  "packageManager": "yarn@4.9.1",
   "lint-staged": {
     "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
       "prettier --write",

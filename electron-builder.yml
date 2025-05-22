@@ -45,6 +45,8 @@ win:
   target:
     - target: nsis
     - target: portable
+  signtoolOptions:
+    sign: scripts/win-sign.js
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}

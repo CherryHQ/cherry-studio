@@ -43,6 +43,7 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
 }
 const Section = styled.div`
   padding-top: 8px;
+  max-width: calc(100vw - var(--sidebar-width) - var(--settings-width) - 75px);
 `
 
 export default memo(MCPDescription)

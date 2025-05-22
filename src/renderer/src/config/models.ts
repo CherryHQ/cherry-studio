@@ -2570,6 +2570,10 @@ export function isWebSearchModel(model: Model): boolean {
     return true
   }
 
+  if (provider.id === 'grok') {
+    return true
+  }
+
   return false
 }
 
@@ -2599,6 +2603,16 @@ export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Re
   if (isWebSearchModel(model)) {
     if (assistant.enableWebSearch) {
       const webSearchTools = getWebSearchTools(model)
+
+      if (model.provider === 'grok') {
+        return {
+          search_parameters: {
+            mode: 'auto',
+            return_citations: true,
+            sources: [{ type: 'web' }, { type: 'x' }, { type: 'news' }]
+          }
+        }
+      }
 
       if (model.provider === 'hunyuan') {
         return { enable_enhancement: true, citation: true, search_info: true }

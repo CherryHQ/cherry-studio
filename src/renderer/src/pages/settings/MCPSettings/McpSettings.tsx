@@ -585,6 +585,7 @@ const McpSettings: React.FC = () => {
       )
     }
   ]
+
   if (server.searchKey) {
     tabs.push({
       key: 'description',

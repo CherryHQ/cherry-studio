@@ -34,7 +34,6 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
@@ -652,18 +651,18 @@ const fetchAndProcessAssistantResponseImpl = async (
             saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
           }
 
-          const content = getMainTextContent(finalAssistantMsg)
-          if (!isOnHomePage()) {
-            await notificationService.send({
-              id: uuid(),
-              type: 'success',
-              title: t('notification.assistant'),
-              message: content.length > 50 ? content.slice(0, 47) + '...' : content,
-              silent: false,
-              timestamp: Date.now(),
-              source: 'assistant'
-            })
-          }
+          // const content = getMainTextContent(finalAssistantMsg)
+          // if (!isOnHomePage()) {
+          //   await notificationService.send({
+          //     id: uuid(),
+          //     type: 'success',
+          //     title: t('notification.assistant'),
+          //     message: content.length > 50 ? content.slice(0, 47) + '...' : content,
+          //     silent: false,
+          //     timestamp: Date.now(),
+          //     source: 'assistant'
+          //   })
+          // }
 
           // 更新topic的name
           autoRenameTopic(assistant, topicId)

@@ -473,7 +473,8 @@ export enum WebSearchSource {
   PERPLEXITY = 'perplexity',
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu'
+  ZHIPU = 'zhipu',
+  GROK = 'grok'
 }
 
 export type WebSearchResponse = {
