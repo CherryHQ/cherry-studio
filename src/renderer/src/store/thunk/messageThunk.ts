@@ -34,8 +34,8 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
 import { throttle } from 'lodash'
 
@@ -48,20 +48,24 @@ const handleChangeLoadingOfTopic = async (topicId: string) => {
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
-export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[]) => {
+export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   try {
     if (blocks.length > 0) {
       await db.message_blocks.bulkPut(blocks)
     }
     const topic = await db.topics.get(message.topicId)
     if (topic) {
-      const messageIndex = topic.messages.findIndex((m) => m.id === message.id)
+      const _messageIndex = topic.messages.findIndex((m) => m.id === message.id)
       const updatedMessages = [...topic.messages]
 
-      if (messageIndex !== -1) {
-        updatedMessages[messageIndex] = message
+      if (_messageIndex !== -1) {
+        updatedMessages[_messageIndex] = message
       } else {
-        updatedMessages.push(message)
+        if (messageIndex !== -1) {
+          updatedMessages.splice(messageIndex, 0, message)
+        } else {
+          updatedMessages.push(message)
+        }
       }
       await db.topics.update(message.topicId, { messages: updatedMessages })
     } else {
@@ -589,15 +593,17 @@ const fetchAndProcessAssistantResponseImpl = async (
           status: error.status || error.code,
           requestId: error.request_id
         }
-        await notificationService.send({
-          id: uuid(),
-          type: 'error',
-          title: t('notification.assistant'),
-          message: serializableError.message,
-          silent: false,
-          timestamp: Date.now(),
-          source: 'assistant'
-        })
+        if (!isOnHomePage()) {
+          await notificationService.send({
+            id: uuid(),
+            type: 'error',
+            title: t('notification.assistant'),
+            message: serializableError.message,
+            silent: false,
+            timestamp: Date.now(),
+            source: 'assistant'
+          })
+        }
 
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR
@@ -645,16 +651,18 @@ const fetchAndProcessAssistantResponseImpl = async (
             saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
           }
 
-          const content = getMainTextContent(finalAssistantMsg)
-          await notificationService.send({
-            id: uuid(),
-            type: 'success',
-            title: t('notification.assistant'),
-            message: content.length > 50 ? content.slice(0, 47) + '...' : content,
-            silent: false,
-            timestamp: Date.now(),
-            source: 'assistant'
-          })
+          // const content = getMainTextContent(finalAssistantMsg)
+          // if (!isOnHomePage()) {
+          //   await notificationService.send({
+          //     id: uuid(),
+          //     type: 'success',
+          //     title: t('notification.assistant'),
+          //     message: content.length > 50 ? content.slice(0, 47) + '...' : content,
+          //     silent: false,
+          //     timestamp: Date.now(),
+          //     source: 'assistant'
+          //   })
+          // }
 
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
@@ -1239,10 +1247,14 @@ export const appendAssistantResponseThunk =
       })
 
       // 3. Update Redux Store
-      dispatch(newMessagesActions.addMessage({ topicId, message: newAssistantStub }))
+      const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
+      const existingMessageIndex = currentTopicMessageIds.findIndex((id) => id === existingAssistantMessageId)
+      const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
+
+      dispatch(newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantStub, index: insertAtIndex }))
 
       // 4. Update Database (Save the stub to the topic's message list)
-      await saveMessageAndBlocksToDB(newAssistantStub, [])
+      await saveMessageAndBlocksToDB(newAssistantStub, [], insertAtIndex)
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {

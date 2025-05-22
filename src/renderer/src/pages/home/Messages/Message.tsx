@@ -51,7 +51,7 @@ const MessageItem: FC<Props> = ({
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { isBubbleStyle } = useMessageStyle()
-  const { showMessageDivider, messageFont, fontSize, narrowMode } = useSettings()
+  const { showMessageDivider, messageFont, fontSize, narrowMode, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
@@ -134,6 +134,22 @@ const MessageItem: FC<Props> = ({
     )
   }
 
+  if (isEditing) {
+    return (
+      <MessageContainer style={{ paddingTop: 15 }}>
+        <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
+        <div style={{ paddingLeft: messageStyle === 'plain' ? 46 : undefined }}>
+          <MessageEditor
+            message={message}
+            onSave={handleEditSave}
+            onResend={handleEditResend}
+            onCancel={handleEditCancel}
+          />
+        </div>
+      </MessageContainer>
+    )
+  }
+
   return (
     <MessageContainer
       key={message.id}
@@ -161,18 +177,9 @@ const MessageItem: FC<Props> = ({
             overflowY: 'visible',
             maxWidth: narrowMode ? 760 : undefined
           }}>
-          {isEditing ? (
-            <MessageEditor
-              message={message}
-              onSave={handleEditSave}
-              onResend={handleEditResend}
-              onCancel={handleEditCancel}
-            />
-          ) : (
-            <MessageErrorBoundary>
-              <MessageContent message={message} />
-            </MessageErrorBoundary>
-          )}
+          <MessageErrorBoundary>
+            <MessageContent message={message} />
+          </MessageErrorBoundary>
           {showMenubar && (
             <MessageFooter
               className="MessageFooter"

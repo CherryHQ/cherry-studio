@@ -1,5 +1,12 @@
+import {
+  DEFAULT_LANGUAGES,
+  DEFAULT_THEMES,
+  getHighlighter,
+  loadLanguageIfNeeded,
+  loadThemeIfNeeded
+} from '@renderer/utils/shiki'
 import { LRUCache } from 'lru-cache'
-import type { HighlighterCore, SpecialLanguage, ThemedToken } from 'shiki/core'
+import type { HighlighterGeneric, ThemedToken } from 'shiki/core'
 
 import { ShikiStreamTokenizer, ShikiStreamTokenizerOptions } from './ShikiStreamTokenizer'
 
@@ -27,13 +34,8 @@ export interface HighlightChunkResult {
  * - 优先使用 Worker 处理高亮请求。
  */
 class ShikiStreamService {
-  // 默认配置
-  private static readonly DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown']
-  private static readonly DEFAULT_THEMES = ['one-light', 'material-theme-darker']
-
   // 主线程 highlighter 和 tokenizers
-  private highlighter: HighlighterCore | null = null
-  private highlighterInitPromise: Promise<void> | null = null
+  private highlighter: HighlighterGeneric<any, any> | null = null
 
   // 保存以 callerId-language-theme 为键的 tokenizer map
   private tokenizerCache = new LRUCache<string, ShikiStreamTokenizer>({
@@ -80,7 +82,7 @@ class ShikiStreamService {
    * 判断是否正在使用主线程高亮。外部不要依赖这个方法来判断。
    */
   public hasMainHighlighter(): boolean {
-    return !!this.highlighter && !this.highlighterInitPromise
+    return !!this.highlighter
   }
 
   /**
@@ -125,8 +127,8 @@ class ShikiStreamService {
         // 初始化 worker
         await this.sendWorkerMessage({
           type: 'init',
-          languages: ShikiStreamService.DEFAULT_LANGUAGES,
-          themes: ShikiStreamService.DEFAULT_THEMES
+          languages: DEFAULT_LANGUAGES,
+          themes: DEFAULT_THEMES
         })
         this.workerInitRetryCount = 0
       } catch (error) {
@@ -216,28 +218,6 @@ class ShikiStreamService {
   }
 
   /**
-   * 初始化 highlighter
-   */
-  private async initHighlighter(): Promise<void> {
-    if (this.highlighterInitPromise) {
-      return this.highlighterInitPromise
-    } else if (this.highlighter) {
-      return Promise.resolve()
-    }
-
-    this.highlighterInitPromise = (async () => {
-      const { createHighlighter } = await import('shiki')
-
-      this.highlighter = await createHighlighter({
-        langs: ShikiStreamService.DEFAULT_LANGUAGES,
-        themes: ShikiStreamService.DEFAULT_THEMES
-      })
-    })()
-
-    return this.highlighterInitPromise
-  }
-
-  /**
    * 确保 highlighter 已配置
    * @param language 语言
    * @param theme 主题
@@ -245,52 +225,15 @@ class ShikiStreamService {
   private async ensureHighlighterConfigured(
     language: string,
     theme: string
-  ): Promise<{ actualLanguage: string; actualTheme: string }> {
-    // 确保 highlighter 已初始化
-    if (!this.hasMainHighlighter()) {
-      await this.initHighlighter()
-    }
-
+  ): Promise<{ loadedLanguage: string; loadedTheme: string }> {
     if (!this.highlighter) {
-      throw new Error('Highlighter not initialized')
+      this.highlighter = await getHighlighter()
     }
 
-    const shiki = await import('shiki')
-    let actualLanguage = language
-    let actualTheme = theme
+    const loadedLanguage = await loadLanguageIfNeeded(this.highlighter, language)
+    const loadedTheme = await loadThemeIfNeeded(this.highlighter, theme)
 
-    // 加载语言
-    if (!this.highlighter.getLoadedLanguages().includes(language)) {
-      try {
-        if (['text', 'ansi'].includes(language)) {
-          await this.highlighter.loadLanguage(language as SpecialLanguage)
-        } else {
-          const languageImportFn = shiki.bundledLanguages[language]
-          const langData = await languageImportFn()
-          await this.highlighter.loadLanguage(langData)
-        }
-      } catch (error) {
-        await this.highlighter.loadLanguage('text')
-        actualLanguage = 'text'
-      }
-    }
-
-    // 加载主题
-    if (!this.highlighter.getLoadedThemes().includes(theme)) {
-      try {
-        const themeImportFn = shiki.bundledThemes[theme]
-        const themeData = await themeImportFn()
-        await this.highlighter.loadTheme(themeData)
-      } catch (error) {
-        // 回退到 one-light
-        console.debug(`Failed to load theme '${theme}', falling back to 'one-light':`, error)
-        const oneLightTheme = await shiki.bundledThemes['one-light']()
-        await this.highlighter.loadTheme(oneLightTheme)
-        actualTheme = 'one-light'
-      }
-    }
-
-    return { actualLanguage, actualTheme }
+    return { loadedLanguage, loadedTheme }
   }
 
   /**
@@ -303,15 +246,15 @@ class ShikiStreamService {
    * @returns pre 标签属性
    */
   async getShikiPreProperties(language: string, theme: string): Promise<ShikiPreProperties> {
-    const { actualLanguage, actualTheme } = await this.ensureHighlighterConfigured(language, theme)
+    const { loadedLanguage, loadedTheme } = await this.ensureHighlighterConfigured(language, theme)
 
     if (!this.highlighter) {
       throw new Error('Highlighter not initialized')
     }
 
     const hast = this.highlighter.codeToHast('1', {
-      lang: actualLanguage,
-      theme: actualTheme
+      lang: loadedLanguage,
+      theme: loadedTheme
     })
 
     // @ts-ignore hack
@@ -428,7 +371,7 @@ class ShikiStreamService {
     }
 
     // 确保 highlighter 已配置
-    const { actualLanguage, actualTheme } = await this.ensureHighlighterConfigured(language, theme)
+    const { loadedLanguage, loadedTheme } = await this.ensureHighlighterConfigured(language, theme)
 
     if (!this.highlighter) {
       throw new Error('Highlighter not initialized')
@@ -437,8 +380,8 @@ class ShikiStreamService {
     // 创建新的 tokenizer
     const options: ShikiStreamTokenizerOptions = {
       highlighter: this.highlighter,
-      lang: actualLanguage,
-      theme: actualTheme
+      lang: loadedLanguage,
+      theme: loadedTheme
     }
 
     const tokenizer = new ShikiStreamTokenizer(options)
@@ -486,9 +429,7 @@ class ShikiStreamService {
 
     this.workerDegradationCache.clear()
     this.tokenizerCache.clear()
-    this.highlighter?.dispose()
     this.highlighter = null
-    this.highlighterInitPromise = null
     this.workerInitPromise = null
     this.workerInitRetryCount = 0
   }

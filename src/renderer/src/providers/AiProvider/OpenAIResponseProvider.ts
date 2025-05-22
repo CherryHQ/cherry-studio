@@ -179,7 +179,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
   }
 
   protected getServiceTier(model: Model) {
-    if (!isOpenAIModel(model)) {
+    if (!isOpenAIModel(model) || model.provider === 'github' || model.provider === 'copilot') {
       return undefined
     }
 

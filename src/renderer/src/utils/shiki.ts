@@ -1,12 +1,100 @@
-import { useTheme } from '@renderer/context/ThemeProvider'
-import { ThemeMode } from '@renderer/types'
-import { setupMarkdownIt } from '@shikijs/markdown-it'
-import MarkdownIt from 'markdown-it'
-import { useEffect, useRef, useState } from 'react'
-import { getTokenStyleObject, ThemedToken } from 'shiki/core'
+import { getTokenStyleObject, type HighlighterGeneric, SpecialLanguage, ThemedToken } from 'shiki/core'
 
-import { runAsyncFunction } from '.'
-import { getHighlighter } from './highlighter'
+import { AsyncInitializer } from './asyncInitializer'
+
+export const DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown']
+export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
+
+/**
+ * shiki 初始化器，避免并发问题
+ */
+const shikiInitializer = new AsyncInitializer(async () => {
+  const shiki = await import('shiki')
+  return shiki
+})
+
+/**
+ * 获取 shiki package
+ */
+export async function getShiki() {
+  return shikiInitializer.get()
+}
+
+/**
+ * shiki highlighter 初始化器，避免并发问题
+ */
+const highlighterInitializer = new AsyncInitializer(async () => {
+  const shiki = await getShiki()
+  return shiki.createHighlighter({
+    langs: DEFAULT_LANGUAGES,
+    themes: DEFAULT_THEMES
+  })
+})
+
+/**
+ * 获取 shiki highlighter
+ */
+export async function getHighlighter() {
+  return highlighterInitializer.get()
+}
+
+/**
+ * 加载语言
+ * @param highlighter - shiki highlighter
+ * @param language - 语言
+ * @returns 实际加载的语言
+ */
+export async function loadLanguageIfNeeded(
+  highlighter: HighlighterGeneric<any, any>,
+  language: string
+): Promise<string> {
+  const shiki = await getShiki()
+
+  let loadedLanguage = language
+  if (!highlighter.getLoadedLanguages().includes(language)) {
+    try {
+      if (['text', 'ansi'].includes(language)) {
+        await highlighter.loadLanguage(language as SpecialLanguage)
+      } else {
+        const languageImportFn = shiki.bundledLanguages[language]
+        const langData = await languageImportFn()
+        await highlighter.loadLanguage(langData)
+      }
+    } catch (error) {
+      await highlighter.loadLanguage('text')
+      loadedLanguage = 'text'
+    }
+  }
+
+  return loadedLanguage
+}
+
+/**
+ * 加载主题
+ * @param highlighter - shiki highlighter
+ * @param theme - 主题
+ * @returns 实际加载的主题
+ */
+export async function loadThemeIfNeeded(highlighter: HighlighterGeneric<any, any>, theme: string): Promise<string> {
+  const shiki = await getShiki()
+
+  let loadedTheme = theme
+  if (!highlighter.getLoadedThemes().includes(theme)) {
+    try {
+      const themeImportFn = shiki.bundledThemes[theme]
+      const themeData = await themeImportFn()
+      await highlighter.loadTheme(themeData)
+    } catch (error) {
+      // 回退到 one-light
+      console.debug(`Failed to load theme '${theme}', falling back to 'one-light':`, error)
+      const oneLightTheme = await shiki.bundledThemes['one-light']()
+      await highlighter.loadTheme(oneLightTheme)
+      loadedTheme = 'one-light'
+    }
+  }
+
+  return loadedTheme
+}
 
 /**
  * Shiki token 样式转换为 React 样式对象
@@ -38,44 +126,35 @@ export function getReactStyleFromToken(token: ThemedToken): Record<string, strin
   return reactStyle
 }
 
-const defaultOptions = {
-  themes: {
-    light: 'one-light',
-    dark: 'material-theme-darker'
-  },
-  defaultColor: 'light'
-}
+/**
+ * 获取 markdown-it，避免并发问题
+ */
+const mdInitializer = new AsyncInitializer(async () => {
+  const md = await import('markdown-it')
+  return md.default({
+    linkify: true, // 自动转换 URL 为链接
+    typographer: true // 启用印刷格式优化
+  })
+})
 
-export async function getShikiInstance(theme: ThemeMode) {
+/**
+ * 获取 markdown-it 渲染器
+ * @param theme - 主题
+ */
+export async function getMarkdownIt(theme: string) {
   const highlighter = await getHighlighter()
+  const md = await mdInitializer.get()
+  const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
-  const options = {
-    ...defaultOptions,
-    defaultColor: theme
-  }
-
-  return function (markdownit: MarkdownIt) {
-    setupMarkdownIt(markdownit, highlighter, options)
-  }
-}
-
-export function useShikiWithMarkdownIt(content: string) {
-  const [renderedMarkdown, setRenderedMarkdown] = useState('')
-  const md = useRef<MarkdownIt>(
-    new MarkdownIt({
-      linkify: true, // 自动转换 URL 为链接
-      typographer: true // 启用印刷格式优化
+  md.use(
+    fromHighlighter(highlighter, {
+      themes: {
+        light: 'one-light',
+        dark: 'material-theme-darker'
+      },
+      defaultColor: theme
     })
   )
-  const { theme } = useTheme()
-  useEffect(() => {
-    runAsyncFunction(async () => {
-      const sk = await getShikiInstance(theme)
-      md.current.use(sk)
-      setRenderedMarkdown(md.current.render(content))
-    })
-  }, [content, theme])
-  return {
-    renderedMarkdown
-  }
+
+  return md
 }

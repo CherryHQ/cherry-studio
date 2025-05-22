@@ -204,10 +204,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // notification
-  ipcMain.handle(IpcChannel.App_Notification, async (_, notification: Notification) => {
+  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
     await notificationService.sendNotification(notification)
   })
-  ipcMain.handle(IpcChannel.App_OnNotificationClick, (_, notification: Notification) => {
+  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
     mainWindow.webContents.send('notification-click', notification)
   })
 

@@ -1,23 +1,24 @@
+import { useChatContext } from '@renderer/hooks/useChatContext'
+import { Topic } from '@renderer/types'
 import { Checkbox } from 'antd'
 import { FC, ReactNode, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
-import { useChatContext } from './ChatContext'
-
 interface SelectableMessageProps {
   children: ReactNode
   messageId: string
+  topic: Topic
   isClearMessage?: boolean
 }
 
-const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, isClearMessage = false }) => {
+const SelectableMessage: FC<SelectableMessageProps> = ({ children, messageId, topic, isClearMessage = false }) => {
   const containerRef = useRef<HTMLDivElement>(null)
   const {
     registerMessageElement: contextRegister,
     isMultiSelectMode,
     selectedMessageIds,
     handleSelectMessage
-  } = useChatContext()
+  } = useChatContext(topic)
 
   const isSelected = selectedMessageIds?.includes(messageId)
 
