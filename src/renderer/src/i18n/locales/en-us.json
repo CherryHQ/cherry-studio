@@ -1722,7 +1722,6 @@
       }
     },
     "translate": {
-      "any.language": "Any language",
       "button.translate": "Translate",
       "close": "Close",
       "closed": "Translation closed",
