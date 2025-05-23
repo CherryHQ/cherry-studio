@@ -496,7 +496,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiHost: 'https://tokenflux.ai',
     models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
-    enabled: true
+    enabled: false
   }
 ]
 
