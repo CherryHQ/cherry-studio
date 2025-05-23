@@ -18,7 +18,7 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
@@ -217,7 +217,7 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
           ) : (
             assistantIconType === 'emoji' && (
               <EmojiIcon
-                emoji={assistant.emoji || assistantName.slice(0, 1)}
+                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
                 className={isPending && !isActive ? 'animation-pulse' : ''}
               />
             )
