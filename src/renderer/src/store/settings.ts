@@ -52,6 +52,7 @@ export interface SettingsState {
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
@@ -192,6 +193,7 @@ export const initialState: SettingsState = {
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
@@ -374,6 +376,9 @@ const settingsSlice = createSlice({
     },
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
+    },
+    setPinTopicsToTop: (state, action: PayloadAction<boolean>) => {
+      state.pinTopicsToTop = action.payload
     },
     setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
       state.assistantIconType = action.payload
@@ -655,6 +660,7 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setPinTopicsToTop,
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,

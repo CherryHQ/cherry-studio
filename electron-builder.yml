@@ -94,10 +94,9 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ⚠️ 注意：升级前请备份数据，否则将无法降级
-    增加消息通知功能
-    增加 Google 小程序
-    MCP 支持运行 Python 代码
-    修复 MCP SSE 连接问题
-    修复消息编辑和消息多选相关问题
-    修复消息显示问题
-    修复话题提示词无效问题
+    增加 Claude 4 模型支持
+    Grok 模型增加联网能力
+    修复无法搜索历史消息问题
+    修复 MCP 代理问题
+    修复精简备份恢复覆盖文件问题
+    修复@模型回复插入位置错误问题

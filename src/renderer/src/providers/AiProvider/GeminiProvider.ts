@@ -508,7 +508,6 @@ export default class GeminiProvider extends BaseProvider {
       let time_first_token_millsec = 0
 
       if (stream instanceof GenerateContentResponse) {
-        let content = ''
         const time_completion_millsec = new Date().getTime() - start_time_millsec
 
         const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
@@ -523,16 +522,18 @@ export default class GeminiProvider extends BaseProvider {
               if (part.functionCall) {
                 functionCalls.push(part.functionCall)
               }
-              if (part.text) {
-                content += part.text
-                onChunk({ type: ChunkType.TEXT_DELTA, text: part.text })
+              const text = part.text || ''
+              if (part.thought) {
+                onChunk({ type: ChunkType.THINKING_DELTA, text })
+                onChunk({ type: ChunkType.THINKING_COMPLETE, text })
+              } else if (part.text) {
+                onChunk({ type: ChunkType.TEXT_DELTA, text })
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text })
               }
             })
           }
         })
-        if (content.length) {
-          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-        }
+
         if (functionCalls.length) {
           toolResults.push(...(await processToolCalls(functionCalls)))
         }
@@ -565,16 +566,35 @@ export default class GeminiProvider extends BaseProvider {
         } as BlockCompleteChunk)
       } else {
         let content = ''
+        let thinkingContent = ''
         for await (const chunk of stream) {
           if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
 
-          if (time_first_token_millsec == 0) {
-            time_first_token_millsec = new Date().getTime()
-          }
-
-          if (chunk.text !== undefined) {
-            content += chunk.text
-            onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.text })
+          if (chunk.candidates?.[0]?.content?.parts && chunk.candidates[0].content.parts.length > 0) {
+            const parts = chunk.candidates[0].content.parts
+            for (const part of parts) {
+              if (!part.text) {
+                continue
+              } else if (part.thought) {
+                if (time_first_token_millsec === 0) {
+                  time_first_token_millsec = new Date().getTime()
+                }
+                thinkingContent += part.text
+                onChunk({ type: ChunkType.THINKING_DELTA, text: part.text || '' })
+              } else {
+                if (time_first_token_millsec == 0) {
+                  time_first_token_millsec = new Date().getTime()
+                } else {
+                  onChunk({
+                    type: ChunkType.THINKING_COMPLETE,
+                    text: thinkingContent,
+                    thinking_millsec: new Date().getTime() - time_first_token_millsec
+                  })
+                }
+                content += part.text
+                onChunk({ type: ChunkType.TEXT_DELTA, text: part.text })
+              }
+            }
           }
 
           if (chunk.candidates?.[0]?.finishReason) {
@@ -643,6 +663,7 @@ export default class GeminiProvider extends BaseProvider {
     const start_time_millsec = new Date().getTime()
 
     if (!streamOutput) {
+      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
       const response = await chat.sendMessage({
         message: messageContents as PartUnion,
         config: {
@@ -650,7 +671,6 @@ export default class GeminiProvider extends BaseProvider {
           abortSignal: abortController.signal
         }
       })
-      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
       return await processStream(response, 0).then(cleanup)
     }
 

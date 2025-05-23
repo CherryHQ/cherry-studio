@@ -681,6 +681,8 @@
     "minapp": {
       "popup": {
         "refresh": "Refresh",
+        "goBack": "Go Back",
+        "goForward": "Go Forward",
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
@@ -1635,6 +1637,7 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
+      "topic.pin_to_top": "Pin Topics to Top",
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",
