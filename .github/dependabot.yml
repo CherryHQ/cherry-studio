@@ -7,8 +7,7 @@ updates:
     open-pull-requests-limit: 7
     target-branch: "main"
     commit-message:
-      prefix: "chore(deps)"
-      prefix-development: "chore(deps-dev)"
+      prefix: "chore"
       include: "scope"
     groups:
       # 核心框架
