@@ -61,6 +61,8 @@ export type AssistantSettings = {
   reasoning_effort?: ReasoningEffortOptions
   qwenThinkMode?: boolean
   toolUseMode?: 'function' | 'prompt'
+  enablePromptCache?: boolean
+  cacheTTL?: number
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -158,6 +160,7 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
   isNotSupportArrayContent?: boolean
+  isSupportPromptCache?: boolean
   notes?: string
 }
 

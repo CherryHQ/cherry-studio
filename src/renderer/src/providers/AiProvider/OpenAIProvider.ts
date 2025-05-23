@@ -2,6 +2,7 @@ import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
+  getPromptCacheParams,
   isClaudeReasoningModel,
   isHunyuanSearchModel,
   isOpenAIReasoningModel,
@@ -127,22 +128,24 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
   /**
    * Get the message parameter
    * @param message - The message
-   * @param model - The model
+   * @param assistant - The assistant
    * @returns The message parameter
    */
-  override async getMessageParam(
+  private async getMessageParam(
     message: Message,
-    model: Model
+    assistant: Assistant
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
-    const isVision = isVisionModel(model)
+    const isVision = isVisionModel(assistant.model || getDefaultModel())
     const content = await this.getMessageContent(message)
+    const model = assistant.model || getDefaultModel()
     const fileBlocks = findFileBlocks(message)
     const imageBlocks = findImageBlocks(message)
 
     if (fileBlocks.length === 0 && imageBlocks.length === 0) {
       return {
         role: message.role === 'system' ? 'user' : message.role,
-        content
+        content,
+        ...getPromptCacheParams(assistant, model)
       }
     }
 
@@ -152,7 +155,8 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
       return {
         role: message.role === 'system' ? 'user' : message.role,
-        content: content + '\n\n---\n\n' + fileContent
+        content: content + '\n\n---\n\n' + fileContent,
+        ...getPromptCacheParams(assistant, model)
       }
     }
 
@@ -160,7 +164,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const parts: ChatCompletionContentPart[] = []
 
     if (content) {
-      parts.push({ type: 'text', text: content })
+      parts.push({ type: 'text', text: content, ...getPromptCacheParams(assistant, model) })
     }
 
     for (const imageBlock of imageBlocks) {
@@ -184,7 +188,8 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
           type: 'text',
-          text: file.origin_name + '\n' + fileContent
+          text: file.origin_name + '\n' + fileContent,
+          ...getPromptCacheParams(assistant, model)
         })
       }
     }
@@ -377,7 +382,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
         assistant.settings?.reasoning_effort !== undefined) ||
       (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-    let systemMessage = { role: 'system', content: assistant.prompt || '' }
+    let systemMessage = {
+      role: 'system',
+      content: assistant.prompt || '',
+      ...getPromptCacheParams(assistant, assistant.model || defaultModel)
+    }
+
     if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
@@ -408,7 +418,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     onFilterMessages(_messages)
 
     for (const message of _messages) {
-      userMessages.push(await this.getMessageParam(message, model))
+      userMessages.push(await this.getMessageParam(message, assistant))
     }
 
     const isSupportStreamOutput = () => {
