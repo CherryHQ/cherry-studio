@@ -40,6 +40,7 @@ export type AihubmixMode = keyof PaintingsState
 export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   return {
     paintings: [],
+    DMXAPIPaintings: [],
     generate: [
       { type: 'title', title: 'paintings.model', tooltip: 'paintings.generate.model_tip' },
       {

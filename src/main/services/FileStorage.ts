@@ -386,7 +386,11 @@ class FileStorage {
     }
   }
 
-  public downloadFile = async (_: Electron.IpcMainInvokeEvent, url: string): Promise<FileType> => {
+  public downloadFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    url: string,
+    isUseContentType?: boolean
+  ): Promise<FileType> => {
     try {
       const response = await fetch(url)
       if (!response.ok) {
@@ -411,7 +415,7 @@ class FileStorage {
       }
 
       // 如果文件名没有后缀，根据Content-Type添加后缀
-      if (!filename.includes('.')) {
+      if (isUseContentType || !filename.includes('.')) {
         const contentType = response.headers.get('Content-Type')
         const ext = this.getExtensionFromMimeType(contentType)
         filename += ext
