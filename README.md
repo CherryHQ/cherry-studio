@@ -23,9 +23,11 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 
 # 🌠 Screenshot
 
-![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
-![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
-![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
+![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+
+![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+
+![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
 
 # 🌟 Key Features
 
@@ -121,7 +123,7 @@ For more detailed guidelines, please refer to our [Contributing Guide](./CONTRIB
 
 Thank you for your support and contributions!
 
-## Related Projects
+# 🔗 Related Projects
 
 - [one-api](https://github.com/songquanpeng/one-api):LLM API management and distribution system, supporting mainstream models like OpenAI, Azure, and Anthropic. Features unified API interface, suitable for key management and secondary distribution.
 

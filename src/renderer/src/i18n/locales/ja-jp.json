@@ -682,6 +682,8 @@
     "minapp": {
       "popup": {
         "refresh": "更新",
+        "goBack": "戻る",
+        "goForward": "進む",
         "close": "ミニアプリを閉じる",
         "minimize": "ミニアプリを最小化",
         "devtools": "開発者ツール",
@@ -938,7 +940,8 @@
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云"
+      "qiniu": "七牛云",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "データを復元しますか？",

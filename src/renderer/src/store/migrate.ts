@@ -1436,6 +1436,15 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '106': (state: RootState) => {
+    try {
+      addProvider(state, 'tokenflux')
+      state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

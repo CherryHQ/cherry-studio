@@ -681,6 +681,8 @@
     "minapp": {
       "popup": {
         "refresh": "Refresh",
+        "goBack": "Go Back",
+        "goForward": "Go Forward",
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
@@ -937,7 +939,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",

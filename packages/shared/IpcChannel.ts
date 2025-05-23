@@ -175,6 +175,9 @@ export enum IpcChannel {
   StoreSync_OnUpdate = 'store-sync:on-update',
   StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
 
+  // Provider
+  Provider_AddKey = 'provider:add-key',
+
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
   Selection_ToolbarHide = 'selection:toolbar-hide',
