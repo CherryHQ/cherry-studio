@@ -1626,6 +1626,7 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
+      "topic.pin_to_top": "Закрепленные топики сверху",
       "tray.onclose": "Свернуть в трей при закрытии",
       "tray.show": "Показать значок в трее",
       "tray.title": "Трей",

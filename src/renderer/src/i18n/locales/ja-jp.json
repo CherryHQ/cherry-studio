@@ -1626,6 +1626,7 @@
       "topic.position.left": "左",
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
+      "topic.pin_to_top": "固定トピックを上部に表示",
       "tray.onclose": "閉じるときにトレイに最小化",
       "tray.show": "トレイアイコンを表示",
       "tray.title": "トレイ",

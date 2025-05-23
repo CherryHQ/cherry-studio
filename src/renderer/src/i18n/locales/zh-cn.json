@@ -1635,6 +1635,7 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
+      "topic.pin_to_top": "固定话题置顶",
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
       "tray.title": "托盘",

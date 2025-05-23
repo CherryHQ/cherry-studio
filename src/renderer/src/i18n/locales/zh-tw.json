@@ -1629,6 +1629,7 @@
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
+      "topic.pin_to_top": "固定話題置頂",
       "tray.onclose": "關閉時最小化到系统匣",
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",
