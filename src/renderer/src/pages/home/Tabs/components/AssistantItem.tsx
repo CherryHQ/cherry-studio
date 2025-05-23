@@ -1,17 +1,19 @@
 import {
   DeleteOutlined,
   EditOutlined,
+  MenuOutlined,
   MinusCircleOutlined,
   SaveOutlined,
   SmileOutlined,
   SortAscendingOutlined,
-  SortDescendingOutlined
+  SortDescendingOutlined,
+  TagsFilled,
+  TagsOutlined
 } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
@@ -31,14 +33,26 @@ import * as tinyPinyin from 'tiny-pinyin'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
+  sortBy: 'tags' | 'list'
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
   addAssistant: (assistant: Assistant) => void
+  onTagClick?: (tag: string) => void
+  handleSortByChange?: (sortType: '' | 'tags' | 'list') => void
 }
 
-const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
+const AssistantItem: FC<AssistantItemProps> = ({
+  assistant,
+  isActive,
+  sortBy,
+  onSwitch,
+  onDelete,
+  addAgent,
+  addAssistant,
+  handleSortByChange
+}) => {
   const { t } = useTranslation()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
@@ -145,6 +159,48 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       },
       { type: 'divider' },
       {
+        label: t('assistants.tags.manage'),
+        key: 'tags',
+        icon: <TagsFilled />,
+        children: [
+          {
+            label: assistant.tags?.length ? t('assistants.tags.modify') : t('assistants.tags.add'),
+            key: 'add-tag',
+            onClick: () => {
+              const listener = (updated: Assistant) => {
+                if (updated.id === assistant.id) {
+                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                  EventEmitter.off(EVENT_NAMES.ADD_ASSISTANT, listener)
+                }
+              }
+              EventEmitter.on(EVENT_NAMES.ADD_ASSISTANT, listener)
+              AssistantSettingsPopup.show({
+                assistant,
+                tab: 'tags'
+              })
+            }
+          },
+          ...(assistant.tags || []).map((tag) => ({
+            label: tag,
+            danger: true,
+            icon: <DeleteOutlined />,
+            key: `tag-${tag}`,
+            onClick: () => {
+              const newTags = (assistant.tags || []).filter((t) => t !== tag)
+              updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: newTags } : a)))
+            }
+          }))
+        ]
+      },
+      {
+        label: sortBy === 'list' ? t('assistants.list.showByTags') : t('assistants.list.showByList'),
+        key: 'switch-view',
+        icon: sortBy === 'list' ? <TagsOutlined /> : <MenuOutlined />,
+        onClick: () => {
+          sortBy === 'list' ? handleSortByChange?.('tags') : handleSortByChange?.('list')
+        }
+      },
+      {
         label: t('common.sort.pinyin.asc'),
         key: 'sort-asc',
         icon: <SortAscendingOutlined />,
@@ -176,13 +232,16 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     [
       addAgent,
       addAssistant,
+      assistants,
+      handleSortByChange,
       onDelete,
       onSwitch,
       removeAllTopics,
       setAssistantIconType,
       sortByPinyinAsc,
       sortByPinyinDesc,
-      t
+      t,
+      updateAssistants
     ]
   )
 

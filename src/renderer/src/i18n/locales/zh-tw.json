@@ -99,6 +99,23 @@
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",
       "settings.knowledge_base.recognition.on": "意圖識別",
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "標籤展示"
+      },
+      "tags": {
+        "untagged": "未分組標籤",
+        "none": "暫無標籤",
+        "manage": "標籤管理",
+        "add": "添加標籤",
+        "modify": "修改標籤",
+        "delete": "刪除標籤",
+        "settings": {
+          "title": "標籤設置",
+          "current": "當前標籤",
+          "addTagsPlaceholder": "請選擇標籤，或者點擊右側圖標新增標籤"
+        }
+      },
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "函數",
       "settings.tool_use_mode.prompt": "提示詞"

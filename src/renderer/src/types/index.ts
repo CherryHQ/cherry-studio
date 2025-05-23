@@ -25,6 +25,7 @@ export type Assistant = {
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
+  tags?: string[] // 助手标签
 }
 
 export type AssistantMessage = {

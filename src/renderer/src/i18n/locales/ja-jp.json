@@ -99,6 +99,23 @@
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
       "settings.knowledge_base.recognition.off": "強制検索",
       "settings.knowledge_base.recognition.on": "意図認識",
+      "list": {
+        "showByList": "リスト表示",
+        "showByTags": "タグ表示"
+      },
+      "tags": {
+        "untagged": "未分類タグ",
+        "none": "タグなし",
+        "manage": "タグ管理",
+        "add": "タグ追加",
+        "modify": "タグ修正",
+        "delete": "タグ削除",
+        "settings": {
+          "title": "タグ設定",
+          "current": "現在のタグ",
+          "addTagsPlaceholder": "タグを選択するか、プラスアイコンをクリックして新しいタグを追加"
+        }
+      },
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "関数",
       "settings.tool_use_mode.prompt": "提示詞"

@@ -3,7 +3,9 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useTags } from '@renderer/hooks/useTags'
 import { Assistant } from '@renderer/types'
+import { Divider } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -16,7 +18,7 @@ interface AssistantsTabProps {
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
-
+type SortType = '' | 'tags' | 'list'
 const Assistants: FC<AssistantsTabProps> = ({
   activeAssistant,
   setActiveAssistant,
@@ -25,8 +27,10 @@ const Assistants: FC<AssistantsTabProps> = ({
 }) => {
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
+  const [sortBy, setSortBy] = useState<SortType>('list')
   const { addAgent } = useAgents()
   const { t } = useTranslation()
+  const { getGroupedAssistants } = useTags()
   const containerRef = useRef<HTMLDivElement>(null)
 
   const onDelete = useCallback(
@@ -41,27 +45,64 @@ const Assistants: FC<AssistantsTabProps> = ({
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
+  const handleSortByChange = useCallback(
+    (sortType: SortType) => {
+      setSortBy(sortType)
+    },
+    [setSortBy]
+  )
+
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <DragableList
-        list={assistants}
-        onUpdate={updateAssistants}
-        style={{ paddingBottom: dragging ? '34px' : 0 }}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(assistant) => (
-          <AssistantItem
-            key={assistant.id}
-            assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            onSwitch={setActiveAssistant}
-            onDelete={onDelete}
-            addAgent={addAgent}
-            addAssistant={addAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-          />
-        )}
-      </DragableList>
+      {sortBy === 'tags' && (
+        <div style={{ paddingBottom: dragging ? '34px' : 0 }}>
+          {getGroupedAssistants.map((group) => (
+            <div key={group.tag}>
+              <GroupTitle>
+                <GroupTitleName>{group.tag}</GroupTitleName>
+                <Divider style={{ margin: '12px 0' }}></Divider>
+              </GroupTitle>
+              {group.assistants.map((assistant) => (
+                <AssistantItem
+                  key={assistant.id}
+                  assistant={assistant}
+                  isActive={assistant.id === activeAssistant.id}
+                  sortBy={sortBy}
+                  onSwitch={setActiveAssistant}
+                  onDelete={onDelete}
+                  addAgent={addAgent}
+                  addAssistant={addAssistant}
+                  onCreateDefaultAssistant={onCreateDefaultAssistant}
+                  handleSortByChange={handleSortByChange}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {sortBy === 'list' && (
+        <DragableList
+          list={assistants}
+          onUpdate={updateAssistants}
+          style={{ paddingBottom: dragging ? '34px' : 0 }}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}>
+          {(assistant) => (
+            <AssistantItem
+              key={assistant.id}
+              assistant={assistant}
+              isActive={assistant.id === activeAssistant.id}
+              sortBy={sortBy}
+              onSwitch={setActiveAssistant}
+              onDelete={onDelete}
+              addAgent={addAgent}
+              addAssistant={addAssistant}
+              onCreateDefaultAssistant={onCreateDefaultAssistant}
+              handleSortByChange={handleSortByChange}
+            />
+          )}
+        </DragableList>
+      )}
       {!dragging && (
         <AssistantAddItem onClick={onCreateAssistant}>
           <AssistantName>
@@ -101,6 +142,24 @@ const AssistantAddItem = styled.div`
     background-color: var(--color-background-soft);
     border: 0.5px solid var(--color-border);
   }
+`
+
+const GroupTitle = styled.div`
+  padding: 8px 0px;
+  position: relative;
+  color: var(--color-text-2);
+  font-size: 12px;
+  font-weight: 500;
+`
+
+const GroupTitleName = styled.div`
+  background-color: var(--color-background);
+  box-sizing: border-box;
+  padding: 0 4px;
+  color: var(--color-text);
+  position: absolute;
+  transform: translateY(2px);
+  font-size: 13px;
 `
 
 const AssistantName = styled.div`
