@@ -1,4 +1,5 @@
 import { CheckOutlined, LoadingOutlined } from '@ant-design/icons'
+import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -326,6 +327,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           }}
         />
       )}
+      {provider.id === 'openai' && <OpenAIAlert />}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
@@ -404,7 +406,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <HStack alignItems="center" gap={5}>
+          <HStack alignItems="center" gap={8} mb={5}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </HStack>

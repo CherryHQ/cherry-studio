@@ -21,6 +21,9 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  Notification_Send = 'notification:send',
+  Notification_OnClick = 'notification:on-click',
+
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
 
   // Open
@@ -52,6 +55,7 @@ export enum IpcChannel {
   Mcp_GetInstallInfo = 'mcp:get-install-info',
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
+  Mcp_CheckConnectivity = 'mcp:check-connectivity',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

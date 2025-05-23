@@ -8,7 +8,7 @@ import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AssistantItem from './AssistantItem'
+import AssistantItem from './components/AssistantItem'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
@@ -89,7 +89,6 @@ const AssistantAddItem = styled.div`
   padding: 7px 12px;
   position: relative;
   padding-right: 35px;
-  font-family: Ubuntu;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
   cursor: pointer;

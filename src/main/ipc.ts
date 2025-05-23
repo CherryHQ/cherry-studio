@@ -8,7 +8,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
-import { getFolderSizeBin } from 'go-get-folder-size'
+import { Notification } from 'src/renderer/src/types/notification'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
@@ -21,6 +21,7 @@ import FileStorage from './services/FileStorage'
 import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
@@ -30,7 +31,7 @@ import storeSyncService from './services/StoreSyncService'
 import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
@@ -42,6 +43,7 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
+  const notificationService = new NotificationService(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -184,14 +186,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // get cache size
   ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
     const cachePath = getCacheDir()
-    const size = await getFolderSizeBin(cachePath, true, {
-      // ignore files that we can't access
-      loose: true
-    }).catch((err) => {
-      log.error('Failed to get cache size:', err)
-    })
+    log.info(`Calculating cache size for path: ${cachePath}`)
 
-    return size || '0MB'
+    try {
+      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
+      return `${sizeInMB}`
+    } catch (error: any) {
+      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      return '0'
+    }
   })
 
   // check for update
@@ -199,9 +203,25 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     await appUpdater.checkForUpdates()
   })
 
+  // notification
+  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
+    await notificationService.sendNotification(notification)
+  })
+  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
+    mainWindow.webContents.send('notification-click', notification)
+  })
+
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
+
+  // system
+  ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
+  ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
+  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    win && win.webContents.toggleDevTools()
+  })
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup)
@@ -310,6 +330,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
   ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
+  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))

@@ -2,6 +2,7 @@ import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
@@ -61,6 +62,7 @@ const PROVIDER_LOGO_MAP = {
   xirang: XirangProviderLogo,
   anthropic: AnthropicProviderLogo,
   aihubmix: AiHubMixProviderLogo,
+  burncloud: BurnCloudProviderLogo,
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
@@ -119,6 +121,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://o3.fan/token',
       docs: 'https://docs.o3.fan',
       models: 'https://docs.o3.fan/models'
+    }
+  },
+  burncloud: {
+    api: {
+      url: 'https://ai.burncloud.com'
+    },
+    websites: {
+      official: 'https://ai.burncloud.com/',
+      apiKey: 'https://ai.burncloud.com/token',
+      docs: 'https://ai.burncloud.com/docs',
+      models: 'https://ai.burncloud.com/pricing'
     }
   },
   ppio: {

@@ -2,7 +2,9 @@ import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
@@ -10,18 +12,21 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import { useAppDispatch } from '@renderer/store'
+import store, { useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
+import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
 import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,18 +43,28 @@ interface MessagesProps {
   assistant: Assistant
   topic: Topic
   setActiveTopic: (topic: Topic) => void
+  onComponentUpdate?(): void
+  onFirstUpdate?(): void
 }
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
+const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
+  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
+    `topic-${topic.id}`
+  )
   const { t } = useTranslation()
   const { showPrompt, showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
+  const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
-  const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [dragCurrent, setDragCurrent] = useState({ x: 0, y: 0 })
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
@@ -57,6 +72,113 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  useEffect(() => {
+    if (!isMultiSelectMode) return
+
+    const updateDragPos = (e: MouseEvent) => {
+      const container = scrollContainerRef.current!
+      if (!container) return { x: 0, y: 0 }
+      const rect = container.getBoundingClientRect()
+      const x = e.clientX - rect.left + container.scrollLeft
+      const y = e.clientY - rect.top + container.scrollTop
+      return { x, y }
+    }
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('.ant-checkbox-wrapper')) return
+      if ((e.target as HTMLElement).closest('.MessageFooter')) return
+      setIsDragging(true)
+      const pos = updateDragPos(e)
+      setDragStart(pos)
+      setDragCurrent(pos)
+      document.body.classList.add('no-select')
+    }
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return
+      setDragCurrent(updateDragPos(e))
+      const container = scrollContainerRef.current!
+      if (container) {
+        const { top, bottom } = container.getBoundingClientRect()
+        const scrollSpeed = 15
+        if (e.clientY < top + 50) {
+          container.scrollBy(0, -scrollSpeed)
+        } else if (e.clientY > bottom - 50) {
+          container.scrollBy(0, scrollSpeed)
+        }
+      }
+    }
+
+    const handleMouseUp = () => {
+      if (!isDragging) return
+
+      const left = Math.min(dragStart.x, dragCurrent.x)
+      const right = Math.max(dragStart.x, dragCurrent.x)
+      const top = Math.min(dragStart.y, dragCurrent.y)
+      const bottom = Math.max(dragStart.y, dragCurrent.y)
+
+      const MIN_SELECTION_SIZE = 5
+      const isValidSelection =
+        Math.abs(right - left) > MIN_SELECTION_SIZE && Math.abs(bottom - top) > MIN_SELECTION_SIZE
+
+      if (isValidSelection) {
+        // 处理元素选择
+        messageElements.current.forEach((element, messageId) => {
+          try {
+            const rect = element.getBoundingClientRect()
+            const container = scrollContainerRef.current!
+
+            const elementTop = rect.top - container.getBoundingClientRect().top + container.scrollTop
+            const elementLeft = rect.left - container.getBoundingClientRect().left + container.scrollLeft
+            const elementBottom = elementTop + rect.height
+            const elementRight = elementLeft + rect.width
+
+            const isIntersecting = !(
+              elementRight < left ||
+              elementLeft > right ||
+              elementBottom < top ||
+              elementTop > bottom
+            )
+
+            if (isIntersecting) {
+              handleSelectMessage(messageId, true)
+              element.classList.add('selection-highlight')
+              setTimeout(() => element.classList.remove('selection-highlight'), 300)
+            }
+          } catch (error) {
+            console.error('Error calculating element intersection:', error)
+          }
+        })
+      }
+      setIsDragging(false)
+      document.body.classList.remove('no-select')
+    }
+
+    const container = scrollContainerRef.current!
+    if (container) {
+      container.addEventListener('mousedown', handleMouseDown)
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener('mousedown', handleMouseDown)
+        window.removeEventListener('mousemove', handleMouseMove)
+        window.removeEventListener('mouseup', handleMouseUp)
+        document.body.classList.remove('no-select')
+      }
+    }
+  }, [isMultiSelectMode, isDragging, dragStart, dragCurrent, handleSelectMessage, scrollContainerRef])
+
+  const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
+    if (element) {
+      messageElements.current.set(id, element)
+    } else {
+      messageElements.current.delete(id)
+    }
+  }, [])
 
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
@@ -72,16 +194,16 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   }, [showAssistants, showTopics, topicPosition])
 
   const scrollToBottom = useCallback(() => {
-    if (containerRef.current) {
+    if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTo({
-            top: containerRef.current.scrollHeight
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight
           })
         }
       })
     }
-  }, [])
+  }, [scrollContainerRef])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -115,14 +237,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         })
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
-        await captureScrollableDivAsBlob(containerRef, async (blob) => {
+        await captureScrollableDivAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           }
         })
       }),
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
-        const imageData = await captureScrollableDivAsDataURL(containerRef)
+        const imageData = await captureScrollableDivAsDataURL(scrollContainerRef)
         if (imageData) {
           window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
@@ -183,7 +305,32 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
           window.message.error(t('message.branch.error')) // Example error message
         }
-      })
+      }),
+      EventEmitter.on(
+        EVENT_NAMES.EDIT_CODE_BLOCK,
+        async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
+          const { msgBlockId, codeBlockId, newContent } = data
+
+          const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+
+          // FIXME: 目前 error block 没有 content
+          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
+            try {
+              const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
+              dispatch(updateOneBlock({ id: msgBlockId, changes: { content: updatedRaw } }))
+              window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
+            } catch (error) {
+              console.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error)
+              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            }
+          } else {
+            console.error(
+              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
+            )
+            window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+          }
+        }
+      )
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
@@ -196,8 +343,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })
-    })
-  }, [assistant, messages])
+    }).then(() => onFirstUpdate?.())
+  }, [assistant, messages, onFirstUpdate])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return
@@ -221,13 +368,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     }
   })
 
+  useEffect(() => {
+    requestAnimationFrame(() => onComponentUpdate?.())
+  }, [onComponentUpdate])
+
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
-      style={{ maxWidth }}
+      ref={scrollContainerRef}
+      style={{
+        position: 'relative',
+        maxWidth,
+        paddingTop: showPrompt ? 10 : 0
+      }}
       key={assistant.id}
-      ref={containerRef}
+      onScroll={handleScrollPosition}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
@@ -245,6 +401,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 messages={groupMessages}
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
+                registerMessageElement={registerMessageElement}
               />
             ))}
             {isLoadingMore && (
@@ -258,6 +415,16 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+      {isDragging && isMultiSelectMode && (
+        <SelectionBox
+          style={{
+            left: Math.min(dragStart.x, dragCurrent.x),
+            top: Math.min(dragStart.y, dragCurrent.y),
+            width: Math.abs(dragCurrent.x - dragStart.x),
+            height: Math.abs(dragCurrent.y - dragStart.y)
+          }}
+        />
+      )}
     </Container>
   )
 }
@@ -319,10 +486,18 @@ interface ContainerProps {
 const Container = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0 10px;
+  padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;
+`
+
+const SelectionBox = styled.div`
+  position: absolute;
+  border: 1px dashed var(--color-primary);
+  background-color: rgba(0, 114, 245, 0.1);
+  pointer-events: none;
+  z-index: 100;
 `
 
 export default Messages

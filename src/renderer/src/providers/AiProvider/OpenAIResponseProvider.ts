@@ -1,7 +1,8 @@
 import {
-  isOpenAILLMModel,
+  isOpenAIModel,
   isOpenAIReasoningModel,
   isOpenAIWebSearch,
+  isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
@@ -25,6 +26,8 @@ import {
   MCPToolResponse,
   Metrics,
   Model,
+  OpenAIServiceTier,
+  OpenAISummaryText,
   Provider,
   Suggestion,
   ToolCallResponse,
@@ -37,6 +40,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import { convertLinks } from '@renderer/utils/linkConverter'
 import {
+  isEnabledToolUse,
   mcpToolCallResponseToOpenAIMessage,
   mcpToolsToOpenAIResponseTools,
   openAIToolsToMcpTool,
@@ -175,17 +179,28 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
   }
 
   protected getServiceTier(model: Model) {
-    if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
-      return 'flex'
+    if (!isOpenAIModel(model) || model.provider === 'github' || model.provider === 'copilot') {
+      return undefined
     }
-    if (isOpenAILLMModel(model)) {
-      return 'auto'
+
+    const openAI = getStoreSetting('openAI') as any
+    let serviceTier = 'auto' as OpenAIServiceTier
+
+    if (openAI && openAI?.serviceTier === 'flex') {
+      if (isSupportedFlexServiceTier(model)) {
+        serviceTier = 'flex'
+      } else {
+        serviceTier = 'auto'
+      }
+    } else {
+      serviceTier = openAI.serviceTier
     }
-    return undefined
+
+    return serviceTier
   }
 
   protected getTimeout(model: Model) {
-    if ((model.id.includes('o3') && !model.id.includes('o3-mini')) || model.id.includes('o4-mini')) {
+    if (isSupportedFlexServiceTier(model)) {
       return 15 * 1000 * 60
     }
     return 5 * 1000 * 60
@@ -194,6 +209,17 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
   private getResponseReasoningEffort(assistant: Assistant, model: Model) {
     if (!isSupportedReasoningEffortOpenAIModel(model)) {
       return {}
+    }
+
+    const openAI = getStoreSetting('openAI') as any
+    const summaryText = (openAI?.summaryText as OpenAISummaryText) || 'off'
+
+    let summary: string | undefined = undefined
+
+    if (summaryText === 'off' || model.id.includes('o1-pro')) {
+      summary = undefined
+    } else {
+      summary = summaryText
     }
 
     const reasoningEffort = assistant?.settings?.reasoning_effort
@@ -205,7 +231,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
       return {
         reasoning: {
           effort: reasoningEffort as OpenAI.ReasoningEffort,
-          summary: 'detailed'
+          summary: summary
         } as OpenAI.Reasoning
       }
     }
@@ -229,7 +255,8 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
     const isEnabledBuiltinWebSearch = assistant.enableWebSearch
 
     let tools: OpenAI.Responses.Tool[] = []
@@ -258,7 +285,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const { tools: extraTools } = this.setupToolsConfig<OpenAI.Responses.Tool>({
       mcpTools,
       model,
-      enableToolUse
+      enableToolUse: isEnabledToolUse(assistant)
     })
 
     tools = tools.concat(extraTools)
@@ -463,6 +490,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         return
       }
       let content = ''
+      let thinkContent = ''
 
       const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
 
@@ -472,28 +500,39 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         }
         switch (chunk.type) {
           case 'response.output_item.added':
-            if (time_first_token_millsec === 0) {
-              time_first_token_millsec = new Date().getTime()
-            }
             if (chunk.item.type === 'function_call') {
               outputItems.push(chunk.item)
             }
             break
-
+          case 'response.reasoning_summary_part.added':
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
+            }
+            break
           case 'response.reasoning_summary_text.delta':
             onChunk({
               type: ChunkType.THINKING_DELTA,
               text: chunk.delta,
               thinking_millsec: new Date().getTime() - time_first_token_millsec
             })
+            thinkContent += chunk.delta
             break
-          case 'response.reasoning_summary_text.done':
-            onChunk({
-              type: ChunkType.THINKING_COMPLETE,
-              text: chunk.text,
-              thinking_millsec: new Date().getTime() - time_first_token_millsec
-            })
+          case 'response.output_item.done': {
+            if (thinkContent !== '' && chunk.item.type === 'reasoning') {
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinkContent,
+                thinking_millsec: new Date().getTime() - time_first_token_millsec
+              })
+            }
             break
+          }
+          case 'response.content_part.added': {
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
+            }
+            break
+          }
           case 'response.output_text.delta': {
             let delta = chunk.delta
             if (isEnabledBuiltinWebSearch) {
@@ -532,7 +571,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
               onChunk({
                 type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                 llm_web_search: {
-                  source: WebSearchSource.OPENAI,
+                  source: WebSearchSource.OPENAI_RESPONSE,
                   results: chunk.part.annotations
                 }
               })
@@ -846,24 +885,18 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
       const response = await this.sdk.responses.create({
         model: model.id,
         input: [{ role: 'user', content: 'hi' }],
-        max_output_tokens: 1,
         stream: true
       })
-      let hasContent = false
       for await (const chunk of response) {
         if (chunk.type === 'response.output_text.delta') {
-          hasContent = true
+          return { valid: true, error: null }
         }
-      }
-      if (hasContent) {
-        return { valid: true, error: null }
       }
       throw new Error('Empty streaming response')
     } else {
       const response = await this.sdk.responses.create({
         model: model.id,
         input: [{ role: 'user', content: 'hi' }],
-        max_output_tokens: 1,
         stream: false
       })
       if (!response.output_text) {
@@ -1071,7 +1104,7 @@ export default class OpenAIResponseProvider extends BaseOpenAIProvider {
   }
 
   private getProvider(model: Model): BaseOpenAIProvider {
-    if (isOpenAIWebSearch(model)) {
+    if (isOpenAIWebSearch(model) || model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
       return this.providers.get('openai-compatible')!
     } else {
       return this

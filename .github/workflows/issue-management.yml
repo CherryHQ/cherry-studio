@@ -54,5 +54,5 @@ jobs:
           days-before-pr-close: -1 # Completely disable closing for PRs
 
           # Temporary to reduce the huge issues number
-          operations-per-run: 100
+          operations-per-run: 1000
           debug-only: false

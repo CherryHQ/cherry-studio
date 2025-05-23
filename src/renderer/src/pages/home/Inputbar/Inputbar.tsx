@@ -23,10 +23,11 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
+import PasteService from '@renderer/services/PasteService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
 import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
@@ -117,6 +118,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
   const [mentionModels, setMentionModels] = useState<Model[]>([])
   const [isDragging, setIsDragging] = useState(false)
+  const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
@@ -125,6 +127,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
   const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
+  const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
 
   const quickPanel = useQuickPanel()
 
@@ -216,7 +219,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
 
       if (topic.prompt) {
-        baseUserMessage.assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
+        assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
       }
 
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
@@ -224,10 +227,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      Logger.log('[DEBUG] Created message and blocks:', message, blocks)
-      Logger.log('[DEBUG] Dispatching _sendMessage')
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
-      Logger.log('[DEBUG] _sendMessage dispatched')
 
       // Clear input
       setText('')
@@ -580,59 +580,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
-      // 1. 文件/图片粘贴
-      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
-        event.preventDefault()
-        for (const file of event.clipboardData.files) {
-          if (file.path === '') {
-            // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
-              const tempFilePath = await window.api.file.create(file.name)
-              const arrayBuffer = await file.arrayBuffer()
-              const uint8Array = new Uint8Array(arrayBuffer)
-              await window.api.file.write(tempFilePath, uint8Array)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-              break
-            } else {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
-            }
-          }
-
-          if (file.path) {
-            if (supportExts.includes(getFileExtension(file.path))) {
-              const selectedFile = await window.api.file.get(file.path)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-            } else {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
-            }
-          }
-        }
-        return
-      }
-
-      // 2. 文本粘贴
-      const clipboardText = event.clipboardData?.getData('text')
-      if (pasteLongTextAsFile && clipboardText && clipboardText.length > pasteLongTextThreshold) {
-        // 长文本直接转文件，阻止默认粘贴
-        event.preventDefault()
-
-        const tempFilePath = await window.api.file.create('pasted_text.txt')
-        await window.api.file.write(tempFilePath, clipboardText)
-        const selectedFile = await window.api.file.get(tempFilePath)
-        selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-        setText(text) // 保持输入框内容不变
-        setTimeout(() => resizeTextArea(), 50)
-        return
-      }
-
-      // 短文本走默认粘贴行为
+      return await PasteService.handlePaste(
+        event,
+        isVisionModel(model),
+        isGenerateImageModel(model),
+        supportExts,
+        setFiles,
+        setText,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
+        text,
+        resizeTextArea,
+        t
+      )
     },
     [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t, text]
   )
@@ -640,11 +600,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsFileDragging(true)
+  }
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsFileDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsFileDragging(false)
   }
 
   const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    setIsFileDragging(false)
 
     const files = await getFilesFromDropEvent(e).catch((err) => {
       Logger.error('[src/renderer/src/pages/home/Inputbar/Inputbar.tsx] handleDrop:', err)
@@ -652,11 +626,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     })
 
     if (files) {
+      let supportedFiles = 0
+
       files.forEach((file) => {
         if (supportExts.includes(getFileExtension(file.path))) {
           setFiles((prevFiles) => [...prevFiles, file])
+          supportedFiles++
         }
       })
+
+      // 如果有文件，但都不支持
+      if (files.length > 0 && supportedFiles === 0) {
+        window.message.info({
+          key: 'file_not_supported',
+          content: t('chat.input.file_not_supported')
+        })
+      }
     }
   }
 
@@ -709,6 +694,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       document.removeEventListener('mouseup', handleDragEnd)
     }
   }, [isDragging, handleDrag, handleDragEnd])
+
+  // 注册粘贴处理函数并初始化全局监听
+  useEffect(() => {
+    // 确保全局paste监听器仅初始化一次
+    PasteService.init()
+
+    // 注册当前组件的粘贴处理函数
+    PasteService.registerHandler('inputbar', onPaste)
+
+    // 卸载时取消注册
+    return () => {
+      PasteService.unregisterHandler('inputbar')
+    }
+  }, [onPaste])
 
   useShortcut('new_topic', () => {
     addNewTopic()
@@ -871,13 +870,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isExpended = expended || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
+  if (isMultiSelectMode) {
+    return null
+  }
+
   return (
-    <Container onDragOver={handleDragOver} onDrop={handleDrop} className="inputbar">
+    <Container
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      className="inputbar">
       <NarrowLayout style={{ width: '100%' }}>
         <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
-          className={classNames('inputbar-container', inputFocus && 'focus')}
+          className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
           ref={containerRef}>
           {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
           {selectedKnowledgeBases.length > 0 && (
@@ -907,6 +915,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
               setInputFocus(true)
+              // 记录当前聚焦的组件
+              PasteService.setLastFocusedComponent('inputbar')
               if (e.target.value.length === 0) {
                 e.target.setSelectionRange(0, 0)
               }
@@ -1058,6 +1068,23 @@ const InputBarContainer = styled.div`
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
+
+  &.file-dragging {
+    border: 2px dashed #2ecc71;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(46, 204, 113, 0.03);
+      border-radius: 14px;
+      z-index: 5;
+      pointer-events: none;
+    }
+  }
 `
 
 const TextareaStyle: CSSProperties = {
@@ -1070,7 +1097,6 @@ const Textarea = styled(TextArea)`
   border-radius: 0;
   display: flex;
   flex: 1;
-  font-family: Ubuntu;
   resize: none !important;
   overflow: auto;
   width: 100%;
@@ -1097,7 +1123,7 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-const ToolbarButton = styled(Button)`
+export const ToolbarButton = styled(Button)`
   width: 30px;
   height: 30px;
   font-size: 16px;
