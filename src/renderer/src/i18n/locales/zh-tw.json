@@ -681,13 +681,15 @@
     "minapp": {
       "popup": {
         "refresh": "重新整理",
-        "close": "關閉小工具",
-        "minimize": "最小化小工具",
+        "goBack": "上一頁",
+        "goForward": "下一頁",
+        "close": "關閉小程式",
+        "minimize": "最小化小程式",
         "devtools": "開發者工具",
         "openExternal": "在瀏覽器中開啟",
         "rightclick_copyurl": "右鍵複製URL",
-        "open_link_external_on": "当前：在瀏覽器中開啟連結",
-        "open_link_external_off": "当前：使用預設視窗開啟連結"
+        "open_link_external_on": "目前：在瀏覽器中開啟連結",
+        "open_link_external_off": "目前：使用預設視窗開啟連結"
       },
       "sidebar": {
         "add": {

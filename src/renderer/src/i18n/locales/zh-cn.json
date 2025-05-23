@@ -680,6 +680,8 @@
     "minapp": {
       "popup": {
         "refresh": "刷新",
+        "goBack": "后退",
+        "goForward": "前进",
         "close": "关闭小程序",
         "minimize": "最小化小程序",
         "devtools": "开发者工具",

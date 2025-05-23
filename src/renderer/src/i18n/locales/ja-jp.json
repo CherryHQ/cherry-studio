@@ -681,6 +681,8 @@
     "minapp": {
       "popup": {
         "refresh": "更新",
+        "goBack": "戻る",
+        "goForward": "進む",
         "close": "ミニアプリを閉じる",
         "minimize": "ミニアプリを最小化",
         "devtools": "開発者ツール",
