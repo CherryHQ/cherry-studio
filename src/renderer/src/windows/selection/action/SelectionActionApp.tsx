@@ -1,5 +1,8 @@
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
+import { useSettings } from '@renderer/hooks/useSettings'
+import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
+import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Slider, Tooltip } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
@@ -12,6 +15,8 @@ import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
 
 const SelectionActionApp: FC = () => {
+  const { language } = useSettings()
+
   const { t } = useTranslation()
 
   const [action, setAction] = useState<ActionItem | null>(null)
@@ -51,6 +56,10 @@ const SelectionActionApp: FC = () => {
     }
     // don't need any dependencies
   }, [])
+
+  useEffect(() => {
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+  }, [language])
 
   useEffect(() => {
     const contentEl = contentElementRef.current

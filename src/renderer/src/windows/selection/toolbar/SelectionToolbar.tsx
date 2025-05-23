@@ -2,7 +2,10 @@ import '@renderer/assets/styles/selection-toolbar.scss'
 
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
+import { useSettings } from '@renderer/hooks/useSettings'
+import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
+import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
 import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
@@ -92,6 +95,7 @@ const ActionIcons: FC<{
  * demo is used in the settings page
  */
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
+  const { language } = useSettings()
   const { isCompact, actionItems } = useSelectionAssistant()
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
@@ -141,6 +145,10 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   useEffect(() => {
     if (!demo) updateWindowSize()
   }, [demo, isCompact, actionItems])
+
+  useEffect(() => {
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+  }, [language])
 
   const onHideCleanUp = () => {
     setCopyIconStatus('normal')
