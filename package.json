@@ -152,7 +152,7 @@
     "dexie": "^4.0.8",
     "dexie-react-hooks": "^1.1.7",
     "dotenv-cli": "^7.4.2",
-    "electron": "35.2.2",
+    "electron": "35.4.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
     "electron-icon-builder": "^2.0.1",
