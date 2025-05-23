@@ -1,3 +1,5 @@
+import { t } from 'i18next'
+
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
   if (err === null || typeof err !== 'object' || seen.has(err)) {
@@ -84,4 +86,11 @@ export const isAbortError = (error: any): boolean => {
   }
 
   return false
+}
+
+export const formatMcpError = (error: any) => {
+  if (error.message.includes('32000')) {
+    return t('settings.mcp.errors.32000')
+  }
+  return error.message
 }

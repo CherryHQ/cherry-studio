@@ -1,3 +1,5 @@
+import store from '@renderer/store'
+import { initialState as defaultNotificationSettings } from '@renderer/store/settings'
 import type { Notification } from '@renderer/types/notification'
 
 import { NotificationQueue } from '../queue/NotificationQueue'
@@ -23,7 +25,11 @@ export class NotificationService {
    * @param notification 要发送的通知
    */
   public async send(notification: Notification): Promise<void> {
-    await this.queue.add(notification)
+    const notificationSettings = store.getState().settings.notification || defaultNotificationSettings
+
+    if (notificationSettings[notification.source]) {
+      this.queue.add(notification)
+    }
   }
 
   /**
@@ -33,8 +39,8 @@ export class NotificationService {
     // Register an event listener for notification clicks
     window.electron.ipcRenderer.on('notification-click', (_event, notification: Notification) => {
       // 根据通知类型处理点击事件
-      if (notification.type === 'action' && notification.onClick) {
-        notification.onClick()
+      if (notification.type === 'action') {
+        notification.onClick?.()
       }
     })
   }

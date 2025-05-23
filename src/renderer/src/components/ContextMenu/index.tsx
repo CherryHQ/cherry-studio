@@ -2,6 +2,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Dropdown } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface ContextMenuProps {
   children: React.ReactNode
@@ -73,7 +74,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
   ]
 
   return (
-    <div onContextMenu={handleContextMenu}>
+    <ContextContainer onContextMenu={handleContextMenu}>
       {contextMenuPosition && (
         <Dropdown
           overlayStyle={{ position: 'fixed', left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
@@ -84,8 +85,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
         </Dropdown>
       )}
       {children}
-    </div>
+    </ContextContainer>
   )
 }
+
+const ContextContainer = styled.div``
 
 export default ContextMenu

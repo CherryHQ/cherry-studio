@@ -4,7 +4,6 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { ChatProvider } from '@renderer/pages/home/Messages/ChatContext'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { isGenerating, locateToMessage } from '@renderer/services/MessagesService'
@@ -48,35 +47,33 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
   }
 
   return (
-    <ChatProvider activeTopic={topic}>
-      <MessageEditingProvider>
-        <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll} className={messageStyle}>
-          <ContainerWrapper style={{ paddingTop: 30, paddingBottom: 30 }}>
-            {topic?.messages.map((message) => (
-              <div key={message.id} style={{ position: 'relative' }}>
-                <MessageItem message={message} topic={topic} hideMenuBar={true} />
-                <Button
-                  type="text"
-                  size="middle"
-                  style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 5 }}
-                  onClick={() => locateToMessage(navigate, message)}
-                  icon={<ArrowRightOutlined />}
-                />
-                <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
-              </div>
-            ))}
-            {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
-            {!isEmpty && (
-              <HStack justifyContent="center">
-                <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>
-                  {t('history.continue_chat')}
-                </Button>
-              </HStack>
-            )}
-          </ContainerWrapper>
-        </MessagesContainer>
-      </MessageEditingProvider>
-    </ChatProvider>
+    <MessageEditingProvider>
+      <MessagesContainer {...props} ref={containerRef} onScroll={handleScroll} className={messageStyle}>
+        <ContainerWrapper style={{ paddingTop: 30, paddingBottom: 30 }}>
+          {topic?.messages.map((message) => (
+            <div key={message.id} style={{ position: 'relative' }}>
+              <MessageItem message={message} topic={topic} hideMenuBar={true} />
+              <Button
+                type="text"
+                size="middle"
+                style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 5 }}
+                onClick={() => locateToMessage(navigate, message)}
+                icon={<ArrowRightOutlined />}
+              />
+              <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />
+            </div>
+          ))}
+          {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+          {!isEmpty && (
+            <HStack justifyContent="center">
+              <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>
+                {t('history.continue_chat')}
+              </Button>
+            </HStack>
+          )}
+        </ContainerWrapper>
+      </MessagesContainer>
+    </MessageEditingProvider>
   )
 }
 

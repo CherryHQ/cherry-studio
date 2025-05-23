@@ -328,7 +328,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string | null> => {
+  ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: '保存文件',
@@ -336,14 +336,18 @@ class FileStorage {
         ...options
       })
 
+      if (result.canceled) {
+        return Promise.reject(new Error('User canceled the save dialog'))
+      }
+
       if (!result.canceled && result.filePath) {
         await writeFileSync(result.filePath, content, { encoding: 'utf-8' })
       }
 
       return result.filePath
-    } catch (err) {
+    } catch (err: any) {
       logger.error('[IPC - Error]', 'An error occurred saving the file:', err)
-      return null
+      return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
 

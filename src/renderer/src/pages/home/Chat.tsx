@@ -2,6 +2,7 @@ import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSea
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
@@ -13,7 +14,6 @@ import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
 import Inputbar from './Inputbar/Inputbar'
-import { ChatProvider, useChatContext } from './Messages/ChatContext'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
 
@@ -24,11 +24,11 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
 }
 
-const ChatContent: FC<Props> = (props) => {
+const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
   const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
-  const { isMultiSelectMode } = useChatContext()
+  const { isMultiSelectMode } = useChatContext(props.activeTopic)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -127,7 +127,7 @@ const ChatContent: FC<Props> = (props) => {
         </MessagesContainer>
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-          {isMultiSelectMode && <MultiSelectActionPopup />}
+          {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
         </QuickPanelProvider>
       </Main>
       {topicPosition === 'right' && showTopics && (
@@ -140,14 +140,6 @@ const ChatContent: FC<Props> = (props) => {
         />
       )}
     </Container>
-  )
-}
-
-const Chat: FC<Props> = (props) => {
-  return (
-    <ChatProvider activeTopic={props.activeTopic}>
-      <ChatContent {...props} />
-    </ChatProvider>
   )
 }
 

@@ -243,6 +243,12 @@ class McpService {
             Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
             // Logger.info(`[MCP] Environment variables for server:`, server.env)
             const loginShellEnv = await this.getLoginShellEnv()
+
+            // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
+            if (cmd.endsWith('bun')) {
+              this.removeProxyEnv(loginShellEnv)
+            }
+
             const stdioTransport = new StdioClientTransport({
               command: cmd,
               args,
@@ -651,6 +657,14 @@ class McpService {
       return {}
     }
   })
+
+  private removeProxyEnv(env: Record<string, string>) {
+    delete env.HTTPS_PROXY
+    delete env.HTTP_PROXY
+    delete env.grpc_proxy
+    delete env.http_proxy
+    delete env.https_proxy
+  }
 }
 
 export default new McpService()
