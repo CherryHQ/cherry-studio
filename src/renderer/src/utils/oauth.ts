@@ -85,6 +85,11 @@ export const providerCharge = async (provider: string) => {
       url: `https://aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 720,
       height: 900
+    },
+    tokenflux: {
+      url: `https://tokenflux.ai/dashboard/billing`,
+      width: 900,
+      height: 700
     }
   }
 
@@ -106,6 +111,11 @@ export const providerBills = async (provider: string) => {
     },
     aihubmix: {
       url: `https://aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      width: 900,
+      height: 700
+    },
+    tokenflux: {
+      url: `https://tokenflux.ai/dashboard/billing`,
       width: 900,
       height: 700
     }
