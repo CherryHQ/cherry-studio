@@ -197,15 +197,17 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
                 </AssistantItem>
               </Select.Option>
-              {userPredefinedAssistants.map((a) => (
-                <Select.Option key={a.id} value={a.id}>
-                  <AssistantItem>
-                    <ModelAvatar model={a.model || getDefaultModel()} size={18} />
-                    <AssistantName>{a.name}</AssistantName>
-                    <Spacer />
-                  </AssistantItem>
-                </Select.Option>
-              ))}
+              {userPredefinedAssistants
+                .filter((a) => a.id !== defaultAssistant.id)
+                .map((a) => (
+                  <Select.Option key={a.id} value={a.id}>
+                    <AssistantItem>
+                      <ModelAvatar model={a.model || getDefaultModel()} size={18} />
+                      <AssistantName>{a.name}</AssistantName>
+                      <Spacer />
+                    </AssistantItem>
+                  </Select.Option>
+                ))}
             </Select>
           </ModalSection>
         )}
