@@ -69,7 +69,9 @@ const MessageMetadata = styled.div`
   }
 
   .tokens {
-    display: block;
+    display: flex;
+    height: 36px;
+    align-items: center;
 
     span {
       padding: 0 2px;
@@ -78,7 +80,11 @@ const MessageMetadata = styled.div`
 
   &.has-metrics:hover {
     .metrics {
-      display: block;
+      display: flex;
+      text-align: start;
+      white-space: pre-wrap;
+      height: 36px;
+      align-items: center;
     }
 
     .tokens {

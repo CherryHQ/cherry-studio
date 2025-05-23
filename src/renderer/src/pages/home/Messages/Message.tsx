@@ -185,7 +185,7 @@ const MessageItem: FC<Props> = ({
               className="MessageFooter"
               style={{
                 border: messageBorder,
-                flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
+                flexDirection: isBubbleStyle ? 'row-reverse' : undefined
               }}>
               <MessageTokens message={message} isLastMessage={isLastMessage} />
               <MessageMenubar
@@ -194,7 +194,7 @@ const MessageItem: FC<Props> = ({
                 model={model}
                 index={index}
                 topic={topic}
-                isLastMessage={isLastMessage}
+                isLastMessage={true}
                 isAssistantMessage={isAssistantMessage}
                 isGrouped={isGrouped}
                 messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}

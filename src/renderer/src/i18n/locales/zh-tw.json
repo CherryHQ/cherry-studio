@@ -1441,7 +1441,7 @@
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "messages.math_engine": "數學公式引擎",
       "messages.math_engine.none": "無",
-      "messages.metrics": "首字延遲 {{time_first_token_millsec}}ms | 每秒 {{token_speed}} tokens",
+      "messages.metrics": "首字延遲 {{time_first_token_millsec}}ms \n每秒 {{token_speed}} tokens",
       "messages.model.title": "模型設定",
       "messages.navigation": "訊息導航",
       "messages.navigation.anchor": "對話錨點",

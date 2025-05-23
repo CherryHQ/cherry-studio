@@ -1315,7 +1315,7 @@
       "messages.input.title": "Paramètres d'entrée",
       "messages.markdown_rendering_input_message": "Rendu Markdown des messages d'entrée",
       "messages.math_engine": "Moteur de formules mathématiques",
-      "messages.metrics": "Latence initiale {{time_first_token_millsec}}ms | Vitesse de tokenisation {{token_speed}} tokens/s",
+      "messages.metrics": "Latence initiale {{time_first_token_millsec}}ms \nVitesse de tokenisation {{token_speed}} tokens/s",
       "messages.model.title": "Paramètres du modèle",
       "messages.navigation": "Bouton de navigation des conversations",
       "messages.navigation.anchor": "Ancre de conversation",

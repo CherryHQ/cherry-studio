@@ -1438,7 +1438,7 @@
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
       "messages.math_engine.none": "なし",
-      "messages.metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
+      "messages.metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms \nトークン速度 {{token_speed}} tok/sec",
       "messages.model.title": "モデル設定",
       "messages.navigation": "メッセージナビゲーション",
       "messages.navigation.anchor": "会話アンカー",
