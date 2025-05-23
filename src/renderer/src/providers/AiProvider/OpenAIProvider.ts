@@ -777,6 +777,18 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                   }
                 } as LLMWebSearchCompleteChunk)
               }
+              if (assistant.model?.provider === 'grok') {
+                const citations = originalFinishRawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.GROK
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
+              }
               if (assistant.model?.provider === 'perplexity') {
                 const citations = originalFinishRawChunk.citations
                 if (citations) {

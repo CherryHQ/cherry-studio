@@ -85,5 +85,5 @@ export default function useUpdateHandler() {
       })
     ]
     return () => removers.forEach((remover) => remover())
-  }, [dispatch, t])
+  }, [dispatch, notificationService, t])
 }

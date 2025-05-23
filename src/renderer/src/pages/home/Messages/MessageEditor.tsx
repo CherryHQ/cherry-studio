@@ -255,7 +255,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               <Save size={16} />
             </ToolbarButton>
           </Tooltip>
-          {message.role === 'assistant' && (
+          {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
               <ToolbarButton type="text" onClick={() => handleClick(true)}>
                 <Send size={16} />

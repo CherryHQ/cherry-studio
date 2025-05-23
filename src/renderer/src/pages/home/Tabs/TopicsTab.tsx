@@ -54,7 +54,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, topicPosition } = useSettings()
+  const { showTopicTime, topicPosition, pinTopicsToTop } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -380,10 +380,22 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     targetTopic
   ])
 
+  // Sort topics based on pinned status if pinTopicsToTop is enabled
+  const sortedTopics = useMemo(() => {
+    if (pinTopicsToTop) {
+      return [...assistant.topics].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return 0
+      })
+    }
+    return assistant.topics
+  }, [assistant.topics, pinTopicsToTop])
+
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
       <Container right={topicPosition === 'right'} className="topics-tab">
-        <DragableList list={assistant.topics} onUpdate={updateTopics}>
+        <DragableList list={sortedTopics} onUpdate={updateTopics}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id
             const topicName = topic.name.replace('`', '')
