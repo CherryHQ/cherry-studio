@@ -8,6 +8,7 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
+      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",

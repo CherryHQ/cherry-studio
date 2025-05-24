@@ -8,6 +8,7 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "创建智能体",
       "import": {
         "title": "从外部导入",

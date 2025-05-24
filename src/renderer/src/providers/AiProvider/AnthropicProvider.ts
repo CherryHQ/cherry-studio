@@ -243,7 +243,7 @@ export default class AnthropicProvider extends BaseProvider {
     })
 
     if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
-      systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
+      systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools)
     }
 
     let systemMessage: TextBlockParam | undefined = undefined
