@@ -1,6 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
@@ -157,25 +156,23 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           name="serverConfig"
           label={t('settings.mcp.addServer.importFrom.tooltip')}
           rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
-          <CodeToolbarProvider>
-            <CodeEditor
-              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
-              value={serverConfigValue}
-              placeholder={initialJsonExample}
-              language="json"
-              onChange={handleEditorChange}
-              maxHeight="300px"
-              options={{
-                lint: true,
-                collapsible: true,
-                wrappable: true,
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                keymap: true
-              }}
-            />
-          </CodeToolbarProvider>
+          <CodeEditor
+            // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+            value={serverConfigValue}
+            placeholder={initialJsonExample}
+            language="json"
+            onChange={handleEditorChange}
+            maxHeight="300px"
+            options={{
+              lint: true,
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
         </Form.Item>
       </Form>
     </Modal>
