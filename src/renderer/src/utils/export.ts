@@ -48,7 +48,6 @@ export const messageToMarkdown = (message: Message) => {
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
   const content = getMainTextContent(message)
-  const citation = getCitat
   const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
   return [titleSection, '', contentSection].join('\n')
