@@ -50,7 +50,10 @@
       "tag.system": "系统",
       "title": "智能体",
       "settings": {
-        "title": "智能体配置"
+        "title": "智能体配置",
+        "subscription": {
+          "title": "智能体订阅配置"
+        }
       }
     },
     "assistants": {
@@ -392,7 +395,10 @@
       "regenerate": "重新生成",
       "rename": "重命名",
       "reset": "重置",
+      "required": "必填",
+      "allowed_values": "允许的值",
       "save": "保存",
+      "unsaved_changes": "您有未保存的更改",
       "search": "搜索",
       "select": "选择",
       "selectedMessages": "选中 {{count}} 条消息",
@@ -821,7 +827,7 @@
       "style_type": "风格",
       "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
-      "paint_course":"教程",
+      "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
       "image_file_required": "请先上传图片",
@@ -1373,7 +1379,13 @@
           "inputSchema": "输入模式",
           "availableTools": "可用工具",
           "noToolsAvailable": "无可用工具",
-          "loadError": "获取工具失败"
+          "loadError": "获取工具失败",
+          "configureDefaults": "配置默认参数",
+          "configureDefaultsDescription": "配置工具参数的默认值。启用后，如果AI模型没有提供这些参数，将自动使用这些默认值。",
+          "defaultValue": "默认值",
+          "configSaved": "工具配置保存成功",
+          "hasDefaults": "有默认值",
+          "hasDefaultTooltip": "此工具已配置默认参数。"
         },
         "prompts": {
           "availablePrompts": "可用提示",

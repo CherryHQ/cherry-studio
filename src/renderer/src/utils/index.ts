@@ -4,6 +4,17 @@ import { ModalFuncProps } from 'antd/es/modal/interface'
 // @ts-ignore next-line`
 import { v4 as uuidv4 } from 'uuid'
 
+export function isEmpty(value: any) {
+  return (
+    value === null ||
+    value === undefined ||
+    value === '' ||
+    (Array.isArray(value) && value.length === 0) ||
+    (typeof value === 'object' && Object.keys(value).length === 0) ||
+    (typeof value === 'number' && value === 0)
+  )
+}
+
 /**
  * 异步执行一个函数。
  * @param fn 要执行的函数

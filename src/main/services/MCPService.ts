@@ -451,6 +451,35 @@ class McpService {
   }
 
   /**
+   * Apply default parameters to tool arguments
+   */
+  private applyDefaultParameters(
+    toolName: string,
+    server: MCPServer,
+    providedArgs: Record<string, any> = {}
+  ): Record<string, any> {
+    const toolConfig = server.customToolConfigs?.find((config) => config.toolName === toolName)
+
+    if (!toolConfig) {
+      return providedArgs
+    }
+
+    const mergedArgs = { ...providedArgs }
+
+    toolConfig.parameters.forEach((paramConfig) => {
+      if (
+        paramConfig.defaultValue !== undefined &&
+        paramConfig.defaultValue !== null &&
+        paramConfig.defaultValue !== ''
+      ) {
+        mergedArgs[paramConfig.name] = paramConfig.defaultValue
+      }
+    })
+
+    return mergedArgs
+  }
+
+  /**
    * Call a tool on an MCP server
    */
   public async callTool(
@@ -466,8 +495,13 @@ class McpService {
           Logger.error('[MCP] args parse error', args)
         }
       }
+
+      Logger.info('[MCP] Calling with args:', server.name, name, args)
+      const mergedArgs = this.applyDefaultParameters(name, server, args || {})
+      Logger.info('[MCP] Calling with merged args:', server.name, name, mergedArgs)
+
       const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args }, undefined, {
+      const result = await client.callTool({ name, arguments: mergedArgs }, undefined, {
         timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
       })
       return result as MCPCallToolResponse

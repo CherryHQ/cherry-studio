@@ -518,6 +518,19 @@ export interface MCPConfigSample {
   env?: Record<string, string> | undefined
 }
 
+// MCP工具自定义参数配置接口
+export interface MCPToolParameterConfig {
+  name: string
+  defaultValue: any
+  description?: string
+}
+
+// MCP工具配置接口
+export interface MCPToolConfig {
+  toolName: string
+  parameters: MCPToolParameterConfig[]
+}
+
 export interface MCPServer {
   id: string
   name: string
@@ -530,6 +543,7 @@ export interface MCPServer {
   env?: Record<string, string>
   isActive: boolean
   disabledTools?: string[] // List of tool names that are disabled for this server
+  customToolConfigs?: MCPToolConfig[]
   configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
   searchKey?: string

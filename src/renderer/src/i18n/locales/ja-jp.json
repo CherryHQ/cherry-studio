@@ -50,7 +50,10 @@
       "tag.system": "システム",
       "title": "エージェント",
       "settings": {
-        "title": "エージェント設定"
+        "title": "エージェント設定",
+        "subscription": {
+          "title": "エージェントサブスクリプション設定"
+        }
       }
     },
     "assistants": {
@@ -406,7 +409,10 @@
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
       },
-      "no_results": "検索結果なし"
+      "no_results": "検索結果なし",
+      "required": "必須",
+      "allowed_values": "許可された値",
+      "unsaved_changes": "未保存の変更があります"
     },
     "docs": {
       "title": "ドキュメント"
@@ -821,7 +827,7 @@
       "style_type": "スタイル",
       "learn_more": "詳しくはこちら",
       "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-      "paint_course":"チュートリアル",
+      "paint_course": "チュートリアル",
       "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
@@ -1369,7 +1375,13 @@
           "inputSchema": "入力スキーマ",
           "availableTools": "利用可能なツール",
           "noToolsAvailable": "利用可能なツールなし",
-          "loadError": "ツール取得エラー"
+          "loadError": "ツール取得エラー",
+          "configureDefaults": "デフォルトパラメーターを設定",
+          "configureDefaultsDescription": "ツールパラメーターのデフォルト値を設定します。有効にすると、AIモデルが提供しない場合、これらの値が自動的に使用されます。",
+          "defaultValue": "デフォルト値",
+          "configSaved": "ツール設定が正常に保存されました",
+          "hasDefaults": "デフォルトあり",
+          "hasDefaultTooltip": "このツールには、設定済みのデフォルトパラメーターがあります。"
         },
         "prompts": {
           "availablePrompts": "利用可能なプロンプト",

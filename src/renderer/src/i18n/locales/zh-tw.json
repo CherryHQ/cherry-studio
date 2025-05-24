@@ -50,7 +50,10 @@
       "tag.system": "系統",
       "title": "智慧代理人",
       "settings": {
-        "title": "智慧代理人設定"
+        "title": "智慧代理人設定",
+        "subscription": {
+          "title": "智慧代理人訂閱設定"
+        }
       }
     },
     "assistants": {
@@ -406,7 +409,10 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "沒有結果"
+      "no_results": "沒有結果",
+      "required": "必填",
+      "allowed_values": "允許的值",
+      "unsaved_changes": "您有未儲存的變更"
     },
     "docs": {
       "title": "說明文件"
@@ -594,12 +600,11 @@
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
-      "copy.success": "已複製！",
+      "copy.success": "複製成功",
       "delete.confirm.title": "刪除確認",
       "delete.confirm.content": "確認刪除選中的 {{count}} 條訊息嗎？",
       "delete.failed": "刪除失敗",
       "delete.success": "刪除成功",
-      "copy.success": "複製成功",
       "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
@@ -822,7 +827,7 @@
       "style_type": "風格",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
-      "paint_course":"教程",
+      "paint_course": "教程",
       "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
@@ -1373,7 +1378,13 @@
           "inputSchema": "輸入模式",
           "availableTools": "可用工具",
           "noToolsAvailable": "無可用工具",
-          "loadError": "獲取工具失敗"
+          "loadError": "獲取工具失敗",
+          "configureDefaults": "配置預設參數",
+          "configureDefaultsDescription": "配置工具參數的預設值。啟用後，如果 AI 模型未提供這些值，將自動使用。",
+          "defaultValue": "預設值",
+          "configSaved": "工具配置已成功保存",
+          "hasDefaults": "預設值已配置",
+          "hasDefaultTooltip": "此工具已配置預設參數。"
         },
         "prompts": {
           "availablePrompts": "可用提示",
