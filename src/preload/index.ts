@@ -6,6 +6,8 @@ import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from '
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
 
+import type { ActionItem } from '../renderer/src/types/selectionTypes'
+
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
@@ -204,6 +206,20 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
+  },
+  selection: {
+    hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
+    writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
+    determineToolbarSize: (width: number, height: number) =>
+      ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IpcChannel.Selection_SetEnabled, enabled),
+    setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
+    setFollowToolbar: (isFollowToolbar: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
+    processAction: (actionItem: ActionItem) => ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem),
+    closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
+    minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
+    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   }
 }
 
