@@ -1317,7 +1317,7 @@
       "messages.input.title": "Configurações de entrada",
       "messages.markdown_rendering_input_message": "Renderização de markdown na entrada de mensagens",
       "messages.math_engine": "Motor de fórmulas matemáticas",
-      "messages.metrics": "Atraso inicial {{time_first_token_millsec}}ms | Taxa de token por segundo {{token_speed}} tokens",
+      "messages.metrics": "Atraso inicial {{time_first_token_millsec}}ms \nTaxa de token por segundo {{token_speed}} tokens",
       "messages.model.title": "Configurações de modelo",
       "messages.navigation": "Botão de navegação de conversa",
       "messages.navigation.anchor": "Ancoragem de conversa",

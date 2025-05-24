@@ -1315,7 +1315,7 @@
       "messages.input.title": "Ρυθμίσεις εισαγωγής",
       "messages.markdown_rendering_input_message": "Markdown Rendering Input Message",
       "messages.math_engine": "Μηχανική μαθηματικών εξισώσεων",
-      "messages.metrics": "Χρόνος πρώτου χαρακτήρα {{time_first_token_millsec}}ms | {{token_speed}} tokens ανά δευτερόλεπτο",
+      "messages.metrics": "Χρόνος πρώτου χαρακτήρα {{time_first_token_millsec}}ms \n{{token_speed}} tokens ανά δευτερόλεπτο",
       "messages.model.title": "Ρυθμίσεις μοντέλου",
       "messages.navigation": "Κουμπιά πλοήγησης συζητήσεων",
       "messages.navigation.anchor": "Ancre συζητήσεων",
