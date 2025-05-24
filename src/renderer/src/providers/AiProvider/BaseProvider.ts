@@ -24,7 +24,7 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
 
-import type { CompletionsParams } from '.'
+import type { CompletionsParams, CompletionsResult } from '.'
 
 export default abstract class BaseProvider {
   // Threshold for determining whether to use system prompt for tools
@@ -42,7 +42,12 @@ export default abstract class BaseProvider {
     this.apiKey = this.getApiKey()
   }
 
-  abstract completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
+  // Added public getter for provider info
+  public getProviderInfo(): Provider {
+    return this.provider
+  }
+
+  abstract completions(params: CompletionsParams): Promise<CompletionsResult>
   abstract translate(
     content: string,
     assistant: Assistant,
