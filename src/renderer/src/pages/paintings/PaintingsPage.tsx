@@ -1,4 +1,4 @@
-import { PlusOutlined, QuestionCircleOutlined, RedoOutlined } from '@ant-design/icons'
+import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
 import ImageSize1_2 from '@renderer/assets/images/paintings/image-size-1-2.svg'
 import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
@@ -26,6 +26,7 @@ import type { FileType, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -90,7 +91,7 @@ const DEFAULT_PAINTING: Painting = {
 const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { paintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<Painting>(DEFAULT_PAINTING)
+  const [painting, setPainting] = useState<Painting>(paintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
@@ -203,9 +204,26 @@ const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
         const downloadedFiles = await Promise.all(
           urls.map(async (url) => {
             try {
+              if (!url || url.trim() === '') {
+                console.error('图像URL为空，可能是提示词违禁')
+                window.message.warning({
+                  content: t('message.empty_url'),
+                  key: 'empty-url-warning'
+                })
+                return null
+              }
               return await window.api.file.download(url)
             } catch (error) {
               console.error('Failed to download image:', error)
+              if (
+                error instanceof Error &&
+                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+              ) {
+                window.message.warning({
+                  content: t('message.empty_url'),
+                  key: 'empty-url-warning'
+                })
+              }
               return null
             }
           })
@@ -260,10 +278,6 @@ const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     removePainting('paintings', paintingToDelete)
-
-    if (paintings.length === 1) {
-      setPainting(getNewPainting())
-    }
   }
 
   const onSelectPainting = (newPainting: Painting) => {
@@ -326,8 +340,11 @@ const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   useEffect(() => {
     if (paintings.length === 0) {
-      addPainting('paintings', getNewPainting())
+      const newPainting = getNewPainting()
+      addPainting('paintings', newPainting)
+      setPainting(newPainting)
     }
+
     return () => {
       if (spaceClickTimer.current) {
         clearTimeout(spaceClickTimer.current)
@@ -564,7 +581,6 @@ const Textarea = styled(TextArea)`
   border-radius: 0;
   display: flex;
   flex: 1;
-  font-family: Ubuntu;
   resize: none !important;
   overflow: auto;
   width: auto;
@@ -602,11 +618,13 @@ const RadioButton = styled(Radio.Button)`
   align-items: center;
 `
 
-const InfoIcon = styled(QuestionCircleOutlined)`
+const InfoIcon = styled(Info)`
   margin-left: 5px;
   cursor: help;
   color: var(--color-text-2);
   opacity: 0.6;
+  width: 16px;
+  height: 16px;
 
   &:hover {
     opacity: 1;

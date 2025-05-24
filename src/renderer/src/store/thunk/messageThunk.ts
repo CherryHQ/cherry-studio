@@ -2,6 +2,7 @@ import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
@@ -18,6 +19,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { Response } from '@renderer/types/newMessage'
+import { uuid } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
@@ -33,8 +35,9 @@ import {
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { isOnHomePage } from '@renderer/utils/window'
+import { t } from 'i18next'
 import { throttle } from 'lodash'
-import { v4 as uuidv4 } from 'uuid'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
@@ -45,20 +48,24 @@ const handleChangeLoadingOfTopic = async (topicId: string) => {
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
-export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[]) => {
+export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   try {
     if (blocks.length > 0) {
       await db.message_blocks.bulkPut(blocks)
     }
     const topic = await db.topics.get(message.topicId)
     if (topic) {
-      const messageIndex = topic.messages.findIndex((m) => m.id === message.id)
+      const _messageIndex = topic.messages.findIndex((m) => m.id === message.id)
       const updatedMessages = [...topic.messages]
 
-      if (messageIndex !== -1) {
-        updatedMessages[messageIndex] = message
+      if (_messageIndex !== -1) {
+        updatedMessages[_messageIndex] = message
       } else {
-        updatedMessages.push(message)
+        if (messageIndex !== -1) {
+          updatedMessages.splice(messageIndex, 0, message)
+        } else {
+          updatedMessages.push(message)
+        }
       }
       await db.topics.update(message.topicId, { messages: updatedMessages })
     } else {
@@ -74,76 +81,80 @@ const updateExistingMessageAndBlocksInDB = async (
   updatedBlocks: MessageBlock[]
 ) => {
   try {
-    // Always update blocks if provided
-    if (updatedBlocks.length > 0) {
-      await db.message_blocks.bulkPut(updatedBlocks)
-    }
-
-    // Check if there are message properties to update beyond id and topicId
-    const messageKeysToUpdate = Object.keys(updatedMessage).filter((key) => key !== 'id' && key !== 'topicId')
-
-    // Only proceed with topic update if there are actual message changes
-    if (messageKeysToUpdate.length > 0) {
-      const topic = await db.topics.get(updatedMessage.topicId)
-      if (topic) {
-        const messageIndex = topic.messages.findIndex((m) => m.id === updatedMessage.id)
-        if (messageIndex !== -1) {
-          const newMessages = [...topic.messages]
-          // Apply the updates passed in updatedMessage
-          Object.assign(newMessages[messageIndex], updatedMessage)
-          await db.topics.update(updatedMessage.topicId, { messages: newMessages })
-        } else {
-          console.error(`[updateExistingMsg] Message ${updatedMessage.id} not found in topic ${updatedMessage.topicId}`)
-        }
-      } else {
-        console.error(`[updateExistingMsg] Topic ${updatedMessage.topicId} not found.`)
+    await db.transaction('rw', db.topics, db.message_blocks, async () => {
+      // Always update blocks if provided
+      if (updatedBlocks.length > 0) {
+        await db.message_blocks.bulkPut(updatedBlocks)
       }
-    }
-    // If messageKeysToUpdate.length === 0, we skip topic fetch/update entirely
+
+      // Check if there are message properties to update beyond id and topicId
+      const messageKeysToUpdate = Object.keys(updatedMessage).filter((key) => key !== 'id' && key !== 'topicId')
+
+      // Only proceed with topic update if there are actual message changes
+      if (messageKeysToUpdate.length > 0) {
+        // 使用 where().modify() 进行原子更新
+        await db.topics
+          .where('id')
+          .equals(updatedMessage.topicId)
+          .modify((topic) => {
+            if (!topic) return
+
+            const messageIndex = topic.messages.findIndex((m) => m.id === updatedMessage.id)
+            if (messageIndex !== -1) {
+              // 直接在原对象上更新需要修改的属性
+              messageKeysToUpdate.forEach((key) => {
+                topic.messages[messageIndex][key] = updatedMessage[key]
+              })
+            }
+          })
+      }
+    })
   } catch (error) {
     console.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error)
   }
 }
 
 // 更新单个块的逻辑，用于更新消息中的单个块
-const throttledBlockUpdate = throttle((id, blockUpdate) => {
-  const state = store.getState()
-  const block = state.messageBlocks.entities[id]
+const throttledBlockUpdate = throttle(async (id, blockUpdate) => {
+  // const state = store.getState()
+  // const block = state.messageBlocks.entities[id]
   // throttle是异步函数,可能会在complete事件触发后才执行
-  if (
-    blockUpdate.status === MessageBlockStatus.STREAMING &&
-    (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
-  )
-    return
+  // if (
+  //   blockUpdate.status === MessageBlockStatus.STREAMING &&
+  //   (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+  // )
+  //   return
 
   store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
+  await db.message_blocks.update(id, blockUpdate)
 }, 150)
 
-// 修改: 节流更新单个块的内容/状态到数据库 (仅用于 Text/Thinking Chunks)
-export const throttledBlockDbUpdate = throttle(
-  async (blockId: string, blockChanges: Partial<MessageBlock>) => {
-    // Check if blockId is valid before attempting update
-    if (!blockId) {
-      console.warn('[DB Throttle Block Update] Attempted to update with null/undefined blockId. Skipping.')
-      return
-    }
-    const state = store.getState()
-    const block = state.messageBlocks.entities[blockId]
-    // throttle是异步函数,可能会在complete事件触发后才执行
-    if (
-      blockChanges.status === MessageBlockStatus.STREAMING &&
-      (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
-    )
-      return
-    try {
-      await db.message_blocks.update(blockId, blockChanges)
-    } catch (error) {
-      console.error(`[DB Throttle Block Update] Failed for block ${blockId}:`, error)
-    }
-  },
-  300, // 可以调整节流间隔
-  { leading: false, trailing: true }
-)
+const cancelThrottledBlockUpdate = throttledBlockUpdate.cancel
+
+// // 修改: 节流更新单个块的内容/状态到数据库 (仅用于 Text/Thinking Chunks)
+// export const throttledBlockDbUpdate = throttle(
+//   async (blockId: string, blockChanges: Partial<MessageBlock>) => {
+//     // Check if blockId is valid before attempting update
+//     if (!blockId) {
+//       console.warn('[DB Throttle Block Update] Attempted to update with null/undefined blockId. Skipping.')
+//       return
+//     }
+//     const state = store.getState()
+//     const block = state.messageBlocks.entities[blockId]
+//     // throttle是异步函数,可能会在complete事件触发后才执行
+//     if (
+//       blockChanges.status === MessageBlockStatus.STREAMING &&
+//       (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
+//     )
+//       return
+//     try {
+//     } catch (error) {
+//       console.error(`[DB Throttle Block Update] Failed for block ${blockId}:`, error)
+//     }
+//   },
+//   300, // 可以调整节流间隔
+//   { leading: false, trailing: true }
+// )
 
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
 const saveUpdatesToDB = async (
@@ -250,8 +261,9 @@ const fetchAndProcessAssistantResponseImpl = async (
     let citationBlockId: string | null = null
     let mainTextBlockId: string | null = null
     const toolCallIdToBlockIdMap = new Map<string, string>()
+    const notificationService = NotificationService.getInstance()
 
-    const handleBlockTransition = (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
+    const handleBlockTransition = async (newBlock: MessageBlock, newBlockType: MessageBlockType) => {
       lastBlockId = newBlock.id
       lastBlockType = newBlockType
       if (newBlockType !== MessageBlockType.MAIN_TEXT) {
@@ -279,9 +291,7 @@ const fetchAndProcessAssistantResponseImpl = async (
       const currentState = getState()
       const updatedMessage = currentState.messages.entities[assistantMsgId]
       if (updatedMessage) {
-        saveUpdatesToDB(assistantMsgId, topicId, { blocks: updatedMessage.blocks, status: updatedMessage.status }, [
-          newBlock
-        ])
+        await saveUpdatesToDB(assistantMsgId, topicId, { blocks: updatedMessage.blocks }, [newBlock])
       } else {
         console.error(`[handleBlockTransition] Failed to get updated message ${assistantMsgId} from state for DB save.`)
       }
@@ -335,7 +345,7 @@ const fetchAndProcessAssistantResponseImpl = async (
               status: MessageBlockStatus.STREAMING
             }
             throttledBlockUpdate(lastBlockId, blockChanges)
-            throttledBlockDbUpdate(lastBlockId, blockChanges)
+            // throttledBlockDbUpdate(lastBlockId, blockChanges)
           } else {
             const newBlock = createMainTextBlock(assistantMsgId, accumulatedContent, {
               status: MessageBlockStatus.STREAMING,
@@ -346,7 +356,8 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
         }
       },
-      onTextComplete: (finalText) => {
+      onTextComplete: async (finalText) => {
+        cancelThrottledBlockUpdate()
         if (lastBlockType === MessageBlockType.MAIN_TEXT && lastBlockId) {
           const changes = {
             content: finalText,
@@ -363,8 +374,8 @@ const fetchAndProcessAssistantResponseImpl = async (
                 { response: { source: WebSearchSource.OPENROUTER, results: extractedUrls } },
                 { status: MessageBlockStatus.SUCCESS }
               )
-              handleBlockTransition(citationBlock, MessageBlockType.CITATION)
-              saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
+              await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+              // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
             }
           }
         } else {
@@ -393,17 +404,19 @@ const fetchAndProcessAssistantResponseImpl = async (
               thinking_millsec: thinking_millsec
             }
             throttledBlockUpdate(lastBlockId, blockChanges)
-            throttledBlockDbUpdate(lastBlockId, blockChanges)
+            // throttledBlockDbUpdate(lastBlockId, blockChanges)
           } else {
             const newBlock = createThinkingBlock(assistantMsgId, accumulatedThinking, {
               status: MessageBlockStatus.STREAMING,
-              thinking_millsec: thinking_millsec
+              thinking_millsec: 0
             })
             handleBlockTransition(newBlock, MessageBlockType.THINKING)
           }
         }
       },
       onThinkingComplete: (finalText, final_thinking_millsec) => {
+        cancelThrottledBlockUpdate()
+
         if (lastBlockType === MessageBlockType.THINKING && lastBlockId) {
           const changes = {
             type: MessageBlockType.THINKING,
@@ -420,7 +433,17 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onToolCallInProgress: (toolResponse: MCPToolResponse) => {
-        if (toolResponse.status === 'invoking') {
+        if (lastBlockType === MessageBlockType.UNKNOWN && lastBlockId) {
+          lastBlockType = MessageBlockType.TOOL
+          const changes = {
+            type: MessageBlockType.TOOL,
+            status: MessageBlockStatus.PROCESSING,
+            metadata: { rawMcpToolResponse: toolResponse }
+          }
+          dispatch(updateOneBlock({ id: lastBlockId, changes }))
+          saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          toolCallIdToBlockIdMap.set(toolResponse.id, lastBlockId)
+        } else if (toolResponse.status === 'invoking') {
           const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
             toolName: toolResponse.tool.name,
             status: MessageBlockStatus.PROCESSING,
@@ -435,6 +458,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onToolCallComplete: (toolResponse: MCPToolResponse) => {
+        cancelThrottledBlockUpdate()
         const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
         if (toolResponse.status === 'done' || toolResponse.status === 'error') {
           if (!existingBlockId) {
@@ -464,10 +488,9 @@ const fetchAndProcessAssistantResponseImpl = async (
         const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
         citationBlockId = citationBlock.id
         handleBlockTransition(citationBlock, MessageBlockType.CITATION)
-        saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
+        // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
       },
       onExternalToolComplete: (externalToolResult: ExternalToolResult) => {
-        console.warn('onExternalToolComplete received.', externalToolResult)
         if (citationBlockId) {
           const changes: Partial<CitationMessageBlock> = {
             response: externalToolResult.webSearch,
@@ -480,7 +503,13 @@ const fetchAndProcessAssistantResponseImpl = async (
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
       },
-      onLLMWebSearchComplete(llmWebSearchResult) {
+      onLLMWebSearchInProgress: () => {
+        const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
+        citationBlockId = citationBlock.id
+        handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
+      },
+      onLLMWebSearchComplete: async (llmWebSearchResult) => {
         if (citationBlockId) {
           const changes: Partial<CitationMessageBlock> = {
             response: llmWebSearchResult,
@@ -496,25 +525,42 @@ const fetchAndProcessAssistantResponseImpl = async (
           )
           citationBlockId = citationBlock.id
           handleBlockTransition(citationBlock, MessageBlockType.CITATION)
-          if (mainTextBlockId) {
-            const state = getState()
-            const existingMainTextBlock = state.messageBlocks.entities[mainTextBlockId]
-            if (existingMainTextBlock && existingMainTextBlock.type === MessageBlockType.MAIN_TEXT) {
-              const currentRefs = existingMainTextBlock.citationReferences || []
-              if (!currentRefs.some((ref) => ref.citationBlockId === citationBlockId)) {
-                const mainTextChanges = { citationReferences: [...currentRefs, { citationBlockId }] }
-                dispatch(updateOneBlock({ id: mainTextBlockId, changes: mainTextChanges }))
-                saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
+        }
+        if (mainTextBlockId) {
+          const state = getState()
+          const existingMainTextBlock = state.messageBlocks.entities[mainTextBlockId]
+          if (existingMainTextBlock && existingMainTextBlock.type === MessageBlockType.MAIN_TEXT) {
+            const currentRefs = existingMainTextBlock.citationReferences || []
+            if (!currentRefs.some((ref) => ref.citationBlockId === citationBlockId)) {
+              const mainTextChanges = {
+                citationReferences: [
+                  ...currentRefs,
+                  { citationBlockId, citationBlockSource: llmWebSearchResult.source }
+                ]
               }
+              dispatch(updateOneBlock({ id: mainTextBlockId, changes: mainTextChanges }))
+              saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
             }
           }
         }
       },
       onImageCreated: () => {
-        const imageBlock = createImageBlock(assistantMsgId, {
-          status: MessageBlockStatus.PROCESSING
-        })
-        handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+        if (lastBlockId) {
+          if (lastBlockType === MessageBlockType.UNKNOWN) {
+            const initialChanges: Partial<MessageBlock> = {
+              type: MessageBlockType.IMAGE,
+              status: MessageBlockStatus.STREAMING
+            }
+            lastBlockType = MessageBlockType.IMAGE
+            dispatch(updateOneBlock({ id: lastBlockId, changes: initialChanges }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          } else {
+            const imageBlock = createImageBlock(assistantMsgId, {
+              status: MessageBlockStatus.PROCESSING
+            })
+            handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+          }
+        }
       },
       onImageGenerated: (imageData) => {
         const imageUrl = imageData.images?.[0] || 'placeholder_image_url'
@@ -530,10 +576,12 @@ const fetchAndProcessAssistantResponseImpl = async (
           console.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
         }
       },
-      onError: (error) => {
+      onError: async (error) => {
+        cancelThrottledBlockUpdate()
         console.dir(error, { depth: null })
+        const isErrorTypeAbort = isAbortError(error)
         let pauseErrorLanguagePlaceholder = ''
-        if (isAbortError(error)) {
+        if (isErrorTypeAbort) {
           pauseErrorLanguagePlaceholder = 'pause_placeholder'
         }
 
@@ -542,22 +590,34 @@ const fetchAndProcessAssistantResponseImpl = async (
           message: pauseErrorLanguagePlaceholder || error.message || 'Stream processing error',
           originalMessage: error.message,
           stack: error.stack,
-          status: error.status,
+          status: error.status || error.code,
           requestId: error.request_id
         }
+        if (!isOnHomePage()) {
+          await notificationService.send({
+            id: uuid(),
+            type: 'error',
+            title: t('notification.assistant'),
+            message: serializableError.message,
+            silent: false,
+            timestamp: Date.now(),
+            source: 'assistant'
+          })
+        }
+
         if (lastBlockId) {
           // 更改上一个block的状态为ERROR
           const changes: Partial<MessageBlock> = {
-            status: MessageBlockStatus.ERROR
+            status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
           }
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
           saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
         }
 
         const errorBlock = createErrorBlock(assistantMsgId, serializableError, { status: MessageBlockStatus.SUCCESS })
-        handleBlockTransition(errorBlock, MessageBlockType.ERROR)
+        await handleBlockTransition(errorBlock, MessageBlockType.ERROR)
         const messageErrorUpdate = {
-          status: isAbortError(error) ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
+          status: isErrorTypeAbort ? AssistantMessageStatus.SUCCESS : AssistantMessageStatus.ERROR
         }
         dispatch(newMessagesActions.updateMessage({ topicId, messageId: assistantMsgId, updates: messageErrorUpdate }))
 
@@ -566,11 +626,13 @@ const fetchAndProcessAssistantResponseImpl = async (
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
           id: assistantMsgId,
           topicId,
-          status: isAbortError(error) ? 'pause' : 'error',
+          status: isErrorTypeAbort ? 'pause' : 'error',
           error: error.message
         })
       },
       onComplete: async (status: AssistantMessageStatus, response?: Response) => {
+        cancelThrottledBlockUpdate()
+
         const finalStateOnComplete = getState()
         const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 
@@ -581,16 +643,37 @@ const fetchAndProcessAssistantResponseImpl = async (
           const contextForUsage = userMsgIndex !== -1 ? orderedMsgs.slice(0, userMsgIndex + 1) : []
           const finalContextWithAssistant = [...contextForUsage, finalAssistantMsg]
 
+          if (lastBlockId) {
+            const changes: Partial<MessageBlock> = {
+              status: MessageBlockStatus.SUCCESS
+            }
+            dispatch(updateOneBlock({ id: lastBlockId, changes }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          }
+
+          // const content = getMainTextContent(finalAssistantMsg)
+          // if (!isOnHomePage()) {
+          //   await notificationService.send({
+          //     id: uuid(),
+          //     type: 'success',
+          //     title: t('notification.assistant'),
+          //     message: content.length > 50 ? content.slice(0, 47) + '...' : content,
+          //     silent: false,
+          //     timestamp: Date.now(),
+          //     source: 'assistant'
+          //   })
+          // }
+
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
-          if (response && !response.usage) {
+          if (response && response.usage?.total_tokens === 0) {
             const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
             response.usage = usage
           }
         }
         if (response && response.metrics) {
-          if (!response.metrics.completion_tokens && response.usage) {
+          if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
             response = {
               ...response,
               metrics: {
@@ -609,7 +692,6 @@ const fetchAndProcessAssistantResponseImpl = async (
             updates: messageUpdates
           })
         )
-
         saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
 
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
@@ -686,6 +768,7 @@ export const loadTopicMessagesThunk =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
+    dispatch(newMessagesActions.setCurrentTopicId(topicId))
 
     if (topicMessagesExist && !forceReload) {
       return
@@ -693,6 +776,10 @@ export const loadTopicMessagesThunk =
 
     try {
       const topic = await db.topics.get(topicId)
+      if (!topic) {
+        await db.topics.add({ id: topicId, messages: [] })
+      }
+
       const messagesFromDB = topic?.messages || []
 
       if (messagesFromDB.length > 0) {
@@ -752,21 +839,19 @@ export const deleteMessageGroupThunk =
     const currentState = getState()
     const topicMessageIds = currentState.messages.messageIdsByTopic[topicId] || []
     const messagesToDelete: Message[] = []
-    const idsToDelete: string[] = []
 
     topicMessageIds.forEach((id) => {
       const msg = currentState.messages.entities[id]
       if (msg && msg.askId === askId) {
         messagesToDelete.push(msg)
-        idsToDelete.push(id)
       }
     })
 
-    const userQuery = currentState.messages.entities[askId]
-    if (userQuery && userQuery.topicId === topicId && !idsToDelete.includes(askId)) {
-      messagesToDelete.push(userQuery)
-      idsToDelete.push(askId)
-    }
+    // const userQuery = currentState.messages.entities[askId]
+    // if (userQuery && userQuery.topicId === topicId && !idsToDelete.includes(askId)) {
+    //   messagesToDelete.push(userQuery)
+    //   idsToDelete.push(askId)
+    // }
 
     if (messagesToDelete.length === 0) {
       console.warn(`[deleteMessageGroup] No messages found with askId ${askId} in topic ${topicId}.`)
@@ -838,14 +923,34 @@ export const resendMessageThunk =
         (m) => m.askId === userMessageToResend.id && m.role === 'assistant'
       )
 
+      const resetDataList: Message[] = []
+
       if (assistantMessagesToReset.length === 0) {
-        console.warn(
-          `[resendMessageThunk] No assistant responses found for user message ${userMessageToResend.id}. Nothing to regenerate.`
-        )
-        return
+        // 没有用户消息,就创建一个或多个
+
+        if (userMessageToResend?.mentions?.length) {
+          console.log('userMessageToResend.mentions', userMessageToResend.mentions)
+          for (const mention of userMessageToResend.mentions) {
+            const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+              askId: userMessageToResend.id,
+              model: mention,
+              modelId: mention.id
+            })
+            resetDataList.push(assistantMessage)
+          }
+        } else {
+          const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+            askId: userMessageToResend.id,
+            model: assistant.model
+          })
+          resetDataList.push(assistantMessage)
+        }
+
+        resetDataList.forEach((message) => {
+          dispatch(newMessagesActions.addMessage({ topicId, message }))
+        })
       }
 
-      const resetDataList: { resetMsg: Message }[] = []
       const allBlockIdsToDelete: string[] = []
       const messagesToUpdateInRedux: { topicId: string; messageId: string; updates: Partial<Message> }[] = []
 
@@ -853,10 +958,11 @@ export const resendMessageThunk =
         const blockIdsToDelete = [...(originalMsg.blocks || [])]
         const resetMsg = resetAssistantMessage(originalMsg, {
           status: AssistantMessageStatus.PENDING,
+          updatedAt: new Date().toISOString(),
           ...(assistantMessagesToReset.length === 1 ? { model: assistant.model } : {})
         })
 
-        resetDataList.push({ resetMsg })
+        resetDataList.push(resetMsg)
         allBlockIdsToDelete.push(...blockIdsToDelete)
         messagesToUpdateInRedux.push({ topicId, messageId: resetMsg.id, updates: resetMsg })
       }
@@ -877,7 +983,7 @@ export const resendMessageThunk =
       }
 
       const queue = getTopicQueue(topicId)
-      for (const { resetMsg } of resetDataList) {
+      for (const resetMsg of resetDataList) {
         const assistantConfigForThisRegen = {
           ...assistant,
           ...(resetMsg.model ? { model: resetMsg.model } : {})
@@ -899,22 +1005,7 @@ export const resendMessageThunk =
  * of its associated assistant responses using resendMessageThunk.
  */
 export const resendUserMessageWithEditThunk =
-  (
-    topicId: Topic['id'],
-    originalMessage: Message,
-    mainTextBlockId: string,
-    editedContent: string,
-    assistant: Assistant
-  ) =>
-  async (dispatch: AppDispatch) => {
-    const blockChanges = {
-      content: editedContent,
-      updatedAt: new Date().toISOString()
-    }
-    // Update block in Redux and DB
-    dispatch(updateOneBlock({ id: mainTextBlockId, changes: blockChanges }))
-    await db.message_blocks.update(mainTextBlockId, blockChanges)
-
+  (topicId: Topic['id'], originalMessage: Message, assistant: Assistant) => async (dispatch: AppDispatch) => {
     // Trigger the regeneration logic for associated assistant messages
     dispatch(resendMessageThunk(topicId, originalMessage, assistant))
   }
@@ -954,9 +1045,21 @@ export const regenerateAssistantResponseThunk =
       const blockIdsToDelete = [...(messageToResetEntity.blocks || [])]
 
       // 5. Reset the message entity in Redux
-      const resetAssistantMsg = resetAssistantMessage(messageToResetEntity, {
-        status: AssistantMessageStatus.PENDING
-      })
+      const resetAssistantMsg = resetAssistantMessage(
+        messageToResetEntity,
+        // Grouped message (mentioned model message) should not reset model and modelId, always use the original model
+        assistantMessageToRegenerate.modelId
+          ? {
+              status: AssistantMessageStatus.PENDING,
+              updatedAt: new Date().toISOString()
+            }
+          : {
+              status: AssistantMessageStatus.PENDING,
+              updatedAt: new Date().toISOString(),
+              model: assistant.model
+            }
+      )
+
       dispatch(
         newMessagesActions.updateMessage({
           topicId,
@@ -1071,25 +1174,25 @@ export const initiateTranslationThunk =
 // --- Thunk to update the translation block with new content ---
 export const updateTranslationBlockThunk =
   (blockId: string, accumulatedText: string, isComplete: boolean = false) =>
-    async (dispatch: AppDispatch) => {
-      console.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
-      try {
-        const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
-        const changes: Partial<MessageBlock> = {
-          content: accumulatedText,
-          status: status
-        }
-
-        // 更新Redux状态
-        dispatch(updateOneBlock({ id: blockId, changes }))
-
-        // 更新数据库
-        await db.message_blocks.update(blockId, changes)
-        console.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
-      } catch (error) {
-        console.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
+  async (dispatch: AppDispatch) => {
+    // Logger.log(`[updateTranslationBlockThunk] 更新翻译块 ${blockId}, isComplete: ${isComplete}`)
+    try {
+      const status = isComplete ? MessageBlockStatus.SUCCESS : MessageBlockStatus.STREAMING
+      const changes: Partial<MessageBlock> = {
+        content: accumulatedText,
+        status: status
       }
+
+      // 更新Redux状态
+      dispatch(updateOneBlock({ id: blockId, changes }))
+
+      // 更新数据库
+      await db.message_blocks.update(blockId, changes)
+      // Logger.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
+    } catch (error) {
+      console.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error)
     }
+  }
 
 /**
  * Thunk to append a new assistant response (using a potentially different model)
@@ -1144,10 +1247,14 @@ export const appendAssistantResponseThunk =
       })
 
       // 3. Update Redux Store
-      dispatch(newMessagesActions.addMessage({ topicId, message: newAssistantStub }))
+      const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
+      const existingMessageIndex = currentTopicMessageIds.findIndex((id) => id === existingAssistantMessageId)
+      const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
+
+      dispatch(newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantStub, index: insertAtIndex }))
 
       // 4. Update Database (Save the stub to the topic's message list)
-      await saveMessageAndBlocksToDB(newAssistantStub, [])
+      await saveMessageAndBlocksToDB(newAssistantStub, [], insertAtIndex)
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {
@@ -1217,7 +1324,7 @@ export const cloneMessagesToNewTopicThunk =
 
       // 3. Clone Messages and Blocks with New IDs
       for (const oldMessage of messagesToClone) {
-        const newMsgId = uuidv4()
+        const newMsgId = uuid()
         originalToNewMsgIdMap.set(oldMessage.id, newMsgId) // Store mapping for all cloned messages
 
         let newAskId: string | undefined = undefined // Initialize newAskId
@@ -1243,7 +1350,7 @@ export const cloneMessagesToNewTopicThunk =
           for (const oldBlockId of oldMessage.blocks) {
             const oldBlock = state.messageBlocks.entities[oldBlockId]
             if (oldBlock) {
-              const newBlockId = uuidv4()
+              const newBlockId = uuid()
               const newBlock: MessageBlock = {
                 ...oldBlock,
                 id: newBlockId,
@@ -1327,14 +1434,14 @@ export const updateMessageAndBlocksThunk =
     topicId: string,
     // Allow messageUpdates to be optional or just contain the ID if only blocks are updated
     messageUpdates: (Partial<Message> & Pick<Message, 'id'>) | null, // ID is always required for context
-    blockUpdatesList: Partial<MessageBlock>[] // Block updates remain required for this thunk's purpose
+    blockUpdatesList: MessageBlock[] // Block updates remain required for this thunk's purpose
   ) =>
-  async (dispatch: AppDispatch): Promise<boolean> => {
+  async (dispatch: AppDispatch): Promise<void> => {
     const messageId = messageUpdates?.id
 
     if (messageUpdates && !messageId) {
-      console.error('[updateMessageAndBlocksThunk] Message ID is required.')
-      return false
+      console.error('[updateMessageAndUpdateBlocksThunk] Message ID is required.')
+      return
     }
 
     try {
@@ -1350,14 +1457,7 @@ export const updateMessageAndBlocksThunk =
       }
 
       if (blockUpdatesList.length > 0) {
-        blockUpdatesList.forEach((blockUpdate) => {
-          const { id: blockId, ...blockChanges } = blockUpdate
-          if (blockId && Object.keys(blockChanges).length > 0) {
-            dispatch(updateOneBlock({ id: blockId, changes: blockChanges }))
-          } else if (!blockId) {
-            console.warn('[updateMessageAndBlocksThunk] Skipping block update due to missing block ID:', blockUpdate)
-          }
-        })
+        dispatch(upsertManyBlocks(blockUpdatesList))
       }
 
       // 2. 更新数据库 (在事务中)
@@ -1384,27 +1484,57 @@ export const updateMessageAndBlocksThunk =
           }
         }
 
-        // Always process block updates if the list is provided and not empty
         if (blockUpdatesList.length > 0) {
-          const validBlockUpdatesForDb = blockUpdatesList
-            .map((bu) => {
-              const { id, ...changes } = bu
-              if (id && Object.keys(changes).length > 0) {
-                return { key: id, changes: changes }
-              }
-              return null
-            })
-            .filter((bu) => bu !== null) as { key: string; changes: Partial<MessageBlock> }[]
+          await db.message_blocks.bulkPut(blockUpdatesList)
+        }
+      })
+    } catch (error) {
+      console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
+    }
+  }
 
-          if (validBlockUpdatesForDb.length > 0) {
-            await db.message_blocks.bulkUpdate(validBlockUpdatesForDb)
-          }
+export const removeBlocksThunk =
+  (topicId: string, messageId: string, blockIdsToRemove: string[]) =>
+  async (dispatch: AppDispatch, getState: () => RootState): Promise<void> => {
+    if (!blockIdsToRemove.length) {
+      console.warn('[removeBlocksFromMessageThunk] No block IDs provided to remove.')
+      return
+    }
+
+    try {
+      const state = getState()
+      const message = state.messages.entities[messageId]
+
+      if (!message) {
+        console.error(`[removeBlocksFromMessageThunk] Message ${messageId} not found in state.`)
+        return
+      }
+      const blockIdsToRemoveSet = new Set(blockIdsToRemove)
+
+      const updatedBlockIds = (message.blocks || []).filter((id) => !blockIdsToRemoveSet.has(id))
+
+      // 1. Update Redux state
+      dispatch(newMessagesActions.updateMessage({ topicId, messageId, updates: { blocks: updatedBlockIds } }))
+
+      if (blockIdsToRemove.length > 0) {
+        dispatch(removeManyBlocks(blockIdsToRemove))
+      }
+
+      const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+
+      // 2. Update database (in a transaction)
+      await db.transaction('rw', db.topics, db.message_blocks, async () => {
+        // Update the message in the topic
+        await db.topics.update(topicId, { messages: finalMessagesToSave })
+        // Delete the blocks from the database
+        if (blockIdsToRemove.length > 0) {
+          await db.message_blocks.bulkDelete(blockIdsToRemove)
         }
       })
 
-      return true
+      return
     } catch (error) {
-      console.error(`[updateMessageAndBlocksThunk] Failed to process updates for message ${messageId}:`, error)
-      return false
+      console.error(`[removeBlocksFromMessageThunk] Failed to remove blocks from message ${messageId}:`, error)
+      throw error
     }
   }

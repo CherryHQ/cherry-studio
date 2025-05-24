@@ -28,11 +28,16 @@ class FileStorage {
   }
 
   private initStorageDir = (): void => {
-    if (!fs.existsSync(this.storageDir)) {
-      fs.mkdirSync(this.storageDir, { recursive: true })
-    }
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true })
+    try {
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+      if (!fs.existsSync(this.tempDir)) {
+        fs.mkdirSync(this.tempDir, { recursive: true })
+      }
+    } catch (error) {
+      logger.error('[FileStorage] Failed to initialize storage directories:', error)
+      throw error
     }
   }
 
@@ -323,7 +328,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string | null> => {
+  ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: '保存文件',
@@ -331,14 +336,18 @@ class FileStorage {
         ...options
       })
 
+      if (result.canceled) {
+        return Promise.reject(new Error('User canceled the save dialog'))
+      }
+
       if (!result.canceled && result.filePath) {
         await writeFileSync(result.filePath, content, { encoding: 'utf-8' })
       }
 
       return result.filePath
-    } catch (err) {
+    } catch (err: any) {
       logger.error('[IPC - Error]', 'An error occurred saving the file:', err)
-      return null
+      return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
 
@@ -472,6 +481,25 @@ class FileStorage {
       logger.info('[FileStorage] File copied successfully:', { from: sourcePath, to: destPath })
     } catch (error) {
       logger.error('[FileStorage] Copy file failed:', error)
+      throw error
+    }
+  }
+
+  public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
+    try {
+      const filePath = path.join(this.storageDir, id)
+      logger.info('[FileStorage] Writing file:', filePath)
+
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        logger.info('[FileStorage] Creating storage directory:', this.storageDir)
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+
+      await fs.promises.writeFile(filePath, content, 'utf8')
+      logger.info('[FileStorage] File written successfully:', filePath)
+    } catch (error) {
+      logger.error('[FileStorage] Failed to write file:', error)
       throw error
     }
   }

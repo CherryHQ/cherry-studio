@@ -1,7 +1,9 @@
 import { createSelector } from '@reduxjs/toolkit'
+import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
-import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
+import { updateOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import {
   appendAssistantResponseThunk,
@@ -11,6 +13,7 @@ import {
   deleteSingleMessageThunk,
   initiateTranslationThunk,
   regenerateAssistantResponseThunk,
+  removeBlocksThunk,
   resendMessageThunk,
   resendUserMessageWithEditThunk,
   updateMessageAndBlocksThunk,
@@ -21,18 +24,6 @@ import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { useCallback } from 'react'
-
-const findMainTextBlockId = (message: Message): string | undefined => {
-  if (!message || !message.blocks) return undefined
-  const state = store.getState()
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, String(blockId))
-    if (block && block.type === MessageBlockType.MAIN_TEXT) {
-      return block.id
-    }
-  }
-  return undefined
-}
 
 const selectMessagesState = (state: RootState) => state.messages
 
@@ -77,7 +68,7 @@ export function useMessageOperations(topic: Topic) {
   )
 
   /**
-   * 编辑消息。（目前仅更新 Redux state）。 / Edits a message. (Currently only updates Redux state).
+   * 编辑消息。 / Edits a message.
    * 使用 newMessagesActions.updateMessage.
    */
   const editMessage = useCallback(
@@ -86,21 +77,15 @@ export function useMessageOperations(topic: Topic) {
         console.error('[editMessage] Topic prop is not valid.')
         return
       }
-      console.log(`[useMessageOperations] Editing message ${messageId} with updates:`, updates)
 
       const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
         id: messageId,
+        updatedAt: new Date().toISOString(),
         ...updates
       }
 
       // Call the thunk with topic.id and only message updates
-      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
-
-      if (success) {
-        console.log(`[useMessageOperations] Successfully edited message ${messageId} properties.`)
-      } else {
-        console.error(`[useMessageOperations] Failed to edit message ${messageId} properties.`)
-      }
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
     [dispatch, topic.id]
   )
@@ -112,23 +97,6 @@ export function useMessageOperations(topic: Topic) {
   const resendMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
       await dispatch(resendMessageThunk(topic.id, message, assistant))
-    },
-    [dispatch, topic.id]
-  )
-
-  /**
-   * 在用户消息的主文本块被编辑后重新发送该消息。 / Resends a user message after its main text block has been edited.
-   * Dispatches resendUserMessageWithEditThunk.
-   */
-  const resendUserMessageWithEdit = useCallback(
-    async (message: Message, editedContent: string, assistant: Assistant) => {
-      const mainTextBlockId = findMainTextBlockId(message)
-      if (!mainTextBlockId) {
-        console.error('Cannot resend edited message: Main text block not found.')
-        return
-      }
-
-      await dispatch(resendUserMessageWithEditThunk(topic.id, message, mainTextBlockId, editedContent, assistant))
     },
     [dispatch, topic.id]
   )
@@ -264,12 +232,10 @@ export function useMessageOperations(topic: Topic) {
         }
         dispatch(updateOneBlock({ id: blockId, changes }))
         await dispatch(updateTranslationBlockThunk(blockId, '', false))
-        console.log('[getTranslationUpdater] update existing translation block:', blockId)
       } else {
         blockId = await dispatch(
           initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
         )
-        console.log('[getTranslationUpdater] create new translation block:', blockId)
       }
 
       if (!blockId) {
@@ -294,42 +260,164 @@ export function useMessageOperations(topic: Topic) {
    */
   const createTopicBranch = useCallback(
     (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
-      console.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
+      Logger.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
       return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
     },
     [dispatch]
   )
 
   /**
-   * Updates properties of specific message blocks (e.g., content).
-   * Uses the generalized thunk for persistence.
+   * Updates message blocks by comparing original and edited blocks.
+   * Handles adding, updating, and removing blocks in a single operation.
+   * @param messageId The ID of the message to update
+   * @param editedBlocks The complete set of blocks after editing
    */
   const editMessageBlocks = useCallback(
-    // messageId?: string
-    async (blockUpdatesListRaw: Partial<MessageBlock>[]) => {
+    async (messageId: string, editedBlocks: MessageBlock[]) => {
       if (!topic?.id) {
         console.error('[editMessageBlocks] Topic prop is not valid.')
         return
       }
-      if (!blockUpdatesListRaw || blockUpdatesListRaw.length === 0) {
-        console.warn('[editMessageBlocks] Received empty block updates list.')
+
+      try {
+        // 1. Get the current state of the message and its blocks
+        const state = store.getState()
+        const message = state.messages.entities[messageId]
+        if (!message) {
+          console.error('[editMessageBlocks] Message not found:', messageId)
+          return
+        }
+
+        // 2. Get all original blocks
+        const originalBlocks = message.blocks
+          ? (message.blocks
+              .map((blockId) => state.messageBlocks.entities[blockId])
+              .filter((block) => block !== undefined) as MessageBlock[])
+          : []
+
+        // 3. Create sets for efficient comparison
+        const originalBlockIds = new Set(originalBlocks.map((block) => block.id))
+        const editedBlockIds = new Set(editedBlocks.map((block) => block.id))
+
+        // 4. Identify blocks to remove, update, and add
+        const blockIdsToRemove = originalBlocks
+          .filter((block) => !editedBlockIds.has(block.id))
+          .map((block) => block.id)
+
+        const blocksToUpdate = editedBlocks
+          .filter((block) => originalBlockIds.has(block.id))
+          .map((block) => ({
+            ...block,
+            updatedAt: new Date().toISOString()
+          }))
+
+        const blocksToAdd = editedBlocks
+          .filter((block) => !originalBlockIds.has(block.id))
+          .map((block) => ({
+            ...block,
+            updatedAt: new Date().toISOString()
+          }))
+
+        // 5. Prepare message update with new block IDs
+        const updatedBlockIds = editedBlocks.map((block) => block.id)
+        const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+          id: messageId,
+          updatedAt: new Date().toISOString(),
+          blocks: updatedBlockIds
+        }
+
+        // 6. Log operations for debugging
+        console.log('[editMessageBlocks] Operations:', {
+          blocksToRemove: blockIdsToRemove.length,
+          blocksToUpdate: blocksToUpdate.length,
+          blocksToAdd: blocksToAdd.length
+        })
+
+        // 7. Update Redux state and database
+        // First update message and add/update blocks
+        if (blocksToAdd.length > 0) {
+          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToAdd))
+        }
+
+        if (blocksToUpdate.length > 0) {
+          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToUpdate))
+        }
+
+        // Then remove blocks if needed
+        if (blockIdsToRemove.length > 0) {
+          await dispatch(removeBlocksThunk(topic.id, messageId, blockIdsToRemove))
+        }
+      } catch (error) {
+        console.error('[editMessageBlocks] Failed to update message blocks:', error)
+      }
+    },
+    [dispatch, topic?.id]
+  )
+
+  /**
+   * 在用户消息的主文本块被编辑后重新发送该消息。 / Resends a user message after its main text block has been edited.
+   * Dispatches resendUserMessageWithEditThunk.
+   */
+  const resendUserMessageWithEdit = useCallback(
+    async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
+      await editMessageBlocks(message.id, editedBlocks)
+
+      const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
+      if (!mainTextBlock) {
+        console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
         return
       }
 
-      const blockUpdatesListProcessed = blockUpdatesListRaw.map((update) => ({
-        ...update,
-        updatedAt: new Date().toISOString()
-      }))
+      const fileBlocks = editedBlocks.filter(
+        (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
+      )
 
-      const success = await dispatch(updateMessageAndBlocksThunk(topic.id, null, blockUpdatesListProcessed))
+      const files = fileBlocks.map((block) => block.file).filter((file) => file !== undefined)
 
-      if (success) {
-        // console.log(`[useMessageOperations] Successfully processed block updates for message ${messageId}.`)
-      } else {
-        // console.error(`[useMessageOperations] Failed to process block updates for message ${messageId}.`)
+      const usage = await estimateUserPromptUsage({ content: mainTextBlock.content, files })
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: message.id,
+        updatedAt: new Date().toISOString(),
+        usage
       }
+
+      await dispatch(
+        newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates })
+      )
+      // 对于message的修改会在下面的thunk中保存
+      await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
     },
-    [dispatch, topic.id]
+    [dispatch, editMessageBlocks, topic.id]
+  )
+
+  /**
+   * Removes a specific block from a message.
+   */
+  const removeMessageBlock = useCallback(
+    async (messageId: string, blockIdToRemove: string) => {
+      if (!topic?.id) {
+        console.error('[removeMessageBlock] Topic prop is not valid.')
+        return
+      }
+
+      const state = store.getState()
+      const message = state.messages.entities[messageId]
+      if (!message || !message.blocks) {
+        console.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
+        return
+      }
+
+      const updatedBlocks = message.blocks.filter((blockId) => blockId !== blockIdToRemove)
+
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
+        updatedAt: new Date().toISOString(),
+        blocks: updatedBlocks
+      }
+
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
+    },
+    [dispatch, topic?.id]
   )
 
   return {
@@ -347,7 +435,8 @@ export function useMessageOperations(topic: Topic) {
     resumeMessage,
     getTranslationUpdater,
     createTopicBranch,
-    editMessageBlocks
+    editMessageBlocks,
+    removeMessageBlock
   }
 }
 

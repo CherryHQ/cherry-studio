@@ -77,6 +77,7 @@ const MiniAppSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
         <SettingDivider />
+
         <SettingTitle
           style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{t('settings.miniapps.display_title')}</span>

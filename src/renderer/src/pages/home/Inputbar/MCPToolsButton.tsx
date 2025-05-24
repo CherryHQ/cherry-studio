@@ -319,7 +319,8 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       icon: <SquareTerminal />,
       action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
     }))
-  }, [handlePromptSelect, activedMcpServers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activedMcpServers])
 
   const openPromptList = useCallback(async () => {
     const prompts = await promptList
@@ -384,6 +385,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
     const fetchResources = async () => {
       const resources: MCPResource[] = []
+
       for (const server of activedMcpServers) {
         const serverResources = await window.api.mcp.listResources(server)
         resources.push(...serverResources)
@@ -406,7 +408,8 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     return () => {
       isMounted = false
     }
-  }, [activedMcpServers, handleResourceSelect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activedMcpServers])
 
   const openResourcesList = useCallback(async () => {
     const resources = resourcesList

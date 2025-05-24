@@ -1,3 +1,4 @@
+import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Citation } from '@renderer/pages/home/Messages/CitationsList'
@@ -84,20 +85,23 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
   if (!block) return []
 
   let formattedCitations: Citation[] = []
-  // 1. Handle Web Search Responses (Non-Gemini)
+  // 1. Handle Web Search Responses
   if (block.response) {
     switch (block.response.source) {
-      case WebSearchSource.GEMINI:
+      case WebSearchSource.GEMINI: {
+        const groundingMetadata = block.response.results as GroundingMetadata
         formattedCitations =
-          (block.response?.results as GroundingMetadata)?.groundingChunks?.map((chunk, index) => ({
+          groundingMetadata?.groundingChunks?.map((chunk, index) => ({
             number: index + 1,
             url: chunk?.web?.uri || '',
             title: chunk?.web?.title,
-            showFavicon: false,
+            showFavicon: true,
+            metadata: groundingMetadata.groundingSupports,
             type: 'websearch'
           })) || []
         break
-      case WebSearchSource.OPENAI:
+      }
+      case WebSearchSource.OPENAI_RESPONSE:
         formattedCitations =
           (block.response.results as OpenAI.Responses.ResponseOutputText.URLCitation[])?.map((result, index) => {
             let hostname: string | undefined
@@ -116,7 +120,7 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
             }
           }) || []
         break
-      case WebSearchSource.OPENAI_COMPATIBLE:
+      case WebSearchSource.OPENAI:
         formattedCitations =
           (block.response.results as OpenAI.Chat.Completions.ChatCompletionMessage.Annotation[])?.map((url, index) => {
             const urlCitation = url.url_citation
@@ -136,6 +140,27 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
             }
           }) || []
         break
+      case WebSearchSource.ANTHROPIC:
+        formattedCitations =
+          (block.response.results as Array<WebSearchResultBlock>)?.map((result, index) => {
+            const { url } = result
+            let hostname: string | undefined
+            try {
+              hostname = new URL(url).hostname
+            } catch {
+              hostname = url
+            }
+            return {
+              number: index + 1,
+              url: url,
+              title: result.title,
+              hostname: hostname,
+              showFavicon: true,
+              type: 'websearch'
+            }
+          }) || []
+        break
+      case WebSearchSource.GROK:
       case WebSearchSource.OPENROUTER:
       case WebSearchSource.PERPLEXITY:
         formattedCitations =
@@ -212,10 +237,11 @@ const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Cita
       })
     )
   }
-  // 4. Deduplicate by URL and Renumber Sequentially
+  // 4. Deduplicate non-knowledge citations by URL and Renumber Sequentially
   const urlSet = new Set<string>()
   return formattedCitations
     .filter((citation) => {
+      if (citation.type === 'knowledge') return true
       if (!citation.url || urlSet.has(citation.url)) return false
       urlSet.add(citation.url)
       return true

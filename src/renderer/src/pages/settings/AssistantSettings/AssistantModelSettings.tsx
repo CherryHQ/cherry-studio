@@ -8,7 +8,7 @@ import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -24,6 +24,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [toolUseMode, setToolUseMode] = useState(assistant?.settings?.toolUseMode ?? 'prompt')
   const [defaultModel, setDefaultModel] = useState(assistant?.defaultModel)
   const [topP, setTopP] = useState(assistant?.settings?.topP ?? 1)
   const [customParameters, setCustomParameters] = useState<AssistantSettingCustomParameters[]>(
@@ -149,6 +150,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     setStreamOutput(true)
     setTopP(1)
     setCustomParameters([])
+    setToolUseMode('prompt')
     updateAssistantSettings({
       temperature: DEFAULT_TEMPERATURE,
       contextCount: DEFAULT_CONTEXTCOUNT,
@@ -156,12 +158,14 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       maxTokens: 0,
       streamOutput: true,
       topP: 1,
-      customParameters: []
+      customParameters: [],
+      toolUseMode: 'prompt'
     })
   }
 
-  const onSelectModel = async () => {
-    const selectedModel = await SelectModelPopup.show({ model: assistant?.model })
+  const onSelectModel = useCallback(async () => {
+    const currentModel = defaultModel ? assistant?.model : undefined
+    const selectedModel = await SelectModelPopup.show({ model: currentModel })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({
@@ -170,7 +174,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         defaultModel: selectedModel
       })
     }
-  }
+  }, [assistant, defaultModel, updateAssistant])
 
   useEffect(() => {
     return () => updateAssistantSettings({ customParameters: customParametersRef.current })
@@ -179,7 +183,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const formatSliderTooltip = (value?: number) => {
     if (value === undefined) return ''
-    return value === 20 ? '∞' : value.toString()
+    return value.toString()
   }
 
   return (
@@ -290,11 +294,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={20}>
           <Slider
             min={0}
-            max={20}
+            max={100}
             onChange={setContextCount}
             onChangeComplete={onContextCountChange}
             value={typeof contextCount === 'number' ? contextCount : 0}
-            marks={{ 0: '0', 5: '5', 10: '10', 15: '15', 20: t('chat.settings.max') }}
+            marks={{ 0: '0', 25: '25', 50: '50', 75: '75', 100: t('chat.settings.max') }}
             step={1}
             tooltip={{ formatter: formatSliderTooltip }}
           />
@@ -374,6 +378,20 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             updateAssistantSettings({ streamOutput: checked })
           }}
         />
+      </SettingRow>
+      <Divider style={{ margin: '10px 0' }} />
+      <SettingRow style={{ minHeight: 30 }}>
+        <Label>{t('assistants.settings.tool_use_mode')}</Label>
+        <Select
+          value={toolUseMode}
+          style={{ width: 110 }}
+          onChange={(value) => {
+            setToolUseMode(value)
+            updateAssistantSettings({ toolUseMode: value })
+          }}>
+          <Select.Option value="prompt">{t('assistants.settings.tool_use_mode.prompt')}</Select.Option>
+          <Select.Option value="function">{t('assistants.settings.tool_use_mode.function')}</Select.Option>
+        </Select>
       </SettingRow>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>

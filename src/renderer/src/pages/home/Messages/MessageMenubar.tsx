@@ -1,13 +1,15 @@
-import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
+import { useMessageEditing } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import { RootState } from '@renderer/store'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -22,10 +24,11 @@ import {
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findImageBlocks, findMainTextBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Button, Dropdown, Popconfirm, Tooltip } from 'antd'
+import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
+import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -48,6 +51,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
     props
   const { t } = useTranslation()
+  const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
@@ -58,10 +62,9 @@ const MessageMenubar: FC<Props> = (props) => {
     deleteMessage,
     resendMessage,
     regenerateAssistantMessage,
-    resendUserMessageWithEdit,
     getTranslationUpdater,
     appendAssistantResponse,
-    editMessageBlocks
+    removeMessageBlock
   } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
 
@@ -87,7 +90,6 @@ const MessageMenubar: FC<Props> = (props) => {
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      console.log('mainTextContent', mainTextContent)
       navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
 
       window.message.success({ content: t('message.copied'), key: 'copy-message' })
@@ -112,92 +114,11 @@ const MessageMenubar: FC<Props> = (props) => {
     [assistant, loading, message, resendMessage]
   )
 
+  const { startEditing } = useMessageEditing()
+
   const onEdit = useCallback(async () => {
-    // 禁用了助手消息的编辑，现在都是用户消息的编辑
-    let resendMessage = false
-
-    let textToEdit = ''
-
-    const imageBlocks = findImageBlocks(message)
-    // 如果是包含图片的消息，添加图片的 markdown 格式
-    if (imageBlocks.length > 0) {
-      const imageMarkdown = imageBlocks
-        .map((image, index) => `![image-${index}](file://${image?.file?.path})`)
-        .join('\n')
-      textToEdit = `${textToEdit}\n\n${imageMarkdown}`
-    }
-    textToEdit += mainTextContent
-    // if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
-    //   //   const processedMessage = withMessageThought(clone(message))
-    //   //   textToEdit = getMainTextContent(processedMessage)
-    //   textToEdit = mainTextContent
-    // }
-
-    const editedText = await TextEditPopup.show({
-      text: textToEdit,
-      children: (props) => {
-        const onPress = () => {
-          props.onOk?.()
-          resendMessage = true
-        }
-        return message.role === 'user' ? (
-          <ReSendButton
-            icon={<i className="iconfont icon-ic_send" style={{ color: 'var(--color-primary)' }} />}
-            onClick={onPress}>
-            {t('chat.resend')}
-          </ReSendButton>
-        ) : null
-      }
-    })
-
-    if (editedText && editedText !== textToEdit) {
-      // 解析编辑后的文本，提取图片 URL
-      // const imageRegex = /!\[image-\d+\]\((.*?)\)/g
-      // const imageUrls: string[] = []
-      // let match
-      // let content = editedText
-      // TODO 按理说图片应该走上传，不应该在这改
-      // while ((match = imageRegex.exec(editedText)) !== null) {
-      //   imageUrls.push(match[1])
-      //   content = content.replace(match[0], '')
-      // }
-      if (resendMessage) {
-        resendUserMessageWithEdit(message, editedText, assistant)
-      } else {
-        editMessageBlocks([{ ...findMainTextBlocks(message)[0], content: editedText }])
-      }
-      // // 更新消息内容，保留图片信息
-      // await editMessage(message.id, {
-      //   content: content.trim(),
-      //   metadata: {
-      //     ...message.metadata,
-      //     generateImage:
-      //       imageUrls.length > 0
-      //         ? {
-      //             type: 'url',
-      //             images: imageUrls
-      //           }
-      //         : undefined
-      //   }
-      // })
-
-      // resendMessage &&
-      //   handleResendUserMessage({
-      //     ...message,
-      //     content: content.trim(),
-      //     metadata: {
-      //       ...message.metadata,
-      //       generateImage:
-      //         imageUrls.length > 0
-      //           ? {
-      //               type: 'url',
-      //               images: imageUrls
-      //             }
-      //           : undefined
-      //     }
-      //   })
-    }
-  }, [resendUserMessageWithEdit, editMessageBlocks, assistant, mainTextContent, message, t])
+    startEditing(message.id)
+  }, [message.id, startEditing])
 
   const handleTranslate = useCallback(
     async (language: string) => {
@@ -221,6 +142,10 @@ const MessageMenubar: FC<Props> = (props) => {
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
 
+  const isEditable = useMemo(() => {
+    return findMainTextBlocks(message).length === 1
+  }, [message])
+
   const dropdownItems = useMemo(
     () => [
       {
@@ -232,17 +157,29 @@ const MessageMenubar: FC<Props> = (props) => {
           window.api.file.save(fileName, mainTextContent)
         }
       },
-      // {
-      //   label: t('common.edit'),
-      //   key: 'edit',
-      //   icon: <FilePenLine size={16} />,
-      //   onClick: onEdit
-      // },
+      ...(isEditable
+        ? [
+            {
+              label: t('common.edit'),
+              key: 'edit',
+              icon: <FilePenLine size={16} />,
+              onClick: onEdit
+            }
+          ]
+        : []),
       {
         label: t('chat.message.new.branch'),
         key: 'new-branch',
         icon: <Split size={16} />,
         onClick: onNewBranch
+      },
+      {
+        label: t('chat.multiple.select'),
+        key: 'multi-select',
+        icon: <MenuOutlined size={16} />,
+        onClick: () => {
+          toggleMultiSelectMode(true)
+        }
       },
       {
         label: t('chat.topics.export.title'),
@@ -338,7 +275,18 @@ const MessageMenubar: FC<Props> = (props) => {
         ].filter(Boolean)
       }
     ],
-    [message, messageContainerRef, mainTextContent, onNewBranch, t, topic.name, exportMenuOptions]
+    [
+      t,
+      isEditable,
+      onEdit,
+      onNewBranch,
+      exportMenuOptions,
+      message,
+      mainTextContent,
+      toggleMultiSelectMode,
+      messageContainerRef,
+      topic.name
+    ]
   )
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
@@ -368,6 +316,12 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [message, editMessage]
   )
+
+  const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
+  const hasTranslationBlocks = useMemo(() => {
+    const translationBlocks = findTranslationBlocks(message)
+    return translationBlocks.length > 0
+  }, [message])
 
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
@@ -424,13 +378,52 @@ const MessageMenubar: FC<Props> = (props) => {
                 label: item.emoji + ' ' + item.label,
                 key: item.value,
                 onClick: () => handleTranslate(item.value)
-              }))
-              // {
-              // TODO 删除翻译块可以放在翻译块内
-              //   label: '✖ ' + t('translate.close'),
-              //   key: 'translate-close',
-              //   onClick: () => editMessage(message.id, { translatedContent: undefined })
-              // }
+              })),
+              ...(hasTranslationBlocks
+                ? [
+                    { type: 'divider' as const },
+                    {
+                      label: '📋 ' + t('common.copy'),
+                      key: 'translate-copy',
+                      onClick: () => {
+                        const translationBlocks = message.blocks
+                          .map((blockId) => blockEntities[blockId])
+                          .filter((block) => block?.type === 'translation')
+
+                        if (translationBlocks.length > 0) {
+                          const translationContent = translationBlocks
+                            .map((block) => block?.content || '')
+                            .join('\n\n')
+                            .trim()
+
+                          if (translationContent) {
+                            navigator.clipboard.writeText(translationContent)
+                            window.message.success({ content: t('translate.copied'), key: 'translate-copy' })
+                          } else {
+                            window.message.warning({ content: t('translate.empty'), key: 'translate-copy' })
+                          }
+                        }
+                      }
+                    },
+                    {
+                      label: '✖ ' + t('translate.close'),
+                      key: 'translate-close',
+                      onClick: () => {
+                        const translationBlocks = message.blocks
+                          .map((blockId) => blockEntities[blockId])
+                          .filter((block) => block?.type === 'translation')
+                          .map((block) => block?.id)
+
+                        if (translationBlocks.length > 0) {
+                          translationBlocks.forEach((blockId) => {
+                            if (blockId) removeMessageBlock(message.id, blockId)
+                          })
+                          window.message.success({ content: t('translate.closed'), key: 'translate-close' })
+                        }
+                      }
+                    }
+                  ]
+                : [])
             ],
             onClick: (e) => e.domEvent.stopPropagation()
           }}
@@ -524,10 +517,10 @@ const ActionButton = styled.div`
   }
 `
 
-const ReSendButton = styled(Button)`
-  position: absolute;
-  top: 10px;
-  left: 0;
-`
+// const ReSendButton = styled(Button)`
+//   position: absolute;
+//   top: 10px;
+//   left: 0;
+// `
 
 export default memo(MessageMenubar)

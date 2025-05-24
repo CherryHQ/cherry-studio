@@ -83,12 +83,12 @@ export async function checkModel(provider: Provider, model: Model) {
       provider,
       model,
       async (ai, model) => {
-        const result = await ai.check(model, false)
+        // Try streaming check first
+        const result = await ai.check(model, true)
         if (result.valid && !result.error) {
           return result
         }
-        // Try streaming check
-        return ai.check(model, true)
+        return ai.check(model, false)
       },
       ({ valid, error }) => ({ valid, error: error || null })
     )

@@ -17,7 +17,8 @@ export function getDefaultAssistant(): Assistant {
     prompt: '',
     topics: [getDefaultTopic('default')],
     messages: [],
-    type: 'assistant'
+    type: 'assistant',
+    regularPhrases: [] // Added regularPhrases
   }
 }
 
@@ -101,12 +102,13 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   }
 
   return {
-    contextCount: contextCount === 20 ? 100000 : contextCount,
+    contextCount: contextCount === 100 ? 100000 : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
     topP: assistant?.settings?.topP ?? 1,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
+    toolUseMode: assistant?.settings?.toolUseMode ?? 'prompt',
     hideMessages: assistant?.settings?.hideMessages ?? false,
     defaultModel: assistant?.defaultModel ?? undefined,
     customParameters: assistant?.settings?.customParameters ?? []
@@ -170,7 +172,8 @@ export async function createAssistantFromAgent(agent: Agent) {
     emoji: agent.emoji,
     topics: [topic],
     model: agent.defaultModel,
-    type: 'assistant'
+    type: 'assistant',
+    regularPhrases: agent.regularPhrases || [] // Ensured regularPhrases
   }
 
   store.dispatch(addAssistant(assistant))

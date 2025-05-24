@@ -1,19 +1,22 @@
-import { FONT_FAMILY } from '@renderer/config/constant'
+import ContextMenu from '@renderer/components/ContextMenu'
+import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useModel } from '@renderer/hooks/useModel'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Assistant, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
-import { Divider, Dropdown } from 'antd'
-import { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Divider } from 'antd'
+import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageContent from './MessageContent'
+import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
@@ -26,6 +29,7 @@ interface Props {
   index?: number
   total?: number
   hidePresetMessages?: boolean
+  hideMenuBar?: boolean
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
@@ -38,6 +42,7 @@ const MessageItem: FC<Props> = ({
   // assistant,
   index,
   hidePresetMessages,
+  hideMenuBar = false,
   isGrouped,
   isStreaming = false,
   style
@@ -46,48 +51,56 @@ const MessageItem: FC<Props> = ({
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { isBubbleStyle } = useMessageStyle()
-  const { showMessageDivider, messageFont, fontSize } = useSettings()
+  const { showMessageDivider, messageFont, fontSize, narrowMode, messageStyle } = useSettings()
+  const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
+  const { editingMessageId, stopEditing } = useMessageEditing()
+  const isEditing = editingMessageId === message.id
 
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
-  const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
-  const [selectedText, setSelectedText] = useState<string>('')
+  useEffect(() => {
+    if (isEditing && messageContainerRef.current) {
+      messageContainerRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      })
+    }
+  }, [isEditing])
+
+  const handleEditSave = useCallback(
+    async (blocks: MessageBlock[]) => {
+      try {
+        console.log('after save blocks', blocks)
+        await editMessageBlocks(message.id, blocks)
+        stopEditing()
+      } catch (error) {
+        console.error('Failed to save message blocks:', error)
+      }
+    },
+    [message, editMessageBlocks, stopEditing]
+  )
+
+  const handleEditResend = useCallback(
+    async (blocks: MessageBlock[]) => {
+      try {
+        await resendUserMessageWithEdit(message, blocks, assistant)
+        stopEditing()
+      } catch (error) {
+        console.error('Failed to resend message:', error)
+      }
+    },
+    [message, resendUserMessageWithEdit, assistant, stopEditing]
+  )
+
+  const handleEditCancel = useCallback(() => {
+    stopEditing()
+  }, [stopEditing])
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
-  const showMenubar = !isStreaming && !message.status.includes('ing')
-
-  const fontFamily = useMemo(() => {
-    return messageFont === 'serif' ? FONT_FAMILY.replace('sans-serif', 'serif').replace('Ubuntu, ', '') : FONT_FAMILY
-  }, [messageFont])
+  const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
   const messageBorder = showMessageDivider ? undefined : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    const _selectedText = window.getSelection()?.toString()
-    if (_selectedText) {
-      const quotedText =
-        _selectedText
-          .split('\n')
-          .map((line) => `> ${line}`)
-          .join('\n') + '\n-------------'
-      setSelectedQuoteText(quotedText)
-      setContextMenuPosition({ x: e.clientX, y: e.clientY })
-      setSelectedText(_selectedText)
-    }
-  }, [])
-
-  useEffect(() => {
-    const handleClick = () => {
-      setContextMenuPosition(null)
-    }
-    document.addEventListener('click', handleClick)
-    return () => {
-      document.removeEventListener('click', handleClick)
-    }
-  }, [])
 
   const messageHighlightHandler = useCallback((highlight: boolean = true) => {
     if (messageContainerRef.current) {
@@ -113,11 +126,27 @@ const MessageItem: FC<Props> = ({
 
   if (message.type === 'clear') {
     return (
-      <NewContextMessage onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
+      <NewContextMessage className="clear-context-divider" onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
         <Divider dashed style={{ padding: '0 20px' }} plain>
           {t('chat.message.new.context')}
         </Divider>
       </NewContextMessage>
+    )
+  }
+
+  if (isEditing) {
+    return (
+      <MessageContainer style={{ paddingTop: 15 }}>
+        <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
+        <div style={{ paddingLeft: messageStyle === 'plain' ? 46 : undefined }}>
+          <MessageEditor
+            message={message}
+            onSave={handleEditSave}
+            onResend={handleEditResend}
+            onCancel={handleEditCancel}
+          />
+        </div>
+      </MessageContainer>
     )
   }
 
@@ -130,46 +159,51 @@ const MessageItem: FC<Props> = ({
         'message-user': !isAssistantMessage
       })}
       ref={messageContainerRef}
-      onContextMenu={handleContextMenu}
       style={{ ...style, alignItems: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined }}>
-      {contextMenuPosition && (
-        <Dropdown
-          overlayStyle={{ left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
-          menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
-          open={true}
-          trigger={['contextMenu']}>
-          <div />
-        </Dropdown>
-      )}
-      <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
-      <MessageContentContainer
-        className="message-content-container"
-        style={{ fontFamily, fontSize, background: messageBackground, overflowY: 'visible' }}>
-        <MessageErrorBoundary>
-          <MessageContent message={message} />
-        </MessageErrorBoundary>
-        {showMenubar && (
-          <MessageFooter
-            style={{
-              border: messageBorder,
-              flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
-            }}>
-            <MessageTokens message={message} isLastMessage={isLastMessage} />
-            <MessageMenubar
-              message={message}
-              assistant={assistant}
-              model={model}
-              index={index}
-              topic={topic}
-              isLastMessage={isLastMessage}
-              isAssistantMessage={isAssistantMessage}
-              isGrouped={isGrouped}
-              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-              setModel={setModel}
-            />
-          </MessageFooter>
-        )}
-      </MessageContentContainer>
+      <ContextMenu>
+        <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
+        <MessageContentContainer
+          className={
+            message.role === 'user'
+              ? 'message-content-container message-content-container-user'
+              : message.role === 'assistant'
+                ? 'message-content-container message-content-container-assistant'
+                : 'message-content-container'
+          }
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize,
+            background: messageBackground,
+            overflowY: 'visible',
+            maxWidth: narrowMode ? 760 : undefined
+          }}>
+          <MessageErrorBoundary>
+            <MessageContent message={message} />
+          </MessageErrorBoundary>
+          {showMenubar && (
+            <MessageFooter
+              className="MessageFooter"
+              style={{
+                border: messageBorder,
+                flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
+              }}>
+              <MessageTokens message={message} isLastMessage={isLastMessage} />
+              <MessageMenubar
+                message={message}
+                assistant={assistant}
+                model={model}
+                index={index}
+                topic={topic}
+                isLastMessage={isLastMessage}
+                isAssistantMessage={isAssistantMessage}
+                isGrouped={isGrouped}
+                messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                setModel={setModel}
+              />
+            </MessageFooter>
+          )}
+        </MessageContentContainer>
+      </ContextMenu>
     </MessageContainer>
   )
 }
@@ -181,24 +215,6 @@ const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolea
       : 'var(--chat-background-user)'
     : undefined
 }
-
-const getContextMenuItems = (t: (key: string) => string, selectedQuoteText: string, selectedText: string) => [
-  {
-    key: 'copy',
-    label: t('common.copy'),
-    onClick: () => {
-      navigator.clipboard.writeText(selectedText)
-      window.message.success({ content: t('message.copied'), key: 'copy-message' })
-    }
-  },
-  {
-    key: 'quote',
-    label: t('chat.message.quote'),
-    onClick: () => {
-      EventEmitter.emit(EVENT_NAMES.QUOTE_TEXT, selectedQuoteText)
-    }
-  }
-]
 
 const MessageContainer = styled.div`
   display: flex;

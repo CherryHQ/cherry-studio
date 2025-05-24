@@ -1,7 +1,7 @@
+import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
-import { BuiltinTheme } from 'shiki'
 
 import type { Message } from './newMessage'
 
@@ -24,6 +24,7 @@ export type Assistant = {
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
+  regularPhrases?: QuickPhrase[] // Added for regular phrase
 }
 
 export type AssistantMessage = {
@@ -58,6 +59,8 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
+  qwenThinkMode?: boolean
+  toolUseMode?: 'function' | 'prompt'
 }
 
 export type Agent = Omit<Assistant, 'model'> & {
@@ -117,8 +120,8 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
 }
 
 export type Metrics = {
-  completion_tokens?: number
-  time_completion_millsec?: number
+  completion_tokens: number
+  time_completion_millsec: number
   time_first_token_millsec?: number
   time_thinking_millsec?: number
 }
@@ -158,7 +161,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'openai-compatible' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -203,6 +206,7 @@ export interface GeneratePainting extends PaintingParams {
   seed?: string
   negativePrompt?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export interface EditPainting extends PaintingParams {
@@ -214,6 +218,7 @@ export interface EditPainting extends PaintingParams {
   styleType?: string
   seed?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export interface RemixPainting extends PaintingParams {
@@ -227,6 +232,7 @@ export interface RemixPainting extends PaintingParams {
   seed?: string
   negativePrompt?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export interface ScalePainting extends PaintingParams {
@@ -237,6 +243,7 @@ export interface ScalePainting extends PaintingParams {
   numImages?: number
   seed?: string
   magicPromptOption?: boolean
+  renderingSpeed?: string
 }
 
 export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
@@ -257,6 +264,8 @@ export type MinAppType = {
   bodered?: boolean
   background?: string
   style?: React.CSSProperties
+  addTime?: string
+  type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
 export interface FileType {
@@ -300,7 +309,7 @@ export type TranslateLanguageVarious =
   | 'portuguese'
   | 'russian'
 
-export type CodeStyleVarious = BuiltinTheme | 'auto'
+export type CodeStyleVarious = 'auto' | string
 
 export type WebDavConfig = {
   webdavHost: string
@@ -308,6 +317,7 @@ export type WebDavConfig = {
   webdavPass: string
   webdavPath: string
   fileName?: string
+  skipBackupFile?: boolean
 }
 
 export type AppInfo = {
@@ -366,7 +376,7 @@ export interface KnowledgeBase {
   chunkOverlap?: number
   threshold?: number
   rerankModel?: Model
-  topN?: number
+  // topN?: number
 }
 
 export type KnowledgeBaseParams = {
@@ -382,7 +392,7 @@ export type KnowledgeBaseParams = {
   rerankBaseURL?: string
   rerankModel?: string
   rerankModelProvider?: string
-  topN?: number
+  documentCount?: number
 }
 
 export type GenerateImageParams = {
@@ -450,18 +460,21 @@ export type WebSearchResults =
   | GroundingMetadata
   | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
   | OpenAI.Responses.ResponseOutputText.URLCitation[]
+  | WebSearchResultBlock[]
   | any[]
 
 export enum WebSearchSource {
   WEBSEARCH = 'websearch',
   OPENAI = 'openai',
-  OPENAI_COMPATIBLE = 'openai-compatible',
+  OPENAI_RESPONSE = 'openai-response',
   OPENROUTER = 'openrouter',
+  ANTHROPIC = 'anthropic',
   GEMINI = 'gemini',
   PERPLEXITY = 'perplexity',
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu'
+  ZHIPU = 'zhipu',
+  GROK = 'grok'
 }
 
 export type WebSearchResponse = {
@@ -565,12 +578,24 @@ export interface MCPConfig {
   servers: MCPServer[]
 }
 
-export interface MCPToolResponse {
-  id: string // tool call id, it should be unique
-  tool: MCPTool // tool info
+interface BaseToolResponse {
+  id: string // unique id
+  tool: MCPTool
+  arguments: Record<string, unknown> | undefined
   status: string // 'invoking' | 'done'
   response?: any
 }
+
+export interface ToolUseResponse extends BaseToolResponse {
+  toolUseId: string
+}
+
+export interface ToolCallResponse extends BaseToolResponse {
+  // gemini tool call id might be undefined
+  toolCallId?: string
+}
+
+export type MCPToolResponse = ToolUseResponse | ToolCallResponse
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -581,6 +606,7 @@ export interface MCPToolResultContent {
     uri?: string
     text?: string
     mimeType?: string
+    blob?: string
   }
 }
 
@@ -632,3 +658,6 @@ export interface StoreSyncAction {
     source?: string
   }
 }
+
+export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
+export type OpenAIServiceTier = 'auto' | 'default' | 'flex'

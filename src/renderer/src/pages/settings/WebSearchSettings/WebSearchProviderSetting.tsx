@@ -192,14 +192,11 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
               onChange={(e) => setApiHost(e.target.value)}
               onBlur={onUpdateApiHost}
             />
-            <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
-            </Button>
           </Flex>
+        </>
+      )}
+      {hasObjectKey(provider, 'basicAuthUsername') && (
+        <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth')}

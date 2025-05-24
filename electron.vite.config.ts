@@ -73,7 +73,18 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: []
+      exclude: ['pyodide']
+    },
+    worker: {
+      format: 'es'
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html')
+        }
+      }
     }
   }
 })

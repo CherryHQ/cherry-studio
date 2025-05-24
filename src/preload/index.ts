@@ -2,7 +2,8 @@ import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell } from 'electron'
+import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
+import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
 
 // Custom APIs for renderer
@@ -21,20 +22,29 @@ const api = {
   setFeedUrl: (feedUrl: string) => ipcRenderer.invoke(IpcChannel.App_SetFeedUrl, feedUrl),
   restartTray: () => ipcRenderer.invoke(IpcChannel.App_RestartTray),
   setTheme: (theme: 'light' | 'dark' | 'auto') => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
-  setZoomFactor: (factor: number) => ipcRenderer.invoke(IpcChannel.App_SetZoomFactor, factor),
+  handleZoomFactor: (delta: number, reset: boolean = false) =>
+    ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
+  setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
+  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
+  notification: {
+    send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)
+  },
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
+  },
+  devTools: {
+    toggle: () => ipcRenderer.invoke(IpcChannel.System_ToggleDevTools)
   },
   zip: {
     compress: (text: string) => ipcRenderer.invoke(IpcChannel.Zip_Compress, text),
     decompress: (text: Buffer) => ipcRenderer.invoke(IpcChannel.Zip_Decompress, text)
   },
   backup: {
-    backup: (fileName: string, data: string, destinationPath?: string) =>
-      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath),
+    backup: (fileName: string, data: string, destinationPath?: string, skipBackupFile?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Backup_Backup, fileName, data, destinationPath, skipBackupFile),
     restore: (backupPath: string) => ipcRenderer.invoke(IpcChannel.Backup_Restore, backupPath),
     backupToWebdav: (data: string, webdavConfig: WebDavConfig) =>
       ipcRenderer.invoke(IpcChannel.Backup_BackupToWebdav, data, webdavConfig),
@@ -58,6 +68,7 @@ const api = {
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     create: (fileName: string) => ipcRenderer.invoke(IpcChannel.File_Create, fileName),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
+    writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
@@ -68,7 +79,8 @@ const api = {
     download: (url: string) => ipcRenderer.invoke(IpcChannel.File_Download, url),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId)
+    base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file)
   },
   fs: {
     read: (path: string) => ipcRenderer.invoke(IpcChannel.Fs_Read, path)
@@ -106,7 +118,8 @@ const api = {
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize)
   },
   gemini: {
-    uploadFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_UploadFile, file, apiKey),
+    uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>
+      ipcRenderer.invoke(IpcChannel.Gemini_UploadFile, file, { apiKey, baseURL }),
     base64File: (file: FileType) => ipcRenderer.invoke(IpcChannel.Gemini_Base64File, file),
     retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
     listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
@@ -142,7 +155,8 @@ const api = {
     listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
     getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
-    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo)
+    getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
+    checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
@@ -192,17 +206,6 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
-  },
-  // 新增：监听主进程的 zoom factor 更新
-  onZoomFactorUpdate: (callback: (factor: number) => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, factor: number) => {
-      callback(factor)
-    }
-    ipcRenderer.on(IpcChannel.ZoomFactorUpdated, listener)
-    // 返回一个移除监听器的函数
-    return () => {
-      ipcRenderer.removeListener(IpcChannel.ZoomFactorUpdated, listener)
-    }
   }
 }
 

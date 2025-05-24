@@ -204,6 +204,11 @@ describe('formats', () => {
     it('should handle empty string', () => {
       expect(extractTitle('')).toBeNull()
     })
+
+    it('should handle undefined', () => {
+      // @ts-ignore for testing
+      expect(extractTitle(undefined)).toBeNull()
+    })
   })
 
   describe('removeSvgEmptyLines', () => {

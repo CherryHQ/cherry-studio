@@ -9,13 +9,14 @@ import {
   setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
+  setPinTopicsToTop,
   setShowTopicTime,
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { ZOOM_OPTIONS } from '@shared/config/constant'
-import { Button, Input, Segmented, Select, Switch } from 'antd'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { Button, Input, Segmented, Switch } from 'antd'
+import { Minus, Plus, RotateCcw } from 'lucide-react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -32,15 +33,15 @@ const DisplaySettings: FC = () => {
     setTopicPosition,
     clickAssistantToShowTopic,
     showTopicTime,
+    pinTopicsToTop,
     customCss,
     sidebarIcons,
-    assistantIconType,
-    zoomFactor,
-    setZoomFactor
+    assistantIconType
   } = useSettings()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const [currentZoom, setCurrentZoom] = useState(1.0)
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
@@ -91,6 +92,31 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
+  useEffect(() => {
+    // 初始化获取当前缩放值
+    window.api.handleZoomFactor(0).then((factor) => {
+      setCurrentZoom(factor)
+    })
+
+    const handleResize = () => {
+      window.api.handleZoomFactor(0).then((factor) => {
+        setCurrentZoom(factor)
+      })
+    }
+    // 添加resize事件监听
+    window.addEventListener('resize', handleResize)
+
+    // 清理事件监听，防止内存泄漏
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
+  const handleZoomFactor = async (delta: number, reset: boolean = false) => {
+    const zoomFactor = await window.api.handleZoomFactor(delta, reset)
+    setCurrentZoom(zoomFactor)
+  }
+
   const assistantIconTypeOptions = useMemo(
     () => [
       { value: 'model', label: t('settings.assistant.icon.type.model') },
@@ -112,7 +138,16 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
-          <Select style={{ width: 120 }} value={zoomFactor} onChange={setZoomFactor} options={ZOOM_OPTIONS} />
+          <ZoomButtonGroup>
+            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} />
+            <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
+            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} />
+            <Button
+              onClick={() => handleZoomFactor(0, true)}
+              style={{ marginLeft: 8 }}
+              icon={<RotateCcw size="14" />}
+            />
+          </ZoomButtonGroup>
         </SettingRow>
         {isMac && (
           <>
@@ -155,6 +190,11 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
+          <Switch checked={pinTopicsToTop} onChange={(checked) => dispatch(setPinTopicsToTop(checked))} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -204,6 +244,7 @@ const DisplaySettings: FC = () => {
             minHeight: 200,
             fontFamily: 'monospace'
           }}
+          spellCheck={false}
         />
       </SettingGroup>
     </SettingContainer>
@@ -220,6 +261,17 @@ const ResetButtonWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+`
+const ZoomButtonGroup = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 210px;
+`
+const ZoomValue = styled.span`
+  width: 40px;
+  text-align: center;
+  margin: 0 5px;
 `
 
 export default DisplaySettings

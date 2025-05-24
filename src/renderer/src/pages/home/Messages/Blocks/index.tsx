@@ -1,17 +1,8 @@
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type {
-  ErrorMessageBlock,
-  FileMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  Message,
-  MessageBlock,
-  PlaceholderMessageBlock,
-  ThinkingMessageBlock,
-  TranslationMessageBlock
-} from '@renderer/types/newMessage'
+import type { ImageMessageBlock, MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AnimatePresence, motion } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -26,8 +17,41 @@ import ThinkingBlock from './ThinkingBlock'
 import ToolBlock from './ToolBlock'
 import TranslationBlock from './TranslationBlock'
 
+interface AnimatedBlockWrapperProps {
+  children: React.ReactNode
+  enableAnimation: boolean
+}
+
+const blockWrapperVariants = {
+  visible: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0.3, type: 'spring', bounce: 0 }
+  },
+  hidden: {
+    opacity: 0,
+    x: 10
+  },
+  static: {
+    opacity: 1,
+    x: 0,
+    transition: { duration: 0 }
+  }
+}
+
+const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, enableAnimation }) => {
+  return (
+    <motion.div
+      variants={blockWrapperVariants}
+      initial={enableAnimation ? 'hidden' : 'static'}
+      animate={enableAnimation ? 'visible' : 'static'}>
+      {children}
+    </motion.div>
+  )
+}
+
 interface Props {
-  blocks: MessageBlock[] | string[] // 可以接收块ID数组或MessageBlock数组
+  blocks: string[] // 可以接收块ID数组或MessageBlock数组
   messageStatus?: Message['status']
   message: Message
 }
@@ -54,26 +78,30 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
   const groupedBlocks = useMemo(() => filterImageBlockGroups(renderedBlocks), [renderedBlocks])
-
   return (
-    <>
+    <AnimatePresence mode="sync">
       {groupedBlocks.map((block) => {
         if (Array.isArray(block)) {
+          const groupKey = block.map((imageBlock) => imageBlock.id).join('-')
           return (
-            <ImageBlockGroup key={block.map((imageBlock) => imageBlock.id).join('-')}>
-              {block.map((imageBlock) => (
-                <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
-              ))}
-            </ImageBlockGroup>
+            <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+              <ImageBlockGroup>
+                {block.map((imageBlock) => (
+                  <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
+                ))}
+              </ImageBlockGroup>
+            </AnimatedBlockWrapper>
           )
         }
+
+        let blockComponent: React.ReactNode = null
 
         switch (block.type) {
           case MessageBlockType.UNKNOWN:
             if (block.status === MessageBlockStatus.PROCESSING) {
-              return <PlaceholderBlock key={block.id} block={block as PlaceholderMessageBlock} />
+              blockComponent = <PlaceholderBlock key={block.id} block={block} />
             }
-            return null
+            break
           case MessageBlockType.MAIN_TEXT:
           case MessageBlockType.CODE: {
             const mainTextBlock = block as MainTextMessageBlock
@@ -82,7 +110,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             // No longer need to retrieve the full citation block here
             // const citationBlock = citationBlockId ? (blockEntities[citationBlockId] as CitationMessageBlock) : undefined
 
-            return (
+            blockComponent = (
               <MainTextBlock
                 key={block.id}
                 block={mainTextBlock}
@@ -91,45 +119,62 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
                 role={message.role}
               />
             )
+            break
           }
           case MessageBlockType.IMAGE:
-            return <ImageBlock key={block.id} block={block as ImageMessageBlock} />
+            blockComponent = <ImageBlock key={block.id} block={block} />
+            break
           case MessageBlockType.FILE:
-            return <FileBlock key={block.id} block={block as FileMessageBlock} />
+            blockComponent = <FileBlock key={block.id} block={block} />
+            break
           case MessageBlockType.TOOL:
-            return <ToolBlock key={block.id} block={block} />
+            blockComponent = <ToolBlock key={block.id} block={block} />
+            break
           case MessageBlockType.CITATION:
-            return <CitationBlock key={block.id} block={block} />
+            blockComponent = <CitationBlock key={block.id} block={block} />
+            break
           case MessageBlockType.ERROR:
-            return <ErrorBlock key={block.id} block={block as ErrorMessageBlock} />
+            blockComponent = <ErrorBlock key={block.id} block={block} />
+            break
           case MessageBlockType.THINKING:
-            return <ThinkingBlock key={block.id} block={block as ThinkingMessageBlock} />
-          // case MessageBlockType.CODE:
-          //   return <CodeBlock key={block.id} block={block as CodeMessageBlock} />
+            blockComponent = <ThinkingBlock key={block.id} block={block} />
+            break
           case MessageBlockType.TRANSLATION:
-            return <TranslationBlock key={block.id} block={block as TranslationMessageBlock} />
+            blockComponent = <TranslationBlock key={block.id} block={block} />
+            break
           default:
-            // Cast block to any for console.warn to fix linter error
             console.warn('Unsupported block type in MessageBlockRenderer:', (block as any).type, block)
-            return null
+            break
         }
+
+        return (
+          <AnimatedBlockWrapper
+            key={block.type === MessageBlockType.UNKNOWN ? 'placeholder' : block.id}
+            enableAnimation={message.status.includes('ing')}>
+            {blockComponent}
+          </AnimatedBlockWrapper>
+        )
       })}
-    </>
+    </AnimatePresence>
   )
 }
 
 export default React.memo(MessageBlockRenderer)
 
 const ImageBlockGroup = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(200px, 1fr));
   gap: 8px;
   width: 100%;
-  margin: 8px 0;
+  max-width: 960px;
   > * {
-    flex: 0 0 auto;
     min-width: 200px;
+  }
+  @media (min-width: 1536px) {
+    grid-template-columns: repeat(4, minmax(250px, 1fr));
+    max-width: 1280px;
+    > * {
+      min-width: 250px;
+    }
   }
 `

@@ -132,6 +132,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
       centered
       maskClosable={false}
       width={500}
+      transitionName="animation-move-down"
       footer={
         <Space style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Space>
