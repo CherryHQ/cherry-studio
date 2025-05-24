@@ -120,13 +120,15 @@ const MiniAppSettings: FC = () => {
               </Tooltip>
               <Slider
                 min={1}
-                max={5}
+                max={20}
                 value={maxKeepAliveMinapps}
                 onChange={handleCacheChange}
                 marks={{
                   1: '1',
-                  3: '3',
-                  5: '5'
+                  5: '5',
+                  10: '10',
+                  15: '15',
+                  20: '20'
                 }}
                 tooltip={{ formatter: (value) => `${value}` }}
               />
