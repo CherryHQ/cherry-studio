@@ -1,6 +1,7 @@
 import { backupToLocalDir } from '@renderer/services/BackupService'
 import { Button, Input, Modal } from 'antd'
-import { useState } from 'react'
+import dayjs from 'dayjs'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface LocalBackupModalProps {
@@ -52,22 +53,19 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
   const [customFileName, setCustomFileName] = useState('')
   const { t } = useTranslation()
 
-  const showBackupModal = () => {
-    const today = new Date()
-    const defaultFileName = `cherry-studio.backup.${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
-      2,
-      '0'
-    )}-${String(today.getDate()).padStart(2, '0')}.${String(today.getHours()).padStart(2, '0')}${String(
-      today.getMinutes()
-    ).padStart(2, '0')}.zip`
-
-    setCustomFileName(defaultFileName)
-    setIsModalVisible(true)
-  }
-
   const handleCancel = () => {
     setIsModalVisible(false)
   }
+
+  const showBackupModal = useCallback(async () => {
+    // 获取默认文件名
+    const deviceType = await window.api.system.getDeviceType()
+    const hostname = await window.api.system.getHostname()
+    const timestamp = dayjs().format('YYYYMMDDHHmmss')
+    const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
+    setCustomFileName(defaultFileName)
+    setIsModalVisible(true)
+  }, [])
 
   const handleBackup = async () => {
     if (!localBackupDir) {

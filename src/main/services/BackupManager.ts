@@ -477,7 +477,7 @@ class BackupManager {
       await fs.ensureDir(backupDir)
 
       const files = await fs.readdir(backupDir)
-      const result = []
+      const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
 
       for (const file of files) {
         const filePath = path.join(backupDir, file)
