@@ -9,9 +9,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
-import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileType, PaintingsState } from '@renderer/types'
@@ -176,7 +174,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // API请求函数
-  const callApi = async (requestConfig: { endpoint: string; body: any }) => {
+  const callApi = async (requestConfig: { endpoint: string; body: any }, controller: AbortController) => {
     const { endpoint, body } = requestConfig
     const headers = {}
 
@@ -191,7 +189,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const response = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body
+      body,
+      signal: controller.signal
     })
 
     if (!response.ok) {
@@ -239,6 +238,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    // 如果已经在生成过程中，直接返回
+    if (isLoading) {
+      return
+    }
     try {
       // 获取提示词
       const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -254,26 +257,28 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           centered: true
         })
         if (!confirmed) return
-        await FileManager.deleteFiles(painting.files)
       }
+
+      setIsLoading(true)
 
       // 设置请求状态
       const controller = new AbortController()
       setAbortController(controller)
-      setIsLoading(true)
       dispatch(setGenerating(true))
 
       // 准备请求配置
       const requestConfig = prepareRequestConfig(prompt, painting)
 
       // 发送API请求
-      const urls = await callApi(requestConfig)
+      const urls = await callApi(requestConfig, controller)
 
       // 下载图像
       if (urls.length > 0) {
         const downloadedFiles = await downloadImages(urls)
         const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
+        // 删除之前的图片
+        await FileManager.deleteFiles(painting.files)
         // 保存文件并更新状态
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls })
@@ -325,50 +330,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     setCurrentImageIndex(0)
   }
 
-  const { autoTranslateWithSpace } = useSettings()
-  const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const [isTranslating, setIsTranslating] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
-
-  const translate = async () => {
-    if (isTranslating) {
-      return
-    }
-
-    if (!painting.prompt) {
-      return
-    }
-
-    try {
-      setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, 'english')
-      updatePaintingState({ prompt: translatedText })
-    } catch (error) {
-      console.error('Translation failed:', error)
-    } finally {
-      setIsTranslating(false)
-    }
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (autoTranslateWithSpace && event.key === ' ') {
-      setSpaceClickCount((prev) => prev + 1)
-
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
-      }
-
-      spaceClickTimer.current = setTimeout(() => {
-        setSpaceClickCount(0)
-      }, 200)
-
-      if (spaceClickCount === 2) {
-        setSpaceClickCount(0)
-        setIsTranslating(true)
-        translate().then(() => {})
-      }
-    }
-  }
 
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
@@ -481,21 +443,21 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SliderContainer>
         </LeftContainer>
         <MainContainer>
-          {painting?.urls?.length > 0 || DMXAPIPaintings?.length > 1 ? (
-            <Artboard
-              painting={painting}
-              isLoading={isLoading}
-              currentImageIndex={currentImageIndex}
-              onPrevImage={prevImage}
-              onNextImage={nextImage}
-              onCancel={onCancel}
-            />
-          ) : (
-            <EmptyImgBox>
-              <EmptyImg></EmptyImg>
-            </EmptyImgBox>
-          )}
-
+          <Artboard
+            painting={painting}
+            isLoading={isLoading}
+            currentImageIndex={currentImageIndex}
+            onPrevImage={prevImage}
+            onNextImage={nextImage}
+            onCancel={onCancel}
+            imageCover={
+              painting?.urls?.length > 0 || DMXAPIPaintings?.length > 1 ? null : (
+                <EmptyImgBox>
+                  <EmptyImg></EmptyImg>
+                </EmptyImgBox>
+              )
+            }
+          />
           <InputContainer>
             <Textarea
               ref={textareaRef}
@@ -504,8 +466,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               value={painting.prompt}
               spellCheck={false}
               onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-              onKeyDown={handleKeyDown}
+              placeholder={t('paintings.prompt_placeholder')}
             />
             <Toolbar>
               <ToolbarMenu>

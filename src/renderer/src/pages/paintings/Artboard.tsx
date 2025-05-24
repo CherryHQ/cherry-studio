@@ -3,7 +3,7 @@ import FileManager from '@renderer/services/FileManager'
 import { Painting } from '@renderer/types'
 import { download } from '@renderer/utils/download'
 import { Button, Dropdown, Spin } from 'antd'
-import { FC } from 'react'
+import React, { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,6 +17,7 @@ interface ArtboardProps {
   onNextImage: () => void
   onCancel: () => void
   retry?: (painting: Painting) => void
+  imageCover?: React.ReactNode
 }
 
 const Artboard: FC<ArtboardProps> = ({
@@ -26,7 +27,8 @@ const Artboard: FC<ArtboardProps> = ({
   onPrevImage,
   onNextImage,
   onCancel,
-  retry
+  retry,
+  imageCover
 }) => {
   const { t } = useTranslation()
 
@@ -108,8 +110,10 @@ const Artboard: FC<ArtboardProps> = ({
                 </div>
               </div>
             ) : (
-              <div>{t('paintings.image_placeholder')}</div>
-            )}
+                imageCover ?
+                  imageCover:
+                  (<div>{t('paintings.image_placeholder')}</div>)
+              )}
           </ImagePlaceholder>
         )}
         {isLoading && (
