@@ -15,6 +15,7 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
+  isWebSearchModel,
   isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -371,7 +372,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const model = assistant.model || defaultModel
 
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBultinWebSearch = assistant.enableWebSearch
+    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
     messages = addImageFileToContents(messages)
     const enableReasoning =
       ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&

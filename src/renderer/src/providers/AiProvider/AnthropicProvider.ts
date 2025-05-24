@@ -254,7 +254,7 @@ export default class AnthropicProvider extends BaseProvider {
       }
     }
 
-    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
 
     if (isEnabledBuiltinWebSearch) {
       const webSearchTool = await this.getWebSearchParams(model)

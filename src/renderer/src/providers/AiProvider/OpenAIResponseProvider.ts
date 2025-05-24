@@ -5,7 +5,8 @@ import {
   isSupportedFlexServiceTier,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel,
-  isVisionModel
+  isVisionModel,
+  isWebSearchModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -317,7 +318,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const model = assistant.model || defaultModel
 
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
 
     let tools: OpenAI.Responses.Tool[] = []
     const toolChoices: OpenAI.Responses.ToolChoiceTypes = {
