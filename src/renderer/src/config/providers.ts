@@ -38,11 +38,14 @@ import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.p
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
+import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+
+import { TOKENFLUX_HOST } from './constant'
 
 const PROVIDER_LOGO_MAP = {
   openai: OpenAiProviderLogo,
@@ -90,7 +93,8 @@ const PROVIDER_LOGO_MAP = {
   gpustack: GPUStackProviderLogo,
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
-  qiniu: QiniuProviderLogo
+  qiniu: QiniuProviderLogo,
+  tokenflux: TokenFluxProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -596,6 +600,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq',
       docs: 'https://developer.qiniu.com/aitokenapi',
       models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
+    }
+  },
+  tokenflux: {
+    api: {
+      url: TOKENFLUX_HOST
+    },
+    websites: {
+      official: TOKENFLUX_HOST,
+      apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
+      docs: `${TOKENFLUX_HOST}/docs`,
+      models: `${TOKENFLUX_HOST}/models`
     }
   }
 }

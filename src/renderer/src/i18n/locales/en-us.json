@@ -681,6 +681,8 @@
     "minapp": {
       "popup": {
         "refresh": "Refresh",
+        "goBack": "Go Back",
+        "goForward": "Go Forward",
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
@@ -940,7 +942,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1305,6 +1308,8 @@
         "stdio": "Standard Input/Output (stdio)",
         "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
+        "disable": "Disable MCP Server",
+        "disable.description": "Do not enable MCP server functionality",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",

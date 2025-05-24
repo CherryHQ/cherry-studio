@@ -683,6 +683,8 @@
         "refresh": "Обновить",
         "close": "Закрыть встроенное приложение",
         "minimize": "Свернуть встроенное приложение",
+        "goBack": "Назад",
+        "goForward": "Вперед",
         "devtools": "Инструменты разработчика",
         "openExternal": "Открыть в браузере",
         "rightclick_copyurl": "ПКМ → Копировать URL",
@@ -941,7 +943,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -1302,6 +1305,8 @@
         "stdio": "Стандартный ввод/вывод (stdio)",
         "inMemory": "Память",
         "config_description": "Настройка серверов протокола контекста модели",
+        "disable": "Отключить сервер MCP",
+        "disable.description": "Не включать функциональность сервера MCP",
         "deleteError": "Не удалось удалить сервер",
         "deleteSuccess": "Сервер успешно удален",
         "dependenciesInstall": "Установить зависимости",

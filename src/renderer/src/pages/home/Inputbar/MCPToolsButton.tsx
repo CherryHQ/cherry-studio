@@ -4,9 +4,8 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
-import { Plus, SquareTerminal } from 'lucide-react'
-import { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import React from 'react'
+import { CircleX, Plus, SquareTerminal } from 'lucide-react'
+import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -132,9 +131,6 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     () => activedMcpServers.filter((server) => mcpServers.some((s) => s.id === server.id)),
     [activedMcpServers, mcpServers]
   )
-
-  const buttonEnabled = assistantMcpServers.length > 0
-
   const handleMcpServerSelect = useCallback(
     (server: MCPServer) => {
       if (assistantMcpServers.some((s) => s.id === server.id)) {
@@ -156,6 +152,18 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     return () => EventEmitter.off('mcp-server-select', handler)
   }, [])
 
+  const updateMcpEnabled = useCallback(
+    (enabled: boolean) => {
+      setTimeout(() => {
+        updateAssistant({
+          ...assistant,
+          mcpServers: enabled ? assistant.mcpServers || [] : []
+        })
+      }, 200)
+    },
+    [assistant, updateAssistant]
+  )
+
   const menuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
@@ -171,8 +179,16 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       action: () => navigate('/settings/mcp')
     })
 
+    newList.unshift({
+      label: t('common.close'),
+      description: t('settings.mcp.disable.description'),
+      icon: <CircleX />,
+      isSelected: !(assistant.mcpServers && assistant.mcpServers.length > 0),
+      action: () => updateMcpEnabled(false)
+    })
+
     return newList
-  }, [activedMcpServers, t, assistantMcpServers, navigate])
+  }, [activedMcpServers, t, assistant.mcpServers, assistantMcpServers, navigate, updateMcpEnabled])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
@@ -412,10 +428,9 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }, [activedMcpServers])
 
   const openResourcesList = useCallback(async () => {
-    const resources = resourcesList
     quickPanel.open({
       title: t('settings.mcp.title'),
-      list: resources,
+      list: resourcesList,
       symbol: 'mcp-resource',
       multiple: true
     })
@@ -442,7 +457,10 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <SquareTerminal size={18} color={buttonEnabled ? 'var(--color-primary)' : 'var(--color-icon)'} />
+        <SquareTerminal
+          size={18}
+          color={assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
+        />
       </ToolbarButton>
     </Tooltip>
   )

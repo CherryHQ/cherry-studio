@@ -10,6 +10,7 @@ import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Search, UserPen } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AddProviderPopup from './AddProviderPopup'
@@ -17,6 +18,7 @@ import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
 
 const ProvidersList: FC = () => {
+  const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const [selectedProvider, setSelectedProvider] = useState<Provider>(providers[0])
@@ -45,6 +47,18 @@ const ProvidersList: FC = () => {
 
     loadAllLogos()
   }, [providers])
+
+  useEffect(() => {
+    if (searchParams.get('id')) {
+      const providerId = searchParams.get('id')
+      const provider = providers.find((p) => p.id === providerId)
+      if (provider) {
+        setSelectedProvider(provider)
+      } else {
+        setSelectedProvider(providers[0])
+      }
+    }
+  }, [providers, searchParams])
 
   const onDragEnd = (result: DropResult) => {
     setDragging(false)

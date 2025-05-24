@@ -173,5 +173,8 @@ export enum IpcChannel {
   StoreSync_Subscribe = 'store-sync:subscribe',
   StoreSync_Unsubscribe = 'store-sync:unsubscribe',
   StoreSync_OnUpdate = 'store-sync:on-update',
-  StoreSync_BroadcastSync = 'store-sync:broadcast-sync'
+  StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
+
+  // Provider
+  Provider_AddKey = 'provider:add-key'
 }

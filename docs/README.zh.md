@@ -33,9 +33,11 @@ https://docs.cherry-ai.com
 
 # 🌠 界面
 
-![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
-![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
-![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
+![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+
+![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+
+![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
 
 # 🌟 主要特性
 
@@ -131,7 +133,7 @@ https://docs.cherry-ai.com
 
 感谢您的支持和贡献！
 
-## 相关项目
+# 🔗 相关项目
 
 - [one-api](https://github.com/songquanpeng/one-api)：LLM API 管理及分发系统，支持 OpenAI、Azure、Anthropic 等主流模型，统一 API 接口，可用于密钥管理与二次分发。
 

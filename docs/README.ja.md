@@ -26,9 +26,11 @@ https://docs.cherry-ai.com
 
 # 🌠 スクリーンショット
 
-![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
-![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
-![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
+![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+
+![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+
+![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
 
 # 🌟 主な機能
 
@@ -124,7 +126,7 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 
 ご支援と貢献に感謝します！
 
-## 関連プロジェクト
+# 🔗 関連プロジェクト
 
 - [one-api](https://github.com/songquanpeng/one-api)：LLM API の管理・配信システム。OpenAI、Azure、Anthropic などの主要モデルに対応し、統一 API インターフェースを提供。API キー管理と再配布に利用可能。
 
