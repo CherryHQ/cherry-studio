@@ -7,10 +7,10 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { Model, ModelType } from '@renderer/types'
+import { Model, ModelTypes } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import { Button, Checkbox, Divider, Flex, Form, Input, message, Modal } from 'antd'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 interface ModelEditContentProps {
@@ -24,14 +24,44 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
   const [form] = Form.useForm()
   const { t } = useTranslation()
   const [showModelTypes, setShowModelTypes] = useState(false)
-  const onFinish = (values: any) => {
-    const updatedModel = {
-      ...model,
-      id: values.id || model.id,
-      name: values.name || model.name,
-      group: values.group || model.group
+  const [editingModel, setEditingModel] = useState<Model | null>(null)
+
+  useEffect(() => {
+    if (open && model) {
+      const initialTypes = model.type ? { ...model.type } : {}
+      setEditingModel({ ...model, type: initialTypes })
+      form.setFieldsValue({
+        id: model.id,
+        name: model.name,
+        group: model.group
+      })
+    } else if (!open) {
+      setEditingModel(null)
+      setShowModelTypes(false)
     }
-    onUpdateModel(updatedModel)
+  }, [open, model, form])
+
+  const handleModelTypeChange = (typeKey: keyof ModelTypes, isChecked: boolean) => {
+    setEditingModel((prev) => {
+      if (!prev) return null
+      const newTypes = {
+        ...(prev.type || {}),
+        [typeKey]: isChecked
+      }
+      return { ...prev, type: newTypes }
+    })
+  }
+
+  const onFinish = (values: any) => {
+    if (!editingModel) return
+
+    const finalModel = {
+      ...editingModel,
+      id: values.id || editingModel.id,
+      name: values.name || editingModel.name,
+      group: values.group || editingModel.group
+    }
+    onUpdateModel(finalModel)
     setShowModelTypes(false)
     onClose()
   }
@@ -61,11 +91,6 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         labelAlign="left"
         colon={false}
         style={{ marginTop: 15 }}
-        initialValues={{
-          id: model.id,
-          name: model.name,
-          group: model.group
-        }}
         onFinish={onFinish}>
         <Form.Item
           name="id"
@@ -123,80 +148,86 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           <div>
             <Divider style={{ margin: '0 0 15px 0' }} />
             <TypeTitle>{t('models.type.select')}:</TypeTitle>
-            {(() => {
-              const defaultTypes = [
-                ...(isVisionModel(model) ? ['vision'] : []),
-                ...(isEmbeddingModel(model) ? ['embedding'] : []),
-                ...(isReasoningModel(model) ? ['reasoning'] : []),
-                ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
-                ...(isWebSearchModel(model) ? ['web_search'] : [])
-              ] as ModelType[]
-
-              // 合并现有选择和默认类型
-              const selectedTypes = [...new Set([...(model.type || []), ...defaultTypes])]
-
-              const showTypeConfirmModal = (type: string) => {
-                window.modal.confirm({
-                  title: t('settings.moresetting.warn'),
-                  content: t('settings.moresetting.check.warn'),
-                  okText: t('settings.moresetting.check.confirm'),
-                  cancelText: t('common.cancel'),
-                  okButtonProps: { danger: true },
-                  cancelButtonProps: { type: 'primary' },
-                  onOk: () => onUpdateModel({ ...model, type: [...selectedTypes, type] as ModelType[] }),
-                  onCancel: () => {},
-                  centered: true
-                })
-              }
-
-              const handleTypeChange = (types: string[]) => {
-                const newType = types.find((type) => !selectedTypes.includes(type as ModelType))
-
-                if (newType) {
-                  showTypeConfirmModal(newType)
-                } else {
-                  onUpdateModel({ ...model, type: types as ModelType[] })
+            <Flex wrap="wrap" gap="middle">
+              {[
+                { typeName: 'vision', label: t('models.type.vision'), checker: isVisionModel },
+                { typeName: 'web_search', label: t('models.type.websearch'), checker: isWebSearchModel },
+                { typeName: 'embedding', label: t('models.type.embedding'), checker: isEmbeddingModel },
+                { typeName: 'reasoning', label: t('models.type.reasoning'), checker: isReasoningModel },
+                {
+                  typeName: 'function_calling',
+                  label: t('models.type.function_calling'),
+                  checker: isFunctionCallingModel
                 }
-              }
-
-              return (
-                <Checkbox.Group
-                  value={selectedTypes}
-                  onChange={handleTypeChange}
-                  options={[
-                    {
-                      label: t('models.type.vision'),
-                      value: 'vision',
-                      disabled: isVisionModel(model) && !selectedTypes.includes('vision')
-                    },
-                    {
-                      label: t('models.type.websearch'),
-                      value: 'web_search',
-                      disabled: isWebSearchModel(model) && !selectedTypes.includes('web_search')
-                    },
-                    {
-                      label: t('models.type.embedding'),
-                      value: 'embedding',
-                      disabled: isEmbeddingModel(model) && !selectedTypes.includes('embedding')
-                    },
-                    {
-                      label: t('models.type.reasoning'),
-                      value: 'reasoning',
-                      disabled: isReasoningModel(model) && !selectedTypes.includes('reasoning')
-                    },
-                    {
-                      label: t('models.type.function_calling'),
-                      value: 'function_calling',
-                      disabled: isFunctionCallingModel(model) && !selectedTypes.includes('function_calling')
-                    }
-                  ]}
-                />
-              )
-            })()}
+              ].map(({ typeName, label, checker }) => {
+                const typeKey = typeName as keyof ModelTypes
+                return (
+                  <TypeCheckboxItem
+                    key={typeKey}
+                    originalModelForChecker={model}
+                    currentTypeState={editingModel?.type?.[typeKey]}
+                    typeKey={typeKey}
+                    label={label}
+                    checker={checker}
+                    onTypeChange={handleModelTypeChange}
+                  />
+                )
+              })}
+            </Flex>
           </div>
         )}
       </Form>
     </Modal>
+  )
+}
+
+interface TypeCheckboxItemProps {
+  originalModelForChecker: Model
+  currentTypeState: boolean | undefined
+  typeKey: keyof ModelTypes
+  label: string
+  checker: (model: Model) => boolean
+  onTypeChange: (typeKey: keyof ModelTypes, isChecked: boolean) => void
+}
+
+const TypeCheckboxItem: FC<TypeCheckboxItemProps> = ({
+  originalModelForChecker,
+  currentTypeState,
+  typeKey,
+  label,
+  checker,
+  onTypeChange
+}) => {
+  const { t } = useTranslation()
+
+  const isChecked = typeof currentTypeState === 'boolean' ? currentTypeState : checker(originalModelForChecker)
+
+  const handleChange = (newCheckedState: boolean) => {
+    const isPotentiallyRiskyChange = newCheckedState && !checker(originalModelForChecker)
+
+    if (isPotentiallyRiskyChange) {
+      window.modal.confirm({
+        title: t('settings.moresetting.warn'),
+        content: t('settings.moresetting.check.warn'),
+        okText: t('settings.moresetting.check.confirm'),
+        cancelText: t('common.cancel'),
+        okButtonProps: { danger: true },
+        cancelButtonProps: { type: 'primary' },
+        onOk: () => {
+          onTypeChange(typeKey, newCheckedState)
+        },
+        onCancel: () => {},
+        centered: true
+      })
+    } else {
+      onTypeChange(typeKey, newCheckedState)
+    }
+  }
+
+  return (
+    <Checkbox checked={isChecked} onChange={(e) => handleChange(e.target.checked)}>
+      {label}
+    </Checkbox>
   )
 }
 
