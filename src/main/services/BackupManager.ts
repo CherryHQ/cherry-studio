@@ -15,6 +15,7 @@ import { windowService } from './WindowService'
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
+  private localBackupDir = path.join(app.getPath('userData'), 'LocalBackups')
 
   constructor() {
     this.checkConnection = this.checkConnection.bind(this)
@@ -24,6 +25,11 @@ class BackupManager {
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
     this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
+    this.listLocalBackupFiles = this.listLocalBackupFiles.bind(this)
+    this.deleteLocalBackupFile = this.deleteLocalBackupFile.bind(this)
+    this.backupToLocalDir = this.backupToLocalDir.bind(this)
+    this.restoreFromLocalBackup = this.restoreFromLocalBackup.bind(this)
+    this.setLocalBackupDir = this.setLocalBackupDir.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -422,6 +428,104 @@ class BackupManager {
     } catch (error: any) {
       Logger.error('Failed to delete WebDAV file:', error)
       throw new Error(error.message || 'Failed to delete backup file')
+    }
+  }
+
+  async backupToLocalDir(
+    _: Electron.IpcMainInvokeEvent,
+    data: string,
+    fileName: string,
+    localConfig: {
+      localBackupDir?: string
+      skipBackupFile?: boolean
+    }
+  ) {
+    try {
+      const backupDir = localConfig.localBackupDir || this.localBackupDir
+      // Create backup directory if it doesn't exist
+      await fs.ensureDir(backupDir)
+
+      const backupedFilePath = await this.backup(_, fileName, data, backupDir, localConfig.skipBackupFile)
+      return backupedFilePath
+    } catch (error) {
+      Logger.error('[BackupManager] Local backup failed:', error)
+      throw error
+    }
+  }
+
+  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir?: string) {
+    try {
+      const backupDir = localBackupDir || this.localBackupDir
+      const backupPath = path.join(backupDir, fileName)
+
+      if (!fs.existsSync(backupPath)) {
+        throw new Error(`Backup file not found: ${backupPath}`)
+      }
+
+      return await this.restore(_, backupPath)
+    } catch (error) {
+      Logger.error('[BackupManager] Local restore failed:', error)
+      throw error
+    }
+  }
+
+  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir?: string) {
+    try {
+      const backupDir = localBackupDir || this.localBackupDir
+
+      // Create directory if it doesn't exist
+      await fs.ensureDir(backupDir)
+
+      const files = await fs.readdir(backupDir)
+      const result = []
+
+      for (const file of files) {
+        const filePath = path.join(backupDir, file)
+        const stat = await fs.stat(filePath)
+
+        if (stat.isFile() && file.endsWith('.zip')) {
+          result.push({
+            fileName: file,
+            modifiedTime: stat.mtime.toISOString(),
+            size: stat.size
+          })
+        }
+      }
+
+      // Sort by modified time, newest first
+      return result.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error) {
+      Logger.error('[BackupManager] List local backup files failed:', error)
+      throw error
+    }
+  }
+
+  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir?: string) {
+    try {
+      const backupDir = localBackupDir || this.localBackupDir
+      const filePath = path.join(backupDir, fileName)
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Backup file not found: ${filePath}`)
+      }
+
+      await fs.remove(filePath)
+      return true
+    } catch (error) {
+      Logger.error('[BackupManager] Delete local backup file failed:', error)
+      throw error
+    }
+  }
+
+  async setLocalBackupDir(_: Electron.IpcMainInvokeEvent, dirPath: string) {
+    try {
+      // Check if directory exists
+      await fs.ensureDir(dirPath)
+      this.localBackupDir = dirPath
+      return true
+    } catch (error) {
+      Logger.error('[BackupManager] Set local backup directory failed:', error)
+      throw error
     }
   }
 }

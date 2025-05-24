@@ -36,6 +36,7 @@ import {
 import AgentsSubscribeUrlSettings from './AgentsSubscribeUrlSettings'
 import ExportMenuOptions from './ExportMenuSettings'
 import JoplinSettings from './JoplinSettings'
+import LocalBackupSettings from './LocalBackupSettings'
 import MarkdownExportSettings from './MarkdownExportSettings'
 import NotionSettings from './NotionSettings'
 import NutstoreSettings from './NutstoreSettings'
@@ -83,6 +84,7 @@ const DataSettings: FC = () => {
   const menuItems = [
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: 'settings.data.data.title', icon: <FolderCog size={16} /> },
+    { key: 'local_backup', title: 'settings.data.local.title', icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: 'settings.data.nutstore.title', icon: <NutstoreIcon /> },
@@ -289,6 +291,7 @@ const DataSettings: FC = () => {
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
         {menu === 'agentssubscribe_url' && <AgentsSubscribeUrlSettings />}
+        {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingContainer>
     </Container>
   )
