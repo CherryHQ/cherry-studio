@@ -204,6 +204,7 @@
       "topics.clear.title": "Effacer le message",
       "topics.copy.image": "Copier sous forme d'image",
       "topics.copy.md": "Copier sous forme de Markdown",
+      "topics.copy.plain_text": "Copier en tant que texte brut (supprimer Markdown)",
       "topics.copy.title": "Copier",
       "topics.delete.shortcut": "Maintenez {{key}} pour supprimer directement",
       "topics.edit.placeholder": "Entrez un nouveau nom",
