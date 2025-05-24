@@ -5865,7 +5865,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.13"
+    selection-hook: "npm:^0.9.14"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -14534,7 +14534,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-gyp-build@npm:^4.7.1":
+"node-gyp-build@npm:^4.8.4":
   version: 4.8.4
   resolution: "node-gyp-build@npm:4.8.4"
   bin:
@@ -17494,13 +17494,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.13":
-  version: 0.9.13
-  resolution: "selection-hook@npm:0.9.13"
+"selection-hook@npm:^0.9.14":
+  version: 0.9.14
+  resolution: "selection-hook@npm:0.9.14"
   dependencies:
     node-gyp: "npm:latest"
-    node-gyp-build: "npm:^4.7.1"
-  checksum: 10c0/d3a712dc994435be6faeb01c1b34f35ff0494de5872c272de479a7cdba9562b62fa0bb413f3b377369369df734bb313e8e172e3028f351966b46b535cf5af83e
+    node-gyp-build: "npm:^4.8.4"
+  checksum: 10c0/114a5c28d3753c215450a23b3999d7782c11f2868e41555a0034d49e33d90b1fe35f0a15dc240bca859f6fc186e09859bff5e3213fc8385b501f1f05ba9233f8
   languageName: node
   linkType: hard
 
