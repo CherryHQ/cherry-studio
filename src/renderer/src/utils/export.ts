@@ -11,7 +11,6 @@ import { convertMathFormula } from '@renderer/utils/markdown'
 import { getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
-//TODO: 添加对思考内容的支持
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -44,8 +43,31 @@ export function getTitleFromString(str: string, length: number = 80) {
 }
 
 export const messageToMarkdown = (message: Message) => {
-  const { forceDollarMathInMarkdown } = store.getState().settings
-  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+  const { forceDollarMathInMarkdown, showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
+  let roleText = ''
+  if (message.role === 'user') {
+    roleText = '🧑‍💻 User'
+  } else {
+    if (showModelNameInMarkdown && message.model) {
+      const modelName = message.model?.name || ''
+      let providerName = ''
+      if (showModelProviderInMarkdown && message.model?.provider) {
+        // 查找provider对象
+        const providers = store.getState().llm.providers || []
+        const providerObj = providers.find((p: any) => p.id === message.model?.provider)
+        providerName = providerObj
+          ? providerObj.isSystem
+            ? i18n.t(`provider.${providerObj.id}`)
+            : providerObj.name
+          : message.model?.provider
+        roleText = `${modelName} | ${providerName}`
+      } else {
+        roleText = modelName
+      }
+    } else {
+      roleText = '🤖 Assistant'
+    }
+  }
   const titleSection = `### ${roleText}`
   const content = getMainTextContent(message)
   const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
@@ -55,8 +77,30 @@ export const messageToMarkdown = (message: Message) => {
 
 // 保留接口用于其它导出方法使用
 export const messageToMarkdownWithReasoning = (message: Message) => {
-  const { forceDollarMathInMarkdown } = store.getState().settings
-  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+  const { forceDollarMathInMarkdown, showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
+  let roleText = ''
+  if (message.role === 'user') {
+    roleText = '🧑‍💻 User'
+  } else {
+    if (showModelNameInMarkdown && message.model) {
+      const modelName = message.model?.name || ''
+      let providerName = ''
+      if (showModelProviderInMarkdown && message.model?.provider) {
+        const providers = store.getState().llm.providers || []
+        const providerObj = providers.find((p: any) => p.id === message.model?.provider)
+        providerName = providerObj
+          ? providerObj.isSystem
+            ? i18n.t(`provider.${providerObj.id}`)
+            : providerObj.name
+          : message.model?.provider
+        roleText = `${modelName} | ${providerName}`
+      } else {
+        roleText = modelName
+      }
+    } else {
+      roleText = '🤖 Assistant'
+    }
+  }
   const titleSection = `### ${roleText}`
   let reasoningContent = getThinkingContent(message)
   // 处理思考内容
@@ -68,17 +112,24 @@ export const messageToMarkdownWithReasoning = (message: Message) => {
     } else if (reasoningContent.startsWith('<think>')) {
       reasoningContent = reasoningContent.substring(7)
     }
+    reasoningContent = reasoningContent
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
     reasoningContent = reasoningContent.replace(/\n/g, '<br>')
-
     // 应用数学公式转换（如果启用）
     if (forceDollarMathInMarkdown) {
       reasoningContent = convertMathFormula(reasoningContent)
     }
     // 添加思考内容的Markdown格式
-    reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
-      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+    reasoningSection = `<div style="border: 2px solid #dddddd; border-radius: 10px;">
+  <details style="padding: 5px;">
+    <summary>${i18n.t('common.reasoning_content')}</summary>
     ${reasoningContent}
-</details>`
+  </details>
+</div>`
   }
   const content = getMainTextContent(message)
 
@@ -164,10 +215,13 @@ export const exportMessageAsMarkdown = async (message: Message, exportReasoning?
   }
 }
 
+// TODO：Notion支持思维链导出(尝试转换为折叠块)
+// TODO：Notion导出自动分页优化
+
 const convertMarkdownToNotionBlocks = async (markdown: string) => {
   return markdownToBlocks(markdown)
 }
-// 修改 splitNotionBlocks 函数
+
 const splitNotionBlocks = (blocks: any[]) => {
   const { notionAutoSplit, notionSplitSize } = store.getState().settings
 
@@ -482,7 +536,7 @@ function transformObsidianFileName(fileName: string): string {
   } else if (isMac) {
     // Mac 的清理
     sanitized = sanitized
-      .replace(/[/:\u0020-\u007E]/g, '') // 移除无效字符
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
       .replace(/^\./, '_') // 避免以句点开头
   } else {
     // Linux 或其他系统

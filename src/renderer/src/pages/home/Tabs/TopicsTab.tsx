@@ -306,8 +306,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = await topicToMarkdown(topic)
-              await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
+              await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
             }
           },
           exportMenuOptions.joplin && {

@@ -249,9 +249,8 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = messageToMarkdown(message)
               const title = topic.name?.replace(/\//g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
+              await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
             }
           },
           exportMenuOptions.joplin && {
