@@ -31,7 +31,7 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
     if (citationBlocks.length === 0) return ''
     // Mock citation format: [number] [url](title)
     return citationBlocks
-      .map((block, index) => `[${index + 1}] [https://example${index + 1}.com](Example Citation ${index + 1})`)
+      .map((_, index) => `[${index + 1}] [https://example${index + 1}.com](Example Citation ${index + 1})`)
       .join('\n\n')
   })
 }))
