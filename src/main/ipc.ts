@@ -113,6 +113,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setAutoUpdate(isActive)
   })
 
+  ipcMain.handle(IpcChannel.App_SetFeedUrl, (_, feedUrl: string) => {
+    appUpdater.setFeedUrl(feedUrl)
+  })
+
   ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {

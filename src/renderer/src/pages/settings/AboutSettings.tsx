@@ -25,7 +25,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -160,6 +160,11 @@ const AboutSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
+              <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
             </SettingRow>
           </>
         )}
