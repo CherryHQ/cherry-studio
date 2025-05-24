@@ -3,9 +3,13 @@ import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
 
-// 更彻底的查找方法，递归搜索所有子元素
-export const findCitationInChildren = (children) => {
-  if (!children) return null
+/**
+ * 更彻底的查找方法，递归搜索所有子元素
+ * @param {any} children 子元素
+ * @returns {string} 找到的 citation 或 ''
+ */
+export const findCitationInChildren = (children: any): string => {
+  if (!children) return ''
 
   // 直接搜索子元素
   for (const child of Array.isArray(children) ? children : [children]) {
@@ -20,17 +24,17 @@ export const findCitationInChildren = (children) => {
     }
   }
 
-  return null
+  return ''
 }
 
 /**
  * 转换数学公式格式：
  * - 将 LaTeX 格式的 '\\[' 和 '\\]' 转换为 '$$$$'。
  * - 将 LaTeX 格式的 '\\(' 和 '\\)' 转换为 '$$'。
- * @param input 输入字符串
- * @returns string 转换后的字符串
+ * @param {string} input 输入字符串
+ * @returns {string} 转换后的字符串
  */
-export function convertMathFormula(input) {
+export function convertMathFormula(input: string): string {
   if (!input) return input
 
   let result = input
@@ -41,8 +45,8 @@ export function convertMathFormula(input) {
 
 /**
  * 移除 Markdown 文本中每行末尾的两个空格。
- * @param markdown 输入的 Markdown 文本
- * @returns string 处理后的文本
+ * @param {string} markdown 输入的 Markdown 文本
+ * @returns {string} 处理后的文本
  */
 export function removeTrailingDoubleSpaces(markdown: string): string {
   // 使用正则表达式匹配末尾的两个空格，并替换为空字符串

@@ -3,12 +3,12 @@ import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
-  right?: boolean
   ref?: React.RefObject<HTMLDivElement | null>
+  right?: boolean
   onScroll?: () => void // Custom onScroll prop for useScrollPosition's handleScroll
 }
 
-const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnScroll, ...htmlProps }) => {
+const Scrollbar: FC<Props> = ({ ref: passedRef, right, children, onScroll: externalOnScroll, ...htmlProps }) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -43,7 +43,8 @@ const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnSc
   return (
     <Container
       {...htmlProps} // Pass other HTML attributes
-      isScrolling={isScrolling}
+      $isScrolling={isScrolling}
+      $right={right}
       onScroll={combinedOnScroll} // Use the combined handler
       ref={passedRef}>
       {children}
@@ -51,15 +52,15 @@ const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnSc
   )
 }
 
-const Container = styled.div<{ isScrolling: boolean; right?: boolean }>`
+const Container = styled.div<{ $isScrolling: boolean; $right?: boolean }>`
   overflow-y: auto;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;
     background: ${(props) =>
-      props.isScrolling ? `var(--color-scrollbar-thumb${props.right ? '-right' : ''})` : 'transparent'};
+      props.$isScrolling ? `var(--color-scrollbar-thumb${props.$right ? '-right' : ''})` : 'transparent'};
     &:hover {
       background: ${(props) =>
-        props.isScrolling ? `var(--color-scrollbar-thumb${props.right ? '-right' : ''}-hover)` : 'transparent'};
+        props.$isScrolling ? `var(--color-scrollbar-thumb${props.$right ? '-right' : ''}-hover)` : 'transparent'};
     }
   }
 `

@@ -15,9 +15,9 @@ import dayjs from 'dayjs'
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
- * @param str 输入字符串
- * @param length 标题最大长度，默认为 80
- * @returns string 提取的标题
+ * @param {string} str 输入字符串
+ * @param {number} [length=80] 标题最大长度，默认为 80
+ * @returns {string} 提取的标题
  */
 export function getTitleFromString(str: string, length: number = 80) {
   let title = str.trimStart().split('\n')[0]

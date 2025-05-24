@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   convertMathFormula,
+  encodeHTML,
   findCitationInChildren,
   getCodeBlockId,
   removeTrailingDoubleSpaces,
@@ -14,8 +15,8 @@ import {
 describe('markdown', () => {
   describe('findCitationInChildren', () => {
     it('returns null when children is null or undefined', () => {
-      expect(findCitationInChildren(null)).toBeNull()
-      expect(findCitationInChildren(undefined)).toBeNull()
+      expect(findCitationInChildren(null)).toBe('')
+      expect(findCitationInChildren(undefined)).toBe('')
     })
 
     it('finds citation in direct child element', () => {
@@ -36,7 +37,7 @@ describe('markdown', () => {
 
     it('returns null when no citation is found', () => {
       const children = [{ props: { foo: 'bar' } }, { props: { children: [{ props: { baz: 'qux' } }] } }]
-      expect(findCitationInChildren(children)).toBeNull()
+      expect(findCitationInChildren(children)).toBe('')
     })
 
     it('handles single child object (non-array)', () => {
@@ -107,6 +108,7 @@ describe('markdown', () => {
     it('should return input if null or empty', () => {
       // 验证空输入或 null 输入时返回原值
       expect(convertMathFormula('')).toBe('')
+      // @ts-expect-error purposely pass wrong type to test error branch
       expect(convertMathFormula(null)).toBe(null)
     })
   })
@@ -138,6 +140,41 @@ describe('markdown', () => {
       const input = ''
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('')
+    })
+  })
+
+  describe('encodeHTML', () => {
+    it('should encode all special HTML characters', () => {
+      const input = `Tom & Jerry's "cat" <dog>`
+      const result = encodeHTML(input)
+      expect(result).toBe('Tom &amp; Jerry&apos;s &quot;cat&quot; &lt;dog&gt;')
+    })
+
+    it('should return the same string if no special characters', () => {
+      const input = 'Hello World!'
+      const result = encodeHTML(input)
+      expect(result).toBe('Hello World!')
+    })
+
+    it('should return empty string if input is empty', () => {
+      const input = ''
+      const result = encodeHTML(input)
+      expect(result).toBe('')
+    })
+
+    it('should encode single special character', () => {
+      expect(encodeHTML('&')).toBe('&amp;')
+      expect(encodeHTML('<')).toBe('&lt;')
+      expect(encodeHTML('>')).toBe('&gt;')
+      expect(encodeHTML('"')).toBe('&quot;')
+      expect(encodeHTML("'")).toBe('&apos;')
+    })
+
+    it('should throw if input is not a string', () => {
+      // @ts-expect-error purposely pass wrong type to test error branch
+      expect(() => encodeHTML(null)).toThrow()
+      // @ts-expect-error purposely pass wrong type to test error branch
+      expect(() => encodeHTML(undefined)).toThrow()
     })
   })
 
