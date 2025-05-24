@@ -179,6 +179,69 @@ const DataSettings: FC = () => {
     })
   }
 
+  const handleSelectAppDataPath = () => {
+    window.modal.confirm({
+      title: t('settings.data.app_data.select_title'),
+      content: (
+        <div>
+          <p>{t('settings.data.app_data.select_confirm')}</p>
+          <p style={{ marginTop: '12px', color: 'var(--color-warning)' }}>
+            {t('settings.data.app_data.restart_notice')}
+          </p>
+          <p style={{ marginTop: '8px', color: 'var(--color-text-3)' }}>
+            {t('settings.data.app_data.copy_time_notice')}
+          </p>
+        </div>
+      ),
+      centered: true,
+      onOk: async () => {
+        if (!appInfo) {
+          return
+        }
+
+        const newAppDataPath = await window.api.select({
+          properties: ['openDirectory', 'createDirectory'],
+          title: t('settings.data.app_data.select_title')
+        })
+
+        if (!newAppDataPath) {
+          return
+        }
+
+        // Show copy progress message
+        const copyingKey = 'copying-data'
+        window.message.loading({ content: t('settings.data.app_data.copying'), key: copyingKey, duration: 0 })
+
+        const copyResult = await window.api.copy(appInfo.appDataPath, newAppDataPath)
+        if (!copyResult.success) {
+          window.message.error({
+            content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+            key: copyingKey,
+            duration: 5
+          })
+          return
+        }
+
+        // 在复制成功后才能设置新的 AppDataPath
+        await window.api.setAppDataPath(newAppDataPath)
+
+        // 更新store中的appInfo
+        setAppInfo(await window.api.getAppInfo())
+
+        window.message.success({
+          content: t('settings.data.app_data.copy_success'),
+          key: copyingKey,
+          duration: 2
+        })
+
+        // Inform user about restart
+        setTimeout(() => {
+          window.message.success(t('settings.data.app_data.select_success'))
+          window.api.relaunchApp()
+        }, 1000)
+      }
+    })
+  }
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
     dispatch(_setSkipBackupFile(value))
@@ -245,6 +308,9 @@ const DataSettings: FC = () => {
                 <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                  </HStack>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
