@@ -4,7 +4,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
-import { Plus, SquareTerminal } from 'lucide-react'
+import { CircleX, Plus, SquareTerminal } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -180,9 +180,9 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     })
 
     newList.unshift({
-      label: t('settings.mcp.disable'),
+      label: t('common.close'),
       description: t('settings.mcp.disable.description'),
-      icon: <SquareTerminal />,
+      icon: <CircleX />,
       isSelected: !(assistant.mcpServers && assistant.mcpServers.length > 0),
       action: () => updateMcpEnabled(false)
     })
