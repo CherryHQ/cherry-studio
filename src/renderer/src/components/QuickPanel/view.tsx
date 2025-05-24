@@ -86,7 +86,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         return true
       }
 
-      const pattern = lowerSearchText.split('').join('.*')
+      const pattern = lowerSearchText
+        .split('')
+        .map((char) => {
+          return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        })
+        .join('.*')
       if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
         try {
           const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
