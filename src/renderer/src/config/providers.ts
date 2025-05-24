@@ -103,6 +103,7 @@ export function getProviderLogo(providerId: string) {
 
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
 export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama']
+export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini']
 
 export const PROVIDER_CONFIG = {
   openai: {

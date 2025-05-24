@@ -393,7 +393,7 @@ export interface KnowledgeBase {
 export type KnowledgeBaseParams = {
   id: string
   model: string
-  dimensions: number
+  dimensions?: number
   apiKey: string
   apiVersion?: string
   baseURL: string
