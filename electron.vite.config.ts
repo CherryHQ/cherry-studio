@@ -37,7 +37,10 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client']
+        external: ['@libsql/client'],
+        output: {
+          externalLiveBindings: false // 不加启动不了
+        }
       }
     }
   },

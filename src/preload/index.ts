@@ -123,6 +123,13 @@ const api = {
     listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
     deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
   },
+
+  vertexAI: {
+    getAuthHeaders: (params: { projectId: string; serviceAccount?: { privateKey: string; clientEmail: string } }) =>
+      ipcRenderer.invoke(IpcChannel.VertexAI_GetAuthHeaders, params),
+    clearAuthCache: (projectId: string, clientEmail?: string) =>
+      ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
+  },
   config: {
     set: (key: string, value: any) => ipcRenderer.invoke(IpcChannel.Config_Set, key, value),
     get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)

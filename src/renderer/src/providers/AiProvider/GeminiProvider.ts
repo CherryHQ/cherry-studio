@@ -62,19 +62,30 @@ import {
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
-import axios from 'axios'
 import { flatten, isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
 
-export default class GeminiProvider extends BaseProvider {
-  private sdk: GoogleGenAI
+export abstract class BaseGeminiProvider extends BaseProvider {
+  protected sdk: GoogleGenAI
 
   constructor(provider: Provider) {
     super(provider)
-    this.sdk = new GoogleGenAI({ vertexai: false, apiKey: this.apiKey, httpOptions: { baseUrl: this.getBaseURL() } })
+    this.sdk = new GoogleGenAI({
+      vertexai: false,
+      apiKey: this.apiKey,
+      apiVersion: this.getApiVersion(),
+      httpOptions: { baseUrl: this.getBaseURL(), apiVersion: this.getApiVersion() }
+    })
+  }
+
+  protected getApiVersion(): string {
+    if (this.provider.isVertex) {
+      return 'v1'
+    }
+    return 'v1beta'
   }
 
   public getBaseURL(): string {
@@ -131,7 +142,7 @@ export default class GeminiProvider extends BaseProvider {
    * @param message - The message
    * @returns The message contents
    */
-  private async getMessageContents(message: Message): Promise<Content> {
+  protected async getMessageContents(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
     const parts: Part[] = [{ text: await this.getMessageContent(message) }]
     // Add any generated images from previous responses
@@ -201,7 +212,7 @@ export default class GeminiProvider extends BaseProvider {
     }
   }
 
-  private async getImageFileContents(message: Message): Promise<Content> {
+  protected async getImageFileContents(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
     const content = getMainTextContent(message)
     const parts: Part[] = [{ text: content }]
@@ -249,7 +260,7 @@ export default class GeminiProvider extends BaseProvider {
    * Get the safety settings
    * @returns The safety settings
    */
-  private getSafetySettings(): SafetySetting[] {
+  protected getSafetySettings(): SafetySetting[] {
     const safetyThreshold = 'OFF' as HarmBlockThreshold
 
     return [
@@ -282,7 +293,10 @@ export default class GeminiProvider extends BaseProvider {
    * @param model - The model
    * @returns The reasoning effort
    */
-  private getBudgetToken(assistant: Assistant, model: Model) {
+  protected getBudgetToken(assistant: Assistant, model: Model) {
+    if (model.provider === 'vertexai') {
+      return {}
+    }
     if (isGeminiReasoningModel(model)) {
       const reasoningEffort = assistant?.settings?.reasoning_effort
 
@@ -1002,20 +1016,19 @@ export default class GeminiProvider extends BaseProvider {
    */
   public async models(): Promise<OpenAI.Models.Model[]> {
     try {
-      const api = this.provider.apiHost + '/v1beta/models'
-      const { data } = await axios.get(api, { params: { key: this.apiKey } })
-
-      return data.models.map(
-        (m) =>
-          ({
-            id: m.name.replace('models/', ''),
-            name: m.displayName,
-            description: m.description,
-            object: 'model',
-            created: Date.now(),
-            owned_by: 'gemini'
-          }) as OpenAI.Models.Model
-      )
+      const models = await this.sdk.models.list()
+      const result: OpenAI.Models.Model[] = []
+      for await (const model of models) {
+        result.push({
+          id: model.name!.replace('models/', ''),
+          name: model.displayName,
+          description: model.description,
+          object: 'model',
+          created: Date.now(),
+          owned_by: 'gemini'
+        } as OpenAI.Models.Model)
+      }
+      return result
     } catch (error) {
       return []
     }
@@ -1152,5 +1165,11 @@ export default class GeminiProvider extends BaseProvider {
       } satisfies Content
     }
     return
+  }
+}
+
+export default class GeminiProvider extends BaseGeminiProvider {
+  constructor(provider: Provider) {
+    super(provider)
   }
 }

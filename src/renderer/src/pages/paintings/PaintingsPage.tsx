@@ -180,7 +180,7 @@ const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
     setAbortController(controller)
     setIsLoading(true)
     dispatch(setGenerating(true))
-    const AI = new AiProvider(provider)
+    const AI = await AiProvider.create(provider)
 
     if (!painting.model) {
       return

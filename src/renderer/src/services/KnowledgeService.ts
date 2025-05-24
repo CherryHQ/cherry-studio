@@ -11,11 +11,11 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 
-export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
+export const getKnowledgeBaseParams = async (base: KnowledgeBase): Promise<KnowledgeBaseParams> => {
   const provider = getProviderByModel(base.model)
   const rerankProvider = getProviderByModel(base.rerankModel)
-  const aiProvider = new AiProvider(provider)
-  const rerankAiProvider = new AiProvider(rerankProvider)
+  const aiProvider = await AiProvider.create(provider)
+  const rerankAiProvider = await AiProvider.create(rerankProvider)
 
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
@@ -94,7 +94,7 @@ export const searchKnowledgeBase = async (
   rewrite?: string
 ): Promise<Array<ExtractChunkData & { file: FileType | null }>> => {
   try {
-    const baseParams = getKnowledgeBaseParams(base)
+    const baseParams = await getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
 

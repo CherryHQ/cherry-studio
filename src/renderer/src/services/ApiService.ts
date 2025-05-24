@@ -284,7 +284,7 @@ export async function fetchChatCompletion({
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
   const provider = getAssistantProvider(assistant)
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
   messages = filterContextMessages(messages)
@@ -331,7 +331,7 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
     throw new Error(i18n.t('error.no_api_key'))
   }
 
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   try {
     return await AI.translate(content, assistant, onResponse)
@@ -344,11 +344,11 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider)) {
+  if (!hasApiKey(provider) && provider.type !== 'vertexai') {
     return null
   }
 
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   try {
     const text = await AI.summaries(filterMessages(messages), assistant)
@@ -362,11 +362,11 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
   const model = assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider)) {
+  if (!hasApiKey(provider) && provider.type !== 'vertexai') {
     return null
   }
 
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   return await AI.summaryForSearch(messages, assistant)
 }
@@ -375,11 +375,11 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
   const model = getDefaultModel()
   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider)) {
+  if (!hasApiKey(provider) && provider.type !== 'vertexai') {
     return ''
   }
 
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   try {
     return await AI.generateText({ prompt, content })
@@ -401,7 +401,7 @@ export async function fetchSuggestions({
   }
 
   const provider = getAssistantProvider(assistant)
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   try {
     return await AI.suggestions(filterMessages(messages), assistant)
@@ -417,7 +417,7 @@ function hasApiKey(provider: Provider) {
 }
 
 export async function fetchModels(provider: Provider) {
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   try {
     return await AI.models()
@@ -437,7 +437,12 @@ export function checkApiProvider(provider: Provider): {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
-  if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
+  if (
+    provider.id !== 'ollama' &&
+    provider.id !== 'lmstudio' &&
+    provider.type !== 'vertexai' &&
+    provider.id !== 'copilot'
+  ) {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       return {
@@ -447,7 +452,7 @@ export function checkApiProvider(provider: Provider): {
     }
   }
 
-  if (!provider.apiHost) {
+  if (!provider.apiHost && provider.type !== 'vertexai') {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     return {
       valid: false,
@@ -478,7 +483,7 @@ export async function checkApi(provider: Provider, model: Model) {
     }
   }
 
-  const ai = new AiProvider(provider)
+  const ai = await AiProvider.create(provider)
 
   // Try streaming check first
   const result = await ai.check(model, true)

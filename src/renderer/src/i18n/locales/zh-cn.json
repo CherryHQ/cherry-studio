@@ -943,7 +943,8 @@
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
       "qiniu": "七牛云",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "vertexai": "Vertex AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
@@ -1590,6 +1591,27 @@
           "title": "模型备注",
           "placeholder": "请输入Markdown格式内容...",
           "markdown_editor_default_value": "预览区域"
+        },
+        "vertex_ai": {
+          "project_id": "项目 ID",
+          "project_id_placeholder": "your-google-cloud-project-id",
+          "project_id_help": "您的 Google Cloud 项目 ID",
+          "location": "地区",
+          "location_help": "Vertex AI 服务的地区，例如 us-central1",
+          "service_account": {
+            "title": "Service Account 配置",
+            "private_key": "私钥",
+            "private_key_placeholder": "请输入 Service Account 私钥",
+            "private_key_help": "从 Google Cloud Console 下载的 JSON 密钥文件中的 private_key 字段",
+            "client_email": "客户端邮箱",
+            "client_email_placeholder": "请输入 Service Account 客户端邮箱",
+            "client_email_help": "从 Google Cloud Console 下载的 JSON 密钥文件中的 client_email 字段",
+            "description": "使用 Service Account 进行身份验证，适用于无法使用 ADC 的环境",
+            "auth_success": "Service Account 认证成功",
+            "incomplete_config": "请先完整配置 Service Account 信息"
+          },
+          "documentation": "查看官方文档了解更多配置详情：",
+          "learn_more": "了解更多"
         }
       },
       "proxy": {

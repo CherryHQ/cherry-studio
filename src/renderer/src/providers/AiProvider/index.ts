@@ -16,8 +16,13 @@ export interface CompletionsParams {
 export default class AiProvider {
   private sdk: BaseProvider
 
-  constructor(provider: Provider) {
-    this.sdk = ProviderFactory.create(provider)
+  private constructor(provider: BaseProvider) {
+    this.sdk = provider
+  }
+
+  static async create(provider: Provider): Promise<AiProvider> {
+    const sdk = await ProviderFactory.create(provider)
+    return new AiProvider(sdk)
   }
 
   public async fakeCompletions(params: CompletionsParams): Promise<void> {

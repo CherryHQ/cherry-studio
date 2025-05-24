@@ -5,13 +5,13 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, WebSearchProvider } from '@renderer/types'
+import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
-import { INITIAL_PROVIDERS, moveProvider } from './llm'
+import { INITIAL_PROVIDERS, initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { defaultWebSearchProviders } from './websearch'
@@ -49,6 +49,15 @@ function addProvider(state: RootState, id: string) {
     const _provider = INITIAL_PROVIDERS.find((p) => p.id === id)
     if (_provider) {
       state.llm.providers.push(_provider)
+    }
+  }
+}
+
+function updateProvider(state: RootState, id: string, provider: Partial<Provider>) {
+  if (state.llm.providers) {
+    const index = state.llm.providers.findIndex((p) => p.id === id)
+    if (index !== -1) {
+      state.llm.providers[index] = { ...state.llm.providers[index], ...provider }
     }
   }
 }
@@ -1451,6 +1460,24 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.DMXAPIPaintings) {
         state.paintings.DMXAPIPaintings = []
       }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      addProvider(state, 'vertexai')
+      state.llm.providers = moveProvider(state.llm.providers, 'vertexai', 10)
+      if (!state.llm.settings.vertexai) {
+        state.llm.settings.vertexai = llmInitialState.settings.vertexai
+      }
+      updateProvider(state, 'gemini', {
+        isVertex: false
+      })
+      updateProvider(state, 'vertexai', {
+        isVertex: true
+      })
       return state
     } catch (error) {
       return state
