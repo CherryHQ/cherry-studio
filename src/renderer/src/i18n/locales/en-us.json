@@ -1305,6 +1305,8 @@
         "stdio": "Standard Input/Output (stdio)",
         "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
+        "disable": "Disable MCP Server",
+        "disable.description": "Do not enable MCP server functionality",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",

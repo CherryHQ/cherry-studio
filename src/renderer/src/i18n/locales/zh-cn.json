@@ -1305,6 +1305,8 @@
         "stdio": "标准输入/输出 (stdio)",
         "inMemory": "内存",
         "config_description": "配置模型上下文协议服务器",
+        "disable": "不使用 MCP 服务器",
+        "disable.description": "不启用 MCP 服务功能",
         "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
         "dependenciesInstall": "安装依赖项",
