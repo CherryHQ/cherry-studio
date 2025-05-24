@@ -19,6 +19,8 @@
         "select_file": "Select File",
         "button": "Import",
         "file_filter": "JSON Files",
+        "format": "Import format is JSON.",
+        "format.link": "Visit our documentation for more details",
         "error": {
           "url_required": "Please enter a URL",
           "fetch_failed": "Failed to fetch from URL",
