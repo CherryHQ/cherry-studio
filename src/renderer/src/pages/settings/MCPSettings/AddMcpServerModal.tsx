@@ -95,7 +95,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         description: serverToAdd!.description ?? '',
         baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
         command: serverToAdd!.command ?? '',
-        args: serverToAdd!.args || [],
+        args: Array.isArray(serverToAdd!.args) ? serverToAdd!.args : [],
         env: serverToAdd!.env || {},
         isActive: false,
         type: serverToAdd!.type,
@@ -236,7 +236,6 @@ const parseAndExtractServer = (
     }
   } else if (
     typeof parsedJson === 'object' &&
-    parsedJson !== null &&
     !Array.isArray(parsedJson) &&
     !parsedJson.mcpServers // 確保是直接的伺服器物件
   ) {
