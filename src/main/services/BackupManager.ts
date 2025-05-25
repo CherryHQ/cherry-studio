@@ -15,7 +15,6 @@ import { windowService } from './WindowService'
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
-  private localBackupDir = path.join(app.getPath('temp'), 'cherry-studio', 'LocalBackups')
 
   constructor() {
     this.checkConnection = this.checkConnection.bind(this)
@@ -436,12 +435,12 @@ class BackupManager {
     data: string,
     fileName: string,
     localConfig: {
-      localBackupDir?: string
-      skipBackupFile?: boolean
+      localBackupDir: string
+      skipBackupFile: boolean
     }
   ) {
     try {
-      const backupDir = localConfig.localBackupDir || this.localBackupDir
+      const backupDir = localConfig.localBackupDir
       // Create backup directory if it doesn't exist
       await fs.ensureDir(backupDir)
 
@@ -453,9 +452,9 @@ class BackupManager {
     }
   }
 
-  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir?: string) {
+  async restoreFromLocalBackup(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
-      const backupDir = localBackupDir || this.localBackupDir
+      const backupDir = localBackupDir
       const backupPath = path.join(backupDir, fileName)
 
       if (!fs.existsSync(backupPath)) {
@@ -469,18 +468,13 @@ class BackupManager {
     }
   }
 
-  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir?: string) {
+  async listLocalBackupFiles(_: Electron.IpcMainInvokeEvent, localBackupDir: string) {
     try {
-      const backupDir = localBackupDir || this.localBackupDir
-
-      // Create directory if it doesn't exist
-      await fs.ensureDir(backupDir)
-
-      const files = await fs.readdir(backupDir)
+      const files = await fs.readdir(localBackupDir)
       const result: Array<{ fileName: string; modifiedTime: string; size: number }> = []
 
       for (const file of files) {
-        const filePath = path.join(backupDir, file)
+        const filePath = path.join(localBackupDir, file)
         const stat = await fs.stat(filePath)
 
         if (stat.isFile() && file.endsWith('.zip')) {
@@ -500,10 +494,9 @@ class BackupManager {
     }
   }
 
-  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir?: string) {
+  async deleteLocalBackupFile(_: Electron.IpcMainInvokeEvent, fileName: string, localBackupDir: string) {
     try {
-      const backupDir = localBackupDir || this.localBackupDir
-      const filePath = path.join(backupDir, fileName)
+      const filePath = path.join(localBackupDir, fileName)
 
       if (!fs.existsSync(filePath)) {
         throw new Error(`Backup file not found: ${filePath}`)
@@ -521,7 +514,6 @@ class BackupManager {
     try {
       // Check if directory exists
       await fs.ensureDir(dirPath)
-      this.localBackupDir = dirPath
       return true
     } catch (error) {
       Logger.error('[BackupManager] Set local backup directory failed:', error)
