@@ -96,11 +96,8 @@ const MessageMenubar: FC<Props> = (props) => {
 
       let contentToCopy = ''
       if (latestMessageEntity) {
-        // Assuming latestMessageEntity is a complete Message object or compatible
-        // Cast to Message to satisfy getMainTextContent if it's just an entity.
         contentToCopy = getMainTextContent(latestMessageEntity as Message)
       } else {
-        // Fallback to current prop if somehow not found
         contentToCopy = getMainTextContent(message)
       }
 
