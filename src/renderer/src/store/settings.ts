@@ -665,9 +665,6 @@ const settingsSlice = createSlice({
     setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
       state.openAI.serviceTier = action.payload
     },
-    setShowModelNameInMarkdown: (state, action: PayloadAction<boolean>) => {
-      state.showModelNameInMarkdown = action.payload
-    },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
     },
