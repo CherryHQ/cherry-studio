@@ -1109,18 +1109,17 @@
           "path": "WebDAV Path",
           "path.placeholder": "/backup",
           "restore.button": "Restore from WebDAV",
-          "restore.confirm.content": "Restoring from WebDAV will replace current data. Do you want to continue?",
+          "restore.confirm.content": "Restoring from WebDAV will overwrite current data. Do you want to continue?",
           "restore.confirm.title": "Confirm Restore",
-          "restore.content": "Restoring from WebDAV will replace current data. Do you want to continue?",
-          "restore.modal.select.placeholder": "Select backup file to restore",
+          "restore.content": "Restore from WebDAV will overwrite the current data, continue?",
+          "restore.modal.select.placeholder": "Please select a backup file to restore",
           "restore.modal.title": "Restore from WebDAV",
           "restore.title": "Restore from WebDAV",
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",
           "title": "WebDAV",
-          "user": "WebDAV Username",
-          "maxBackups": "Maximum backups",
-          "maxBackups.unlimited": "Unlimited"
+          "user": "WebDAV User",
+          "maxBackups": "Maximum Backups"
         },
         "local": {
           "autoSync": "Auto Backup",
