@@ -15,7 +15,7 @@ import { windowService } from './WindowService'
 class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
-  private localBackupDir = path.join(app.getPath('userData'), 'LocalBackups')
+  private localBackupDir = path.join(app.getPath('temp'), 'cherry-studio', 'LocalBackups')
 
   constructor() {
     this.checkConnection = this.checkConnection.bind(this)
