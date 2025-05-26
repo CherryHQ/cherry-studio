@@ -3,19 +3,21 @@ import {
   EditOutlined,
   MenuOutlined,
   MinusCircleOutlined,
+  PlusOutlined,
   SaveOutlined,
   SmileOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined,
-  TagsFilled,
   TagsOutlined
 } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
+import TagsPopup from '@renderer/components/Popups/TagsPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -54,6 +56,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   handleSortByChange
 }) => {
   const { t } = useTranslation()
+  const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
@@ -160,36 +163,51 @@ const AssistantItem: FC<AssistantItemProps> = ({
       { type: 'divider' },
       {
         label: t('assistants.tags.manage'),
-        key: 'tags',
-        icon: <TagsFilled />,
+        key: 'all-tags',
+        icon: <PlusOutlined />,
         children: [
-          {
-            label: assistant.tags?.length ? t('assistants.tags.modify') : t('assistants.tags.add'),
-            key: 'add-tag',
+          ...allTags.map((tag) => ({
+            label: tag,
+            icon: assistant.tags?.includes(tag) ? <DeleteOutlined /> : <TagsOutlined />,
+            danger: assistant.tags?.includes(tag) ? true : false,
+            key: `all-tag-${tag}`,
             onClick: () => {
-              const listener = (updated: Assistant) => {
-                if (updated.id === assistant.id) {
-                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
-                  EventEmitter.off(EVENT_NAMES.ADD_ASSISTANT, listener)
-                }
+              if (assistant.tags?.includes(tag)) {
+                // 如果已有该标签，则移除
+                updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
+              } else {
+                // 如果没有该标签，则切换到该标签分类
+                updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
               }
-              EventEmitter.on(EVENT_NAMES.ADD_ASSISTANT, listener)
-              AssistantSettingsPopup.show({
+            }
+          })),
+          { type: 'divider' },
+          {
+            label: t('assistants.tags.add'),
+            key: 'new-tag',
+            onClick: () => {
+              TagsPopup.show(
                 assistant,
-                tab: 'tags'
-              })
+                (updated) => {
+                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                },
+                'add'
+              )
             }
           },
-          ...(assistant.tags || []).map((tag) => ({
-            label: tag,
-            danger: true,
-            icon: <DeleteOutlined />,
-            key: `tag-${tag}`,
+          {
+            label: t('assistants.tags.manage'),
+            key: 'manage-tags',
             onClick: () => {
-              const newTags = (assistant.tags || []).filter((t) => t !== tag)
-              updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: newTags } : a)))
+              TagsPopup.show(
+                assistant,
+                (updated) => {
+                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                },
+                'manage'
+              )
             }
-          }))
+          }
         ]
       },
       {
@@ -232,12 +250,14 @@ const AssistantItem: FC<AssistantItemProps> = ({
     [
       addAgent,
       addAssistant,
+      allTags,
       assistants,
       handleSortByChange,
       onDelete,
       onSwitch,
       removeAllTopics,
       setAssistantIconType,
+      sortBy,
       sortByPinyinAsc,
       sortByPinyinDesc,
       t,

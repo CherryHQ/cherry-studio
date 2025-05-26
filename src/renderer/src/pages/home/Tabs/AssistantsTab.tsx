@@ -55,9 +55,9 @@ const Assistants: FC<AssistantsTabProps> = ({
   return (
     <Container className="assistants-tab" ref={containerRef}>
       {sortBy === 'tags' && (
-        <div style={{ paddingBottom: dragging ? '34px' : 0 }}>
+        <div style={{ marginBottom: '8px' }}>
           {getGroupedAssistants.map((group) => (
-            <div key={group.tag}>
+            <TagsContainer key={group.tag}>
               <GroupTitle>
                 <GroupTitleName>{group.tag}</GroupTitleName>
                 <Divider style={{ margin: '12px 0' }}></Divider>
@@ -76,7 +76,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                   handleSortByChange={handleSortByChange}
                 />
               ))}
-            </div>
+            </TagsContainer>
           ))}
         </div>
       )}
@@ -121,6 +121,13 @@ const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
   padding: 10px;
+`
+
+const TagsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: px;
 `
 
 const AssistantAddItem = styled.div`
