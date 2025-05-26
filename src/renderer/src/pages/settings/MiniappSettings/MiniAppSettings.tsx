@@ -125,10 +125,7 @@ const MiniAppSettings: FC = () => {
                 onChange={handleCacheChange}
                 marks={{
                   1: '1',
-                  3: '3',
                   5: '5',
-                  7: '7',
-                  9: '9',
                   10: 'Max'
                 }}
                 tooltip={{ formatter: (value) => `${value}` }}
