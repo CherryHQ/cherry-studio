@@ -1,5 +1,4 @@
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
@@ -121,23 +120,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </div>
       {jsonConfig && (
         <div style={{ marginBottom: '16px' }}>
-          <CodeToolbarProvider>
-            <CodeEditor
-              value={jsonConfig}
-              language="json"
-              onChange={(value) => setJsonConfig(value)}
-              maxHeight="60vh"
-              options={{
-                lint: true,
-                collapsible: true,
-                wrappable: true,
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                keymap: true
-              }}
-            />
-          </CodeToolbarProvider>
+          <CodeEditor
+            value={jsonConfig}
+            language="json"
+            onChange={(value) => setJsonConfig(value)}
+            maxHeight="60vh"
+            options={{
+              lint: true,
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
         </div>
       )}
       <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>

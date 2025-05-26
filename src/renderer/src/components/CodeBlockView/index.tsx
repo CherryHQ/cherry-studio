@@ -1,6 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeToolbar, CodeToolContext, TOOL_SPECS, useCodeToolbar } from '@renderer/components/CodeToolbar'
+import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
@@ -49,6 +49,9 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
   const [isRunning, setIsRunning] = useState(false)
   const [output, setOutput] = useState('')
 
+  const [tools, setTools] = useState<CodeTool[]>([])
+  const { registerTool, removeTool } = useCodeTool(setTools)
+
   const isExecutable = useMemo(() => {
     return codeExecution.enabled && language === 'python'
   }, [codeExecution.enabled, language])
@@ -59,33 +62,17 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
 
-  const { updateContext, registerTool, removeTool } = useCodeToolbar()
+  const handleCopySource = useCallback(() => {
+    navigator.clipboard.writeText(children)
+    window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
+  }, [children, t])
 
-  useEffect(() => {
-    updateContext({
-      code: children,
-      language
-    })
-  }, [children, language, updateContext])
-
-  const handleCopySource = useCallback(
-    (ctx?: CodeToolContext) => {
-      if (!ctx) return
-      navigator.clipboard.writeText(ctx.code)
-      window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
-    },
-    [t]
-  )
-
-  const handleDownloadSource = useCallback((ctx?: CodeToolContext) => {
-    if (!ctx) return
-
-    const { code, language } = ctx
+  const handleDownloadSource = useCallback(() => {
     let fileName = ''
 
     // 尝试提取标题
-    if (language === 'html' && code.includes('</html>')) {
-      const title = extractTitle(code)
+    if (language === 'html' && children.includes('</html>')) {
+      const title = extractTitle(children)
       if (title) {
         fileName = `${title}.html`
       }
@@ -96,31 +83,26 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
       fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
     }
 
-    window.api.file.save(fileName, code)
-  }, [])
+    window.api.file.save(fileName, children)
+  }, [children, language])
 
-  const handleRunScript = useCallback(
-    (ctx?: CodeToolContext) => {
-      if (!ctx) return
+  const handleRunScript = useCallback(() => {
+    setIsRunning(true)
+    setOutput('')
 
-      setIsRunning(true)
-      setOutput('')
-
-      pyodideService
-        .runScript(ctx.code, {}, codeExecution.timeoutMinutes * 60000)
-        .then((formattedOutput) => {
-          setOutput(formattedOutput)
-        })
-        .catch((error) => {
-          console.error('Unexpected error:', error)
-          setOutput(`Unexpected error: ${error.message || 'Unknown error'}`)
-        })
-        .finally(() => {
-          setIsRunning(false)
-        })
-    },
-    [codeExecution.timeoutMinutes]
-  )
+    pyodideService
+      .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
+      .then((formattedOutput) => {
+        setOutput(formattedOutput)
+      })
+      .catch((error) => {
+        console.error('Unexpected error:', error)
+        setOutput(`Unexpected error: ${error.message || 'Unknown error'}`)
+      })
+      .finally(() => {
+        setIsRunning(false)
+      })
+  }, [children, codeExecution.timeoutMinutes])
 
   useEffect(() => {
     // 复制按钮
@@ -191,7 +173,7 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
       ...TOOL_SPECS.run,
       icon: isRunning ? <LoadingOutlined /> : <CirclePlay className="icon" />,
       tooltip: t('code_block.run'),
-      onClick: (ctx) => !isRunning && handleRunScript(ctx)
+      onClick: () => !isRunning && handleRunScript()
     })
 
     return () => isExecutable && removeTool(TOOL_SPECS.run.id)
@@ -200,20 +182,32 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
   // 源代码视图组件
   const sourceView = useMemo(() => {
     if (codeEditor.enabled) {
-      return <CodeEditor value={children} language={language} onSave={onSave} options={{ stream: true }} />
+      return (
+        <CodeEditor
+          value={children}
+          language={language}
+          onSave={onSave}
+          options={{ stream: true }}
+          setTools={setTools}
+        />
+      )
     } else {
-      return <CodePreview language={language}>{children}</CodePreview>
+      return (
+        <CodePreview language={language} setTools={setTools}>
+          {children}
+        </CodePreview>
+      )
     }
-  }, [children, codeEditor.enabled, language, onSave])
+  }, [children, codeEditor.enabled, language, onSave, setTools])
 
   // 特殊视图组件映射
   const specialView = useMemo(() => {
     if (language === 'mermaid') {
-      return <MermaidPreview>{children}</MermaidPreview>
+      return <MermaidPreview setTools={setTools}>{children}</MermaidPreview>
     } else if (language === 'plantuml' && isValidPlantUML(children)) {
-      return <PlantUmlPreview>{children}</PlantUmlPreview>
+      return <PlantUmlPreview setTools={setTools}>{children}</PlantUmlPreview>
     } else if (language === 'svg') {
-      return <SvgPreview>{children}</SvgPreview>
+      return <SvgPreview setTools={setTools}>{children}</SvgPreview>
     }
     return null
   }, [children, language])
@@ -246,7 +240,7 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
       {renderHeader}
-      <CodeToolbar />
+      <CodeToolbar tools={tools} />
       {renderContent}
       {renderArtifacts}
       {isExecutable && output && <StatusBar>{output}</StatusBar>}
@@ -255,10 +249,11 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 }
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
+  /* FIXME: 在 bubble style 中撑开一些宽度*/
+  min-width: min(calc(60vw - var(--sidebar-width)), 700px);
   position: relative;
 
   .code-toolbar {
-    margin-top: ${(props) => (props.$isInSpecialView ? '20px' : '0')};
     background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
     border-radius: ${(props) => (props.$isInSpecialView ? '0' : '4px')};
     opacity: 0;
@@ -279,13 +274,13 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
 const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   color: var(--color-text);
   font-size: 14px;
   font-weight: bold;
   padding: 0 10px;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
+  margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};
   height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
 `
 

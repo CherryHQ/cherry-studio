@@ -8,7 +8,7 @@ import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessag
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { RootState } from '@renderer/store'
+import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
@@ -90,13 +90,24 @@ const MessageMenubar: FC<Props> = (props) => {
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
+
+      const currentMessageId = message.id // from props
+      const latestMessageEntity = store.getState().messages.entities[currentMessageId]
+
+      let contentToCopy = ''
+      if (latestMessageEntity) {
+        contentToCopy = getMainTextContent(latestMessageEntity as Message)
+      } else {
+        contentToCopy = getMainTextContent(message)
+      }
+
+      navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
 
       window.message.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     },
-    [mainTextContent, t]
+    [message, t] // message is needed for message.id and as a fallback. t is for translation.
   )
 
   const onNewBranch = useCallback(async () => {

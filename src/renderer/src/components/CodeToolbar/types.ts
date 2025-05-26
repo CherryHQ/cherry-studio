@@ -20,16 +20,6 @@ export interface CodeToolSpec {
 export interface CodeTool extends CodeToolSpec {
   icon: React.ReactNode
   tooltip: string
-  visible?: (ctx?: CodeToolContext) => boolean
-  onClick: (ctx?: CodeToolContext) => void
-}
-
-/**
- * 工具上下文接口
- * @param code 代码内容
- * @param language 语言类型
- */
-export interface CodeToolContext {
-  code: string
-  language: string
+  visible?: () => boolean
+  onClick: () => void
 }

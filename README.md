@@ -67,20 +67,41 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 - 📝 Complete Markdown Rendering
 - 🤲 Easy Content Sharing
 
-# 📝 TODO
+# 📝 Roadmap
 
-- [x] Quick popup (read clipboard, quick question, explain, translate, summarize)
-- [x] Comparison of multi-model answers
-- [x] Support login using SSO provided by service providers
-- [x] All models support networking
-- [x] Launch of the first official version
-- [x] Bug fixes and improvements (In progress...)
-- [ ] Plugin functionality (JavaScript)
-- [ ] Browser extension (highlight text to translate, summarize, add to knowledge base)
-- [ ] iOS & Android client
-- [ ] AI notes
-- [ ] Voice input and output (AI call)
-- [ ] Data backup supports custom backup content
+We're actively working on the following features and improvements:
+
+- 🎯 **Core Features**
+
+  - Selection Assistant - Smart content selection enhancement
+  - Deep Research - Advanced research capabilities
+  - Memory System - Global context awareness
+  - Document Preprocessing - Improved document handling
+  - MCP Marketplace - Model Context Protocol ecosystem
+
+- 🗂 **Knowledge Management**
+
+  - Notes and Collections
+  - Dynamic Canvas visualization
+  - OCR capabilities
+  - TTS (Text-to-Speech) support
+
+- 📱 **Platform Support**
+
+  - HarmonyOS Edition (PC)
+  - Android App (Phase 1)
+  - iOS App (Phase 1)
+  - Multi-Window support
+  - Window Pinning functionality
+
+- 🔌 **Advanced Features**
+  - Plugin System
+  - ASR (Automatic Speech Recognition)
+  - Assistant and Topic Interaction Refactoring
+
+Track our progress and contribute on our [project board](https://github.com/orgs/CherryHQ/projects/7).
+
+Want to influence our roadmap? Join our [GitHub Discussions](https://github.com/CherryHQ/cherry-studio/discussions) to share your ideas and feedback!
 
 # 🌈 Theme
 

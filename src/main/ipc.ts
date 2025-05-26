@@ -200,7 +200,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    await appUpdater.checkForUpdates()
+    return await appUpdater.checkForUpdates()
   })
 
   // notification
