@@ -4,7 +4,7 @@ import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
-import * as fs from 'fs-extra'
+import * as fs from 'fs'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
@@ -28,7 +28,7 @@ class BackupManager {
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
     try {
-      const items = await fs.readdir(dirPath, { withFileTypes: true })
+      const items = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
       for (const item of items) {
         const fullPath = path.join(dirPath, item.name)
@@ -55,11 +55,11 @@ class BackupManager {
     try {
       // Windows系统需要先取消只读属性
       if (process.platform === 'win32') {
-        await fs.chmod(targetPath, 0o666) // Windows会忽略权限位但能移除只读
+        await fs.promises.chmod(targetPath, 0o666) // Windows会忽略权限位但能移除只读
       } else {
-        const stats = await fs.stat(targetPath)
+        const stats = await fs.promises.stat(targetPath)
         const mode = stats.isDirectory() ? 0o777 : 0o666
-        await fs.chmod(targetPath, mode)
+        await fs.promises.chmod(targetPath, mode)
       }
 
       // 双重保险：使用文件属性命令（Windows专用）
@@ -88,7 +88,7 @@ class BackupManager {
     }
 
     try {
-      await fs.ensureDir(this.tempDir)
+      await fs.promises.mkdir(this.tempDir, { recursive: true })
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       // 使用流的方式写入 data.json
@@ -148,14 +148,14 @@ class BackupManager {
 
       // 首先计算总文件数和总大小
       const calculateTotals = async (dirPath: string) => {
-        const items = await fs.readdir(dirPath, { withFileTypes: true })
+        const items = await fs.promises.readdir(dirPath, { withFileTypes: true })
         for (const item of items) {
           const fullPath = path.join(dirPath, item.name)
           if (item.isDirectory()) {
             await calculateTotals(fullPath)
           } else {
             totalEntries++
-            const stats = await fs.stat(fullPath)
+            const stats = await fs.promises.stat(fullPath)
             totalBytes += stats.size
           }
         }
@@ -211,7 +211,7 @@ class BackupManager {
       })
 
       // 清理临时目录
-      await fs.remove(this.tempDir)
+      await fs.promises.rm(this.tempDir, { recursive: true })
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       Logger.log('[BackupManager] Backup completed successfully')
@@ -219,7 +219,7 @@ class BackupManager {
     } catch (error) {
       Logger.error('[BackupManager] Backup failed:', error)
       // 确保清理临时目录
-      await fs.remove(this.tempDir).catch(() => {})
+      await fs.promises.rm(this.tempDir, { recursive: true }).catch(() => {})
       throw error
     }
   }
@@ -234,7 +234,7 @@ class BackupManager {
 
     try {
       // 创建临时目录
-      await fs.ensureDir(this.tempDir)
+      await fs.promises.mkdir(this.tempDir, { recursive: true })
       onProgress({ stage: 'preparing', progress: 0, total: 100 })
 
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
@@ -247,7 +247,7 @@ class BackupManager {
       Logger.log('[backup] step 2: read data.json')
       // 读取 data.json
       const dataPath = path.join(this.tempDir, 'data.json')
-      const data = await fs.readFile(dataPath, 'utf-8')
+      const data = await fs.promises.readFile(dataPath, 'utf-8')
       onProgress({ stage: 'reading_data', progress: 35, total: 100 })
 
       Logger.log('[backup] step 3: restore Data directory')
@@ -255,8 +255,11 @@ class BackupManager {
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = path.join(app.getPath('userData'), 'Data')
 
-      const dataExists = await fs.pathExists(sourcePath)
-      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
+      const dataExists = await fs.promises
+        .access(sourcePath, fs.constants.F_OK)
+        .then(() => true)
+        .catch(() => false)
+      const dataFiles = dataExists ? await fs.promises.readdir(sourcePath) : []
 
       if (dataExists && dataFiles.length > 0) {
         // 获取源目录总大小
@@ -264,7 +267,7 @@ class BackupManager {
         let copiedSize = 0
 
         await this.setWritableRecursive(destPath)
-        await fs.remove(destPath)
+        await fs.promises.rm(destPath, { recursive: true })
 
         // 使用流式复制
         await this.copyDirWithProgress(sourcePath, destPath, (size) => {
@@ -279,7 +282,7 @@ class BackupManager {
       Logger.log('[backup] step 4: clean up temp directory')
       // 清理临时目录
       await this.setWritableRecursive(this.tempDir)
-      await fs.remove(this.tempDir)
+      await fs.promises.rm(this.tempDir, { recursive: true })
       onProgress({ stage: 'completed', progress: 100, total: 100 })
 
       Logger.log('[backup] step 5: Restore completed successfully')
@@ -287,7 +290,7 @@ class BackupManager {
       return data
     } catch (error) {
       Logger.error('[backup] Restore failed:', error)
-      await fs.remove(this.tempDir).catch(() => {})
+      await fs.promises.rm(this.tempDir, { recursive: true }).catch(() => {})
       throw error
     }
   }
@@ -301,11 +304,11 @@ class BackupManager {
         overwrite: true
       })
       // 上传成功后删除本地备份文件
-      await fs.remove(backupedFilePath)
+      await fs.promises.rm(backupedFilePath)
       return result
     } catch (error) {
       // 上传失败时也删除本地临时文件
-      await fs.remove(backupedFilePath).catch(() => {})
+      await fs.promises.rm(backupedFilePath).catch(() => {})
       throw error
     }
   }
@@ -364,14 +367,14 @@ class BackupManager {
 
   private async getDirSize(dirPath: string): Promise<number> {
     let size = 0
-    const items = await fs.readdir(dirPath, { withFileTypes: true })
+    const items = await fs.promises.readdir(dirPath, { withFileTypes: true })
 
     for (const item of items) {
       const fullPath = path.join(dirPath, item.name)
       if (item.isDirectory()) {
         size += await this.getDirSize(fullPath)
       } else {
-        const stats = await fs.stat(fullPath)
+        const stats = await fs.promises.stat(fullPath)
         size += stats.size
       }
     }
@@ -383,18 +386,18 @@ class BackupManager {
     destination: string,
     onProgress: (size: number) => void
   ): Promise<void> {
-    const items = await fs.readdir(source, { withFileTypes: true })
+    const items = await fs.promises.readdir(source, { withFileTypes: true })
 
     for (const item of items) {
       const sourcePath = path.join(source, item.name)
       const destPath = path.join(destination, item.name)
 
       if (item.isDirectory()) {
-        await fs.ensureDir(destPath)
+        await fs.promises.mkdir(destPath, { recursive: true })
         await this.copyDirWithProgress(sourcePath, destPath, onProgress)
       } else {
-        const stats = await fs.stat(sourcePath)
-        await fs.copy(sourcePath, destPath)
+        const stats = await fs.promises.stat(sourcePath)
+        await fs.promises.cp(sourcePath, destPath, { recursive: true })
         onProgress(stats.size)
       }
     }
