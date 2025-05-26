@@ -5,7 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import { DownloadPngIcon, DownloadSvgIcon } from '../Icons/DownloadIcons'
 import { TOOL_SPECS } from './constants'
-import { useCodeToolbar } from './context'
+import { useCodeTool } from './hook'
+import { CodeTool } from './types'
 
 // 预编译正则表达式用于查询位置
 const TRANSFORM_REGEX = /translate\((-?\d+\.?\d*)px,\s*(-?\d+\.?\d*)px\)/
@@ -272,6 +273,7 @@ export const usePreviewToolHandlers = (
 }
 
 export interface PreviewToolsOptions {
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
   handleZoom?: (delta: number) => void
   handleCopyImage?: () => Promise<void>
   handleDownload?: (format: 'svg' | 'png') => void
@@ -280,9 +282,9 @@ export interface PreviewToolsOptions {
 /**
  * 提供预览组件通用工具栏功能的自定义Hook
  */
-export const usePreviewTools = ({ handleZoom, handleCopyImage, handleDownload }: PreviewToolsOptions) => {
+export const usePreviewTools = ({ setTools, handleZoom, handleCopyImage, handleDownload }: PreviewToolsOptions) => {
   const { t } = useTranslation()
-  const { registerTool, removeTool } = useCodeToolbar()
+  const { registerTool, removeTool } = useCodeTool(setTools)
 
   useEffect(() => {
     // 根据提供的功能有选择性地注册工具

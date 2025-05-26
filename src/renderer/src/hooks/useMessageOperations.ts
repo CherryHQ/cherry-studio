@@ -23,6 +23,7 @@ import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import { throttle } from 'lodash'
 import { useCallback } from 'react'
 
 const selectMessagesState = (state: RootState) => state.messages
@@ -243,9 +244,13 @@ export function useMessageOperations(topic: Topic) {
         return null
       }
 
-      return (accumulatedText: string, isComplete: boolean = false) => {
-        dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
-      }
+      return throttle(
+        (accumulatedText: string, isComplete: boolean = false) => {
+          dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
+        },
+        200,
+        { leading: true, trailing: true }
+      )
     },
     [dispatch, topic.id]
   )

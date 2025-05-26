@@ -814,6 +814,7 @@
       "regenerate.confirm": "這將覆蓋已生成的圖片，是否繼續？",
       "seed": "隨機種子",
       "seed_tip": "相同的種子和提示詞可以生成相似的圖片",
+      "seed_desc_tip": "相同的種子和提示詞可以生成相似的圖片，設置 -1 每次生成都不一樣",
       "title": "繪圖",
       "magic_prompt_option": "提示詞增強",
       "model": "版本",
@@ -821,6 +822,7 @@
       "style_type": "風格",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
+      "paint_course":"教程",
       "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
@@ -886,7 +888,8 @@
         "seed_tip": "控制放大結果的隨機性",
         "magic_prompt_option_tip": "智能優化放大提示詞"
       },
-      "rendering_speed": "渲染速度"
+      "rendering_speed": "渲染速度",
+      "text_desc_required": "請先輸入圖片描述"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -1305,6 +1308,8 @@
         "stdio": "標準輸入/輸出 (stdio)",
         "inMemory": "記憶體",
         "config_description": "設定模型上下文協議伺服器",
+        "disable": "不使用 MCP 伺服器",
+        "disable.description": "不啟用 MCP 服務功能",
         "deleteError": "刪除伺服器失敗",
         "deleteSuccess": "伺服器刪除成功",
         "dependenciesInstall": "安裝相依套件",
@@ -1555,6 +1560,9 @@
           "open_verification_first": "請先點擊上方連結訪問驗證頁面",
           "rate_limit": "速率限制",
           "tooltip": "使用 Github Copilot 需要先登入 Github"
+        },
+        "dmxapi": {
+          "select_platform": "選擇平臺"
         },
         "delete.content": "確定要刪除此提供者嗎？",
         "delete.title": "刪除提供者",

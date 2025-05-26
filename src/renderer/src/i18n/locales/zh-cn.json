@@ -813,6 +813,7 @@
       "regenerate.confirm": "这将覆盖已生成的图片，是否继续？",
       "seed": "随机种子",
       "seed_tip": "相同的种子和提示词可以生成相似的图片",
+      "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
       "title": "图片",
       "magic_prompt_option": "提示词增强",
       "model": "版本",
@@ -820,6 +821,7 @@
       "style_type": "风格",
       "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
+      "paint_course":"教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
       "image_file_required": "请先上传图片",
@@ -885,7 +887,8 @@
         "number_images_tip": "生成的放大结果数量",
         "seed_tip": "控制放大结果的随机性",
         "magic_prompt_option_tip": "智能优化放大提示词"
-      }
+      },
+      "text_desc_required": "请先输入图片描述"
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",
@@ -1305,6 +1308,8 @@
         "stdio": "标准输入/输出 (stdio)",
         "inMemory": "内存",
         "config_description": "配置模型上下文协议服务器",
+        "disable": "不使用 MCP 服务器",
+        "disable.description": "不启用 MCP 服务功能",
         "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
         "dependenciesInstall": "安装依赖项",
@@ -1564,6 +1569,9 @@
           "open_verification_first": "请先点击上方链接访问验证页面",
           "rate_limit": "速率限制",
           "tooltip": "使用 Github Copilot 需要先登录 Github"
+        },
+        "dmxapi": {
+          "select_platform": "选择平台"
         },
         "delete.content": "确定要删除此模型提供商吗?",
         "delete.title": "删除提供商",

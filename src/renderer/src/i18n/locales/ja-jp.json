@@ -599,9 +599,8 @@
       "delete.confirm.content": "選択した{{count}}件のメッセージを削除しますか？",
       "delete.failed": "削除に失敗しました",
       "delete.success": "削除が成功しました",
-      "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",
-      "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
       "error.chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
+      "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
       "error.dimension_too_large": "内容のサイズが大きすぎます",
       "error.enter.api.host": "APIホストを入力してください",
       "error.enter.api.key": "APIキーを入力してください",
@@ -814,6 +813,7 @@
       "regenerate.confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？",
       "seed": "シード",
       "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
+      "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
       "title": "画像",
       "magic_prompt_option": "プロンプト強化",
       "model": "モデルバージョン",
@@ -821,6 +821,7 @@
       "style_type": "スタイル",
       "learn_more": "詳しくはこちら",
       "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
+      "paint_course":"チュートリアル",
       "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
@@ -886,7 +887,8 @@
         "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
       },
       "rendering_speed": "レンダリング速度",
-      "translating": "翻訳中..."
+      "translating": "翻訳中...",
+      "text_desc_required": "画像の説明を先に入力してください"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
@@ -1302,6 +1304,8 @@
         "stdio": "標準入力/出力 (stdio)",
         "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
+        "disable": "MCPサーバーを無効にする",
+        "disable.description": "MCP機能を有効にしない",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
         "dependenciesInstall": "依存関係をインストール",
@@ -1552,6 +1556,9 @@
           "open_verification_first": "上のリンクをクリックして、確認ページにアクセスしてください。",
           "rate_limit": "レート制限",
           "tooltip": "Github Copilot を使用するには、まず Github にログインする必要があります。"
+        },
+        "dmxapi": {
+          "select_platform": "プラットフォームを選択"
         },
         "delete.content": "このプロバイダーを削除してもよろしいですか？",
         "delete.title": "プロバイダーを削除",

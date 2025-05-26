@@ -254,7 +254,7 @@ export default class AnthropicProvider extends BaseProvider {
       }
     }
 
-    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
 
     if (isEnabledBuiltinWebSearch) {
       const webSearchTool = await this.getWebSearchParams(model)
@@ -322,7 +322,7 @@ export default class AnthropicProvider extends BaseProvider {
             reasoning_content,
             usage: message.usage as any,
             metrics: {
-              completion_tokens: message.usage.output_tokens,
+              completion_tokens: message.usage?.output_tokens || 0,
               time_completion_millsec,
               time_first_token_millsec: 0
             }
@@ -464,8 +464,8 @@ export default class AnthropicProvider extends BaseProvider {
               }
             }
 
-            finalUsage.prompt_tokens += message.usage.input_tokens
-            finalUsage.completion_tokens += message.usage.output_tokens
+            finalUsage.prompt_tokens += message.usage?.input_tokens || 0
+            finalUsage.completion_tokens += message.usage?.output_tokens || 0
             finalUsage.total_tokens += finalUsage.prompt_tokens + finalUsage.completion_tokens
             finalMetrics.completion_tokens = finalUsage.completion_tokens
             finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec

@@ -1445,6 +1445,16 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
