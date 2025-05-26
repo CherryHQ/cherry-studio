@@ -19,6 +19,8 @@
         "select_file": "选择文件",
         "button": "导入",
         "file_filter": "JSON 文件",
+        "format": "导入格式为json格式。",
+        "format.link": "打开我们的文档查看更多",
         "error": {
           "url_required": "请输入 URL",
           "fetch_failed": "从 URL 获取数据失败",

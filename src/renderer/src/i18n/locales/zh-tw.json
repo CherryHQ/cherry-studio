@@ -19,6 +19,8 @@
         "select_file": "選擇檔案",
         "button": "導入",
         "file_filter": "JSON 檔案",
+        "format": "導入格式為JSON格式。",
+        "format.link": "打開我們的文檔查看更多",
         "error": {
           "url_required": "請輸入 URL",
           "fetch_failed": "從 URL 獲取資料失敗",

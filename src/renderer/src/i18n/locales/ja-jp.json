@@ -19,6 +19,8 @@
         "select_file": "ファイルを選択",
         "button": "インポート",
         "file_filter": "JSONファイル",
+        "format": "インポート形式はJSONです。",
+        "format.link": "詳細については、ドキュメントをご覧ください",
         "error": {
           "url_required": "URLを入力してください",
           "fetch_failed": "URLからのデータ取得に失敗しました",
