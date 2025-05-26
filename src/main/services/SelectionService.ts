@@ -817,8 +817,6 @@ export class SelectionService {
   }
 
   public processAction(actionItem: ActionItem): void {
-    console.log('processAction', this.preloadedActionWindows.length, this.actionWindows.size)
-
     const actionWindow = this.popActionWindow()
 
     actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
@@ -977,7 +975,7 @@ export class SelectionService {
   }
 
   private logInfo(message: string) {
-    isDev && console.log('[SelectionService] Info: ', message)
+    isDev && Logger.info('[SelectionService] Info: ', message)
   }
 
   private logError(...args: [...string[], Error]) {
