@@ -3,6 +3,8 @@ import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import React from 'react'
 
+export * from './file'
+import type { FileType } from './file'
 import type { Message } from './newMessage'
 
 export type Assistant = {
@@ -161,7 +163,7 @@ export type Provider = {
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai' | 'mistral'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
@@ -279,28 +281,6 @@ export type MinAppType = {
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
-export interface FileType {
-  id: string
-  name: string
-  origin_name: string
-  path: string
-  size: number
-  ext: string
-  type: FileTypes
-  created_at: string
-  count: number
-  tokens?: number
-}
-
-export enum FileTypes {
-  IMAGE = 'image',
-  VIDEO = 'video',
-  AUDIO = 'audio',
-  TEXT = 'text',
-  DOCUMENT = 'document',
-  OTHER = 'other'
-}
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -388,6 +368,8 @@ export interface KnowledgeBase {
   threshold?: number
   rerankModel?: Model
   // topN?: number
+  preprocessing?: boolean
+  ocrProvider?: OcrProvider
 }
 
 export type KnowledgeBaseParams = {
@@ -404,6 +386,17 @@ export type KnowledgeBaseParams = {
   rerankModel?: string
   rerankModelProvider?: string
   documentCount?: number
+  preprocessing?: boolean
+  ocrProvider?: OcrProvider
+}
+
+export interface OcrProvider {
+  id: string
+  name: string
+  apiKey?: string
+  apiHost?: string
+  model?: string
+  options?: any
 }
 
 export type GenerateImageParams = {

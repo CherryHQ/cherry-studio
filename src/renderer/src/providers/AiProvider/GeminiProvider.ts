@@ -38,6 +38,7 @@ import {
   EFFORT_RATIO,
   FileType,
   FileTypes,
+  FileUploadResponse,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
@@ -91,17 +92,18 @@ export default class GeminiProvider extends BaseProvider {
     const isSmallFile = file.size < smallFileSize
 
     if (isSmallFile) {
-      const { data, mimeType } = await window.api.gemini.base64File(file)
+      const { data, mime } = await window.api.file.base64File(file.path)
       return {
         inlineData: {
           data,
-          mimeType
+          mime
         } as Part['inlineData']
       }
     }
 
     // Retrieve file from Gemini uploaded files
-    const fileMetadata: File | undefined = await window.api.gemini.retrieveFile(file, this.apiKey)
+    const response: FileUploadResponse = await window.api.fileService.retrieve(this.provider.type, this.apiKey, file.id)
+    const fileMetadata = response.originalFile as File
 
     if (fileMetadata) {
       return {
@@ -113,10 +115,7 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     // If file is not found, upload it to Gemini
-    const result = await window.api.gemini.uploadFile(file, {
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL()
-    })
+    const result = (await window.api.fileService.upload(this.provider.type, this.apiKey, file)).originalFile as File
 
     return {
       fileData: {

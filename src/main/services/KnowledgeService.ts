@@ -23,6 +23,7 @@ import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import Embeddings from '@main/embeddings/Embeddings'
 import { addFileLoader } from '@main/loader'
+import OcrProvider from '@main/ocr/OcrProvider'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getAllFiles } from '@main/utils/file'
@@ -141,6 +142,7 @@ class KnowledgeService {
   }
 
   public delete = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<void> => {
+    console.log('id', id)
     const dbPath = path.join(this.storageDir, id)
     if (fs.existsSync(dbPath)) {
       fs.rmSync(dbPath, { recursive: true })
@@ -153,20 +155,24 @@ class KnowledgeService {
       this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
     )
   }
-
   private fileTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, forceReload } = options
     const file = item.content as FileType
+    file.source = 'local'
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            addFileLoader(ragApplication, file, base, forceReload)
+          task: async () => {
+            // 添加OCR预处理逻辑
+            const fileToProcess: FileType = await this.preprocessing(file, base, item)
+
+            // 使用处理后的文件进行加载
+            return addFileLoader(ragApplication, fileToProcess, base, forceReload)
               .then((result) => {
                 loaderTask.loaderDoneReturn = result
                 return result
@@ -174,7 +180,8 @@ class KnowledgeService {
               .catch((err) => {
                 Logger.error(err)
                 return KnowledgeService.ERROR_LOADER_RETURN
-              }),
+              })
+          },
           evaluateTaskWorkload: { workload: file.size }
         }
       ],
@@ -183,7 +190,6 @@ class KnowledgeService {
 
     return loaderTask
   }
-
   private directoryTask(
     ragApplication: RAGApplication,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
@@ -415,7 +421,7 @@ class KnowledgeService {
     })
   }
 
-  public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
+  public add = async (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
     return new Promise((resolve) => {
       const { base, item, forceReload = false } = options
       const optionsNonNullableAttribute = { base, item, forceReload }
@@ -481,6 +487,27 @@ class KnowledgeService {
       return results
     }
     return await new Reranker(base).rerank(search, results)
+  }
+
+  public getStorageDir = (): string => {
+    return this.storageDir
+  }
+
+  private preprocessing = async (file: FileType, base: KnowledgeBaseParams, item: KnowledgeItem): Promise<FileType> => {
+    let fileToProcess: FileType = file
+    if (base.preprocessing && base.ocrProvider && file.ext.toLowerCase() === '.pdf') {
+      try {
+        const ocrProvider = new OcrProvider(base.ocrProvider)
+        Logger.info(`Starting OCR processing for file: ${file.path}`)
+        const { processedFile } = await ocrProvider.parseFile(item.id, file)
+        fileToProcess = processedFile
+      } catch (err) {
+        Logger.error(`OCR processing failed: ${err}`)
+        // 如果OCR失败，使用原始文件
+        fileToProcess = file
+      }
+    }
+    return fileToProcess
   }
 }
 

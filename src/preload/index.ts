@@ -63,6 +63,7 @@ const api = {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
     upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
+    deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
     read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
     clear: () => ipcRenderer.invoke(IpcChannel.File_Clear),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
@@ -75,10 +76,11 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
     selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
-    base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
-    download: (url: string, isUseContentType?: boolean) => ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
-    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
+    base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
+    download: (url: string, isUseContentType?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
+    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
     base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file)
   },
@@ -117,13 +119,17 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize)
   },
-  gemini: {
-    uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>
-      ipcRenderer.invoke(IpcChannel.Gemini_UploadFile, file, { apiKey, baseURL }),
-    base64File: (file: FileType) => ipcRenderer.invoke(IpcChannel.Gemini_Base64File, file),
-    retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
-    listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
-    deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
+  fileService: {
+    upload: (type: string, apiKey: string, file: FileType) =>
+      ipcRenderer.invoke(IpcChannel.FileService_Upload, type, apiKey, file),
+    list: (type: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.FileService_List, type, apiKey),
+    delete: (type: string, apiKey: string, fileId: string) =>
+      ipcRenderer.invoke(IpcChannel.FileService_Delete, type, apiKey, fileId),
+    retrieve: (type: string, apiKey: string, fileId: string) =>
+      ipcRenderer.invoke(IpcChannel.FileService_Retrieve, type, apiKey, fileId)
+  },
+  selectionMenu: {
+    action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)
   },
   config: {
     set: (key: string, value: any) => ipcRenderer.invoke(IpcChannel.Config_Set, key, value),

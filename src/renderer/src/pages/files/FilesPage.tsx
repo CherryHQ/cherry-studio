@@ -2,6 +2,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   ExclamationCircleOutlined,
+  FilePdfOutlined,
   SortAscendingOutlined,
   SortDescendingOutlined
 } from '@ant-design/icons'
@@ -10,6 +11,7 @@ import ListItem from '@renderer/components/ListItem'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
+import { useProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
@@ -33,7 +35,8 @@ const FilesPage: FC = () => {
   const [fileType, setFileType] = useState<string>('document')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-
+  const { providers } = useProviders()
+  const mistralProviders = providers.filter((provider) => provider.type === 'mistral')
   const tempFilesSort = (files: FileType[]) => {
     return files.sort((a, b) => {
       const aIsTemp = a.origin_name.startsWith('temp_file')
@@ -202,6 +205,11 @@ const FilesPage: FC = () => {
     { key: FileTypes.DOCUMENT, label: t('files.document'), icon: <FileIcon size={16} /> },
     { key: FileTypes.IMAGE, label: t('files.image'), icon: <FileImage size={16} /> },
     { key: FileTypes.TEXT, label: t('files.text'), icon: <FileTypeIcon size={16} /> },
+    ...mistralProviders.map((provider) => ({
+      key: 'mistral_' + provider.id,
+      label: provider.name,
+      icon: <FilePdfOutlined />
+    })),
     { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
   ]
 

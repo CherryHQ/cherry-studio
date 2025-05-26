@@ -16,7 +16,7 @@ import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'a
 import dayjs from 'dayjs'
 import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -24,7 +24,7 @@ import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
 import { NavbarIcon } from '../home/Navbar'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import KnowledgeSettings from './components/KnowledgeSettings'
 import StatusIcon from './components/StatusIcon'
 
 const { Dragger } = Upload
@@ -38,6 +38,25 @@ const fileTypes = [...bookExts, ...thirdPartyApplicationExts, ...documentExts, .
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
   const [expandAll, setExpandAll] = useState(false)
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
+
+  useEffect(() => {
+    const handlers = [
+      window.electron.ipcRenderer.on('file-ocr-progress', (_, { itemId, progress }) => {
+        console.log('[Progress] File OCR:', itemId, progress)
+        setProgressMap((prev) => new Map(prev).set(itemId, progress))
+      }),
+
+      window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
+        console.log('[Progress] Directory:', itemId, percent)
+        setProgressMap((prev) => new Map(prev).set(itemId, percent))
+      })
+    ]
+
+    return () => {
+      handlers.forEach((cleanup) => cleanup())
+    }
+  }, [])
 
   const {
     base,
@@ -53,7 +72,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     addSitemap,
     removeItem,
     getProcessingStatus,
-    getDirectoryProcessingPercent,
     addNote,
     addDirectory,
     updateItem
@@ -65,8 +83,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   if (!base) {
     return null
   }
-
-  const getProgressingPercentForItem = (itemId: string) => getDirectoryProcessingPercent(itemId)
 
   const handleAddFile = () => {
     if (disabled) {
@@ -99,7 +115,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           count: 1,
           origin_name: file.name,
           type: file.type as FileTypes,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          source: 'local' as const
         }))
         .filter(({ ext }) => fileTypes.includes(ext))
       const uploadedFiles = await FileManager.uploadFiles(_files)
@@ -231,7 +248,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <Button
             type="text"
             icon={<Settings2 size={18} color="var(--color-icon)" />}
-            onClick={() => KnowledgeSettingsPopup.show({ base })}
+            onClick={() => KnowledgeSettings.show({ base })}
             size="small"
           />
           <div className="model-row">
@@ -347,6 +364,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                                   base={base}
                                   getProcessingStatus={getProcessingStatus}
                                   type="file"
+                                  progress={progressMap.get(item.id)}
                                 />
                               </StatusIconWrapper>
                               <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
@@ -401,7 +419,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           sourceId={item.id}
                           base={base}
                           getProcessingStatus={getProcessingStatus}
-                          getProcessingPercent={getProgressingPercentForItem}
                           type="directory"
                         />
                       </StatusIconWrapper>
