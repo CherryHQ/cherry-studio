@@ -121,14 +121,6 @@ export const builtinMCPServers: MCPServer[] = [
       DIFY_KEY: 'YOUR_DIFY_KEY'
     },
     provider: 'CherryAI'
-  },
-  {
-    id: nanoid(),
-    name: '@cherry/mcp-run-python',
-    type: 'inMemory',
-    description: 'Model Context Protocol server to run Python code in a sandbox.',
-    isActive: false,
-    provider: 'CherryAI'
   }
 ]
 

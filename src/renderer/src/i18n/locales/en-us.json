@@ -396,6 +396,7 @@
       "search": "Search",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
+      "success": "Success",
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
@@ -680,6 +681,8 @@
     "minapp": {
       "popup": {
         "refresh": "Refresh",
+        "goBack": "Go Back",
+        "goForward": "Go Forward",
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
@@ -780,6 +783,11 @@
       "hide_sidebar": "Hide Sidebar",
       "show_sidebar": "Show Sidebar"
     },
+    "notification": {
+      "assistant": "Assistant Response",
+      "knowledge.success": "Successfully added {{type}} to the knowledge base",
+      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
+    },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
       "keep_alive_time.placeholder": "Minutes",
@@ -805,6 +813,7 @@
       "regenerate.confirm": "This will replace your existing generated images. Do you want to continue?",
       "seed": "Seed",
       "seed_tip": "The same seed and prompt can produce similar images",
+      "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
       "title": "Images",
       "magic_prompt_option": "Magic Prompt",
       "model": "Model Version",
@@ -812,6 +821,7 @@
       "style_type": "Style",
       "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
+      "paint_course":"tutorial",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
       "image_file_required": "Please upload an image first",
@@ -877,7 +887,8 @@
         "number_images_tip": "Number of upscaled results to generate",
         "seed_tip": "Controls upscaling randomness",
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
-      }
+      },
+      "text_desc_required": "Please enter image description first"
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -931,7 +942,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -1306,11 +1318,14 @@
         "stdio": "Standard Input/Output (stdio)",
         "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
+        "disable": "Disable MCP Server",
+        "disable.description": "Do not enable MCP server functionality",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",
         "dependenciesInstalling": "Installing dependencies...",
         "description": "Description",
+        "noDescriptionAvailable": "No description available",
         "duplicateName": "A server with this name already exists",
         "editJson": "Edit JSON",
         "editServer": "Edit Server",
@@ -1504,6 +1519,12 @@
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
       "moresetting.warn": "Risk Warning",
+      "notification": {
+        "title": "Notification Settings",
+        "assistant": "Assistant Message",
+        "backup": "Backup Message",
+        "knowledge_embed": "KnowledgeBase Message"
+      },
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -1558,6 +1579,9 @@
           "open_verification_first": "Please click the link above to access the verification page.",
           "rate_limit": "Rate limiting",
           "tooltip": "You need to log in to Github before using Github Copilot"
+        },
+        "dmxapi": {
+          "select_platform": "Select the platform"
         },
         "delete.content": "Are you sure you want to delete this provider?",
         "delete.title": "Delete Provider",
@@ -1632,6 +1656,7 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
+      "topic.pin_to_top": "Pin Topics to Top",
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",

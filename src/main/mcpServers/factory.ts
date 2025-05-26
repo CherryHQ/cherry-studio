@@ -5,7 +5,6 @@ import BraveSearchServer from './brave-search'
 import DifyKnowledgeServer from './dify-knowledge'
 import FetchServer from './fetch'
 import FileSystemServer from './filesystem'
-import createRunPythonServer from './mcp-run-python/main'
 import MemoryServer from './memory'
 import ThinkingServer from './sequentialthinking'
 
@@ -31,9 +30,6 @@ export function createInMemoryMCPServer(name: string, args: string[] = [], envs:
     case '@cherry/dify-knowledge': {
       const difyKey = envs.DIFY_KEY
       return new DifyKnowledgeServer(difyKey, args).server
-    }
-    case '@cherry/mcp-run-python': {
-      return createRunPythonServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

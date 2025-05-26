@@ -45,6 +45,9 @@ win:
   target:
     - target: nsis
     - target: portable
+  signtoolOptions:
+    sign: scripts/win-sign.js
+  verifyUpdateCodeSignature: false
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
@@ -92,14 +95,13 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ⚠️ 注意：升级前请备份数据，否则将无法降级
-    Electron 版本升级到 35
-    快捷助手支持自定义模型
-    新增 BurnCloud 模型提供商
-    消息编辑功能改进
-    新增 aihubmix-ideogram-v3 模型支持
-    通过 JSON 快速添加 MCP 服务器
-    新增浮动侧边栏方便小窗口快速切换助手和对话
-    优化粘贴逻辑处理
-    新增 OpenAI 设置和提示
-    增加消息快捷搜索功能
-    常规错误修复和功能优化
+    增加 TokenFlux 服务商
+    增加 Claude 4 模型支持
+    Grok 模型增加联网能力
+    小程序支持前进和后退
+    修复 Windows 用户 MCP 无法启动问题
+    修复无法搜索历史消息问题
+    修复 MCP 代理问题
+    修复精简备份恢复覆盖文件问题
+    修复@模型回复插入位置错误问题
+    修复搜索小程序崩溃问题

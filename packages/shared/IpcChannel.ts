@@ -24,6 +24,9 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  Notification_Send = 'notification:send',
+  Notification_OnClick = 'notification:on-click',
+
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
 
   // Open
@@ -173,5 +176,8 @@ export enum IpcChannel {
   StoreSync_Subscribe = 'store-sync:subscribe',
   StoreSync_Unsubscribe = 'store-sync:unsubscribe',
   StoreSync_OnUpdate = 'store-sync:on-update',
-  StoreSync_BroadcastSync = 'store-sync:broadcast-sync'
+  StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
+
+  // Provider
+  Provider_AddKey = 'provider:add-key'
 }

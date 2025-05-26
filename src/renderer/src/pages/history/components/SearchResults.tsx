@@ -2,11 +2,10 @@ import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { List, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 const { Text, Title } = Typography
@@ -29,12 +28,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
 
   const topics = useLiveQuery(() => db.topics.toArray(), [])
 
-  const messages = useMemo(
-    () => (topics || [])?.map((topic) => topic.messages.filter((message) => message.role !== 'user')).flat(),
-    [topics]
-  )
-
-  const [searchResults, setSearchResults] = useState<{ message: Message; topic: Topic }[]>([])
+  const [searchResults, setSearchResults] = useState<{ message: Message; topic: Topic; content: string }[]>([])
   const [searchStats, setSearchStats] = useState({ count: 0, time: 0 })
 
   const removeMarkdown = (text: string) => {
@@ -58,17 +52,23 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     }
 
     const startTime = performance.now()
-    const results: { message: Message; topic: Topic }[] = []
+    const results: { message: Message; topic: Topic; content: string }[] = []
     const newSearchTerms = keywords
       .toLowerCase()
       .split(' ')
       .filter((term) => term.length > 0)
 
-    for (const message of messages) {
-      const content = getMainTextContent(message)
-      const cleanContent = removeMarkdown(content.toLowerCase())
-      if (newSearchTerms.every((term) => cleanContent.includes(term))) {
-        results.push({ message, topic: await getTopicById(message.topicId)! })
+    const blocksArray = await db.message_blocks.toArray()
+    const blocks = blocksArray
+      .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
+      .filter((block) => newSearchTerms.some((term) => block.content.toLowerCase().includes(term)))
+
+    const messages = topics?.map((topic) => topic.messages).flat()
+
+    for (const block of blocks) {
+      const message = messages?.find((message) => message.id === block.messageId)
+      if (message) {
+        results.push({ message, topic: await getTopicById(message.topicId)!, content: block.content })
       }
     }
 
@@ -79,7 +79,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       time: (endTime - startTime) / 1000
     })
     setSearchTerms(newSearchTerms)
-  }, [messages, keywords])
+  }, [keywords, topics])
 
   const highlightText = (text: string) => {
     let highlightedText = removeMarkdown(text)
@@ -115,7 +115,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
               setTimeout(() => containerRef.current?.scrollTo({ top: 0 }), 0)
             }
           }}
-          renderItem={({ message, topic }) => (
+          renderItem={({ message, topic, content }) => (
             <List.Item>
               <Title
                 level={5}
@@ -127,7 +127,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
                 {topic.name}
               </Title>
               <div style={{ cursor: 'pointer' }} onClick={() => onMessageClick(message)}>
-                <Text>{highlightText(getMainTextContent(message))}</Text>
+                <Text>{highlightText(content)}</Text>
               </div>
               <SearchResultTime>
                 <Text type="secondary">{new Date(message.createdAt).toLocaleString()}</Text>

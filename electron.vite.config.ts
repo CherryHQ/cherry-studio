@@ -83,23 +83,6 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
           miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html')
-        },
-        output: {
-          manualChunks: (id: string) => {
-            // 检测所有 worker 文件，提取 worker 名称作为 chunk 名
-            if (id.includes('.worker') && id.endsWith('?worker')) {
-              const workerName = id.split('/').pop()?.split('.')[0] || 'worker'
-              return `workers/${workerName}`
-            }
-
-            // All node_modules are in the vendor chunk
-            if (id.includes('node_modules')) {
-              return 'vendor'
-            }
-
-            // Other modules use default chunk splitting strategy
-            return undefined
-          }
         }
       }
     }

@@ -1,13 +1,19 @@
-import { CloseOutlined, CopyOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons'
-import { useChatContext } from '@renderer/pages/home/Messages/ChatContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
+import { Topic } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
+import { Copy, Save, Trash, X } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const MultiSelectActionPopup: FC = () => {
+interface Props {
+  topic: Topic
+}
+
+const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
   const { t } = useTranslation()
-  const { toggleMultiSelectMode, selectedMessageIds, isMultiSelectMode, handleMultiSelectAction } = useChatContext()
+  const { toggleMultiSelectMode, selectedMessageIds, isMultiSelectMode, handleMultiSelectAction } =
+    useChatContext(topic)
 
   const handleAction = (action: string) => {
     handleMultiSelectAction(action, selectedMessageIds)
@@ -29,17 +35,17 @@ const MultiSelectActionPopup: FC = () => {
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
           <Tooltip title={t('common.save')}>
-            <ActionButton icon={<SaveOutlined />} disabled={isActionDisabled} onClick={() => handleAction('save')} />
+            <ActionButton icon={<Save size={16} />} disabled={isActionDisabled} onClick={() => handleAction('save')} />
           </Tooltip>
           <Tooltip title={t('common.copy')}>
-            <ActionButton icon={<CopyOutlined />} disabled={isActionDisabled} onClick={() => handleAction('copy')} />
+            <ActionButton icon={<Copy size={16} />} disabled={isActionDisabled} onClick={() => handleAction('copy')} />
           </Tooltip>
           <Tooltip title={t('common.delete')}>
-            <ActionButton danger icon={<DeleteOutlined />} onClick={() => handleAction('delete')} />
+            <ActionButton danger icon={<Trash size={16} />} onClick={() => handleAction('delete')} />
           </Tooltip>
         </ActionButtons>
         <Tooltip title={t('chat.navigation.close')}>
-          <ActionButton icon={<CloseOutlined />} onClick={handleClose} />
+          <ActionButton icon={<X size={16} />} onClick={handleClose} />
         </Tooltip>
       </ActionBar>
     </Container>
@@ -47,14 +53,10 @@ const MultiSelectActionPopup: FC = () => {
 }
 
 const Container = styled.div`
-  position: absolute;
-  bottom: 0;
-  left: 0;
   width: 100%;
   padding: 36px 20px;
   background-color: var(--color-background);
   border-top: 1px solid var(--color-border);
-  z-index: 10;
 `
 
 const ActionBar = styled.div`
@@ -73,7 +75,7 @@ const ActionButton = styled(Button)`
   align-items: center;
   justify-content: center;
   padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 50%;
   .anticon {
     font-size: 16px;
   }

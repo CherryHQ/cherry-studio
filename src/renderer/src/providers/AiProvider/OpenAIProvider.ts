@@ -15,6 +15,7 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
+  isWebSearchModel,
   isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -324,7 +325,9 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          budget_tokens: Math.floor(
+            Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          )
         }
       }
     }
@@ -369,7 +372,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const model = assistant.model || defaultModel
 
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBultinWebSearch = assistant.enableWebSearch
+    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
     messages = addImageFileToContents(messages)
     const enableReasoning =
       ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
@@ -548,12 +551,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         // Separate onChunk calls for text and usage/metrics
         let content = ''
         stream.choices.forEach((choice) => {
+          const reasoning = choice.message.reasoning || choice.message.reasoning_content
           // reasoning
-          if (choice.message.reasoning) {
-            onChunk({ type: ChunkType.THINKING_DELTA, text: choice.message.reasoning })
+          if (reasoning) {
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: reasoning
+            })
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
-              text: choice.message.reasoning,
+              text: reasoning,
               thinking_millsec: new Date().getTime() - start_time_millsec
             })
           }
@@ -770,6 +777,18 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                     source: WebSearchSource.OPENAI_RESPONSE
                   }
                 } as LLMWebSearchCompleteChunk)
+              }
+              if (assistant.model?.provider === 'grok') {
+                const citations = originalFinishRawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.GROK
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
               }
               if (assistant.model?.provider === 'perplexity') {
                 const citations = originalFinishRawChunk.citations
