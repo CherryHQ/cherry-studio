@@ -46,7 +46,8 @@ export function initAppDataDir() {
   }
 
   if (isPortable) {
-    app.setPath('userData', path.join(path.dirname(app.getPath('exe')), 'data'))
+    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
+    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
     return
   }
 }
