@@ -95,7 +95,7 @@ const ActionIcons: FC<{
  * demo is used in the settings page
  */
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
-  const { language } = useSettings()
+  const { language, customCss } = useSettings()
   const { isCompact, actionItems } = useSelectionAssistant()
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
@@ -149,6 +149,20 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
+
+  useEffect(() => {
+    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
+    if (customCssElement) {
+      customCssElement.remove()
+    }
+
+    if (customCss) {
+      customCssElement = document.createElement('style')
+      customCssElement.id = 'user-defined-custom-css'
+      customCssElement.textContent = customCss
+      document.head.appendChild(customCssElement)
+    }
+  }, [customCss])
 
   const onHideCleanUp = () => {
     setCopyIconStatus('normal')
