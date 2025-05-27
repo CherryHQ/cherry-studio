@@ -14,6 +14,7 @@ export enum IpcChannel {
   App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
+  App_SetFeedUrl = 'app:set-feed-url',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
 
   App_IsBinaryExist = 'app:is-binary-exist',
