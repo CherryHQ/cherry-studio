@@ -246,7 +246,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
    * @param model - The model
    * @returns The message parameter
    */
-  protected async getMessageParam(
+  public async getMessageParam(
     message: Message,
     model: Model
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {

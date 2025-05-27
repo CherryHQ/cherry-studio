@@ -3,7 +3,6 @@ import {
   findTokenLimit,
   getOpenAIWebSearchParams,
   isClaudeReasoningModel,
-  isHunyuanSearchModel,
   isOpenAIReasoningModel,
   isReasoningModel,
   isSupportedModel,
@@ -14,21 +13,11 @@ import {
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
-  isVisionModel,
-  isWebSearchModel,
-  isZhipuModel
+  isVisionModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { extractReasoningMiddleware } from '@renderer/middlewares/extractReasoningMiddleware'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
-import { EVENT_NAMES } from '@renderer/services/EventService'
-import {
-  filterContextMessages,
-  filterEmptyMessages,
-  filterUserRoleStartMessages
-} from '@renderer/services/MessagesService'
-import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
@@ -37,46 +26,25 @@ import {
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
-  Metrics,
   Model,
   Provider,
-  Suggestion,
-  ToolCallResponse,
-  Usage,
-  WebSearchSource
+  Suggestion
 } from '@renderer/types'
-import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { addImageFileToContents } from '@renderer/utils/formats'
-import {
-  convertLinks,
-  convertLinksToHunyuan,
-  convertLinksToOpenRouter,
-  convertLinksToZhipu
-} from '@renderer/utils/linkConverter'
-import {
-  isEnabledToolUse,
-  mcpToolCallResponseToOpenAICompatibleMessage,
-  mcpToolsToOpenAIChatTools,
-  openAIToolsToMcpTool,
-  parseAndCallTools
-} from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToOpenAICompatibleMessage, mcpToolsToOpenAIChatTools } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { asyncGeneratorToReadableStream, readableStreamAsyncIterable } from '@renderer/utils/stream'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionMessageParam,
-  ChatCompletionMessageToolCall,
-  ChatCompletionTool,
   ChatCompletionToolMessageParam
 } from 'openai/resources'
 
-import { CompletionsParams } from '.'
+import { CompletionsOpenAIResult, CompletionsParams } from '.'
 import { BaseOpenAIProvider } from './OpenAIResponseProvider'
 
 // 1. 定义联合类型
@@ -363,548 +331,555 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
    * @param onFilterMessages - The onFilterMessages callback
    * @returns The completions
    */
-  async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams): Promise<void> {
-    if (assistant.enableGenerateImage) {
-      await this.generateImageByChat({ messages, assistant, onChunk } as CompletionsParams)
-      return
-    }
-    const defaultModel = getDefaultModel()
-    const model = assistant.model || defaultModel
+  async completions({ assistant, onChunk, _internal }: CompletionsParams): Promise<CompletionsOpenAIResult> {
+    // TODO: 图片生成
+    // if (assistant.enableGenerateImage) {
+    //   await this.generateImageByChat({ messages, assistant, onChunk } as CompletionsParams)
+    //   return
+    // }
+    // const defaultModel = getDefaultModel()
+    // const model = assistant.model || defaultModel
 
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
-    messages = addImageFileToContents(messages)
-    const enableReasoning =
-      ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-        assistant.settings?.reasoning_effort !== undefined) ||
-      (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-    let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
-      systemMessage = {
-        role: 'developer',
-        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
-      }
-    }
-    if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
-      systemMessage = {
-        role: 'assistant',
-        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
-      }
-    }
-    const { tools } = this.setupToolsConfig<ChatCompletionTool>({
-      mcpTools,
-      model,
-      enableToolUse: isEnabledToolUse(assistant)
-    })
+    // const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    // const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
+    // messages = addImageFileToContents(messages)
+    // const enableReasoning =
+    //   ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+    //     assistant.settings?.reasoning_effort !== undefined) ||
+    //   (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+    // let systemMessage = { role: 'system', content: assistant.prompt || '' }
+    // if (isSupportedReasoningEffortOpenAIModel(model)) {
+    //   systemMessage = {
+    //     role: 'developer',
+    //     content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+    //   }
+    // }
+    // if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+    //   systemMessage = {
+    //     role: 'assistant',
+    //     content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+    //   }
+    // }
 
-    if (this.useSystemPromptForTools) {
-      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
-    }
+    // if (this.useSystemPromptForTools) {
+    //   systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+    // }
 
-    const userMessages: ChatCompletionMessageParam[] = []
-    const _messages = filterUserRoleStartMessages(
-      filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
-    )
+    // const userMessages: ChatCompletionMessageParam[] = []
+    // const _messages = filterUserRoleStartMessages(
+    //   filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
+    // )
 
-    onFilterMessages(_messages)
+    // onFilterMessages(_messages)
 
-    for (const message of _messages) {
-      userMessages.push(await this.getMessageParam(message, model))
-    }
+    // for (const message of _messages) {
+    //   userMessages.push(await this.getMessageParam(message, model))
+    // }
 
-    const isSupportStreamOutput = () => {
-      return streamOutput
-    }
+    // const isSupportStreamOutput = () => {
+    //   return streamOutput
+    // }
 
-    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
-    const { signal } = abortController
-    await this.checkIsCopilot()
+    // const lastUserMessage = _messages.findLast((m) => m.role === 'user')
+    // const { abortController } = this.createAbortController(lastUserMessage?.id)
+    // const { signal } = abortController
+    // await this.checkIsCopilot()
 
-    const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-    if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
-      const postsuffix = '/no_think'
-      // qwenThinkMode === true 表示思考模式啓用，此時不應添加 /no_think，如果存在則移除
-      const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
-      const currentContent = lastUserMsg.content // content 類型：string | ChatCompletionContentPart[] | null
+    // const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+    // if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
+    //   const postsuffix = '/no_think'
+    //   // qwenThinkMode === true 表示思考模式啓用，此時不應添加 /no_think，如果存在則移除
+    //   const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+    //   const currentContent = lastUserMsg.content // content 類型：string | ChatCompletionContentPart[] | null
 
-      lastUserMsg.content = processPostsuffixQwen3Model(
-        currentContent,
-        postsuffix,
-        qwenThinkModeEnabled
-      ) as ChatCompletionContentPart[]
-    }
+    //   lastUserMsg.content = processPostsuffixQwen3Model(
+    //     currentContent,
+    //     postsuffix,
+    //     qwenThinkModeEnabled
+    //   ) as ChatCompletionContentPart[]
+    // }
 
-    //当 systemMessage 内容为空时不发送 systemMessage
-    let reqMessages: ChatCompletionMessageParam[]
-    if (!systemMessage.content) {
-      reqMessages = [...userMessages]
-    } else {
-      reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
-    }
+    // //当 systemMessage 内容为空时不发送 systemMessage
+    // let reqMessages: ChatCompletionMessageParam[]
+    // if (!systemMessage.content) {
+    //   reqMessages = [...userMessages]
+    // } else {
+    //   reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+    // }
 
-    let finalUsage: Usage = {
-      completion_tokens: 0,
-      prompt_tokens: 0,
-      total_tokens: 0
-    }
+    // let finalUsage: Usage = {
+    //   completion_tokens: 0,
+    //   prompt_tokens: 0,
+    //   total_tokens: 0
+    // }
 
-    const finalMetrics: Metrics = {
-      completion_tokens: 0,
-      time_completion_millsec: 0,
-      time_first_token_millsec: 0
-    }
+    // const finalMetrics: Metrics = {
+    //   completion_tokens: 0,
+    //   time_completion_millsec: 0,
+    //   time_first_token_millsec: 0
+    // }
 
-    const toolResponses: MCPToolResponse[] = []
+    // const toolResponses: MCPToolResponse[] = []
 
-    const processToolResults = async (toolResults: Awaited<ReturnType<typeof parseAndCallTools>>, idx: number) => {
-      if (toolResults.length === 0) return
+    // const processToolResults = async (toolResults: Awaited<ReturnType<typeof parseAndCallTools>>, idx: number) => {
+    //   if (toolResults.length === 0) return
 
-      toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
+    //   toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
 
-      console.debug('[tool] reqMessages before processing', model.id, reqMessages)
-      reqMessages = processReqMessages(model, reqMessages)
-      console.debug('[tool] reqMessages', model.id, reqMessages)
+    //   console.debug('[tool] reqMessages before processing', model.id, reqMessages)
+    //   reqMessages = processReqMessages(model, reqMessages)
+    //   console.debug('[tool] reqMessages', model.id, reqMessages)
 
-      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-      const newStream = await this.sdk.chat.completions
-        // @ts-ignore key is not typed
-        .create(
-          {
-            model: model.id,
-            messages: reqMessages,
-            temperature: this.getTemperature(assistant, model),
-            top_p: this.getTopP(assistant, model),
-            max_tokens: maxTokens,
-            keep_alive: this.keepAliveTime,
-            stream: isSupportStreamOutput(),
-            tools: !isEmpty(tools) ? tools : undefined,
-            service_tier: this.getServiceTier(model),
-            ...getOpenAIWebSearchParams(assistant, model),
-            ...this.getReasoningEffort(assistant, model),
-            ...this.getProviderSpecificParameters(assistant, model),
-            ...this.getCustomParameters(assistant)
-          },
-          {
-            signal
-          }
-        )
-      await processStream(newStream, idx + 1)
-    }
+    //   onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    //   const newStream = await this.sdk.chat.completions
+    //     // @ts-ignore key is not typed
+    //     .create(
+    //       {
+    //         model: model.id,
+    //         messages: reqMessages,
+    //         temperature: this.getTemperature(assistant, model),
+    //         top_p: this.getTopP(assistant, model),
+    //         max_tokens: maxTokens,
+    //         keep_alive: this.keepAliveTime,
+    //         stream: isSupportStreamOutput(),
+    //         tools: !isEmpty(tools) ? tools : undefined,
+    //         service_tier: this.getServiceTier(model),
+    //         ...getOpenAIWebSearchParams(assistant, model),
+    //         ...this.getReasoningEffort(assistant, model),
+    //         ...this.getProviderSpecificParameters(assistant, model),
+    //         ...this.getCustomParameters(assistant)
+    //       },
+    //       {
+    //         signal
+    //       }
+    //     )
+    //   await processStream(newStream, idx + 1)
+    // }
 
-    const processToolCalls = async (mcpTools, toolCalls: ChatCompletionMessageToolCall[]) => {
-      const mcpToolResponses = toolCalls
-        .map((toolCall) => {
-          const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall as ChatCompletionMessageToolCall)
-          if (!mcpTool) return undefined
+    // const processToolCalls = async (mcpTools, toolCalls: ChatCompletionMessageToolCall[]) => {
+    //   const mcpToolResponses = toolCalls
+    //     .map((toolCall) => {
+    //       const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall as ChatCompletionMessageToolCall)
+    //       if (!mcpTool) return undefined
 
-          const parsedArgs = (() => {
-            try {
-              return JSON.parse(toolCall.function.arguments)
-            } catch {
-              return toolCall.function.arguments
-            }
-          })()
+    //       const parsedArgs = (() => {
+    //         try {
+    //           return JSON.parse(toolCall.function.arguments)
+    //         } catch {
+    //           return toolCall.function.arguments
+    //         }
+    //       })()
 
-          return {
-            id: toolCall.id,
-            toolCallId: toolCall.id,
-            tool: mcpTool,
-            arguments: parsedArgs,
-            status: 'pending'
-          } as ToolCallResponse
-        })
-        .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
-      return await parseAndCallTools(
-        mcpToolResponses,
-        toolResponses,
-        onChunk,
-        this.mcpToolCallResponseToMessage,
-        model,
-        mcpTools
-      )
-    }
+    //       return {
+    //         id: toolCall.id,
+    //         toolCallId: toolCall.id,
+    //         tool: mcpTool,
+    //         arguments: parsedArgs,
+    //         status: 'pending'
+    //       } as ToolCallResponse
+    //     })
+    //     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
+    //   return await parseAndCallTools(
+    //     mcpToolResponses,
+    //     toolResponses,
+    //     onChunk,
+    //     this.mcpToolCallResponseToMessage,
+    //     model,
+    //     mcpTools
+    //   )
+    // }
 
-    const processToolUses = async (content: string) => {
-      return await parseAndCallTools(
-        content,
-        toolResponses,
-        onChunk,
-        this.mcpToolCallResponseToMessage,
-        model,
-        mcpTools
-      )
-    }
+    // const processToolUses = async (content: string) => {
+    //   return await parseAndCallTools(
+    //     content,
+    //     toolResponses,
+    //     onChunk,
+    //     this.mcpToolCallResponseToMessage,
+    //     model,
+    //     mcpTools
+    //   )
+    // }
 
-    const processStream = async (stream: any, idx: number) => {
-      const toolCalls: ChatCompletionMessageToolCall[] = []
-      let time_first_token_millsec = 0
+    // const processStream = async (stream: any, idx: number) => {
+    //   const toolCalls: ChatCompletionMessageToolCall[] = []
+    //   let time_first_token_millsec = 0
 
-      // Handle non-streaming case (already returns early, no change needed here)
-      if (!isSupportStreamOutput()) {
-        // Calculate final metrics once
-        finalMetrics.completion_tokens = stream.usage?.completion_tokens
-        finalMetrics.time_completion_millsec = new Date().getTime() - start_time_millsec
+    //   // Handle non-streaming case (already returns early, no change needed here)
+    // if (!isSupportStreamOutput()) {
+    // Calculate final metrics once
+    // finalMetrics.completion_tokens = stream.usage?.completion_tokens
+    // finalMetrics.time_completion_millsec = new Date().getTime() - start_time_millsec
 
-        // Create a synthetic usage object if stream.usage is undefined
-        finalUsage = { ...stream.usage }
-        // Separate onChunk calls for text and usage/metrics
-        let content = ''
-        stream.choices.forEach((choice) => {
-          const reasoning = choice.message.reasoning || choice.message.reasoning_content
-          // reasoning
-          if (reasoning) {
-            onChunk({
-              type: ChunkType.THINKING_DELTA,
-              text: reasoning
-            })
-            onChunk({
-              type: ChunkType.THINKING_COMPLETE,
-              text: reasoning,
-              thinking_millsec: new Date().getTime() - start_time_millsec
-            })
-          }
-          // text
-          if (choice.message.content) {
-            content += choice.message.content
-            onChunk({ type: ChunkType.TEXT_DELTA, text: choice.message.content })
-          }
-          // tool call
-          if (choice.message.tool_calls && choice.message.tool_calls.length) {
-            choice.message.tool_calls.forEach((t) => toolCalls.push(t))
-          }
+    // // Create a synthetic usage object if stream.usage is undefined
+    // finalUsage = { ...stream.usage }
+    // // Separate onChunk calls for text and usage/metrics
+    // let content = ''
+    // stream.choices.forEach((choice) => {
+    //   const reasoning = choice.message.reasoning || choice.message.reasoning_content
+    //   // reasoning
+    //   if (reasoning) {
+    //     onChunk({
+    //       type: ChunkType.THINKING_DELTA,
+    //       text: reasoning
+    //     })
+    //     onChunk({
+    //       type: ChunkType.THINKING_COMPLETE,
+    //       text: reasoning,
+    //       thinking_millsec: new Date().getTime() - start_time_millsec
+    //     })
+    //   }
+    //   // text
+    //   if (choice.message.content) {
+    //     content += choice.message.content
+    //     onChunk({ type: ChunkType.TEXT_DELTA, text: choice.message.content })
+    //   }
+    //   // tool call
+    //   if (choice.message.tool_calls && choice.message.tool_calls.length) {
+    //     choice.message.tool_calls.forEach((t) => toolCalls.push(t))
+    //   }
 
-          reqMessages.push({
-            role: choice.message.role,
-            content: choice.message.content,
-            tool_calls: toolCalls.length
-              ? toolCalls.map((toolCall) => ({
-                  id: toolCall.id,
-                  function: {
-                    ...toolCall.function,
-                    arguments:
-                      typeof toolCall.function.arguments === 'string'
-                        ? toolCall.function.arguments
-                        : JSON.stringify(toolCall.function.arguments)
-                  },
-                  type: 'function'
-                }))
-              : undefined
-          })
-        })
+    //       reqMessages.push({
+    //         role: choice.message.role,
+    //         content: choice.message.content,
+    //         tool_calls: toolCalls.length
+    //           ? toolCalls.map((toolCall) => ({
+    //               id: toolCall.id,
+    //               function: {
+    //                 ...toolCall.function,
+    //                 arguments:
+    //                   typeof toolCall.function.arguments === 'string'
+    //                     ? toolCall.function.arguments
+    //                     : JSON.stringify(toolCall.function.arguments)
+    //               },
+    //               type: 'function'
+    //             }))
+    //           : undefined
+    //       })
+    //     })
 
-        if (content.length) {
-          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-        }
+    //     if (content.length) {
+    //       onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+    //     }
 
-        const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
-        if (toolCalls.length) {
-          toolResults.push(...(await processToolCalls(mcpTools, toolCalls)))
-        }
-        if (stream.choices[0].message?.content) {
-          toolResults.push(...(await processToolUses(stream.choices[0].message?.content)))
-        }
-        await processToolResults(toolResults, idx)
+    //     const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+    //     if (toolCalls.length) {
+    //       toolResults.push(...(await processToolCalls(mcpTools, toolCalls)))
+    //     }
+    //     if (stream.choices[0].message?.content) {
+    //       toolResults.push(...(await processToolUses(stream.choices[0].message?.content)))
+    //     }
+    //     await processToolResults(toolResults, idx)
 
-        // Always send usage and metrics data
-        onChunk({ type: ChunkType.BLOCK_COMPLETE, response: { usage: finalUsage, metrics: finalMetrics } })
-        return
-      }
+    //     // Always send usage and metrics data
+    //     onChunk({ type: ChunkType.BLOCK_COMPLETE, response: { usage: finalUsage, metrics: finalMetrics } })
+    //     return
+    // }
 
-      let content = ''
-      let thinkingContent = ''
-      let isFirstChunk = true
+    //   let content = ''
+    //   let thinkingContent = ''
+    //   let isFirstChunk = true
 
-      // 1. 初始化中间件
-      const reasoningTags = [
-        { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
-        { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
-      ]
-      const getAppropriateTag = (model: Model) => {
-        if (model.id.includes('qwen3')) return reasoningTags[0]
-        return reasoningTags[0]
-      }
-      const reasoningTag = getAppropriateTag(model)
-      async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
-        for await (const chunk of stream) {
-          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-            break
-          }
+    //   // 1. 初始化中间件
+    //   const reasoningTags = [
+    //     { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
+    //     { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
+    //   ]
+    //   const getAppropriateTag = (model: Model) => {
+    //     if (model.id.includes('qwen3')) return reasoningTags[0]
+    //     return reasoningTags[0]
+    //   }
+    //   const reasoningTag = getAppropriateTag(model)
+    //   async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
+    //     for await (const chunk of stream) {
+    //       if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+    //         break
+    //       }
 
-          const delta = chunk.choices[0]?.delta
-          if (delta?.reasoning_content || delta?.reasoning) {
-            yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-          }
-          if (delta?.content) {
-            yield { type: 'text-delta', textDelta: delta.content }
-          }
-          if (delta?.tool_calls) {
-            yield { type: 'tool-calls', delta: delta }
-          }
+    //       const delta = chunk.choices[0]?.delta
+    //       if (delta?.reasoning_content || delta?.reasoning) {
+    //         yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+    //       }
+    //       if (delta?.content) {
+    //         yield { type: 'text-delta', textDelta: delta.content }
+    //       }
+    //       if (delta?.tool_calls) {
+    //         yield { type: 'tool-calls', delta: delta }
+    //       }
 
-          const finishReason = chunk.choices[0]?.finish_reason
-          if (!isEmpty(finishReason)) {
-            yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
-            break
-          }
-        }
-      }
+    //       const finishReason = chunk.choices[0]?.finish_reason
+    //       if (!isEmpty(finishReason)) {
+    //         yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+    //         break
+    //       }
+    //     }
+    //   }
 
-      // 2. 使用中间件
-      const { stream: processedStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
-        openingTag: reasoningTag?.openingTag,
-        closingTag: reasoningTag?.closingTag,
-        separator: reasoningTag?.separator,
-        enableReasoning
-      }).wrapStream({
-        doStream: async () => ({
-          stream: asyncGeneratorToReadableStream(openAIChunkToTextDelta(stream))
-        })
-      })
+    //   // 2. 使用中间件
+    //   const { stream: processedStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
+    //     openingTag: reasoningTag?.openingTag,
+    //     closingTag: reasoningTag?.closingTag,
+    //     separator: reasoningTag?.separator,
+    //     enableReasoning
+    //   }).wrapStream({
+    //     doStream: async () => ({
+    //       stream: asyncGeneratorToReadableStream(openAIChunkToTextDelta(stream))
+    //     })
+    //   })
 
-      // 3. 消费 processedStream，分发 onChunk
-      for await (const chunk of readableStreamAsyncIterable(processedStream)) {
-        const delta = chunk.type === 'finish' ? chunk.delta : chunk
-        const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
+    //   // 3. 消费 processedStream，分发 onChunk
+    //   for await (const chunk of readableStreamAsyncIterable(processedStream)) {
+    //     const delta = chunk.type === 'finish' ? chunk.delta : chunk
+    //     const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
 
-        switch (chunk.type) {
-          case 'reasoning': {
-            if (time_first_token_millsec === 0) {
-              time_first_token_millsec = new Date().getTime()
-            }
-            thinkingContent += chunk.textDelta
-            onChunk({
-              type: ChunkType.THINKING_DELTA,
-              text: chunk.textDelta,
-              thinking_millsec: new Date().getTime() - time_first_token_millsec
-            })
-            break
-          }
-          case 'text-delta': {
-            let textDelta = chunk.textDelta
-            if (assistant.enableWebSearch && delta) {
-              const originalDelta = rawChunk?.choices?.[0]?.delta
+    //     switch (chunk.type) {
+    //       case 'reasoning': {
+    //         if (time_first_token_millsec === 0) {
+    //           time_first_token_millsec = new Date().getTime()
+    //         }
+    //         thinkingContent += chunk.textDelta
+    //         onChunk({
+    //           type: ChunkType.THINKING_DELTA,
+    //           text: chunk.textDelta,
+    //           thinking_millsec: new Date().getTime() - time_first_token_millsec
+    //         })
+    //         break
+    //       }
+    //       case 'text-delta': {
+    //         let textDelta = chunk.textDelta
+    //         if (assistant.enableWebSearch && delta) {
+    //           const originalDelta = rawChunk?.choices?.[0]?.delta
 
-              if (originalDelta?.annotations) {
-                textDelta = convertLinks(textDelta, isFirstChunk)
-              } else if (assistant.model?.provider === 'openrouter') {
-                textDelta = convertLinksToOpenRouter(textDelta, isFirstChunk)
-              } else if (isZhipuModel(assistant.model)) {
-                textDelta = convertLinksToZhipu(textDelta, isFirstChunk)
-              } else if (isHunyuanSearchModel(assistant.model)) {
-                const searchResults = rawChunk?.search_info?.search_results || []
-                textDelta = convertLinksToHunyuan(textDelta, searchResults, isFirstChunk)
-              }
-            }
-            if (isFirstChunk) {
-              isFirstChunk = false
-              if (time_first_token_millsec === 0) {
-                time_first_token_millsec = new Date().getTime()
-              } else {
-                onChunk({
-                  type: ChunkType.THINKING_COMPLETE,
-                  text: thinkingContent,
-                  thinking_millsec: new Date().getTime() - time_first_token_millsec
-                })
-              }
-            }
-            content += textDelta
-            onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
-            break
-          }
-          case 'tool-calls': {
-            if (isFirstChunk) {
-              isFirstChunk = false
-              if (time_first_token_millsec === 0) {
-                time_first_token_millsec = new Date().getTime()
-              } else {
-                onChunk({
-                  type: ChunkType.THINKING_COMPLETE,
-                  text: thinkingContent,
-                  thinking_millsec: new Date().getTime() - time_first_token_millsec
-                })
-              }
-            }
-            chunk.delta.tool_calls.forEach((toolCall) => {
-              const { id, index, type, function: fun } = toolCall
-              if (id && type === 'function' && fun) {
-                const { name, arguments: args } = fun
-                toolCalls.push({
-                  id,
-                  function: {
-                    name: name || '',
-                    arguments: args || ''
-                  },
-                  type: 'function'
-                })
-              } else if (fun?.arguments) {
-                toolCalls[index].function.arguments += fun.arguments
-              }
-            })
-            break
-          }
-          case 'finish': {
-            const finishReason = chunk.finishReason
-            const usage = chunk.usage
-            const originalFinishDelta = chunk.delta
-            const originalFinishRawChunk = chunk.chunk
-            if (!isEmpty(finishReason)) {
-              if (content) {
-                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-              }
-              if (thinkingContent) {
-                onChunk({
-                  type: ChunkType.THINKING_COMPLETE,
-                  text: thinkingContent,
-                  thinking_millsec: new Date().getTime() - time_first_token_millsec
-                })
-              }
-              if (usage) {
-                finalUsage.completion_tokens += usage.completion_tokens || 0
-                finalUsage.prompt_tokens += usage.prompt_tokens || 0
-                finalUsage.total_tokens += usage.total_tokens || 0
-                finalMetrics.completion_tokens += usage.completion_tokens || 0
-              }
-              finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
-              finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
-              if (originalFinishDelta?.annotations) {
-                if (assistant.model?.provider === 'copilot') return
+    //           if (originalDelta?.annotations) {
+    //             textDelta = convertLinks(textDelta, isFirstChunk)
+    //           } else if (assistant.model?.provider === 'openrouter') {
+    //             textDelta = convertLinksToOpenRouter(textDelta, isFirstChunk)
+    //           } else if (isZhipuModel(assistant.model)) {
+    //             textDelta = convertLinksToZhipu(textDelta, isFirstChunk)
+    //           } else if (isHunyuanSearchModel(assistant.model)) {
+    //             const searchResults = rawChunk?.search_info?.search_results || []
+    //             textDelta = convertLinksToHunyuan(textDelta, searchResults, isFirstChunk)
+    //           }
+    //         }
+    //         if (isFirstChunk) {
+    //           isFirstChunk = false
+    //           if (time_first_token_millsec === 0) {
+    //             time_first_token_millsec = new Date().getTime()
+    //           } else {
+    //             onChunk({
+    //               type: ChunkType.THINKING_COMPLETE,
+    //               text: thinkingContent,
+    //               thinking_millsec: new Date().getTime() - time_first_token_millsec
+    //             })
+    //           }
+    //         }
+    //         content += textDelta
+    //         onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
+    //         break
+    //       }
+    //       case 'tool-calls': {
+    //         if (isFirstChunk) {
+    //           isFirstChunk = false
+    //           if (time_first_token_millsec === 0) {
+    //             time_first_token_millsec = new Date().getTime()
+    //           } else {
+    //             onChunk({
+    //               type: ChunkType.THINKING_COMPLETE,
+    //               text: thinkingContent,
+    //               thinking_millsec: new Date().getTime() - time_first_token_millsec
+    //             })
+    //           }
+    //         }
+    //         chunk.delta.tool_calls.forEach((toolCall) => {
+    //           const { id, index, type, function: fun } = toolCall
+    //           if (id && type === 'function' && fun) {
+    //             const { name, arguments: args } = fun
+    //             toolCalls.push({
+    //               id,
+    //               function: {
+    //                 name: name || '',
+    //                 arguments: args || ''
+    //               },
+    //               type: 'function'
+    //             })
+    //           } else if (fun?.arguments) {
+    //             toolCalls[index].function.arguments += fun.arguments
+    //           }
+    //         })
+    //         break
+    //       }
+    //       case 'finish': {
+    //         const finishReason = chunk.finishReason
+    //         const usage = chunk.usage
+    //         const originalFinishDelta = chunk.delta
+    //         const originalFinishRawChunk = chunk.chunk
+    //         if (!isEmpty(finishReason)) {
+    //           if (content) {
+    //             onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+    //           }
+    //           if (thinkingContent) {
+    //             onChunk({
+    //               type: ChunkType.THINKING_COMPLETE,
+    //               text: thinkingContent,
+    //               thinking_millsec: new Date().getTime() - time_first_token_millsec
+    //             })
+    //           }
+    //           if (usage) {
+    //             finalUsage.completion_tokens += usage.completion_tokens || 0
+    //             finalUsage.prompt_tokens += usage.prompt_tokens || 0
+    //             finalUsage.total_tokens += usage.total_tokens || 0
+    //             finalMetrics.completion_tokens += usage.completion_tokens || 0
+    //           }
+    //           finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
+    //           finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
+    //           if (originalFinishDelta?.annotations) {
+    //             if (assistant.model?.provider === 'copilot') return
 
-                onChunk({
-                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                  llm_web_search: {
-                    results: originalFinishDelta.annotations,
-                    source: WebSearchSource.OPENAI_RESPONSE
-                  }
-                } as LLMWebSearchCompleteChunk)
-              }
-              if (assistant.model?.provider === 'grok') {
-                const citations = originalFinishRawChunk.citations
-                if (citations) {
-                  onChunk({
-                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                    llm_web_search: {
-                      results: citations,
-                      source: WebSearchSource.GROK
-                    }
-                  } as LLMWebSearchCompleteChunk)
-                }
-              }
-              if (assistant.model?.provider === 'perplexity') {
-                const citations = originalFinishRawChunk.citations
-                if (citations) {
-                  onChunk({
-                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                    llm_web_search: {
-                      results: citations,
-                      source: WebSearchSource.PERPLEXITY
-                    }
-                  } as LLMWebSearchCompleteChunk)
-                }
-              }
-              if (
-                isEnabledBultinWebSearch &&
-                isZhipuModel(model) &&
-                finishReason === 'stop' &&
-                originalFinishRawChunk?.web_search
-              ) {
-                onChunk({
-                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                  llm_web_search: {
-                    results: originalFinishRawChunk.web_search,
-                    source: WebSearchSource.ZHIPU
-                  }
-                } as LLMWebSearchCompleteChunk)
-              }
-              if (
-                isEnabledBultinWebSearch &&
-                isHunyuanSearchModel(model) &&
-                originalFinishRawChunk?.search_info?.search_results
-              ) {
-                onChunk({
-                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                  llm_web_search: {
-                    results: originalFinishRawChunk.search_info.search_results,
-                    source: WebSearchSource.HUNYUAN
-                  }
-                } as LLMWebSearchCompleteChunk)
-              }
-            }
-            break
-          }
-        }
-      }
+    //           onChunk({
+    //             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+    //             llm_web_search: {
+    //               results: originalFinishDelta.annotations,
+    //               source: WebSearchSource.OPENAI_RESPONSE
+    //             }
+    //           } as LLMWebSearchCompleteChunk)
+    //         }
+    //         if (assistant.model?.provider === 'grok') {
+    //           const citations = originalFinishRawChunk.citations
+    //           if (citations) {
+    //             onChunk({
+    //               type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+    //               llm_web_search: {
+    //                 results: citations,
+    //                 source: WebSearchSource.GROK
+    //               }
+    //             } as LLMWebSearchCompleteChunk)
+    //           }
+    //         }
+    //         if (assistant.model?.provider === 'perplexity') {
+    //           const citations = originalFinishRawChunk.citations
+    //           if (citations) {
+    //             onChunk({
+    //               type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+    //               llm_web_search: {
+    //                 results: citations,
+    //                 source: WebSearchSource.PERPLEXITY
+    //               }
+    //             } as LLMWebSearchCompleteChunk)
+    //           }
+    //         }
+    //         if (
+    //           isEnabledBultinWebSearch &&
+    //           isZhipuModel(model) &&
+    //           finishReason === 'stop' &&
+    //           originalFinishRawChunk?.web_search
+    //         ) {
+    //           onChunk({
+    //             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+    //             llm_web_search: {
+    //               results: originalFinishRawChunk.web_search,
+    //               source: WebSearchSource.ZHIPU
+    //             }
+    //           } as LLMWebSearchCompleteChunk)
+    //         }
+    //         if (
+    //           isEnabledBultinWebSearch &&
+    //           isHunyuanSearchModel(model) &&
+    //           originalFinishRawChunk?.search_info?.search_results
+    //         ) {
+    //           onChunk({
+    //             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+    //             llm_web_search: {
+    //               results: originalFinishRawChunk.search_info.search_results,
+    //               source: WebSearchSource.HUNYUAN
+    //             }
+    //           } as LLMWebSearchCompleteChunk)
+    //         }
+    //       }
+    //       break
+    //     }
+    //   }
+    // }
 
-      reqMessages.push({
-        role: 'assistant',
-        content: content,
-        tool_calls: toolCalls.length
-          ? toolCalls.map((toolCall) => ({
-              id: toolCall.id,
-              function: {
-                ...toolCall.function,
-                arguments:
-                  typeof toolCall.function.arguments === 'string'
-                    ? toolCall.function.arguments
-                    : JSON.stringify(toolCall.function.arguments)
-              },
-              type: 'function'
-            }))
-          : undefined
-      })
-      let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
-      if (toolCalls.length) {
-        toolResults = await processToolCalls(mcpTools, toolCalls)
-      }
-      if (content.length) {
-        toolResults = toolResults.concat(await processToolUses(content))
-      }
-      if (toolResults.length) {
-        await processToolResults(toolResults, idx)
-      }
-      onChunk({
-        type: ChunkType.BLOCK_COMPLETE,
-        response: {
-          usage: finalUsage,
-          metrics: finalMetrics
-        }
-      })
-    }
+    //   reqMessages.push({
+    //     role: 'assistant',
+    //     content: content,
+    //     tool_calls: toolCalls.length
+    //       ? toolCalls.map((toolCall) => ({
+    //           id: toolCall.id,
+    //           function: {
+    //             ...toolCall.function,
+    //             arguments:
+    //               typeof toolCall.function.arguments === 'string'
+    //                 ? toolCall.function.arguments
+    //                 : JSON.stringify(toolCall.function.arguments)
+    //           },
+    //           type: 'function'
+    //         }))
+    //       : undefined
+    //   })
+    //   let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+    //   if (toolCalls.length) {
+    //     toolResults = await processToolCalls(mcpTools, toolCalls)
+    //   }
+    //   if (content.length) {
+    //     toolResults = toolResults.concat(await processToolUses(content))
+    //   }
+    //   if (toolResults.length) {
+    //     await processToolResults(toolResults, idx)
+    //   }
+    //   onChunk({
+    //     type: ChunkType.BLOCK_COMPLETE,
+    //     response: {
+    //       usage: finalUsage,
+    //       metrics: finalMetrics
+    //     }
+    //   })
+    // }
 
-    reqMessages = processReqMessages(model, reqMessages)
+    // reqMessages = processReqMessages(model, reqMessages)
     // 等待接口返回流
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-    const start_time_millsec = new Date().getTime()
-    const stream = await this.sdk.chat.completions
-      // @ts-ignore key is not typed
-      .create(
-        {
-          model: model.id,
-          messages: reqMessages,
-          temperature: this.getTemperature(assistant, model),
-          top_p: this.getTopP(assistant, model),
-          max_tokens: maxTokens,
-          keep_alive: this.keepAliveTime,
-          stream: isSupportStreamOutput(),
-          tools: !isEmpty(tools) ? tools : undefined,
-          service_tier: this.getServiceTier(model),
-          ...getOpenAIWebSearchParams(assistant, model),
-          ...this.getReasoningEffort(assistant, model),
-          ...this.getProviderSpecificParameters(assistant, model),
-          ...this.getCustomParameters(assistant)
-        },
-        {
-          signal,
-          timeout: this.getTimeout(model)
-        }
-      )
+    // const start_time_millsec = new Date().getTime()
+    if (!_internal?.sdkParams) {
+      console.warn('🚀 [OpenAIProvider] transformedData is not found')
+      return {} as CompletionsOpenAIResult
+    }
+    const { reqMessages, tools, model, maxTokens, streamOutput } = _internal?.sdkParams ?? {}
+    const { signal } = _internal?.controller ?? {}
 
-    await processStream(stream, 0).finally(cleanup)
+    // @ts-ignore key is not typed
+    const stream = await this.sdk.chat.completions.create(
+      {
+        model: model.id,
+        messages: reqMessages,
+        temperature: this.getTemperature(assistant, model),
+        top_p: this.getTopP(assistant, model),
+        max_tokens: maxTokens,
+        keep_alive: this.keepAliveTime,
+        stream: streamOutput,
+        tools: !isEmpty(tools) ? tools : undefined,
+        service_tier: this.getServiceTier(model),
+        ...getOpenAIWebSearchParams(assistant, model),
+        ...this.getReasoningEffort(assistant, model),
+        ...this.getProviderSpecificParameters(assistant, model),
+        ...this.getCustomParameters(assistant)
+      },
+      {
+        signal,
+        timeout: this.getTimeout(model)
+      }
+    )
+    // stream.controller.signal.addEventListener('abort', () => {
+    //   console.log('addEventListener_abort')
+    // })
+    return { stream }
 
+    // .finally(cleanup)
+    // stream
+    // await processStream(stream, 0).finally(cleanup)
     // 捕获signal的错误
-    await signalPromise?.promise?.catch((error) => {
-      throw error
-    })
+    // signalPromise?.promise?.catch((error) => {
+    //   throw error
+    // })
   }
 
   /**

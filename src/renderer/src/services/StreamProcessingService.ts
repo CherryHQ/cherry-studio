@@ -40,7 +40,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   // The returned function processes a single chunk or a final signal
   return (chunk: Chunk) => {
     try {
-      // Logger.log(`[${new Date().toLocaleString()}] createStreamProcessor ${chunk.type}`, chunk)
+      // console.log(`[${new Date().toLocaleString()}] createStreamProcessor ${chunk.type}`, chunk)
       // 1. Handle the manual final signal first
       if (chunk?.type === ChunkType.BLOCK_COMPLETE) {
         callbacks.onComplete?.(AssistantMessageStatus.SUCCESS, chunk?.response)
@@ -87,6 +87,9 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
       }
       if (data.type === ChunkType.IMAGE_COMPLETE && callbacks.onImageGenerated) {
         callbacks.onImageGenerated(data.image)
+      }
+      if (data.type === ChunkType.ERROR && callbacks.onError) {
+        callbacks.onError(data.error)
       }
       // Note: Usage and Metrics are usually handled at the end or accumulated differently,
       // so direct callbacks might not be the best fit here. They are often part of the final message state.

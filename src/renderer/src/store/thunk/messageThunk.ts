@@ -34,7 +34,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { getTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
 import { throttle } from 'lodash'
@@ -43,10 +43,10 @@ import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
-const handleChangeLoadingOfTopic = async (topicId: string) => {
-  await waitForTopicQueue(topicId)
-  store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-}
+// const handleChangeLoadingOfTopic = async (topicId: string) => {
+//   await waitForTopicQueue(topicId)
+//   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+// }
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   try {
@@ -671,6 +671,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
             response.usage = usage
           }
+          dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
         }
         if (response && response.metrics) {
           if (response.metrics.completion_tokens === 0 && response.usage?.completion_tokens) {
@@ -754,9 +755,10 @@ export const sendMessage =
       }
     } catch (error) {
       console.error('Error in sendMessage thunk:', error)
-    } finally {
-      handleChangeLoadingOfTopic(topicId)
     }
+    // finally {
+    //   handleChangeLoadingOfTopic(topicId)
+    // }
   }
 
 /**
@@ -994,9 +996,10 @@ export const resendMessageThunk =
       }
     } catch (error) {
       console.error(`[resendMessageThunk] Error resending user message ${userMessageToResend.id}:`, error)
-    } finally {
-      handleChangeLoadingOfTopic(topicId)
     }
+    // finally {
+    //   handleChangeLoadingOfTopic(topicId)
+    // }
   }
 
 /**
@@ -1107,9 +1110,10 @@ export const regenerateAssistantResponseThunk =
         error
       )
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-    } finally {
-      handleChangeLoadingOfTopic(topicId)
     }
+    //  finally {
+    //   handleChangeLoadingOfTopic(topicId)
+    // }
   }
 
 // --- Thunk to initiate translation and create the initial block ---
@@ -1275,9 +1279,10 @@ export const appendAssistantResponseThunk =
       console.error(`[appendAssistantResponseThunk] Error appending assistant response:`, error)
       // Optionally dispatch an error action or notification
       // Resetting loading state should be handled by the underlying fetchAndProcessAssistantResponseImpl
-    } finally {
-      handleChangeLoadingOfTopic(topicId)
     }
+    // finally {
+    //   handleChangeLoadingOfTopic(topicId)
+    // }
   }
 
 /**

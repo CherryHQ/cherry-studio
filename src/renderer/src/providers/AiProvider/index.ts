@@ -5,13 +5,49 @@ import type { Assistant, GenerateImageParams, MCPTool, Model, Provider, Suggesti
 import { Chunk } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import OpenAI from 'openai'
+import { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources'
+import type { Stream } from 'openai/streaming'
+
+export type OnFilterMessagesFunction = (messages: Message[]) => void
 
 export interface CompletionsParams {
   messages: Message[]
   assistant: Assistant
   onChunk: (chunk: Chunk) => void
-  onFilterMessages: (messages: Message[]) => void
+  onFilterMessages: OnFilterMessagesFunction
   mcpTools?: MCPTool[]
+  _internal?: {
+    // SDK接口需要的参数
+    sdkParams?: {
+      reqMessages: ChatCompletionMessageParam[]
+      tools: ChatCompletionTool[]
+      systemMessage: any
+      model: any
+      maxTokens: number | undefined
+      streamOutput: boolean
+    }
+    // 内部处理需要的参数
+    enableReasoning?: boolean
+    userMessages?: ChatCompletionMessageParam[]
+    contextCount?: number
+    processedMessages?: Message[]
+    // Abort控制器
+    controller?: AbortController
+  }
+}
+
+// Re-export CompletionsResult
+export interface CompletionsOpenAIResult {
+  stream: // openai sdk stream
+  | (OpenAI.Chat.Completions.ChatCompletion & {
+        _request_id?: string | null
+      } & Stream<OpenAI.Chat.Completions.ChatCompletionChunk>)
+    // our app-specific stream
+    | ReadableStream<OpenAI.Chat.Completions.ChatCompletionChunk>
+    | ReadableStream<Chunk>
+    | ReadableStream<Chunk | OpenAI.Chat.Completions.ChatCompletionChunk>
+  // 添加 abort controller 用于中间件处理和控制 abort 事件
+  controller?: AbortController
 }
 
 export default class AiProvider {
@@ -25,14 +61,8 @@ export default class AiProvider {
     return this.sdk.fakeCompletions(params)
   }
 
-  public async completions({
-    messages,
-    assistant,
-    mcpTools,
-    onChunk,
-    onFilterMessages
-  }: CompletionsParams): Promise<void> {
-    return this.sdk.completions({ messages, assistant, mcpTools, onChunk, onFilterMessages })
+  public async completions(params: CompletionsParams): Promise<CompletionsOpenAIResult> {
+    return this.sdk.completions(params)
   }
 
   public async translate(
