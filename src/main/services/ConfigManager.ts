@@ -35,8 +35,9 @@ export class ConfigManager {
     return this.get(ConfigKeys.Language, locale) as LanguageVarious
   }
 
-  setLanguage(theme: LanguageVarious) {
-    this.set(ConfigKeys.Language, theme)
+  setLanguage(lang: LanguageVarious) {
+    this.set(ConfigKeys.Language, lang)
+    this.notifySubscribers(ConfigKeys.Language, lang)
   }
 
   getTheme(): ThemeMode {
@@ -131,6 +132,7 @@ export class ConfigManager {
 
   setEnableQuickAssistant(value: boolean) {
     this.set(ConfigKeys.EnableQuickAssistant, value)
+    this.notifySubscribers(ConfigKeys.EnableQuickAssistant, value)
   }
 
   getAutoUpdate(): boolean {
@@ -181,6 +183,7 @@ export class ConfigManager {
 
   set(key: string, value: unknown) {
     this.store.set(key, value)
+    this.notifySubscribers(key, value)
   }
 
   get<T>(key: string, defaultValue?: T) {
