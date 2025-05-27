@@ -187,6 +187,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           return
         }
 
+        // 如果currentMessages[index]是一个助手信息，那么index=index+1，避免多模型输出结果被分割。
+        while (index < currentMessages.length && currentMessages[index].role === 'assistant') {
+          index++
+        }
+
         // 1. Add the new topic to Redux store FIRST
         addTopic(newTopic)
 
