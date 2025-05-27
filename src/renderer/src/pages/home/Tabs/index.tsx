@@ -21,6 +21,7 @@ interface Props {
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
   forceToSeeAllTab?: boolean
+  style?: React.CSSProperties
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
@@ -34,7 +35,8 @@ const HomeTabs: FC<Props> = ({
   setActiveAssistant,
   setActiveTopic,
   position,
-  forceToSeeAllTab
+  forceToSeeAllTab,
+  style
 }) => {
   const { addAssistant } = useAssistants()
   const [sortBy, setSortBy] = useState<SortType>('list')
@@ -102,7 +104,7 @@ const HomeTabs: FC<Props> = ({
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <Container style={border} className="home-tabs">
+    <Container style={{ ...border, ...style }} className="home-tabs">
       {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
         <Segmented
           value={tab}

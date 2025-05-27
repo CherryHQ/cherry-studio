@@ -837,6 +837,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Antropológico",
       "azure-openai": "Azure OpenAI",

@@ -5,7 +5,7 @@ import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
 
-enum ConfigKeys {
+export enum ConfigKeys {
   Language = 'language',
   Theme = 'theme',
   LaunchToTray = 'launchToTray',
@@ -16,7 +16,10 @@ enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
-  EnableDataCollection = 'enableDataCollection'
+  EnableDataCollection = 'enableDataCollection',
+  SelectionAssistantEnabled = 'selectionAssistantEnabled',
+  SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
+  SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar'
 }
 
 export class ConfigManager {
@@ -144,6 +147,36 @@ export class ConfigManager {
 
   setEnableDataCollection(value: boolean) {
     this.set(ConfigKeys.EnableDataCollection, value)
+  }
+
+  // Selection Assistant: is enabled the selection assistant
+  getSelectionAssistantEnabled(): boolean {
+    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, true)
+  }
+
+  setSelectionAssistantEnabled(value: boolean) {
+    this.set(ConfigKeys.SelectionAssistantEnabled, value)
+    this.notifySubscribers(ConfigKeys.SelectionAssistantEnabled, value)
+  }
+
+  // Selection Assistant: trigger mode (selected, ctrlkey)
+  getSelectionAssistantTriggerMode(): string {
+    return this.get<string>(ConfigKeys.SelectionAssistantTriggerMode, 'selected')
+  }
+
+  setSelectionAssistantTriggerMode(value: string) {
+    this.set(ConfigKeys.SelectionAssistantTriggerMode, value)
+    this.notifySubscribers(ConfigKeys.SelectionAssistantTriggerMode, value)
+  }
+
+  // Selection Assistant: if action window position follow toolbar
+  getSelectionAssistantFollowToolbar(): boolean {
+    return this.get<boolean>(ConfigKeys.SelectionAssistantFollowToolbar, true)
+  }
+
+  setSelectionAssistantFollowToolbar(value: boolean) {
+    this.set(ConfigKeys.SelectionAssistantFollowToolbar, value)
+    this.notifySubscribers(ConfigKeys.SelectionAssistantFollowToolbar, value)
   }
 
   set(key: string, value: unknown) {

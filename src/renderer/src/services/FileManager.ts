@@ -12,10 +12,6 @@ class FileManager {
     return files
   }
 
-  static async resolveFilePath(name: string): Promise<string> {
-    return window.api.file.resolveFilePath(name)
-  }
-
   static async addFile(file: FileType): Promise<FileType> {
     const fileRecord = await db.files.get(file.id)
 
@@ -72,6 +68,11 @@ class FileManager {
     }
 
     return file
+  }
+
+  static getFilePath(file: FileType) {
+    const filesPath = store.getState().runtime.filesPath
+    return filesPath + '/' + file.id + file.ext
   }
 
   static async deleteFile(id: string, force: boolean = false): Promise<void> {

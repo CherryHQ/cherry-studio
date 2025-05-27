@@ -4,6 +4,7 @@ import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
+import PasteService from '@renderer/services/PasteService'
 import { FileType, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames, getFileExtension } from '@renderer/utils'
@@ -61,6 +62,39 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
       textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
     }
   }, [])
+
+  const onPaste = useCallback(
+    async (event: ClipboardEvent) => {
+      return await PasteService.handlePaste(
+        event,
+        isVisionModel(model),
+        isGenerateImageModel(model),
+        supportExts,
+        setFiles,
+        undefined, // 不需要setText
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
+        undefined, // 不需要text
+        resizeTextArea,
+        t
+      )
+    },
+    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t]
+  )
+
+  // 添加全局粘贴事件处理
+  useEffect(() => {
+    // 注册当前组件的粘贴处理函数
+    PasteService.registerHandler('messageEditor', onPaste)
+
+    // 在组件加载时将焦点设置为当前组件
+    PasteService.setLastFocusedComponent('messageEditor')
+
+    // 卸载时取消注册
+    return () => {
+      PasteService.unregisterHandler('messageEditor')
+    }
+  }, [onPaste])
 
   const handleTextChange = (blockId: string, content: string) => {
     setEditedBlocks((prev) => prev.map((block) => (block.id === blockId ? { ...block, content } : block)))
@@ -131,67 +165,6 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     }
   }
 
-  const onPaste = useCallback(
-    async (event: ClipboardEvent) => {
-      // 1. 文本粘贴
-      const clipboardText = event.clipboardData?.getData('text')
-      if (clipboardText) {
-        if (pasteLongTextAsFile && clipboardText.length > pasteLongTextThreshold) {
-          // 长文本直接转文件，阻止默认粘贴
-          event.preventDefault()
-
-          const tempFilePath = await window.api.file.create('pasted_text.txt')
-          await window.api.file.write(tempFilePath, clipboardText)
-          const selectedFile = await window.api.file.get(tempFilePath)
-          selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-          setTimeout(() => resizeTextArea(), 50)
-          return
-        }
-        // 短文本走默认粘贴行为，直接返回
-        return
-      }
-
-      // 2. 文件/图片粘贴
-      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
-        event.preventDefault()
-        for (const file of event.clipboardData.files) {
-          const filePath = window.api.file.getPathForFile(file)
-          if (!filePath) {
-            // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && (isVisionModel(model) || isGenerateImageModel(model))) {
-              const tempFilePath = await window.api.file.create(file.name)
-              const arrayBuffer = await file.arrayBuffer()
-              const uint8Array = new Uint8Array(arrayBuffer)
-              await window.api.file.write(tempFilePath, uint8Array)
-              const selectedFile = await window.api.file.get(tempFilePath)
-              selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-              break
-            } else {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
-            }
-          }
-
-          if (supportExts.includes(getFileExtension(filePath))) {
-            const selectedFile = await window.api.file.get(filePath)
-            selectedFile && setFiles((prevFiles) => [...prevFiles, selectedFile])
-          } else {
-            window.message.info({
-              key: 'file_not_supported',
-              content: t('chat.input.file_not_supported')
-            })
-          }
-        }
-        return
-      }
-
-      // 短文本走默认粘贴行为
-    },
-    [model, pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportExts, t]
-  )
-
   const autoResizeTextArea = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const textarea = e.target
     textarea.style.height = 'auto'
@@ -199,115 +172,110 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   }
 
   return (
-    <>
-      <EditorContainer onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
-        {editedBlocks
-          .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
-          .map((block) => (
-            <Textarea
-              className={classNames(isFileDragging && 'file-dragging')}
-              key={block.id}
-              ref={textareaRef}
-              variant="borderless"
-              value={block.content}
-              onChange={(e) => {
-                handleTextChange(block.id, e.target.value)
-                autoResizeTextArea(e)
-              }}
-              autoFocus
-              contextMenu="true"
-              spellCheck={false}
-              onPaste={(e) => onPaste(e.nativeEvent)}
-              style={{
-                fontSize,
-                padding: '0px 15px 8px 15px'
-              }}>
-              <TranslateButton onTranslated={onTranslated} />
-            </Textarea>
+    <EditorContainer onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+      {editedBlocks
+        .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
+        .map((block) => (
+          <Textarea
+            className={classNames('editing-message', isFileDragging && 'file-dragging')}
+            key={block.id}
+            ref={textareaRef}
+            variant="borderless"
+            value={block.content}
+            onChange={(e) => {
+              handleTextChange(block.id, e.target.value)
+              autoResizeTextArea(e)
+            }}
+            autoFocus
+            contextMenu="true"
+            spellCheck={false}
+            onPaste={(e) => onPaste(e.nativeEvent)}
+            onFocus={() => {
+              // 记录当前聚焦的组件
+              PasteService.setLastFocusedComponent('messageEditor')
+            }}
+            style={{
+              fontSize,
+              padding: '0px 15px 8px 15px'
+            }}>
+            <TranslateButton onTranslated={onTranslated} />
+          </Textarea>
+        ))}
+      {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
+        files.length > 0) && (
+        <FileBlocksContainer>
+          {editedBlocks
+            .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+            .map(
+              (block) =>
+                block.file && (
+                  <CustomTag
+                    key={block.id}
+                    icon={getFileIcon(block.file.ext)}
+                    color="#37a5aa"
+                    closable
+                    onClose={() => handleFileRemove(block.id)}>
+                    <FileNameRender file={block.file} />
+                  </CustomTag>
+                )
+            )}
+
+          {files.map((file) => (
+            <CustomTag
+              key={file.id}
+              icon={getFileIcon(file.ext)}
+              color="#37a5aa"
+              closable
+              onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+              <FileNameRender file={file} />
+            </CustomTag>
           ))}
-        {(editedBlocks.some((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE) ||
-          files.length > 0) && (
-          <FileBlocksContainer>
-            {editedBlocks
-              .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
-              .map(
-                (block) =>
-                  block.file && (
-                    <CustomTag
-                      key={block.id}
-                      icon={getFileIcon(block.file.ext)}
-                      color="#37a5aa"
-                      closable
-                      onClose={() => handleFileRemove(block.id)}>
-                      <FileNameRender file={block.file} />
-                    </CustomTag>
-                  )
-              )}
+        </FileBlocksContainer>
+      )}
 
-            {files.map((file) => (
-              <CustomTag
-                key={file.id}
-                icon={getFileIcon(file.ext)}
-                color="#37a5aa"
-                closable
-                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
-                <FileNameRender file={file} />
-              </CustomTag>
-            ))}
-          </FileBlocksContainer>
-        )}
-
-        <ActionBar>
-          <ActionBarLeft>
-            <AttachmentButton
-              ref={attachmentButtonRef}
-              model={model}
-              files={files}
-              setFiles={setFiles}
-              ToolbarButton={ToolbarButton}
-            />
-          </ActionBarLeft>
-          <ActionBarMiddle />
-          <ActionBarRight>
-            <Tooltip title={t('common.cancel')}>
-              <ToolbarButton type="text" onClick={onCancel}>
-                <X size={16} />
-              </ToolbarButton>
-            </Tooltip>
-            <Tooltip title={t('common.save')}>
-              <ToolbarButton type="text" onClick={() => handleClick()}>
-                <Save size={16} />
-              </ToolbarButton>
-            </Tooltip>
+      <ActionBar>
+        <ActionBarLeft>
+          <AttachmentButton
+            ref={attachmentButtonRef}
+            model={model}
+            files={files}
+            setFiles={setFiles}
+            ToolbarButton={ToolbarButton}
+          />
+        </ActionBarLeft>
+        <ActionBarMiddle />
+        <ActionBarRight>
+          <Tooltip title={t('common.cancel')}>
+            <ToolbarButton type="text" onClick={onCancel}>
+              <X size={16} />
+            </ToolbarButton>
+          </Tooltip>
+          <Tooltip title={t('common.save')}>
+            <ToolbarButton type="text" onClick={() => handleClick()}>
+              <Save size={16} />
+            </ToolbarButton>
+          </Tooltip>
+          {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
               <ToolbarButton type="text" onClick={() => handleClick(true)}>
                 <Send size={16} />
               </ToolbarButton>
             </Tooltip>
-          </ActionBarRight>
-        </ActionBar>
-      </EditorContainer>
-    </>
+          )}
+        </ActionBarRight>
+      </ActionBar>
+    </EditorContainer>
   )
 }
-
-const FileBlocksContainer = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0 15px;
-  margin: 8px 0;
-  background: transplant;
-  border-radius: 4px;
-`
 
 const EditorContainer = styled.div`
   padding: 8px 0;
   border: 1px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
-  margin-top: 0;
+  margin-top: 5px;
   background-color: var(--color-background-opacity);
+  width: 100%;
 
   &.file-dragging {
     border: 2px dashed #2ecc71;
@@ -325,6 +293,16 @@ const EditorContainer = styled.div`
       pointer-events: none;
     }
   }
+`
+
+const FileBlocksContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 15px;
+  margin: 8px 0;
+  background: transparent;
+  border-radius: 4px;
 `
 
 const Textarea = styled(TextArea)`

@@ -40,6 +40,7 @@ export type AihubmixMode = keyof PaintingsState
 export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   return {
     paintings: [],
+    DMXAPIPaintings: [],
     generate: [
       { type: 'title', title: 'paintings.model', tooltip: 'paintings.generate.model_tip' },
       {
@@ -60,6 +61,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'renderingSpeed',
         options: RENDERING_SPEED_OPTIONS,
+        initialValue: 'DEFAULT',
         disabled: (_config, painting) => {
           const model = painting?.model
           return !model || !model.includes('V_3')
@@ -153,6 +155,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'renderingSpeed',
         options: RENDERING_SPEED_OPTIONS,
+        initialValue: 'DEFAULE',
         disabled: (_config, painting) => {
           const model = painting?.model
           return !model || !model.includes('V_3')
@@ -227,6 +230,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         type: 'select',
         key: 'renderingSpeed',
         options: RENDERING_SPEED_OPTIONS,
+        initialValue: 'DEFAULT',
         disabled: (_config, painting) => {
           const model = painting?.model
           return !model || !model.includes('V_3')

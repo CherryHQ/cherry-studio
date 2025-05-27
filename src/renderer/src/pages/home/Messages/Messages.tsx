@@ -2,11 +2,13 @@ import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
+import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
@@ -58,13 +60,25 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
+  const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
+
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
+    if (element) {
+      messageElements.current.set(id, element)
+    } else {
+      messageElements.current.delete(id)
+    }
+  }, [])
 
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
@@ -74,9 +88,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const maxWidth = useMemo(() => {
     const showRightTopics = showTopics && topicPosition === 'right'
-    const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-    const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth} - 5px)`
+    const minusAssistantsWidth = showAssistants ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
+    const minusRightTopicsWidth = showRightTopics ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
+    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
   }, [showAssistants, showTopics, topicPosition])
 
   const scrollToBottom = useCallback(() => {
@@ -256,16 +270,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   useEffect(() => {
     requestAnimationFrame(() => onComponentUpdate?.())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [onComponentUpdate])
 
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
-      style={{ maxWidth, paddingTop: showPrompt ? 10 : 0 }}
-      key={assistant.id}
       ref={scrollContainerRef}
+      style={{
+        position: 'relative',
+        maxWidth,
+        paddingTop: showPrompt ? 10 : 0
+      }}
+      key={assistant.id}
       onScroll={handleScrollPosition}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
@@ -284,6 +301,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
                 messages={groupMessages}
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
+                registerMessageElement={registerMessageElement}
               />
             ))}
             {isLoadingMore && (
@@ -297,6 +315,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+
+      <SelectionBox
+        isMultiSelectMode={isMultiSelectMode}
+        scrollContainerRef={scrollContainerRef}
+        messageElements={messageElements.current}
+        handleSelectMessage={handleSelectMessage}
+      />
     </Container>
   )
 }

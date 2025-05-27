@@ -3,7 +3,10 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
+import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
+
+import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 // Custom APIs for renderer
 const api = {
@@ -25,6 +28,9 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
+  notification: {
+    send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)
+  },
   system: {
     getDeviceType: () => ipcRenderer.invoke(IpcChannel.System_GetDeviceType),
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
@@ -55,7 +61,6 @@ const api = {
   },
   file: {
     select: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Select, options),
-    resolveFilePath: (name: string) => ipcRenderer.invoke(IpcChannel.File_ResolveFilePath, name),
     upload: (file: FileType) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     read: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Read, fileId),
@@ -71,7 +76,7 @@ const api = {
     selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
-    download: (url: string) => ipcRenderer.invoke(IpcChannel.File_Download, url),
+    download: (url: string, isUseContentType?: boolean) => ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
@@ -113,7 +118,8 @@ const api = {
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize)
   },
   gemini: {
-    uploadFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_UploadFile, file, apiKey),
+    uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>
+      ipcRenderer.invoke(IpcChannel.Gemini_UploadFile, file, { apiKey, baseURL }),
     base64File: (file: FileType) => ipcRenderer.invoke(IpcChannel.Gemini_Base64File, file),
     retrieveFile: (file: FileType, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_RetrieveFile, file, apiKey),
     listFiles: (apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_ListFiles, apiKey),
@@ -200,6 +206,20 @@ const api = {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
     unsubscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Unsubscribe),
     onUpdate: (action: any) => ipcRenderer.invoke(IpcChannel.StoreSync_OnUpdate, action)
+  },
+  selection: {
+    hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
+    writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
+    determineToolbarSize: (width: number, height: number) =>
+      ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IpcChannel.Selection_SetEnabled, enabled),
+    setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
+    setFollowToolbar: (isFollowToolbar: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
+    processAction: (actionItem: ActionItem) => ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem),
+    closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
+    minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
+    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   }
 }
 

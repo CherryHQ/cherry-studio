@@ -15,6 +15,8 @@ const BUN_PACKAGES = {
   'darwin-x64': 'bun-darwin-x64.zip',
   'win32-x64': 'bun-windows-x64.zip',
   'win32-x64-baseline': 'bun-windows-x64-baseline.zip',
+  'win32-arm64': 'bun-windows-x64.zip',
+  'win32-arm64-baseline': 'bun-windows-x64-baseline.zip',
   'linux-x64': 'bun-linux-x64.zip',
   'linux-x64-baseline': 'bun-linux-x64-baseline.zip',
   'linux-arm64': 'bun-linux-aarch64.zip',

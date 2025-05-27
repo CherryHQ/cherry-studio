@@ -1,12 +1,10 @@
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
-import { Extension } from '@uiw/react-codemirror'
 import { Form, Modal } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface AddMcpServerModalProps {
@@ -57,23 +55,6 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const dispatch = useAppDispatch()
-  const [editorExtensions, setEditorExtensions] = useState<Extension[]>([]) // 新增 editorExtensions 狀態
-
-  // 載入 CodeMirror JSON Linter 擴充功能
-  useEffect(() => {
-    let isMounted = true
-    Promise.all([
-      import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter),
-      import('@codemirror/lint').then((mod) => mod.linter)
-    ]).then(([jsonParseLinter, linter]) => {
-      if (isMounted) {
-        setEditorExtensions([linter(jsonParseLinter())])
-      }
-    })
-    return () => {
-      isMounted = false
-    }
-  }, [])
 
   const handleOk = async () => {
     try {
@@ -113,7 +94,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         description: serverToAdd!.description ?? '',
         baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
         command: serverToAdd!.command ?? '',
-        args: serverToAdd!.args || [],
+        args: Array.isArray(serverToAdd!.args) ? serverToAdd!.args : [],
         env: serverToAdd!.env || {},
         isActive: false,
         type: serverToAdd!.type,
@@ -167,31 +148,31 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
       onCancel={onClose}
       confirmLoading={loading}
       destroyOnClose
+      centered
+      transitionName="animation-move-down"
       width={600}>
       <Form form={form} layout="vertical" name="add_mcp_server_form">
         <Form.Item
           name="serverConfig"
           label={t('settings.mcp.addServer.importFrom.tooltip')}
           rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
-          <CodeToolbarProvider>
-            <CodeEditor
-              language="json"
-              onChange={handleEditorChange}
-              maxHeight="300px"
-              options={{
-                collapsible: true,
-                wrappable: true,
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                keymap: true
-              }}
-              extensions={editorExtensions}
-              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
-            >
-              {serverConfigValue ?? initialJsonExample}
-            </CodeEditor>
-          </CodeToolbarProvider>
+          <CodeEditor
+            // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+            value={serverConfigValue}
+            placeholder={initialJsonExample}
+            language="json"
+            onChange={handleEditorChange}
+            maxHeight="300px"
+            options={{
+              lint: true,
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
         </Form.Item>
       </Form>
     </Modal>
@@ -252,7 +233,6 @@ const parseAndExtractServer = (
     }
   } else if (
     typeof parsedJson === 'object' &&
-    parsedJson !== null &&
     !Array.isArray(parsedJson) &&
     !parsedJson.mcpServers // 確保是直接的伺服器物件
   ) {
