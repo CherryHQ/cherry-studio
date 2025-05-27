@@ -3,7 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { TriggerMode } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import { Radio, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Radio, Row, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,9 +52,15 @@ const SelectionAssistantSettings: FC = () => {
   return (
     <SettingContainer theme={theme}>
       <SettingGroup>
-        <Row>
+        <Row align="middle">
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
+          <Button
+            type="link"
+            onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
+            style={{ fontSize: 12 }}>
+            {'FAQ & ' + t('settings.about.feedback.button')}
+          </Button>
           <ExperimentalText>{t('selection.settings.experimental')}</ExperimentalText>
         </Row>
         <SettingDivider />
