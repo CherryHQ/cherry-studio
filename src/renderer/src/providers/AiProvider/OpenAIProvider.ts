@@ -281,18 +281,10 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // OpenRouter models
     if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
             effort: assistant?.settings?.reasoning_effort
-          }
-        }
-      }
-
-      if (isSupportedThinkingTokenModel(model)) {
-        return {
-          reasoning: {
-            max_tokens: budgetTokens
           }
         }
       }
@@ -634,7 +626,10 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
           if (chunk.choices && chunk.choices.length > 0) {
             const delta = chunk.choices[0]?.delta
-            if (delta?.reasoning_content || delta?.reasoning) {
+            if (
+              (delta?.reasoning_content && delta?.reasoning_content !== '\n') ||
+              (delta?.reasoning && delta?.reasoning !== '\n')
+            ) {
               yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
             }
             if (delta?.content) {

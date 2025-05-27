@@ -2617,7 +2617,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
 
   // Claude models
   'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 },
-  'claude-(:?sonnet|opus)-4.*$': { min: 1024, max: 64000 }
+  'claude-(:?sonnet|opus)-4.*$': { min: 1024, max: 32000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {
