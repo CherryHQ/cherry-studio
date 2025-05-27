@@ -13,11 +13,12 @@ directories:
   buildResources: build
 files:
   - '**/*'
-  - '!{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
+  - '!electron.vite.config.{js,ts,mjs,cjs}}'
+  - '!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/{.editorconfig,.jekyll-metadata}'
   - '!src'
   - '!scripts'
   - '!local'
