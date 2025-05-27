@@ -22,10 +22,7 @@ const AgentsSubscribeUrlSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle>
-        {t('agents.tag.agent')}
-        {t('settings.websearch.subscribe_add')}
-      </SettingTitle>
+      <SettingTitle>{t('agents.settings.subscription.title')}</SettingTitle>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.websearch.subscribe_url')}</SettingRowTitle>

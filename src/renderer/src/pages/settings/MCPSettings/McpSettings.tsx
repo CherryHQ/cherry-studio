@@ -2,7 +2,8 @@ import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import { MCPPrompt, MCPResource, MCPServer, MCPTool, MCPToolConfig, MCPToolParameterConfig } from '@renderer/types'
+import { isEmpty } from '@renderer/utils'
 import { formatMcpError } from '@renderer/utils/error'
 import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -398,6 +399,42 @@ const McpSettings: React.FC = () => {
     [server, updateMCPServer]
   )
 
+  // Handle updating tool parameter configuration
+  const handleUpdateToolConfig = useCallback(
+    async (toolName: string, parameterConfig: MCPToolParameterConfig[]) => {
+      let customToolConfigs = [...(server.customToolConfigs || [])]
+
+      const existingConfigIndex = customToolConfigs.findIndex((config) => config.toolName === toolName)
+
+      const newToolConfig: MCPToolConfig = {
+        toolName,
+        parameters: parameterConfig
+      }
+
+      if (existingConfigIndex >= 0) {
+        customToolConfigs[existingConfigIndex] = newToolConfig
+      } else {
+        customToolConfigs.push(newToolConfig)
+      }
+
+      customToolConfigs = customToolConfigs.filter((config) =>
+        config.parameters.some((param) => !isEmpty(param.defaultValue))
+      )
+
+      const updatedServer = {
+        ...server,
+        customToolConfigs
+      }
+
+      updateMCPServer(updatedServer)
+      window.message.success({
+        content: t('settings.mcp.tools.configSaved'),
+        key: 'mcp-tool-config'
+      })
+    },
+    [server, updateMCPServer, t]
+  )
+
   const tabs = [
     {
       key: 'settings',
@@ -592,7 +629,14 @@ const McpSettings: React.FC = () => {
       {
         key: 'tools',
         label: t('settings.mcp.tabs.tools'),
-        children: <MCPToolsSection tools={tools} server={server} onToggleTool={handleToggleTool} />
+        children: (
+          <MCPToolsSection
+            tools={tools}
+            server={server}
+            onToggleTool={handleToggleTool}
+            onUpdateToolConfig={handleUpdateToolConfig}
+          />
+        )
       },
       {
         key: 'prompts',
