@@ -3,7 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 
 import AihubmixPage from './AihubmixPage'
 import DmxapiPage from './DmxapiPage'
-import SiliconPage from './PaintingsPage'
+import SiliconPage from './SiliconPage'
 
 const Options = ['aihubmix', 'silicon', 'dmxapi']
 

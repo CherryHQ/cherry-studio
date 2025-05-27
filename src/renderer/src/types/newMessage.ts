@@ -1,4 +1,4 @@
-import { CompletionUsage } from 'openai/resources'
+import type { CompletionUsage } from 'openai/resources'
 
 import type {
   Assistant,

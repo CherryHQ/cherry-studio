@@ -820,7 +820,7 @@
       "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
       "title": "画像",
       "magic_prompt_option": "プロンプト強化",
-      "model": "モデルバージョン",
+      "model": "モデル",
       "aspect_ratio": "画幅比例",
       "style_type": "スタイル",
       "learn_more": "詳しくはこちら",
@@ -844,6 +844,29 @@
         "turbo": "高速",
         "quality": "高品質"
       },
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "正方形",
+        "portrait": "縦図",
+        "landscape": "横図"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "画像生成",
         "edit": "部分編集",

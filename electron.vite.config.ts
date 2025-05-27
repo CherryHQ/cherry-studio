@@ -9,25 +9,7 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 export default defineConfig({
   main: {
-    plugins: [
-      externalizeDepsPlugin({
-        exclude: [
-          '@cherrystudio/embedjs',
-          '@cherrystudio/embedjs-openai',
-          '@cherrystudio/embedjs-loader-web',
-          '@cherrystudio/embedjs-loader-markdown',
-          '@cherrystudio/embedjs-loader-msoffice',
-          '@cherrystudio/embedjs-loader-xml',
-          '@cherrystudio/embedjs-loader-pdf',
-          '@cherrystudio/embedjs-loader-sitemap',
-          '@cherrystudio/embedjs-libsql',
-          '@cherrystudio/embedjs-loader-image',
-          'p-queue',
-          'webdav'
-        ]
-      }),
-      ...visualizerPlugin('main')
-    ],
+    plugins: [externalizeDepsPlugin(), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -37,7 +19,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client']
+        external: ['@libsql/client', 'bufferutil', 'utf-8-validate']
       },
       sourcemap: process.env.NODE_ENV === 'development'
     },

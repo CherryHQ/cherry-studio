@@ -820,7 +820,7 @@
       "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
       "title": "图片",
       "magic_prompt_option": "提示词增强",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
       "rendering_speed": "渲染速度",
@@ -846,11 +846,34 @@
         "turbo": "快速",
         "quality": "高质量"
       },
+      "quality_options": {
+        "auto": "自动",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自动",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自动",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "竖图",
+        "landscape": "横图"
+      },
+      "quality": "质量",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "绘图",
         "edit": "编辑",
         "remix": "混合",
-        "upscale": "放大"
+        "upscale": "高清增强"
       },
       "generate": {
         "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",

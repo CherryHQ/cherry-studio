@@ -15,7 +15,7 @@ import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
 
 const SelectionActionApp: FC = () => {
-  const { language } = useSettings()
+  const { language, customCss } = useSettings()
 
   const { t } = useTranslation()
 
@@ -60,6 +60,20 @@ const SelectionActionApp: FC = () => {
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
+
+  useEffect(() => {
+    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
+    if (customCssElement) {
+      customCssElement.remove()
+    }
+
+    if (customCss) {
+      customCssElement = document.createElement('style')
+      customCssElement.id = 'user-defined-custom-css'
+      customCssElement.textContent = customCss
+      document.head.appendChild(customCssElement)
+    }
+  }, [customCss])
 
   useEffect(() => {
     const contentEl = contentElementRef.current

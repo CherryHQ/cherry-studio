@@ -820,7 +820,7 @@
       "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
       "title": "Images",
       "magic_prompt_option": "Magic Prompt",
-      "model": "Model Version",
+      "model": "Model",
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
       "rendering_speed": "Rendering Speed",
@@ -846,6 +846,29 @@
         "turbo": "Turbo",
         "quality": "Quality"
       },
+      "quality_options": {
+        "auto": "Auto",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "moderation_options": {
+        "auto": "Auto",
+        "low": "Low"
+      },
+      "background_options": {
+        "auto": "Auto",
+        "transparent": "Transparent",
+        "opaque": "Opaque"
+      },
+      "aspect_ratios": {
+        "square": "Square",
+        "portrait": "Portrait",
+        "landscape": "Landscape"
+      },
+      "quality": "Quality",
+      "moderation": "Moderation",
+      "background": "Background",
       "mode": {
         "generate": "Draw",
         "edit": "Edit",

@@ -22,17 +22,16 @@ import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, S
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
-import Artboard from './Artboard'
-import { type ConfigItem, createModeConfigs } from './config/aihubmixConfig'
-import { DEFAULT_PAINTING } from './config/constants'
-import PaintingsList from './PaintingsList'
+import Artboard from './components/Artboard'
+import PaintingsList from './components/PaintingsList'
+import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 
 // 使用函数创建配置项
 const modeConfigs = createModeConfigs()
@@ -74,12 +73,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     { label: t('paintings.mode.upscale'), value: 'upscale' }
   ]
 
-  const getNewPainting = () => {
+  const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
+      model: mode === 'generate' ? 'gpt-image-1' : 'V_3',
       id: uuid()
     }
-  }
+  }, [mode])
 
   const textareaRef = useRef<any>(null)
 
@@ -87,6 +87,47 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
     updatePainting(mode, updatedPainting)
+  }
+
+  const handleError = (error: unknown) => {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      window.modal.error({
+        content: getErrorMessage(error),
+        centered: true
+      })
+    }
+  }
+
+  const downloadImages = async (urls: string[]) => {
+    const downloadedFiles = await Promise.all(
+      urls.map(async (url) => {
+        try {
+          if (!url?.trim()) {
+            console.error('图像URL为空，可能是提示词违禁')
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+            return null
+          }
+          return await window.api.file.download(url)
+        } catch (error) {
+          console.error('下载图像失败:', error)
+          if (
+            error instanceof Error &&
+            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+          ) {
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+          }
+          return null
+        }
+      })
+    )
+
+    return downloadedFiles.filter((file): file is FileType => file !== null)
   }
 
   const onGenerate = async () => {
@@ -129,11 +170,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     dispatch(setGenerating(true))
 
     let body: string | FormData = ''
-    const headers: Record<string, string> = {
+    let headers: Record<string, string> = {
       'Api-Key': aihubmixProvider.apiKey
     }
+    let url = aihubmixProvider.apiHost + `/ideogram/` + mode
 
-    // 不使用 AiProvider 的通用规则，而是直接调用自定义接口
     try {
       if (mode === 'generate') {
         if (painting.model === 'V_3') {
@@ -214,67 +255,47 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             console.log('V3 API响应:', data)
             const urls = data.data.map((item) => item.url)
 
-            // Rest of the code for handling image downloads is the same
             if (urls.length > 0) {
-              const downloadedFiles = await Promise.all(
-                urls.map(async (url) => {
-                  try {
-                    // 检查URL是否为空
-                    if (!url || url.trim() === '') {
-                      console.error('图像URL为空，可能是提示词违禁')
-                      window.message.warning({
-                        content: t('message.empty_url'),
-                        key: 'empty-url-warning'
-                      })
-                      return null
-                    }
-                    return await window.api.file.download(url)
-                  } catch (error) {
-                    console.error('下载图像失败:', error)
-                    // 检查是否是URL解析错误
-                    if (
-                      error instanceof Error &&
-                      (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-                    ) {
-                      window.message.warning({
-                        content: t('message.empty_url'),
-                        key: 'empty-url-warning'
-                      })
-                    }
-                    return null
-                  }
-                })
-              )
-
-              const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+              const validFiles = await downloadImages(urls)
               await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls })
             }
             return
           } catch (error: unknown) {
-            if (error instanceof Error && error.name !== 'AbortError') {
-              window.modal.error({
-                content: getErrorMessage(error),
-                centered: true
-              })
-            }
+            handleError(error)
           } finally {
             setIsLoading(false)
             dispatch(setGenerating(false))
             setAbortController(null)
           }
         } else {
-          // Existing V1/V2 API
-          const requestData = {
-            image_request: {
+          let requestData: any = {}
+          if (painting.model === 'gpt-image-1') {
+            requestData = {
               prompt,
               model: painting.model,
-              aspect_ratio: painting.aspectRatio,
-              num_images: painting.numImages,
-              style_type: painting.styleType,
-              seed: painting.seed ? +painting.seed : undefined,
-              negative_prompt: painting.negativePrompt || undefined,
-              magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
+              size: painting.size === 'auto' ? undefined : painting.size,
+              n: painting.n,
+              quality: painting.quality,
+              moderation: painting.moderation
+            }
+            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            headers = {
+              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+            }
+          } else {
+            // Existing V1/V2 API
+            requestData = {
+              image_request: {
+                prompt,
+                model: painting.model,
+                aspect_ratio: painting.aspectRatio,
+                num_images: painting.numImages,
+                style_type: painting.styleType,
+                seed: painting.seed ? +painting.seed : undefined,
+                negative_prompt: painting.negativePrompt || undefined,
+                magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
+              }
             }
           }
           body = JSON.stringify(requestData)
@@ -352,37 +373,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           // Handle the downloaded images
           if (urls.length > 0) {
-            const downloadedFiles = await Promise.all(
-              urls.map(async (url) => {
-                try {
-                  // 检查URL是否为空
-                  if (!url || url.trim() === '') {
-                    console.error('图像URL为空，可能是提示词违禁')
-                    window.message.warning({
-                      content: t('message.empty_url'),
-                      key: 'empty-url-warning'
-                    })
-                    return null
-                  }
-                  return await window.api.file.download(url)
-                } catch (error) {
-                  console.error('下载图像失败:', error)
-                  // 检查是否是URL解析错误
-                  if (
-                    error instanceof Error &&
-                    (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-                  ) {
-                    window.message.warning({
-                      content: t('message.empty_url'),
-                      key: 'empty-url-warning'
-                    })
-                  }
-                  return null
-                }
-              })
-            )
-
-            const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+            const validFiles = await downloadImages(urls)
             await FileManager.addFiles(validFiles)
             updatePaintingState({ files: validFiles, urls })
           }
@@ -399,119 +390,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             num_images: painting.numImages,
             seed: painting.seed ? +painting.seed : undefined,
             negative_prompt: painting.negativePrompt || undefined,
-            magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
-          }
-          form.append('image_request', JSON.stringify(imageRequest))
-          form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
-          body = form
-        }
-      } else if (mode === 'edit') {
-        if (!painting.imageFile) {
-          window.modal.error({
-            content: t('paintings.image_file_required'),
-            centered: true
-          })
-          return
-        }
-        if (!fileMap[painting.imageFile]) {
-          window.modal.error({
-            content: t('paintings.image_file_retry'),
-            centered: true
-          })
-          return
-        }
-
-        if (painting.model === 'V_3') {
-          // V3 Edit API
-          const formData = new FormData()
-          formData.append('prompt', prompt)
-          formData.append('rendering_speed', painting.renderingSpeed || 'DEFAULT')
-          formData.append('num_images', String(painting.numImages || 1))
-
-          if (painting.styleType) {
-            formData.append('style_type', painting.styleType)
-          }
-
-          if (painting.seed) {
-            formData.append('seed', painting.seed)
-          }
-
-          if (painting.magicPromptOption !== undefined) {
-            formData.append('magic_prompt', painting.magicPromptOption ? 'ON' : 'OFF')
-          }
-
-          // Add the image file
-          formData.append('image', fileMap[painting.imageFile] as unknown as Blob)
-
-          // Add the mask if available
-          if (painting.mask) {
-            formData.append('mask', painting.mask as unknown as Blob)
-          }
-
-          body = formData
-          // For V3 Edit endpoint
-          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/edit`, {
-            method: 'POST',
-            headers: { 'Api-Key': aihubmixProvider.apiKey },
-            body
-          })
-
-          if (!response.ok) {
-            const errorData = await response.json()
-            console.error('V3 Edit API错误:', errorData)
-            throw new Error(errorData.error?.message || '图像编辑失败')
-          }
-
-          const data = await response.json()
-          console.log('V3 Edit API响应:', data)
-          const urls = data.data.map((item) => item.url)
-
-          // Handle the downloaded images
-          if (urls.length > 0) {
-            const downloadedFiles = await Promise.all(
-              urls.map(async (url) => {
-                try {
-                  // 检查URL是否为空
-                  if (!url || url.trim() === '') {
-                    console.error('图像URL为空，可能是提示词违禁')
-                    window.message.warning({
-                      content: t('message.empty_url'),
-                      key: 'empty-url-warning'
-                    })
-                    return null
-                  }
-                  return await window.api.file.download(url)
-                } catch (error) {
-                  console.error('下载图像失败:', error)
-                  // 检查是否是URL解析错误
-                  if (
-                    error instanceof Error &&
-                    (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-                  ) {
-                    window.message.warning({
-                      content: t('message.empty_url'),
-                      key: 'empty-url-warning'
-                    })
-                  }
-                  return null
-                }
-              })
-            )
-
-            const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
-            await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls })
-          }
-          return
-        } else {
-          // Existing V1/V2 API for edit
-          const form = new FormData()
-          const imageRequest: Record<string, any> = {
-            prompt,
-            model: painting.model,
-            style_type: painting.styleType,
-            num_images: painting.numImages,
-            seed: painting.seed ? +painting.seed : undefined,
             magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
           }
           form.append('image_request', JSON.stringify(imageRequest))
@@ -549,9 +427,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       // 只针对非V3模型使用通用接口
-      if (!painting.model?.includes('V_3')) {
+      if (!painting.model?.includes('V_3') || mode === 'upscale') {
         // 直接调用自定义接口
-        const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/${mode}`, { method: 'POST', headers, body })
+        const response = await fetch(url, { method: 'POST', headers, body })
 
         if (!response.ok) {
           const errorData = await response.json()
@@ -561,53 +439,27 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const data = await response.json()
         console.log('通用API响应:', data)
-        const urls = data.data.map((item) => item.url)
+        const urls = data.data.filter((item) => item.url).map((item) => item.url)
+        const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
         if (urls.length > 0) {
-          const downloadedFiles = await Promise.all(
-            urls.map(async (url) => {
-              try {
-                // 检查URL是否为空
-                if (!url || url.trim() === '') {
-                  console.error('图像URL为空，可能是提示词违禁')
-                  window.message.warning({
-                    content: t('message.empty_url'),
-                    key: 'empty-url-warning'
-                  })
-                  return null
-                }
-                return await window.api.file.download(url)
-              } catch (error) {
-                console.error('下载图像失败:', error)
-                // 检查是否是URL解析错误
-                if (
-                  error instanceof Error &&
-                  (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-                ) {
-                  window.message.warning({
-                    content: t('message.empty_url'),
-                    key: 'empty-url-warning'
-                  })
-                }
-                return null
-              }
+          const validFiles = await downloadImages(urls)
+          await FileManager.addFiles(validFiles)
+          updatePaintingState({ files: validFiles, urls })
+        }
+
+        if (base64s?.length > 0) {
+          const validFiles = await Promise.all(
+            base64s.map(async (base64) => {
+              return await window.api.file.saveBase64Image(base64)
             })
           )
-
-          const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
-
           await FileManager.addFiles(validFiles)
-
-          updatePaintingState({ files: validFiles, urls })
+          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
         }
       }
     } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
+      handleError(error)
     } finally {
       setIsLoading(false)
       dispatch(setGenerating(false))
@@ -617,43 +469,15 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const handleRetry = async (painting: PaintingAction) => {
     setIsLoading(true)
-    const downloadedFiles = await Promise.all(
-      painting.urls.map(async (url) => {
-        try {
-          // 检查URL是否为空
-          if (!url || url.trim() === '') {
-            console.error('图像URL为空，可能是提示词违禁')
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
-            return null
-          }
-          return await window.api.file.download(url)
-        } catch (error) {
-          console.error('下载图像失败:', error)
-          // 检查是否是URL解析错误
-          if (
-            error instanceof Error &&
-            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
-          ) {
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
-          }
-          setIsLoading(false)
-          return null
-        }
-      })
-    )
-
-    const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
-
-    await FileManager.addFiles(validFiles)
-
-    updatePaintingState({ files: validFiles, urls: painting.urls })
-    setIsLoading(false)
+    try {
+      const validFiles = await downloadImages(painting.urls)
+      await FileManager.addFiles(validFiles)
+      updatePaintingState({ files: validFiles, urls: painting.urls })
+    } catch (error) {
+      handleError(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const onCancel = () => {
@@ -754,20 +578,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // 渲染配置项的函数
-  const renderConfigItem = (item: ConfigItem, index: number) => {
+  const renderConfigForm = (item: ConfigItem) => {
     switch (item.type) {
-      case 'title': {
-        return (
-          <SettingTitle key={index} style={{ marginBottom: 5, marginTop: 15 }}>
-            {t(item.title!)}
-            {item.tooltip && (
-              <Tooltip title={t(item.tooltip)}>
-                <InfoIcon />
-              </Tooltip>
-            )}
-          </SettingTitle>
-        )
-      }
       case 'select': {
         // 处理函数类型的disabled属性
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
@@ -786,10 +598,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         return (
           <Select
-            key={index}
+            style={{ width: '100%' }}
+            listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
-            options={selectOptions}
+            options={selectOptions as any}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
@@ -809,8 +622,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         return (
           <Radio.Group
-            key={index}
-            value={painting[item.key!]}
+            value={painting[item.key!] || item.initialValue}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
             {radioOptions!.map((option) => (
               <Radio.Button key={option.value} value={option.value}>
@@ -822,96 +634,82 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'slider': {
         return (
-          <SliderContainer key={index}>
+          <SliderContainer>
             <Slider
               min={item.min}
               max={item.max}
               step={item.step}
-              value={painting[item.key!] as number}
+              value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
             <StyledInputNumber
               min={item.min}
               max={item.max}
               step={item.step}
-              value={painting[item.key!] as number}
+              value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
           </SliderContainer>
         )
       }
-      case 'input': {
-        // 处理随机种子按钮的特殊情况
-        if (item.key === 'seed') {
-          return (
-            <Input
-              key={index}
-              value={painting[item.key] as string}
-              onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-              suffix={
-                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
-              }
-            />
-          )
-        }
+      case 'input':
         return (
           <Input
-            key={index}
-            value={painting[item.key!] as string}
+            value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-            suffix={item.suffix}
+            suffix={
+              item.key === 'seed' ? (
+                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
+              ) : (
+                item.suffix
+              )
+            }
           />
         )
-      }
-      case 'inputNumber': {
+      case 'inputNumber':
         return (
           <InputNumber
-            key={index}
             min={item.min}
             max={item.max}
             style={{ width: '100%' }}
-            value={painting[item.key!] as number}
+            value={(painting[item.key!] || item.initialValue) as number}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
-      }
-      case 'textarea': {
+      case 'textarea':
         return (
           <TextArea
-            key={index}
-            value={painting[item.key!] as string}
+            value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             spellCheck={false}
             rows={4}
           />
         )
-      }
-      case 'switch': {
+      case 'switch':
         return (
-          <HStack key={index}>
+          <HStack>
             <Switch
-              checked={painting[item.key!] as boolean}
+              checked={(painting[item.key!] || item.initialValue) as boolean}
               onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
           </HStack>
         )
-      }
       case 'image': {
         return (
           <ImageUploadButton
-            key={index}
             accept="image/png, image/jpeg, image/gif"
             maxCount={1}
             showUploadList={false}
             listType="picture-card"
-            onChange={async ({ file }) => {
-              const path = file.originFileObj?.path || ''
-              setFileMap({ ...fileMap, [path]: file.originFileObj as unknown as FileType })
+            beforeUpload={(file) => {
+              const path = URL.createObjectURL(file)
+              setFileMap({ ...fileMap, [path]: file as unknown as FileType })
               updatePaintingState({ [item.key!]: path })
+              return false // 阻止默认上传行为
             }}>
             {painting[item.key!] ? (
               <ImagePreview>
-                <img src={'file://' + painting[item.key!]} alt="预览图" />
+                <img src={painting[item.key!]} alt="预览图" />
               </ImagePreview>
             ) : (
               <ImageSizeImage src={IcImageUp} theme={theme} />
@@ -922,6 +720,23 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       default:
         return null
     }
+  }
+
+  // 渲染配置项的函数
+  const renderConfigItem = (item: ConfigItem, index: number) => {
+    return (
+      <div key={index}>
+        <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          {t(item.title!)}
+          {item.tooltip && (
+            <Tooltip title={t(item.tooltip)}>
+              <InfoIcon />
+            </Tooltip>
+          )}
+        </SettingTitle>
+        {renderConfigForm(item)}
+      </div>
+    )
   }
 
   const onSelectPainting = (newPainting: PaintingAction) => {
@@ -936,12 +751,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       addPainting(mode, newPainting)
       setPainting(newPainting)
     }
-  }, [filteredPaintings, mode, addPainting, painting])
+  }, [filteredPaintings, mode, addPainting, painting, getNewPainting])
 
   useEffect(() => {
+    const timer = spaceClickTimer.current
     return () => {
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
+      if (timer) {
+        clearTimeout(timer)
       }
     }
   }, [])
@@ -985,7 +801,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           </Select>
 
           {/* 使用JSON配置渲染设置项 */}
-          {modeConfigs[mode].map(renderConfigItem)}
+          {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
         </LeftContainer>
         <MainContainer>
           {/* 添加功能切换分段控制器 */}

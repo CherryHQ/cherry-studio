@@ -821,7 +821,7 @@
       "seed_desc_tip": "相同的種子和提示詞可以生成相似的圖片，設置 -1 每次生成都不一樣",
       "title": "繪圖",
       "magic_prompt_option": "提示詞增強",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "畫幅比例",
       "style_type": "風格",
       "learn_more": "了解更多",
@@ -846,6 +846,29 @@
         "turbo": "快速",
         "quality": "高品質"
       },
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "豎圖",
+        "landscape": "橫圖"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",

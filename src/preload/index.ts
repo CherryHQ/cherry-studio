@@ -76,6 +76,7 @@ const api = {
     selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
+    saveBase64Image: (data: string) => ipcRenderer.invoke(IpcChannel.File_SaveBase64Image, data),
     download: (url: string, isUseContentType?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),

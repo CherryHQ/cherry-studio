@@ -1045,7 +1045,7 @@ export class SelectionService {
   }
 
   private logInfo(message: string) {
-    isDev && console.log('[SelectionService] Info: ', message)
+    isDev && Logger.info('[SelectionService] Info: ', message)
   }
 
   private logError(...args: [...string[], Error]) {

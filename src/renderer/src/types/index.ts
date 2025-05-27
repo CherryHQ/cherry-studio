@@ -1,7 +1,7 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
-import React from 'react'
+import type { CSSProperties } from 'react'
 
 import type { Message } from './newMessage'
 
@@ -207,6 +207,11 @@ export interface GeneratePainting extends PaintingParams {
   negativePrompt?: string
   magicPromptOption?: boolean
   renderingSpeed?: string
+  quality?: string
+  moderation?: string
+  n?: number
+  size?: string
+  background?: string
 }
 
 export interface EditPainting extends PaintingParams {
@@ -274,7 +279,7 @@ export type MinAppType = {
   url: string
   bodered?: boolean
   background?: string
-  style?: React.CSSProperties
+  style?: CSSProperties
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
