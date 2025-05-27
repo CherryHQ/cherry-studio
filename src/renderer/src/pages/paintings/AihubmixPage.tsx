@@ -11,6 +11,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import AiProvider from '@renderer/providers/AiProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -68,7 +69,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'generate' },
-    // { label: t('paintings.mode.edit'), value: 'edit' },
     { label: t('paintings.mode.remix'), value: 'remix' },
     { label: t('paintings.mode.upscale'), value: 'upscale' }
   ]
@@ -177,7 +177,28 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       if (mode === 'generate') {
-        if (painting.model === 'V_3') {
+        if (painting.model.startsWith('imagen-')) {
+          const AI = new AiProvider(aihubmixProvider)
+          const base64s = await AI.generateImage({
+            prompt,
+            model: painting.model,
+            config: {
+              aspectRatio: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':'),
+              numberOfImages: painting.model.startsWith('imagen-4.0-ultra-generate-exp') ? 1 : painting.numberOfImages,
+              personGeneration: painting.personGeneration
+            }
+          })
+          if (base64s?.length > 0) {
+            const validFiles = await Promise.all(
+              base64s.map(async (base64) => {
+                return await window.api.file.saveBase64Image(base64)
+              })
+            )
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          }
+          return
+        } else if (painting.model === 'V_3') {
           // V3 API uses different endpoint and parameters format
           const formData = new FormData()
           formData.append('prompt', prompt)
@@ -825,7 +846,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               value={painting.prompt}
               spellCheck={false}
               onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder_edit')}
+              placeholder={
+                isTranslating
+                  ? t('paintings.translating')
+                  : painting.model?.startsWith('imagen-')
+                    ? t('paintings.prompt_placeholder_en')
+                    : t('paintings.prompt_placeholder_edit')
+              }
               onKeyDown={handleKeyDown}
             />
             <Toolbar>

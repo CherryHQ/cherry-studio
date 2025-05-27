@@ -6,6 +6,7 @@ import {
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
+  PaintingProvider,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
@@ -167,6 +168,7 @@ export interface SettingsState {
     backup: boolean
     knowledgeEmbed: boolean
   }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -298,7 +300,8 @@ export const initialState: SettingsState = {
     assistant: false,
     backup: false,
     knowledgeEmbed: false
-  }
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -632,6 +635,9 @@ const settingsSlice = createSlice({
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
@@ -730,7 +736,8 @@ export const {
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
   setOpenAIServiceTier,
-  setNotificationSettings
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

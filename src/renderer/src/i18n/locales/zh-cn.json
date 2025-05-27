@@ -8,6 +8,7 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "创建智能体",
       "import": {
         "title": "从外部导入",
@@ -101,6 +102,26 @@
         "titlePlaceholder": "输入标题",
         "contentLabel": "内容",
         "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}"
+      },
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "标签展示"
+      },
+      "tags": {
+        "none": "暂无标签",
+        "manage": "标签管理",
+        "add": "添加标签",
+        "untagged": "未分组标签",
+        "modify": "修改标签",
+        "delete": "删除标签",
+        "settings": {
+          "title": "标签设置",
+          "current": "当前标签",
+          "searchTagsPlaceholder": "请输入标签名称以过滤标签",
+          "addTagsPlaceholder": "请输入标签名称以添加",
+          "tagsLsitTitle": "标签列表",
+          "tagsLsitTitleTips": "点击标签可切换"
+        }
       }
     },
     "auth": {
@@ -827,7 +848,8 @@
       "learn_more": "了解更多",
       "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-      "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
+      "prompt_placeholder_en": "输入”英文“图片描述，目前 Imagen 仅支持英文提示词",
+      "proxy_required": "打开代理并开启”TUN模式“查看生成图片或复制到浏览器打开，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
@@ -861,6 +883,11 @@
         "transparent": "透明",
         "opaque": "不透明"
       },
+      "person_generation_options": {
+        "allow_all": "允许所有",
+        "allow_adult": "允许成人",
+        "allow_none": "不允许"
+      },
       "aspect_ratios": {
         "square": "方形",
         "portrait": "竖图",
@@ -882,7 +909,9 @@
         "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
         "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
         "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+        "person_generation": "生成人物",
+        "person_generation_tip": "允许模型生成人物图像"
       },
       "edit": {
         "image_file": "编辑的图像",

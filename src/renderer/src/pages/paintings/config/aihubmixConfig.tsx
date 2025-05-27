@@ -4,6 +4,7 @@ import {
   ASPECT_RATIOS,
   BACKGROUND_OPTIONS,
   MODERATION_OPTIONS,
+  PERSON_GENERATION_OPTIONS,
   QUALITY_OPTIONS,
   RENDERING_SPEED_OPTIONS,
   STYLE_TYPES,
@@ -66,6 +67,15 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
             label: 'OpenAI',
             title: 'OpenAI',
             options: [{ label: 'gpt-image-1', value: 'gpt-image-1' }]
+          },
+          {
+            label: 'Gemini',
+            title: 'Gemini',
+            options: [
+              { label: 'imagen-4.0-preview', value: 'imagen-4.0-generate-preview-05-20' },
+              { label: 'imagen-4.0-ultra-exp', value: 'imagen-4.0-ultra-generate-exp-05-20' },
+              { label: 'imagen-3.0', value: 'imagen-3.0-generate-001' }
+            ]
           },
           {
             label: 'ideogram',
@@ -186,6 +196,40 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         options: BACKGROUND_OPTIONS,
         initialValue: 'auto',
         condition: (painting) => painting.model === 'gpt-image-1'
+      },
+      {
+        type: 'slider',
+        key: 'numberOfImages',
+        title: 'paintings.number_images',
+        tooltip: 'paintings.generate.number_images_tip',
+        min: 1,
+        max: 4,
+        initialValue: 4,
+        condition: (painting) =>
+          Boolean(painting.model?.startsWith('imagen-') && painting.model !== 'imagen-4.0-ultra-generate-exp-05-20')
+      },
+      {
+        type: 'select',
+        key: 'aspectRatio',
+        title: 'paintings.aspect_ratio',
+        options: [
+          { label: '1:1', value: 'ASPECT_1_1' },
+          { label: '3:4', value: 'ASPECT_3_4' },
+          { label: '4:3', value: 'ASPECT_4_3' },
+          { label: '9:16', value: 'ASPECT_9_16' },
+          { label: '16:9', value: 'ASPECT_16_9' }
+        ],
+        initialValue: 'ASPECT_1_1',
+        condition: (painting) => Boolean(painting.model?.startsWith('imagen-'))
+      },
+      {
+        type: 'select',
+        key: 'personGeneration',
+        title: 'paintings.generate.person_generation',
+        tooltip: 'paintings.generate.person_generation_tip',
+        options: PERSON_GENERATION_OPTIONS,
+        initialValue: 'ALLOW_ALL',
+        condition: (painting) => Boolean(painting.model?.startsWith('imagen-'))
       }
     ],
     remix: [
@@ -340,5 +384,6 @@ export const DEFAULT_PAINTING: PaintingAction = {
   background: 'auto',
   quality: 'auto',
   moderation: 'auto',
-  n: 1
+  n: 1,
+  numberOfImages: 4
 }

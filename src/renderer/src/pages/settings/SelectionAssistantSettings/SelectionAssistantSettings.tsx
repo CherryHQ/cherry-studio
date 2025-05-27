@@ -58,9 +58,15 @@ const SelectionAssistantSettings: FC = () => {
   return (
     <SettingContainer theme={theme}>
       <SettingGroup>
-        <Row>
+        <Row align="middle">
           <SettingTitle>{t('selection.name')}</SettingTitle>
           <Spacer />
+          <Button
+            type="link"
+            onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
+            style={{ fontSize: 12 }}>
+            {'FAQ & ' + t('settings.about.feedback.button')}
+          </Button>
           <ExperimentalText>{t('selection.settings.experimental')}</ExperimentalText>
         </Row>
         <SettingDivider />

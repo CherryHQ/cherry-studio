@@ -8,6 +8,7 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
+      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -101,6 +102,26 @@
         "titlePlaceholder": "Enter title",
         "contentLabel": "Content",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      },
+      "list": {
+        "showByList": "List View",
+        "showByTags": "Tag View"
+      },
+      "tags": {
+        "untagged": "Untagged",
+        "none": "No tags",
+        "manage": "Tag Management",
+        "modify": "Modify Tag",
+        "add": "Add Tag",
+        "delete": "Delete Tag",
+        "settings": {
+          "title": "Tag Settings",
+          "current": "Current Tags",
+          "searchTagsPlaceholder": "Enter tag name to filter tags",
+          "addTagsPlaceholder": "Enter tag name to add",
+          "tagsLsitTitle": "Tag List",
+          "tagsLsitTitleTips": "Click tag to toggle"
+        }
       }
     },
     "auth": {
@@ -827,7 +848,8 @@
       "learn_more": "Learn More",
       "paint_course": "tutorial",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-      "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
+      "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+      "proxy_required": "Open the proxy and enable “TUN mode” to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
       "image_placeholder": "No image available",
@@ -866,6 +888,11 @@
         "portrait": "Portrait",
         "landscape": "Landscape"
       },
+      "person_generation_options": {
+        "allow_all": "Allow all",
+        "allow_adult": "Allow adult",
+        "allow_none": "Not allowed"
+      },
       "quality": "Quality",
       "moderation": "Moderation",
       "background": "Background",
@@ -882,7 +909,9 @@
         "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
         "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
         "style_type_tip": "Image generation style for V_2 and above",
-        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+        "person_generation": "Generate person",
+        "person_generation_tip": "Allow model to generate person images"
       },
       "edit": {
         "image_file": "Edited Image",
