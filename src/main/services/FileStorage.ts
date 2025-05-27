@@ -268,6 +268,51 @@ class FileStorage {
     }
   }
 
+  public saveBase64Image = async (_: Electron.IpcMainInvokeEvent, base64Data: string): Promise<FileType> => {
+    try {
+      if (!base64Data) {
+        throw new Error('Base64 data is required')
+      }
+
+      // 移除 base64 头部信息（如果存在）
+      const base64String = base64Data.replace(/^data:.*;base64,/, '')
+      const buffer = Buffer.from(base64String, 'base64')
+      const uuid = uuidv4()
+      const ext = '.png'
+      const destPath = path.join(this.storageDir, uuid + ext)
+
+      logger.info('[FileStorage] Saving base64 image:', {
+        storageDir: this.storageDir,
+        destPath,
+        bufferSize: buffer.length
+      })
+
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+
+      await fs.promises.writeFile(destPath, buffer)
+
+      const fileMetadata: FileType = {
+        id: uuid,
+        origin_name: uuid + ext,
+        name: uuid + ext,
+        path: destPath,
+        created_at: new Date().toISOString(),
+        size: buffer.length,
+        ext: ext.slice(1),
+        type: getFileType(ext),
+        count: 1
+      }
+
+      return fileMetadata
+    } catch (error) {
+      logger.error('[FileStorage] Failed to save base64 image:', error)
+      throw error
+    }
+  }
+
   public base64File = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: string; mime: string }> => {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)

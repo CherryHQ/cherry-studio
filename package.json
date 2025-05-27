@@ -38,7 +38,6 @@
     "publish": "yarn build:check && yarn release patch push",
     "pulish:artifacts": "cd packages/artifacts && npm publish && cd -",
     "generate:agents": "yarn workspace @cherry-studio/database agents",
-    "generate:icons": "electron-icon-builder --input=./build/logo.png --output=build",
     "analyze:renderer": "VISUALIZER_RENDERER=true yarn build",
     "analyze:main": "VISUALIZER_MAIN=true yarn build",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
@@ -157,7 +156,6 @@
     "electron": "35.4.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",
-    "electron-icon-builder": "^2.0.1",
     "electron-vite": "^3.1.0",
     "emittery": "^1.0.3",
     "emoji-picker-element": "^1.22.1",
@@ -223,7 +221,8 @@
     "pkce-challenge@npm:^4.1.0": "patch:pkce-challenge@npm%3A4.1.0#~/.yarn/patches/pkce-challenge-npm-4.1.0-fbc51695a3.patch",
     "app-builder-lib@npm:26.0.13": "patch:app-builder-lib@npm%3A26.0.13#~/.yarn/patches/app-builder-lib-npm-26.0.13-a064c9e1d0.patch",
     "openai@npm:^4.87.3": "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch",
-    "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch"
+    "app-builder-lib@npm:26.0.15": "patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch",
+    "@langchain/core@npm:^0.3.26": "patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {

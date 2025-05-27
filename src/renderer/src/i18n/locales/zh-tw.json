@@ -821,13 +821,14 @@
       "seed_desc_tip": "相同的種子和提示詞可以生成相似的圖片，設置 -1 每次生成都不一樣",
       "title": "繪圖",
       "magic_prompt_option": "提示詞增強",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "畫幅比例",
       "style_type": "風格",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
-      "paint_course":"教程",
-      "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
+      "prompt_placeholder_en": "輸入”英文“圖片描述，目前 Imagen 僅支持英文提示詞",
+      "paint_course": "教程",
+      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
       "image_placeholder": "無圖片",
@@ -846,6 +847,34 @@
         "turbo": "快速",
         "quality": "高品質"
       },
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "豎圖",
+        "landscape": "橫圖"
+      },
+      "person_generation_options": {
+        "allow_all": "允許所有",
+        "allow_adult": "允許成人",
+        "allow_none": "不允許"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -859,7 +888,9 @@
         "negative_prompt_tip": "描述不想在圖像中出現的內容",
         "magic_prompt_option_tip": "智能優化生成效果的提示詞",
         "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本",
+        "person_generation": "人物生成",
+        "person_generation_tip": "允許模型生成人物圖像"
       },
       "edit": {
         "image_file": "編輯圖像",

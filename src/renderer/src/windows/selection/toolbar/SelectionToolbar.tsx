@@ -65,8 +65,10 @@ const ActionIcons: FC<{
 
   const renderActionButton = useCallback(
     (action: ActionItem) => {
+      const displayName = action.isBuiltIn ? t(action.name) : action.name
+
       return (
-        <ActionButton key={action.id} onClick={() => handleAction(action)}>
+        <ActionButton key={action.id} onClick={() => handleAction(action)} title={isCompact ? displayName : undefined}>
           <ActionIcon>
             {action.id === 'copy' ? (
               renderCopyIcon()
@@ -79,9 +81,7 @@ const ActionIcons: FC<{
               />
             )}
           </ActionIcon>
-          {!isCompact && (
-            <ActionTitle className="btn-title">{action.isBuiltIn ? t(action.name) : action.name}</ActionTitle>
-          )}
+          {!isCompact && <ActionTitle className="btn-title">{displayName}</ActionTitle>}
         </ActionButton>
       )
     },

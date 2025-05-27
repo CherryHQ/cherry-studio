@@ -820,14 +820,15 @@
       "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
       "title": "Images",
       "magic_prompt_option": "Magic Prompt",
-      "model": "Model Version",
+      "model": "Model",
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
       "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
-      "paint_course":"tutorial",
+      "paint_course": "tutorial",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-      "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
+      "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+      "proxy_required": "Open the proxy and enable “TUN mode” to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
       "image_placeholder": "No image available",
@@ -846,6 +847,34 @@
         "turbo": "Turbo",
         "quality": "Quality"
       },
+      "quality_options": {
+        "auto": "Auto",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "moderation_options": {
+        "auto": "Auto",
+        "low": "Low"
+      },
+      "background_options": {
+        "auto": "Auto",
+        "transparent": "Transparent",
+        "opaque": "Opaque"
+      },
+      "aspect_ratios": {
+        "square": "Square",
+        "portrait": "Portrait",
+        "landscape": "Landscape"
+      },
+      "person_generation_options": {
+        "allow_all": "Allow all",
+        "allow_adult": "Allow adult",
+        "allow_none": "Not allowed"
+      },
+      "quality": "Quality",
+      "moderation": "Moderation",
+      "background": "Background",
       "mode": {
         "generate": "Draw",
         "edit": "Edit",
@@ -859,7 +888,9 @@
         "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
         "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
         "style_type_tip": "Image generation style for V_2 and above",
-        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+        "person_generation": "Generate person",
+        "person_generation_tip": "Allow model to generate person images"
       },
       "edit": {
         "image_file": "Edited Image",

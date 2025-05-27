@@ -820,14 +820,15 @@
       "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
       "title": "图片",
       "magic_prompt_option": "提示词增强",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
       "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
-      "paint_course":"教程",
+      "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-      "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
+      "prompt_placeholder_en": "输入”英文“图片描述，目前 Imagen 仅支持英文提示词",
+      "proxy_required": "打开代理并开启”TUN模式“查看生成图片或复制到浏览器打开，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
@@ -846,11 +847,39 @@
         "turbo": "快速",
         "quality": "高质量"
       },
+      "quality_options": {
+        "auto": "自动",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自动",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自动",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "person_generation_options": {
+        "allow_all": "允许所有",
+        "allow_adult": "允许成人",
+        "allow_none": "不允许"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "竖图",
+        "landscape": "横图"
+      },
+      "quality": "质量",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "绘图",
         "edit": "编辑",
         "remix": "混合",
-        "upscale": "放大"
+        "upscale": "高清增强"
       },
       "generate": {
         "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
@@ -859,7 +888,9 @@
         "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
         "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
         "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+        "person_generation": "生成人物",
+        "person_generation_tip": "允许模型生成人物图像"
       },
       "edit": {
         "image_file": "编辑的图像",

@@ -6,6 +6,7 @@ import {
   FunctionCall,
   GenerateContentConfig,
   GenerateContentResponse,
+  GenerateImagesParameters,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -887,10 +888,30 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * Generate an image
-   * @returns The generated image
+   * @param params - The parameters for image generation
+   * @returns The generated image URLs
    */
-  public async generateImage(): Promise<string[]> {
-    return []
+  public async generateImage(params: GenerateImagesParameters): Promise<string[]> {
+    try {
+      console.log('[GeminiProvider] generateImage params:', params)
+      const response = await this.sdk.models.generateImages(params)
+
+      if (!response.generatedImages || response.generatedImages.length === 0) {
+        return []
+      }
+
+      const images = response.generatedImages
+        .filter((image) => image.image?.imageBytes)
+        .map((image) => {
+          const dataPrefix = `data:${image.image?.mimeType || 'image/png'};base64,`
+          return dataPrefix + image.image?.imageBytes
+        })
+      //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
+      return images
+    } catch (error) {
+      console.error('[generateImage] error:', error)
+      throw error
+    }
   }
 
   /**

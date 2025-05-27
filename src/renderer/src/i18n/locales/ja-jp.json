@@ -820,13 +820,14 @@
       "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
       "title": "画像",
       "magic_prompt_option": "プロンプト強化",
-      "model": "モデルバージョン",
+      "model": "モデル",
       "aspect_ratio": "画幅比例",
       "style_type": "スタイル",
       "learn_more": "詳しくはこちら",
       "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-      "paint_course":"チュートリアル",
-      "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
+      "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
+      "paint_course": "チュートリアル",
+      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
       "image_placeholder": "画像がありません",
@@ -844,6 +845,34 @@
         "turbo": "高速",
         "quality": "高品質"
       },
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "正方形",
+        "portrait": "縦図",
+        "landscape": "横図"
+      },
+      "person_generation_options": {
+        "allow_all": "許可する",
+        "allow_adult": "許可する",
+        "allow_none": "許可しない"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "画像生成",
         "edit": "部分編集",
@@ -857,7 +886,9 @@
         "negative_prompt_tip": "画像に含めたくない内容を説明します",
         "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
         "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
-        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+        "person_generation": "人物生成",
+        "person_generation_tip": "人物画像を生成する"
       },
       "edit": {
         "image_file": "編集画像",
