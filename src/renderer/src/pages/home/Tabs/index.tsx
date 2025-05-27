@@ -24,6 +24,7 @@ interface Props {
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
+type SortType = '' | 'tags' | 'list'
 
 let _tab: any = ''
 
@@ -36,6 +37,7 @@ const HomeTabs: FC<Props> = ({
   forceToSeeAllTab
 }) => {
   const { addAssistant } = useAssistants()
+  const [sortBy, setSortBy] = useState<SortType>('list')
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
   const { defaultAssistant } = useDefaultAssistant()
@@ -127,6 +129,8 @@ const HomeTabs: FC<Props> = ({
       <TabContent className="home-tabs-content">
         {tab === 'assistants' && (
           <Assistants
+            setSortBy={setSortBy}
+            sortBy={sortBy}
             activeAssistant={activeAssistant}
             setActiveAssistant={setActiveAssistant}
             onCreateAssistant={onCreateAssistant}

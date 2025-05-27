@@ -113,7 +113,10 @@
         "settings": {
           "title": "タグ設定",
           "current": "現在のタグ",
-          "addTagsPlaceholder": "タグを選択するか、プラスアイコンをクリックして新しいタグを追加"
+          "searchTagsPlaceholder": "タグ名を入力してフィルタリング",
+          "addTagsPlaceholder": "追加するタグ名を入力",
+          "tagsLsitTitle": "タグ一覧",
+          "tagsLsitTitleTips": "タグをクリックで切り替え"
         }
       },
       "settings.tool_use_mode": "工具調用方式",

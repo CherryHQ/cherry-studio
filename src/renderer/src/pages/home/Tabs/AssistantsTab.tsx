@@ -5,21 +5,26 @@ import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant } from '@renderer/types'
-import { Divider } from 'antd'
+import { Divider, Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './components/AssistantItem'
 
+type SortType = '' | 'tags' | 'list'
+
 interface AssistantsTabProps {
+  sortBy: SortType
+  setSortBy: (assistant: SortType) => void
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
-type SortType = '' | 'tags' | 'list'
 const Assistants: FC<AssistantsTabProps> = ({
+  sortBy,
+  setSortBy,
   activeAssistant,
   setActiveAssistant,
   onCreateAssistant,
@@ -27,7 +32,6 @@ const Assistants: FC<AssistantsTabProps> = ({
 }) => {
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
-  const [sortBy, setSortBy] = useState<SortType>('list')
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const { getGroupedAssistants } = useTags()
@@ -51,7 +55,6 @@ const Assistants: FC<AssistantsTabProps> = ({
     },
     [setSortBy]
   )
-
   return (
     <Container className="assistants-tab" ref={containerRef}>
       {sortBy === 'tags' && (
@@ -59,7 +62,9 @@ const Assistants: FC<AssistantsTabProps> = ({
           {getGroupedAssistants.map((group) => (
             <TagsContainer key={group.tag}>
               <GroupTitle>
-                <GroupTitleName>{group.tag}</GroupTitleName>
+                <Tooltip title={group.tag}>
+                  <GroupTitleName>{group.tag}</GroupTitleName>
+                </Tooltip>
                 <Divider style={{ margin: '12px 0' }}></Divider>
               </GroupTitle>
               {group.assistants.map((assistant) => (
@@ -160,6 +165,10 @@ const GroupTitle = styled.div`
 `
 
 const GroupTitleName = styled.div`
+  max-width: 50%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
   background-color: var(--color-background);
   box-sizing: border-box;
   padding: 0 4px;

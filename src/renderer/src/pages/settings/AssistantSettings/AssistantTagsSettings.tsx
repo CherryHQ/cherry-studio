@@ -20,6 +20,7 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant, mo
   const { allTags } = useTags()
   const [showMode, setShowMode] = useState<'add' | 'manage'>(mode)
   const [filteredTags, setFilteredTags] = useState<string[]>(allTags)
+  const [currentTags, setCurrentTags] = useState<string[]>([...(assistant.tags || [])])
   const [tempTag, setTempTag] = useState<string | undefined>(mode === 'add' ? '' : assistant.tags?.[0])
   const [inputTag, setInputTag] = useState<string>('')
   const { assistants, updateAssistants } = useAssistants()
@@ -33,9 +34,9 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant, mo
   const { getAssistantsByTag } = useTags()
 
   const handleClose = (removedTag: string) => {
-    setTempTag('')
     // 更新所有关联该tag的助手
     const relatedAssistants = getAssistantsByTag(removedTag)
+    setCurrentTags(currentTags.filter((tag) => tag !== removedTag)) // 点击下面移除是不需要缓存的
     updateAssistants(
       assistants.map((assistant) => {
         const findedAssitant = relatedAssistants.find((_assistant) => _assistant.id === assistant.id)
@@ -63,7 +64,12 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant, mo
                 style={{
                   cursor: 'pointer'
                 }}
-                onClose={() => handleClose(tempTag || '')}>
+                onClose={() => {
+                  setTempTag('')
+                  // 防止删除以后，没有tag的助手被删除，写个暂存的。方便恢复回去
+                  setCurrentTags([...new Set([...currentTags, tempTag])])
+                  updateAssistant({ ...assistant, tags: [] })
+                }}>
                 {tempTag}
               </Tag>
             )}
@@ -72,68 +78,78 @@ const AssistantTagsSettings: React.FC<Props> = ({ assistant, updateAssistant, mo
           <Divider style={{ margin: 8 }}></Divider>
         </>
       )}
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
-        {t('assistants.tags.settings.addTagsPlaceholder')}
-      </Box>
+
       <Space.Compact direction="vertical" style={{ width: '100%', gap: 8 }}>
         {showMode === 'add' && (
-          <Input
-            ref={inputRef}
-            value={inputTag}
-            autoFocus
-            onChange={(e) => setInputTag(e.target.value)}
-            style={{ width: '80%' }}
-            suffix={
-              <>
-                {+inputTag?.length > 0 && (
-                  <CheckOutlined
-                    onClick={() => {
-                      if (inputTag) {
-                        setInputTag('')
-                        setTempTag(inputTag)
-                        updateAssistant({ ...assistant, tags: [inputTag] })
-                        setShowMode('manage')
-                      }
-                    }}
-                    style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
-                  />
-                )}
-              </>
-            }
-          />
+          <>
+            <Box mb={8} style={{ fontWeight: 'bold' }}>
+              {t('assistants.tags.settings.addTagsPlaceholder')}
+            </Box>
+            <Input
+              ref={inputRef}
+              value={inputTag}
+              autoFocus
+              onChange={(e) => setInputTag(e.target.value)}
+              suffix={
+                <>
+                  {+inputTag?.length > 0 && (
+                    <CheckOutlined
+                      onClick={() => {
+                        if (inputTag) {
+                          setInputTag('')
+                          setTempTag(inputTag)
+                          updateAssistant({ ...assistant, tags: [inputTag] })
+                          setShowMode('manage')
+                        }
+                      }}
+                      style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
+                    />
+                  )}
+                </>
+              }
+            />
+          </>
         )}
-        <div style={{ width: '80%' }}>
-          <Input
-            placeholder={t('assistants.tags.settings.searchTagsPlaceholder')}
-            style={{ marginBottom: 8 }}
-            onChange={(e) => {
-              const searchValue = e.target.value.toLowerCase()
-              setFilteredTags(allTags?.filter((tag) => tag.toLowerCase().includes(searchValue)))
-            }}
-          />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {filteredTags
-              .filter((_) => _ !== tempTag)
-              ?.map((tag) => (
-                <Tag
-                  key={tag}
-                  closeIcon={<CloseOutlined style={{ color: 'var(--color-text)' }} />}
-                  style={{
-                    cursor: 'pointer',
-                    background: 'var(--color-background-mute)',
-                    color: 'var(--color-text)'
-                  }}
-                  onClose={() => handleClose(tag)}
-                  onClick={() => {
-                    setShowMode('manage')
-                    setTempTag(tag)
-                    updateAssistant({ ...assistant, tags: [tag] })
-                  }}>
-                  {tag}
-                </Tag>
-              ))}
+        {showMode === 'manage' && (
+          <div>
+            <Box mb={8} style={{ fontWeight: 'bold' }}>
+              {t('assistants.tags.settings.searchTagsPlaceholder')}
+            </Box>
+            <Input
+              placeholder={t('assistants.tags.settings.searchTagsPlaceholder')}
+              style={{ marginBottom: 8 }}
+              onChange={(e) => {
+                const searchValue = e.target.value.toLowerCase()
+                setFilteredTags(allTags?.filter((tag) => tag.toLowerCase().includes(searchValue)))
+              }}
+            />
+            <Box mb={8} style={{ fontWeight: 'bold' }}>
+              {t('assistants.tags.settings.tagsLsitTitle')}
+              <em style={{ fontSize: '12px' }}>（{t('assistants.tags.settings.tagsLsitTitleTips')}）</em>
+            </Box>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+              {[...new Set([...filteredTags, ...currentTags])]
+                .filter((_) => _ !== tempTag)
+                ?.map((tag) => (
+                  <Tag
+                    key={tag}
+                    closeIcon={<CloseOutlined style={{ color: 'var(--color-text)' }} />}
+                    style={{
+                      cursor: 'pointer',
+                      background: 'var(--color-background-mute)',
+                      color: 'var(--color-text)'
+                    }}
+                    onClose={() => handleClose(tag)}
+                    onClick={() => {
+                      setTempTag(tag)
+                      updateAssistant({ ...assistant, tags: [tag] })
+                    }}>
+                    {tag}
+                  </Tag>
+                ))}
+            </div>
           </div>
-        </div>
+        )}
         {/* <PlusCircleOutlined onClick={handleAddClick} style={{ color: 'var(--color-primary)', cursor: 'pointer' }} /> */}
       </Space.Compact>
     </Container>

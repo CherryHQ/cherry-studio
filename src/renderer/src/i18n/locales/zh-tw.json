@@ -111,9 +111,12 @@
         "modify": "修改標籤",
         "delete": "刪除標籤",
         "settings": {
-          "title": "標籤設置",
+          "title": "標籤設定",
           "current": "當前標籤",
-          "addTagsPlaceholder": "請選擇標籤，或者點擊右側圖標新增標籤"
+          "searchTagsPlaceholder": "請輸入標籤名稱以過濾標籤",
+          "addTagsPlaceholder": "請輸入標籤名稱以新增",
+          "tagsLsitTitle": "標籤列表",
+          "tagsLsitTitleTips": "點擊標籤可切換"
         }
       },
       "settings.tool_use_mode": "工具調用方式",

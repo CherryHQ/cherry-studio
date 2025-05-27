@@ -116,7 +116,10 @@
         "settings": {
           "title": "标签设置",
           "current": "当前标签",
-          "addTagsPlaceholder": "请选择标签，或者点击右侧图标新增标签"
+          "searchTagsPlaceholder": "请输入标签名称以过滤标签",
+          "addTagsPlaceholder": "请输入标签名称以添加",
+          "tagsLsitTitle": "标签列表",
+          "tagsLsitTitleTips": "点击标签可切换"
         }
       }
     },

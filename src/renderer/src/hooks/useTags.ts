@@ -51,14 +51,15 @@ export const useTags = () => {
       }
     })
 
+    grouped.sort((a, b) => a.tag.localeCompare(b.tag))
+
     const untagged = assistants.filter((a) => !a.tags?.length)
     if (untagged.length > 0) {
       grouped.unshift({
         tag: t('assistants.tags.untagged'),
-        assistants: untagged.sort((a, b) => a.name.localeCompare(b.name))
+        assistants: untagged
       })
     }
-
     return grouped
   }, [allTags, assistants, t])
 

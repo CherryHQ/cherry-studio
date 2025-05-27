@@ -181,7 +181,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
               }
             }
           })),
-          { type: 'divider' },
+          allTags.length > 0 ? { type: 'divider' } : null,
           {
             label: t('assistants.tags.add'),
             key: 'new-tag',
@@ -195,19 +195,21 @@ const AssistantItem: FC<AssistantItemProps> = ({
               )
             }
           },
-          {
-            label: t('assistants.tags.manage'),
-            key: 'manage-tags',
-            onClick: () => {
-              TagsPopup.show(
-                assistant,
-                (updated) => {
-                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
-                },
-                'manage'
-              )
-            }
-          }
+          allTags.length > 0
+            ? {
+                label: t('assistants.tags.manage'),
+                key: 'manage-tags',
+                onClick: () => {
+                  TagsPopup.show(
+                    assistant,
+                    (updated) => {
+                      updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                    },
+                    'manage'
+                  )
+                }
+              }
+            : null
         ]
       },
       {

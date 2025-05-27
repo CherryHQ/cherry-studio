@@ -116,7 +116,10 @@
         "settings": {
           "title": "Tag Settings",
           "current": "Current Tags",
-          "addTagsPlaceholder": "Select tags, or click the plus icon to add new tags"
+          "searchTagsPlaceholder": "Enter tag name to filter tags",
+          "addTagsPlaceholder": "Enter tag name to add",
+          "tagsLsitTitle": "Tag List",
+          "tagsLsitTitleTips": "Click tag to toggle"
         }
       }
     },
