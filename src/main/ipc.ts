@@ -112,8 +112,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setAutoUpdate(isActive)
   })
 
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
-    configManager.set(key, value)
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
+    configManager.set(key, value, isNotify)
   })
 
   ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {

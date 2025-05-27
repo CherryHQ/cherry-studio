@@ -127,7 +127,8 @@ const api = {
     deleteFile: (fileId: string, apiKey: string) => ipcRenderer.invoke(IpcChannel.Gemini_DeleteFile, fileId, apiKey)
   },
   config: {
-    set: (key: string, value: any) => ipcRenderer.invoke(IpcChannel.Config_Set, key, value),
+    set: (key: string, value: any, isNotify: boolean = false) =>
+      ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
     get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)
   },
   miniWindow: {
