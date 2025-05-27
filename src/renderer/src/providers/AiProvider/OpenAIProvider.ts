@@ -627,31 +627,35 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       }
       const reasoningTag = getAppropriateTag(model)
       async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
-        for await (const chunk of stream) {
-          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-            break
-          }
-
-          if (chunk.choices && chunk.choices.length > 0) {
-            const delta = chunk.choices[0]?.delta
-            if (delta?.reasoning_content || delta?.reasoning) {
-              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-            }
-            if (delta?.content) {
-              yield { type: 'text-delta', textDelta: delta.content }
-            }
-            if (delta?.tool_calls) {
-              yield { type: 'tool-calls', delta: delta }
-            }
-
-            const finishReason = chunk?.choices[0]?.finish_reason
-            if (!isEmpty(finishReason)) {
-              yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+        try {
+          for await (const chunk of stream) {
+            if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
               break
             }
-          } else {
-            yield { type: 'unknown', chunk }
+
+            if (chunk.choices && chunk.choices.length > 0) {
+              const delta = chunk.choices[0]?.delta
+              if (delta?.reasoning_content || delta?.reasoning) {
+                yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+              }
+              if (delta?.content) {
+                yield { type: 'text-delta', textDelta: delta.content }
+              }
+              if (delta?.tool_calls) {
+                yield { type: 'tool-calls', delta: delta }
+              }
+
+              const finishReason = chunk?.choices[0]?.finish_reason
+              if (!isEmpty(finishReason)) {
+                yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+              }
+            } else {
+              yield { type: 'unknown', chunk }
+            }
           }
+        } catch (e) {
+          console.error('error', e)
+          yield { type: 'unknown', chunk: e }
         }
       }
 
@@ -668,7 +672,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       })
 
       // 3. 消费 processedStream，分发 onChunk
-      for await (const chunk of readableStreamAsyncIterable(processedStream)) {
+      for await (const chunk of readableStreamAsyncIterable<OpenAIStreamChunk>(processedStream)) {
         const delta = chunk.type === 'finish' ? chunk.delta : chunk
         const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
 
