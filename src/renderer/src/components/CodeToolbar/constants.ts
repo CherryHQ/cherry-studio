@@ -5,12 +5,12 @@ export const TOOL_SPECS: Record<string, CodeToolSpec> = {
   copy: {
     id: 'copy',
     type: 'core',
-    order: 10
+    order: 11
   },
   download: {
     id: 'download',
     type: 'core',
-    order: 11
+    order: 10
   },
   edit: {
     id: 'edit',

@@ -1,4 +1,4 @@
-import { TOOL_SPECS, useCodeToolbar } from '@renderer/components/CodeToolbar'
+import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
@@ -12,6 +12,7 @@ import styled from 'styled-components'
 interface CodePreviewProps {
   children: string
   language: string
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
 /**
@@ -20,7 +21,7 @@ interface CodePreviewProps {
  * - 通过 shiki tokenizer 处理流式响应
  * - 为了正确执行语法高亮，必须保证流式响应都依次到达 tokenizer，不能跳过
  */
-const CodePreview = ({ children, language }: CodePreviewProps) => {
+const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const { activeShikiTheme, highlightCodeChunk, cleanupTokenizers } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
@@ -35,7 +36,7 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
 
   const { t } = useTranslation()
 
-  const { registerTool, removeTool } = useCodeToolbar()
+  const { registerTool, removeTool } = useCodeTool(setTools)
 
   // 展开/折叠工具
   useEffect(() => {
@@ -162,21 +163,24 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
     }
   }, [highlightCode])
 
+  const hasHighlightedCode = useMemo(() => {
+    return tokenLines.length > 0
+  }, [tokenLines.length])
+
   return (
     <ContentContainer
       ref={codeContentRef}
-      $isShowLineNumbers={codeShowLineNumbers}
-      $isUnwrapped={isUnwrapped}
-      $isCodeWrappable={codeWrappable}
+      $lineNumbers={codeShowLineNumbers}
+      $wrap={codeWrappable && !isUnwrapped}
+      $fadeIn={hasHighlightedCode}
       style={{
         fontSize: fontSize - 1,
-        maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none',
-        overflow: codeCollapsible && !isExpanded ? 'auto' : 'visible'
+        maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
       }}>
-      {tokenLines.length > 0 ? (
+      {hasHighlightedCode ? (
         <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
       ) : (
-        <div style={{ opacity: 0.1 }}>{children}</div>
+        <CodePlaceholder>{children}</CodePlaceholder>
       )}
     </ContentContainer>
   )
@@ -223,34 +227,40 @@ const ShikiTokensRenderer: React.FC<{ language: string; tokenLines: ThemedToken[
 )
 
 const ContentContainer = styled.div<{
-  $isShowLineNumbers: boolean
-  $isUnwrapped: boolean
-  $isCodeWrappable: boolean
+  $lineNumbers: boolean
+  $wrap: boolean
+  $fadeIn: boolean
 }>`
+  display: block;
   position: relative;
+  overflow: auto;
   border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
-  transition: opacity 0.3s ease;
 
   .shiki {
+    display: flex;
+    min-width: 100%;
     padding: 1em;
 
     code {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
+      display: block;
 
       .line {
         display: block;
         min-height: 1.3rem;
-        padding-left: ${(props) => (props.$isShowLineNumbers ? '2rem' : '0')};
+        padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
+
+        * {
+          overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
+          white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
+        }
       }
     }
   }
 
   ${(props) =>
-    props.$isShowLineNumbers &&
+    props.$lineNumbers &&
     `
       code {
         counter-reset: step;
@@ -269,15 +279,25 @@ const ContentContainer = styled.div<{
       }
     `}
 
-  ${(props) =>
-    props.$isCodeWrappable &&
-    !props.$isUnwrapped &&
-    `
-      code .line * {
-        word-wrap: break-word;
-        white-space: pre-wrap;
-      }
-    `}
+  @keyframes contentFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.3s ease-in-out forwards' : 'none')};
+`
+
+const CodePlaceholder = styled.div`
+  display: block;
+  opacity: 0.1;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: hidden;
+  min-height: 1.3rem;
 `
 
 CodePreview.displayName = 'CodePreview'

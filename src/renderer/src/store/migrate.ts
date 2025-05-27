@@ -11,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -839,7 +840,6 @@ const migrateConfig = {
   },
   '66': (state: RootState) => {
     try {
-      addProvider(state, 'burncloud')
       addProvider(state, 'gitee-ai')
       addProvider(state, 'ppio')
       addMiniApp(state, 'aistudio')
@@ -1026,7 +1026,6 @@ const migrateConfig = {
   },
   '78': (state: RootState) => {
     try {
-      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 9)
       state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
       state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
       removeMiniAppIconsFromState(state)
@@ -1410,6 +1409,58 @@ const migrateConfig = {
       }
       // Quick assistant model
       state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '104': (state: RootState) => {
+    try {
+      addProvider(state, 'burncloud')
+      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '105': (state: RootState) => {
+    try {
+      state.settings.notification = settingsInitialState.notification
+      addMiniApp(state, 'google')
+      if (!state.settings.openAI) {
+        state.settings.openAI = {
+          summaryText: 'off',
+          serviceTier: 'auto'
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '106': (state: RootState) => {
+    try {
+      addProvider(state, 'tokenflux')
+      state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
       return state
     } catch (error) {
       return state

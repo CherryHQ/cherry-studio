@@ -14,6 +14,7 @@ import {
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -73,7 +74,8 @@ const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
-  const { messageStyle, fontSize, language, theme } = useSettings()
+  const { messageStyle, fontSize, language } = useSettings()
+  const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
@@ -206,9 +208,14 @@ const SettingsTab: FC<Props> = (props) => {
         title={t('assistants.settings.title')}
         defaultExpanded={true}
         extra={
-          <HStack alignItems="center">
+          <HStack alignItems="center" gap={2}>
             <Tooltip title={t('chat.settings.reset')}>
-              <RotateCcw size={20} onClick={onReset} style={{ cursor: 'pointer', padding: '0 3px' }} />
+              <Button
+                type="text"
+                size="small"
+                onClick={onReset}
+                icon={<RotateCcw size={20} style={{ cursor: 'pointer', padding: '0 3px', opacity: 0.8 }} />}
+              />
             </Tooltip>
             <Button
               type="text"
@@ -226,7 +233,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <div style={{ width: '100%' }}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={2}
@@ -235,7 +242,7 @@ const SettingsTab: FC<Props> = (props) => {
                 value={typeof temperature === 'number' ? temperature : 0}
                 step={0.1}
               />
-            </div>
+            </Col>
           </Row>
           <Row align="middle">
             <Label>{t('chat.settings.context_count')}</Label>
@@ -244,7 +251,7 @@ const SettingsTab: FC<Props> = (props) => {
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <div style={{ width: '100%' }}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={maxContextCount}
@@ -253,7 +260,7 @@ const SettingsTab: FC<Props> = (props) => {
                 value={typeof contextCount === 'number' ? contextCount : 0}
                 step={1}
               />
-            </div>
+            </Col>
           </Row>
           <SettingDivider />
           <SettingRow>

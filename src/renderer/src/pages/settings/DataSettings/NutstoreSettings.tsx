@@ -94,6 +94,7 @@ const NutstoreSettings: FC = () => {
     if (confirmedLogout) {
       dispatch(setNutstoreToken(''))
       dispatch(setNutstorePath(''))
+      dispatch(setNutstoreAutoSync(false))
       setNutstoreUsername('')
       setStoragePath(undefined)
     }

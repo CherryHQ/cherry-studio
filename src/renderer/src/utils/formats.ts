@@ -54,6 +54,8 @@ $$
 }
 
 export function extractTitle(html: string): string | null {
+  if (!html) return null
+
   // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
   const match = html.match(titleRegex)

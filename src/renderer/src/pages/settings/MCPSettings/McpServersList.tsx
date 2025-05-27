@@ -4,7 +4,8 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
-import { Button, Dropdown, Empty, Tag } from 'antd'
+import { formatMcpError } from '@renderer/utils/error'
+import { Button, Dropdown, Empty, Switch, Tag } from 'antd'
 import { MonitorCheck, Plus, RefreshCw, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,10 +18,11 @@ import EditMcpJsonPopup from './EditMcpJsonPopup'
 import SyncServersPopup from './SyncServersPopup'
 
 const McpServersList: FC = () => {
-  const { mcpServers, addMCPServer, updateMcpServers } = useMCPServers()
+  const { mcpServers, addMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
+  const [loadingServerIds, setLoadingServerIds] = useState<Set<string>>(new Set())
 
   const onAddMcpServer = useCallback(async () => {
     const newServer = {
@@ -52,6 +54,33 @@ const McpServersList: FC = () => {
     },
     [addMCPServer, t]
   )
+
+  const handleToggleActive = async (server: MCPServer, active: boolean) => {
+    setLoadingServerIds((prev) => new Set(prev).add(server.id))
+    const oldActiveState = server.isActive
+
+    try {
+      if (active) {
+        await window.api.mcp.listTools(server)
+      } else {
+        await window.api.mcp.stopServer(server)
+      }
+      updateMCPServer({ ...server, isActive: active })
+    } catch (error: any) {
+      window.modal.error({
+        title: t('settings.mcp.startError'),
+        content: formatMcpError(error),
+        centered: true
+      })
+      updateMCPServer({ ...server, isActive: oldActiveState })
+    } finally {
+      setLoadingServerIds((prev) => {
+        const next = new Set(prev)
+        next.delete(server.id)
+        return next
+      })
+    }
+  }
 
   return (
     <Container>
@@ -108,7 +137,14 @@ const McpServersList: FC = () => {
                   <MonitorCheck size={16} color={server.isActive ? 'var(--color-primary)' : 'var(--color-text-3)'} />
                 </ServerIcon>
               </ServerName>
-              <StatusIndicator>
+              <StatusIndicator onClick={(e) => e.stopPropagation()}>
+                <Switch
+                  value={server.isActive}
+                  key={server.id}
+                  loading={loadingServerIds.has(server.id)}
+                  onChange={(checked) => handleToggleActive(server, checked)}
+                  size="small"
+                />
                 <Button
                   icon={<Settings2 size={16} />}
                   type="text"
@@ -232,6 +268,9 @@ const ServerNameText = styled.span`
 
 const StatusIndicator = styled.div`
   margin-left: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `
 
 const ServerDescription = styled.div`

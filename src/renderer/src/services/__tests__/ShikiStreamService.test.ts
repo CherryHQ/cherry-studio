@@ -256,7 +256,6 @@ describe('ShikiStreamService', () => {
       expect((shikiStreamService as any).highlighter).toBeNull()
       expect((shikiStreamService as any).tokenizerCache.size).toBe(0)
       expect((shikiStreamService as any).pendingRequests.size).toBe(0)
-      expect((shikiStreamService as any).highlighterInitPromise).toBeNull()
       expect((shikiStreamService as any).workerInitPromise).toBeNull()
       expect((shikiStreamService as any).workerInitRetryCount).toBe(0)
     })

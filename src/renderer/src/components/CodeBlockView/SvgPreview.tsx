@@ -1,12 +1,13 @@
-import { usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
+import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
 import { memo, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {
   children: string
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
-const SvgPreview: React.FC<Props> = ({ children }) => {
+const SvgPreview: React.FC<Props> = ({ children, setTools }) => {
   const svgContainerRef = useRef<HTMLDivElement>(null)
 
   // 使用通用图像工具
@@ -17,6 +18,7 @@ const SvgPreview: React.FC<Props> = ({ children }) => {
 
   // 使用工具栏
   usePreviewTools({
+    setTools,
     handleCopyImage,
     handleDownload
   })

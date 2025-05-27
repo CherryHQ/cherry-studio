@@ -12,9 +12,10 @@ electronLanguages:
 directories:
   buildResources: build
 files:
-  - '!{.vscode,.yarn,.github}'
+  - '**/*'
+  - '!{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!src'
@@ -22,20 +23,31 @@ files:
   - '!local'
   - '!docs'
   - '!packages'
+  - '!.swc'
+  - '!.bin'
+  - '!._*'
+  - '!*.log'
   - '!stats.html'
   - '!*.md'
+  - '!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}'
   - '!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}'
-  - '!**/{test,tests,__tests__,coverage}/**'
+  - '!**/{test,tests,__tests__,powered-test,coverage}/**'
+  - '!**/{example,examples}/**'
   - '!**/*.{spec,test}.{js,jsx,ts,tsx}'
   - '!**/*.min.*.map'
   - '!**/*.d.ts'
-  - '!**/{.DS_Store,Thumbs.db}'
-  - '!**/{LICENSE,LICENSE.txt,LICENSE-MIT.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md}'
+  - '!**/dist/es6/**'
+  - '!**/dist/demo/**'
+  - '!**/amd/**'
+  - '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}'
+  - '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}'
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
+  - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
+  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters}' # filter .node build files
 asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'
@@ -45,6 +57,9 @@ win:
   target:
     - target: nsis
     - target: portable
+  signtoolOptions:
+    sign: scripts/win-sign.js
+  verifyUpdateCodeSignature: false
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
@@ -92,9 +107,9 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ⚠️ 注意：升级前请备份数据，否则将无法降级
-    优化软件启动速度
-    优化软件进入后台后性能问题
-    修复导出对话时自动重命名失败问题
-    防止输入法切换期间误发消息问题
-    修复群组消息重发功能问题及富文本粘贴兼容性问题
-    改进 MCP 服务处理及 IPC 注册逻辑
+    文生图新增服务商 DMXAPI（限时免费）
+    输入框按钮支持拖拽排序
+    修复知识库搜索结果 100% 问题
+    修复拖拽多选消息相关问题
+    修复翻译回复内容导致内存异常问题
+    常规错误修复和优化

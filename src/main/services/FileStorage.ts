@@ -27,10 +27,6 @@ class FileStorage {
     this.initStorageDir()
   }
 
-  public resolveFilePath = (name: string): string => {
-    return path.join(this.storageDir, name)
-  }
-
   private initStorageDir = (): void => {
     try {
       if (!fs.existsSync(this.storageDir)) {
@@ -332,7 +328,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string | null> => {
+  ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: '保存文件',
@@ -340,14 +336,18 @@ class FileStorage {
         ...options
       })
 
+      if (result.canceled) {
+        return Promise.reject(new Error('User canceled the save dialog'))
+      }
+
       if (!result.canceled && result.filePath) {
         await writeFileSync(result.filePath, content, { encoding: 'utf-8' })
       }
 
       return result.filePath
-    } catch (err) {
+    } catch (err: any) {
       logger.error('[IPC - Error]', 'An error occurred saving the file:', err)
-      return null
+      return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
 
@@ -386,7 +386,11 @@ class FileStorage {
     }
   }
 
-  public downloadFile = async (_: Electron.IpcMainInvokeEvent, url: string): Promise<FileType> => {
+  public downloadFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    url: string,
+    isUseContentType?: boolean
+  ): Promise<FileType> => {
     try {
       const response = await fetch(url)
       if (!response.ok) {
@@ -411,7 +415,7 @@ class FileStorage {
       }
 
       // 如果文件名没有后缀，根据Content-Type添加后缀
-      if (!filename.includes('.')) {
+      if (isUseContentType || !filename.includes('.')) {
         const contentType = response.headers.get('Content-Type')
         const ext = this.getExtensionFromMimeType(contentType)
         filename += ext

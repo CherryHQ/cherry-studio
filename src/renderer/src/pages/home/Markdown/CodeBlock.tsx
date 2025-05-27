@@ -1,5 +1,4 @@
 import CodeBlockView from '@renderer/components/CodeBlockView'
-import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import React, { memo, useCallback } from 'react'
 
 interface Props {
@@ -24,11 +23,9 @@ const CodeBlock: React.FC<Props> = ({ children, className, id, onSave }) => {
   )
 
   return match ? (
-    <CodeToolbarProvider>
-      <CodeBlockView language={language} onSave={handleSave}>
-        {children}
-      </CodeBlockView>
-    </CodeToolbarProvider>
+    <CodeBlockView language={language} onSave={handleSave}>
+      {children}
+    </CodeBlockView>
   ) : (
     <code className={className} style={{ textWrap: 'wrap' }}>
       {children}

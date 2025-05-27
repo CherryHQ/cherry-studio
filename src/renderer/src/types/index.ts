@@ -1,7 +1,7 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
-import React from 'react'
+import type { CSSProperties } from 'react'
 
 import type { Message } from './newMessage'
 
@@ -246,6 +246,16 @@ export interface ScalePainting extends PaintingParams {
   renderingSpeed?: string
 }
 
+export interface DmxapiPainting extends PaintingParams {
+  model?: string
+  prompt?: string
+  n?: number
+  aspect_ratio?: string
+  image_size?: string
+  seed?: string
+  style_type?: string
+}
+
 export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
 
 export interface PaintingsState {
@@ -254,6 +264,7 @@ export interface PaintingsState {
   remix: Partial<RemixPainting> & PaintingParams[]
   edit: Partial<EditPainting> & PaintingParams[]
   upscale: Partial<ScalePainting> & PaintingParams[]
+  DMXAPIPaintings: DmxapiPainting[]
 }
 
 export type MinAppType = {
@@ -263,7 +274,7 @@ export type MinAppType = {
   url: string
   bodered?: boolean
   background?: string
-  style?: React.CSSProperties
+  style?: CSSProperties
   addTime?: string
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
@@ -382,7 +393,7 @@ export interface KnowledgeBase {
 export type KnowledgeBaseParams = {
   id: string
   model: string
-  dimensions: number
+  dimensions?: number
   apiKey: string
   apiVersion?: string
   baseURL: string
@@ -473,7 +484,8 @@ export enum WebSearchSource {
   PERPLEXITY = 'perplexity',
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
-  ZHIPU = 'zhipu'
+  ZHIPU = 'zhipu',
+  GROK = 'grok'
 }
 
 export type WebSearchResponse = {

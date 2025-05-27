@@ -1,5 +1,5 @@
 import store from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { formatCitationsFromBlock, messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { FileType } from '@renderer/types'
 import type {
   CitationMessageBlock,
@@ -126,6 +126,15 @@ export const getMainTextContent = (message: Message): string => {
 export const getThinkingContent = (message: Message): string => {
   const thinkingBlocks = findThinkingBlocks(message)
   return thinkingBlocks.map((block) => block.content).join('\n\n')
+}
+
+export const getCitationContent = (message: Message): string => {
+  const citationBlocks = findCitationBlocks(message)
+  return citationBlocks
+    .map((block) => formatCitationsFromBlock(block))
+    .flat()
+    .map((citation) => `[${citation.number}] [${citation.url}](${citation.title || citation.url})`)
+    .join('\n\n')
 }
 
 /**

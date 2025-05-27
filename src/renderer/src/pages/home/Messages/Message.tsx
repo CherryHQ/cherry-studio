@@ -29,6 +29,7 @@ interface Props {
   index?: number
   total?: number
   hidePresetMessages?: boolean
+  hideMenuBar?: boolean
   style?: React.CSSProperties
   isGrouped?: boolean
   isStreaming?: boolean
@@ -41,6 +42,7 @@ const MessageItem: FC<Props> = ({
   // assistant,
   index,
   hidePresetMessages,
+  hideMenuBar = false,
   isGrouped,
   isStreaming = false,
   style
@@ -49,7 +51,7 @@ const MessageItem: FC<Props> = ({
   const { assistant, setModel } = useAssistant(message.assistantId)
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { isBubbleStyle } = useMessageStyle()
-  const { showMessageDivider, messageFont, fontSize } = useSettings()
+  const { showMessageDivider, messageFont, fontSize, narrowMode, messageStyle } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
@@ -80,8 +82,6 @@ const MessageItem: FC<Props> = ({
   const handleEditResend = useCallback(
     async (blocks: MessageBlock[]) => {
       try {
-        // 编辑后重新发送消息
-        console.log('after resend blocks', blocks)
         await resendUserMessageWithEdit(message, blocks, assistant)
         stopEditing()
       } catch (error) {
@@ -97,7 +97,7 @@ const MessageItem: FC<Props> = ({
 
   const isLastMessage = index === 0
   const isAssistantMessage = message.role === 'assistant'
-  const showMenubar = !isStreaming && !message.status.includes('ing') && !isEditing
+  const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
   const messageBorder = showMessageDivider ? undefined : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
@@ -126,11 +126,27 @@ const MessageItem: FC<Props> = ({
 
   if (message.type === 'clear') {
     return (
-      <NewContextMessage onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
+      <NewContextMessage className="clear-context-divider" onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
         <Divider dashed style={{ padding: '0 20px' }} plain>
           {t('chat.message.new.context')}
         </Divider>
       </NewContextMessage>
+    )
+  }
+
+  if (isEditing) {
+    return (
+      <MessageContainer style={{ paddingTop: 15 }}>
+        <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
+        <div style={{ paddingLeft: messageStyle === 'plain' ? 46 : undefined }}>
+          <MessageEditor
+            message={message}
+            onSave={handleEditSave}
+            onResend={handleEditResend}
+            onCancel={handleEditCancel}
+          />
+        </div>
+      </MessageContainer>
     )
   }
 
@@ -158,20 +174,12 @@ const MessageItem: FC<Props> = ({
             fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
             fontSize,
             background: messageBackground,
-            overflowY: 'visible'
+            overflowY: 'visible',
+            maxWidth: narrowMode ? 760 : undefined
           }}>
-          {isEditing ? (
-            <MessageEditor
-              message={message}
-              onSave={handleEditSave}
-              onResend={handleEditResend}
-              onCancel={handleEditCancel}
-            />
-          ) : (
-            <MessageErrorBoundary>
-              <MessageContent message={message} />
-            </MessageErrorBoundary>
-          )}
+          <MessageErrorBoundary>
+            <MessageContent message={message} />
+          </MessageErrorBoundary>
           {showMenubar && (
             <MessageFooter
               className="MessageFooter"
