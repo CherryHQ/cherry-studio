@@ -825,7 +825,7 @@
       "style_type": "スタイル",
       "learn_more": "詳しくはこちら",
       "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-      "paint_course":"チュートリアル",
+      "paint_course": "チュートリアル",
       "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
@@ -1856,6 +1856,20 @@
           "delete_confirm": "このカスタム機能を削除しますか？",
           "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
         },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "アプリケーションフィルター",
+            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
+            "default": "オフ",
+            "whitelist": "ホワイトリスト",
+            "blacklist": "ブラックリスト"
+          },
+          "filter_list": {
+            "title": "フィルターリスト",
+            "description": "進階機能です。経験豊富なユーザー向けです。"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "カスタム機能追加",
@@ -1912,6 +1926,10 @@
             },
             "test": "テスト"
           }
+        },
+        "filter_modal": {
+          "title": "アプリケーションフィルターリスト",
+          "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
         }
       }
     }

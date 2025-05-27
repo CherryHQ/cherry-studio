@@ -826,7 +826,7 @@
       "style_type": "風格",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
-      "paint_course":"教程",
+      "paint_course": "教程",
       "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
@@ -1857,6 +1857,20 @@
           "delete_confirm": "確定要刪除這個自訂功能嗎？",
           "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})"
         },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "應用篩選",
+            "description": "可以限制劃詞助手只在特定應用中生效（白名單）或不生效（黑名單）",
+            "default": "關閉",
+            "whitelist": "白名單",
+            "blacklist": "黑名單"
+          },
+          "filter_list": {
+            "title": "篩選名單",
+            "description": "進階功能，建議有經驗的用戶在了解情況下再進行設置"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "新增自訂功能",
@@ -1913,6 +1927,10 @@
             },
             "test": "測試"
           }
+        },
+        "filter_modal": {
+          "title": "應用篩選名單",
+          "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
     }

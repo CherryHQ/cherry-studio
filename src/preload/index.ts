@@ -76,7 +76,8 @@ const api = {
     selectFolder: () => ipcRenderer.invoke(IpcChannel.File_SelectFolder),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
-    download: (url: string, isUseContentType?: boolean) => ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
+    download: (url: string, isUseContentType?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
@@ -216,6 +217,8 @@ const api = {
     setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
     setFollowToolbar: (isFollowToolbar: boolean) =>
       ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
+    setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
+    setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
     processAction: (actionItem: ActionItem) => ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem),
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),

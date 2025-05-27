@@ -2,6 +2,8 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setActionItems,
   setActionWindowOpacity,
+  setFilterList,
+  setFilterMode,
   setIsAutoClose,
   setIsAutoPin,
   setIsCompact,
@@ -9,7 +11,7 @@ import {
   setSelectionEnabled,
   setTriggerMode
 } from '@renderer/store/selectionStore'
-import { ActionItem, TriggerMode } from '@renderer/types/selectionTypes'
+import { ActionItem, FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
 
 export function useSelectionAssistant() {
   const dispatch = useAppDispatch()
@@ -37,6 +39,14 @@ export function useSelectionAssistant() {
     setIsFollowToolbar: (isFollowToolbar: boolean) => {
       dispatch(setIsFollowToolbar(isFollowToolbar))
       window.api.selection.setFollowToolbar(isFollowToolbar)
+    },
+    setFilterMode: (mode: FilterMode) => {
+      dispatch(setFilterMode(mode))
+      window.api.selection.setFilterMode(mode)
+    },
+    setFilterList: (list: string[]) => {
+      dispatch(setFilterList(list))
+      window.api.selection.setFilterList(list)
     },
     setActionWindowOpacity: (opacity: number) => {
       dispatch(setActionWindowOpacity(opacity))

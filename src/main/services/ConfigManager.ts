@@ -19,7 +19,9 @@ export enum ConfigKeys {
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
-  SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar'
+  SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
+  SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
+  SelectionAssistantFilterList = 'selectionAssistantFilterList'
 }
 
 export class ConfigManager {
@@ -177,6 +179,24 @@ export class ConfigManager {
   setSelectionAssistantFollowToolbar(value: boolean) {
     this.set(ConfigKeys.SelectionAssistantFollowToolbar, value)
     this.notifySubscribers(ConfigKeys.SelectionAssistantFollowToolbar, value)
+  }
+
+  setSelectionAssistantFilterMode(value: string) {
+    this.set(ConfigKeys.SelectionAssistantFilterMode, value)
+    this.notifySubscribers(ConfigKeys.SelectionAssistantFilterMode, value)
+  }
+
+  getSelectionAssistantFilterMode(): string {
+    return this.get<string>(ConfigKeys.SelectionAssistantFilterMode, 'default')
+  }
+
+  setSelectionAssistantFilterList(value: string[]) {
+    this.set(ConfigKeys.SelectionAssistantFilterList, value)
+    this.notifySubscribers(ConfigKeys.SelectionAssistantFilterList, value)
+  }
+
+  getSelectionAssistantFilterList(): string[] {
+    return this.get<string[]>(ConfigKeys.SelectionAssistantFilterList, [])
   }
 
   set(key: string, value: unknown) {

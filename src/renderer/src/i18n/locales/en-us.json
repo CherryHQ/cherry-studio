@@ -825,7 +825,7 @@
       "style_type": "Style",
       "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
-      "paint_course":"tutorial",
+      "paint_course": "tutorial",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
       "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
       "image_file_required": "Please upload an image first",
@@ -1856,6 +1856,20 @@
           "delete_confirm": "Are you sure you want to delete this custom action?",
           "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})"
         },
+        "advanced": {
+          "title": "Advanced",
+          "filter_mode": {
+            "title": "Application Filter",
+            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
+            "default": "Off",
+            "whitelist": "Whitelist",
+            "blacklist": "Blacklist"
+          },
+          "filter_list": {
+            "title": "Filter List",
+            "description": "Advanced feature, recommended for users with experience"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "Add Custom Action",
@@ -1912,6 +1926,10 @@
             },
             "test": "Test"
           }
+        },
+        "filter_modal": {
+          "title": "Application Filter List",
+          "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       }
     }

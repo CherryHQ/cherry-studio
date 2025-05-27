@@ -825,7 +825,7 @@
       "style_type": "风格",
       "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
-      "paint_course":"教程",
+      "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
       "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
       "image_file_required": "请先上传图片",
@@ -1856,6 +1856,20 @@
           "delete_confirm": "确定要删除这个自定义功能吗？",
           "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
         },
+        "advanced": {
+          "title": "高级",
+          "filter_mode": {
+            "title": "应用筛选",
+            "description": "可以限制划词助手只在特定应用中生效（白名单）或不生效（黑名单）",
+            "default": "关闭",
+            "whitelist": "白名单",
+            "blacklist": "黑名单"
+          },
+          "filter_list": {
+            "title": "筛选名单",
+            "description": "高级功能，建议有经验的用户在了解的情况下再进行设置"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "添加自定义功能",
@@ -1912,6 +1926,10 @@
             },
             "test": "测试"
           }
+        },
+        "filter_modal": {
+          "title": "应用筛选名单",
+          "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
     }
