@@ -198,28 +198,31 @@ const DataSettings: FC = () => {
     // Create paths content to reuse in both modals
     const PathsContent = () => (
       <div>
-        <p>
-          <strong>{t('settings.data.app_data.original_path') || '原目录'}:</strong> {appInfo.appDataPath}
-        </p>
-        <p>
-          <strong>{t('settings.data.app_data.new_path') || '新目录'}:</strong> {newAppDataPath}
-        </p>
+        <MigrationPathRow>
+          <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
+          <MigrationPathValue>{appInfo.appDataPath}</MigrationPathValue>
+        </MigrationPathRow>
+        <MigrationPathRow style={{ marginTop: '16px' }}>
+          <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
+          <MigrationPathValue>{newAppDataPath}</MigrationPathValue>
+        </MigrationPathRow>
       </div>
     )
 
     // Create a modal that we'll reference and control
     const modal = window.modal.confirm({
-      title: t('settings.data.app_data.migration_title') || '数据迁移',
+      title: <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>,
+      className: 'migration-modal',
       content: (
-        <div>
+        <MigrationModalContent>
           <PathsContent />
-          <p style={{ marginTop: '12px', color: 'var(--color-warning)' }}>
-            {t('settings.data.app_data.restart_notice')}
-          </p>
-          <p style={{ marginTop: '8px', color: 'var(--color-text-3)' }}>
-            {t('settings.data.app_data.copy_time_notice')}
-          </p>
-        </div>
+          <MigrationNotice>
+            <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
+            <p style={{ color: 'var(--color-text-3)', marginTop: '8px' }}>
+              {t('settings.data.app_data.copy_time_notice')}
+            </p>
+          </MigrationNotice>
+        </MigrationModalContent>
       ),
       centered: true,
       onOk: async () => {
@@ -229,16 +232,21 @@ const DataSettings: FC = () => {
           let progressInterval: NodeJS.Timeout
 
           const loadingModal = window.modal.info({
-            title: t('settings.data.app_data.migration_title') || '数据迁移',
-            icon: <LoadingOutlined style={{ fontSize: 16 }} />,
+            title: (
+              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
+            ),
+            className: 'migration-modal',
+            icon: <LoadingOutlined style={{ fontSize: 18 }} />,
             content: (
-              <div>
+              <MigrationModalContent>
                 <PathsContent />
-                <p style={{ marginTop: '12px' }}>{t('settings.data.app_data.copying')}</p>
-                <div style={{ marginTop: '16px' }}>
-                  <Progress percent={currentProgress} status="active" />
-                </div>
-              </div>
+                <MigrationNotice>
+                  <p>{t('settings.data.app_data.copying')}</p>
+                  <div style={{ marginTop: '12px' }}>
+                    <Progress percent={currentProgress} status="active" strokeWidth={8} />
+                  </div>
+                </MigrationNotice>
+              </MigrationModalContent>
             ),
             centered: true,
             closable: false,
@@ -257,14 +265,21 @@ const DataSettings: FC = () => {
               if (currentProgress > 95) currentProgress = 95
 
               loadingModal.update({
-                content: (
-                  <div>
-                    <PathsContent />
-                    <p style={{ marginTop: '12px' }}>{t('settings.data.app_data.copying')}</p>
-                    <div style={{ marginTop: '16px' }}>
-                      <Progress percent={Math.round(currentProgress)} status="active" />
-                    </div>
+                title: (
+                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                    {t('settings.data.app_data.migration_title')}
                   </div>
+                ),
+                content: (
+                  <MigrationModalContent>
+                    <PathsContent />
+                    <MigrationNotice>
+                      <p>{t('settings.data.app_data.copying')}</p>
+                      <div style={{ marginTop: '12px' }}>
+                        <Progress percent={Math.round(currentProgress)} status="active" strokeWidth={8} />
+                      </div>
+                    </MigrationNotice>
+                  </MigrationModalContent>
                 )
               })
             }
@@ -279,14 +294,21 @@ const DataSettings: FC = () => {
 
             // Show 100% when complete
             loadingModal.update({
-              content: (
-                <div>
-                  <PathsContent />
-                  <p style={{ marginTop: '12px' }}>{t('settings.data.app_data.copying')}</p>
-                  <div style={{ marginTop: '16px' }}>
-                    <Progress percent={100} status="success" />
-                  </div>
+              title: (
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                  {t('settings.data.app_data.migration_title')}
                 </div>
+              ),
+              content: (
+                <MigrationModalContent>
+                  <PathsContent />
+                  <MigrationNotice>
+                    <p>{t('settings.data.app_data.copying')}</p>
+                    <div style={{ marginTop: '12px' }}>
+                      <Progress percent={100} status="success" strokeWidth={8} />
+                    </div>
+                  </MigrationNotice>
+                </MigrationModalContent>
               )
             })
 
@@ -526,6 +548,40 @@ const PathRow = styled(HStack)`
   width: 0;
   align-items: center;
   gap: 5px;
+`
+
+// Add styled components for migration modal
+const MigrationModalContent = styled.div`
+  padding: 20px 0 10px;
+  display: flex;
+  flex-direction: column;
+`
+
+const MigrationNotice = styled.div`
+  margin-top: 24px;
+  font-size: 14px;
+`
+
+const MigrationPathRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`
+
+const MigrationPathLabel = styled.div`
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-text-1);
+`
+
+const MigrationPathValue = styled.div`
+  font-size: 14px;
+  color: var(--color-text-2);
+  background-color: var(--color-background-soft);
+  padding: 8px 12px;
+  border-radius: 4px;
+  word-break: break-all;
+  border: 1px solid var(--color-border);
 `
 
 export default DataSettings
