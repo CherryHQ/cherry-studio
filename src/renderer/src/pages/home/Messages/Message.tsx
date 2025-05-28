@@ -173,7 +173,6 @@ const MessageItem: FC<Props> = ({
           style={{
             fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
             fontSize,
-            background: messageBackground,
             overflowY: 'visible',
             maxWidth: narrowMode ? 760 : undefined
           }}>
