@@ -20,18 +20,30 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
   setActiveTopic: (topic: Topic) => void
   position: 'left' | 'right'
+  forceToSeeAllTab?: boolean
+  style?: React.CSSProperties
 }
 
 type Tab = 'assistants' | 'topic' | 'settings'
+type SortType = '' | 'tags' | 'list'
 
 let _tab: any = ''
 
-const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant, setActiveTopic, position }) => {
+const HomeTabs: FC<Props> = ({
+  activeAssistant,
+  activeTopic,
+  setActiveAssistant,
+  setActiveTopic,
+  position,
+  forceToSeeAllTab,
+  style
+}) => {
   const { addAssistant } = useAssistants()
+  const [sortBy, setSortBy] = useState<SortType>('list')
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
   const { defaultAssistant } = useDefaultAssistant()
-  const { toggleShowTopics } = useShowTopics()
+  const { showTopics, toggleShowTopics } = useShowTopics()
 
   const { t } = useTranslation()
 
@@ -86,20 +98,22 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
       setTab('topic')
     }
-    if (position === 'left' && topicPosition === 'right' && tab !== 'assistants') {
+    if (position === 'left' && topicPosition === 'right' && forceToSeeAllTab != true && tab !== 'assistants') {
       setTab('assistants')
     }
-  }, [position, tab, topicPosition])
+  }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <Container style={border} className="home-tabs">
-      {showTab && (
+    <Container style={{ ...border, ...style }} className="home-tabs">
+      {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
         <Segmented
           value={tab}
           style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
           options={
             [
-              position === 'left' && topicPosition === 'left' ? assistantTab : undefined,
+              (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
+                ? assistantTab
+                : undefined,
               {
                 label: t('common.topics'),
                 value: 'topic'
@@ -117,6 +131,8 @@ const HomeTabs: FC<Props> = ({ activeAssistant, activeTopic, setActiveAssistant,
       <TabContent className="home-tabs-content">
         {tab === 'assistants' && (
           <Assistants
+            setSortBy={setSortBy}
+            sortBy={sortBy}
             activeAssistant={activeAssistant}
             setActiveAssistant={setActiveAssistant}
             onCreateAssistant={onCreateAssistant}
@@ -137,7 +153,6 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
-  height: calc(100vh - var(--navbar-height));
   background-color: var(--color-background);
   overflow: hidden;
   .collapsed {
@@ -155,6 +170,8 @@ const TabContent = styled.div`
 `
 
 const Segmented = styled(AntSegmented)`
+  font-family: var(--font-family);
+
   &.ant-segmented {
     background-color: transparent;
     border-radius: 0 !important;

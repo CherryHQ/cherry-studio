@@ -6,7 +6,7 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileType, MCPServer, Model, Topic } from '@renderer/types'
+import type { Assistant, FileType, MCPServer, Model, Topic, Usage } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -41,9 +41,9 @@ export {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
+  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
 
-  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
+  const _messages = takeRight(messages, maxContextCount)
 
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
 
@@ -110,7 +110,8 @@ export function getUserMessage({
   // Keep other potential params if needed by createMessage
   knowledgeBaseIds,
   mentions,
-  enabledMCPs
+  enabledMCPs,
+  usage
 }: {
   assistant: Assistant
   topic: Topic
@@ -120,6 +121,7 @@ export function getUserMessage({
   knowledgeBaseIds?: string[]
   mentions?: Model[]
   enabledMCPs?: MCPServer[]
+  usage?: Usage
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
   const model = assistant.model || defaultModel
@@ -163,7 +165,8 @@ export function getUserMessage({
       // 移除knowledgeBaseIds
       mentions,
       enabledMCPs,
-      type
+      type,
+      usage
     }
   )
 
@@ -212,10 +215,9 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
     try {
       window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
 
-      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
-        blocks: [tempTextBlock.id]
+        blocks: message.blocks
       })
 
       const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })

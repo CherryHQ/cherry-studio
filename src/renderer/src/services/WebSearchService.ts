@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
 import { WebSearchState } from '@renderer/store/websearch'
@@ -97,22 +98,26 @@ class WebSearchService {
    * @param query 搜索查询
    * @returns 搜索响应
    */
-  public async search(provider: WebSearchProvider, query: string): Promise<WebSearchProviderResponse> {
+  public async search(
+    provider: WebSearchProvider,
+    query: string,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchProviderResponse> {
     const websearch = this.getWebSearchState()
     const webSearchEngine = new WebSearchEngineProvider(provider)
 
     let formattedQuery = query
-    // 有待商榷，效果一般
+    // FIXME: 有待商榷，效果一般
     if (websearch.searchWithTime) {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
-    try {
-      return await webSearchEngine.search(formattedQuery, websearch)
-    } catch (error) {
-      console.error('Search failed:', error)
-      throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    // try {
+    return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
+    // } catch (error) {
+    //   console.error('Search failed:', error)
+    //   throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // }
   }
 
   /**
@@ -124,7 +129,7 @@ class WebSearchService {
   public async checkSearch(provider: WebSearchProvider): Promise<{ valid: boolean; error?: any }> {
     try {
       const response = await this.search(provider, 'test query')
-      console.log('Search response:', response)
+      Logger.log('[checkSearch] Search response:', response)
       // 优化的判断条件：检查结果是否有效且没有错误
       return { valid: response.results !== undefined, error: undefined }
     } catch (error) {
@@ -136,42 +141,41 @@ class WebSearchService {
     webSearchProvider: WebSearchProvider,
     extractResults: ExtractResults
   ): Promise<WebSearchProviderResponse> {
-    try {
-      // 检查 websearch 和 question 是否有效
-      if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
-        console.log('No valid question found in extractResults.websearch')
-        return { results: [] }
-      }
+    // 检查 websearch 和 question 是否有效
+    if (!extractResults.websearch?.question || extractResults.websearch.question.length === 0) {
+      Logger.log('[processWebsearch] No valid question found in extractResults.websearch')
+      return { results: [] }
+    }
 
-      const questions = extractResults.websearch.question
-      const links = extractResults.websearch.links
-      const firstQuestion = questions[0]
-
-      if (firstQuestion === 'summarize' && links && links.length > 0) {
-        const contents = await fetchWebContents(links, undefined, undefined, this.signal)
-        return {
-          query: 'summaries',
-          results: contents
-        }
-      }
-      const searchPromises = questions.map((q) => this.search(webSearchProvider, q))
-      const searchResults = await Promise.allSettled(searchPromises)
-      const aggregatedResults: any[] = []
-
-      searchResults.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          if (result.value.results) {
-            aggregatedResults.push(...result.value.results)
-          }
-        }
+    const questions = extractResults.websearch.question
+    const links = extractResults.websearch.links
+    const firstQuestion = questions[0]
+    if (firstQuestion === 'summarize' && links && links.length > 0) {
+      const contents = await fetchWebContents(links, undefined, undefined, {
+        signal: this.signal
       })
       return {
-        query: questions.join(' | '),
-        results: aggregatedResults
+        query: 'summaries',
+        results: contents
       }
-    } catch (error) {
-      console.error('Failed to process enhanced search:', error)
-      return { results: [] }
+    }
+    const searchPromises = questions.map((q) => this.search(webSearchProvider, q, { signal: this.signal }))
+    const searchResults = await Promise.allSettled(searchPromises)
+    const aggregatedResults: any[] = []
+
+    searchResults.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        if (result.value.results) {
+          aggregatedResults.push(...result.value.results)
+        }
+      }
+      if (result.status === 'rejected') {
+        throw result.reason
+      }
+    })
+    return {
+      query: questions.join(' | '),
+      results: aggregatedResults
     }
   }
 }

@@ -17,25 +17,31 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setNutstoreAutoSync,
   setNutstorePath,
+  setNutstoreSkipBackupFile,
   setNutstoreSyncInterval,
   setNutstoreToken
 } from '@renderer/store/nutstore'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Button, Input, Select, Tooltip, Typography } from 'antd'
+import { Button, Input, Select, Switch, Tooltip, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { type FileStat } from 'webdav'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { nutstoreToken, nutstorePath, nutstoreSyncInterval, nutstoreAutoSync, nutstoreSyncState } = useAppSelector(
-    (state) => state.nutstore
-  )
+  const {
+    nutstoreToken,
+    nutstorePath,
+    nutstoreSyncInterval,
+    nutstoreAutoSync,
+    nutstoreSyncState,
+    nutstoreSkipBackupFile
+  } = useAppSelector((state) => state.nutstore)
 
   const dispatch = useAppDispatch()
 
@@ -47,6 +53,8 @@ const NutstoreSettings: FC = () => {
   const [nsConnected, setNsConnected] = useState<boolean>(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
+
+  const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
 
   const nutstoreSSOHandler = useNutstoreSSO()
 
@@ -86,6 +94,7 @@ const NutstoreSettings: FC = () => {
     if (confirmedLogout) {
       dispatch(setNutstoreToken(''))
       dispatch(setNutstorePath(''))
+      dispatch(setNutstoreAutoSync(false))
       setNutstoreUsername('')
       setStoragePath(undefined)
     }
@@ -126,6 +135,11 @@ const NutstoreSettings: FC = () => {
       dispatch(setNutstoreAutoSync(true))
       startNutstoreAutoSync()
     }
+  }
+
+  const onSkipBackupFilesChange = (value: boolean) => {
+    setNutSkipBackupFile(value)
+    dispatch(setNutstoreSkipBackupFile(value))
   }
 
   const handleClickPathChange = async () => {
@@ -287,6 +301,14 @@ const NutstoreSettings: FC = () => {
               </SettingRow>
             </>
           )}
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+            <Switch checked={nutSkipBackupFile} onChange={onSkipBackupFilesChange} />
+          </SettingRow>
+          <SettingRow>
+            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+          </SettingRow>
         </>
       )}
       <>

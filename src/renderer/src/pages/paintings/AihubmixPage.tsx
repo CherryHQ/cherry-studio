@@ -1,4 +1,4 @@
-import { InfoCircleFilled, PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
@@ -11,6 +11,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import AiProvider from '@renderer/providers/AiProvider'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -20,18 +21,18 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { Info } from 'lucide-react'
 import type { FC } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
-import Artboard from './Artboard'
-import { type ConfigItem, createModeConfigs } from './config/aihubmixConfig'
-import { DEFAULT_PAINTING } from './config/constants'
-import PaintingsList from './PaintingsList'
+import Artboard from './components/Artboard'
+import PaintingsList from './components/PaintingsList'
+import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
 
 // 使用函数创建配置项
 const modeConfigs = createModeConfigs()
@@ -68,16 +69,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'generate' },
-    // { label: t('paintings.mode.edit'), value: 'edit' },
     { label: t('paintings.mode.remix'), value: 'remix' },
     { label: t('paintings.mode.upscale'), value: 'upscale' }
   ]
-  const getNewPainting = () => {
+
+  const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
+      model: mode === 'generate' ? 'gpt-image-1' : 'V_3',
       id: uuid()
     }
-  }
+  }, [mode])
 
   const textareaRef = useRef<any>(null)
 
@@ -85,6 +87,47 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
     updatePainting(mode, updatedPainting)
+  }
+
+  const handleError = (error: unknown) => {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      window.modal.error({
+        content: getErrorMessage(error),
+        centered: true
+      })
+    }
+  }
+
+  const downloadImages = async (urls: string[]) => {
+    const downloadedFiles = await Promise.all(
+      urls.map(async (url) => {
+        try {
+          if (!url?.trim()) {
+            console.error('图像URL为空，可能是提示词违禁')
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+            return null
+          }
+          return await window.api.file.download(url)
+        } catch (error) {
+          console.error('下载图像失败:', error)
+          if (
+            error instanceof Error &&
+            (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+          ) {
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+          }
+          return null
+        }
+      })
+    )
+
+    return downloadedFiles.filter((file): file is FileType => file !== null)
   }
 
   const onGenerate = async () => {
@@ -127,28 +170,159 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     dispatch(setGenerating(true))
 
     let body: string | FormData = ''
-    const headers: Record<string, string> = {
+    let headers: Record<string, string> = {
       'Api-Key': aihubmixProvider.apiKey
     }
+    let url = aihubmixProvider.apiHost + `/ideogram/` + mode
 
-    // 不使用 AiProvider 的通用规则，而是直接调用自定义接口
     try {
       if (mode === 'generate') {
-        const requestData = {
-          image_request: {
+        if (painting.model.startsWith('imagen-')) {
+          const AI = new AiProvider(aihubmixProvider)
+          const base64s = await AI.generateImage({
             prompt,
             model: painting.model,
-            aspect_ratio: painting.aspectRatio,
-            num_images: painting.numImages,
-            style_type: painting.styleType,
-            seed: painting.seed ? +painting.seed : undefined,
-            negative_prompt: painting.negativePrompt || undefined,
-            magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
+            config: {
+              aspectRatio: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':'),
+              numberOfImages: painting.model.startsWith('imagen-4.0-ultra-generate-exp') ? 1 : painting.numberOfImages,
+              personGeneration: painting.personGeneration
+            }
+          })
+          if (base64s?.length > 0) {
+            const validFiles = await Promise.all(
+              base64s.map(async (base64) => {
+                return await window.api.file.saveBase64Image(base64)
+              })
+            )
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
           }
+          return
+        } else if (painting.model === 'V_3') {
+          // V3 API uses different endpoint and parameters format
+          const formData = new FormData()
+          formData.append('prompt', prompt)
+
+          // 确保渲染速度参数正确传递
+          const renderSpeed = painting.renderingSpeed || 'DEFAULT'
+          console.log('使用渲染速度:', renderSpeed)
+          formData.append('rendering_speed', renderSpeed)
+
+          formData.append('num_images', String(painting.numImages || 1))
+
+          // Convert aspect ratio format from ASPECT_1_1 to 1x1 for V3 API
+          if (painting.aspectRatio) {
+            const aspectRatioValue = painting.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase()
+            console.log('转换后的宽高比:', aspectRatioValue)
+            formData.append('aspect_ratio', aspectRatioValue)
+          }
+
+          if (painting.styleType && painting.styleType !== 'AUTO') {
+            // 确保样式类型与API文档一致，保持大写形式
+            // V3 API支持的样式类型: AUTO, GENERAL, REALISTIC, DESIGN
+            const styleType = painting.styleType
+            console.log('使用样式类型:', styleType)
+            formData.append('style_type', styleType)
+          } else {
+            // 确保明确设置默认样式类型
+            console.log('使用默认样式类型: AUTO')
+            formData.append('style_type', 'AUTO')
+          }
+
+          if (painting.seed) {
+            console.log('使用随机种子:', painting.seed)
+            formData.append('seed', painting.seed)
+          }
+
+          if (painting.negativePrompt) {
+            console.log('使用负面提示词:', painting.negativePrompt)
+            formData.append('negative_prompt', painting.negativePrompt)
+          }
+
+          if (painting.magicPromptOption !== undefined) {
+            const magicPrompt = painting.magicPromptOption ? 'ON' : 'OFF'
+            console.log('使用魔法提示词:', magicPrompt)
+            formData.append('magic_prompt', magicPrompt)
+          }
+
+          // 打印所有FormData内容
+          console.log('FormData内容:')
+          for (const pair of formData.entries()) {
+            console.log(pair[0] + ': ' + pair[1])
+          }
+
+          body = formData
+          // For V3 endpoints - 使用模板字符串而不是字符串连接
+          console.log('API 端点:', `${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`)
+
+          // 调整请求头，可能需要指定multipart/form-data
+          // 注意：FormData会自动设置Content-Type，不应手动设置
+          const apiHeaders = { 'Api-Key': aihubmixProvider.apiKey }
+
+          try {
+            const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/generate`, {
+              method: 'POST',
+              headers: apiHeaders,
+              body
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json()
+              console.error('V3 API错误:', errorData)
+              throw new Error(errorData.error?.message || '生成图像失败')
+            }
+
+            const data = await response.json()
+            console.log('V3 API响应:', data)
+            const urls = data.data.map((item) => item.url)
+
+            if (urls.length > 0) {
+              const validFiles = await downloadImages(urls)
+              await FileManager.addFiles(validFiles)
+              updatePaintingState({ files: validFiles, urls })
+            }
+            return
+          } catch (error: unknown) {
+            handleError(error)
+          } finally {
+            setIsLoading(false)
+            dispatch(setGenerating(false))
+            setAbortController(null)
+          }
+        } else {
+          let requestData: any = {}
+          if (painting.model === 'gpt-image-1') {
+            requestData = {
+              prompt,
+              model: painting.model,
+              size: painting.size === 'auto' ? undefined : painting.size,
+              n: painting.n,
+              quality: painting.quality,
+              moderation: painting.moderation
+            }
+            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            headers = {
+              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+            }
+          } else {
+            // Existing V1/V2 API
+            requestData = {
+              image_request: {
+                prompt,
+                model: painting.model,
+                aspect_ratio: painting.aspectRatio,
+                num_images: painting.numImages,
+                style_type: painting.styleType,
+                seed: painting.seed ? +painting.seed : undefined,
+                negative_prompt: painting.negativePrompt || undefined,
+                magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
+              }
+            }
+          }
+          body = JSON.stringify(requestData)
+          headers['Content-Type'] = 'application/json'
         }
-        body = JSON.stringify(requestData)
-        headers['Content-Type'] = 'application/json'
-      } else {
+      } else if (mode === 'remix') {
         if (!painting.imageFile) {
           window.modal.error({
             content: t('paintings.image_file_required'),
@@ -163,87 +337,167 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
           return
         }
-        const form = new FormData()
-        let imageRequest: Record<string, any> = {
-          prompt,
-          num_images: painting.numImages,
-          seed: painting.seed ? +painting.seed : undefined,
-          magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
-        }
-        if (mode === 'remix') {
-          imageRequest = {
-            ...imageRequest,
+
+        if (painting.model === 'V_3') {
+          // V3 Remix API
+          const formData = new FormData()
+          formData.append('prompt', prompt)
+          formData.append('rendering_speed', painting.renderingSpeed || 'DEFAULT')
+          formData.append('num_images', String(painting.numImages || 1))
+
+          // Convert aspect ratio format for V3 API
+          if (painting.aspectRatio) {
+            const aspectRatioValue = painting.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase()
+            formData.append('aspect_ratio', aspectRatioValue)
+          }
+
+          if (painting.styleType) {
+            formData.append('style_type', painting.styleType)
+          }
+
+          if (painting.seed) {
+            formData.append('seed', painting.seed)
+          }
+
+          if (painting.negativePrompt) {
+            formData.append('negative_prompt', painting.negativePrompt)
+          }
+
+          if (painting.magicPromptOption !== undefined) {
+            formData.append('magic_prompt', painting.magicPromptOption ? 'ON' : 'OFF')
+          }
+
+          if (painting.imageWeight) {
+            formData.append('image_weight', String(painting.imageWeight))
+          }
+
+          // Add the image file
+          formData.append('image', fileMap[painting.imageFile] as unknown as Blob)
+
+          body = formData
+          // For V3 Remix endpoint
+          const response = await fetch(`${aihubmixProvider.apiHost}/ideogram/v1/ideogram-v3/remix`, {
+            method: 'POST',
+            headers: { 'Api-Key': aihubmixProvider.apiKey },
+            body
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json()
+            console.error('V3 Remix API错误:', errorData)
+            throw new Error(errorData.error?.message || '图像混合失败')
+          }
+
+          const data = await response.json()
+          console.log('V3 Remix API响应:', data)
+          const urls = data.data.map((item) => item.url)
+
+          // Handle the downloaded images
+          if (urls.length > 0) {
+            const validFiles = await downloadImages(urls)
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+          return
+        } else {
+          // Existing V1/V2 API for remix
+          const form = new FormData()
+          const imageRequest: Record<string, any> = {
+            prompt,
             model: painting.model,
             aspect_ratio: painting.aspectRatio,
             image_weight: painting.imageWeight,
-            style_type: painting.styleType
+            style_type: painting.styleType,
+            num_images: painting.numImages,
+            seed: painting.seed ? +painting.seed : undefined,
+            negative_prompt: painting.negativePrompt || undefined,
+            magic_prompt_option: painting.magicPromptOption ? 'ON' : 'OFF'
           }
-        } else if (mode === 'upscale') {
-          imageRequest = {
-            ...imageRequest,
-            resemblance: painting.resemblance,
-            detail: painting.detail
-          }
-        } else if (mode === 'edit') {
-          imageRequest = {
-            ...imageRequest,
-            model: painting.model,
-            style_type: painting.styleType
-          }
+          form.append('image_request', JSON.stringify(imageRequest))
+          form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
+          body = form
+        }
+      } else if (mode === 'upscale') {
+        if (!painting.imageFile) {
+          window.modal.error({
+            content: t('paintings.image_file_required'),
+            centered: true
+          })
+          return
+        }
+        if (!fileMap[painting.imageFile]) {
+          window.modal.error({
+            content: t('paintings.image_file_retry'),
+            centered: true
+          })
+          return
+        }
+
+        const form = new FormData()
+        const imageRequest: Record<string, any> = {
+          prompt,
+          resemblance: painting.resemblance,
+          detail: painting.detail,
+          num_images: painting.numImages,
+          seed: painting.seed ? +painting.seed : undefined,
+          magic_prompt_option: painting.magicPromptOption ? 'AUTO' : 'OFF'
         }
         form.append('image_request', JSON.stringify(imageRequest))
         form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
         body = form
       }
 
-      // 直接调用自定义接口
-      const response = await fetch(aihubmixProvider.apiHost + `/ideogram/` + mode, { method: 'POST', headers, body })
+      // 只针对非V3模型使用通用接口
+      if (!painting.model?.includes('V_3') || mode === 'upscale') {
+        // 直接调用自定义接口
+        const response = await fetch(url, { method: 'POST', headers, body })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error?.message || '生成图像失败')
-      }
-
-      const data = await response.json()
-      const urls = data.data.map((item: any) => item.url)
-
-      if (urls.length > 0) {
-        const downloadedFiles = await Promise.all(
-          urls.map(async (url) => {
-            try {
-              return await window.api.file.download(url)
-            } catch (error) {
-              console.error('下载图像失败:', error)
-              return null
-            }
-          })
-        )
-
-        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
-
-        // 如果没有成功下载任何文件但有URLs，显示代理提示
-        if (validFiles.length === 0 && urls.length > 0) {
-          window.modal.error({
-            content: t('paintings.proxy_required'),
-            centered: true
-          })
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error('通用API错误:', errorData)
+          throw new Error(errorData.error?.message || '生成图像失败')
         }
 
-        await FileManager.addFiles(validFiles)
+        const data = await response.json()
+        console.log('通用API响应:', data)
+        const urls = data.data.filter((item) => item.url).map((item) => item.url)
+        const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
-        updatePaintingState({ files: validFiles, urls })
+        if (urls.length > 0) {
+          const validFiles = await downloadImages(urls)
+          await FileManager.addFiles(validFiles)
+          updatePaintingState({ files: validFiles, urls })
+        }
+
+        if (base64s?.length > 0) {
+          const validFiles = await Promise.all(
+            base64s.map(async (base64) => {
+              return await window.api.file.saveBase64Image(base64)
+            })
+          )
+          await FileManager.addFiles(validFiles)
+          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+        }
       }
     } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
+      handleError(error)
     } finally {
       setIsLoading(false)
       dispatch(setGenerating(false))
       setAbortController(null)
+    }
+  }
+
+  const handleRetry = async (painting: PaintingAction) => {
+    setIsLoading(true)
+    try {
+      const validFiles = await downloadImages(painting.urls)
+      await FileManager.addFiles(validFiles)
+      updatePaintingState({ files: validFiles, urls: painting.urls })
+    } catch (error) {
+      handleError(error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -278,14 +532,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     removePainting(mode, paintingToDelete)
-
-    if (filteredPaintings.length === 1) {
-      const defaultPainting = {
-        ...DEFAULT_PAINTING,
-        id: uuid()
-      }
-      setPainting(defaultPainting)
-    }
   }
 
   const translate = async () => {
@@ -334,6 +580,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       navigate('../' + providerId, { replace: true })
     }
   }
+
   // 处理模式切换
   const handleModeChange = (value: string) => {
     setMode(value as keyof PaintingsState)
@@ -352,99 +599,108 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // 渲染配置项的函数
-  const renderConfigItem = (item: ConfigItem, index: number) => {
+  const renderConfigForm = (item: ConfigItem) => {
     switch (item.type) {
-      case 'title':
-        return (
-          <SettingTitle key={index} style={{ marginBottom: 5, marginTop: 15 }}>
-            {t(item.title!)}
-            {item.tooltip && (
-              <Tooltip title={t(item.tooltip)}>
-                <InfoIcon />
-              </Tooltip>
-            )}
-          </SettingTitle>
-        )
-      case 'select':
+      case 'select': {
+        // 处理函数类型的disabled属性
+        const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
+
+        // 处理函数类型的options属性
+        const selectOptions =
+          typeof item.options === 'function'
+            ? item.options(item, painting).map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+            : item.options?.map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+
         return (
           <Select
-            key={index}
-            disabled={item.disabled}
+            style={{ width: '100%' }}
+            listHeight={500}
+            disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
-            options={item.options}
+            options={selectOptions as any}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
-      case 'radio':
+      }
+      case 'radio': {
+        // 处理函数类型的options属性
+        const radioOptions =
+          typeof item.options === 'function'
+            ? item.options(item, painting).map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+            : item.options?.map((option) => ({
+                ...option,
+                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
+              }))
+
         return (
           <Radio.Group
-            key={index}
-            value={painting[item.key!]}
+            value={painting[item.key!] || item.initialValue}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
-            {item.options!.map((option) => (
+            {radioOptions!.map((option) => (
               <Radio.Button key={option.value} value={option.value}>
                 {option.label}
               </Radio.Button>
             ))}
           </Radio.Group>
         )
-      case 'slider':
+      }
+      case 'slider': {
         return (
-          <SliderContainer key={index}>
+          <SliderContainer>
             <Slider
               min={item.min}
               max={item.max}
               step={item.step}
-              value={painting[item.key!] as number}
+              value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
             <StyledInputNumber
               min={item.min}
               max={item.max}
               step={item.step}
-              value={painting[item.key!] as number}
+              value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
           </SliderContainer>
         )
+      }
       case 'input':
-        // 处理随机种子按钮的特殊情况
-        if (item.key === 'seed') {
-          return (
-            <Input
-              key={index}
-              value={painting[item.key] as string}
-              onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-              suffix={
-                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
-              }
-            />
-          )
-        }
         return (
           <Input
-            key={index}
-            value={painting[item.key!] as string}
+            value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-            suffix={item.suffix}
+            suffix={
+              item.key === 'seed' ? (
+                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
+              ) : (
+                item.suffix
+              )
+            }
           />
         )
       case 'inputNumber':
         return (
           <InputNumber
-            key={index}
             min={item.min}
             max={item.max}
             style={{ width: '100%' }}
-            value={painting[item.key!] as number}
+            value={(painting[item.key!] || item.initialValue) as number}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )
       case 'textarea':
         return (
           <TextArea
-            key={index}
-            value={painting[item.key!] as string}
+            value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             spellCheck={false}
             rows={4}
@@ -452,38 +708,56 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'switch':
         return (
-          <HStack key={index}>
+          <HStack>
             <Switch
-              checked={painting[item.key!] as boolean}
+              checked={(painting[item.key!] || item.initialValue) as boolean}
               onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
           </HStack>
         )
-      case 'image':
+      case 'image': {
         return (
           <ImageUploadButton
-            key={index}
             accept="image/png, image/jpeg, image/gif"
             maxCount={1}
             showUploadList={false}
             listType="picture-card"
-            onChange={async ({ file }) => {
-              const path = file.originFileObj?.path || ''
-              setFileMap({ ...fileMap, [path]: file.originFileObj as unknown as FileType })
+            beforeUpload={(file) => {
+              const path = URL.createObjectURL(file)
+              setFileMap({ ...fileMap, [path]: file as unknown as FileType })
               updatePaintingState({ [item.key!]: path })
+              return false // 阻止默认上传行为
             }}>
             {painting[item.key!] ? (
               <ImagePreview>
-                <img src={'file://' + painting[item.key!]} alt="预览图" />
+                <img src={painting[item.key!]} alt="预览图" />
               </ImagePreview>
             ) : (
               <ImageSizeImage src={IcImageUp} theme={theme} />
             )}
           </ImageUploadButton>
         )
+      }
       default:
         return null
     }
+  }
+
+  // 渲染配置项的函数
+  const renderConfigItem = (item: ConfigItem, index: number) => {
+    return (
+      <div key={index}>
+        <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          {t(item.title!)}
+          {item.tooltip && (
+            <Tooltip title={t(item.tooltip)}>
+              <InfoIcon />
+            </Tooltip>
+          )}
+        </SettingTitle>
+        {renderConfigForm(item)}
+      </div>
+    )
   }
 
   const onSelectPainting = (newPainting: PaintingAction) => {
@@ -494,15 +768,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   useEffect(() => {
     if (filteredPaintings.length === 0) {
-      addPainting(mode, getNewPainting())
-      setPainting(DEFAULT_PAINTING)
+      const newPainting = getNewPainting()
+      addPainting(mode, newPainting)
+      setPainting(newPainting)
     }
-  }, [filteredPaintings, mode, addPainting, painting])
+  }, [filteredPaintings, mode, addPainting, painting, getNewPainting])
 
   useEffect(() => {
+    const timer = spaceClickTimer.current
     return () => {
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
+      if (timer) {
+        clearTimeout(timer)
       }
     }
   }, [])
@@ -546,7 +822,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           </Select>
 
           {/* 使用JSON配置渲染设置项 */}
-          {modeConfigs[mode].map(renderConfigItem)}
+          {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
         </LeftContainer>
         <MainContainer>
           {/* 添加功能切换分段控制器 */}
@@ -560,6 +836,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onPrevImage={prevImage}
             onNextImage={nextImage}
             onCancel={onCancel}
+            retry={handleRetry}
           />
           <InputContainer>
             <Textarea
@@ -569,7 +846,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               value={painting.prompt}
               spellCheck={false}
               onChange={(e) => updatePaintingState({ prompt: e.target.value })}
-              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder_edit')}
+              placeholder={
+                isTranslating
+                  ? t('paintings.translating')
+                  : painting.model?.startsWith('imagen-')
+                    ? t('paintings.prompt_placeholder_en')
+                    : t('paintings.prompt_placeholder_edit')
+              }
               onKeyDown={handleKeyDown}
             />
             <Toolbar>
@@ -651,7 +934,6 @@ const Textarea = styled(TextArea)`
   border-radius: 0;
   display: flex;
   flex: 1;
-  font-family: Ubuntu;
   resize: none !important;
   overflow: auto;
   width: auto;
@@ -674,11 +956,17 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-const InfoIcon = styled(InfoCircleFilled)`
+const InfoIcon = styled(Info)`
   margin-left: 5px;
   cursor: help;
-  color: #8d94a6;
-  font-size: 12px;
+  color: var(--color-text-2);
+  opacity: 0.6;
+  width: 14px;
+  height: 16px;
+
+  &:hover {
+    opacity: 1;
+  }
 `
 
 const SliderContainer = styled.div`

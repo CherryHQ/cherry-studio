@@ -1,8 +1,9 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
-import { FC, useMemo, useState } from 'react'
+import { FC, memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -11,19 +12,28 @@ interface Props {
 }
 
 const MessageTools: FC<Props> = ({ blocks }) => {
-  console.log('blocks', blocks)
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
-  const fontFamily = useMemo(() => {
-    return messageFont === 'serif'
-      ? 'serif'
-      : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
-  }, [messageFont])
 
   const toolResponse = blocks.metadata?.rawMcpToolResponse
+
+  const resultString = useMemo(() => {
+    try {
+      return JSON.stringify(
+        {
+          params: toolResponse?.arguments,
+          response: toolResponse?.response
+        },
+        null,
+        2
+      )
+    } catch (e) {
+      return 'Invalid Result'
+    }
+  }, [toolResponse])
 
   if (!toolResponse) {
     return null
@@ -43,14 +53,12 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
-    // Add tool responses
-    // for (const toolResponse of toolResponses) {
     const { id, tool, status, response } = toolResponse
     const isInvoking = status === 'invoking'
     const isDone = status === 'done'
     const hasError = isDone && response?.isError === true
     const result = {
-      params: tool.inputSchema,
+      params: toolResponse.arguments,
       response: toolResponse.response
     }
 
@@ -106,12 +114,15 @@ const MessageTools: FC<Props> = ({ blocks }) => {
         </MessageTitleLabel>
       ),
       children: isDone && result && (
-        <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
-          <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
+        <ToolResponseContainer
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize: '12px'
+          }}>
+          <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
         </ToolResponseContainer>
       )
     })
-    // }
 
     return items
   }
@@ -124,7 +135,6 @@ const MessageTools: FC<Props> = ({ blocks }) => {
       switch (parsedResult.content[0]?.type) {
         case 'text':
           return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
-        // TODO: support other types
         default:
           return <PreviewBlock>{content}</PreviewBlock>
       }
@@ -154,10 +164,14 @@ const MessageTools: FC<Props> = ({ blocks }) => {
         footer={null}
         width="80%"
         centered
+        transitionName="animation-move-down"
         styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
-          <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
-            {/* mode swtich tabs */}
+          <ExpandedResponseContainer
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize
+            }}>
             <Tabs
               tabBarExtraContent={
                 <ActionButton
@@ -178,18 +192,12 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                 {
                   key: 'preview',
                   label: t('message.tools.preview'),
-                  children: renderPreview(expandedResponse.content)
+                  children: <CollapsedContent isExpanded={true} resultString={resultString} />
                 },
                 {
                   key: 'raw',
                   label: t('message.tools.raw'),
-                  children: (
-                    <CodeBlock>
-                      {typeof expandedResponse.content === 'string'
-                        ? expandedResponse.content
-                        : JSON.stringify(expandedResponse.content, null, 2)}
-                    </CodeBlock>
-                  )
+                  children: renderPreview(expandedResponse.content)
                 }
               ]}
             />
@@ -200,8 +208,30 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   )
 }
 
+// New component to handle collapsed content
+const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ isExpanded, resultString }) => {
+  const { highlightCode } = useCodeStyle()
+  const [styledResult, setStyledResult] = useState<string>('')
+
+  useEffect(() => {
+    const highlight = async () => {
+      const result = await highlightCode(isExpanded ? resultString : '', 'json')
+      setStyledResult(result)
+    }
+
+    setTimeout(highlight, 0)
+  }, [isExpanded, resultString, highlightCode])
+
+  if (!isExpanded) {
+    return null
+  }
+
+  return <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
+}
+
 const CollapseContainer = styled(Collapse)`
-  margin-bottom: 15px;
+  margin-top: 10px;
+  margin-bottom: 12px;
   border-radius: 8px;
   overflow: hidden;
 
@@ -216,6 +246,15 @@ const CollapseContainer = styled(Collapse)`
 
   .ant-collapse-content-box {
     padding: 0 !important;
+  }
+`
+
+const MarkdownContainer = styled.div`
+  & pre {
+    background: transparent !important;
+    span {
+      white-space: pre-wrap;
+    }
   }
 `
 
@@ -300,9 +339,7 @@ const CollapsibleIcon = styled.i`
 `
 
 const ToolResponseContainer = styled.div`
-  background: var(--color-bg-1);
   border-radius: 0 0 4px 4px;
-  padding: 12px 16px;
   overflow: auto;
   max-height: 300px;
   border-top: none;
@@ -315,14 +352,6 @@ const PreviewBlock = styled.div`
   word-break: break-word;
   color: var(--color-text);
   user-select: text;
-`
-
-const CodeBlock = styled.pre`
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--color-text);
-  font-family: ubuntu;
 `
 
 const ExpandedResponseContainer = styled.div`
@@ -348,4 +377,4 @@ const ExpandedResponseContainer = styled.div`
   }
 `
 
-export default MessageTools
+export default memo(MessageTools)

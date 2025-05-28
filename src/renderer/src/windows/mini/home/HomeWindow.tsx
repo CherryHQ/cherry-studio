@@ -40,7 +40,9 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
-  const { defaultModel: model } = useDefaultModel()
+  const { defaultModel, quickAssistantModel } = useDefaultModel()
+  // 如果 quickAssistantModel 未設定，則使用 defaultModel
+  const model = quickAssistantModel || defaultModel
   const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
@@ -90,6 +92,9 @@ const HomeWindow: FC = () => {
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
     // 输入法可以`Esc`终止候选词过程
     // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
+    if (e.nativeEvent.isComposing) {
+      return
+    }
     if (e.key === 'Process') {
       return
     }
@@ -179,7 +184,7 @@ const HomeWindow: FC = () => {
 
       fetchChatCompletion({
         messages: [userMessage],
-        assistant: { ...assistant, model: getDefaultModel() },
+        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
         onChunkReceived: (chunk: Chunk) => {
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
@@ -216,7 +221,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant, topic]
+    [content, defaultAssistant, topic, quickAssistantModel]
   )
 
   const clearClipboard = () => {

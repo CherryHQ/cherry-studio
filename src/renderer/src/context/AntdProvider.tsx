@@ -42,10 +42,14 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           },
           Collapse: {
             headerBg: 'transparent'
+          },
+          Tooltip: {
+            fontSize: 13
           }
         },
         token: {
-          colorPrimary
+          colorPrimary: colorPrimary,
+          fontFamily: 'var(--font-family)'
         }
       }}>
       {children}

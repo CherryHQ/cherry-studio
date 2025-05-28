@@ -8,16 +8,16 @@ import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { convertMathFormula } from '@renderer/utils/markdown'
-import { getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
+import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 //TODO: 添加对思考内容的支持
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
- * @param str 输入字符串
- * @param length 标题最大长度，默认为 80
- * @returns string 提取的标题
+ * @param {string} str 输入字符串
+ * @param {number} [length=80] 标题最大长度，默认为 80
+ * @returns {string} 提取的标题
  */
 export function getTitleFromString(str: string, length: number = 80) {
   let title = str.trimStart().split('\n')[0]
@@ -43,48 +43,48 @@ export function getTitleFromString(str: string, length: number = 80) {
   return title
 }
 
-export const messageToMarkdown = (message: Message) => {
+const createBaseMarkdown = (message: Message, includeReasoning: boolean = false) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
   const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
   const titleSection = `### ${roleText}`
+  let reasoningSection = ''
+
+  if (includeReasoning) {
+    let reasoningContent = getThinkingContent(message)
+    if (reasoningContent) {
+      if (reasoningContent.startsWith('<think>\n')) {
+        reasoningContent = reasoningContent.substring(8)
+      } else if (reasoningContent.startsWith('<think>')) {
+        reasoningContent = reasoningContent.substring(7)
+      }
+      reasoningContent = reasoningContent.replace(/\n/g, '<br>')
+
+      if (forceDollarMathInMarkdown) {
+        reasoningContent = convertMathFormula(reasoningContent)
+      }
+      reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
+      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+    ${reasoningContent}
+</details>`
+    }
+  }
+
   const content = getMainTextContent(message)
+  const citation = getCitationContent(message)
   const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
 
-  return [titleSection, '', contentSection].join('\n')
+  return { titleSection, reasoningSection, contentSection, citation }
+}
+
+export const messageToMarkdown = (message: Message) => {
+  const { titleSection, contentSection, citation } = createBaseMarkdown(message)
+  return [titleSection, '', contentSection, citation].join('\n\n')
 }
 
 // 保留接口用于其它导出方法使用
 export const messageToMarkdownWithReasoning = (message: Message) => {
-  const { forceDollarMathInMarkdown } = store.getState().settings
-  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
-  const titleSection = `### ${roleText}`
-  let reasoningContent = getThinkingContent(message)
-  // 处理思考内容
-  let reasoningSection = ''
-  if (reasoningContent) {
-    // 移除开头的<think>标记和换行符，并将所有换行符替换为<br>
-    if (reasoningContent.startsWith('<think>\n')) {
-      reasoningContent = reasoningContent.substring(8)
-    } else if (reasoningContent.startsWith('<think>')) {
-      reasoningContent = reasoningContent.substring(7)
-    }
-    reasoningContent = reasoningContent.replace(/\n/g, '<br>')
-
-    // 应用数学公式转换（如果启用）
-    if (forceDollarMathInMarkdown) {
-      reasoningContent = convertMathFormula(reasoningContent)
-    }
-    // 添加思考内容的Markdown格式
-    reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
-      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
-    ${reasoningContent}
-</details>`
-  }
-  const content = getMainTextContent(message)
-
-  const contentSection = forceDollarMathInMarkdown ? convertMathFormula(content) : content
-
-  return [titleSection, '', reasoningSection + contentSection].join('\n')
+  const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(message, true)
+  return [titleSection, '', reasoningSection + contentSection, citation].join('\n\n')
 }
 
 export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolean) => {

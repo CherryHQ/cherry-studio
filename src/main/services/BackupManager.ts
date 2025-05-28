@@ -4,8 +4,8 @@ import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
 import Logger from 'electron-log'
-import extract from 'extract-zip'
 import * as fs from 'fs-extra'
+import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
 
@@ -77,7 +77,8 @@ class BackupManager {
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
     data: string,
-    destinationPath: string = this.backupDir
+    destinationPath: string = this.backupDir,
+    skipBackupFile: boolean = false
   ): Promise<string> {
     const mainWindow = windowService.getMainWindow()
 
@@ -104,23 +105,30 @@ class BackupManager {
 
       onProgress({ stage: 'writing_data', progress: 20, total: 100 })
 
-      // 复制 Data 目录到临时目录
-      const sourcePath = path.join(app.getPath('userData'), 'Data')
-      const tempDataDir = path.join(this.tempDir, 'Data')
+      Logger.log('[BackupManager IPC] ', skipBackupFile)
 
-      // 获取源目录总大小
-      const totalSize = await this.getDirSize(sourcePath)
-      let copiedSize = 0
+      if (!skipBackupFile) {
+        // 复制 Data 目录到临时目录
+        const sourcePath = path.join(app.getPath('userData'), 'Data')
+        const tempDataDir = path.join(this.tempDir, 'Data')
 
-      // 使用流式复制
-      await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
-        copiedSize += size
-        const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
-        onProgress({ stage: 'copying_files', progress, total: 100 })
-      })
+        // 获取源目录总大小
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
 
-      await this.setWritableRecursive(tempDataDir)
-      onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
+        // 使用流式复制
+        await this.copyDirWithProgress(sourcePath, tempDataDir, (size) => {
+          copiedSize += size
+          const progress = Math.min(50, Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+
+        await this.setWritableRecursive(tempDataDir)
+        onProgress({ stage: 'preparing_compression', progress: 50, total: 100 })
+      } else {
+        Logger.log('[BackupManager] Skip the backup of the file')
+        await fs.promises.mkdir(path.join(this.tempDir, 'Data')) // 不创建空 Data 目录会导致 restore 失败
+      }
 
       // 创建输出文件流
       const backupedFilePath = path.join(destinationPath, fileName)
@@ -231,15 +239,10 @@ class BackupManager {
 
       Logger.log('[backup] step 1: unzip backup file', this.tempDir)
 
-      // 使用 extract-zip 解压
-      await extract(backupPath, {
-        dir: this.tempDir,
-        onEntry: () => {
-          // 这里可以处理进度，但 extract-zip 不提供总条目数信息
-          onProgress({ stage: 'extracting', progress: 15, total: 100 })
-        }
-      })
-      onProgress({ stage: 'extracting', progress: 25, total: 100 })
+      const zip = new StreamZip.async({ file: backupPath })
+      onProgress({ stage: 'extracting', progress: 15, total: 100 })
+      await zip.extract(null, this.tempDir)
+      onProgress({ stage: 'extracted', progress: 25, total: 100 })
 
       Logger.log('[backup] step 2: read data.json')
       // 读取 data.json
@@ -252,19 +255,26 @@ class BackupManager {
       const sourcePath = path.join(this.tempDir, 'Data')
       const destPath = path.join(app.getPath('userData'), 'Data')
 
-      // 获取源目录总大小
-      const totalSize = await this.getDirSize(sourcePath)
-      let copiedSize = 0
+      const dataExists = await fs.pathExists(sourcePath)
+      const dataFiles = dataExists ? await fs.readdir(sourcePath) : []
 
-      await this.setWritableRecursive(destPath)
-      await fs.remove(destPath)
+      if (dataExists && dataFiles.length > 0) {
+        // 获取源目录总大小
+        const totalSize = await this.getDirSize(sourcePath)
+        let copiedSize = 0
 
-      // 使用流式复制
-      await this.copyDirWithProgress(sourcePath, destPath, (size) => {
-        copiedSize += size
-        const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
-        onProgress({ stage: 'copying_files', progress, total: 100 })
-      })
+        await this.setWritableRecursive(destPath)
+        await fs.remove(destPath)
+
+        // 使用流式复制
+        await this.copyDirWithProgress(sourcePath, destPath, (size) => {
+          copiedSize += size
+          const progress = Math.min(85, 35 + Math.floor((copiedSize / totalSize) * 50))
+          onProgress({ stage: 'copying_files', progress, total: 100 })
+        })
+      } else {
+        Logger.log('[backup] skipBackupFile is true, skip restoring Data directory')
+      }
 
       Logger.log('[backup] step 4: clean up temp directory')
       // 清理临时目录
@@ -284,7 +294,7 @@ class BackupManager {
 
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const backupedFilePath = await this.backup(_, filename, data)
+    const backupedFilePath = await this.backup(_, filename, data, undefined, webdavConfig.skipBackupFile)
     const webdavClient = new WebDav(webdavConfig)
     try {
       const result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {

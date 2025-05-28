@@ -17,6 +17,10 @@ export default abstract class BaseReranker {
    * Get Rerank Request Url
    */
   protected getRerankUrl() {
+    if (this.base.rerankModelProvider === 'dashscope') {
+      return 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'
+    }
+
     let baseURL = this.base?.rerankBaseURL?.endsWith('/')
       ? this.base.rerankBaseURL.slice(0, -1)
       : this.base.rerankBaseURL
@@ -26,6 +30,56 @@ export default abstract class BaseReranker {
     }
 
     return `${baseURL}/rerank`
+  }
+
+  /**
+   * Get Rerank Request Body
+   */
+  protected getRerankRequestBody(query: string, searchResults: ExtractChunkData[]) {
+    const provider = this.base.rerankModelProvider
+    const documents = searchResults.map((doc) => doc.pageContent)
+    const topN = this.base.documentCount
+
+    if (provider === 'voyageai') {
+      return {
+        model: this.base.rerankModel,
+        query,
+        documents,
+        top_k: topN
+      }
+    } else if (provider === 'dashscope') {
+      return {
+        model: this.base.rerankModel,
+        input: {
+          query,
+          documents
+        },
+        parameters: {
+          top_n: topN
+        }
+      }
+    } else {
+      return {
+        model: this.base.rerankModel,
+        query,
+        documents,
+        top_n: topN
+      }
+    }
+  }
+
+  /**
+   * Extract Rerank Result
+   */
+  protected extractRerankResult(data: any) {
+    const provider = this.base.rerankModelProvider
+    if (provider === 'dashscope') {
+      return data.output.results
+    } else if (provider === 'voyageai') {
+      return data.data
+    } else {
+      return data.results
+    }
   }
 
   /**

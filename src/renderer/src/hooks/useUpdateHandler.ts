@@ -1,5 +1,7 @@
+import { NotificationService } from '@renderer/services/NotificationService'
 import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
+import { uuid } from '@renderer/utils'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { useEffect } from 'react'
@@ -8,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 export default function useUpdateHandler() {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
+  const notificationService = NotificationService.getInstance()
 
   useEffect(() => {
     if (!window.electron) return
@@ -22,6 +25,14 @@ export default function useUpdateHandler() {
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {
+        notificationService.send({
+          id: uuid(),
+          type: 'info',
+          title: t('button.update_available'),
+          message: t('button.update_available', { version: releaseInfo.version }),
+          timestamp: Date.now(),
+          source: 'update'
+        })
         dispatch(
           setUpdateState({
             checking: false,
@@ -74,5 +85,5 @@ export default function useUpdateHandler() {
       })
     ]
     return () => removers.forEach((remover) => remover())
-  }, [dispatch, t])
+  }, [dispatch, notificationService, t])
 }

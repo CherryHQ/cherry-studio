@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import MessageItem from './Message'
+
 interface Props {
   assistant: Assistant
   route: string
@@ -33,7 +34,6 @@ const Messages: FC<Props> = ({ assistant, route }) => {
   //     setMessages((prev) => {
   // const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
   // store.dispatch(newMessagesActions.addMessage({ topicId: assistant.topics[0].id, message: assistantMessage }))
-
   //       const messages = prev.concat([message, assistantMessage])
   //       return messages
   //     })

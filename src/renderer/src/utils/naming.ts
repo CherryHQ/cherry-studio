@@ -1,32 +1,55 @@
 /**
  * 从模型 ID 中提取默认组名。
+ * 规则如下：
+ * 1. 第一类分隔规则：以第一个出现的分隔符分割，取第 0 个部分作为组名。
+ * 2. 第二类分隔规则：取前两个部分拼接（如 'a-b-c' 得到 'a-b'）。
+ * 3. 其他情况返回 id。
+ *
  * 例如：
- * - 'gpt-3.5-turbo-16k-0613' 转换为 'GPT-3.5-Turbo'
- * - 'qwen2:1.5b' 转换为 'QWEN2'。
- * @param id 模型 ID 字符串
- * @returns string 提取的组名
+ * - 'gpt-3.5-turbo-16k-0613' => 'gpt-3.5'
+ * - 'qwen3:32b' => 'qwen3'
+ * - 'Qwen/Qwen3-32b' => 'qwen'
+ * - 'deepseek-r1' => 'deepseek-r1'
+ * - 'o3' => 'o3'
+ *
+ * @param {string} id 模型 ID 字符串
+ * @param {string} [provider] 提供商 ID 字符串
+ * @returns {string} 提取的组名
  */
-export const getDefaultGroupName = (id: string) => {
-  if (id.includes('/')) {
-    return id.split('/')[0]
+export const getDefaultGroupName = (id: string, provider?: string): string => {
+  const str = id.toLowerCase()
+
+  // 定义分隔符
+  let firstDelimiters = ['/', ' ', ':']
+  let secondDelimiters = ['-', '_']
+
+  if (provider && ['aihubmix', 'silicon', 'ocoolai', 'o3', 'dmxapi'].includes(provider.toLowerCase())) {
+    firstDelimiters = ['/', ' ', '-', '_', ':']
+    secondDelimiters = []
   }
 
-  if (id.includes(':')) {
-    return id.split(':')[0]
+  // 第一类分隔规则
+  for (const delimiter of firstDelimiters) {
+    if (str.includes(delimiter)) {
+      return str.split(delimiter)[0]
+    }
   }
 
-  if (id.includes('-')) {
-    const parts = id.split('-')
-    return parts[0] + '-' + parts[1]
+  // 第二类分隔规则
+  for (const delimiter of secondDelimiters) {
+    if (str.includes(delimiter)) {
+      const parts = str.split(delimiter)
+      return parts.length > 1 ? parts[0] + '-' + parts[1] : parts[0]
+    }
   }
 
-  return id
+  return str
 }
 
 /**
  * 用于获取 avatar 名字的辅助函数，会取出字符串的第一个字符，支持表情符号。
- * @param str 输入字符串
- * @returns string 第一个字符，或者返回空字符串
+ * @param {string} str 输入字符串
+ * @returns {string} 第一个字符，或者返回空字符串
  */
 export function firstLetter(str: string): string {
   const match = str?.match(/\p{L}\p{M}*|\p{Emoji_Presentation}|\p{Emoji}\uFE0F/u)
@@ -35,8 +58,8 @@ export function firstLetter(str: string): string {
 
 /**
  * 移除字符串开头的表情符号。
- * @param str 输入字符串
- * @returns string 移除开头表情符号后的字符串
+ * @param {string} str 输入字符串
+ * @returns {string} 移除开头表情符号后的字符串
  */
 export function removeLeadingEmoji(str: string): string {
   const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
@@ -45,8 +68,8 @@ export function removeLeadingEmoji(str: string): string {
 
 /**
  * 提取字符串开头的表情符号。
- * @param str 输入字符串
- * @returns string 开头的表情符号，如果没有则返回空字符串
+ * @param {string} str 输入字符串
+ * @returns {string} 开头的表情符号，如果没有则返回空字符串
  */
 export function getLeadingEmoji(str: string): string {
   const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
@@ -56,8 +79,8 @@ export function getLeadingEmoji(str: string): string {
 
 /**
  * 检查字符串是否为纯表情符号。
- * @param str 输入字符串
- * @returns boolean 如果字符串是纯表情符号则返回 true，否则返回 false
+ * @param {string} str 输入字符串
+ * @returns {boolean} 如果字符串是纯表情符号则返回 true，否则返回 false
  */
 export function isEmoji(str: string): boolean {
   if (str.startsWith('data:')) {
@@ -74,19 +97,19 @@ export function isEmoji(str: string): boolean {
 /**
  * 从话题名称中移除特殊字符：
  * - 替换换行符为空格。
- * @param str 输入字符串
- * @returns string 处理后的字符串
+ * @param {string} str 输入字符串
+ * @returns {string} 处理后的字符串
  */
-export function removeSpecialCharactersForTopicName(str: string) {
+export function removeSpecialCharactersForTopicName(str: string): string {
   return str.replace(/[\r\n]+/g, ' ').trim()
 }
 
 /**
  * 根据字符生成颜色代码，用于 avatar。
- * @param char 输入字符
- * @returns string 十六进制颜色字符串
+ * @param {string} char 输入字符
+ * @returns {string} 十六进制颜色字符串
  */
-export function generateColorFromChar(char: string) {
+export function generateColorFromChar(char: string): string {
   // 使用字符的Unicode值作为随机种子
   const seed = char.charCodeAt(0)
 
@@ -111,23 +134,23 @@ export function generateColorFromChar(char: string) {
 
 /**
  * 获取字符串的第一个字符。
- * @param str 输入字符串
- * @returns string 第一个字符，或者空字符串
+ * @param {string} str 输入字符串
+ * @returns {string} 第一个字符，或者空字符串
  */
-export function getFirstCharacter(str) {
-  if (str.length === 0) return ''
-
+export function getFirstCharacter(str: string): string {
   // 使用 for...of 循环来获取第一个字符
   for (const char of str) {
     return char
   }
+
+  return ''
 }
 
 /**
  * 用于简化文本。按照给定长度限制截断文本，考虑语义边界。
- * @param text 输入文本
- * @param maxLength 最大长度，默认为 50
- * @returns string 处理后的简短文本
+ * @param {string} text 输入文本
+ * @param {number} [maxLength=50] 最大长度，默认为 50
+ * @returns {string} 处理后的简短文本
  */
 export function getBriefInfo(text: string, maxLength: number = 50): string {
   // 去除空行

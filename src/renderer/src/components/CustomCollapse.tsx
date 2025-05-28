@@ -1,6 +1,6 @@
 import { Collapse } from 'antd'
 import { merge } from 'lodash'
-import { FC, memo } from 'react'
+import { FC, memo, useMemo, useState } from 'react'
 
 interface CustomCollapseProps {
   label: React.ReactNode
@@ -28,28 +28,45 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
   style,
   styles
 }) => {
+  const [activeKeys, setActiveKeys] = useState(activeKey || defaultActiveKey)
+
   const defaultCollapseStyle = {
     width: '100%',
     background: 'transparent',
     border: '0.5px solid var(--color-border)'
   }
 
+  const defaultCollpaseHeaderStyle = {
+    padding: '3px 16px',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    background: 'var(--color-background-soft)'
+  }
+
+  const getHeaderStyle = () => {
+    return activeKeys && activeKeys.length > 0
+      ? {
+          ...defaultCollpaseHeaderStyle,
+          borderTopLeftRadius: '8px',
+          borderTopRightRadius: '8px'
+        }
+      : {
+          ...defaultCollpaseHeaderStyle,
+          borderRadius: '8px'
+        }
+  }
+
   const defaultCollapseItemStyles = {
-    header: {
-      padding: '8px 16px',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      background: 'var(--color-background-soft)',
-      borderTopLeftRadius: '8px',
-      borderTopRightRadius: '8px'
-    },
+    header: getHeaderStyle(),
     body: {
       borderTop: 'none'
     }
   }
 
   const collapseStyle = merge({}, defaultCollapseStyle, style)
-  const collapseItemStyles = merge({}, defaultCollapseItemStyles, styles)
+  const collapseItemStyles = useMemo(() => {
+    return merge({}, defaultCollapseItemStyles, styles)
+  }, [activeKeys])
 
   return (
     <Collapse
@@ -59,6 +76,7 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
       activeKey={activeKey}
       destroyInactivePanel={destroyInactivePanel}
       collapsible={collapsible}
+      onChange={setActiveKeys}
       items={[
         {
           styles: collapseItemStyles,

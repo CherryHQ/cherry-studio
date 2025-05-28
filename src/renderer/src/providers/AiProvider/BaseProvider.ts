@@ -1,9 +1,14 @@
+import Logger from '@renderer/config/logger'
+import { isFunctionCallingModel, isNotSupportTemperatureAndTopP } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import type {
   Assistant,
   GenerateImageParams,
   KnowledgeReference,
+  MCPCallToolResponse,
+  MCPTool,
+  MCPToolResponse,
   Model,
   Provider,
   Suggestion,
@@ -15,7 +20,6 @@ import type { Message } from '@renderer/types/newMessage'
 import { delay, isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { glmZeroPreviewProcessor, thinkTagProcessor, ThoughtProcessor } from '@renderer/utils/formats'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isEmpty } from 'lodash'
 import type OpenAI from 'openai'
@@ -23,9 +27,14 @@ import type OpenAI from 'openai'
 import type { CompletionsParams } from '.'
 
 export default abstract class BaseProvider {
+  // Threshold for determining whether to use system prompt for tools
+  private static readonly SYSTEM_PROMPT_THRESHOLD: number = 128
+
   protected provider: Provider
   protected host: string
   protected apiKey: string
+
+  protected useSystemPromptForTools: boolean = true
 
   constructor(provider: Provider) {
     this.provider = provider
@@ -48,6 +57,12 @@ export default abstract class BaseProvider {
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
+  public abstract convertMcpTools<T>(mcpTools: MCPTool[]): T[]
+  public abstract mcpToolCallResponseToMessage(
+    mcpToolResponse: MCPToolResponse,
+    resp: MCPCallToolResponse,
+    model: Model
+  ): any
 
   public getBaseURL(): string {
     const host = this.provider.apiHost
@@ -88,6 +103,14 @@ export default abstract class BaseProvider {
     return this.provider.id === 'lmstudio' ? getLMStudioKeepAliveTime() : undefined
   }
 
+  public getTemperature(assistant: Assistant, model: Model): number | undefined {
+    return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.temperature
+  }
+
+  public getTopP(assistant: Assistant, model: Model): number | undefined {
+    return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.topP
+  }
+
   public async fakeCompletions({ onChunk }: CompletionsParams) {
     for (let i = 0; i < 100; i++) {
       await delay(0.01)
@@ -115,7 +138,7 @@ export default abstract class BaseProvider {
 
     const allReferences = [...webSearchReferences, ...reindexedKnowledgeReferences]
 
-    console.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
+    Logger.log(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
 
     if (!isEmpty(allReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
@@ -158,10 +181,10 @@ export default abstract class BaseProvider {
     const knowledgeReferences: KnowledgeReference[] = window.keyv.get(`knowledge-search-${message.id}`)
 
     if (!isEmpty(knowledgeReferences)) {
-      // console.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
+      // Logger.log(`Found ${knowledgeReferences.length} knowledge base references in cache for ID: ${message.id}`)
       return knowledgeReferences
     }
-    // console.log(`No knowledge base references found in cache for ID: ${message.id}`)
+    // Logger.log(`No knowledge base references found in cache for ID: ${message.id}`)
     return []
   }
 
@@ -231,50 +254,30 @@ export default abstract class BaseProvider {
     }
   }
 
-  /**
-   * Finds the appropriate thinking processor for a given text chunk and model.
-   * Returns the processor if found, otherwise undefined.
-   */
-  protected findThinkingProcessor(chunkText: string, model: Model | undefined): ThoughtProcessor | undefined {
-    if (!model) return undefined
+  // Setup tools configuration based on provided parameters
+  protected setupToolsConfig<T>(params: { mcpTools?: MCPTool[]; model: Model; enableToolUse?: boolean }): {
+    tools: T[]
+  } {
+    const { mcpTools, model, enableToolUse } = params
+    let tools: T[] = []
 
-    const processors: ThoughtProcessor[] = [thinkTagProcessor, glmZeroPreviewProcessor]
-    return processors.find((p) => p.canProcess(chunkText, model))
-  }
-
-  /**
-   * Returns a function closure that handles incremental reasoning text for a specific stream.
-   * The returned function processes a chunk, emits THINKING_DELTA for new reasoning,
-   * and returns the associated content part.
-   */
-  protected handleThinkingTags() {
-    let memoizedReasoning = ''
-    // Returns a function that handles a single chunk potentially containing thinking tags
-    return (chunkText: string, processor: ThoughtProcessor, onChunk: (chunk: any) => void): string => {
-      // Returns the processed content part
-      const { reasoning, content } = processor.process(chunkText)
-      let deltaReasoning = ''
-
-      if (reasoning && reasoning.trim()) {
-        // Check if the new reasoning starts with the previous one
-        if (reasoning.startsWith(memoizedReasoning)) {
-          deltaReasoning = reasoning.substring(memoizedReasoning.length)
-        } else {
-          // If not a continuation, send the whole new reasoning
-          deltaReasoning = reasoning
-          // console.warn("Thinking content did not start with previous memoized version. Sending full content.")
-        }
-        memoizedReasoning = reasoning // Update memoized state
-      } else {
-        // If no reasoning, reset memoized state? Let's reset.
-        memoizedReasoning = ''
-      }
-
-      if (deltaReasoning) {
-        onChunk({ type: ChunkType.THINKING_DELTA, text: deltaReasoning })
-      }
-
-      return content // Return the content part for TEXT_DELTA emission
+    // If there are no tools, return an empty array
+    if (!mcpTools?.length) {
+      return { tools }
     }
+
+    // If the number of tools exceeds the threshold, use the system prompt
+    if (mcpTools.length > BaseProvider.SYSTEM_PROMPT_THRESHOLD) {
+      this.useSystemPromptForTools = true
+      return { tools }
+    }
+
+    // If the model supports function calling and tool usage is enabled
+    if (isFunctionCallingModel(model) && enableToolUse) {
+      tools = this.convertMcpTools<T>(mcpTools)
+      this.useSystemPromptForTools = false
+    }
+
+    return { tools }
   }
 }

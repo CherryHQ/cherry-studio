@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import type { LegacyMessage as OldMessage, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types' // Import FileTypes enum
 import { WebSearchSource } from '@renderer/types'
@@ -9,6 +10,7 @@ import type {
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { Transaction } from 'dexie'
+import { isEmpty } from 'lodash'
 
 import {
   createCitationBlock,
@@ -89,7 +91,7 @@ function mapOldStatusToNewMessageStatus(oldStatus: OldMessage['status']): NewMes
 
 // --- UPDATED UPGRADE FUNCTION for Version 7 ---
 export async function upgradeToV7(tx: Transaction): Promise<void> {
-  console.log('Starting DB migration to version 7: Normalizing messages and blocks...')
+  Logger.info('Starting DB migration to version 7: Normalizing messages and blocks...')
 
   const oldTopicsTable = tx.table('topics')
   const newBlocksTable = tx.table('message_blocks')
@@ -211,7 +213,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         hasCitationData = true
         citationDataToCreate.response = {
           results: oldMessage.metadata.annotations,
-          source: WebSearchSource.OPENAI
+          source: WebSearchSource.OPENAI_RESPONSE
         }
       }
       if (oldMessage.metadata?.citations?.length) {
@@ -258,12 +260,14 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 
       // 10. Error Block (Status is ERROR)
       if (oldMessage.error && typeof oldMessage.error === 'object' && Object.keys(oldMessage.error).length > 0) {
-        const block = createErrorBlock(oldMessage.id, oldMessage.error, {
-          createdAt: oldMessage.createdAt,
-          status: MessageBlockStatus.ERROR // Error block status is ERROR
-        })
-        blocksToCreate.push(block)
-        messageBlockIds.push(block.id)
+        if (isEmpty(oldMessage.content)) {
+          const block = createErrorBlock(oldMessage.id, oldMessage.error, {
+            createdAt: oldMessage.createdAt,
+            status: MessageBlockStatus.ERROR // Error block status is ERROR
+          })
+          blocksToCreate.push(block)
+          messageBlockIds.push(block.id)
+        }
       }
 
       // 11. Create the New Message reference object (Add usage/metrics assignment)
@@ -300,8 +304,8 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
   const updateOperations = Object.entries(topicUpdates).map(([id, data]) => ({ key: id, changes: data }))
   if (updateOperations.length > 0) {
     await oldTopicsTable.bulkUpdate(updateOperations)
-    console.log(`Updated message references for ${updateOperations.length} topics.`)
+    Logger.log(`Updated message references for ${updateOperations.length} topics.`)
   }
 
-  console.log('DB migration to version 7 finished successfully.')
+  Logger.log('DB migration to version 7 finished successfully.')
 }

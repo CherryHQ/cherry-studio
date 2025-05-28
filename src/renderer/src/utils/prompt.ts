@@ -1,5 +1,5 @@
+import store from '@renderer/store'
 import { MCPTool } from '@renderer/types'
-
 export const SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
 You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
@@ -147,7 +147,65 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = (userSystemPrompt: string, tools: MCPTool[]): string => {
+export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPTool[]): Promise<string> => {
+  if (typeof userSystemPrompt === 'string') {
+    const now = new Date()
+    if (userSystemPrompt.includes('{{date}}')) {
+      const date = now.toLocaleDateString()
+      userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
+    }
+
+    if (userSystemPrompt.includes('{{time}}')) {
+      const time = now.toLocaleTimeString()
+      userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
+    }
+
+    if (userSystemPrompt.includes('{{datetime}}')) {
+      const datetime = now.toLocaleString()
+      userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
+    }
+
+    if (userSystemPrompt.includes('{{system}}')) {
+      try {
+        const systemType = await window.api.system.getDeviceType()
+        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
+      } catch (error) {
+        console.error('Failed to get system type:', error)
+        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
+      }
+    }
+
+    if (userSystemPrompt.includes('{{language}}')) {
+      try {
+        const language = store.getState().settings.language
+        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
+      } catch (error) {
+        console.error('Failed to get language:', error)
+        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
+      }
+    }
+
+    if (userSystemPrompt.includes('{{arch}}')) {
+      try {
+        const appInfo = await window.api.getAppInfo()
+        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
+      } catch (error) {
+        console.error('Failed to get architecture:', error)
+        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
+      }
+    }
+
+    if (userSystemPrompt.includes('{{model_name}}')) {
+      try {
+        const modelName = store.getState().llm.defaultModel.name
+        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName)
+      } catch (error) {
+        console.error('Failed to get model name:', error)
+        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
+      }
+    }
+  }
+
   if (tools && tools.length > 0) {
     return SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt)
       .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)
