@@ -233,6 +233,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   // Set up scroll event listener and mouse position tracking
   useEffect(() => {
     const container = document.getElementById(containerId)
+    const messagesContainer = container?.closest('.messages-container') as HTMLElement
+
     if (!container) return
 
     // Handle scroll events on the container
@@ -287,11 +289,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
     // Use passive: true for better scroll performance
     container.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('mousemove', handleMouseMove)
+
+    if (messagesContainer) {
+      // Listen to the messages container (but with global coordinates)
+      messagesContainer.addEventListener('mousemove', handleMouseMove)
+    } else {
+      window.addEventListener('mousemove', handleMouseMove)
+    }
 
     return () => {
       container.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('mousemove', handleMouseMove)
+      if (messagesContainer) {
+        messagesContainer.removeEventListener('mousemove', handleMouseMove)
+      } else {
+        window.removeEventListener('mousemove', handleMouseMove)
+      }
       if (hideTimer) {
         clearTimeout(hideTimer)
       }

@@ -115,7 +115,7 @@ const Chat: FC<Props> = (props) => {
           includeUser={filterIncludeUser}
           onIncludeUserChange={userOutlinedItemClickHandler}
         />
-        <MessagesContainer>
+        <MessagesContainer className="messages-container">
           <Messages
             key={props.activeTopic.id}
             assistant={assistant}
