@@ -973,7 +973,6 @@ export class SelectionService {
         this.isCtrlkeyListenerActive = false
       }
 
-      // this.selectionHook!.enableClipboard()
       this.selectionHook!.setSelectionPassiveMode(false)
     } else if (this.triggerMode === 'ctrlkey') {
       if (!this.isCtrlkeyListenerActive) {
@@ -983,7 +982,6 @@ export class SelectionService {
         this.isCtrlkeyListenerActive = true
       }
 
-      // this.selectionHook!.disableClipboard()
       this.selectionHook!.setSelectionPassiveMode(true)
     }
   }
