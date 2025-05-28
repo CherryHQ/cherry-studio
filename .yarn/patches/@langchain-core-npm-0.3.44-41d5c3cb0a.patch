@@ -1,0 +1,37 @@
+diff --git a/dist/utils/tiktoken.js b/dist/utils/tiktoken.js
+index 8e41ee6f00f2f9c7fa2c59fa2b2f4297634b97aa..6708abfaabee108b8967c3fbd7fccc8dfb95e693 100644
+--- a/dist/utils/tiktoken.js
++++ b/dist/utils/tiktoken.js
+@@ -3,18 +3,20 @@ import { AsyncCaller } from "./async_caller.js";
+ const cache = {};
+ const caller = /* #__PURE__ */ new AsyncCaller({});
+ export async function getEncoding(encoding) {
+-    if (!(encoding in cache)) {
+-        cache[encoding] = caller
+-            .fetch(`https://tiktoken.pages.dev/js/${encoding}.json`)
+-            .then((res) => res.json())
+-            .then((data) => new Tiktoken(data))
+-            .catch((e) => {
+-            delete cache[encoding];
+-            throw e;
+-        });
+-    }
+-    return await cache[encoding];
++    // if (!(encoding in cache)) {
++    //     cache[encoding] = caller
++    //         .fetch(`https://tiktoken.pages.dev/js/${encoding}.json`)
++    //         .then((res) => res.json())
++    //         .then((data) => new Tiktoken(data))
++    //         .catch((e) => {
++    //         delete cache[encoding];
++    //         throw e;
++    //     });
++    // }
++    // return await cache[encoding];
++    throw new Error("TikToken Not implemented");
+ }
+ export async function encodingForModel(model) {
+-    return getEncoding(getEncodingNameForModel(model));
++    // return getEncoding(getEncodingNameForModel(model));
++    throw new Error("TikToken Not implemented");
+ }

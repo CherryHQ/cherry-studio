@@ -8,6 +8,7 @@
       "add.name.placeholder": "輸入名稱",
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
+      "add.prompt.variables.tip": "可用的變數：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "建立智慧代理人",
       "import": {
         "title": "從外部導入",
@@ -99,6 +100,26 @@
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",
       "settings.knowledge_base.recognition.on": "意圖識別",
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "標籤展示"
+      },
+      "tags": {
+        "untagged": "未分組標籤",
+        "none": "暫無標籤",
+        "manage": "標籤管理",
+        "add": "添加標籤",
+        "modify": "修改標籤",
+        "delete": "刪除標籤",
+        "settings": {
+          "title": "標籤設定",
+          "current": "當前標籤",
+          "searchTagsPlaceholder": "請輸入標籤名稱以過濾標籤",
+          "addTagsPlaceholder": "請輸入標籤名稱以新增",
+          "tagsLsitTitle": "標籤列表",
+          "tagsLsitTitleTips": "點擊標籤可切換"
+        }
+      },
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "函數",
       "settings.tool_use_mode.prompt": "提示詞"
@@ -314,6 +335,10 @@
       "input.web_search.builtin.disabled_content": "當前模型不支持網路搜尋功能",
       "input.web_search.no_web_search": "關閉網路搜尋",
       "input.web_search.no_web_search.description": "關閉網路搜尋",
+      "input.tools.collapse": "折疊",
+      "input.tools.expand": "展開",
+      "input.tools.collapse_in": "加入折疊",
+      "input.tools.collapse_out": "移出折疊",
       "input.thinking": "思考",
       "input.thinking.mode.default": "預設",
       "input.thinking.mode.default.tip": "模型會自動確定思考的 token 數",
@@ -817,13 +842,14 @@
       "seed_desc_tip": "相同的種子和提示詞可以生成相似的圖片，設置 -1 每次生成都不一樣",
       "title": "繪圖",
       "magic_prompt_option": "提示詞增強",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "畫幅比例",
       "style_type": "風格",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
-      "paint_course":"教程",
-      "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
+      "prompt_placeholder_en": "輸入”英文“圖片描述，目前 Imagen 僅支持英文提示詞",
+      "paint_course": "教程",
+      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
       "image_placeholder": "無圖片",
@@ -842,6 +868,34 @@
         "turbo": "快速",
         "quality": "高品質"
       },
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "豎圖",
+        "landscape": "橫圖"
+      },
+      "person_generation_options": {
+        "allow_all": "允許所有",
+        "allow_adult": "允許成人",
+        "allow_none": "不允許"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -855,7 +909,9 @@
         "negative_prompt_tip": "描述不想在圖像中出現的內容",
         "magic_prompt_option_tip": "智能優化生成效果的提示詞",
         "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本",
+        "person_generation": "人物生成",
+        "person_generation_tip": "允許模型生成人物圖像"
       },
       "edit": {
         "image_file": "編輯圖像",
@@ -1786,6 +1842,141 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "selection": {
+      "name": "劃詞助手",
+      "action": {
+        "builtin": {
+          "translate": "翻譯",
+          "explain": "解釋",
+          "summary": "總結",
+          "search": "搜尋",
+          "refine": "優化",
+          "copy": "複製"
+        },
+        "window": {
+          "pin": "置頂",
+          "pinned": "已置頂",
+          "opacity": "視窗透明度",
+          "original_show": "顯示原文",
+          "original_hide": "隱藏原文",
+          "original_copy": "複製原文",
+          "esc_close": "Esc 關閉",
+          "esc_stop": "Esc 停止",
+          "c_copy": "C 複製"
+        }
+      },
+      "settings": {
+        "experimental": "實驗性功能",
+        "enable": {
+          "title": "啟用",
+          "description": "目前僅支援 Windows 系統"
+        },
+        "toolbar": {
+          "title": "工具列",
+          "trigger_mode": {
+            "title": "觸發方式",
+            "description": "劃詞立即顯示工具列，或者劃詞後按住 Ctrl 鍵才顯示工具列。",
+            "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了AHK等工具對Ctrl鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
+            "selected": "劃詞",
+            "ctrlkey": "Ctrl 鍵"
+          },
+          "compact_mode": {
+            "title": "緊湊模式",
+            "description": "緊湊模式下，只顯示圖示，不顯示文字"
+          }
+        },
+        "window": {
+          "title": "功能視窗",
+          "follow_toolbar": {
+            "title": "跟隨工具列",
+            "description": "視窗位置將跟隨工具列顯示，停用後則始終置中顯示"
+          },
+          "auto_close": {
+            "title": "自動關閉",
+            "description": "當視窗未置頂且失去焦點時，將自動關閉該視窗"
+          },
+          "auto_pin": {
+            "title": "自動置頂",
+            "description": "預設將視窗置於頂部"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "設置視窗的默認透明度，100%為完全不透明"
+          }
+        },
+        "actions": {
+          "title": "功能",
+          "reset": {
+            "button": "重設",
+            "tooltip": "重設為預設功能，自訂功能不會被刪除",
+            "confirm": "確定要重設為預設功能嗎？自訂功能不會被刪除。"
+          },
+          "add_tooltip": {
+            "enabled": "新增自訂功能",
+            "disabled": "自訂功能已達上限 ({{max}}個)"
+          },
+          "delete_confirm": "確定要刪除這個自訂功能嗎？",
+          "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})"
+        },
+        "user_modal": {
+          "title": {
+            "add": "新增自訂功能",
+            "edit": "編輯自訂功能"
+          },
+          "name": {
+            "label": "名稱",
+            "hint": "請輸入功能名稱"
+          },
+          "icon": {
+            "label": "圖示",
+            "placeholder": "輸入 Lucide 圖示名稱",
+            "error": "無效的圖示名稱，請檢查輸入",
+            "tooltip": "Lucide圖示名稱為小寫，如 arrow-right",
+            "view_all": "檢視所有圖示",
+            "random": "隨機圖示"
+          },
+          "model": {
+            "label": "模型",
+            "tooltip": "使用助手：會同時使用助手的系統提示詞和模型參數",
+            "default": "預設模型",
+            "assistant": "使用助手"
+          },
+          "assistant": {
+            "label": "選擇助手",
+            "default": "預設"
+          },
+          "prompt": {
+            "label": "使用者提示詞(Prompt)",
+            "tooltip": "使用者提示詞，作為使用者輸入的補充，不會覆蓋助手的系統提示詞",
+            "placeholder": "使用佔位符{{text}}代表選取的文字，不填寫時，選取的文字將加到本提示詞的末尾",
+            "placeholder_text": "佔位符",
+            "copy_placeholder": "複製佔位符"
+          }
+        },
+        "search_modal": {
+          "title": "設定搜尋引擎",
+          "engine": {
+            "label": "搜尋引擎",
+            "custom": "自訂"
+          },
+          "custom": {
+            "name": {
+              "label": "自訂名稱",
+              "hint": "請輸入搜尋引擎名稱",
+              "max_length": "名稱不能超過16個字元"
+            },
+            "url": {
+              "label": "自訂搜尋 URL",
+              "hint": "使用 {{queryString}} 代表搜尋詞",
+              "required": "請輸入搜尋 URL",
+              "invalid_format": "請輸入以 http:// 或 https:// 開頭的有效 URL",
+              "missing_placeholder": "URL 必須包含 {{queryString}} 佔位符"
+            },
+            "test": "測試"
+          }
+        }
+      }
     }
   }
 }

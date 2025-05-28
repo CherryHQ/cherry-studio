@@ -1,19 +1,23 @@
 import {
   DeleteOutlined,
   EditOutlined,
+  MenuOutlined,
   MinusCircleOutlined,
+  PlusOutlined,
   SaveOutlined,
   SmileOutlined,
   SortAscendingOutlined,
-  SortDescendingOutlined
+  SortDescendingOutlined,
+  TagsOutlined
 } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import TagsPopup from '@renderer/components/Popups/TagsPopup'
+import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -31,15 +35,28 @@ import * as tinyPinyin from 'tiny-pinyin'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
+  sortBy: 'tags' | 'list'
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addAgent: (agent: any) => void
   addAssistant: (assistant: Assistant) => void
+  onTagClick?: (tag: string) => void
+  handleSortByChange?: (sortType: '' | 'tags' | 'list') => void
 }
 
-const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, onDelete, addAgent, addAssistant }) => {
+const AssistantItem: FC<AssistantItemProps> = ({
+  assistant,
+  isActive,
+  sortBy,
+  onSwitch,
+  onDelete,
+  addAgent,
+  addAssistant,
+  handleSortByChange
+}) => {
   const { t } = useTranslation()
+  const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id) // 使用当前助手的ID
   const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
@@ -145,6 +162,65 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
       },
       { type: 'divider' },
       {
+        label: t('assistants.tags.manage'),
+        key: 'all-tags',
+        icon: <PlusOutlined />,
+        children: [
+          ...allTags.map((tag) => ({
+            label: tag,
+            icon: assistant.tags?.includes(tag) ? <DeleteOutlined /> : <TagsOutlined />,
+            danger: assistant.tags?.includes(tag) ? true : false,
+            key: `all-tag-${tag}`,
+            onClick: () => {
+              if (assistant.tags?.includes(tag)) {
+                // 如果已有该标签，则移除
+                updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
+              } else {
+                // 如果没有该标签，则切换到该标签分类
+                updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
+              }
+            }
+          })),
+          allTags.length > 0 ? { type: 'divider' } : null,
+          {
+            label: t('assistants.tags.add'),
+            key: 'new-tag',
+            onClick: () => {
+              TagsPopup.show(
+                assistant,
+                (updated) => {
+                  updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                },
+                'add'
+              )
+            }
+          },
+          allTags.length > 0
+            ? {
+                label: t('assistants.tags.manage'),
+                key: 'manage-tags',
+                onClick: () => {
+                  TagsPopup.show(
+                    assistant,
+                    (updated) => {
+                      updateAssistants(assistants.map((a) => (a.id === assistant.id ? updated : a)))
+                    },
+                    'manage'
+                  )
+                }
+              }
+            : null
+        ]
+      },
+      {
+        label: sortBy === 'list' ? t('assistants.list.showByTags') : t('assistants.list.showByList'),
+        key: 'switch-view',
+        icon: sortBy === 'list' ? <TagsOutlined /> : <MenuOutlined />,
+        onClick: () => {
+          sortBy === 'list' ? handleSortByChange?.('tags') : handleSortByChange?.('list')
+        }
+      },
+      {
         label: t('common.sort.pinyin.asc'),
         key: 'sort-asc',
         icon: <SortAscendingOutlined />,
@@ -176,13 +252,18 @@ const AssistantItem: FC<AssistantItemProps> = ({ assistant, isActive, onSwitch, 
     [
       addAgent,
       addAssistant,
+      allTags,
+      assistants,
+      handleSortByChange,
       onDelete,
       onSwitch,
       removeAllTopics,
       setAssistantIconType,
+      sortBy,
       sortByPinyinAsc,
       sortByPinyinDesc,
-      t
+      t,
+      updateAssistants
     ]
   )
 

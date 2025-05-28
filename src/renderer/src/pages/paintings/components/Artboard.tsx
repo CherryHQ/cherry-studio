@@ -7,7 +7,7 @@ import React, { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import ImagePreview from '../home/Markdown/ImagePreview'
+import ImagePreview from '../../home/Markdown/ImagePreview'
 
 interface ArtboardProps {
   painting: Painting
@@ -98,8 +98,8 @@ const Artboard: FC<ArtboardProps> = ({
             {painting.urls.length > 0 && retry ? (
               <div>
                 <ImageList>
-                  {painting.urls.map((url) => (
-                    <ImageListItem key={url}>{url}</ImageListItem>
+                  {painting.urls.map((url, index) => (
+                    <ImageListItem key={url || index}>{url}</ImageListItem>
                   ))}
                 </ImageList>
                 <div>
@@ -109,11 +109,11 @@ const Artboard: FC<ArtboardProps> = ({
                   </Button>
                 </div>
               </div>
+            ) : imageCover ? (
+              imageCover
             ) : (
-                imageCover ?
-                  imageCover:
-                  (<div>{t('paintings.image_placeholder')}</div>)
-              )}
+              <div>{t('paintings.image_placeholder')}</div>
+            )}
           </ImagePlaceholder>
         )}
         {isLoading && (

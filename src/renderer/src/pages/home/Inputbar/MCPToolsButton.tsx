@@ -450,10 +450,6 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     openResourcesList
   }))
 
-  if (activedMcpServers.length === 0) {
-    return null
-  }
-
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>

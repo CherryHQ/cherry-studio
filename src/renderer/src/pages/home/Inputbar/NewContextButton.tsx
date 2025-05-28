@@ -3,7 +3,6 @@ import { Tooltip } from 'antd'
 import { Eraser } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   onNewContext: () => void
@@ -17,20 +16,12 @@ const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton }) => {
   useShortcut('toggle_new_context', onNewContext)
 
   return (
-    <Container>
-      <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
-        <ToolbarButton type="text" onClick={onNewContext}>
-          <Eraser size={18} />
-        </ToolbarButton>
-      </Tooltip>
-    </Container>
+    <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })} arrow>
+      <ToolbarButton type="text" onClick={onNewContext}>
+        <Eraser size={18} />
+      </ToolbarButton>
+    </Tooltip>
   )
 }
-
-const Container = styled.div`
-  @media (max-width: 800px) {
-    display: none;
-  }
-`
 
 export default NewContextButton

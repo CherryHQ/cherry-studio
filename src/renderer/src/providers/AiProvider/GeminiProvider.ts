@@ -1,14 +1,17 @@
 import {
   Content,
   File,
+  FileState,
   FinishReason,
   FunctionCall,
   GenerateContentConfig,
   GenerateContentResponse,
+  GenerateImagesParameters,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   Modality,
+  Pager,
   Part,
   PartUnion,
   SafetySetting,
@@ -27,6 +30,7 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import {
   filterContextMessages,
@@ -91,7 +95,7 @@ export default class GeminiProvider extends BaseProvider {
     const isSmallFile = file.size < smallFileSize
 
     if (isSmallFile) {
-      const { data, mimeType } = await window.api.gemini.base64File(file)
+      const { data, mimeType } = await this.base64File(file)
       return {
         inlineData: {
           data,
@@ -101,7 +105,7 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     // Retrieve file from Gemini uploaded files
-    const fileMetadata: File | undefined = await window.api.gemini.retrieveFile(file, this.apiKey)
+    const fileMetadata: File | undefined = await this.retrieveFile(file)
 
     if (fileMetadata) {
       return {
@@ -113,10 +117,7 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     // If file is not found, upload it to Gemini
-    const result = await window.api.gemini.uploadFile(file, {
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL()
-    })
+    const result = await this.uploadFile(file)
 
     return {
       fileData: {
@@ -369,7 +370,7 @@ export default class GeminiProvider extends BaseProvider {
     })
 
     if (this.useSystemPromptForTools) {
-      systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
+      systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools)
     }
 
     const toolResponses: MCPToolResponse[] = []
@@ -887,10 +888,30 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * Generate an image
-   * @returns The generated image
+   * @param params - The parameters for image generation
+   * @returns The generated image URLs
    */
-  public async generateImage(): Promise<string[]> {
-    return []
+  public async generateImage(params: GenerateImagesParameters): Promise<string[]> {
+    try {
+      console.log('[GeminiProvider] generateImage params:', params)
+      const response = await this.sdk.models.generateImages(params)
+
+      if (!response.generatedImages || response.generatedImages.length === 0) {
+        return []
+      }
+
+      const images = response.generatedImages
+        .filter((image) => image.image?.imageBytes)
+        .map((image) => {
+          const dataPrefix = `data:${image.image?.mimeType || 'image/png'};base64,`
+          return dataPrefix + image.image?.imageBytes
+        })
+      //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
+      return images
+    } catch (error) {
+      console.error('[generateImage] error:', error)
+      throw error
+    }
   }
 
   /**
@@ -1152,5 +1173,63 @@ export default class GeminiProvider extends BaseProvider {
       } satisfies Content
     }
     return
+  }
+
+  private async uploadFile(file: FileType): Promise<File> {
+    return await this.sdk.files.upload({
+      file: file.path,
+      config: {
+        mimeType: 'application/pdf',
+        name: file.id,
+        displayName: file.origin_name
+      }
+    })
+  }
+
+  private async base64File(file: FileType) {
+    const { data } = await window.api.file.base64File(file.id + file.ext)
+    return {
+      data,
+      mimeType: 'application/pdf'
+    }
+  }
+
+  private async retrieveFile(file: FileType): Promise<File | undefined> {
+    const cachedResponse = CacheService.get<any>('gemini_file_list')
+
+    if (cachedResponse) {
+      return this.processResponse(cachedResponse, file)
+    }
+
+    const response = await this.sdk.files.list()
+    CacheService.set('gemini_file_list', response, 3000)
+
+    return this.processResponse(response, file)
+  }
+
+  private async processResponse(response: Pager<File>, file: FileType) {
+    for await (const f of response) {
+      if (f.state === FileState.ACTIVE) {
+        if (f.displayName === file.origin_name && Number(f.sizeBytes) === file.size) {
+          return f
+        }
+      }
+    }
+
+    return undefined
+  }
+
+  // @ts-ignore unused
+  private async listFiles(): Promise<File[]> {
+    const files: File[] = []
+    for await (const f of await this.sdk.files.list()) {
+      files.push(f)
+    }
+    return files
+  }
+
+  // @ts-ignore unused
+  private async deleteFile(fileId: string) {
+    await this.sdk.files.delete({ name: fileId })
   }
 }

@@ -1,6 +1,6 @@
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
-import { BochaSearchParams, BochaSearchResponse } from '@renderer/types/bocha'
+import { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 

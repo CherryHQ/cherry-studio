@@ -20,7 +20,7 @@ import type {
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { Response } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
-import { isAbortError } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
   createAssistantMessage,
@@ -587,7 +587,7 @@ const fetchAndProcessAssistantResponseImpl = async (
 
         const serializableError = {
           name: error.name,
-          message: pauseErrorLanguagePlaceholder || error.message || 'Stream processing error',
+          message: pauseErrorLanguagePlaceholder || error.message || formatErrorMessage(error),
           originalMessage: error.message,
           stack: error.stack,
           status: error.status || error.code,

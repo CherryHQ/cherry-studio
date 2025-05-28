@@ -35,8 +35,8 @@ import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
-import Artboard from './Artboard'
-import PaintingsList from './PaintingsList'
+import Artboard from './components/Artboard'
+import PaintingsList from './components/PaintingsList'
 
 const IMAGE_SIZES = [
   {
@@ -88,7 +88,7 @@ const DEFAULT_PAINTING: Painting = {
 
 // let _painting: Painting
 
-const PaintingsPage: FC<{ Options: string[] }> = ({ Options }) => {
+const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<Painting>(paintings[0] || DEFAULT_PAINTING)
@@ -645,4 +645,4 @@ const StyledInputNumber = styled(InputNumber)`
   width: 70px;
 `
 
-export default PaintingsPage
+export default SiliconPage

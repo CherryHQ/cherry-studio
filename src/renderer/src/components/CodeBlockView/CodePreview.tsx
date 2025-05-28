@@ -239,7 +239,7 @@ const ContentContainer = styled.div<{
   margin-top: 0;
 
   .shiki {
-    display: inline-block;
+    display: flex;
     min-width: 100%;
     padding: 1em;
 

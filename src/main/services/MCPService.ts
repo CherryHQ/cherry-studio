@@ -245,7 +245,7 @@ class McpService {
             const loginShellEnv = await this.getLoginShellEnv()
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
-            if (cmd.endsWith('bun')) {
+            if (cmd.includes('bun')) {
               this.removeProxyEnv(loginShellEnv)
             }
 

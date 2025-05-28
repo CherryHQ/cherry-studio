@@ -250,7 +250,6 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
 
 const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   /* FIXME: 在 bubble style 中撑开一些宽度*/
-  min-width: min(calc(60vw - var(--sidebar-width)), 700px);
   position: relative;
 
   .code-toolbar {

@@ -26,7 +26,8 @@ import styled from 'styled-components'
 
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
-import Artboard from './Artboard'
+import Artboard from './components/Artboard'
+import PaintingsList from './components/PaintingsList'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -34,7 +35,6 @@ import {
   STYLE_TYPE_OPTIONS,
   TEXT_TO_IMAGES_MODELS
 } from './config/DmxapiConfig'
-import PaintingsList from './PaintingsList'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 

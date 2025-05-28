@@ -352,7 +352,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     tools = tools.concat(extraTools)
 
     if (this.useSystemPromptForTools) {
-      systemMessageInput.text = buildSystemPrompt(systemMessageInput.text || '', mcpTools)
+      systemMessageInput.text = await buildSystemPrompt(systemMessageInput.text || '', mcpTools)
     }
     systemMessageContent.push(systemMessageInput)
     systemMessage.content = systemMessageContent

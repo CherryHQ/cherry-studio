@@ -8,6 +8,7 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "创建智能体",
       "import": {
         "title": "从外部导入",
@@ -101,6 +102,26 @@
         "titlePlaceholder": "输入标题",
         "contentLabel": "内容",
         "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}"
+      },
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "标签展示"
+      },
+      "tags": {
+        "none": "暂无标签",
+        "manage": "标签管理",
+        "add": "添加标签",
+        "untagged": "未分组标签",
+        "modify": "修改标签",
+        "delete": "删除标签",
+        "settings": {
+          "title": "标签设置",
+          "current": "当前标签",
+          "searchTagsPlaceholder": "请输入标签名称以过滤标签",
+          "addTagsPlaceholder": "请输入标签名称以添加",
+          "tagsLsitTitle": "标签列表",
+          "tagsLsitTitleTips": "点击标签可切换"
+        }
       }
     },
     "auth": {
@@ -199,6 +220,10 @@
       "input.web_search.builtin.disabled_content": "当前模型不支持网络搜索功能",
       "input.web_search.no_web_search": "不使用网络",
       "input.web_search.no_web_search.description": "不启用网络搜索功能",
+      "input.tools.collapse": "折叠",
+      "input.tools.expand": "展开",
+      "input.tools.collapse_in": "加入折叠",
+      "input.tools.collapse_out": "移出折叠",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
@@ -816,14 +841,15 @@
       "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
       "title": "图片",
       "magic_prompt_option": "提示词增强",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "画幅比例",
       "style_type": "风格",
       "rendering_speed": "渲染速度",
       "learn_more": "了解更多",
-      "paint_course":"教程",
+      "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-      "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
+      "prompt_placeholder_en": "输入”英文“图片描述，目前 Imagen 仅支持英文提示词",
+      "proxy_required": "打开代理并开启”TUN模式“查看生成图片或复制到浏览器打开，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
@@ -842,11 +868,39 @@
         "turbo": "快速",
         "quality": "高质量"
       },
+      "quality_options": {
+        "auto": "自动",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自动",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自动",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "person_generation_options": {
+        "allow_all": "允许所有",
+        "allow_adult": "允许成人",
+        "allow_none": "不允许"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "竖图",
+        "landscape": "横图"
+      },
+      "quality": "质量",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "绘图",
         "edit": "编辑",
         "remix": "混合",
-        "upscale": "放大"
+        "upscale": "高清增强"
       },
       "generate": {
         "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
@@ -855,7 +909,9 @@
         "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
         "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
         "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+        "person_generation": "生成人物",
+        "person_generation_tip": "允许模型生成人物图像"
       },
       "edit": {
         "image_file": "编辑的图像",
@@ -1785,6 +1841,141 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "selection": {
+      "name": "划词助手",
+      "action": {
+        "builtin": {
+          "translate": "翻译",
+          "explain": "解释",
+          "summary": "总结",
+          "search": "搜索",
+          "refine": "优化",
+          "copy": "复制"
+        },
+        "window": {
+          "pin": "置顶",
+          "pinned": "已置顶",
+          "opacity": "窗口透明度",
+          "original_show": "显示原文",
+          "original_hide": "隐藏原文",
+          "original_copy": "复制原文",
+          "esc_close": "Esc 关闭",
+          "esc_stop": "Esc 停止",
+          "c_copy": "C 复制"
+        }
+      },
+      "settings": {
+        "experimental": "实验性功能",
+        "enable": {
+          "title": "启用",
+          "description": "当前仅支持 Windows 系统"
+        },
+        "toolbar": {
+          "title": "工具栏",
+          "trigger_mode": {
+            "title": "触发方式",
+            "description": "划词立即显示工具栏，或者划词后按住 Ctrl 键才显示工具栏。",
+            "description_note": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+            "selected": "划词",
+            "ctrlkey": "Ctrl 键"
+          },
+          "compact_mode": {
+            "title": "紧凑模式",
+            "description": "紧凑模式下，只显示图标，不显示文字"
+          }
+        },
+        "window": {
+          "title": "功能窗口",
+          "follow_toolbar": {
+            "title": "跟随工具栏",
+            "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
+          },
+          "auto_close": {
+            "title": "自动关闭",
+            "description": "当窗口未置顶且失去焦点时，将自动关闭该窗口"
+          },
+          "auto_pin": {
+            "title": "自动置顶",
+            "description": "默认将窗口置于顶部"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "设置窗口的默认透明度，100%为完全不透明"
+          }
+        },
+        "actions": {
+          "title": "功能",
+          "reset": {
+            "button": "重置",
+            "tooltip": "重置为默认功能，自定义功能不会被删除",
+            "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。"
+          },
+          "add_tooltip": {
+            "enabled": "添加自定义功能",
+            "disabled": "自定义功能已达上限 ({{max}}个)"
+          },
+          "delete_confirm": "确定要删除这个自定义功能吗？",
+          "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
+        },
+        "user_modal": {
+          "title": {
+            "add": "添加自定义功能",
+            "edit": "编辑自定义功能"
+          },
+          "name": {
+            "label": "名称",
+            "hint": "请输入功能名称"
+          },
+          "icon": {
+            "label": "图标",
+            "placeholder": "输入 Lucide 图标名称",
+            "error": "无效的图标名称，请检查输入",
+            "tooltip": "Lucide图标名称为小写，如 arrow-right",
+            "view_all": "查看所有图标",
+            "random": "随机图标"
+          },
+          "model": {
+            "label": "模型",
+            "tooltip": "使用助手：会同时使用助手的系统提示词和模型参数",
+            "default": "默认模型",
+            "assistant": "使用助手"
+          },
+          "assistant": {
+            "label": "选择助手",
+            "default": "默认"
+          },
+          "prompt": {
+            "label": "用户提示词(Prompt)",
+            "tooltip": "用户提示词，作为用户输入的补充，不会覆盖助手的系统提示词",
+            "placeholder": "使用占位符{{text}}代表选中的文本，不填写时，选中的文本将添加到本提示词的末尾",
+            "placeholder_text": "占位符",
+            "copy_placeholder": "复制占位符"
+          }
+        },
+        "search_modal": {
+          "title": "设置搜索引擎",
+          "engine": {
+            "label": "搜索引擎",
+            "custom": "自定义"
+          },
+          "custom": {
+            "name": {
+              "label": "自定义名称",
+              "hint": "请输入搜索引擎名称",
+              "max_length": "名称不能超过16个字符"
+            },
+            "url": {
+              "label": "自定义搜索 URL",
+              "hint": "用 {{queryString}} 代表搜索词",
+              "required": "请输入搜索 URL",
+              "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
+              "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
+            },
+            "test": "测试"
+          }
+        }
+      }
     }
   }
 }

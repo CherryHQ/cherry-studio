@@ -434,7 +434,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $pageSize={ctx.pageSize}
       $selectedColor={selectedColor}
       $selectedColorHover={selectedColorHover}
-      className={ctx.isVisible ? 'visible' : ''}>
+      className={ctx.isVisible ? 'visible' : ''}
+      data-testid="quick-panel">
       <QuickPanelBody
         ref={bodyRef}
         onMouseMove={() =>

@@ -1,4 +1,6 @@
 import DmxapiLogo from '@renderer/assets/images/providers/dmxapi-logo.webp'
+import DmxapiLogoDark from '@renderer/assets/images/providers/dmxapi-logo-dark.webp'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
 import { Radio, RadioChangeEvent, Space } from 'antd'
@@ -40,6 +42,7 @@ const PlatformOptions = [
 
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ provider: initialProvider }) => {
   const { provider, updateProvider } = useProvider(initialProvider.id)
+  const { theme } = useTheme()
 
   const { t } = useTranslation()
 
@@ -71,7 +74,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ provider: initialProvider }) 
     <Container>
       <Space direction="vertical" style={{ width: '100%' }}>
         <LogoContainer>
-          <Logo src={DmxapiLogo}></Logo>
+          <Logo src={theme === 'dark' ? DmxapiLogoDark : DmxapiLogo}></Logo>
         </LogoContainer>
 
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.dmxapi.select_platform')}</SettingSubtitle>
