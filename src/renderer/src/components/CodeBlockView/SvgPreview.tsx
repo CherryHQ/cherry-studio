@@ -1,5 +1,5 @@
 import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
-import { memo, useEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -10,11 +10,15 @@ interface Props {
 const SvgPreview: React.FC<Props> = ({ children, setTools }) => {
   const svgContainerRef = useRef<HTMLDivElement>(null)
 
+  const sanitizeSvg = useCallback((svgContent: string): string => {
+    return svgContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+  }, [])
+
   useEffect(() => {
     if (svgContainerRef.current) {
-      svgContainerRef.current.innerHTML = children
+      svgContainerRef.current.innerHTML = sanitizeSvg(children)
     }
-  }, [children])
+  }, [children, sanitizeSvg])
 
   // 使用通用图像工具
   const { handleCopyImage, handleDownload } = usePreviewToolHandlers(svgContainerRef, {
