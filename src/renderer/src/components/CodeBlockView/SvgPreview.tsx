@@ -1,5 +1,5 @@
 import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
-import { memo, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -9,6 +9,12 @@ interface Props {
 
 const SvgPreview: React.FC<Props> = ({ children, setTools }) => {
   const svgContainerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (svgContainerRef.current) {
+      svgContainerRef.current.innerHTML = children
+    }
+  }, [children])
 
   // 使用通用图像工具
   const { handleCopyImage, handleDownload } = usePreviewToolHandlers(svgContainerRef, {
@@ -23,9 +29,7 @@ const SvgPreview: React.FC<Props> = ({ children, setTools }) => {
     handleDownload
   })
 
-  return (
-    <SvgPreviewContainer ref={svgContainerRef} className="svg-preview" dangerouslySetInnerHTML={{ __html: children }} />
-  )
+  return <SvgPreviewContainer ref={svgContainerRef} className="svg-preview" />
 }
 
 const SvgPreviewContainer = styled.div`
