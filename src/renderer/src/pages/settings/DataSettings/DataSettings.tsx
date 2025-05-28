@@ -19,7 +19,7 @@ import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Switch, Typography, Progress } from 'antd'
+import { Button, Progress, Switch, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -181,11 +181,10 @@ const DataSettings: FC = () => {
   }
 
   const handleSelectAppDataPath = async () => {
-    if (!appInfo) {
+    if (!appInfo || !appInfo.appDataPath) {
       return
     }
 
-    // First let the user select a new directory
     const newAppDataPath = await window.api.select({
       properties: ['openDirectory', 'createDirectory'],
       title: t('settings.data.app_data.select_title')
@@ -195,24 +194,43 @@ const DataSettings: FC = () => {
       return
     }
 
-    // Create paths content to reuse in both modals
+    // 准备迁移所需的UI组件和信息
+    const migrationTitle = (
+      <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
+    )
+    const migrationClassName = 'migration-modal'
+    const messageKey = 'data-migration'
+
+    // 显示确认对话框
+    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
+  }
+
+  // 显示确认迁移的对话框
+  const showMigrationConfirmModal = (
+    originalPath: string,
+    newPath: string,
+    title: React.ReactNode,
+    className: string,
+    messageKey: string
+  ) => {
+    // 创建路径内容组件
     const PathsContent = () => (
       <div>
         <MigrationPathRow>
           <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
-          <MigrationPathValue>{appInfo.appDataPath}</MigrationPathValue>
+          <MigrationPathValue>{originalPath}</MigrationPathValue>
         </MigrationPathRow>
         <MigrationPathRow style={{ marginTop: '16px' }}>
           <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
-          <MigrationPathValue>{newAppDataPath}</MigrationPathValue>
+          <MigrationPathValue>{newPath}</MigrationPathValue>
         </MigrationPathRow>
       </div>
     )
 
-    // Create a modal that we'll reference and control
+    // 显示确认模态框
     const modal = window.modal.confirm({
-      title: <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>,
-      className: 'migration-modal',
+      title,
+      className,
       content: (
         <MigrationModalContent>
           <PathsContent />
@@ -227,143 +245,33 @@ const DataSettings: FC = () => {
       centered: true,
       onOk: async () => {
         try {
-          // Create a loading modal with progress
-          let currentProgress = 0
-          let progressInterval: NodeJS.Timeout
-
-          const loadingModal = window.modal.info({
-            title: (
-              <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
-            ),
-            className: 'migration-modal',
-            icon: <LoadingOutlined style={{ fontSize: 18 }} />,
-            content: (
-              <MigrationModalContent>
-                <PathsContent />
-                <MigrationNotice>
-                  <p>{t('settings.data.app_data.copying')}</p>
-                  <div style={{ marginTop: '12px' }}>
-                    <Progress percent={currentProgress} status="active" strokeWidth={8} />
-                  </div>
-                </MigrationNotice>
-              </MigrationModalContent>
-            ),
-            centered: true,
-            closable: false,
-            maskClosable: false,
-            okButtonProps: { style: { display: 'none' } }
-          })
-
-          // Define a key for message notifications
-          const messageKey = 'data-migration'
-
-          // Update progress every 500ms to simulate progress
-          progressInterval = setInterval(() => {
-            // Simulate progress up to 95%
-            if (currentProgress < 95) {
-              currentProgress += Math.random() * 5 + 1
-              if (currentProgress > 95) currentProgress = 95
-
-              loadingModal.update({
-                title: (
-                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                    {t('settings.data.app_data.migration_title')}
-                  </div>
-                ),
-                content: (
-                  <MigrationModalContent>
-                    <PathsContent />
-                    <MigrationNotice>
-                      <p>{t('settings.data.app_data.copying')}</p>
-                      <div style={{ marginTop: '12px' }}>
-                        <Progress percent={Math.round(currentProgress)} status="active" strokeWidth={8} />
-                      </div>
-                    </MigrationNotice>
-                  </MigrationModalContent>
-                )
-              })
-            }
-          }, 500)
+          // 显示进度模态框
+          const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
 
           try {
-            // Start the copy process
-            const copyResult = await window.api.copy(appInfo.appDataPath, newAppDataPath)
+            // 执行迁移
+            await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
 
-            // Stop the progress updates
-            clearInterval(progressInterval)
-
-            // Show 100% when complete
-            loadingModal.update({
-              title: (
-                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                  {t('settings.data.app_data.migration_title')}
-                </div>
-              ),
-              content: (
-                <MigrationModalContent>
-                  <PathsContent />
-                  <MigrationNotice>
-                    <p>{t('settings.data.app_data.copying')}</p>
-                    <div style={{ marginTop: '12px' }}>
-                      <Progress percent={100} status="success" strokeWidth={8} />
-                    </div>
-                  </MigrationNotice>
-                </MigrationModalContent>
-              )
-            })
-
-            if (!copyResult.success) {
-              // Close the loading modal after a short delay
-              setTimeout(() => {
-                loadingModal.destroy()
-
-                window.message.error({
-                  content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-                  key: messageKey,
-                  duration: 5
-                })
-              }, 500)
-
-              return
-            }
-
-            // 在复制成功后才能设置新的 AppDataPath
-            await window.api.setAppDataPath(newAppDataPath)
-
-            // 更新store中的appInfo
+            // 更新应用数据路径
             setAppInfo(await window.api.getAppInfo())
 
-            // Short delay to show 100% complete
-            await new Promise((resolve) => setTimeout(resolve, 500))
-
-            // Close the loading modal
-            loadingModal.destroy()
-
-            window.message.success({
-              content: t('settings.data.app_data.copy_success'),
-              key: messageKey,
-              duration: 2
-            })
-
-            // Inform user about restart
+            // 通知用户并重启应用
             setTimeout(() => {
               window.message.success(t('settings.data.app_data.select_success'))
               window.api.relaunchApp()
             }, 1000)
           } catch (error) {
-            // Clear the interval and close the modal
-            clearInterval(progressInterval)
+            if (progressInterval) {
+              clearInterval(progressInterval)
+            }
             loadingModal.destroy()
-
-            // Propagate the error
             throw error
           }
         } catch (error) {
-          // Close any open modals
           try {
             modal.destroy()
           } catch (e) {
-            // Ignore errors on modal destroy
+            // 忽略模态框销毁错误
           }
 
           window.message.error({
@@ -374,6 +282,117 @@ const DataSettings: FC = () => {
       }
     })
   }
+
+  // 显示进度模态框
+  const showProgressModal = (title: React.ReactNode, className: string, PathsContent: React.FC) => {
+    let currentProgress = 0
+    let progressInterval: NodeJS.Timeout | null = null
+
+    // 创建进度更新模态框
+    const loadingModal = window.modal.info({
+      title,
+      className,
+      icon: <LoadingOutlined style={{ fontSize: 18 }} />,
+      content: (
+        <MigrationModalContent>
+          <PathsContent />
+          <MigrationNotice>
+            <p>{t('settings.data.app_data.copying')}</p>
+            <div style={{ marginTop: '12px' }}>
+              <Progress percent={currentProgress} status="active" strokeWidth={8} />
+            </div>
+          </MigrationNotice>
+        </MigrationModalContent>
+      ),
+      centered: true,
+      closable: false,
+      maskClosable: false,
+      okButtonProps: { style: { display: 'none' } }
+    })
+
+    // 更新进度的函数
+    const updateProgress = (progress: number, status: 'active' | 'success' = 'active') => {
+      loadingModal.update({
+        title,
+        content: (
+          <MigrationModalContent>
+            <PathsContent />
+            <MigrationNotice>
+              <p>{t('settings.data.app_data.copying')}</p>
+              <div style={{ marginTop: '12px' }}>
+                <Progress percent={Math.round(progress)} status={status} strokeWidth={8} />
+              </div>
+            </MigrationNotice>
+          </MigrationModalContent>
+        )
+      })
+    }
+
+    // 开始模拟进度更新
+    progressInterval = setInterval(() => {
+      if (currentProgress < 95) {
+        currentProgress += Math.random() * 5 + 1
+        if (currentProgress > 95) currentProgress = 95
+        updateProgress(currentProgress)
+      }
+    }, 500)
+
+    return { loadingModal, progressInterval, updateProgress }
+  }
+
+  // 开始迁移数据
+  const startMigration = async (
+    originalPath: string,
+    newPath: string,
+    progressInterval: NodeJS.Timeout | null,
+    updateProgress: (progress: number, status?: 'active' | 'success') => void,
+    loadingModal: { destroy: () => void },
+    messageKey: string
+  ): Promise<void> => {
+    // 开始复制过程
+    const copyResult = await window.api.copy(originalPath, newPath)
+
+    // 停止进度更新
+    if (progressInterval) {
+      clearInterval(progressInterval)
+    }
+
+    // 显示100%完成
+    updateProgress(100, 'success')
+
+    if (!copyResult.success) {
+      // 延迟关闭加载模态框
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          loadingModal.destroy()
+          window.message.error({
+            content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+            key: messageKey,
+            duration: 5
+          })
+          resolve()
+        }, 500)
+      })
+
+      throw new Error(copyResult.error || 'Unknown error during copy')
+    }
+
+    // 在复制成功后设置新的AppDataPath
+    await window.api.setAppDataPath(newPath)
+
+    // 短暂延迟以显示100%完成
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // 关闭加载模态框
+    loadingModal.destroy()
+
+    window.message.success({
+      content: t('settings.data.app_data.copy_success'),
+      key: messageKey,
+      duration: 2
+    })
+  }
+
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
     dispatch(_setSkipBackupFile(value))
