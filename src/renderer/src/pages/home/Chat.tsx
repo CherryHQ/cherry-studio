@@ -24,7 +24,7 @@ interface Props {
   setActiveAssistant: (assistant: Assistant) => void
 }
 
-const ChatContent: FC<Props> = (props) => {
+const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
   const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
@@ -36,9 +36,9 @@ const ChatContent: FC<Props> = (props) => {
 
   const maxWidth = useMemo(() => {
     const showRightTopics = showTopics && topicPosition === 'right'
-    const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-    const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth} - 5px)`
+    const minusAssistantsWidth = showAssistants ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
+    const minusRightTopicsWidth = showRightTopics ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
+    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
   }, [showAssistants, showTopics, topicPosition])
 
   useHotkeys('esc', () => {
@@ -141,10 +141,6 @@ const ChatContent: FC<Props> = (props) => {
       )}
     </Container>
   )
-}
-
-const Chat: FC<Props> = (props) => {
-  return <ChatContent {...props} />
 }
 
 const MessagesContainer = styled.div`

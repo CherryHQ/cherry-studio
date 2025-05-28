@@ -80,7 +80,11 @@ export const useChatContext = (activeTopic: Topic) => {
     (messageId: string, selected: boolean) => {
       dispatch(
         setSelectedMessageIds(
-          selected ? [...selectedMessageIds, messageId] : selectedMessageIds.filter((id) => id !== messageId)
+          selected
+            ? selectedMessageIds.includes(messageId)
+              ? selectedMessageIds
+              : [...selectedMessageIds, messageId]
+            : selectedMessageIds.filter((id) => id !== messageId)
         )
       )
     },

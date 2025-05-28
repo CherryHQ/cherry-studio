@@ -1,8 +1,9 @@
+import { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
 import { getTokenStyleObject, type HighlighterGeneric, SpecialLanguage, ThemedToken } from 'shiki/core'
 
 import { AsyncInitializer } from './asyncInitializer'
 
-export const DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown']
+export const DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown', 'json']
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 
 /**
@@ -140,21 +141,40 @@ const mdInitializer = new AsyncInitializer(async () => {
 /**
  * 获取 markdown-it 渲染器
  * @param theme - 主题
+ * @param markdown
  */
-export async function getMarkdownIt(theme: string) {
+export async function getMarkdownIt(theme: string, markdown: string) {
   const highlighter = await getHighlighter()
+  await loadMarkdownLanguage(markdown, highlighter)
   const md = await mdInitializer.get()
   const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
   md.use(
     fromHighlighter(highlighter, {
       themes: {
-        light: 'one-light',
-        dark: 'material-theme-darker'
+        'one-light': 'one-light',
+        'material-theme-darker': 'material-theme-darker'
       },
-      defaultColor: theme
+      defaultColor: theme,
+      defaultLanguage: 'json',
+      fallbackLanguage: 'json'
     })
   )
 
   return md
+}
+
+/**
+ * 加载markdown中所有代码块语言类型
+ * @param markdown
+ * @param highlighter
+ */
+async function loadMarkdownLanguage(markdown: string, highlighter: HighlighterGeneric<BundledLanguage, BundledTheme>) {
+  const codeBlockRegex = /```(\w+)?/g
+  let match: string[] | null
+  while ((match = codeBlockRegex.exec(markdown)) !== null) {
+    if (match[1]) {
+      await loadLanguageIfNeeded(highlighter, match[1])
+    }
+  }
 }

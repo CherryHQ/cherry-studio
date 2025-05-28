@@ -26,9 +26,11 @@ https://docs.cherry-ai.com
 
 # 🌠 スクリーンショット
 
-![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
-![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
-![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
+![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+
+![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+
+![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
 
 # 🌟 主な機能
 
@@ -68,20 +70,42 @@ https://docs.cherry-ai.com
 - 📝 完全な Markdown レンダリング
 - 🤲 簡単な共有機能
 
-# 📝 TODO
+# 📝 開発計画
 
-- [x] クイックポップアップ（クリップボードの読み取り、簡単な質問、説明、翻訳、要約）
-- [x] 複数モデルの回答の比較
-- [x] サービスプロバイダーが提供する SSO を使用したログイン対応
-- [x] すべてのモデルのネットワーク対応
-- [x] 最初の公式バージョンのリリース
-- [x] バグ修正と改善（進行中...）
-- [ ] プラグイン機能（JavaScript）
-- [ ] ブラウザ拡張機能（テキストをハイライトして翻訳、要約、ナレッジベースに追加）
-- [ ] iOS & Android クライアント
-- [ ] AI ノート
-- [ ] 音声入出力（AI コール）
-- [ ] データバックアップのカスタマイズ対応
+以下の機能と改善に積極的に取り組んでいます：
+
+1. 🎯 **コア機能**
+
+- 選択アシスタント - スマートな内容選択の強化
+- ディープリサーチ - 高度な研究能力
+- メモリーシステム - グローバルコンテキスト認識
+- ドキュメント前処理 - 文書処理の改善
+- MCP マーケットプレイス - モデルコンテキストプロトコルエコシステム
+
+2. 🗂 **ナレッジ管理**
+
+- ノートとコレクション
+- ダイナミックキャンバス可視化
+- OCR 機能
+- TTS（テキスト読み上げ）サポート
+
+3. 📱 **プラットフォーム対応**
+
+- HarmonyOS エディション
+- Android アプリ（フェーズ1）
+- iOS アプリ（フェーズ1）
+- マルチウィンドウ対応
+- ウィンドウピン留め機能
+
+4. 🔌 **高度な機能**
+
+- プラグインシステム
+- ASR（音声認識）
+- アシスタントとトピックの対話機能リファクタリング
+
+[プロジェクトボード](https://github.com/orgs/CherryHQ/projects/7)で進捗を確認し、貢献することができます。
+
+開発計画に影響を与えたいですか？[GitHub ディスカッション](https://github.com/CherryHQ/cherry-studio/discussions)に参加して、アイデアやフィードバックを共有してください！
 
 # 🌈 テーマ
 
@@ -124,7 +148,7 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 
 ご支援と貢献に感謝します！
 
-## 関連プロジェクト
+# 🔗 関連プロジェクト
 
 - [one-api](https://github.com/songquanpeng/one-api)：LLM API の管理・配信システム。OpenAI、Azure、Anthropic などの主要モデルに対応し、統一 API インターフェースを提供。API キー管理と再配布に利用可能。
 

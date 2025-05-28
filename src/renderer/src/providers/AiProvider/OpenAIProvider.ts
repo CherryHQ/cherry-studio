@@ -16,6 +16,7 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
+  isWebSearchModel,
   isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -84,6 +85,7 @@ export type OpenAIStreamChunk =
   | { type: 'reasoning' | 'text-delta'; textDelta: string }
   | { type: 'tool-calls'; delta: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
+  | { type: 'unknown'; chunk: any }
 
 export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
@@ -284,18 +286,10 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // OpenRouter models
     if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
-            effort: assistant?.settings?.reasoning_effort
-          }
-        }
-      }
-
-      if (isSupportedThinkingTokenModel(model)) {
-        return {
-          reasoning: {
-            max_tokens: budgetTokens
+            effort: assistant?.settings?.reasoning_effort === 'auto' ? 'medium' : assistant?.settings?.reasoning_effort
           }
         }
       }
@@ -329,7 +323,9 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          budget_tokens: Math.floor(
+            Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          )
         }
       }
     }
@@ -374,7 +370,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const model = assistant.model || defaultModel
 
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBultinWebSearch = assistant.enableWebSearch
+    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
     messages = addImageFileToContents(messages)
     const enableReasoning =
       ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
@@ -405,7 +401,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     })
 
     if (this.useSystemPromptForTools) {
-      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+      systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools)
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
@@ -558,12 +554,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         // Separate onChunk calls for text and usage/metrics
         let content = ''
         stream.choices.forEach((choice) => {
+          const reasoning = choice.message.reasoning || choice.message.reasoning_content
           // reasoning
-          if (choice.message.reasoning) {
-            onChunk({ type: ChunkType.THINKING_DELTA, text: choice.message.reasoning })
+          if (reasoning) {
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: reasoning
+            })
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
-              text: choice.message.reasoning,
+              text: reasoning,
               thinking_millsec: new Date().getTime() - start_time_millsec
             })
           }
@@ -634,21 +634,28 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             break
           }
 
-          const delta = chunk.choices[0]?.delta
-          if (delta?.reasoning_content || delta?.reasoning) {
-            yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-          }
-          if (delta?.content) {
-            yield { type: 'text-delta', textDelta: delta.content }
-          }
-          if (delta?.tool_calls) {
-            yield { type: 'tool-calls', delta: delta }
-          }
+          if (chunk.choices && chunk.choices.length > 0) {
+            const delta = chunk.choices[0]?.delta
+            if (
+              (delta?.reasoning_content && delta?.reasoning_content !== '\n') ||
+              (delta?.reasoning && delta?.reasoning !== '\n')
+            ) {
+              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+            }
+            if (delta?.content) {
+              yield { type: 'text-delta', textDelta: delta.content }
+            }
+            if (delta?.tool_calls) {
+              yield { type: 'tool-calls', delta: delta }
+            }
 
-          const finishReason = chunk.choices[0]?.finish_reason
-          if (!isEmpty(finishReason)) {
-            yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
-            break
+            const finishReason = chunk?.choices[0]?.finish_reason
+            if (!isEmpty(finishReason)) {
+              yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+              break
+            }
+          } else {
+            yield { type: 'unknown', chunk }
           }
         }
       }
@@ -781,6 +788,18 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                   }
                 } as LLMWebSearchCompleteChunk)
               }
+              if (assistant.model?.provider === 'grok') {
+                const citations = originalFinishRawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.GROK
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
+              }
               if (assistant.model?.provider === 'perplexity') {
                 const citations = originalFinishRawChunk.citations
                 if (citations) {
@@ -822,6 +841,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               }
             }
             break
+          }
+          case 'unknown': {
+            onChunk({
+              type: ChunkType.ERROR,
+              error: chunk.chunk
+            })
           }
         }
       }

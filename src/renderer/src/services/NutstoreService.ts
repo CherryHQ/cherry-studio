@@ -13,7 +13,7 @@ function getNutstoreToken() {
   const nutstoreToken = store.getState().nutstore.nutstoreToken
 
   if (!nutstoreToken) {
-    window.message.error({ content: i18n.t('error.invalid.nutstore_token'), key: 'nutstore' })
+    window.message.error({ content: i18n.t('message.error.invalid.nutstore_token'), key: 'nutstore' })
     return null
   }
   return nutstoreToken
@@ -164,8 +164,9 @@ export async function startNutstoreAutoSync() {
   }
 
   const nutstoreToken = getNutstoreToken()
+
   if (!nutstoreToken) {
-    window.message.error({ content: i18n.t('error.invalid.nutstore_token'), key: 'nutstore' })
+    Logger.log('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
     return
   }
 

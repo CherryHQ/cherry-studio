@@ -6,6 +6,7 @@ import {
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
+  PaintingProvider,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
@@ -52,6 +53,7 @@ export interface SettingsState {
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
@@ -166,6 +168,7 @@ export interface SettingsState {
     backup: boolean
     knowledgeEmbed: boolean
   }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -192,6 +195,7 @@ export const initialState: SettingsState = {
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
@@ -296,7 +300,8 @@ export const initialState: SettingsState = {
     assistant: false,
     backup: false,
     knowledgeEmbed: false
-  }
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -374,6 +379,9 @@ const settingsSlice = createSlice({
     },
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
+    },
+    setPinTopicsToTop: (state, action: PayloadAction<boolean>) => {
+      state.pinTopicsToTop = action.payload
     },
     setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
       state.assistantIconType = action.payload
@@ -627,6 +635,9 @@ const settingsSlice = createSlice({
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
@@ -655,6 +666,7 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setPinTopicsToTop,
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
@@ -724,7 +736,8 @@ export const {
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
   setOpenAIServiceTier,
-  setNotificationSettings
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

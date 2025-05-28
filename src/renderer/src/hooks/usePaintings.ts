@@ -9,10 +9,12 @@ export function usePaintings() {
   const remix = useAppSelector((state) => state.paintings.remix)
   const edit = useAppSelector((state) => state.paintings.edit)
   const upscale = useAppSelector((state) => state.paintings.upscale)
+  const DMXAPIPaintings = useAppSelector((state) => state.paintings.DMXAPIPaintings)
   const dispatch = useAppDispatch()
 
   return {
     paintings,
+    DMXAPIPaintings,
     persistentData: {
       generate,
       remix,

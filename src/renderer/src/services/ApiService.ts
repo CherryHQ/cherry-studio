@@ -283,6 +283,8 @@ export async function fetchChatCompletion({
   // TODO
   // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
+  console.log('fetchChatCompletion', messages, assistant)
+
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
 
