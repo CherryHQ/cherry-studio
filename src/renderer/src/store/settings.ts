@@ -757,6 +757,7 @@ export const {
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
   setEnableBackspaceDeleteModel,
+  setUserTheme,
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
