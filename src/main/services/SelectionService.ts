@@ -143,7 +143,7 @@ export class SelectionService {
     this.filterMode = configManager.getSelectionAssistantFilterMode()
     this.filterList = configManager.getSelectionAssistantFilterList()
 
-    this.setHookClipboardMode(this.filterMode, this.filterList)
+    this.setHookGlobalFilterMode(this.filterMode, this.filterList)
 
     configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: string) => {
       this.triggerMode = triggerMode
@@ -156,21 +156,21 @@ export class SelectionService {
 
     configManager.subscribe(ConfigKeys.SelectionAssistantFilterMode, (filterMode: string) => {
       this.filterMode = filterMode
-      this.setHookClipboardMode(this.filterMode, this.filterList)
+      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
     })
 
     configManager.subscribe(ConfigKeys.SelectionAssistantFilterList, (filterList: string[]) => {
       this.filterList = filterList
-      this.setHookClipboardMode(this.filterMode, this.filterList)
+      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
     })
   }
 
   /**
-   * Set the clipboard mode for the selection-hook
+   * Set the global filter mode for the selection-hook
    * @param mode - The mode to set, either 'default', 'whitelist', or 'blacklist'
    * @param list - An array of strings representing the list of items to include or exclude
    */
-  private setHookClipboardMode(mode: string, list: string[]) {
+  private setHookGlobalFilterMode(mode: string, list: string[]) {
     if (!this.selectionHook) return
 
     const modeMap = {
@@ -178,8 +178,8 @@ export class SelectionService {
       whitelist: 1,
       blacklist: 2
     }
-    if (!this.selectionHook.setClipboardMode(modeMap[mode], list)) {
-      this.logError(new Error('Failed to set selection-hook clipboard mode'))
+    if (!this.selectionHook.setGlobalFilterMode(modeMap[mode], list)) {
+      this.logError(new Error('Failed to set selection-hook global filter mode'))
     }
   }
 
@@ -194,8 +194,6 @@ export class SelectionService {
     }
 
     try {
-      //init basic configs
-      this.initConfig()
       //make sure the toolbar window is ready
       this.createToolbarWindow()
       // Initialize preloaded windows
@@ -209,6 +207,9 @@ export class SelectionService {
 
       // Start the hook
       if (this.selectionHook.start({ debug: isDev })) {
+        //init basic configs
+        this.initConfig()
+
         //init trigger mode configs
         this.processTriggerMode()
 
@@ -613,12 +614,16 @@ export class SelectionService {
             selectionData.endBottom
           )
 
+          // Note: shift key + mouse click == DoubleClick
+
+          //double click to select a word
           if (isDoubleClick && isSameLine) {
             refOrientation = 'bottomMiddle'
             refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.endBottom.y + 4 }
             break
           }
 
+          // below: isDoubleClick || isSameLine
           if (isSameLine) {
             const direction = selectionData.mousePosEnd.x - selectionData.mousePosStart.x
 
@@ -632,6 +637,7 @@ export class SelectionService {
             break
           }
 
+          // below: !isDoubleClick && !isSameLine
           const direction = selectionData.mousePosEnd.y - selectionData.mousePosStart.y
 
           if (direction > 0) {
@@ -732,6 +738,10 @@ export class SelectionService {
     if (this.triggerMode === 'ctrlkey' && this.isCtrlkey(data.vkCode)) {
       return
     }
+    //dont hide toolbar when shiftkey is pressed, because it's used for selection
+    if (this.isShiftkey(data.vkCode)) {
+      return
+    }
 
     this.hideToolbar()
   }
@@ -786,6 +796,11 @@ export class SelectionService {
   //check if the key is ctrl key
   private isCtrlkey(vkCode: number) {
     return vkCode === 162 || vkCode === 163
+  }
+
+  //check if the key is shift key
+  private isShiftkey(vkCode: number) {
+    return vkCode === 160 || vkCode === 161
   }
 
   /**
@@ -958,7 +973,7 @@ export class SelectionService {
         this.isCtrlkeyListenerActive = false
       }
 
-      this.selectionHook!.enableClipboard()
+      // this.selectionHook!.enableClipboard()
       this.selectionHook!.setSelectionPassiveMode(false)
     } else if (this.triggerMode === 'ctrlkey') {
       if (!this.isCtrlkeyListenerActive) {
@@ -968,7 +983,7 @@ export class SelectionService {
         this.isCtrlkeyListenerActive = true
       }
 
-      this.selectionHook!.disableClipboard()
+      // this.selectionHook!.disableClipboard()
       this.selectionHook!.setSelectionPassiveMode(true)
     }
   }
