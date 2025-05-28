@@ -186,6 +186,8 @@ export enum IpcChannel {
   Selection_WriteToClipboard = 'selection:write-to-clipboard',
   Selection_SetEnabled = 'selection:set-enabled',
   Selection_SetTriggerMode = 'selection:set-trigger-mode',
+  Selection_SetFilterMode = 'selection:set-filter-mode',
+  Selection_SetFilterList = 'selection:set-filter-list',
   Selection_SetFollowToolbar = 'selection:set-follow-toolbar',
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',

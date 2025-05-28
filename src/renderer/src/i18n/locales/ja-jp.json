@@ -1909,6 +1909,20 @@
           "delete_confirm": "このカスタム機能を削除しますか？",
           "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
         },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "アプリケーションフィルター",
+            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
+            "default": "オフ",
+            "whitelist": "ホワイトリスト",
+            "blacklist": "ブラックリスト"
+          },
+          "filter_list": {
+            "title": "フィルターリスト",
+            "description": "進階機能です。経験豊富なユーザー向けです。"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "カスタム機能追加",
@@ -1965,6 +1979,10 @@
             },
             "test": "テスト"
           }
+        },
+        "filter_modal": {
+          "title": "アプリケーションフィルターリスト",
+          "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
         }
       }
     }
