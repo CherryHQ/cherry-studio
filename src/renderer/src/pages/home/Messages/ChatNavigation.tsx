@@ -17,6 +17,9 @@ import styled from 'styled-components'
 
 import ChatFlowHistory from './ChatFlowHistory'
 
+// Exclude some areas from the navigation
+const EXCLUDED_SELECTORS = ['.MessageFooter', '.code-toolbar', '.ant-collapse-header']
+
 interface ChatNavigationProps {
   containerId: string
 }
@@ -268,10 +271,14 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       }
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
-      const topPosition = window.innerHeight * 0.5 // 50% from top
+      const topPosition = window.innerHeight * 0.35 // 35% from top
       const height = window.innerHeight * 0.3 // 30% of window height
 
+      const target = e.target as HTMLElement
+      const isInExcludedArea = EXCLUDED_SELECTORS.some((selector) => target.closest(selector))
+
       const isInTriggerArea =
+        !isInExcludedArea &&
         e.clientX > rightPosition &&
         e.clientX < rightPosition + triggerWidth &&
         e.clientY > topPosition &&
@@ -406,7 +413,7 @@ interface NavigationContainerProps {
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
   right: 16px;
-  top: 65%;
+  top: 50%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;
   opacity: ${(props) => (props.$isVisible ? 1 : 0)};
