@@ -8,6 +8,7 @@
       "add.name.placeholder": "輸入名稱",
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
+      "add.prompt.variables.tip": "可用的變數：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "建立智慧代理人",
       "import": {
         "title": "從外部導入",
@@ -99,6 +100,26 @@
       "settings.knowledge_base.recognition": "調用知識庫",
       "settings.knowledge_base.recognition.off": "強制檢索",
       "settings.knowledge_base.recognition.on": "意圖識別",
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "標籤展示"
+      },
+      "tags": {
+        "untagged": "未分組標籤",
+        "none": "暫無標籤",
+        "manage": "標籤管理",
+        "add": "添加標籤",
+        "modify": "修改標籤",
+        "delete": "刪除標籤",
+        "settings": {
+          "title": "標籤設定",
+          "current": "當前標籤",
+          "searchTagsPlaceholder": "請輸入標籤名稱以過濾標籤",
+          "addTagsPlaceholder": "請輸入標籤名稱以新增",
+          "tagsLsitTitle": "標籤列表",
+          "tagsLsitTitleTips": "點擊標籤可切換"
+        }
+      },
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "函數",
       "settings.tool_use_mode.prompt": "提示詞"
@@ -822,13 +843,14 @@
       "seed_desc_tip": "相同的種子和提示詞可以生成相似的圖片，設置 -1 每次生成都不一樣",
       "title": "繪圖",
       "magic_prompt_option": "提示詞增強",
-      "model": "版本",
+      "model": "模型",
       "aspect_ratio": "畫幅比例",
       "style_type": "風格",
       "learn_more": "了解更多",
       "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 '雙引號' 包裹",
-      "paint_course":"教程",
-      "proxy_required": "目前需要打開代理才能查看生成圖片，後續會支持國內直連",
+      "prompt_placeholder_en": "輸入”英文“圖片描述，目前 Imagen 僅支持英文提示詞",
+      "paint_course": "教程",
+      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
       "image_file_required": "請先上傳圖片",
       "image_file_retry": "請重新上傳圖片",
       "image_placeholder": "無圖片",
@@ -847,6 +869,34 @@
         "turbo": "快速",
         "quality": "高品質"
       },
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "豎圖",
+        "landscape": "橫圖"
+      },
+      "person_generation_options": {
+        "allow_all": "允許所有",
+        "allow_adult": "允許成人",
+        "allow_none": "不允許"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
       "mode": {
         "generate": "繪圖",
         "edit": "編輯",
@@ -860,7 +910,9 @@
         "negative_prompt_tip": "描述不想在圖像中出現的內容",
         "magic_prompt_option_tip": "智能優化生成效果的提示詞",
         "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本"
+        "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於V_3版本",
+        "person_generation": "人物生成",
+        "person_generation_tip": "允許模型生成人物圖像"
       },
       "edit": {
         "image_file": "編輯圖像",
@@ -1858,6 +1910,20 @@
           "delete_confirm": "確定要刪除這個自訂功能嗎？",
           "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})"
         },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "應用篩選",
+            "description": "可以限制劃詞助手只在特定應用中生效（白名單）或不生效（黑名單）",
+            "default": "關閉",
+            "whitelist": "白名單",
+            "blacklist": "黑名單"
+          },
+          "filter_list": {
+            "title": "篩選名單",
+            "description": "進階功能，建議有經驗的用戶在了解情況下再進行設置"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "新增自訂功能",
@@ -1914,6 +1980,10 @@
             },
             "test": "測試"
           }
+        },
+        "filter_modal": {
+          "title": "應用篩選名單",
+          "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
     }

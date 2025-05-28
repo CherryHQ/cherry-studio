@@ -60,6 +60,8 @@ export class SelectionService {
 
   private triggerMode = 'selected'
   private isFollowToolbar = true
+  private filterMode = 'default'
+  private filterList: string[] = []
 
   private toolbarWindow: BrowserWindow | null = null
   private actionWindows = new Set<BrowserWindow>()
@@ -138,6 +140,10 @@ export class SelectionService {
   private initConfig() {
     this.triggerMode = configManager.getSelectionAssistantTriggerMode()
     this.isFollowToolbar = configManager.getSelectionAssistantFollowToolbar()
+    this.filterMode = configManager.getSelectionAssistantFilterMode()
+    this.filterList = configManager.getSelectionAssistantFilterList()
+
+    this.setHookClipboardMode(this.filterMode, this.filterList)
 
     configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: string) => {
       this.triggerMode = triggerMode
@@ -147,6 +153,34 @@ export class SelectionService {
     configManager.subscribe(ConfigKeys.SelectionAssistantFollowToolbar, (isFollowToolbar: boolean) => {
       this.isFollowToolbar = isFollowToolbar
     })
+
+    configManager.subscribe(ConfigKeys.SelectionAssistantFilterMode, (filterMode: string) => {
+      this.filterMode = filterMode
+      this.setHookClipboardMode(this.filterMode, this.filterList)
+    })
+
+    configManager.subscribe(ConfigKeys.SelectionAssistantFilterList, (filterList: string[]) => {
+      this.filterList = filterList
+      this.setHookClipboardMode(this.filterMode, this.filterList)
+    })
+  }
+
+  /**
+   * Set the clipboard mode for the selection-hook
+   * @param mode - The mode to set, either 'default', 'whitelist', or 'blacklist'
+   * @param list - An array of strings representing the list of items to include or exclude
+   */
+  private setHookClipboardMode(mode: string, list: string[]) {
+    if (!this.selectionHook) return
+
+    const modeMap = {
+      default: 0,
+      whitelist: 1,
+      blacklist: 2
+    }
+    if (!this.selectionHook.setClipboardMode(modeMap[mode], list)) {
+      this.logError(new Error('Failed to set selection-hook clipboard mode'))
+    }
   }
 
   /**
@@ -455,6 +489,30 @@ export class SelectionService {
   }
 
   /**
+   * Determine if the text selection should be processed by filter mode&list
+   * @param selectionData Text selection information and coordinates
+   * @returns {boolean} True if the selection should be processed, false otherwise
+   */
+  private shouldProcessTextSelection(selectionData: TextSelectionData): boolean {
+    if (selectionData.programName === '' || this.filterMode === 'default') {
+      return true
+    }
+
+    const programName = selectionData.programName.toLowerCase()
+    //items in filterList are already in lower case
+    const isFound = this.filterList.some((item) => programName.includes(item))
+
+    switch (this.filterMode) {
+      case 'whitelist':
+        return isFound
+      case 'blacklist':
+        return !isFound
+    }
+
+    return false
+  }
+
+  /**
    * Process text selection data and show toolbar
    * Handles different selection scenarios:
    * - Single click (cursor position)
@@ -465,6 +523,10 @@ export class SelectionService {
   private processTextSelection = (selectionData: TextSelectionData) => {
     // Skip if no text or toolbar already visible
     if (!selectionData.text || (this.isToolbarAlive() && this.toolbarWindow!.isVisible())) {
+      return
+    }
+
+    if (!this.shouldProcessTextSelection(selectionData)) {
       return
     }
 
@@ -944,6 +1006,14 @@ export class SelectionService {
 
     ipcMain.handle(IpcChannel.Selection_SetFollowToolbar, (_, isFollowToolbar: boolean) => {
       configManager.setSelectionAssistantFollowToolbar(isFollowToolbar)
+    })
+
+    ipcMain.handle(IpcChannel.Selection_SetFilterMode, (_, filterMode: string) => {
+      configManager.setSelectionAssistantFilterMode(filterMode)
+    })
+
+    ipcMain.handle(IpcChannel.Selection_SetFilterList, (_, filterList: string[]) => {
+      configManager.setSelectionAssistantFilterList(filterList)
     })
 
     ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem) => {

@@ -76,6 +76,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     } finally {
       translatingRef.current = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action, targetLanguage, translateModel])
 
   useEffect(() => {

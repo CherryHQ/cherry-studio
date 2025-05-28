@@ -1,5 +1,5 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type { GroundingMetadata } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
@@ -25,6 +25,7 @@ export type Assistant = {
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
+  tags?: string[] // 助手标签
 }
 
 export type AssistantMessage = {
@@ -185,6 +186,8 @@ export type PaintingParams = {
   files: FileType[]
 }
 
+export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
+
 export interface Painting extends PaintingParams {
   model?: string
   prompt?: string
@@ -207,6 +210,13 @@ export interface GeneratePainting extends PaintingParams {
   negativePrompt?: string
   magicPromptOption?: boolean
   renderingSpeed?: string
+  quality?: string
+  moderation?: string
+  n?: number
+  size?: string
+  background?: string
+  personGeneration?: GenerateImagesConfig['personGeneration']
+  numberOfImages?: number
 }
 
 export interface EditPainting extends PaintingParams {

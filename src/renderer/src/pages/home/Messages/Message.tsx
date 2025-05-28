@@ -252,6 +252,7 @@ const MessageContentContainer = styled.div`
   margin-left: 46px;
   margin-top: 5px;
   overflow-y: auto;
+  white-space: pre-line;
 `
 
 const MessageFooter = styled.div`

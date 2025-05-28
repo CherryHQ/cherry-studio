@@ -43,8 +43,8 @@ export default class AihubmixProvider extends BaseProvider {
     if (id.startsWith('claude')) {
       return this.providers.get('claude')!
     }
-    // gemini开头 且不以-nothink、-search结尾
-    if (id.startsWith('gemini') && !id.endsWith('-nothink') && !id.endsWith('-search')) {
+    // gemini开头 或 imagen开头 且不以-nothink、-search结尾
+    if ((id.startsWith('gemini') || id.startsWith('imagen')) && !id.endsWith('-nothink') && !id.endsWith('-search')) {
       return this.providers.get('gemini')!
     }
     if (isOpenAILLMModel(model)) {
@@ -64,7 +64,9 @@ export default class AihubmixProvider extends BaseProvider {
   }
 
   public async generateImage(params: any): Promise<string[]> {
-    return this.defaultProvider.generateImage(params)
+    return this.getProvider({
+      id: params.model
+    } as unknown as Model).generateImage(params)
   }
 
   public async generateImageByChat(params: any): Promise<void> {
