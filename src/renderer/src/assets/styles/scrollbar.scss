@@ -24,6 +24,7 @@ body[theme-mode='light'] {
 }
 
 ::-webkit-scrollbar-thumb {
+  cursor: pointer;
   border-radius: 10px;
   background: var(--color-scrollbar-thumb);
   &:hover {
@@ -32,6 +33,7 @@ body[theme-mode='light'] {
 }
 
 pre:not(.shiki)::-webkit-scrollbar-thumb {
+  cursor: pointer;
   border-radius: 0;
   background: rgba(0, 0, 0, 0.08);
   &:hover {
