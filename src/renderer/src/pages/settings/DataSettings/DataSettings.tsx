@@ -2,6 +2,7 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   FolderOpenOutlined,
+  LoadingOutlined,
   SaveOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
@@ -18,7 +19,7 @@ import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Switch, Typography } from 'antd'
+import { Button, Switch, Typography, Progress } from 'antd'
 import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -179,12 +180,39 @@ const DataSettings: FC = () => {
     })
   }
 
-  const handleSelectAppDataPath = () => {
-    window.modal.confirm({
-      title: t('settings.data.app_data.select_title'),
+  const handleSelectAppDataPath = async () => {
+    if (!appInfo) {
+      return
+    }
+
+    // First let the user select a new directory
+    const newAppDataPath = await window.api.select({
+      properties: ['openDirectory', 'createDirectory'],
+      title: t('settings.data.app_data.select_title')
+    })
+
+    if (!newAppDataPath) {
+      return
+    }
+
+    // Create paths content to reuse in both modals
+    const PathsContent = () => (
+      <div>
+        <p>
+          <strong>{t('settings.data.app_data.original_path') || '原目录'}:</strong> {appInfo.appDataPath}
+        </p>
+        <p>
+          <strong>{t('settings.data.app_data.new_path') || '新目录'}:</strong> {newAppDataPath}
+        </p>
+      </div>
+    )
+
+    // Create a modal that we'll reference and control
+    const modal = window.modal.confirm({
+      title: t('settings.data.app_data.migration_title') || '数据迁移',
       content: (
         <div>
-          <p>{t('settings.data.app_data.select_confirm')}</p>
+          <PathsContent />
           <p style={{ marginTop: '12px', color: 'var(--color-warning)' }}>
             {t('settings.data.app_data.restart_notice')}
           </p>
@@ -195,50 +223,132 @@ const DataSettings: FC = () => {
       ),
       centered: true,
       onOk: async () => {
-        if (!appInfo) {
-          return
-        }
+        try {
+          // Create a loading modal with progress
+          let currentProgress = 0
+          let progressInterval: NodeJS.Timeout
 
-        const newAppDataPath = await window.api.select({
-          properties: ['openDirectory', 'createDirectory'],
-          title: t('settings.data.app_data.select_title')
-        })
+          const loadingModal = window.modal.info({
+            title: t('settings.data.app_data.migration_title') || '数据迁移',
+            icon: <LoadingOutlined style={{ fontSize: 16 }} />,
+            content: (
+              <div>
+                <PathsContent />
+                <p style={{ marginTop: '12px' }}>{t('settings.data.app_data.copying')}</p>
+                <div style={{ marginTop: '16px' }}>
+                  <Progress percent={currentProgress} status="active" />
+                </div>
+              </div>
+            ),
+            centered: true,
+            closable: false,
+            maskClosable: false,
+            okButtonProps: { style: { display: 'none' } }
+          })
 
-        if (!newAppDataPath) {
-          return
-        }
+          // Define a key for message notifications
+          const messageKey = 'data-migration'
 
-        // Show copy progress message
-        const copyingKey = 'copying-data'
-        window.message.loading({ content: t('settings.data.app_data.copying'), key: copyingKey, duration: 0 })
+          // Update progress every 500ms to simulate progress
+          progressInterval = setInterval(() => {
+            // Simulate progress up to 95%
+            if (currentProgress < 95) {
+              currentProgress += Math.random() * 5 + 1
+              if (currentProgress > 95) currentProgress = 95
 
-        const copyResult = await window.api.copy(appInfo.appDataPath, newAppDataPath)
-        if (!copyResult.success) {
+              loadingModal.update({
+                content: (
+                  <div>
+                    <PathsContent />
+                    <p style={{ marginTop: '12px' }}>{t('settings.data.app_data.copying')}</p>
+                    <div style={{ marginTop: '16px' }}>
+                      <Progress percent={Math.round(currentProgress)} status="active" />
+                    </div>
+                  </div>
+                )
+              })
+            }
+          }, 500)
+
+          try {
+            // Start the copy process
+            const copyResult = await window.api.copy(appInfo.appDataPath, newAppDataPath)
+
+            // Stop the progress updates
+            clearInterval(progressInterval)
+
+            // Show 100% when complete
+            loadingModal.update({
+              content: (
+                <div>
+                  <PathsContent />
+                  <p style={{ marginTop: '12px' }}>{t('settings.data.app_data.copying')}</p>
+                  <div style={{ marginTop: '16px' }}>
+                    <Progress percent={100} status="success" />
+                  </div>
+                </div>
+              )
+            })
+
+            if (!copyResult.success) {
+              // Close the loading modal after a short delay
+              setTimeout(() => {
+                loadingModal.destroy()
+
+                window.message.error({
+                  content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+                  key: messageKey,
+                  duration: 5
+                })
+              }, 500)
+
+              return
+            }
+
+            // 在复制成功后才能设置新的 AppDataPath
+            await window.api.setAppDataPath(newAppDataPath)
+
+            // 更新store中的appInfo
+            setAppInfo(await window.api.getAppInfo())
+
+            // Short delay to show 100% complete
+            await new Promise((resolve) => setTimeout(resolve, 500))
+
+            // Close the loading modal
+            loadingModal.destroy()
+
+            window.message.success({
+              content: t('settings.data.app_data.copy_success'),
+              key: messageKey,
+              duration: 2
+            })
+
+            // Inform user about restart
+            setTimeout(() => {
+              window.message.success(t('settings.data.app_data.select_success'))
+              window.api.relaunchApp()
+            }, 1000)
+          } catch (error) {
+            // Clear the interval and close the modal
+            clearInterval(progressInterval)
+            loadingModal.destroy()
+
+            // Propagate the error
+            throw error
+          }
+        } catch (error) {
+          // Close any open modals
+          try {
+            modal.destroy()
+          } catch (e) {
+            // Ignore errors on modal destroy
+          }
+
           window.message.error({
-            content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-            key: copyingKey,
+            content: t('settings.data.app_data.copy_failed') + ': ' + error,
             duration: 5
           })
-          return
         }
-
-        // 在复制成功后才能设置新的 AppDataPath
-        await window.api.setAppDataPath(newAppDataPath)
-
-        // 更新store中的appInfo
-        setAppInfo(await window.api.getAppInfo())
-
-        window.message.success({
-          content: t('settings.data.app_data.copy_success'),
-          key: copyingKey,
-          duration: 2
-        })
-
-        // Inform user about restart
-        setTimeout(() => {
-          window.message.success(t('settings.data.app_data.select_success'))
-          window.api.relaunchApp()
-        }, 1000)
       }
     })
   }
