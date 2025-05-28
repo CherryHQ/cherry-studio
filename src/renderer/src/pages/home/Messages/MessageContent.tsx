@@ -20,17 +20,6 @@ const MessageContent: React.FC<Props> = ({ message }) => {
   )
 }
 
-// const SearchingContainer = styled.div`
-//   display: flex;
-//   flex-direction: row;
-//   align-items: center;
-//   background-color: var(--color-background-mute);
-//   padding: 10px;
-//   border-radius: 10px;
-//   margin-bottom: 10px;
-//   gap: 10px;
-// `
-
 const MentionTag = styled.span`
   color: var(--color-link);
 `

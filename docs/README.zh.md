@@ -4,7 +4,8 @@
   </a>
 </h1>
 <p align="center">
-  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br></p>
+  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br>
+</p>
 <div align="center">
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
  <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
@@ -32,9 +33,11 @@ https://docs.cherry-ai.com
 
 # 🌠 界面
 
-![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
-![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
-![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
+![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+
+![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+
+![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
 
 # 🌟 主要特性
 
@@ -74,28 +77,50 @@ https://docs.cherry-ai.com
 - 📝 完整的 Markdown 渲染
 - 🤲 便捷的内容分享功能
 
-# 📝 待辦事項
+# 📝 开发计划
 
-- [x] 快捷弹窗（读取剪贴板、快速提问、解释、翻译、总结）
-- [x] 多模型回答对比
-- [x] 支持使用服务供应商提供的 SSO 进行登入
-- [x] 全部模型支持连网（开发中...）
-- [x] 推出第一个正式版
-- [x] 错误修复和改进（开发中...）
-- [ ] 插件功能（JavaScript）
-- [ ] 浏览器插件（划词翻译、总结、新增至知识库）
-- [ ] iOS & Android 客户端
-- [ ] AI 笔记
-- [ ] 语音输入输出（AI 通话）
-- [ ] 数据备份支持自定义备份内容
+我们正在积极开发以下功能和改进：
+
+1. 🎯 **核心功能**
+
+- 选择助手 - 智能内容选择增强
+- 深度研究 - 高级研究能力
+- 全局记忆 - 全局上下文感知
+- 文档预处理 - 改进文档处理能力
+- MCP 市场 - 模型上下文协议生态系统
+
+2. 🗂 **知识管理**
+
+- 笔记与收藏功能
+- 动态画布可视化
+- OCR 光学字符识别
+- TTS 文本转语音支持
+
+3. 📱 **平台支持**
+
+- 鸿蒙版本 (PC)
+- Android 应用（第一期）
+- iOS 应用（第一期）
+- 多窗口支持
+- 窗口置顶功能
+
+4. 🔌 **高级特性**
+
+- 插件系统
+- ASR 语音识别
+- 助手与话题交互重构
+
+在我们的[项目面板](https://github.com/orgs/CherryHQ/projects/7)上跟踪进展并参与贡献。
+
+想要影响开发计划？欢迎加入我们的 [GitHub 讨论区](https://github.com/CherryHQ/cherry-studio/discussions) 分享您的想法和反馈！
 
 # 🌈 主题
 
 - 主题库：https://cherrycss.com
 - Aero 主题：https://github.com/hakadao/CherryStudio-Aero
-- PaperMaterial 主题: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
-- 仿Claude 主题: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-- 霓虹枫叶字体主题: https://github.com/BoningtonChen/CherryStudio_themes
+- PaperMaterial 主题：https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
+- 仿 Claude 主题：https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
+- 霓虹枫叶主题：https://github.com/BoningtonChen/CherryStudio_themes
 
 欢迎 PR 更多主题
 
@@ -103,37 +128,43 @@ https://docs.cherry-ai.com
 
 参考[开发文档](dev.md)
 
+参考[架构概览文档](https://deepwiki.com/CherryHQ/cherry-studio)
+
+参考[分支策略](branching-strategy-zh.md)了解贡献指南
+
 # 🤝 贡献
 
 我们欢迎对 Cherry Studio 的贡献！您可以通过以下方式贡献：
 
-1. **贡献代码**：开发新功能或优化现有代码。
-2. **修复错误**：提交您发现的错误修复。
-3. **维护问题**：帮助管理 GitHub 问题。
-4. **产品设计**：参与设计讨论。
-5. **撰写文档**：改进用户手册和指南。
-6. **社区参与**：加入讨论并帮助用户。
-7. **推广使用**：宣传 Cherry Studio。
+1. **贡献代码**：开发新功能或优化现有代码
+2. **修复错误**：提交您发现的错误修复
+3. **维护问题**：帮助管理 GitHub 问题
+4. **产品设计**：参与设计讨论
+5. **撰写文档**：改进用户手册和指南
+6. **社区参与**：加入讨论并帮助用户
+7. **推广使用**：宣传 Cherry Studio
 
 ## 入门
 
-1. **Fork 仓库**：Fork 并克隆到您的本地机器。
-2. **创建分支**：为您的更改创建分支。
-3. **提交更改**：提交并推送您的更改。
-4. **打开 Pull Request**：描述您的更改和原因。
+1. **Fork 仓库**：Fork 并克隆到您的本地机器
+2. **创建分支**：为您的更改创建分支
+3. **提交更改**：提交并推送您的更改
+4. **打开 Pull Request**：描述您的更改和原因
 
-有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.zh.md)。
+有关更详细的指南，请参阅我们的 [贡献指南](./CONTRIBUTING.zh.md)
 
 感谢您的支持和贡献！
 
-## 相关项目
+# 🔗 相关项目
 
 - [one-api](https://github.com/songquanpeng/one-api)：LLM API 管理及分发系统，支持 OpenAI、Azure、Anthropic 等主流模型，统一 API 接口，可用于密钥管理与二次分发。
+
+- [ublacklist](https://github.com/iorate/ublacklist)：屏蔽特定网站在 Google 搜索结果中显示
 
 # 🚀 贡献者
 
 <a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
+  <img src="https://contrib.rocks/image?repo=CherryHQ/cherry-studio" />
 </a>
 <br /><br />
 
@@ -143,7 +174,7 @@ https://docs.cherry-ai.com
 
 # ☕ 赞助
 
-[微信赞赏码](sponsor.md)
+[赞助开发者](sponsor.md)
 
 # 📃 许可证
 

@@ -1,4 +1,6 @@
 import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
   CloseOutlined,
   CodeOutlined,
   CopyOutlined,
@@ -241,6 +243,22 @@ const MinappPopupContainer: React.FC = () => {
     dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
   }
 
+  /** navigate back in webview history */
+  const handleGoBack = (appid: string) => {
+    const webview = webviewRefs.current.get(appid)
+    if (webview && webview.canGoBack()) {
+      webview.goBack()
+    }
+  }
+
+  /** navigate forward in webview history */
+  const handleGoForward = (appid: string) => {
+    const webview = webviewRefs.current.get(appid)
+    if (webview && webview.canGoForward()) {
+      webview.goForward()
+    }
+  }
+
   /** Title bar of the popup */
   const Title = ({ appInfo, url }: { appInfo: AppInfo | null; url: string | null }) => {
     if (!appInfo) return null
@@ -286,6 +304,16 @@ const MinappPopupContainer: React.FC = () => {
         )}
         <Spacer />
         <ButtonsGroup className={isWindows || isLinux ? 'windows' : ''}>
+          <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
+            <Button onClick={() => handleGoBack(appInfo.id)}>
+              <ArrowLeftOutlined />
+            </Button>
+          </Tooltip>
+          <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
+            <Button onClick={() => handleGoForward(appInfo.id)}>
+              <ArrowRightOutlined />
+            </Button>
+          </Tooltip>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />

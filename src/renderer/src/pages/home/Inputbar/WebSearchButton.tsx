@@ -6,7 +6,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
-import { Globe, Settings } from 'lucide-react'
+import { CircleX, Globe, Settings } from 'lucide-react'
 import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -79,15 +79,15 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     }
 
     items.push({
-      label: '前往设置' + '...',
+      label: t('chat.input.web_search.settings'),
       icon: <Settings />,
       action: () => navigate('/settings/web-search')
     })
 
     items.unshift({
-      label: t('chat.input.web_search.no_web_search'),
+      label: t('common.close'),
       description: t('chat.input.web_search.no_web_search.description'),
-      icon: <Globe />,
+      icon: <CircleX />,
       isSelected: !assistant.enableWebSearch && !assistant.webSearchProviderId,
       action: () => {
         updateSelectedWebSearchProvider(undefined)

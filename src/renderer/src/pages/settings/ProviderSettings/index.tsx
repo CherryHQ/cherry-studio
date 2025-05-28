@@ -4,12 +4,14 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
+import { INITIAL_PROVIDERS } from '@renderer/store/llm'
 import { Provider } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
 import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Search, UserPen } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AddProviderPopup from './AddProviderPopup'
@@ -17,6 +19,7 @@ import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
 
 const ProvidersList: FC = () => {
+  const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const [selectedProvider, setSelectedProvider] = useState<Provider>(providers[0])
@@ -45,6 +48,18 @@ const ProvidersList: FC = () => {
 
     loadAllLogos()
   }, [providers])
+
+  useEffect(() => {
+    if (searchParams.get('id')) {
+      const providerId = searchParams.get('id')
+      const provider = providers.find((p) => p.id === providerId)
+      if (provider) {
+        setSelectedProvider(provider)
+      } else {
+        setSelectedProvider(providers[0])
+      }
+    }
+  }, [providers, searchParams])
 
   const onDragEnd = (result: DropResult) => {
     setDragging(false)
@@ -101,86 +116,89 @@ const ProvidersList: FC = () => {
       onClick: () => ModelNotesPopup.show({ provider })
     }
 
-    const menus = [
-      {
-        label: t('common.edit'),
-        key: 'edit',
-        icon: <EditOutlined />,
-        async onClick() {
-          const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
+    const editMenu = {
+      label: t('common.edit'),
+      key: 'edit',
+      icon: <EditOutlined />,
+      async onClick() {
+        const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
 
-          if (name) {
-            updateProvider({ ...provider, name, type })
-            if (provider.id) {
-              if (logoFile && logo) {
-                try {
-                  await ImageStorage.set(`provider-${provider.id}`, logo)
-                  setProviderLogos((prev) => ({
-                    ...prev,
-                    [provider.id]: logo
-                  }))
-                } catch (error) {
-                  console.error('Failed to save logo', error)
-                  window.message.error('更新Provider Logo失败')
-                }
-              } else if (logo === undefined && logoFile === undefined) {
-                try {
-                  await ImageStorage.set(`provider-${provider.id}`, '')
-                  setProviderLogos((prev) => {
-                    const newLogos = { ...prev }
-                    delete newLogos[provider.id]
-                    return newLogos
-                  })
-                } catch (error) {
-                  console.error('Failed to reset logo', error)
-                }
+        if (name) {
+          updateProvider({ ...provider, name, type })
+          if (provider.id) {
+            if (logoFile && logo) {
+              try {
+                await ImageStorage.set(`provider-${provider.id}`, logo)
+                setProviderLogos((prev) => ({
+                  ...prev,
+                  [provider.id]: logo
+                }))
+              } catch (error) {
+                console.error('Failed to save logo', error)
+                window.message.error('更新Provider Logo失败')
+              }
+            } else if (logo === undefined && logoFile === undefined) {
+              try {
+                await ImageStorage.set(`provider-${provider.id}`, '')
+                setProviderLogos((prev) => {
+                  const newLogos = { ...prev }
+                  delete newLogos[provider.id]
+                  return newLogos
+                })
+              } catch (error) {
+                console.error('Failed to reset logo', error)
               }
             }
           }
         }
-      },
-      noteMenu,
-      {
-        label: t('common.delete'),
-        key: 'delete',
-        icon: <DeleteOutlined />,
-        danger: true,
-        async onClick() {
-          window.modal.confirm({
-            title: t('settings.provider.delete.title'),
-            content: t('settings.provider.delete.content'),
-            okButtonProps: { danger: true },
-            okText: t('common.delete'),
-            centered: true,
-            onOk: async () => {
-              // 删除provider前先清理其logo
-              if (provider.id) {
-                try {
-                  await ImageStorage.remove(`provider-${provider.id}`)
-                  setProviderLogos((prev) => {
-                    const newLogos = { ...prev }
-                    delete newLogos[provider.id]
-                    return newLogos
-                  })
-                } catch (error) {
-                  console.error('Failed to delete logo', error)
-                }
-              }
-
-              setSelectedProvider(providers.filter((p) => p.isSystem)[0])
-              removeProvider(provider)
-            }
-          })
-        }
       }
-    ]
+    }
+
+    const deleteMenu = {
+      label: t('common.delete'),
+      key: 'delete',
+      icon: <DeleteOutlined />,
+      danger: true,
+      async onClick() {
+        window.modal.confirm({
+          title: t('settings.provider.delete.title'),
+          content: t('settings.provider.delete.content'),
+          okButtonProps: { danger: true },
+          okText: t('common.delete'),
+          centered: true,
+          onOk: async () => {
+            // 删除provider前先清理其logo
+            if (provider.id) {
+              try {
+                await ImageStorage.remove(`provider-${provider.id}`)
+                setProviderLogos((prev) => {
+                  const newLogos = { ...prev }
+                  delete newLogos[provider.id]
+                  return newLogos
+                })
+              } catch (error) {
+                console.error('Failed to delete logo', error)
+              }
+            }
+
+            setSelectedProvider(providers.filter((p) => p.isSystem)[0])
+            removeProvider(provider)
+          }
+        })
+      }
+    }
+
+    const menus = [editMenu, noteMenu, deleteMenu]
 
     if (providers.filter((p) => p.id === provider.id).length > 1) {
       return menus
     }
 
     if (provider.isSystem) {
-      return [noteMenu]
+      if (INITIAL_PROVIDERS.find((p) => p.id === provider.id)) {
+        return [noteMenu]
+      }
+      return [noteMenu, deleteMenu]
     }
 
     return menus
@@ -353,7 +371,6 @@ const ProviderLogo = styled(Avatar)`
 const ProviderItemName = styled.div`
   margin-left: 10px;
   font-weight: 500;
-  font-family: Ubuntu;
 `
 
 const AddButtonWrapper = styled.div`

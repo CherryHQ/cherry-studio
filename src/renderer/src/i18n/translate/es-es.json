@@ -107,6 +107,7 @@
     "backup": {
       "confirm": "¿Está seguro de que desea realizar una copia de seguridad de los datos?",
       "confirm.button": "Seleccionar ubicación de copia de seguridad",
+      "confirm.file_checkbox": "El tamaño del archivo es {{size}}, ¿desea elegir el archivo de copia de seguridad?",
       "content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
       "progress": {
         "completed": "Copia de seguridad completada",
@@ -835,6 +836,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Antropológico",
       "azure-openai": "Azure OpenAI",

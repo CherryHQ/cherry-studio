@@ -3,6 +3,7 @@ import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
@@ -65,8 +66,10 @@ const Sidebar: FC = () => {
     })
   }
 
+  const isFullscreen = useFullscreen()
+
   return (
-    <Container id="app-sidebar" style={{ zIndex: minappShow ? 10000 : 10 }}>
+    <Container $isFullscreen={isFullscreen} id="app-sidebar" style={{ zIndex: minappShow ? 10000 : 10 }}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
           {avatar}
@@ -128,7 +131,7 @@ const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const { sidebarIcons } = useSettings()
+  const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
@@ -149,7 +152,7 @@ const MainMenus: FC = () => {
   const pathMap = {
     assistants: '/',
     agents: '/agents',
-    paintings: '/paintings',
+    paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
@@ -308,7 +311,7 @@ const PinnedApps: FC = () => {
   )
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -316,9 +319,9 @@ const Container = styled.div`
   padding-bottom: 12px;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
+  height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
-  margin-top: ${isMac ? 'var(--navbar-height)' : 0};
+  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'var(--navbar-height)' : 0)};
 
   .sidebar-avatar {
     margin-bottom: ${isMac ? '12px' : '12px'};

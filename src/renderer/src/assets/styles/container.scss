@@ -6,3 +6,9 @@
   position: relative;
   z-index: 10;
 }
+
+.group-container {
+  .context-menu-container {
+    width: 100%;
+  }
+}

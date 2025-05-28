@@ -1,6 +1,15 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import {
+  CodeStyleVarious,
+  LanguageVarious,
+  MathEngine,
+  OpenAIServiceTier,
+  OpenAISummaryText,
+  PaintingProvider,
+  ThemeMode,
+  TranslateLanguageVarious
+} from '@renderer/types'
 
 import { WebDAVSyncState } from './backup'
 
@@ -55,6 +64,7 @@ export interface SettingsState {
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
@@ -88,6 +98,8 @@ export interface SettingsState {
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
+  // 数据目录设置
+  skipBackupFile: boolean
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -96,6 +108,7 @@ export interface SettingsState {
   webdavAutoSync: boolean
   webdavSyncInterval: number
   webdavMaxBackups: number
+  webdavSkipBackupFile: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -155,6 +168,18 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
   }
+  // OpenAI
+  openAI: {
+    summaryText: OpenAISummaryText
+    serviceTier: OpenAIServiceTier
+  }
+  // Notification
+  notification: {
+    assistant: boolean
+    backup: boolean
+    knowledgeEmbed: boolean
+  }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -189,6 +214,7 @@ export const initialState: SettingsState = {
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
@@ -221,6 +247,7 @@ export const initialState: SettingsState = {
   gridColumns: 2,
   gridPopoverTrigger: 'click',
   messageNavigation: 'none',
+  skipBackupFile: false,
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -228,6 +255,7 @@ export const initialState: SettingsState = {
   webdavAutoSync: false,
   webdavSyncInterval: 0,
   webdavMaxBackups: 0,
+  webdavSkipBackupFile: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -281,7 +309,18 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
-  }
+  },
+  // OpenAI
+  openAI: {
+    summaryText: 'off',
+    serviceTier: 'auto'
+  },
+  notification: {
+    assistant: false,
+    backup: false,
+    knowledgeEmbed: false
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -361,6 +400,9 @@ const settingsSlice = createSlice({
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
     },
+    setPinTopicsToTop: (state, action: PayloadAction<boolean>) => {
+      state.pinTopicsToTop = action.payload
+    },
     setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
       state.assistantIconType = action.payload
     },
@@ -375,6 +417,9 @@ const settingsSlice = createSlice({
     },
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
+    },
+    setSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.skipBackupFile = action.payload
     },
     setWebdavHost: (state, action: PayloadAction<string>) => {
       state.webdavHost = action.payload
@@ -396,6 +441,9 @@ const settingsSlice = createSlice({
     },
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
+    },
+    setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.webdavSkipBackupFile = action.payload
     },
     setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
       if (action.payload.enabled !== undefined) {
@@ -601,6 +649,18 @@ const settingsSlice = createSlice({
     },
     setUserTheme: (state, action: PayloadAction<UserTheme>) => {
       state.userTheme = action.payload
+    },
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+      state.openAI.summaryText = action.payload
+    },
+    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
+      state.openAI.serviceTier = action.payload
+    },
+    setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
+      state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
@@ -629,11 +689,13 @@ export const {
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setPinTopicsToTop,
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
+  setSkipBackupFile,
   setWebdavHost,
   setWebdavUser,
   setWebdavPass,
@@ -641,6 +703,7 @@ export const {
   setWebdavAutoSync,
   setWebdavSyncInterval,
   setWebdavMaxBackups,
+  setWebdavSkipBackupFile,
   setCodeExecution,
   setCodeEditor,
   setCodePreview,
@@ -694,7 +757,10 @@ export const {
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
   setEnableBackspaceDeleteModel,
-  setUserTheme
+  setOpenAISummaryText,
+  setOpenAIServiceTier,
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

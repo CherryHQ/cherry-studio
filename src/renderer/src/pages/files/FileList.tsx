@@ -8,7 +8,6 @@ import React, { memo } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
-import GeminiFiles from './GeminiFiles'
 
 interface FileItemProps {
   id: FileTypes | 'all' | string
@@ -56,10 +55,6 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
         </Image.PreviewGroup>
       </div>
     )
-  }
-
-  if (id.startsWith('gemini_')) {
-    return <GeminiFiles id={id.replace('gemini_', '') as string} />
   }
 
   return (

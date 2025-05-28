@@ -4,19 +4,23 @@ import { upgradeToV7 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setWebDAVSyncState } from '@renderer/store/backup'
+import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
-export async function backup() {
+import { NotificationService } from './NotificationService'
+
+export async function backup(skipBackupFile: boolean) {
   const filename = `cherry-studio.${dayjs().format('YYYYMMDDHHmm')}.zip`
   const fileContnet = await getBackupData()
   const selectFolder = await window.api.file.selectFolder()
   if (selectFolder) {
-    await window.api.backup.backup(filename, fileContnet, selectFolder)
+    await window.api.backup.backup(filename, fileContnet, selectFolder, skipBackupFile)
     window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
   }
 }
 
 export async function restore() {
+  const notificationService = NotificationService.getInstance()
   const file = await window.api.file.open({ filters: [{ name: '备份文件', extensions: ['bak', 'zip'] }] })
 
   if (file) {
@@ -32,6 +36,15 @@ export async function restore() {
       }
 
       await handleData(data)
+      notificationService.send({
+        id: uuid(),
+        type: 'success',
+        title: i18n.t('common.success'),
+        message: i18n.t('message.restore.success'),
+        silent: false,
+        timestamp: Date.now(),
+        source: 'backup'
+      })
     } catch (error) {
       Logger.error('[Backup] restore: Error restoring backup file:', error)
       window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
@@ -70,6 +83,7 @@ export async function backupToWebdav({
   customFileName = '',
   autoBackupProcess = false
 }: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+  const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     Logger.log('[Backup] Manual backup already in progress')
     return
@@ -83,7 +97,8 @@ export async function backupToWebdav({
 
   store.dispatch(setWebDAVSyncState({ syncing: true, lastSyncError: null }))
 
-  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups } = store.getState().settings
+  const { webdavHost, webdavUser, webdavPass, webdavPath, webdavMaxBackups, webdavSkipBackupFile } =
+    store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -104,7 +119,8 @@ export async function backupToWebdav({
       webdavUser,
       webdavPass,
       webdavPath,
-      fileName: finalFileName
+      fileName: finalFileName,
+      skipBackupFile: webdavSkipBackupFile
     })
     if (success) {
       store.dispatch(
@@ -112,9 +128,15 @@ export async function backupToWebdav({
           lastSyncError: null
         })
       )
-      if (showMessage && !autoBackupProcess) {
-        window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
-      }
+      notificationService.send({
+        id: uuid(),
+        type: 'success',
+        title: i18n.t('common.success'),
+        message: i18n.t('message.backup.success'),
+        silent: false,
+        timestamp: Date.now(),
+        source: 'backup'
+      })
 
       // 清理旧备份文件
       if (webdavMaxBackups > 0) {
@@ -170,14 +192,17 @@ export async function backupToWebdav({
     if (autoBackupProcess) {
       throw error
     }
-
+    notificationService.send({
+      id: uuid(),
+      type: 'error',
+      title: i18n.t('message.backup.failed'),
+      message: error.message,
+      silent: false,
+      timestamp: Date.now(),
+      source: 'backup'
+    })
     store.dispatch(setWebDAVSyncState({ lastSyncError: error.message }))
     console.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
-    showMessage &&
-      window.modal.error({
-        title: i18n.t('message.backup.failed'),
-        content: error.message
-      })
     throw error
   } finally {
     if (!autoBackupProcess) {

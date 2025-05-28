@@ -11,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -1351,6 +1352,11 @@ const migrateConfig = {
   },
   '102': (state: RootState) => {
     try {
+      state.settings.openAI = {
+        summaryText: 'off',
+        serviceTier: 'auto'
+      }
+
       state.settings.codeExecution = settingsInitialState.codeExecution
       state.settings.codeEditor = settingsInitialState.codeEditor
       state.settings.codePreview = settingsInitialState.codePreview
@@ -1379,6 +1385,88 @@ const migrateConfig = {
     }
   },
   '103': (state: RootState) => {
+    try {
+      if (state.shortcuts) {
+        if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
+          state.shortcuts.shortcuts.push({
+            key: 'search_message_in_chat',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+            editable: true,
+            enabled: true,
+            system: false
+          })
+        }
+        const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
+        const targetShortcut = [isMac ? 'Command' : 'Ctrl', 'F']
+        if (
+          searchMessageShortcut &&
+          Array.isArray(searchMessageShortcut.shortcut) &&
+          searchMessageShortcut.shortcut.length === targetShortcut.length &&
+          searchMessageShortcut.shortcut.every((v, i) => v === targetShortcut[i])
+        ) {
+          searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
+        }
+      }
+      // Quick assistant model
+      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '104': (state: RootState) => {
+    try {
+      addProvider(state, 'burncloud')
+      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '105': (state: RootState) => {
+    try {
+      state.settings.notification = settingsInitialState.notification
+      addMiniApp(state, 'google')
+      if (!state.settings.openAI) {
+        state.settings.openAI = {
+          summaryText: 'off',
+          serviceTier: 'auto'
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '106': (state: RootState) => {
+    try {
+      addProvider(state, 'tokenflux')
+      state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '109': (state: RootState) => {
     try {
       state.settings.userTheme = settingsInitialState.userTheme
       return state

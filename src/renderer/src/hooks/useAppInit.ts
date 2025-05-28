@@ -1,6 +1,7 @@
 import { isLocalAi } from '@renderer/config/env'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
@@ -19,6 +20,11 @@ export function useAppInit() {
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
 
+  useEffect(() => {
+    document.getElementById('spinner')?.remove()
+    console.timeEnd('init')
+  }, [])
+
   useUpdateHandler()
   useFullScreenNotice()
 
@@ -27,7 +33,6 @@ export function useAppInit() {
   }, [avatar, dispatch])
 
   useEffect(() => {
-    document.getElementById('spinner')?.remove()
     runAsyncFunction(async () => {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
@@ -75,7 +80,7 @@ export function useAppInit() {
   }, [dispatch])
 
   useEffect(() => {
-    import('@renderer/queue/KnowledgeQueue')
+    KnowledgeQueue.checkAllBases()
   }, [])
 
   useEffect(() => {

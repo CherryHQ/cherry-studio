@@ -2,10 +2,13 @@ import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
+import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
@@ -41,25 +44,41 @@ interface MessagesProps {
   assistant: Assistant
   topic: Topic
   setActiveTopic: (topic: Topic) => void
+  onComponentUpdate?(): void
+  onFirstUpdate?(): void
 }
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
+const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
+  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
+    `topic-${topic.id}`
+  )
   const { t } = useTranslation()
-  const { showPrompt, topicPosition, messageNavigation } = useSettings()
+  const { showPrompt, showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
-  const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
+
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
 
+  const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
+
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
+    if (element) {
+      messageElements.current.set(id, element)
+    } else {
+      messageElements.current.delete(id)
+    }
+  }, [])
 
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
@@ -67,17 +86,24 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
+  const maxWidth = useMemo(() => {
+    const showRightTopics = showTopics && topicPosition === 'right'
+    const minusAssistantsWidth = showAssistants ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
+    const minusRightTopicsWidth = showRightTopics ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
+    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
+  }, [showAssistants, showTopics, topicPosition])
+
   const scrollToBottom = useCallback(() => {
-    if (containerRef.current) {
+    if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTo({
-            top: containerRef.current.scrollHeight
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight
           })
         }
       })
     }
-  }, [])
+  }, [scrollContainerRef])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -111,14 +137,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         })
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
-        await captureScrollableDivAsBlob(containerRef, async (blob) => {
+        await captureScrollableDivAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           }
         })
       }),
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
-        const imageData = await captureScrollableDivAsDataURL(containerRef)
+        const imageData = await captureScrollableDivAsDataURL(scrollContainerRef)
         if (imageData) {
           window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
@@ -217,8 +243,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })
-    })
-  }, [assistant, messages])
+    }).then(() => onFirstUpdate?.())
+  }, [assistant, messages, onFirstUpdate])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return
@@ -242,13 +268,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     }
   })
 
+  useEffect(() => {
+    requestAnimationFrame(() => onComponentUpdate?.())
+  }, [onComponentUpdate])
+
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
     <Container
       id="messages"
-      style={{ paddingTop: showPrompt ? 10 : 0 }}
+      ref={scrollContainerRef}
+      style={{
+        position: 'relative',
+        maxWidth,
+        paddingTop: showPrompt ? 10 : 0
+      }}
       key={assistant.id}
-      ref={containerRef}
+      onScroll={handleScrollPosition}
       $right={topicPosition === 'left'}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
@@ -266,6 +301,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
                 messages={groupMessages}
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
+                registerMessageElement={registerMessageElement}
               />
             ))}
             {isLoadingMore && (
@@ -279,6 +315,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+
+      <SelectionBox
+        isMultiSelectMode={isMultiSelectMode}
+        scrollContainerRef={scrollContainerRef}
+        messageElements={messageElements.current}
+        handleSelectMessage={handleSelectMessage}
+      />
     </Container>
   )
 }
@@ -342,6 +385,7 @@ const Container = styled(Scrollbar)<ContainerProps>`
   flex-direction: column-reverse;
   padding: 10px 0 20px;
   overflow-x: hidden;
+  background-color: var(--color-background);
   z-index: 1;
 `
 

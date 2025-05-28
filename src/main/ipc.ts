@@ -8,6 +8,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
 import log from 'electron-log'
+import { Notification } from 'src/renderer/src/types/notification'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
@@ -17,16 +18,16 @@ import CopilotService from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
-import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { searchService } from './services/SearchService'
+import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import storeSyncService from './services/StoreSyncService'
-import { TrayService } from './services/TrayService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -41,6 +42,7 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
+  const notificationService = new NotificationService(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -110,10 +112,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setAutoUpdate(isActive)
   })
 
-  ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
-
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
-    configManager.set(key, value)
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
+    configManager.set(key, value, isNotify)
   })
 
   ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
@@ -197,7 +197,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    await appUpdater.checkForUpdates()
+    return await appUpdater.checkForUpdates()
+  })
+
+  // notification
+  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
+    await notificationService.sendNotification(notification)
+  })
+  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
+    mainWindow.webContents.send('notification-click', notification)
   })
 
   /**
@@ -211,6 +219,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
+
+  // system
+  ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
+  ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
+  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    win && win.webContents.toggleDevTools()
+  })
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup)
@@ -238,6 +254,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image)
   ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
@@ -286,13 +303,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  // gemini
-  ipcMain.handle(IpcChannel.Gemini_UploadFile, GeminiService.uploadFile)
-  ipcMain.handle(IpcChannel.Gemini_Base64File, GeminiService.base64File)
-  ipcMain.handle(IpcChannel.Gemini_RetrieveFile, GeminiService.retrieveFile)
-  ipcMain.handle(IpcChannel.Gemini_ListFiles, GeminiService.listFiles)
-  ipcMain.handle(IpcChannel.Gemini_DeleteFile, GeminiService.deleteFile)
-
   // mini window
   ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Hide, () => windowService.hideMiniWindow())
@@ -319,6 +329,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
   ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
+  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
@@ -367,4 +378,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // store sync
   storeSyncService.registerIpcHandler()
+
+  // selection assistant
+  SelectionService.registerIpcHandler()
 }

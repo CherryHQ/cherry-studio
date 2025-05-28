@@ -38,13 +38,14 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
   // Use the passed citationBlockId directly in the selector
   const { renderInputMessageAsMarkdown } = useSettings()
 
-  const formattedCitations = useSelector((state: RootState) => {
-    const citations = selectFormattedCitationsByBlockId(state, citationBlockId)
-    return citations.map((citation) => ({
+  const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
+
+  const formattedCitations = useMemo(() => {
+    return rawCitations.map((citation) => ({
       ...citation,
       content: citation.content ? cleanMarkdownContent(citation.content) : citation.content
     }))
-  })
+  }, [rawCitations])
 
   const processedContent = useMemo(() => {
     let content = block.content
@@ -162,7 +163,9 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
         </Flex>
       )}
       {role === 'user' && !renderInputMessageAsMarkdown ? (
-        <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{block.content}</p>
+        <p className="markdown" style={{ marginBottom: 5, whiteSpace: 'pre-line' }}>
+          {block.content}
+        </p>
       ) : (
         <Markdown block={{ ...block, content: ignoreToolUse }} />
       )}

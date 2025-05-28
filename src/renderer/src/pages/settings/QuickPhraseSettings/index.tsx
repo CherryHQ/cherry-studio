@@ -15,12 +15,12 @@ const { TextArea } = Input
 
 const QuickPhraseSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const [phrasesList, setPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingPhrase, setEditingPhrase] = useState<QuickPhrase | null>(null)
   const [formData, setFormData] = useState({ title: '', content: '' })
   const [dragging, setDragging] = useState(false)
+  const { theme } = useTheme()
 
   const loadPhrases = async () => {
     const data = await QuickPhraseService.getAll()
@@ -71,7 +71,7 @@ const QuickPhraseSettings: FC = () => {
 
   return (
     <SettingContainer theme={theme}>
-      <SettingGroup style={{ marginBottom: 0 }}>
+      <SettingGroup style={{ marginBottom: 0 }} theme={theme}>
         <SettingTitle>
           {t('settings.quickPhrase.title')}
           <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />

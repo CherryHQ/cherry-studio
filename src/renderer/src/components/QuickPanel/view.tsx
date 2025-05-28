@@ -86,7 +86,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         return true
       }
 
-      const pattern = lowerSearchText.split('').join('.*')
+      const pattern = lowerSearchText
+        .split('')
+        .map((char) => {
+          return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        })
+        .join('.*')
       if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
         try {
           const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
@@ -429,7 +434,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $pageSize={ctx.pageSize}
       $selectedColor={selectedColor}
       $selectedColorHover={selectedColorHover}
-      className={ctx.isVisible ? 'visible' : ''}>
+      className={ctx.isVisible ? 'visible' : ''}
+      data-testid="quick-panel">
       <QuickPanelBody
         ref={bodyRef}
         onMouseMove={() =>
@@ -654,7 +660,6 @@ const QuickPanelItem = styled.div`
   border-radius: 6px;
   cursor: pointer;
   transition: background-color 0.1s ease;
-  font-family: Ubuntu;
   &.selected {
     background-color: var(--selected-color);
     &.focused {
