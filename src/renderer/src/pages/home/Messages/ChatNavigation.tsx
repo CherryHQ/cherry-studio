@@ -266,7 +266,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       }
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
-      const topPosition = window.innerHeight * 0.3 // 30% from top
+      const topPosition = window.innerHeight * 0.5 // 50% from top
       const height = window.innerHeight * 0.3 // 30% of window height
 
       const isInTriggerArea =
@@ -394,7 +394,7 @@ interface NavigationContainerProps {
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
   right: 16px;
-  top: 50%;
+  top: 65%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;
   opacity: ${(props) => (props.$isVisible ? 1 : 0)};
