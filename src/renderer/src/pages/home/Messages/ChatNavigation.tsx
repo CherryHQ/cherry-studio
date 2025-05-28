@@ -323,7 +323,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.close')} placement="left">
+          <Tooltip title={t('chat.navigation.close')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
@@ -332,7 +332,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.top')} placement="left">
+          <Tooltip title={t('chat.navigation.top')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
@@ -341,7 +341,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.prev')} placement="left">
+          <Tooltip title={t('chat.navigation.prev')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<ArrowUpOutlined />}
@@ -350,7 +350,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left">
+          <Tooltip title={t('chat.navigation.next')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<ArrowDownOutlined />}
@@ -359,7 +359,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.bottom')} placement="left">
+          <Tooltip title={t('chat.navigation.bottom')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
@@ -368,7 +368,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left">
+          <Tooltip title={t('chat.navigation.history')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}
