@@ -1543,6 +1543,7 @@
       "models.check.start": "Start",
       "models.check.title": "Model health check",
       "models.check.use_all_keys": "Key(s)",
+      "models.check.disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
       "models.default_assistant_model": "Default Assistant Model",
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",

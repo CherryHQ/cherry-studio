@@ -1543,6 +1543,7 @@
       "models.check.start": "开始",
       "models.check.title": "模型健康检测",
       "models.check.use_all_keys": "使用密钥",
+      "models.check.disclaimer": "健康检查需要发送请求，请谨慎使用。按次收费的模型可能产生更多费用，请自行承担。",
       "models.default_assistant_model": "默认助手模型",
       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "models.empty": "没有模型",

@@ -1539,6 +1539,7 @@
       "models.check.start": "開始",
       "models.check.title": "モデル健康チェック",
       "models.check.use_all_keys": "キー",
+      "models.check.disclaimer": "健康チェックはリクエストを送信するため、費用が発生する可能性があります。慎重に使用してください。",
       "models.default_assistant_model": "デフォルトアシスタントモデル",
       "models.default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "models.empty": "モデルが見つかりません",
