@@ -204,6 +204,7 @@
       "topics.clear.title": "Καθαρισμός μηνυμάτων",
       "topics.copy.image": "Αντιγραφή ως εικόνα",
       "topics.copy.md": "Αντιγραφή ως Markdown",
+      "topics.copy.plain_text": "Αντιγραφή ως απλό κείμενο (αφαίρεση Markdown)",
       "topics.copy.title": "Αντιγραφή",
       "topics.delete.shortcut": "Πατήστε {{key}} για να διαγράψετε αμέσως",
       "topics.edit.placeholder": "Εισαγάγετε το νέο όνομα",
