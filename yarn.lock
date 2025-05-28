@@ -2599,7 +2599,7 @@ __metadata:
 
 "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch":
   version: 0.3.44
-  resolution: "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch::version=0.3.44&hash=c14420"
+  resolution: "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch::version=0.3.44&hash=41dd7b"
   dependencies:
     "@cfworker/json-schema": "npm:^4.0.2"
     ansi-styles: "npm:^5.0.0"
@@ -2613,7 +2613,7 @@ __metadata:
     uuid: "npm:^10.0.0"
     zod: "npm:^3.22.4"
     zod-to-json-schema: "npm:^3.22.3"
-  checksum: 10c0/184fa7720f49fe4619661bcc5f12ed2a778520dd9f0da3c2d97f1b404f0a8697fa4b3f5cf96652234ae96c29b07fb4f9ec48260c3d1233e92286c87bca56f5fd
+  checksum: 10c0/7002581999230bc6fbdb6c2fad0eda2c1ca93a7629e28eadf1501dd0a7f785010d6b3e7841148ced186fc0fb4a84ec5f3b75850985579610e222943cc57e1649
   languageName: node
   linkType: hard
 
