@@ -107,10 +107,7 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ⚠️ 注意：升级前请备份数据，否则将无法降级
-    文生图新增服务商 DMXAPI（限时免费）
-    输入框按钮支持拖拽排序
-    修复知识库搜索结果 100% 问题
-    修复拖拽多选消息相关问题
-    修复翻译回复内容导致内存异常问题
-    常规错误修复和优化
+    新增划词助手
+    助手支持分组
+    绘图模块增加更多绘图模型
+    常规错误修复和包体积优化

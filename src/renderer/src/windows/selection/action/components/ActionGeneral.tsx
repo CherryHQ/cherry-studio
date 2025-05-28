@@ -197,6 +197,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
       setError(err instanceof Error ? err.message : 'An error occurred')
       console.error('Error fetching result:', err)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
