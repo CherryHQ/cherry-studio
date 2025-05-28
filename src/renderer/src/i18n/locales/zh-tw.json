@@ -624,7 +624,6 @@
       "delete.confirm.content": "確認刪除選中的 {{count}} 條訊息嗎？",
       "delete.failed": "刪除失敗",
       "delete.success": "刪除成功",
-      "copy.success": "複製成功",
       "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
