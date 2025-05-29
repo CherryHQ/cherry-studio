@@ -1851,9 +1851,10 @@
           "original_show": "Show Original",
           "original_hide": "Hide Original",
           "original_copy": "Copy Original",
-          "esc_close": "Esc to Close",
-          "esc_stop": "Esc to Stop",
-          "c_copy": "C to Copy"
+          "esc_close": "Esc: Close",
+          "esc_stop": "Esc: Stop",
+          "c_copy": "C: Copy",
+          "r_regenerate": "R: Regenerate"
         }
       },
       "settings": {

@@ -1854,7 +1854,8 @@
           "original_copy": "Копировать оригинал",
           "esc_close": "Esc - закрыть",
           "esc_stop": "Esc - остановить",
-          "c_copy": "C - копировать"
+          "c_copy": "C - копировать",
+          "r_regenerate": "R - перегенерировать"
         }
       },
       "settings": {

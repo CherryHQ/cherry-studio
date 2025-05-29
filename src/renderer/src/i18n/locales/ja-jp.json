@@ -1853,7 +1853,8 @@
           "original_copy": "原文をコピー",
           "esc_close": "Escで閉じる",
           "esc_stop": "Escで停止",
-          "c_copy": "Cでコピー"
+          "c_copy": "Cでコピー",
+          "r_regenerate": "Rで再生成"
         }
       },
       "settings": {

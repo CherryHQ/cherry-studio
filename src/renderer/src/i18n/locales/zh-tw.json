@@ -1853,7 +1853,8 @@
           "original_copy": "複製原文",
           "esc_close": "Esc 關閉",
           "esc_stop": "Esc 停止",
-          "c_copy": "C 複製"
+          "c_copy": "C 複製",
+          "r_regenerate": "R 重新生成"
         }
       },
       "settings": {

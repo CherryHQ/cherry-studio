@@ -220,6 +220,12 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
   }
 
+  const handleRegenerate = () => {
+    setContentToCopy('')
+    setIsLoading(true)
+    fetchResult()
+  }
+
   return (
     <>
       <Container>
@@ -250,7 +256,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         {error && <ErrorMsg>{error}</ErrorMsg>}
       </Container>
       <FooterPadding />
-      <WindowFooter loading={isLoading} onPause={handlePause} content={contentToCopy} />
+      <WindowFooter loading={isLoading} onPause={handlePause} onRegenerate={handleRegenerate} content={contentToCopy} />
     </>
   )
 })
@@ -318,7 +324,7 @@ const OriginalContentCopyWrapper = styled.div`
 `
 
 const FooterPadding = styled.div`
-  min-height: 32px;
+  min-height: 12px;
 `
 
 const ErrorMsg = styled.div`

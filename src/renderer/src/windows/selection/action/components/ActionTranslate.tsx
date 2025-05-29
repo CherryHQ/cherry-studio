@@ -207,7 +207,7 @@ const OriginalContentCopyWrapper = styled.div`
 `
 
 const FooterPadding = styled.div`
-  min-height: 32px;
+  min-height: 12px;
 `
 
 const ErrorMsg = styled.div`
