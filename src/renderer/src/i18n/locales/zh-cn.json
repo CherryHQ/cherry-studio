@@ -1798,7 +1798,8 @@
         "scroll_sync": "滚动同步设置"
       },
       "title": "翻译",
-      "tooltip.newline": "换行"
+      "tooltip.newline": "换行",
+      "detected.language": "检测到的语言"
     },
     "tray": {
       "quit": "退出",

@@ -1766,6 +1766,7 @@
       "close": "Close",
       "closed": "Translation closed",
       "copied": "Translation content copied",
+      "detected.language": "Detected Language",
       "empty": "Translation content is empty",
       "not.found": "Translation content not found",
       "confirm": {

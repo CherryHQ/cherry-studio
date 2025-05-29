@@ -1798,7 +1798,8 @@
       "tooltip.newline": "換行",
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
-      }
+      },
+      "detected.language": "檢測到的語言"
     },
     "tray": {
       "quit": "結束",

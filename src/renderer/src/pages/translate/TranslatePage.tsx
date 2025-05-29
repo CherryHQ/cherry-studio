@@ -18,7 +18,7 @@ import {
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
-import { Button, Empty, Flex, Modal, Popconfirm, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Dropdown, Empty, Flex, Modal, Popconfirm, Select, Space, Switch, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -214,7 +214,7 @@ const TranslatePage: FC = () => {
   const [isBidirectional, setIsBidirectional] = useState(false)
   const [bidirectionalPair, setBidirectionalPair] = useState<[string, string]>(['english', 'chinese'])
   const [settingsVisible, setSettingsVisible] = useState(false)
-  const [originalTargetLanguage, setOriginalTargetLanguage] = useState<string | null>(null)
+  const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -289,6 +289,8 @@ const TranslatePage: FC = () => {
     setLoading(true)
     try {
       const sourceLanguage = await detectLanguage(text)
+      console.log('检测到的语言:', sourceLanguage)
+      setDetectedLanguage(sourceLanguage)
       const result = determineTargetLanguage(sourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
       if (!result.success) {
         let errorMessage = ''
@@ -337,11 +339,6 @@ const TranslatePage: FC = () => {
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
     db.settings.put({ id: 'translate:bidirectional:enabled', value })
-
-    if (!value && originalTargetLanguage) {
-      setTargetLanguage(originalTargetLanguage)
-      setOriginalTargetLanguage(null)
-    }
   }
 
   const onCopy = () => {
@@ -450,70 +447,96 @@ const TranslatePage: FC = () => {
         <HistoryContainner $historyDrawerVisible={historyDrawerVisible}>
           <OperationBar>
             <span style={{ fontSize: 16 }}>{t('translate.history.title')}</span>
-            <Popconfirm
-              title={t('translate.history.clear')}
-              description={t('translate.history.clear_description')}
-              onConfirm={clearHistory}
-              okText={t('settings.data.nutstore.new_folder.button.confirm')}
-              cancelText={t('settings.data.nutstore.new_folder.button.cancel')}>
-              <Button type="text" size="small" danger icon={<DeleteOutlined />}>
-                {t('translate.history.clear')}
-              </Button>
-            </Popconfirm>
+            {!isEmpty(translateHistory) && (
+              <Popconfirm
+                title={t('translate.history.clear')}
+                description={t('translate.history.clear_description')}
+                onConfirm={clearHistory}>
+                <Button type="text" size="small" danger icon={<DeleteOutlined />}>
+                  {t('translate.history.clear')}
+                </Button>
+              </Popconfirm>
+            )}
           </OperationBar>
-          {translateHistory && translateHistory.length > 0 ? (
+          {translateHistory && translateHistory.length ? (
             <HistoryList>
-              {translateHistory.map((history) => (
-                <HistoryListItem key={history.id} onClick={() => onHistoryItemClick(history)}>
-                  <HistoryListItemTitle>{history.sourceText}</HistoryListItemTitle>
-                  <Flex justify="space-between" style={{ marginTop: 5 }}>
-                    <HistoryListItemDate>{dayjs(history.createdAt).format('MM-DD HH:mm')}</HistoryListItemDate>
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        deleteHistory(history.id)
-                      }}
-                    />
-                  </Flex>
-                </HistoryListItem>
+              {translateHistory.map((item) => (
+                <Dropdown
+                  key={item.id}
+                  trigger={['contextMenu']}
+                  menu={{
+                    items: [
+                      {
+                        key: 'delete',
+                        label: t('translate.history.delete'),
+                        icon: <DeleteOutlined />,
+                        danger: true,
+                        onClick: () => deleteHistory(item.id)
+                      }
+                    ]
+                  }}>
+                  <HistoryListItem onClick={() => onHistoryItemClick(item)}>
+                    <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
+                      <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
+                      <HistoryListItemTitle>{item.targetText}</HistoryListItemTitle>
+                      <HistoryListItemDate>{dayjs(item.createdAt).format('MM/DD HH:mm')}</HistoryListItemDate>
+                    </Flex>
+                  </HistoryListItem>
+                </Dropdown>
               ))}
             </HistoryList>
           ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('translate.history.empty')} />
+            <Flex justify="center" align="center" style={{ flex: 1 }}>
+              <Empty description={t('translate.history.empty')} />
+            </Flex>
           )}
         </HistoryContainner>
 
         <InputContainer>
           <OperationBar>
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <Flex align="center" gap={20}>
+              <Select
+                showSearch
+                value="auto"
+                style={{ width: 180 }}
+                optionFilterProp="label"
+                disabled
+                options={[
+                  {
+                    label: detectedLanguage
+                      ? t(`languages.${detectedLanguage}`)
+                      : t('translate.detected.language'),
+                    value: 'auto'
+                  }
+                ]}
+              />
               <Button
                 type="text"
-                icon={<Settings2 size={18} color="var(--color-icon)" />}
+                icon={<Settings2 size={18} />}
                 onClick={() => setSettingsVisible(true)}
+                style={{ color: 'var(--color-text-2)', display: 'flex' }}
               />
-              <Tooltip
-                mouseEnterDelay={0.5}
-                styles={{ body: { fontSize: '12px' } }}
-                title={
-                  <div style={{ textAlign: 'center' }}>
-                    Enter: {t('translate.button.translate')}
-                    <br />
-                    Shift + Enter: {t('translate.tooltip.newline')}
-                  </div>
-                }>
-                <TranslateButton
-                  type="primary"
-                  loading={loading}
-                  onClick={onTranslate}
-                  disabled={!text.trim()}
-                  icon={<SendOutlined />}>
-                  {t('translate.button.translate')}
-                </TranslateButton>
-              </Tooltip>
-            </div>
+            </Flex>
+
+            <Tooltip
+              mouseEnterDelay={0.5}
+              styles={{ body: { fontSize: '12px' } }}
+              title={
+                <div style={{ textAlign: 'center' }}>
+                  Enter: {t('translate.button.translate')}
+                  <br />
+                  Shift + Enter: {t('translate.tooltip.newline')}
+                </div>
+              }>
+              <TranslateButton
+                type="primary"
+                loading={loading}
+                onClick={onTranslate}
+                disabled={!text.trim()}
+                icon={<SendOutlined />}>
+                {t('translate.button.translate')}
+              </TranslateButton>
+            </Tooltip>
           </OperationBar>
 
           <Textarea
