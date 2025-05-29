@@ -18,11 +18,13 @@ body[theme-mode='light'] {
   height: 6px;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
+  cursor: pointer;
   border-radius: 10px;
   background: var(--color-scrollbar-thumb);
   &:hover {
@@ -30,7 +32,8 @@ body[theme-mode='light'] {
   }
 }
 
-pre::-webkit-scrollbar-thumb {
+pre:not(.shiki)::-webkit-scrollbar-thumb {
+  cursor: pointer;
   border-radius: 0;
   background: rgba(0, 0, 0, 0.08);
   &:hover {

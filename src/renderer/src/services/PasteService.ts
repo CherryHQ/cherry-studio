@@ -157,8 +157,10 @@ export const init = () => {
 export const registerHandler = (component: ComponentType, handler: PasteHandler) => {
   if (!component) return
 
-  handlers[component] = handler
-  Logger.info(`[PasteService] Handler registered for ${component}`)
+  // Only log and update if the handler actually changes
+  if (!handlers[component] || handlers[component] !== handler) {
+    handlers[component] = handler
+  }
 }
 
 /**
@@ -168,7 +170,6 @@ export const unregisterHandler = (component: ComponentType) => {
   if (!component || !handlers[component]) return
 
   delete handlers[component]
-  Logger.info(`[PasteService] Handler unregistered for ${component}`)
 }
 
 /**

@@ -1,5 +1,6 @@
 import { isMac } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
@@ -23,6 +24,7 @@ interface ThemeProviderProps extends PropsWithChildren {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme }) => {
   const { theme, setTheme } = useSettings()
   const [effectiveTheme, setEffectiveTheme] = useState(theme)
+  const { initUserTheme } = useUserTheme()
 
   const toggleTheme = () => {
     // 主题顺序是light, dark, auto, 所以需要先判断当前主题，然后取下一个主题
@@ -59,6 +61,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultT
       themeChangeListenerRemover()
     }
   })
+
+  useEffect(() => {
+    initUserTheme()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return <ThemeContext value={{ theme: effectiveTheme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
 }

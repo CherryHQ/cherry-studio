@@ -6,6 +6,7 @@ import {
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
+  PaintingProvider,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
@@ -30,6 +31,10 @@ export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
+export type UserTheme = {
+  colorPrimary: string
+}
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
@@ -48,10 +53,12 @@ export interface SettingsState {
   trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
+  userTheme: UserTheme
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
@@ -160,6 +167,13 @@ export interface SettingsState {
     summaryText: OpenAISummaryText
     serviceTier: OpenAIServiceTier
   }
+  // Notification
+  notification: {
+    assistant: boolean
+    backup: boolean
+    knowledgeEmbed: boolean
+  }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -182,10 +196,14 @@ export const initialState: SettingsState = {
   trayOnClose: true,
   tray: true,
   theme: ThemeMode.auto,
+  userTheme: {
+    colorPrimary: '#00b96b'
+  },
   windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
@@ -285,7 +303,13 @@ export const initialState: SettingsState = {
   openAI: {
     summaryText: 'off',
     serviceTier: 'auto'
-  }
+  },
+  notification: {
+    assistant: false,
+    backup: false,
+    knowledgeEmbed: false
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -352,6 +376,9 @@ const settingsSlice = createSlice({
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
     },
+    setUserTheme: (state, action: PayloadAction<UserTheme>) => {
+      state.userTheme = action.payload
+    },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
     },
@@ -363,6 +390,9 @@ const settingsSlice = createSlice({
     },
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
+    },
+    setPinTopicsToTop: (state, action: PayloadAction<boolean>) => {
+      state.pinTopicsToTop = action.payload
     },
     setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
       state.assistantIconType = action.payload
@@ -613,6 +643,12 @@ const settingsSlice = createSlice({
     },
     setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
       state.openAI.serviceTier = action.payload
+    },
+    setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
+      state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
@@ -637,10 +673,12 @@ export const {
   setTrayOnClose,
   setTray,
   setTheme,
+  setUserTheme,
   setFontSize,
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setPinTopicsToTop,
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
@@ -709,7 +747,9 @@ export const {
   setExportMenuOptions,
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
-  setOpenAIServiceTier
+  setOpenAIServiceTier,
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

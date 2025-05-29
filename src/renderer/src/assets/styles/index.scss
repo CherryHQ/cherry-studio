@@ -147,11 +147,16 @@ ul {
       background-color: var(--color-white-soft);
     }
   }
+  .group-grid-container.horizontal,
+  .group-grid-container.grid {
+    .message-content-container-assistant {
+      padding: 0;
+    }
+  }
   .group-message-wrapper {
     background-color: var(--color-background);
     .message-content-container {
       width: 100%;
-      border: 1px solid var(--color-background-mute);
     }
   }
   .group-menu-bar {
@@ -170,6 +175,7 @@ span.highlight {
   background-color: var(--color-background-highlight);
   color: var(--color-highlight);
 }
+
 span.highlight.selected {
   background-color: var(--color-background-highlight-accent);
 }

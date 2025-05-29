@@ -1,5 +1,6 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -13,16 +14,19 @@ import styled, { css } from 'styled-components'
 
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import SelectableMessage from './MessageSelect'
 
 interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
   hidePresetMessages?: boolean
+  registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
-const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
+const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const { isMultiSelectMode } = useChatContext(topic)
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
@@ -58,7 +62,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
     [editMessage, selectedMessageId]
   )
 
-  const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
+  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
@@ -148,6 +152,14 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
     }
   }, [messages, setSelectedMessage])
 
+  useEffect(() => {
+    messages.forEach((message) => {
+      const element = document.getElementById(`message-${message.id}`)
+      element && registerMessageElement?.(message.id, element)
+    })
+    return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
+  }, [messages, registerMessageElement])
+
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
@@ -162,7 +174,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
         }
       }
 
-      const messageWrapper = (
+      const messageContent = (
         <MessageWrapper
           id={`message-${message.id}`}
           $layout={multiModelMessageStyle}
@@ -192,24 +204,31 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
-            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
-            getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}>
-            {messageWrapper}
+            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}>
+            <div style={{ cursor: 'pointer' }}>{messageContent}</div>
           </Popover>
         )
       }
 
-      return messageWrapper
+      return (
+        <SelectableMessage
+          key={`selectable-${message.id}`}
+          messageId={message.id}
+          topic={topic}
+          isClearMessage={message.type === 'clear'}>
+          {messageContent}
+        </SelectableMessage>
+      )
     },
     [
       isGrid,
       isGrouped,
-      isHorizontal,
-      multiModelMessageStyle,
       topic,
       hidePresetMessages,
-      gridPopoverTrigger,
-      selectedMessageId
+      multiModelMessageStyle,
+      isHorizontal,
+      selectedMessageId,
+      gridPopoverTrigger
     ]
   )
 
@@ -307,6 +326,7 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
+
   &.horizontal {
     display: inline-block;
   }

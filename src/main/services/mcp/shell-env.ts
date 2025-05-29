@@ -85,7 +85,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         Logger.warn(`Shell process stderr output (even with exit code 0):\n${errorOutput.trim()}`)
       }
 
-      const env = {}
+      const env: Record<string, string> = {}
       const lines = output.split('\n')
 
       lines.forEach((line) => {
@@ -109,6 +109,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         )
         Logger.warn('Raw output from shell:\n', output)
       }
+
+      env.PATH = env.Path || env.PATH || ''
 
       resolve(env)
     })

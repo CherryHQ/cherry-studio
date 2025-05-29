@@ -848,7 +848,7 @@
       "doubao": "Huoshan Engine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modèles",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -880,7 +880,7 @@
       "zhinao": "360 ZhiNao",
       "zhipu": "ZhiPu IA",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Êtes-vous sûr de vouloir restaurer les données ?",
@@ -1140,6 +1140,7 @@
       "display.sidebar.translate.icon": "Afficher l'icône de traduction",
       "display.sidebar.visible": "Icônes affichées",
       "display.title": "Paramètres d'affichage",
+      "display.zoom.title": "Paramètres de zoom",
       "display.topic.title": "Paramètres de sujet",
       "font_size.title": "Taille de police des messages",
       "general": "Paramètres généraux",

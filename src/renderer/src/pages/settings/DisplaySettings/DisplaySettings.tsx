@@ -1,7 +1,9 @@
 import { SyncOutlined } from '@ant-design/icons'
-import { isMac } from '@renderer/config/constant'
+import { HStack } from '@renderer/components/Layout'
+import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
   AssistantIconType,
@@ -9,11 +11,12 @@ import {
   setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
+  setPinTopicsToTop,
   setShowTopicTime,
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, Input, Segmented, Switch } from 'antd'
+import { Button, ColorPicker, Input, Segmented, Switch } from 'antd'
 import { Minus, Plus, RotateCcw } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +24,33 @@ import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import SidebarIconsManager from './SidebarIconsManager'
+
+const ColorCircleWrapper = styled.div`
+  width: 24px;
+  height: 24px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+
+const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: ${(props) => props.color};
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  border: 2px solid ${(props) => (props.isActive ? 'var(--color-border)' : 'transparent')};
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`
 
 const DisplaySettings: FC = () => {
   const {
@@ -32,14 +62,17 @@ const DisplaySettings: FC = () => {
     setTopicPosition,
     clickAssistantToShowTopic,
     showTopicTime,
+    pinTopicsToTop,
     customCss,
     sidebarIcons,
-    assistantIconType
+    assistantIconType,
+    userTheme
   } = useSettings()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
+  const { setUserTheme } = useUserTheme()
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
@@ -49,6 +82,16 @@ const DisplaySettings: FC = () => {
       setWindowStyle(checked ? 'transparent' : 'opaque')
     },
     [setWindowStyle]
+  )
+
+  const handleColorPrimaryChange = useCallback(
+    (colorHex: string) => {
+      setUserTheme({
+        ...userTheme,
+        colorPrimary: colorHex
+      })
+    },
+    [setUserTheme, userTheme]
   )
 
   const handleReset = useCallback(() => {
@@ -135,6 +178,48 @@ const DisplaySettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
+          <HStack gap="12px" alignItems="center">
+            <HStack gap="12px">
+              {THEME_COLOR_PRESETS.map((color) => (
+                <ColorCircleWrapper key={color}>
+                  <ColorCircle
+                    color={color}
+                    isActive={userTheme.colorPrimary === color}
+                    onClick={() => handleColorPrimaryChange(color)}
+                  />
+                </ColorCircleWrapper>
+              ))}
+            </HStack>
+            <ColorPicker
+              className="color-picker"
+              value={userTheme.colorPrimary}
+              onChange={(color) => handleColorPrimaryChange(color.toHexString())}
+              showText
+              style={{ width: '110px' }}
+              presets={[
+                {
+                  label: 'Presets',
+                  colors: THEME_COLOR_PRESETS
+                }
+              ]}
+            />
+          </HStack>
+        </SettingRow>
+        {isMac && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
+              <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
+            </SettingRow>
+          </>
+        )}
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.zoom.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
             <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} />
@@ -147,15 +232,6 @@ const DisplaySettings: FC = () => {
             />
           </ZoomButtonGroup>
         </SettingRow>
-        {isMac && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
-            </SettingRow>
-          </>
-        )}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
@@ -188,6 +264,11 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
+          <Switch checked={pinTopicsToTop} onChange={(checked) => dispatch(setPinTopicsToTop(checked))} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

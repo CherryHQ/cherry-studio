@@ -409,16 +409,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'gitee-ai',
-    name: 'gitee ai',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://ai.gitee.com',
-    models: SYSTEM_MODELS['gitee-ai'],
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'perplexity',
     name: 'Perplexity',
     type: 'openai',
@@ -485,6 +475,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://api.voyageai.com',
     models: SYSTEM_MODELS.voyageai,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'tokenflux',
+    name: 'TokenFlux',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://tokenflux.ai',
+    models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
     enabled: false
   }
