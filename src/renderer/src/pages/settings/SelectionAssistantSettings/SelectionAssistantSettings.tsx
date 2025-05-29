@@ -22,7 +22,7 @@ import SelectionActionsList from './SelectionActionsList'
 import SelectionFilterListModal from './SelectionFilterListModal'
 
 const SelectionAssistantSettings: FC = () => {
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const { t } = useTranslation()
   const {
     selectionEnabled,

@@ -14,7 +14,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 

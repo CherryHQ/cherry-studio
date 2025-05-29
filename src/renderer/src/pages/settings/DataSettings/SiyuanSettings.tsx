@@ -15,7 +15,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 const SiyuanSettings: FC = () => {
   const { openMinapp } = useMinappPopup()
   const { t } = useTranslation()
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const dispatch = useAppDispatch()
 
   const siyuanApiUrl = useSelector((state: RootState) => state.settings.siyuanApiUrl)

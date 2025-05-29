@@ -92,7 +92,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
   const { paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<Painting>(paintings[0] || DEFAULT_PAINTING)
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)

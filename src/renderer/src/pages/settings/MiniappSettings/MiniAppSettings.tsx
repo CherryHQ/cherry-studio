@@ -22,7 +22,7 @@ const DEFAULT_MAX_KEEPALIVE = 3
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const dispatch = useAppDispatch()
   const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()

@@ -23,7 +23,7 @@ export function useAppInit() {
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()

@@ -1,8 +1,9 @@
-import { ThemeMode } from '@types'
-import { configManager } from './ConfigManager'
-import { nativeTheme, BrowserWindow } from 'electron'
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { IpcChannel } from '@shared/IpcChannel'
+import { ThemeMode } from '@types'
+import { BrowserWindow, nativeTheme } from 'electron'
+
+import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
+import { configManager } from './ConfigManager'
 
 class ThemeService {
   private mainWindow: BrowserWindow
@@ -28,9 +29,8 @@ class ThemeService {
     if (theme === this.theme) {
       return
     }
-
     this.theme = theme
-    nativeTheme.themeSource = theme === 'auto' ? 'system' : theme
+    nativeTheme.themeSource = theme
     configManager.setTheme(theme)
   }
 }

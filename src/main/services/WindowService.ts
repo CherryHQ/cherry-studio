@@ -46,10 +46,12 @@ export class WindowService {
     })
 
     const theme = configManager.getTheme()
-    if (theme === ThemeMode.auto) {
-      nativeTheme.themeSource = 'system'
-    } else {
+    // 如果主题是light或dark，则使用系统主题
+    // 兼容下之前auto的旧配置，后面可以删除掉
+    if (theme === ThemeMode.light || theme === ThemeMode.dark) {
       nativeTheme.themeSource = theme
+    } else {
+      nativeTheme.themeSource = 'system'
     }
 
     this.mainWindow = new BrowserWindow({

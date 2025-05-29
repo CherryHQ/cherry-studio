@@ -17,7 +17,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowT
 
 const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
 

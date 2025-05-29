@@ -190,7 +190,7 @@ export const initialState: SettingsState = {
   launchToTray: false,
   trayOnClose: true,
   tray: true,
-  theme: ThemeMode.auto,
+  theme: ThemeMode.system,
   windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',

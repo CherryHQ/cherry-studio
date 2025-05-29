@@ -20,7 +20,7 @@ const QuickPhraseSettings: FC = () => {
   const [editingPhrase, setEditingPhrase] = useState<QuickPhrase | null>(null)
   const [formData, setFormData] = useState({ title: '', content: '' })
   const [dragging, setDragging] = useState(false)
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
 
   const loadPhrases = async () => {
     const data = await QuickPhraseService.getAll()

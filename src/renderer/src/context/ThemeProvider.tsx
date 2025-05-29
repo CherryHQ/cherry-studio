@@ -4,16 +4,16 @@ import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
-const defaultShowTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
+const defaultTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
 interface ThemeContextType {
-  theme: ThemeMode.dark | ThemeMode.light
-  settingTheme: ThemeMode
+  theme: ThemeMode
+  actualTheme: ThemeMode
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: defaultShowTheme,
-  settingTheme: ThemeMode.auto,
+  theme: ThemeMode.system,
+  actualTheme: defaultTheme,
   toggleTheme: () => {}
 })
 
@@ -22,14 +22,14 @@ interface ThemeProviderProps extends PropsWithChildren {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const { settingTheme, setSettingTheme } = useSettings()
-  const [showTheme, setShowTheme] = useState(defaultShowTheme)
+  const { theme, setTheme } = useSettings()
+  const [actualTheme, setActualTheme] = useState(defaultTheme)
 
   const toggleTheme = () => {
     const nextTheme = {
       [ThemeMode.light]: ThemeMode.dark,
-      [ThemeMode.dark]: ThemeMode.auto,
-      [ThemeMode.auto]: ThemeMode.light
+      [ThemeMode.dark]: ThemeMode.system,
+      [ThemeMode.system]: ThemeMode.light
     }[theme]
     setTheme(nextTheme)
   }
@@ -42,15 +42,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
 
     // listen for theme updates from main process
-    const cleanup = window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, updatedTheme: ThemeMode) => {
-      document.body.setAttribute('theme-mode', updatedTheme)
-      setShowTheme(updatedTheme)
+    const cleanup = window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
+      document.body.setAttribute('theme-mode', actualTheme)
+      setActualTheme(actualTheme)
     })
 
     return cleanup
   }, [])
 
-  return <ThemeContext.Provider value={{ theme: showTheme, theme, toggleTheme }}>{children}</ThemeContext.Provider>
+  return <ThemeContext value={{ theme, actualTheme, toggleTheme }}>{children}</ThemeContext>
 }
 
 export const useTheme = () => use(ThemeContext)

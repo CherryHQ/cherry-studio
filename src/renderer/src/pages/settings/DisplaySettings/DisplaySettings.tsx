@@ -38,7 +38,7 @@ const DisplaySettings: FC = () => {
     sidebarIcons,
     assistantIconType
   } = useSettings()
-  const { theme: themeMode } = useTheme()
+  const { actualTheme: themeMode } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
@@ -80,7 +80,7 @@ const DisplaySettings: FC = () => {
         )
       },
       {
-        value: ThemeMode.auto,
+        value: ThemeMode.system,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <SyncOutlined />

@@ -89,7 +89,7 @@ const McpSettings: React.FC = () => {
 
   const [showAdvanced, setShowAdvanced] = useState(false)
 
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
 
   const navigate = useNavigate()
 

@@ -30,7 +30,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 
 const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
   const avatar = useAvatar()
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()

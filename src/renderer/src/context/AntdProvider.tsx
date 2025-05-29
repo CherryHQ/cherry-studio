@@ -16,7 +16,7 @@ import { useTheme } from './ThemeProvider'
 
 const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
   const { language } = useSettings()
-  const { theme: _theme } = useTheme()
+  const { actualTheme: _theme } = useTheme()
 
   return (
     <ConfigProvider

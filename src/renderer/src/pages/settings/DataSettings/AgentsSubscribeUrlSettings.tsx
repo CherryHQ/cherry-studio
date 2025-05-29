@@ -11,7 +11,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 
 const AgentsSubscribeUrlSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme: theme } = useTheme()
+  const { actualTheme: theme } = useTheme()
   const dispatch = useAppDispatch()
 
   const { agentssubscribeUrl } = useSettings()
