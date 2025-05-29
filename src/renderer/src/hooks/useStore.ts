@@ -31,11 +31,11 @@ export function useShowTopics() {
 }
 
 export function useAssistantsTabSortType() {
-  const AssistantsTabSortType = useAppSelector((state) => state.settings.assistantsTabSortType)
+  const assistantsTabSortType = useAppSelector((state) => state.settings.assistantsTabSortType)
   const dispatch = useAppDispatch()
 
   return {
-    AssistantsTabSortType,
+    assistantsTabSortType,
     setAssistantsTabSortType: (sortType: AssistantsSortType) => dispatch(setAssistantsTabSortType(sortType))
   }
 }

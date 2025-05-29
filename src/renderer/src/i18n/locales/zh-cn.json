@@ -114,13 +114,9 @@
         "untagged": "未分组",
         "modify": "修改标签",
         "delete": "删除标签",
+        "deleteConfirm": "确定要删除这个标签吗？",
         "settings": {
-          "title": "标签设置",
-          "current": "当前标签",
-          "searchTagsPlaceholder": "请输入标签名称以过滤标签",
-          "addTagsPlaceholder": "请输入标签名称以添加",
-          "tagsLsitTitle": "标签列表",
-          "tagsLsitTitleTips": "点击标签可切换"
+          "title": "标签设置"
         }
       }
     },
@@ -1501,7 +1497,7 @@
       "messages.input.send_shortcuts": "发送快捷键",
       "messages.input.show_estimated_tokens": "显示预估 Token 数",
       "messages.input.title": "输入设置",
-      "messages.input.enable_quick_triggers": "启用 '/' 和 '@' 触发快捷菜单",
+      "messages.input.enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
       "messages.input.enable_delete_model": "启用删除键删除输入的模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",

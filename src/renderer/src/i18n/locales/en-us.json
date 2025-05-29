@@ -114,13 +114,9 @@
         "modify": "Modify Tag",
         "add": "Add Tag",
         "delete": "Delete Tag",
+        "deleteConfirm": "Are you sure to delete this tag?",
         "settings": {
-          "title": "Tag Settings",
-          "current": "Current Tags",
-          "searchTagsPlaceholder": "Enter tag name to filter tags",
-          "addTagsPlaceholder": "Enter tag name to add",
-          "tagsLsitTitle": "Tag List",
-          "tagsLsitTitleTips": "Click tag to toggle"
+          "title": "Tag Settings"
         }
       }
     },

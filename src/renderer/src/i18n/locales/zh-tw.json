@@ -111,13 +111,9 @@
         "add": "添加標籤",
         "modify": "修改標籤",
         "delete": "刪除標籤",
+        "deleteConfirm": "確定要刪除這個標籤嗎？",
         "settings": {
-          "title": "標籤設定",
-          "current": "當前標籤",
-          "searchTagsPlaceholder": "請輸入標籤名稱以過濾標籤",
-          "addTagsPlaceholder": "請輸入標籤名稱以新增",
-          "tagsLsitTitle": "標籤列表",
-          "tagsLsitTitleTips": "點擊標籤可切換"
+          "title": "標籤設定"
         }
       },
       "settings.tool_use_mode": "工具調用方式",
@@ -1500,7 +1496,7 @@
       "messages.input.send_shortcuts": "傳送快捷鍵",
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
-      "messages.input.enable_quick_triggers": "啟用 '/' 和 '@' 觸發快捷選單",
+      "messages.input.enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
       "messages.input.enable_delete_model": "啟用刪除鍵刪除模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "messages.math_engine": "數學公式引擎",

@@ -114,14 +114,9 @@
         "add": "Добавить тег",
         "modify": "Изменить тег",
         "delete": "Удалить тег",
-
+        "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
         "settings": {
-          "title": "Настройки тегов",
-          "current": "Текущие теги",
-          "searchTagsPlaceholder": "Введите название тега для фильтрации",
-          "addTagsPlaceholder": "Введите название тега для добавления",
-          "tagsLsitTitle": "Список тегов",
-          "tagsLsitTitleTips": "Нажмите на тег для переключения"
+          "title": "Настройки тегов"
         }
       }
     },
@@ -1498,7 +1493,7 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
-      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
+      "messages.input.enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
