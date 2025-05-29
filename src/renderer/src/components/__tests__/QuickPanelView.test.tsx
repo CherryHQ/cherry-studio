@@ -3,6 +3,20 @@ import userEvent from '@testing-library/user-event'
 import { useEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+// Mock useUserTheme 钩子以避免 Redux Provider 依赖
+vi.mock('@renderer/hooks/useUserTheme', () => ({
+  default: () => ({
+    colorPrimary: {
+      alpha: (value: number) => ({
+        toString: () => `rgba(0, 100, 200, ${value})`
+      }),
+      toString: () => 'rgb(0, 100, 200)'
+    },
+    initUserTheme: vi.fn(),
+    setUserTheme: vi.fn()
+  })
+}))
+
 import { QuickPanelListItem, QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
 
 function createList(length: number, prefix = 'Item', extra: Partial<QuickPanelListItem> = {}) {
