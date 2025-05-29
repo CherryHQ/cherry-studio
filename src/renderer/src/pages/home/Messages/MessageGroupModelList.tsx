@@ -166,6 +166,11 @@ const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
       margin-left: -4px !important;
     }
   }
+
+  .ant-segmented {
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+  }
 `
 
 const AvatarWrapper = styled.div<{ $isSelected: boolean }>`
