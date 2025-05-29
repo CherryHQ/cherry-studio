@@ -2,7 +2,6 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ThemeMode } from '@types'
 import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -12,6 +11,7 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
+import { themeService } from './ThemeService'
 import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
@@ -45,14 +45,7 @@ export class WindowService {
       maximize: false
     })
 
-    const theme = configManager.getTheme()
-    // 如果主题是light或dark，则使用系统主题
-    // 兼容下之前auto的旧配置，后面可以删除掉
-    if (theme === ThemeMode.light || theme === ThemeMode.dark) {
-      nativeTheme.themeSource = theme
-    } else {
-      nativeTheme.themeSource = 'system'
-    }
+    themeService.initTheme()
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,

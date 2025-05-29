@@ -1461,13 +1461,7 @@ const migrateConfig = {
     try {
       state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
       state.inputTools.isCollapsed = false
-      return {
-        ...state,
-        settings: {
-          ...state.settings,
-          theme: (state.settings.theme as any) === 'auto' ? 'system' : state.settings.theme
-        }
-      }
+      return state
     } catch (error) {
       return state
     }

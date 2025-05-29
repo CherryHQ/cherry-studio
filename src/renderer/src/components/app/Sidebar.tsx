@@ -9,6 +9,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
@@ -44,7 +45,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, toggleTheme } = useTheme()
+  const { theme, actualTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -99,18 +100,21 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
-          <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
+          <Icon
+            theme={actualTheme}
+            onClick={onOpenDocs}
+            className={minappShow && currentMinappId === docsId ? 'active' : ''}>
             <CircleHelp size={20} className="icon" />
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${theme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${actualTheme}`)}
           mouseEnterDelay={0.8}
           placement="right">
-          <Icon theme={theme} onClick={() => toggleTheme()}>
-            {theme === 'dark' ? (
+          <Icon theme={actualTheme} onClick={() => toggleTheme()}>
+            {theme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
-            ) : theme === 'light' ? (
+            ) : theme === ThemeMode.light ? (
               <Sun size={20} className="icon" />
             ) : (
               <SunMoon size={20} className="icon" />
@@ -123,7 +127,7 @@ const Sidebar: FC = () => {
               hideMinappPopup()
               await to('/settings/provider')
             }}>
-            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
+            <Icon theme={actualTheme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>

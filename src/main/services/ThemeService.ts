@@ -6,23 +6,25 @@ import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 
 class ThemeService {
-  private mainWindow: BrowserWindow
   private theme: ThemeMode
 
-  constructor(mainWindow: BrowserWindow) {
+  constructor() {
     this.theme = configManager.getTheme()
-    this.mainWindow = mainWindow
+    nativeTheme.themeSource = this.theme
     nativeTheme.on('updated', this.themeUpdatadHandler.bind(this))
   }
 
   themeUpdatadHandler() {
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
-    }
-
-    BrowserWindow.getAllWindows().forEach((win) =>
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (win && !win.isDestroyed() && win.setTitleBarOverlay) {
+        try {
+          win.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
+        } catch (error) {
+          // don't throw error if setTitleBarOverlay failed
+        }
+      }
       win.webContents.send(IpcChannel.ThemeUpdated, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
-    )
+    })
   }
 
   setTheme(theme: ThemeMode) {
@@ -34,6 +36,23 @@ class ThemeService {
     nativeTheme.themeSource = theme
     configManager.setTheme(theme)
   }
+
+  initTheme() {
+    this.theme = configManager.getTheme()
+
+    if (this.theme === ThemeMode.dark || this.theme === ThemeMode.light) {
+      nativeTheme.themeSource = this.theme
+      return
+    }
+
+    // 兼容旧版本
+    configManager.setTheme(ThemeMode.system)
+    nativeTheme.themeSource = ThemeMode.system
+  }
+
+  getTheme() {
+    return this.theme
+  }
 }
 
-export default ThemeService
+export const themeService = new ThemeService()

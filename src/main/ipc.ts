@@ -27,13 +27,13 @@ import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import storeSyncService from './services/StoreSyncService'
+import { themeService } from './services/ThemeService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-import ThemeService from './services/ThemeService'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
@@ -42,7 +42,6 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
-  const themeService = new ThemeService(mainWindow)
   const notificationService = new NotificationService(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
@@ -124,6 +123,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
     themeService.setTheme(theme)
+  })
+
+  ipcMain.handle(IpcChannel.App_GetTheme, () => {
+    return themeService.getTheme()
   })
 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {

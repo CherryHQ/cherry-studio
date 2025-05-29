@@ -25,8 +25,6 @@ import SidebarIconsManager from './SidebarIconsManager'
 
 const DisplaySettings: FC = () => {
   const {
-    setTheme,
-    theme,
     windowStyle,
     setWindowStyle,
     topicPosition,
@@ -38,7 +36,7 @@ const DisplaySettings: FC = () => {
     sidebarIcons,
     assistantIconType
   } = useSettings()
-  const { actualTheme: themeMode } = useTheme()
+  const { theme, actualTheme, setTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
@@ -127,7 +125,7 @@ const DisplaySettings: FC = () => {
   )
 
   return (
-    <SettingContainer theme={themeMode}>
+    <SettingContainer theme={actualTheme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.title')}</SettingTitle>
         <SettingDivider />

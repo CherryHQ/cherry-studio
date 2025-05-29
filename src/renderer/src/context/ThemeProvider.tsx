@@ -1,20 +1,20 @@
 import { isMac } from '@renderer/config/constant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
-const defaultTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
 interface ThemeContextType {
   theme: ThemeMode
   actualTheme: ThemeMode
   toggleTheme: () => void
+  setTheme: (theme: ThemeMode) => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.system,
-  actualTheme: defaultTheme,
-  toggleTheme: () => {}
+  actualTheme: ThemeMode.dark,
+  toggleTheme: () => {},
+  setTheme: () => {}
 })
 
 interface ThemeProviderProps extends PropsWithChildren {
@@ -22,8 +22,8 @@ interface ThemeProviderProps extends PropsWithChildren {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const { theme, setTheme } = useSettings()
-  const [actualTheme, setActualTheme] = useState(defaultTheme)
+  const [theme, setTheme] = useState<ThemeMode>(ThemeMode.system)
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(ThemeMode.dark)
 
   const toggleTheme = () => {
     const nextTheme = {
@@ -31,8 +31,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[theme]
-    console.log('nextTheme', theme, nextTheme)
-    setTheme(nextTheme)
+    setTheme(nextTheme || ThemeMode.system)
   }
 
   useEffect(() => {
@@ -41,6 +40,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
+    window.api.getTheme().then((savedTheme) => setTheme(savedTheme))
 
     // listen for theme updates from main process
     const cleanup = window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
@@ -51,7 +51,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     return cleanup
   }, [])
 
-  return <ThemeContext value={{ theme, actualTheme, toggleTheme }}>{children}</ThemeContext>
+  return <ThemeContext value={{ theme, actualTheme, toggleTheme, setTheme }}>{children}</ThemeContext>
 }
 
 export const useTheme = () => use(ThemeContext)
