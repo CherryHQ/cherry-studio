@@ -31,6 +31,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[theme]
+    console.log('nextTheme', theme, nextTheme)
     setTheme(nextTheme)
   }
 

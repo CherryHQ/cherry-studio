@@ -29,6 +29,7 @@ class ThemeService {
     if (theme === this.theme) {
       return
     }
+
     this.theme = theme
     nativeTheme.themeSource = theme
     configManager.setTheme(theme)
