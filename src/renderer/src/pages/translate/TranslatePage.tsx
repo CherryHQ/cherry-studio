@@ -2,11 +2,14 @@ import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@a
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { isLocalAi } from '@renderer/config/env'
+import { isEmbeddingModel } from '@renderer/config/models'
 import { translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Assistant, TranslateHistory } from '@renderer/types'
 import { runAsyncFunction, uuid } from '@renderer/utils'
 import { Button, Dropdown, Empty, Flex, Popconfirm, Select, Space, Tooltip } from 'antd'
@@ -14,6 +17,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
+import { find, sortBy } from 'lodash'
 import { Mouse, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +33,7 @@ const TranslatePage: FC = () => {
   const [targetLanguage, setTargetLanguage] = useState(_targetLanguage)
   const [text, setText] = useState(_text)
   const [result, setResult] = useState(_result)
-  const { translateModel } = useDefaultModel()
+  const { translateModel, setTranslateModel } = useDefaultModel()
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
@@ -206,6 +210,22 @@ const TranslatePage: FC = () => {
     setIsScrollSyncEnabled(!isScrollSyncEnabled)
   }
 
+  const { providers } = useProviders()
+  const allModels = providers.map((p) => p.models).flat()
+
+  const selectOptions = providers
+    .filter((p) => p.models.length > 0)
+    .map((p) => ({
+      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+      title: p.name,
+      options: sortBy(p.models, 'name')
+        .filter((m) => !isEmbeddingModel(m))
+        .map((m) => ({
+          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
+          value: getModelUniqId(m)
+        }))
+    }))
+
   return (
     <Container id="translate-page">
       <Navbar>
@@ -275,11 +295,14 @@ const TranslatePage: FC = () => {
             <Flex align="center" gap={20}>
               <Select
                 showSearch
-                value="any"
-                style={{ width: 180 }}
-                optionFilterProp="label"
-                disabled
-                options={[{ label: t('translate.any.language'), value: 'any' }]}
+                value={translateModel ? getModelUniqId(translateModel) : undefined}
+                style={{ maxWidth: 280 }}
+                onChange={(value) => {
+                  const model = find(allModels, (m) => getModelUniqId(m) === value)
+                  if (model) setTranslateModel(model)
+                }}
+                options={selectOptions}
+                placeholder={t('settings.models.empty')}
               />
               <SettingButton />
               <Tooltip

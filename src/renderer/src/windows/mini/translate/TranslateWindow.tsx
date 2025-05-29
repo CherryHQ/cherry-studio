@@ -1,14 +1,18 @@
 import { SwapOutlined } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isEmbeddingModel } from '@renderer/config/models'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { Assistant } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { Select, Space } from 'antd'
 import { isEmpty } from 'lodash'
+import { find, sortBy } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -23,9 +27,24 @@ let _targetLanguage = 'chinese'
 const Translate: FC<Props> = ({ text }) => {
   const [result, setResult] = useState('')
   const [targetLanguage, setTargetLanguage] = useState(_targetLanguage)
-  const { translateModel } = useDefaultModel()
+  const { translateModel, setTranslateModel } = useDefaultModel()
   const { t } = useTranslation()
   const translatingRef = useRef(false)
+  const { providers } = useProviders()
+  const allModels = providers.map((p) => p.models).flat()
+
+  const selectOptions = providers
+    .filter((p) => p.models.length > 0)
+    .map((p) => ({
+      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+      title: p.name,
+      options: sortBy(p.models, 'name')
+        .filter((m) => !isEmbeddingModel(m))
+        .map((m) => ({
+          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
+          value: getModelUniqId(m)
+        }))
+    }))
 
   _targetLanguage = targetLanguage
 
@@ -82,11 +101,14 @@ const Translate: FC<Props> = ({ text }) => {
       <MenuContainer>
         <Select
           showSearch
-          value="any"
-          style={{ maxWidth: 200, minWidth: 100, flex: 1 }}
-          optionFilterProp="label"
-          disabled
-          options={[{ label: t('translate.any.language'), value: 'any' }]}
+          value={translateModel ? getModelUniqId(translateModel) : undefined}
+          style={{ maxWidth: 280 }}
+          onChange={(value) => {
+            const model = find(allModels, (m) => getModelUniqId(m) === value)
+            if (model) setTranslateModel(model)
+          }}
+          options={selectOptions}
+          placeholder={t('settings.models.empty')}
         />
         <SwapOutlined />
         <Select
