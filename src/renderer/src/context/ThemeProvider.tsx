@@ -1,4 +1,5 @@
 import { isMac } from '@renderer/config/constant'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
@@ -24,6 +25,7 @@ interface ThemeProviderProps extends PropsWithChildren {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [theme, setTheme] = useState<ThemeMode>(ThemeMode.system)
   const [actualTheme, setActualTheme] = useState<ThemeMode>(ThemeMode.dark)
+  const { initUserTheme } = useUserTheme()
 
   const toggleTheme = () => {
     const nextTheme = {
@@ -41,6 +43,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
     window.api.getTheme().then((savedTheme) => setTheme(savedTheme))
+    initUserTheme()
 
     // listen for theme updates from main process
     const cleanup = window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {

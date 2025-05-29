@@ -28,6 +28,8 @@ export type Assistant = {
   tags?: string[] // 助手标签
 }
 
+export type AssistantsSortType = 'tags' | 'list'
+
 export type AssistantMessage = {
   role: 'user' | 'assistant'
   content: string

@@ -114,13 +114,9 @@
         "modify": "Modify Tag",
         "add": "Add Tag",
         "delete": "Delete Tag",
+        "deleteConfirm": "Are you sure to delete this tag?",
         "settings": {
-          "title": "Tag Settings",
-          "current": "Current Tags",
-          "searchTagsPlaceholder": "Enter tag name to filter tags",
-          "addTagsPlaceholder": "Enter tag name to add",
-          "tagsLsitTitle": "Tag List",
-          "tagsLsitTitleTips": "Click tag to toggle"
+          "title": "Tag Settings"
         }
       }
     },
@@ -262,7 +258,7 @@
       "settings.show_line_numbers": "Show line numbers in code",
       "settings.temperature": "Temperature",
       "settings.temperature.tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise.",
-      "settings.thought_auto_collapse": "Automatically Collapse Thought Content",
+      "settings.thought_auto_collapse": "Collapse Thought Content",
       "settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
@@ -657,7 +653,7 @@
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-      "message.multi_model_style": "Multi-model response style",
+      "message.multi_model_style": "Group style",
       "message.multi_model_style.fold": "Fold view",
       "message.multi_model_style.fold.compress": "Switch to compact layout",
       "message.multi_model_style.fold.expand": "Switch to expanded layout",
@@ -998,7 +994,7 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu",
+      "qiniu": "Qiniu AI",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1265,6 +1261,7 @@
       "display.sidebar.translate.icon": "Show Translate icon",
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
+      "display.zoom.title": "Zoom Settings",
       "display.topic.title": "Topic Settings",
       "miniapps": {
         "title": "Mini Apps Settings",
@@ -1500,14 +1497,14 @@
       "messages.input.send_shortcuts": "Send shortcuts",
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
-      "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
+      "messages.input.enable_quick_triggers": "Enable / and @ triggers",
       "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.math_engine.none": "None",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
-      "messages.navigation": "Message Navigation",
+      "messages.navigation": "Navigation bar",
       "messages.navigation.anchor": "Message Anchor",
       "messages.navigation.buttons": "Navigation Buttons",
       "messages.navigation.none": "None",
@@ -1695,6 +1692,7 @@
       "theme.dark": "Dark",
       "theme.light": "Light",
       "theme.title": "Theme",
+      "theme.color_primary": "Primary Color",
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
@@ -1851,9 +1849,10 @@
           "original_show": "Show Original",
           "original_hide": "Hide Original",
           "original_copy": "Copy Original",
-          "esc_close": "Esc to Close",
-          "esc_stop": "Esc to Stop",
-          "c_copy": "C to Copy"
+          "esc_close": "Esc: Close",
+          "esc_stop": "Esc: Stop",
+          "c_copy": "C: Copy",
+          "r_regenerate": "R: Regenerate"
         }
       },
       "settings": {
@@ -1881,6 +1880,10 @@
           "follow_toolbar": {
             "title": "Follow Toolbar",
             "description": "Window position will follow the toolbar. When disabled, it will always be centered."
+          },
+          "remember_size": {
+            "title": "Remember Size",
+            "description": "Window will display at the last adjusted size during the application running"
           },
           "auto_close": {
             "title": "Auto Close",

@@ -114,14 +114,9 @@
         "add": "Добавить тег",
         "modify": "Изменить тег",
         "delete": "Удалить тег",
-
+        "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
         "settings": {
-          "title": "Настройки тегов",
-          "current": "Текущие теги",
-          "searchTagsPlaceholder": "Введите название тега для фильтрации",
-          "addTagsPlaceholder": "Введите название тега для добавления",
-          "tagsLsitTitle": "Список тегов",
-          "tagsLsitTitleTips": "Нажмите на тег для переключения"
+          "title": "Настройки тегов"
         }
       }
     },
@@ -999,7 +994,7 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu",
+      "qiniu": "Qiniu AI",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1264,6 +1259,7 @@
       "display.sidebar.translate.icon": "Показывать иконку перевода",
       "display.sidebar.visible": "Показывать иконки",
       "display.title": "Настройки отображения",
+      "display.zoom.title": "Настройки масштаба",
       "display.topic.title": "Настройки топиков",
       "miniapps": {
         "title": "Настройки мини-приложений",
@@ -1497,7 +1493,7 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
-      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
+      "messages.input.enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
@@ -1686,6 +1682,7 @@
       "theme.dark": "Темная",
       "theme.light": "Светлая",
       "theme.title": "Тема",
+      "theme.color_primary": "Цвет темы",
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
@@ -1854,7 +1851,8 @@
           "original_copy": "Копировать оригинал",
           "esc_close": "Esc - закрыть",
           "esc_stop": "Esc - остановить",
-          "c_copy": "C - копировать"
+          "c_copy": "C - копировать",
+          "r_regenerate": "R - перегенерировать"
         }
       },
       "settings": {
@@ -1882,6 +1880,10 @@
           "follow_toolbar": {
             "title": "Следовать за панелью",
             "description": "Окно будет следовать за панелью. Иначе - по центру."
+          },
+          "remember_size": {
+            "title": "Запомнить размер",
+            "description": "При отключенном режиме, окно будет восстанавливаться до последнего размера при запуске приложения"
           },
           "auto_close": {
             "title": "Автозакрытие",

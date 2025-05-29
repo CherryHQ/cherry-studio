@@ -31,6 +31,7 @@ const SelectionAssistantSettings: FC = () => {
     isAutoClose,
     isAutoPin,
     isFollowToolbar,
+    isRemeberWinSize,
     actionItems,
     actionWindowOpacity,
     filterMode,
@@ -41,6 +42,7 @@ const SelectionAssistantSettings: FC = () => {
     setIsAutoClose,
     setIsAutoPin,
     setIsFollowToolbar,
+    setIsRemeberWinSize,
     setActionWindowOpacity,
     setActionItems,
     setFilterMode,
@@ -142,6 +144,16 @@ const SelectionAssistantSettings: FC = () => {
 
             <SettingRow>
               <SettingLabel>
+                <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
+                <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
+              </SettingLabel>
+              <Switch checked={isRemeberWinSize} onChange={(checked) => setIsRemeberWinSize(checked)} />
+            </SettingRow>
+
+            <SettingDivider />
+
+            <SettingRow>
+              <SettingLabel>
                 <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
               </SettingLabel>
@@ -191,7 +203,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
               </SettingLabel>
               <Radio.Group
-                value={filterMode}
+                value={filterMode ?? 'default'}
                 onChange={(e) => setFilterMode(e.target.value as FilterMode)}
                 buttonStyle="solid">
                 <Radio.Button value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio.Button>
@@ -200,7 +212,7 @@ const SelectionAssistantSettings: FC = () => {
               </Radio.Group>
             </SettingRow>
 
-            {filterMode !== 'default' && (
+            {filterMode && filterMode !== 'default' && (
               <>
                 <SettingDivider />
                 <SettingRow>

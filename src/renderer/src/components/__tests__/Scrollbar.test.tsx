@@ -130,8 +130,8 @@ describe('Scrollbar', () => {
 
       // 验证 throttle 被调用
       expect(throttle).toHaveBeenCalled()
-      // 验证 throttle 调用时使用了 200ms 延迟
-      expect(throttle).toHaveBeenCalledWith(expect.any(Function), 200)
+      // 验证 throttle 调用时使用了 100ms 延迟和正确的选项
+      expect(throttle).toHaveBeenCalledWith(expect.any(Function), 100, { leading: true, trailing: true })
     })
   })
 

@@ -105,19 +105,15 @@
         "showByTags": "タグ表示"
       },
       "tags": {
-        "untagged": "未分類タグ",
+        "untagged": "未分類",
         "none": "タグなし",
         "manage": "タグ管理",
         "add": "タグ追加",
         "modify": "タグ修正",
         "delete": "タグ削除",
+        "deleteConfirm": "このタグを削除してもよろしいですか？",
         "settings": {
-          "title": "タグ設定",
-          "current": "現在のタグ",
-          "searchTagsPlaceholder": "タグ名を入力してフィルタリング",
-          "addTagsPlaceholder": "追加するタグ名を入力",
-          "tagsLsitTitle": "タグ一覧",
-          "tagsLsitTitleTips": "タグをクリックで切り替え"
+          "title": "タグ設定"
         }
       },
       "settings.tool_use_mode": "工具調用方式",
@@ -998,7 +994,7 @@
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云",
+      "qiniu": "七牛云 AI 推理",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1263,6 +1259,7 @@
       "display.sidebar.translate.icon": "翻訳のアイコンを表示",
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
+      "display.zoom.title": "ズーム設定",
       "display.topic.title": "トピック設定",
       "miniapps": {
         "title": "ミニアプリ設定",
@@ -1496,7 +1493,7 @@
       "messages.input.send_shortcuts": "送信ショートカット",
       "messages.input.show_estimated_tokens": "推定トークン数を表示",
       "messages.input.title": "入力設定",
-      "messages.input.enable_quick_triggers": "'/' と '@' を有効にしてクイックメニューを表示します。",
+      "messages.input.enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
       "messages.input.enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
@@ -1685,6 +1682,7 @@
       "theme.dark": "ダーク",
       "theme.light": "ライト",
       "theme.title": "テーマ",
+      "theme.color_primary": "テーマ色",
       "theme.window.style.opaque": "不透明ウィンドウ",
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
@@ -1853,7 +1851,8 @@
           "original_copy": "原文をコピー",
           "esc_close": "Escで閉じる",
           "esc_stop": "Escで停止",
-          "c_copy": "Cでコピー"
+          "c_copy": "Cでコピー",
+          "r_regenerate": "Rで再生成"
         }
       },
       "settings": {
@@ -1881,6 +1880,10 @@
           "follow_toolbar": {
             "title": "ツールバーに追従",
             "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
+          },
+          "remember_size": {
+            "title": "サイズを記憶",
+            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます"
           },
           "auto_close": {
             "title": "自動閉じる",

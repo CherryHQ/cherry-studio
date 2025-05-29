@@ -12,33 +12,41 @@ const Scrollbar: FC<Props> = ({ ref: passedRef, right, children, onScroll: exter
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleScroll = useCallback(() => {
-    setIsScrolling(true)
-
+  const clearScrollingTimeout = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
-
-    timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500)
   }, [])
 
-  const throttledInternalScrollHandler = throttle(handleScroll, 200)
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true)
+    clearScrollingTimeout()
+    timeoutRef.current = setTimeout(() => {
+      setIsScrolling(false)
+      timeoutRef.current = null
+    }, 1000)
+  }, [clearScrollingTimeout])
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const throttledInternalScrollHandler = useCallback(throttle(handleScroll, 100, { leading: true, trailing: true }), [
+    handleScroll
+  ])
 
   // Combined scroll handler
   const combinedOnScroll = useCallback(() => {
-    // Event is available if needed by internal handler
-    throttledInternalScrollHandler() // Call internal logic
+    throttledInternalScrollHandler()
     if (externalOnScroll) {
-      externalOnScroll() // Call external logic (from useScrollPosition)
+      externalOnScroll()
     }
   }, [throttledInternalScrollHandler, externalOnScroll])
 
   useEffect(() => {
     return () => {
-      timeoutRef.current && clearTimeout(timeoutRef.current)
+      clearScrollingTimeout()
       throttledInternalScrollHandler.cancel()
     }
-  }, [throttledInternalScrollHandler])
+  }, [throttledInternalScrollHandler, clearScrollingTimeout])
 
   return (
     <Container

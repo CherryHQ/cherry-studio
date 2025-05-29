@@ -111,16 +111,12 @@
         "none": "暂无标签",
         "manage": "标签管理",
         "add": "添加标签",
-        "untagged": "未分组标签",
+        "untagged": "未分组",
         "modify": "修改标签",
         "delete": "删除标签",
+        "deleteConfirm": "确定要删除这个标签吗？",
         "settings": {
-          "title": "标签设置",
-          "current": "当前标签",
-          "searchTagsPlaceholder": "请输入标签名称以过滤标签",
-          "addTagsPlaceholder": "请输入标签名称以添加",
-          "tagsLsitTitle": "标签列表",
-          "tagsLsitTitleTips": "点击标签可切换"
+          "title": "标签设置"
         }
       }
     },
@@ -998,7 +994,7 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云",
+      "qiniu": "七牛云 AI 推理",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1265,6 +1261,7 @@
       "display.sidebar.translate.icon": "显示翻译图标",
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
+      "display.zoom.title": "缩放设置",
       "display.topic.title": "话题设置",
       "miniapps": {
         "title": "小程序设置",
@@ -1500,7 +1497,7 @@
       "messages.input.send_shortcuts": "发送快捷键",
       "messages.input.show_estimated_tokens": "显示预估 Token 数",
       "messages.input.title": "输入设置",
-      "messages.input.enable_quick_triggers": "启用 '/' 和 '@' 触发快捷菜单",
+      "messages.input.enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
       "messages.input.enable_delete_model": "启用删除键删除输入的模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
@@ -1695,6 +1692,7 @@
       "theme.dark": "深色",
       "theme.light": "浅色",
       "theme.title": "主题",
+      "theme.color_primary": "主题颜色",
       "theme.window.style.opaque": "不透明窗口",
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
@@ -1853,7 +1851,8 @@
           "original_copy": "复制原文",
           "esc_close": "Esc 关闭",
           "esc_stop": "Esc 停止",
-          "c_copy": "C 复制"
+          "c_copy": "C 复制",
+          "r_regenerate": "R 重新生成"
         }
       },
       "settings": {
@@ -1881,6 +1880,10 @@
           "follow_toolbar": {
             "title": "跟随工具栏",
             "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
+          },
+          "remember_size": {
+            "title": "记住大小",
+            "description": "应用运行期间，窗口会按上次调整的大小显示"
           },
           "auto_close": {
             "title": "自动关闭",

@@ -18,7 +18,7 @@ import styled from 'styled-components'
 import ChatFlowHistory from './ChatFlowHistory'
 
 // Exclude some areas from the navigation
-const EXCLUDED_SELECTORS = ['.MessageFooter', '.code-toolbar', '.ant-collapse-header']
+const EXCLUDED_SELECTORS = ['.MessageFooter', '.code-toolbar', '.ant-collapse-header', '.group-menu-bar', '.code-block']
 
 interface ChatNavigationProps {
   containerId: string

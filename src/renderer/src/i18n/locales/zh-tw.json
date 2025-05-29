@@ -105,19 +105,15 @@
         "showByTags": "標籤展示"
       },
       "tags": {
-        "untagged": "未分組標籤",
+        "untagged": "未分組",
         "none": "暫無標籤",
         "manage": "標籤管理",
         "add": "添加標籤",
         "modify": "修改標籤",
         "delete": "刪除標籤",
+        "deleteConfirm": "確定要刪除這個標籤嗎？",
         "settings": {
-          "title": "標籤設定",
-          "current": "當前標籤",
-          "searchTagsPlaceholder": "請輸入標籤名稱以過濾標籤",
-          "addTagsPlaceholder": "請輸入標籤名稱以新增",
-          "tagsLsitTitle": "標籤列表",
-          "tagsLsitTitleTips": "點擊標籤可切換"
+          "title": "標籤設定"
         }
       },
       "settings.tool_use_mode": "工具調用方式",
@@ -998,7 +994,7 @@
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛雲",
+      "qiniu": "七牛雲 AI 推理",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1265,6 +1261,7 @@
       "display.sidebar.translate.icon": "顯示翻譯圖示",
       "display.sidebar.visible": "顯示的圖示",
       "display.title": "顯示設定",
+      "display.zoom.title": "縮放設定",
       "display.topic.title": "話題設定",
       "miniapps": {
         "title": "小程式設置",
@@ -1499,7 +1496,7 @@
       "messages.input.send_shortcuts": "傳送快捷鍵",
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
-      "messages.input.enable_quick_triggers": "啟用 '/' 和 '@' 觸發快捷選單",
+      "messages.input.enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
       "messages.input.enable_delete_model": "啟用刪除鍵刪除模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "messages.math_engine": "數學公式引擎",
@@ -1688,6 +1685,7 @@
       "theme.dark": "深色",
       "theme.light": "淺色",
       "theme.title": "主題",
+      "theme.color_primary": "主題顏色",
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
@@ -1853,7 +1851,8 @@
           "original_copy": "複製原文",
           "esc_close": "Esc 關閉",
           "esc_stop": "Esc 停止",
-          "c_copy": "C 複製"
+          "c_copy": "C 複製",
+          "r_regenerate": "R 重新生成"
         }
       },
       "settings": {
@@ -1881,6 +1880,10 @@
           "follow_toolbar": {
             "title": "跟隨工具列",
             "description": "視窗位置將跟隨工具列顯示，停用後則始終置中顯示"
+          },
+          "remember_size": {
+            "title": "記住大小",
+            "description": "應用運行期間，視窗會按上次調整的大小顯示"
           },
           "auto_close": {
             "title": "自動關閉",
