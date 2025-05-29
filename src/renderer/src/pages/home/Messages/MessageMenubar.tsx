@@ -154,7 +154,7 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const isEditable = useMemo(() => {
-    return findMainTextBlocks(message).length === 1
+    return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
   }, [message])
 
   const dropdownItems = useMemo(
