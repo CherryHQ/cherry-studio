@@ -945,7 +945,7 @@
     "prompts": {
       "explanation": "帮我解释一下这个概念",
       "summarize": "帮我总结一下这段话",
-      "title": "你是一名擅长会话的助理，你需要将用户的会话总结为 10 个字以内的标题，标题语言与用户的首要语言一致，不要使用标点符号和其他特殊符号"
+      "title": "Generate a concise, 3-5 word title with an emoji summarizing the user input.\n### Guidelines:\n- The title should clearly represent the main theme or subject of the conversation.\n- Use emojis that enhance understanding of the topic, but avoid quotation marks or special formatting.\n- Write the title in the chat's primary language; default to English if multilingual.\n- Prioritize accuracy over excessive creativity; keep it clear and simple.\n### Output:\nyour concise title here\n### Examples:\n- 📉 Stock Market Trends\n- 🍪 Perfect Chocolate Chip Recipe\n- Evolution of Music Streaming\n- Remote Work Productivity Tips\n- Artificial Intelligence in Healthcare\n- 🎮 Video Game Development Insights"
     },
     "provider": {
       "aihubmix": "AiHubMix",
