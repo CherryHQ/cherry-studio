@@ -111,7 +111,7 @@ class KnowledgeQueue {
         throw new Error(`[KnowledgeQueue] Knowledge base ${baseId} not found`)
       }
 
-      const baseParams = getKnowledgeBaseParams(base)
+      const baseParams = await getKnowledgeBaseParams(base)
       const sourceItem = base.items.find((i) => i.id === item.id)
 
       if (!sourceItem) {
