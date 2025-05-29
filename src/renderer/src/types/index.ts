@@ -264,6 +264,7 @@ export interface DmxapiPainting extends PaintingParams {
   image_size?: string
   seed?: string
   style_type?: string
+  autoCreate?: boolean
 }
 
 export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
