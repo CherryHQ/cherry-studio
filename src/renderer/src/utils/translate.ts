@@ -1,17 +1,5 @@
-import * as cld3 from 'cld3-asm'
+import { franc } from 'franc'
 import React, { MutableRefObject } from 'react'
-
-let langIdentifier: any = null
-
-/**
- * 初始化语言识别器
- */
-const initLangIdentifier = async () => {
-  if (!langIdentifier) {
-    langIdentifier = await cld3.loadModule()
-  }
-  return langIdentifier
-}
 
 /**
  * 使用Unicode字符范围检测语言
@@ -75,41 +63,48 @@ export const detectLanguageByUnicode = (text: string): string => {
  * @returns {Promise<string>} 检测到的语言代码
  */
 export const detectLanguage = async (inputText: string): Promise<string> => {
-  if (!inputText.trim()) return 'any'
-
   const text = inputText.trim()
+  if (!text) return 'any'
+  let code: string
 
-  // 由于算法的局限性会导致对较短的字符串识别不准确
-  let detected
+  // 如果文本长度小于20个字符，使用Unicode范围检测
   if (text.length < 20) {
-    detected = detectLanguageByUnicode(text)
+    code = detectLanguageByUnicode(text)
   } else {
-    const identifier = await initLangIdentifier()
-    const result = identifier.findLanguage(text)
-    detected = result.reliable ? result.language : 'en'
+    // franc 返回 ISO 639-3 代码
+    const iso3 = franc(text)
+    const isoMap: Record<string, string> = {
+      cmn: 'zh',
+      jpn: 'ja',
+      kor: 'ko',
+      rus: 'ru',
+      ara: 'ar',
+      spa: 'es',
+      fra: 'fr',
+      deu: 'de',
+      ita: 'it',
+      por: 'pt',
+      eng: 'en'
+    }
+    code = isoMap[iso3] || 'en'
   }
-  console.log(detected)
-  const topLang = detected || 'en'
 
-  // 映射cld3-asm返回的语言代码到应用使用的语言代码
+  // 映射到应用使用的语言键
   const languageMap: Record<string, string> = {
-    zh: 'chinese', // 中文
-    ja: 'japanese', // 日语
-    ko: 'korean', // 韩语
-    ru: 'russian', // 俄语
-    es: 'spanish', // 西班牙语
-    fr: 'french', // 法语
-    de: 'german', // 德语
-    it: 'italian', // 意大利语
-    pt: 'portuguese', // 葡萄牙语
-    ar: 'arabic', // 阿拉伯语
-    en: 'english' // 英语
+    zh: 'chinese',
+    ja: 'japanese',
+    ko: 'korean',
+    ru: 'russian',
+    es: 'spanish',
+    fr: 'french',
+    de: 'german',
+    it: 'italian',
+    pt: 'portuguese',
+    ar: 'arabic',
+    en: 'english'
   }
 
-  if (topLang && languageMap[topLang]) {
-    return languageMap[topLang]
-  }
-  return 'english'
+  return languageMap[code] || 'english'
 }
 
 /**

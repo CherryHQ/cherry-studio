@@ -5597,7 +5597,6 @@ __metadata:
     async-mutex: "npm:^0.5.0"
     axios: "npm:^1.7.3"
     browser-image-compression: "npm:^2.0.2"
-    cld3-asm: "npm:^4.0.0"
     color: "npm:^5.0.0"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
@@ -5622,6 +5621,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
+    franc: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -6842,15 +6842,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cld3-asm@npm:^4.0.0":
-  version: 4.0.0
-  resolution: "cld3-asm@npm:4.0.0"
-  dependencies:
-    emscripten-wasm-loader: "npm:^3.0.3"
-  checksum: 10c0/1edd4bad0e0aa68f05910e59aee63598ddce9c0d859de7bd7a60a81e4f20c29718a26a255c78c14c07d86ce78a26f617a54cd8ca777db9cb2d0628f450c298d2
-  languageName: node
-  linkType: hard
-
 "clean-stack@npm:^2.0.0":
   version: 2.2.0
   resolution: "clean-stack@npm:2.2.0"
@@ -6960,6 +6951,13 @@ __metadata:
     "@codemirror/state": "npm:^6.0.0"
     "@codemirror/view": "npm:^6.0.0"
   checksum: 10c0/219b0f6ee91d373380fba2e0564a2665990a3cdada0b01861768005b09061187c58eeb3db96aef486777b02b77b50a50ee843635e3743c47d3725034913c4b60
+  languageName: node
+  linkType: hard
+
+"collapse-white-space@npm:^2.0.0":
+  version: 2.1.0
+  resolution: "collapse-white-space@npm:2.1.0"
+  checksum: 10c0/b2e2800f4ab261e62eb27a1fbe853378296e3a726d6695117ed033e82d61fb6abeae4ffc1465d5454499e237005de9cfc52c9562dc7ca4ac759b9a222ef14453
   languageName: node
   linkType: hard
 
@@ -8531,17 +8529,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"emscripten-wasm-loader@npm:^3.0.3":
-  version: 3.0.3
-  resolution: "emscripten-wasm-loader@npm:3.0.3"
-  dependencies:
-    getroot: "npm:^1.0.0"
-    nanoid: "npm:^2.0.3"
-    unixify: "npm:^1.0.0"
-  checksum: 10c0/3a171300ff671de0fec5cf239a86fbaa578bbdc3ac2e7d0009499c98496a27276bc76dcf8515d4799237a656763ab98aec21753a8947e51cfe66df28e1296c8b
-  languageName: node
-  linkType: hard
-
 "encodeurl@npm:^2.0.0":
   version: 2.0.0
   resolution: "encodeurl@npm:2.0.0"
@@ -9833,6 +9820,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"franc@npm:^6.2.0":
+  version: 6.2.0
+  resolution: "franc@npm:6.2.0"
+  dependencies:
+    trigram-utils: "npm:^2.0.0"
+  checksum: 10c0/136a08d6e4632f17eae6f0ae93b224b0bf2233dc1d5dbd0b23e479960f6c71c0847bef834d3b6b7c9cefb4f905d5e08fc82b0738bb3ed4a6c83faffcf9fa2a11
+  languageName: node
+  linkType: hard
+
 "fresh@npm:^2.0.0":
   version: 2.0.0
   resolution: "fresh@npm:2.0.0"
@@ -10092,15 +10088,6 @@ __metadata:
     data-uri-to-buffer: "npm:^6.0.2"
     debug: "npm:^4.3.4"
   checksum: 10c0/07c87abe1f97a4545fae329a37a45e276ec57e6ad48dad2a97780f87c96b00a82c2043ab49e1a991f99bb5cff8f8ed975e44e4f8b3c9600f35493a97f123499f
-  languageName: node
-  linkType: hard
-
-"getroot@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "getroot@npm:1.0.0"
-  dependencies:
-    tslib: "npm:^1.7.1"
-  checksum: 10c0/06fe0762e8f4076625a136415584cec896fad57338454349df6153e7543f81ae89959e175df7fb2e9def684a982a316db5862ad2d293419f052e5b1be45bc6f1
   languageName: node
   linkType: hard
 
@@ -13573,10 +13560,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"nanoid@npm:^2.0.3":
-  version: 2.1.11
-  resolution: "nanoid@npm:2.1.11"
-  checksum: 10c0/8640d17698633ff78b2549ec8d5dffd8f56909bad1cf0da08bf3a4012f98553b1b9f2327a2d7fb3613084f33189a8ab4b889eb4c7939f3f9e242d9fd8ff059d5
+"n-gram@npm:^2.0.0":
+  version: 2.0.2
+  resolution: "n-gram@npm:2.0.2"
+  checksum: 10c0/72e2cdc8c37c9253b556a0deb9cd26d5ac59a5d7a38b2d2928927e3959bc7d3cb591d766e30309a4c685dbc51330025cb30c5c6518ee516caf3318aed2635f1b
   languageName: node
   linkType: hard
 
@@ -13804,15 +13791,6 @@ __metadata:
   bin:
     nopt: bin/nopt.js
   checksum: 10c0/62e9ea70c7a3eb91d162d2c706b6606c041e4e7b547cbbb48f8b3695af457dd6479904d7ace600856bf923dd8d1ed0696f06195c8c20f02ac87c1da0e1d315ef
-  languageName: node
-  linkType: hard
-
-"normalize-path@npm:^2.1.1":
-  version: 2.1.1
-  resolution: "normalize-path@npm:2.1.1"
-  dependencies:
-    remove-trailing-separator: "npm:^1.0.1"
-  checksum: 10c0/db814326ff88057437233361b4c7e9cac7b54815b051b57f2d341ce89b1d8ec8cbd43e7fa95d7652b3b69ea8fcc294b89b8530d556a84d1bdace94229e1e9a8b
   languageName: node
   linkType: hard
 
@@ -16003,13 +15981,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remove-trailing-separator@npm:^1.0.1":
-  version: 1.1.0
-  resolution: "remove-trailing-separator@npm:1.1.0"
-  checksum: 10c0/3568f9f8f5af3737b4aee9e6e1e8ec4be65a92da9cb27f989e0893714d50aa95ed2ff02d40d1fa35e1b1a234dc9c2437050ef356704a3999feaca6667d9e9bfc
-  languageName: node
-  linkType: hard
-
 "repeat-string@npm:^1.0.0":
   version: 1.6.1
   resolution: "repeat-string@npm:1.6.1"
@@ -17562,6 +17533,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"trigram-utils@npm:^2.0.0":
+  version: 2.0.1
+  resolution: "trigram-utils@npm:2.0.1"
+  dependencies:
+    collapse-white-space: "npm:^2.0.0"
+    n-gram: "npm:^2.0.0"
+  checksum: 10c0/d024dc91a9c0310e75fa68422185e3a32814831971b9e86a2925e74bd1932a30501aa2ac214768f0a545f3db63610ee14b4748ac31532e1bc46c791941d71c6d
+  languageName: node
+  linkType: hard
+
 "trim-lines@npm:^3.0.0":
   version: 3.0.1
   resolution: "trim-lines@npm:3.0.1"
@@ -17630,13 +17611,6 @@ __metadata:
   version: 2.6.2
   resolution: "tslib@npm:2.6.2"
   checksum: 10c0/e03a8a4271152c8b26604ed45535954c0a45296e32445b4b87f8a5abdb2421f40b59b4ca437c4346af0f28179780d604094eb64546bee2019d903d01c6c19bdb
-  languageName: node
-  linkType: hard
-
-"tslib@npm:^1.7.1":
-  version: 1.14.1
-  resolution: "tslib@npm:1.14.1"
-  checksum: 10c0/69ae09c49eea644bc5ebe1bca4fa4cc2c82b7b3e02f43b84bd891504edf66dbc6b2ec0eef31a957042de2269139e4acff911e6d186a258fb14069cd7f6febce2
   languageName: node
   linkType: hard
 
@@ -17964,15 +17938,6 @@ __metadata:
   version: 2.0.1
   resolution: "universalify@npm:2.0.1"
   checksum: 10c0/73e8ee3809041ca8b818efb141801a1004e3fc0002727f1531f4de613ea281b494a40909596dae4a042a4fb6cd385af5d4db2e137b1362e0e91384b828effd3a
-  languageName: node
-  linkType: hard
-
-"unixify@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "unixify@npm:1.0.0"
-  dependencies:
-    normalize-path: "npm:^2.1.1"
-  checksum: 10c0/8b89100619ebde9f0ab4024a4d402316fb7b1d4853723410fc828944e8d3d01480f210cddf94d9a1699559f8180d861eb6323da8011b7bcc1bbaf6a11a5b1f1e
   languageName: node
   linkType: hard
 
