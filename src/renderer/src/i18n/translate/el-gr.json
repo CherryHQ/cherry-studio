@@ -880,7 +880,7 @@
       "zhinao": "360 Intelligent Brain",
       "zhipu": "Zhipu AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Είστε σίγουροι ότι θέλετε να επαναφέρετε τα δεδομένα;",
@@ -1140,6 +1140,7 @@
       "display.sidebar.translate.icon": "Εμφάνιση εικονιδίου μετάφρασης",
       "display.sidebar.visible": "Εμφανιζόμενα εικονίδια",
       "display.title": "Ρυθμίσεις εμφάνισης",
+      "display.zoom.title": "Ρυθμίσεις κλίμακας",
       "display.topic.title": "Ρυθμίσεις Θεμάτων",
       "font_size.title": "Μέγεθος γραμμάτων των μηνυμάτων",
       "general": "Γενικές ρυθμίσεις",

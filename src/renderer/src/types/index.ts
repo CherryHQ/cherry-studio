@@ -1,5 +1,5 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type { GroundingMetadata } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
@@ -25,7 +25,10 @@ export type Assistant = {
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
+  tags?: string[] // 助手标签
 }
+
+export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
   role: 'user' | 'assistant'
@@ -214,6 +217,8 @@ export interface GeneratePainting extends PaintingParams {
   n?: number
   size?: string
   background?: string
+  personGeneration?: GenerateImagesConfig['personGeneration']
+  numberOfImages?: number
 }
 
 export interface EditPainting extends PaintingParams {

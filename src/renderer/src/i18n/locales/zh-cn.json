@@ -8,6 +8,7 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "创建智能体",
       "import": {
         "title": "从外部导入",
@@ -101,6 +102,26 @@
         "titlePlaceholder": "输入标题",
         "contentLabel": "内容",
         "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}"
+      },
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "标签展示"
+      },
+      "tags": {
+        "none": "暂无标签",
+        "manage": "标签管理",
+        "add": "添加标签",
+        "untagged": "未分组",
+        "modify": "修改标签",
+        "delete": "删除标签",
+        "settings": {
+          "title": "标签设置",
+          "current": "当前标签",
+          "searchTagsPlaceholder": "请输入标签名称以过滤标签",
+          "addTagsPlaceholder": "请输入标签名称以添加",
+          "tagsLsitTitle": "标签列表",
+          "tagsLsitTitleTips": "点击标签可切换"
+        }
       }
     },
     "auth": {
@@ -827,7 +848,8 @@
       "learn_more": "了解更多",
       "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-      "proxy_required": "目前需要打开代理才能查看生成图片，后续会支持国内直连",
+      "prompt_placeholder_en": "输入”英文“图片描述，目前 Imagen 仅支持英文提示词",
+      "proxy_required": "打开代理并开启”TUN模式“查看生成图片或复制到浏览器打开，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
@@ -861,6 +883,11 @@
         "transparent": "透明",
         "opaque": "不透明"
       },
+      "person_generation_options": {
+        "allow_all": "允许所有",
+        "allow_adult": "允许成人",
+        "allow_none": "不允许"
+      },
       "aspect_ratios": {
         "square": "方形",
         "portrait": "竖图",
@@ -882,7 +909,9 @@
         "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
         "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
         "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
-        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+        "person_generation": "生成人物",
+        "person_generation_tip": "允许模型生成人物图像"
       },
       "edit": {
         "image_file": "编辑的图像",
@@ -969,7 +998,7 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云",
+      "qiniu": "七牛云 AI 推理",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1236,6 +1265,7 @@
       "display.sidebar.translate.icon": "显示翻译图标",
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
+      "display.zoom.title": "缩放设置",
       "display.topic.title": "话题设置",
       "miniapps": {
         "title": "小程序设置",
@@ -1514,6 +1544,7 @@
       "models.check.start": "开始",
       "models.check.title": "模型健康检测",
       "models.check.use_all_keys": "使用密钥",
+      "models.check.disclaimer": "健康检查需要发送请求，请谨慎使用。按次收费的模型可能产生更多费用，请自行承担。",
       "models.default_assistant_model": "默认助手模型",
       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "models.empty": "没有模型",
@@ -1665,6 +1696,7 @@
       "theme.dark": "深色",
       "theme.light": "浅色",
       "theme.title": "主题",
+      "theme.color_primary": "主题颜色",
       "theme.window.style.opaque": "不透明窗口",
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
@@ -1888,6 +1920,20 @@
           "delete_confirm": "确定要删除这个自定义功能吗？",
           "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
         },
+        "advanced": {
+          "title": "高级",
+          "filter_mode": {
+            "title": "应用筛选",
+            "description": "可以限制划词助手只在特定应用中生效（白名单）或不生效（黑名单）",
+            "default": "关闭",
+            "whitelist": "白名单",
+            "blacklist": "黑名单"
+          },
+          "filter_list": {
+            "title": "筛选名单",
+            "description": "高级功能，建议有经验的用户在了解的情况下再进行设置"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "添加自定义功能",
@@ -1944,6 +1990,10 @@
             },
             "test": "测试"
           }
+        },
+        "filter_modal": {
+          "title": "应用筛选名单",
+          "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
     }

@@ -26,7 +26,7 @@ interface Props {
 
 const Chat: FC<Props> = (props) => {
   const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, messageStyle, showAssistants } = useSettings()
+  const { topicPosition, messageStyle } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
 
@@ -36,10 +36,9 @@ const Chat: FC<Props> = (props) => {
 
   const maxWidth = useMemo(() => {
     const showRightTopics = showTopics && topicPosition === 'right'
-    const minusAssistantsWidth = showAssistants ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
-    const minusRightTopicsWidth = showRightTopics ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
-  }, [showAssistants, showTopics, topicPosition])
+    const minusRightTopicsWidth = showRightTopics ? `- var(--assistants-width)` : ''
+    return `calc(100vw - var(--sidebar-width) - var(--assistants-width) ${minusRightTopicsWidth})`
+  }, [showTopics, topicPosition])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
@@ -115,16 +114,14 @@ const Chat: FC<Props> = (props) => {
           includeUser={filterIncludeUser}
           onIncludeUserChange={userOutlinedItemClickHandler}
         />
-        <MessagesContainer>
-          <Messages
-            key={props.activeTopic.id}
-            assistant={assistant}
-            topic={props.activeTopic}
-            setActiveTopic={props.setActiveTopic}
-            onComponentUpdate={messagesComponentUpdateHandler}
-            onFirstUpdate={messagesComponentFirstUpdateHandler}
-          />
-        </MessagesContainer>
+        <Messages
+          key={props.activeTopic.id}
+          assistant={assistant}
+          topic={props.activeTopic}
+          setActiveTopic={props.setActiveTopic}
+          onComponentUpdate={messagesComponentUpdateHandler}
+          onFirstUpdate={messagesComponentFirstUpdateHandler}
+        />
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
           {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
@@ -142,13 +139,6 @@ const Chat: FC<Props> = (props) => {
     </Container>
   )
 }
-
-const MessagesContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex: 1;
-`
 
 const Container = styled.div`
   display: flex;

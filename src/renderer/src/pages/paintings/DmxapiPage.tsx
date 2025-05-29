@@ -348,6 +348,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     return () => {
       if (spaceClickTimer.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         clearTimeout(spaceClickTimer.current)
       }
     }

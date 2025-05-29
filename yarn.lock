@@ -2599,7 +2599,7 @@ __metadata:
 
 "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch":
   version: 0.3.44
-  resolution: "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch::version=0.3.44&hash=c14420"
+  resolution: "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch::version=0.3.44&hash=41dd7b"
   dependencies:
     "@cfworker/json-schema": "npm:^4.0.2"
     ansi-styles: "npm:^5.0.0"
@@ -2613,7 +2613,7 @@ __metadata:
     uuid: "npm:^10.0.0"
     zod: "npm:^3.22.4"
     zod-to-json-schema: "npm:^3.22.3"
-  checksum: 10c0/184fa7720f49fe4619661bcc5f12ed2a778520dd9f0da3c2d97f1b404f0a8697fa4b3f5cf96652234ae96c29b07fb4f9ec48260c3d1233e92286c87bca56f5fd
+  checksum: 10c0/7002581999230bc6fbdb6c2fad0eda2c1ca93a7629e28eadf1501dd0a7f785010d6b3e7841148ced186fc0fb4a84ec5f3b75850985579610e222943cc57e1649
   languageName: node
   linkType: hard
 
@@ -5667,7 +5667,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.14"
+    selection-hook: "npm:^0.9.17"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -16400,13 +16400,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.14":
-  version: 0.9.14
-  resolution: "selection-hook@npm:0.9.14"
+"selection-hook@npm:^0.9.17":
+  version: 0.9.17
+  resolution: "selection-hook@npm:0.9.17"
   dependencies:
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/114a5c28d3753c215450a23b3999d7782c11f2868e41555a0034d49e33d90b1fe35f0a15dc240bca859f6fc186e09859bff5e3213fc8385b501f1f05ba9233f8
+  checksum: 10c0/1dbd1234e06bb6fe53d2fe9cb0de9736177af0b66e824c4dd3fb2d90413c30235c999826893f999b1d8809bfaf33968108c609b5ac80ea4b946f6a4891f5d1b9
   languageName: node
   linkType: hard
 

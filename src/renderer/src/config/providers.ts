@@ -144,11 +144,10 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.ppinfra.com/v3/openai'
     },
     websites: {
-      official: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      apiKey: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      official: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      apiKey: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
       docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      models:
-        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
+      models: 'https://ppio.cn/model-api/product/llm-api?invited_by=JYT9GD&utm_source=github_cherry-studio'
     }
   },
   gemini: {

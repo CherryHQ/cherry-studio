@@ -60,6 +60,8 @@ export class SelectionService {
 
   private triggerMode = 'selected'
   private isFollowToolbar = true
+  private filterMode = 'default'
+  private filterList: string[] = []
 
   private toolbarWindow: BrowserWindow | null = null
   private actionWindows = new Set<BrowserWindow>()
@@ -138,6 +140,10 @@ export class SelectionService {
   private initConfig() {
     this.triggerMode = configManager.getSelectionAssistantTriggerMode()
     this.isFollowToolbar = configManager.getSelectionAssistantFollowToolbar()
+    this.filterMode = configManager.getSelectionAssistantFilterMode()
+    this.filterList = configManager.getSelectionAssistantFilterList()
+
+    this.setHookGlobalFilterMode(this.filterMode, this.filterList)
 
     configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: string) => {
       this.triggerMode = triggerMode
@@ -147,6 +153,34 @@ export class SelectionService {
     configManager.subscribe(ConfigKeys.SelectionAssistantFollowToolbar, (isFollowToolbar: boolean) => {
       this.isFollowToolbar = isFollowToolbar
     })
+
+    configManager.subscribe(ConfigKeys.SelectionAssistantFilterMode, (filterMode: string) => {
+      this.filterMode = filterMode
+      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+    })
+
+    configManager.subscribe(ConfigKeys.SelectionAssistantFilterList, (filterList: string[]) => {
+      this.filterList = filterList
+      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+    })
+  }
+
+  /**
+   * Set the global filter mode for the selection-hook
+   * @param mode - The mode to set, either 'default', 'whitelist', or 'blacklist'
+   * @param list - An array of strings representing the list of items to include or exclude
+   */
+  private setHookGlobalFilterMode(mode: string, list: string[]) {
+    if (!this.selectionHook) return
+
+    const modeMap = {
+      default: 0,
+      whitelist: 1,
+      blacklist: 2
+    }
+    if (!this.selectionHook.setGlobalFilterMode(modeMap[mode], list)) {
+      this.logError(new Error('Failed to set selection-hook global filter mode'))
+    }
   }
 
   /**
@@ -160,8 +194,6 @@ export class SelectionService {
     }
 
     try {
-      //init basic configs
-      this.initConfig()
       //make sure the toolbar window is ready
       this.createToolbarWindow()
       // Initialize preloaded windows
@@ -175,6 +207,9 @@ export class SelectionService {
 
       // Start the hook
       if (this.selectionHook.start({ debug: isDev })) {
+        //init basic configs
+        this.initConfig()
+
         //init trigger mode configs
         this.processTriggerMode()
 
@@ -455,6 +490,30 @@ export class SelectionService {
   }
 
   /**
+   * Determine if the text selection should be processed by filter mode&list
+   * @param selectionData Text selection information and coordinates
+   * @returns {boolean} True if the selection should be processed, false otherwise
+   */
+  private shouldProcessTextSelection(selectionData: TextSelectionData): boolean {
+    if (selectionData.programName === '' || this.filterMode === 'default') {
+      return true
+    }
+
+    const programName = selectionData.programName.toLowerCase()
+    //items in filterList are already in lower case
+    const isFound = this.filterList.some((item) => programName.includes(item))
+
+    switch (this.filterMode) {
+      case 'whitelist':
+        return isFound
+      case 'blacklist':
+        return !isFound
+    }
+
+    return false
+  }
+
+  /**
    * Process text selection data and show toolbar
    * Handles different selection scenarios:
    * - Single click (cursor position)
@@ -465,6 +524,10 @@ export class SelectionService {
   private processTextSelection = (selectionData: TextSelectionData) => {
     // Skip if no text or toolbar already visible
     if (!selectionData.text || (this.isToolbarAlive() && this.toolbarWindow!.isVisible())) {
+      return
+    }
+
+    if (!this.shouldProcessTextSelection(selectionData)) {
       return
     }
 
@@ -551,12 +614,16 @@ export class SelectionService {
             selectionData.endBottom
           )
 
+          // Note: shift key + mouse click == DoubleClick
+
+          //double click to select a word
           if (isDoubleClick && isSameLine) {
             refOrientation = 'bottomMiddle'
             refPoint = { x: selectionData.mousePosEnd.x, y: selectionData.endBottom.y + 4 }
             break
           }
 
+          // below: isDoubleClick || isSameLine
           if (isSameLine) {
             const direction = selectionData.mousePosEnd.x - selectionData.mousePosStart.x
 
@@ -570,6 +637,7 @@ export class SelectionService {
             break
           }
 
+          // below: !isDoubleClick && !isSameLine
           const direction = selectionData.mousePosEnd.y - selectionData.mousePosStart.y
 
           if (direction > 0) {
@@ -670,6 +738,10 @@ export class SelectionService {
     if (this.triggerMode === 'ctrlkey' && this.isCtrlkey(data.vkCode)) {
       return
     }
+    //dont hide toolbar when shiftkey is pressed, because it's used for selection
+    if (this.isShiftkey(data.vkCode)) {
+      return
+    }
 
     this.hideToolbar()
   }
@@ -724,6 +796,11 @@ export class SelectionService {
   //check if the key is ctrl key
   private isCtrlkey(vkCode: number) {
     return vkCode === 162 || vkCode === 163
+  }
+
+  //check if the key is shift key
+  private isShiftkey(vkCode: number) {
+    return vkCode === 160 || vkCode === 161
   }
 
   /**
@@ -896,7 +973,6 @@ export class SelectionService {
         this.isCtrlkeyListenerActive = false
       }
 
-      this.selectionHook!.enableClipboard()
       this.selectionHook!.setSelectionPassiveMode(false)
     } else if (this.triggerMode === 'ctrlkey') {
       if (!this.isCtrlkeyListenerActive) {
@@ -906,7 +982,6 @@ export class SelectionService {
         this.isCtrlkeyListenerActive = true
       }
 
-      this.selectionHook!.disableClipboard()
       this.selectionHook!.setSelectionPassiveMode(true)
     }
   }
@@ -944,6 +1019,14 @@ export class SelectionService {
 
     ipcMain.handle(IpcChannel.Selection_SetFollowToolbar, (_, isFollowToolbar: boolean) => {
       configManager.setSelectionAssistantFollowToolbar(isFollowToolbar)
+    })
+
+    ipcMain.handle(IpcChannel.Selection_SetFilterMode, (_, filterMode: string) => {
+      configManager.setSelectionAssistantFilterMode(filterMode)
+    })
+
+    ipcMain.handle(IpcChannel.Selection_SetFilterList, (_, filterList: string[]) => {
+      configManager.setSelectionAssistantFilterList(filterList)
     })
 
     ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem) => {

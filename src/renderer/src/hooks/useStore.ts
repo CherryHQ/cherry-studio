@@ -1,5 +1,12 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setShowAssistants, setShowTopics, toggleShowAssistants, toggleShowTopics } from '@renderer/store/settings'
+import {
+  setAssistantsTabSortType,
+  setShowAssistants,
+  setShowTopics,
+  toggleShowAssistants,
+  toggleShowTopics
+} from '@renderer/store/settings'
+import { AssistantsSortType } from '@renderer/types'
 
 export function useShowAssistants() {
   const showAssistants = useAppSelector((state) => state.settings.showAssistants)
@@ -20,5 +27,15 @@ export function useShowTopics() {
     showTopics,
     setShowTopics: (show: boolean) => dispatch(setShowTopics(show)),
     toggleShowTopics: () => dispatch(toggleShowTopics())
+  }
+}
+
+export function useAssistantsTabSortType() {
+  const AssistantsTabSortType = useAppSelector((state) => state.settings.assistantsTabSortType)
+  const dispatch = useAppDispatch()
+
+  return {
+    AssistantsTabSortType,
+    setAssistantsTabSortType: (sortType: AssistantsSortType) => dispatch(setAssistantsTabSortType(sortType))
   }
 }

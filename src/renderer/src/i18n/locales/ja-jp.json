@@ -8,6 +8,7 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
+      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "エージェントを作成",
       "import": {
         "title": "外部からインポート",
@@ -99,6 +100,26 @@
       "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
       "settings.knowledge_base.recognition.off": "強制検索",
       "settings.knowledge_base.recognition.on": "意図認識",
+      "list": {
+        "showByList": "リスト表示",
+        "showByTags": "タグ表示"
+      },
+      "tags": {
+        "untagged": "未分類",
+        "none": "タグなし",
+        "manage": "タグ管理",
+        "add": "タグ追加",
+        "modify": "タグ修正",
+        "delete": "タグ削除",
+        "settings": {
+          "title": "タグ設定",
+          "current": "現在のタグ",
+          "searchTagsPlaceholder": "タグ名を入力してフィルタリング",
+          "addTagsPlaceholder": "追加するタグ名を入力",
+          "tagsLsitTitle": "タグ一覧",
+          "tagsLsitTitleTips": "タグをクリックで切り替え"
+        }
+      },
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "関数",
       "settings.tool_use_mode.prompt": "提示詞"
@@ -825,8 +846,9 @@
       "style_type": "スタイル",
       "learn_more": "詳しくはこちら",
       "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
+      "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
       "paint_course": "チュートリアル",
-      "proxy_required": "現在、プロキシを開く必要があります。これは、将来サポートされる予定です",
+      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
       "image_placeholder": "画像がありません",
@@ -864,6 +886,11 @@
         "portrait": "縦図",
         "landscape": "横図"
       },
+      "person_generation_options": {
+        "allow_all": "許可する",
+        "allow_adult": "許可する",
+        "allow_none": "許可しない"
+      },
       "quality": "品質",
       "moderation": "敏感度",
       "background": "背景",
@@ -880,7 +907,9 @@
         "negative_prompt_tip": "画像に含めたくない内容を説明します",
         "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
         "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
-        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+        "person_generation": "人物生成",
+        "person_generation_tip": "人物画像を生成する"
       },
       "edit": {
         "image_file": "編集画像",
@@ -969,7 +998,7 @@
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云",
+      "qiniu": "七牛云 AI 推理",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1234,6 +1263,7 @@
       "display.sidebar.translate.icon": "翻訳のアイコンを表示",
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
+      "display.zoom.title": "ズーム設定",
       "display.topic.title": "トピック設定",
       "miniapps": {
         "title": "ミニアプリ設定",
@@ -1510,6 +1540,7 @@
       "models.check.start": "開始",
       "models.check.title": "モデル健康チェック",
       "models.check.use_all_keys": "キー",
+      "models.check.disclaimer": "健康チェックはリクエストを送信するため、費用が発生する可能性があります。慎重に使用してください。",
       "models.default_assistant_model": "デフォルトアシスタントモデル",
       "models.default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "models.empty": "モデルが見つかりません",
@@ -1655,6 +1686,7 @@
       "theme.dark": "ダーク",
       "theme.light": "ライト",
       "theme.title": "テーマ",
+      "theme.color_primary": "テーマ色",
       "theme.window.style.opaque": "不透明ウィンドウ",
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
@@ -1888,6 +1920,20 @@
           "delete_confirm": "このカスタム機能を削除しますか？",
           "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
         },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "アプリケーションフィルター",
+            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
+            "default": "オフ",
+            "whitelist": "ホワイトリスト",
+            "blacklist": "ブラックリスト"
+          },
+          "filter_list": {
+            "title": "フィルターリスト",
+            "description": "進階機能です。経験豊富なユーザー向けです。"
+          }
+        },
         "user_modal": {
           "title": {
             "add": "カスタム機能追加",
@@ -1944,6 +1990,10 @@
             },
             "test": "テスト"
           }
+        },
+        "filter_modal": {
+          "title": "アプリケーションフィルターリスト",
+          "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
         }
       }
     }
