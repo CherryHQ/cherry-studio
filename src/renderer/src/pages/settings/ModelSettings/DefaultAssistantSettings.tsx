@@ -26,7 +26,7 @@ const AssistantSettings: FC = () => {
   const [name, setName] = useState(
     defaultAssistant.name.replace(getLeadingEmoji(defaultAssistant.name) || '', '').trim()
   )
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
 
   const { t } = useTranslation()
 

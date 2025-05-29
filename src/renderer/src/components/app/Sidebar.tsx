@@ -44,7 +44,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, settingTheme, toggleTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -104,13 +104,13 @@ const Sidebar: FC = () => {
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settingTheme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${theme}`)}
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {settingTheme === 'dark' ? (
+            {theme === 'dark' ? (
               <Moon size={20} className="icon" />
-            ) : settingTheme === 'light' ? (
+            ) : theme === 'light' ? (
               <Sun size={20} className="icon" />
             ) : (
               <SunMoon size={20} className="icon" />
@@ -140,7 +140,7 @@ const MainMenus: FC = () => {
   const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
-  const { theme } = useTheme()
+  const { theme: showTheme } = useTheme()
 
   const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
@@ -177,7 +177,7 @@ const MainMenus: FC = () => {
             await modelGenerating()
             navigate(path)
           }}>
-          <Icon theme={theme} className={isActive}>
+          <Icon theme={showTheme} className={isActive}>
             {iconMap[icon]}
           </Icon>
         </StyledLink>
@@ -191,7 +191,7 @@ const SidebarOpenedMinappTabs: FC = () => {
   const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
   const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const { t } = useTranslation()
 
   const handleOnClick = (app) => {
@@ -281,7 +281,7 @@ const PinnedApps: FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const { openMinappKeepAlive } = useMinappPopup()
 
   return (

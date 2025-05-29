@@ -10,7 +10,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 
 const ExportMenuOptions: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const dispatch = useAppDispatch()
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)

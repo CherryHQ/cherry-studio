@@ -32,7 +32,7 @@ import { type FileStat } from 'webdav'
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const NutstoreSettings: FC = () => {
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const { t } = useTranslation()
   const {
     nutstoreToken,

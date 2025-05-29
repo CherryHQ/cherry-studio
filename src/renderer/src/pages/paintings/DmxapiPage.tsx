@@ -42,7 +42,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode] = useState<keyof PaintingsState>('DMXAPIPaintings')
   const { DMXAPIPaintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<DmxapiPainting>(DMXAPIPaintings?.[0] || DEFAULT_PAINTING)
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const { t } = useTranslation()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {

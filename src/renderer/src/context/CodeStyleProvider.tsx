@@ -36,7 +36,7 @@ const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleCon
 
 export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => {
   const { codeEditor, codePreview } = useSettings()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const [shikiThemes, setShikiThemes] = useState({})
   useMermaid()
 

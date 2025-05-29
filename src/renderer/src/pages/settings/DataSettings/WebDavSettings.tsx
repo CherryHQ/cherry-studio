@@ -45,7 +45,7 @@ const WebDavSettings: FC = () => {
   const [maxBackups, setMaxBackups] = useState<number>(webDAVMaxBackups)
 
   const dispatch = useAppDispatch()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
 
   const { t } = useTranslation()
 

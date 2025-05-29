@@ -34,7 +34,7 @@ const ModelSettings: FC = () => {
   } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const { t } = useTranslation()
   const { translateModelPrompt } = useSettings()
 

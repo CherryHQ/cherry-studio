@@ -6,11 +6,10 @@ import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/pro
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
+import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
-import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
@@ -34,6 +33,7 @@ import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
+import ThemeService from './services/ThemeService'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
@@ -42,6 +42,7 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
+  const themeService = new ThemeService(mainWindow)
   const notificationService = new NotificationService(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
@@ -122,34 +123,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
-    const updateTitleBarOverlay = () => {
-      if (!mainWindow?.setTitleBarOverlay) return
-      const isDark = nativeTheme.shouldUseDarkColors
-      mainWindow.setTitleBarOverlay(isDark ? titleBarOverlayDark : titleBarOverlayLight)
-    }
-
-    const broadcastThemeChange = () => {
-      const isDark = nativeTheme.shouldUseDarkColors
-      const effectiveTheme = isDark ? ThemeMode.dark : ThemeMode.light
-      BrowserWindow.getAllWindows().forEach((win) => win.webContents.send(IpcChannel.ThemeChange, effectiveTheme))
-    }
-
-    const notifyThemeChange = () => {
-      updateTitleBarOverlay()
-      broadcastThemeChange()
-    }
-
-    if (theme === ThemeMode.auto) {
-      nativeTheme.themeSource = 'system'
-      nativeTheme.on('updated', notifyThemeChange)
-    } else {
-      nativeTheme.themeSource = theme
-      nativeTheme.off('updated', notifyThemeChange)
-    }
-
-    updateTitleBarOverlay()
-    configManager.setTheme(theme)
-    notifyThemeChange()
+    themeService.setTheme(theme)
   })
 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {

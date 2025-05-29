@@ -26,7 +26,7 @@ const AboutSettings: FC = () => {
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
   const { openMinapp } = useMinappPopup()

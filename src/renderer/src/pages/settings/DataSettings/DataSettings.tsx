@@ -49,7 +49,7 @@ const DataSettings: FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
   const { size, removeAllFiles } = useKnowledgeFiles()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
 
   const _skipBackupFile = store.getState().settings.skipBackupFile

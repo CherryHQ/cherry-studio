@@ -199,7 +199,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
   const { userName } = useSettings()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
 
   const topicId = conversationId
 

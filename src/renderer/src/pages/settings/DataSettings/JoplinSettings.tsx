@@ -14,7 +14,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 
 const JoplinSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
+  const { theme: theme } = useTheme()
   const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 

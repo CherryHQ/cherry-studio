@@ -144,7 +144,7 @@ export enum IpcChannel {
 
   // events
   BackupProgress = 'backup-progress',
-  ThemeChange = 'theme:change',
+  ThemeUpdated = 'theme:updated',
   UpdateDownloadedCancelled = 'update-downloaded-cancelled',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
