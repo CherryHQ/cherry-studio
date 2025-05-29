@@ -503,9 +503,7 @@ const TranslatePage: FC = () => {
                 disabled
                 options={[
                   {
-                    label: detectedLanguage
-                      ? t(`languages.${detectedLanguage}`)
-                      : t('translate.detected.language'),
+                    label: detectedLanguage ? t(`languages.${detectedLanguage}`) : t('translate.detected.language'),
                     value: 'auto'
                   }
                 ]}
