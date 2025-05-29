@@ -269,11 +269,11 @@ const TranslatePage: FC = () => {
   }
 
   const deleteHistory = async (id: string) => {
-    await db.translate_history.delete(id)
+    db.translate_history.delete(id)
   }
 
   const clearHistory = async () => {
-    await db.translate_history.clear()
+    db.translate_history.clear()
   }
 
   const onTranslate = async () => {
@@ -318,21 +318,21 @@ const TranslatePage: FC = () => {
       await fetchTranslate({
         content: text,
         assistant,
-        onResponse: (responseText) => {
-          translatedText = responseText.replace(/^\s*\n+/g, '')
+        onResponse: (text) => {
+          translatedText = text.replace(/^\s*\n+/g, '')
           setResult(translatedText)
         }
       })
 
       await saveTranslateHistory(text, translatedText, sourceLanguage, actualTargetLanguage)
     } catch (error) {
-      console.error('翻译错误:', error)
+      console.error('Translation error:', error)
       window.message.error({
         content: String(error),
         key: 'translate-message'
       })
-    } finally {
       setLoading(false)
+      return
     }
   }
 
