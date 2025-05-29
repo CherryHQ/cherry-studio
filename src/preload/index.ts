@@ -218,6 +218,8 @@ const api = {
     setTriggerMode: (triggerMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetTriggerMode, triggerMode),
     setFollowToolbar: (isFollowToolbar: boolean) =>
       ipcRenderer.invoke(IpcChannel.Selection_SetFollowToolbar, isFollowToolbar),
+    setRemeberWinSize: (isRemeberWinSize: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Selection_SetRemeberWinSize, isRemeberWinSize),
     setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
     setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
     processAction: (actionItem: ActionItem) => ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem),

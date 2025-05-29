@@ -1882,6 +1882,10 @@
             "title": "Follow Toolbar",
             "description": "Window position will follow the toolbar. When disabled, it will always be centered."
           },
+          "remember_size": {
+            "title": "Remember Size",
+            "description": "Window will display at the last adjusted size during the application running"
+          },
           "auto_close": {
             "title": "Auto Close",
             "description": "Automatically close the window when it's not pinned and loses focus"

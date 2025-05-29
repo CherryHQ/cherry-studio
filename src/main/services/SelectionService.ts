@@ -60,6 +60,7 @@ export class SelectionService {
 
   private triggerMode = 'selected'
   private isFollowToolbar = true
+  private isRemeberWinSize = false
   private filterMode = 'default'
   private filterList: string[] = []
 
@@ -85,6 +86,11 @@ export class SelectionService {
 
   private readonly ACTION_WINDOW_WIDTH = 500
   private readonly ACTION_WINDOW_HEIGHT = 400
+
+  private lastActionWindowSize: { width: number; height: number } = {
+    width: this.ACTION_WINDOW_WIDTH,
+    height: this.ACTION_WINDOW_HEIGHT
+  }
 
   private constructor() {
     try {
@@ -140,6 +146,7 @@ export class SelectionService {
   private initConfig() {
     this.triggerMode = configManager.getSelectionAssistantTriggerMode()
     this.isFollowToolbar = configManager.getSelectionAssistantFollowToolbar()
+    this.isRemeberWinSize = configManager.getSelectionAssistantRemeberWinSize()
     this.filterMode = configManager.getSelectionAssistantFilterMode()
     this.filterList = configManager.getSelectionAssistantFilterList()
 
@@ -152,6 +159,17 @@ export class SelectionService {
 
     configManager.subscribe(ConfigKeys.SelectionAssistantFollowToolbar, (isFollowToolbar: boolean) => {
       this.isFollowToolbar = isFollowToolbar
+    })
+
+    configManager.subscribe(ConfigKeys.SelectionAssistantRemeberWinSize, (isRemeberWinSize: boolean) => {
+      this.isRemeberWinSize = isRemeberWinSize
+      //when off, reset the last action window size to default
+      if (!this.isRemeberWinSize) {
+        this.lastActionWindowSize = {
+          width: this.ACTION_WINDOW_WIDTH,
+          height: this.ACTION_WINDOW_HEIGHT
+        }
+      }
     })
 
     configManager.subscribe(ConfigKeys.SelectionAssistantFilterMode, (filterMode: string) => {
@@ -810,8 +828,8 @@ export class SelectionService {
    */
   private createPreloadedActionWindow(): BrowserWindow {
     const preloadedActionWindow = new BrowserWindow({
-      width: this.ACTION_WINDOW_WIDTH,
-      height: this.ACTION_WINDOW_HEIGHT,
+      width: this.isRemeberWinSize ? this.lastActionWindowSize.width : this.ACTION_WINDOW_WIDTH,
+      height: this.isRemeberWinSize ? this.lastActionWindowSize.height : this.ACTION_WINDOW_HEIGHT,
       minWidth: 300,
       minHeight: 200,
       frame: false,
@@ -885,6 +903,16 @@ export class SelectionService {
       }
     })
 
+    //remember the action window size
+    actionWindow.on('resized', () => {
+      if (this.isRemeberWinSize) {
+        this.lastActionWindowSize = {
+          width: actionWindow.getBounds().width,
+          height: actionWindow.getBounds().height
+        }
+      }
+    })
+
     this.actionWindows.add(actionWindow)
 
     // Asynchronously create a new preloaded window
@@ -907,30 +935,58 @@ export class SelectionService {
    * @param actionWindow Window to position and show
    */
   private showActionWindow(actionWindow: BrowserWindow) {
+    let actionWindowWidth = this.ACTION_WINDOW_WIDTH
+    let actionWindowHeight = this.ACTION_WINDOW_HEIGHT
+
+    //if remember win size is true, use the last remembered size
+    if (this.isRemeberWinSize) {
+      actionWindowWidth = this.lastActionWindowSize.width
+      actionWindowHeight = this.lastActionWindowSize.height
+    }
+
+    //center way
     if (!this.isFollowToolbar || !this.toolbarWindow) {
+      if (this.isRemeberWinSize) {
+        actionWindow.setBounds({
+          width: actionWindowWidth,
+          height: actionWindowHeight
+        })
+      }
+
       actionWindow.show()
       this.hideToolbar()
       return
     }
+
+    //follow toolbar
 
     const toolbarBounds = this.toolbarWindow!.getBounds()
     const display = screen.getDisplayNearestPoint({ x: toolbarBounds.x, y: toolbarBounds.y })
     const workArea = display.workArea
     const GAP = 6 // 6px gap from screen edges
 
+    //make sure action window is inside screen
+    if (actionWindowWidth > workArea.width - 2 * GAP) {
+      actionWindowWidth = workArea.width - 2 * GAP
+    }
+
+    if (actionWindowHeight > workArea.height - 2 * GAP) {
+      actionWindowHeight = workArea.height - 2 * GAP
+    }
+
     // Calculate initial position to center action window horizontally below toolbar
-    let posX = Math.round(toolbarBounds.x + (toolbarBounds.width - this.ACTION_WINDOW_WIDTH) / 2)
+    let posX = Math.round(toolbarBounds.x + (toolbarBounds.width - actionWindowWidth) / 2)
     let posY = Math.round(toolbarBounds.y)
 
     // Ensure action window stays within screen boundaries with a small gap
-    if (posX + this.ACTION_WINDOW_WIDTH > workArea.x + workArea.width) {
-      posX = workArea.x + workArea.width - this.ACTION_WINDOW_WIDTH - GAP
+    if (posX + actionWindowWidth > workArea.x + workArea.width) {
+      posX = workArea.x + workArea.width - actionWindowWidth - GAP
     } else if (posX < workArea.x) {
       posX = workArea.x + GAP
     }
-    if (posY + this.ACTION_WINDOW_HEIGHT > workArea.y + workArea.height) {
+    if (posY + actionWindowHeight > workArea.y + workArea.height) {
       // If window would go below screen, try to position it above toolbar
-      posY = workArea.y + workArea.height - this.ACTION_WINDOW_HEIGHT - GAP
+      posY = workArea.y + workArea.height - actionWindowHeight - GAP
     } else if (posY < workArea.y) {
       posY = workArea.y + GAP
     }
@@ -938,8 +994,8 @@ export class SelectionService {
     actionWindow.setPosition(posX, posY, false)
     //KEY to make window not resize
     actionWindow.setBounds({
-      width: this.ACTION_WINDOW_WIDTH,
-      height: this.ACTION_WINDOW_HEIGHT,
+      width: actionWindowWidth,
+      height: actionWindowHeight,
       x: posX,
       y: posY
     })
@@ -1019,6 +1075,10 @@ export class SelectionService {
 
     ipcMain.handle(IpcChannel.Selection_SetFollowToolbar, (_, isFollowToolbar: boolean) => {
       configManager.setSelectionAssistantFollowToolbar(isFollowToolbar)
+    })
+
+    ipcMain.handle(IpcChannel.Selection_SetRemeberWinSize, (_, isRemeberWinSize: boolean) => {
+      configManager.setSelectionAssistantRemeberWinSize(isRemeberWinSize)
     })
 
     ipcMain.handle(IpcChannel.Selection_SetFilterMode, (_, filterMode: string) => {

@@ -266,13 +266,11 @@ const Container = styled.div`
 const Result = styled.div`
   margin-top: 4px;
   width: 100%;
-  max-width: 960px;
 `
 
 const MenuContainer = styled.div`
   display: flex;
   width: 100%;
-  max-width: 960px;
   flex-direction: row;
   align-items: center;
   justify-content: flex-end;
@@ -309,7 +307,6 @@ const OriginalContent = styled.div`
   white-space: pre-wrap;
   word-break: break-word;
   width: 100%;
-  max-width: 960px;
 `
 
 const OriginalContentCopyWrapper = styled.div`

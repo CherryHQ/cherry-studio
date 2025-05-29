@@ -189,6 +189,7 @@ export enum IpcChannel {
   Selection_SetFilterMode = 'selection:set-filter-mode',
   Selection_SetFilterList = 'selection:set-filter-list',
   Selection_SetFollowToolbar = 'selection:set-follow-toolbar',
+  Selection_SetRemeberWinSize = 'selection:set-remeber-win-size',
   Selection_ActionWindowClose = 'selection:action-window-close',
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',

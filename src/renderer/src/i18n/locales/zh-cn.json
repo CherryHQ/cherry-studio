@@ -1882,6 +1882,10 @@
             "title": "跟随工具栏",
             "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
           },
+          "remember_size": {
+            "title": "记住大小",
+            "description": "应用运行期间，窗口会按上次调整的大小显示"
+          },
           "auto_close": {
             "title": "自动关闭",
             "description": "当窗口未置顶且失去焦点时，将自动关闭该窗口"

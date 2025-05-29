@@ -19,6 +19,7 @@ export interface SelectionState {
   isAutoClose: boolean
   isAutoPin: boolean
   isFollowToolbar: boolean
+  isRemeberWinSize: boolean
   filterMode: FilterMode
   filterList: string[]
   actionWindowOpacity: number
