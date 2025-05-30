@@ -488,7 +488,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
-      <Container right={topicPosition === 'right'} className="topics-tab">
+      <Container className="topics-tab">
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
           <Tooltip title={t('chat.topics.multi_select.hint', { key: 'shift' })} placement="bottom">
             <button
@@ -513,7 +513,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             </button>
           </Tooltip>
         </div>
-        <DragableList list={assistant.topics} onUpdate={updateTopics}>
+        <DragableList list={sortedTopics} onUpdate={updateTopics}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id
             const topicName = topic.name.replace('`', '')
