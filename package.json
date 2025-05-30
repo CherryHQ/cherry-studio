@@ -91,7 +91,7 @@
     "officeparser": "^4.1.1",
     "os-proxy-config": "^1.1.2",
     "proxy-agent": "^6.5.0",
-    "selection-hook": "^0.9.18",
+    "selection-hook": "^0.9.19",
     "tar": "^7.4.3",
     "turndown": "^7.2.0",
     "webdav": "^5.8.0",

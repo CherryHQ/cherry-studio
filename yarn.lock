@@ -5667,7 +5667,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.18"
+    selection-hook: "npm:^0.9.19"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -16400,13 +16400,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.18":
-  version: 0.9.18
-  resolution: "selection-hook@npm:0.9.18"
+"selection-hook@npm:^0.9.19":
+  version: 0.9.19
+  resolution: "selection-hook@npm:0.9.19"
   dependencies:
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/6429b25c999a85d2bd65ed63ad5840fbfdcc66aa529a57a4c5cc9fc4840a0fd78a8b104054bae4907a00f4b8dcb1b3608261f601f35b30058ff3304035cadc23
+  checksum: 10c0/e90889b5b76e96b45a7c04429621346b5296e41d821e57b72178e6f93e622298288cd9586bd79273320fd26f98cc7ffb44496e0b66430b6dfcdc9b875c2c0d3f
   languageName: node
   linkType: hard
 
