@@ -1678,7 +1678,7 @@
         "zoom_out": "Уменьшить",
         "zoom_reset": "Сбросить масштаб"
       },
-      "theme.auto": "Автоматически",
+      "theme.system": "Системная",
       "theme.dark": "Темная",
       "theme.light": "Светлая",
       "theme.title": "Тема",

@@ -123,7 +123,7 @@ const DisplaySettings: FC = () => {
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <SyncOutlined />
-            <span>{t('settings.theme.auto')}</span>
+            <span>{t('settings.theme.system')}</span>
           </div>
         )
       }

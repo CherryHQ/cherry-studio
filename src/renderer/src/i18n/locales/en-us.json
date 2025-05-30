@@ -1688,7 +1688,7 @@
         "zoom_out": "Zoom Out",
         "zoom_reset": "Reset Zoom"
       },
-      "theme.auto": "Auto",
+      "theme.system": "System",
       "theme.dark": "Dark",
       "theme.light": "Light",
       "theme.title": "Theme",

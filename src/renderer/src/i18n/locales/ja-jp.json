@@ -1678,7 +1678,7 @@
         "zoom_out": "ズームアウト",
         "zoom_reset": "ズームをリセット"
       },
-      "theme.auto": "自動",
+      "theme.system": "システム",
       "theme.dark": "ダーク",
       "theme.light": "ライト",
       "theme.title": "テーマ",

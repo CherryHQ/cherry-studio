@@ -1681,7 +1681,7 @@
         "zoom_reset": "重設縮放",
         "exit_fullscreen": "退出螢幕"
       },
-      "theme.auto": "自動",
+      "theme.system": "系統",
       "theme.dark": "深色",
       "theme.light": "淺色",
       "theme.title": "主題",

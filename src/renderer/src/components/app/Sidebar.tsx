@@ -108,7 +108,7 @@ const Sidebar: FC = () => {
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${actualTheme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${theme}`)}
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={actualTheme} onClick={() => toggleTheme()}>
