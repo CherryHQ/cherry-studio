@@ -273,8 +273,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       ref={scrollContainerRef}
       style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
-      onScroll={handleScrollPosition}
-      $right={topicPosition === 'left'}>
+      onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
@@ -376,6 +375,7 @@ const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;
+  margin-right: 2px;
 `
 
 export default Messages

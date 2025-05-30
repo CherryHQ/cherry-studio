@@ -163,7 +163,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
         </Flex>
       )}
       {role === 'user' && !renderInputMessageAsMarkdown ? (
-        <p className="markdown" style={{ marginBottom: 5, whiteSpace: 'pre-line' }}>
+        <p className="markdown" style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>
           {block.content}
         </p>
       ) : (

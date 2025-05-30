@@ -227,9 +227,9 @@ const SettingsTab: FC<Props> = (props) => {
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
-            <Label>{t('chat.settings.temperature')}</Label>
+            <SettingRowTitleSmall>{t('chat.settings.temperature')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.temperature.tip')}>
-              <CircleHelp size={14} color="var(--color-text-2)" />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
@@ -245,9 +245,9 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
           <Row align="middle">
-            <Label>{t('chat.settings.context_count')}</Label>
+            <SettingRowTitleSmall>{t('chat.settings.context_count')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.context_count.tip')}>
-              <CircleHelp size={14} color="var(--color-text-2)" />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
@@ -276,12 +276,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <HStack alignItems="center">
-              <Label>{t('chat.settings.max_tokens')}</Label>
+            <Row align="middle">
+              <SettingRowTitleSmall>{t('chat.settings.max_tokens')}</SettingRowTitleSmall>
               <Tooltip title={t('chat.settings.max_tokens.tip')}>
-                <CircleHelp size={14} color="var(--color-text-2)" />
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
-            </HStack>
+            </Row>
             <Switch
               size="small"
               checked={enableMaxTokens}
@@ -707,12 +707,6 @@ const Container = styled(Scrollbar)`
   padding-right: 0;
   padding-top: 2px;
   padding-bottom: 10px;
-`
-
-const Label = styled.p`
-  margin: 0;
-  font-size: 12px;
-  margin-right: 5px;
 `
 
 const SettingRowTitleSmall = styled(SettingRowTitle)`

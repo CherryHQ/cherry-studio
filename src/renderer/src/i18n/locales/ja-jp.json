@@ -940,7 +940,10 @@
       },
       "rendering_speed": "レンダリング速度",
       "translating": "翻訳中...",
-      "text_desc_required": "画像の説明を先に入力してください"
+      "text_desc_required": "画像の説明を先に入力してください",
+      "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "auto_create_paint": "画像を自動作成",
+      "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
