@@ -2,6 +2,7 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   FolderOpenOutlined,
+  LoadingOutlined,
   SaveOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
@@ -18,7 +19,7 @@ import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Switch, Typography } from 'antd'
+import { Button, Progress, Switch, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -179,6 +180,219 @@ const DataSettings: FC = () => {
     })
   }
 
+  const handleSelectAppDataPath = async () => {
+    if (!appInfo || !appInfo.appDataPath) {
+      return
+    }
+
+    const newAppDataPath = await window.api.select({
+      properties: ['openDirectory', 'createDirectory'],
+      title: t('settings.data.app_data.select_title')
+    })
+
+    if (!newAppDataPath) {
+      return
+    }
+
+    // 准备迁移所需的UI组件和信息
+    const migrationTitle = (
+      <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
+    )
+    const migrationClassName = 'migration-modal'
+    const messageKey = 'data-migration'
+
+    // 显示确认对话框
+    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
+  }
+
+  // 显示确认迁移的对话框
+  const showMigrationConfirmModal = (
+    originalPath: string,
+    newPath: string,
+    title: React.ReactNode,
+    className: string,
+    messageKey: string
+  ) => {
+    // 创建路径内容组件
+    const PathsContent = () => (
+      <div>
+        <MigrationPathRow>
+          <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
+          <MigrationPathValue>{originalPath}</MigrationPathValue>
+        </MigrationPathRow>
+        <MigrationPathRow style={{ marginTop: '16px' }}>
+          <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
+          <MigrationPathValue>{newPath}</MigrationPathValue>
+        </MigrationPathRow>
+      </div>
+    )
+
+    // 显示确认模态框
+    const modal = window.modal.confirm({
+      title,
+      className,
+      content: (
+        <MigrationModalContent>
+          <PathsContent />
+          <MigrationNotice>
+            <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
+            <p style={{ color: 'var(--color-text-3)', marginTop: '8px' }}>
+              {t('settings.data.app_data.copy_time_notice')}
+            </p>
+          </MigrationNotice>
+        </MigrationModalContent>
+      ),
+      centered: true,
+      onOk: async () => {
+        try {
+          // 显示进度模态框
+          const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
+
+          try {
+            // 执行迁移
+            await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
+
+            // 更新应用数据路径
+            setAppInfo(await window.api.getAppInfo())
+
+            // 通知用户并重启应用
+            setTimeout(() => {
+              window.message.success(t('settings.data.app_data.select_success'))
+              window.api.relaunchApp()
+            }, 1000)
+          } catch (error) {
+            if (progressInterval) {
+              clearInterval(progressInterval)
+            }
+            loadingModal.destroy()
+            throw error
+          }
+        } catch (error) {
+          try {
+            modal.destroy()
+          } catch (e) {
+            // 忽略模态框销毁错误
+          }
+
+          window.message.error({
+            content: t('settings.data.app_data.copy_failed') + ': ' + error,
+            duration: 5
+          })
+        }
+      }
+    })
+  }
+
+  // 显示进度模态框
+  const showProgressModal = (title: React.ReactNode, className: string, PathsContent: React.FC) => {
+    let currentProgress = 0
+    let progressInterval: NodeJS.Timeout | null = null
+
+    // 创建进度更新模态框
+    const loadingModal = window.modal.info({
+      title,
+      className,
+      icon: <LoadingOutlined style={{ fontSize: 18 }} />,
+      content: (
+        <MigrationModalContent>
+          <PathsContent />
+          <MigrationNotice>
+            <p>{t('settings.data.app_data.copying')}</p>
+            <div style={{ marginTop: '12px' }}>
+              <Progress percent={currentProgress} status="active" strokeWidth={8} />
+            </div>
+          </MigrationNotice>
+        </MigrationModalContent>
+      ),
+      centered: true,
+      closable: false,
+      maskClosable: false,
+      okButtonProps: { style: { display: 'none' } }
+    })
+
+    // 更新进度的函数
+    const updateProgress = (progress: number, status: 'active' | 'success' = 'active') => {
+      loadingModal.update({
+        title,
+        content: (
+          <MigrationModalContent>
+            <PathsContent />
+            <MigrationNotice>
+              <p>{t('settings.data.app_data.copying')}</p>
+              <div style={{ marginTop: '12px' }}>
+                <Progress percent={Math.round(progress)} status={status} strokeWidth={8} />
+              </div>
+            </MigrationNotice>
+          </MigrationModalContent>
+        )
+      })
+    }
+
+    // 开始模拟进度更新
+    progressInterval = setInterval(() => {
+      if (currentProgress < 95) {
+        currentProgress += Math.random() * 5 + 1
+        if (currentProgress > 95) currentProgress = 95
+        updateProgress(currentProgress)
+      }
+    }, 500)
+
+    return { loadingModal, progressInterval, updateProgress }
+  }
+
+  // 开始迁移数据
+  const startMigration = async (
+    originalPath: string,
+    newPath: string,
+    progressInterval: NodeJS.Timeout | null,
+    updateProgress: (progress: number, status?: 'active' | 'success') => void,
+    loadingModal: { destroy: () => void },
+    messageKey: string
+  ): Promise<void> => {
+    // 开始复制过程
+    const copyResult = await window.api.copy(originalPath, newPath)
+
+    // 停止进度更新
+    if (progressInterval) {
+      clearInterval(progressInterval)
+    }
+
+    // 显示100%完成
+    updateProgress(100, 'success')
+
+    if (!copyResult.success) {
+      // 延迟关闭加载模态框
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          loadingModal.destroy()
+          window.message.error({
+            content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+            key: messageKey,
+            duration: 5
+          })
+          resolve()
+        }, 500)
+      })
+
+      throw new Error(copyResult.error || 'Unknown error during copy')
+    }
+
+    // 在复制成功后设置新的AppDataPath
+    await window.api.setAppDataPath(newPath)
+
+    // 短暂延迟以显示100%完成
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // 关闭加载模态框
+    loadingModal.destroy()
+
+    window.message.success({
+      content: t('settings.data.app_data.copy_success'),
+      key: messageKey,
+      duration: 2
+    })
+  }
+
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
     dispatch(_setSkipBackupFile(value))
@@ -245,6 +459,9 @@ const DataSettings: FC = () => {
                 <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
+                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                    <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
+                  </HStack>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
@@ -350,6 +567,40 @@ const PathRow = styled(HStack)`
   width: 0;
   align-items: center;
   gap: 5px;
+`
+
+// Add styled components for migration modal
+const MigrationModalContent = styled.div`
+  padding: 20px 0 10px;
+  display: flex;
+  flex-direction: column;
+`
+
+const MigrationNotice = styled.div`
+  margin-top: 24px;
+  font-size: 14px;
+`
+
+const MigrationPathRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+`
+
+const MigrationPathLabel = styled.div`
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-text-1);
+`
+
+const MigrationPathValue = styled.div`
+  font-size: 14px;
+  color: var(--color-text-2);
+  background-color: var(--color-background-soft);
+  padding: 8px 12px;
+  border-radius: 4px;
+  word-break: break-all;
+  border: 1px solid var(--color-border);
 `
 
 export default DataSettings
