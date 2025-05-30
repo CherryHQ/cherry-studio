@@ -69,18 +69,10 @@ function withCache<T extends unknown[], R>(
 }
 
 class McpService {
-  private static instance: McpService | null = null
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
 
-  public static getInstance(): McpService {
-    if (!McpService.instance) {
-      McpService.instance = new McpService()
-    }
-    return McpService.instance
-  }
-
-  private constructor() {
+  constructor() {
     this.initClient = this.initClient.bind(this)
     this.listTools = this.listTools.bind(this)
     this.callTool = this.callTool.bind(this)
@@ -99,7 +91,7 @@ class McpService {
     return JSON.stringify({
       baseUrl: server.baseUrl,
       command: server.command,
-      args: server.args,
+      args: Array.isArray(server.args) ? server.args : [],
       registryUrl: server.registryUrl,
       env: server.env,
       id: server.id
@@ -251,6 +243,12 @@ class McpService {
             Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
             // Logger.info(`[MCP] Environment variables for server:`, server.env)
             const loginShellEnv = await this.getLoginShellEnv()
+
+            // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
+            if (cmd.includes('bun')) {
+              this.removeProxyEnv(loginShellEnv)
+            }
+
             const stdioTransport = new StdioClientTransport({
               command: cmd,
               args,
@@ -393,6 +391,26 @@ class McpService {
       } catch (error: any) {
         Logger.error(`[MCP] Failed to close client: ${error?.message}`)
       }
+    }
+  }
+
+  /**
+   * Check connectivity for an MCP server
+   */
+  public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
+    Logger.info(`[MCP] Checking connectivity for server: ${server.name}`)
+    try {
+      const client = await this.initClient(server)
+      // Attempt to list tools as a way to check connectivity
+      await client.listTools()
+      Logger.info(`[MCP] Connectivity check successful for server: ${server.name}`)
+      return true
+    } catch (error) {
+      Logger.error(`[MCP] Connectivity check failed for server: ${server.name}`, error)
+      // Close the client if connectivity check fails to ensure a clean state for the next attempt
+      const serverKey = this.getServerKey(server)
+      await this.closeClient(serverKey)
+      return false
     }
   }
 
@@ -549,12 +567,11 @@ class McpService {
     try {
       const result = await client.listResources()
       const resources = result.resources || []
-      const serverResources = (Array.isArray(resources) ? resources : []).map((resource: any) => ({
+      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
         ...resource,
         serverId: server.id,
         serverName: server.name
       }))
-      return serverResources
     } catch (error: any) {
       // -32601 is the code for the method not found
       if (error?.code !== -32601) {
@@ -639,15 +656,14 @@ class McpService {
       return {}
     }
   })
-}
 
-let mcpInstance: ReturnType<typeof McpService.getInstance> | null = null
-
-export const getMcpInstance = () => {
-  if (!mcpInstance) {
-    mcpInstance = McpService.getInstance()
+  private removeProxyEnv(env: Record<string, string>) {
+    delete env.HTTPS_PROXY
+    delete env.HTTP_PROXY
+    delete env.grpc_proxy
+    delete env.http_proxy
+    delete env.https_proxy
   }
-  return mcpInstance
 }
 
-export default McpService.getInstance
+export default new McpService()

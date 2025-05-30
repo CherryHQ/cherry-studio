@@ -1,22 +1,14 @@
-import { MCPTool } from '@renderer/types'
+import { type MCPTool } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import { AvailableTools, buildSystemPrompt } from '../prompt'
 
 describe('prompt', () => {
-  // 辅助函数：创建符合 MCPTool 类型的工具对象
-  const createMcpTool = (id: string, description: string, inputSchema: any): MCPTool => ({
-    id,
-    description,
-    inputSchema,
-    serverId: 'test-server-id',
-    serverName: 'test-server',
-    name: id
-  })
-
   describe('AvailableTools', () => {
     it('should generate XML format for tools', () => {
-      const tools = [createMcpTool('test-tool', 'Test tool description', { type: 'object' })]
+      const tools = [
+        { id: 'test-tool', description: 'Test tool description', inputSchema: { type: 'object' } } as MCPTool
+      ]
       const result = AvailableTools(tools)
 
       expect(result).toContain('<tools>')
@@ -37,25 +29,29 @@ describe('prompt', () => {
   })
 
   describe('buildSystemPrompt', () => {
-    it('should build prompt with tools', () => {
+    it('should build prompt with tools', async () => {
       const userPrompt = 'Custom user system prompt'
-      const tools = [createMcpTool('test-tool', 'Test tool description', { type: 'object' })]
-      const result = buildSystemPrompt(userPrompt, tools)
+      const tools = [
+        { id: 'test-tool', description: 'Test tool description', inputSchema: { type: 'object' } } as MCPTool
+      ]
+      const result = await buildSystemPrompt(userPrompt, tools)
 
       expect(result).toContain(userPrompt)
       expect(result).toContain('test-tool')
       expect(result).toContain('Test tool description')
     })
 
-    it('should return user prompt without tools', () => {
+    it('should return user prompt without tools', async () => {
       const userPrompt = 'Custom user system prompt'
-      const result = buildSystemPrompt(userPrompt, [])
+      const result = await buildSystemPrompt(userPrompt, [])
 
       expect(result).toBe(userPrompt)
     })
 
-    it('should handle null or undefined user prompt', () => {
-      const tools = [createMcpTool('test-tool', 'Test tool description', { type: 'object' })]
+    it('should handle null or undefined user prompt', async () => {
+      const tools = [
+        { id: 'test-tool', description: 'Test tool description', inputSchema: { type: 'object' } } as MCPTool
+      ]
 
       // 测试 userPrompt 为 null 的情况
       const resultNull = buildSystemPrompt(null as any, tools)

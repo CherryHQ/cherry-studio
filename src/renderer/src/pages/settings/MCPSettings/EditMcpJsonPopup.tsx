@@ -1,11 +1,10 @@
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Modal, Typography } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
@@ -100,10 +99,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     resolve({})
   }
 
-  const handleChange = useCallback((newContent: string) => {
-    setJsonConfig(newContent)
-  }, [])
-
   EditMcpJsonPopup.hide = onCancel
 
   return (
@@ -125,22 +120,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </div>
       {jsonConfig && (
         <div style={{ marginBottom: '16px' }}>
-          <CodeToolbarProvider>
-            <CodeEditor
-              language="json"
-              onChange={handleChange}
-              maxHeight="60vh"
-              options={{
-                collapsible: true,
-                wrappable: true,
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                keymap: true
-              }}>
-              {jsonConfig}
-            </CodeEditor>
-          </CodeToolbarProvider>
+          <CodeEditor
+            value={jsonConfig}
+            language="json"
+            onChange={(value) => setJsonConfig(value)}
+            maxHeight="60vh"
+            options={{
+              lint: true,
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
         </div>
       )}
       <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>

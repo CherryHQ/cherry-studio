@@ -1,5 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
+import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
 import { Spin } from 'antd'
 import pako from 'pako'
 import React, { memo, useCallback, useRef, useState } from 'react'
@@ -134,9 +134,10 @@ const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagr
 
 interface PlantUMLProps {
   children: string
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
-const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
+const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children, setTools }) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -165,6 +166,7 @@ const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children }) => {
 
   // 使用工具栏
   usePreviewTools({
+    setTools,
     handleZoom,
     handleCopyImage,
     handleDownload: customDownload

@@ -5,8 +5,6 @@ import { FC, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
-import Scrollbar from '../Scrollbar'
-
 interface Props {
   children: React.ReactNode
   activeAssistant: Assistant
@@ -52,29 +50,29 @@ const FloatingSidebar: FC<Props> = ({
         setActiveAssistant={setActiveAssistant}
         setActiveTopic={setActiveTopic}
         position={position}
-        forceToSeeAllTab={true}></HomeTabs>
+        forceToSeeAllTab={true}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          maxHeight: maxHeight
+        }}
+      />
     </PopoverContent>
   )
 
   return (
     <Popover
       open={open}
-      onOpenChange={(visible) => {
-        setOpen(visible)
-      }}
+      onOpenChange={setOpen}
       content={content}
-      trigger={['hover', 'click']}
+      trigger={['hover', 'click', 'contextMenu']}
       placement="bottomRight"
-      arrow={false}
+      showArrow
       mouseEnterDelay={0.8} // 800ms delay before showing
       mouseLeaveDelay={20}
       styles={{
         body: {
-          padding: 0,
-          background: 'var(--color-background)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '8px',
-          boxShadow: '0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12)'
+          padding: 0
         }
       }}>
       {children}
@@ -82,9 +80,8 @@ const FloatingSidebar: FC<Props> = ({
   )
 }
 
-const PopoverContent = styled(Scrollbar)<{ maxHeight: number }>`
+const PopoverContent = styled.div<{ maxHeight: number }>`
   max-height: ${(props) => props.maxHeight}px;
-  overflow-y: auto;
 `
 
 export default FloatingSidebar

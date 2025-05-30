@@ -12,10 +12,6 @@ class FileManager {
     return files
   }
 
-  static async resolveFilePath(name: string): Promise<string> {
-    return window.api.file.resolveFilePath(name)
-  }
-
   static async addFile(file: FileType): Promise<FileType> {
     const fileRecord = await db.files.get(file.id)
 
@@ -41,6 +37,22 @@ class FileManager {
   static async readBase64File(file: FileType): Promise<string> {
     const fileData = await window.api.file.base64File(file.id + file.ext)
     return fileData.data
+  }
+
+  static async addBase64File(file: FileType): Promise<FileType> {
+    Logger.log(`[FileManager] Adding base64 file: ${JSON.stringify(file)}`)
+
+    const base64File = await window.api.file.base64File(file.id + file.ext)
+    const fileRecord = await db.files.get(base64File.id)
+
+    if (fileRecord) {
+      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      return fileRecord
+    }
+
+    await db.files.add(base64File)
+
+    return base64File
   }
 
   static async uploadFile(file: FileType): Promise<FileType> {
@@ -72,6 +84,11 @@ class FileManager {
     }
 
     return file
+  }
+
+  static getFilePath(file: FileType) {
+    const filesPath = store.getState().runtime.filesPath
+    return filesPath + '/' + file.id + file.ext
   }
 
   static async deleteFile(id: string, force: boolean = false): Promise<void> {

@@ -23,14 +23,14 @@ export default class EmbeddingsFactory {
         azureOpenAIApiVersion: apiVersion,
         azureOpenAIApiDeploymentName: model,
         azureOpenAIApiInstanceName: getInstanceName(baseURL),
-        // dimensions,
+        dimensions,
         batchSize
       })
     }
     return new OpenAiEmbeddings({
       model,
       apiKey,
-      // dimensions,
+      dimensions,
       batchSize,
       configuration: { baseURL }
     })

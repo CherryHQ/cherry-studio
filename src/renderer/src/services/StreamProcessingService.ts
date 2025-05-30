@@ -88,6 +88,9 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
       if (data.type === ChunkType.IMAGE_COMPLETE && callbacks.onImageGenerated) {
         callbacks.onImageGenerated(data.image)
       }
+      if (data.type === ChunkType.ERROR && callbacks.onError) {
+        callbacks.onError(data.error)
+      }
       // Note: Usage and Metrics are usually handled at the end or accumulated differently,
       // so direct callbacks might not be the best fit here. They are often part of the final message state.
     } catch (error) {

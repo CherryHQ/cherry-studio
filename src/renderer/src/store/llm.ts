@@ -127,6 +127,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'burncloud',
+    name: 'BurnCloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://ai.burncloud.com',
+    models: SYSTEM_MODELS.burncloud,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'o3',
     name: 'O3',
     type: 'openai',
@@ -399,16 +409,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'gitee-ai',
-    name: 'gitee ai',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://ai.gitee.com',
-    models: SYSTEM_MODELS['gitee-ai'],
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'perplexity',
     name: 'Perplexity',
     type: 'openai',
@@ -475,6 +475,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://api.voyageai.com',
     models: SYSTEM_MODELS.voyageai,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'tokenflux',
+    name: 'TokenFlux',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://tokenflux.ai',
+    models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
     enabled: false
   }

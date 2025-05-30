@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
+import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { Flex } from 'antd'
 import React, { memo, startTransition, useCallback, useEffect, useRef, useState } from 'react'
@@ -7,9 +7,10 @@ import styled from 'styled-components'
 
 interface Props {
   children: string
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
-const MermaidPreview: React.FC<Props> = ({ children }) => {
+const MermaidPreview: React.FC<Props> = ({ children, setTools }) => {
   const { mermaid, isLoading, error: mermaidError } = useMermaid()
   const mermaidRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
@@ -25,6 +26,7 @@ const MermaidPreview: React.FC<Props> = ({ children }) => {
 
   // 使用工具栏
   usePreviewTools({
+    setTools,
     handleZoom,
     handleCopyImage,
     handleDownload

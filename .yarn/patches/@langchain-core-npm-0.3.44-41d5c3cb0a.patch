@@ -1,0 +1,71 @@
+diff --git a/dist/utils/tiktoken.cjs b/dist/utils/tiktoken.cjs
+index 973b0d0e75aeaf8de579419af31b879b32975413..f23c7caa8b9dc8bd404132725346a4786f6b278b 100644
+--- a/dist/utils/tiktoken.cjs
++++ b/dist/utils/tiktoken.cjs
+@@ -1,25 +1,14 @@
+ "use strict";
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.encodingForModel = exports.getEncoding = void 0;
+-const lite_1 = require("js-tiktoken/lite");
+ const async_caller_js_1 = require("./async_caller.cjs");
+ const cache = {};
+ const caller = /* #__PURE__ */ new async_caller_js_1.AsyncCaller({});
+ async function getEncoding(encoding) {
+-    if (!(encoding in cache)) {
+-        cache[encoding] = caller
+-            .fetch(`https://tiktoken.pages.dev/js/${encoding}.json`)
+-            .then((res) => res.json())
+-            .then((data) => new lite_1.Tiktoken(data))
+-            .catch((e) => {
+-            delete cache[encoding];
+-            throw e;
+-        });
+-    }
+-    return await cache[encoding];
++    throw new Error("TikToken Not implemented");
+ }
+ exports.getEncoding = getEncoding;
+ async function encodingForModel(model) {
+-    return getEncoding((0, lite_1.getEncodingNameForModel)(model));
++    throw new Error("TikToken Not implemented");
+ }
+ exports.encodingForModel = encodingForModel;
+diff --git a/dist/utils/tiktoken.js b/dist/utils/tiktoken.js
+index 8e41ee6f00f2f9c7fa2c59fa2b2f4297634b97aa..aa5f314a6349ad0d1c5aea8631a56aad099176e0 100644
+--- a/dist/utils/tiktoken.js
++++ b/dist/utils/tiktoken.js
+@@ -1,20 +1,9 @@
+-import { Tiktoken, getEncodingNameForModel, } from "js-tiktoken/lite";
+ import { AsyncCaller } from "./async_caller.js";
+ const cache = {};
+ const caller = /* #__PURE__ */ new AsyncCaller({});
+ export async function getEncoding(encoding) {
+-    if (!(encoding in cache)) {
+-        cache[encoding] = caller
+-            .fetch(`https://tiktoken.pages.dev/js/${encoding}.json`)
+-            .then((res) => res.json())
+-            .then((data) => new Tiktoken(data))
+-            .catch((e) => {
+-            delete cache[encoding];
+-            throw e;
+-        });
+-    }
+-    return await cache[encoding];
++    throw new Error("TikToken Not implemented");
+ }
+ export async function encodingForModel(model) {
+-    return getEncoding(getEncodingNameForModel(model));
++    throw new Error("TikToken Not implemented");
+ }
+diff --git a/package.json b/package.json
+index 36072aecf700fca1bc49832a19be832eca726103..90b8922fba1c3d1b26f78477c891b07816d6238a 100644
+--- a/package.json
++++ b/package.json
+@@ -37,7 +37,6 @@
+     "ansi-styles": "^5.0.0",
+     "camelcase": "6",
+     "decamelize": "1.2.0",
+-    "js-tiktoken": "^1.0.12",
+     "langsmith": ">=0.2.8 <0.4.0",
+     "mustache": "^4.2.0",
+     "p-queue": "^6.6.2",

@@ -14,6 +14,7 @@ import {
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -73,7 +74,8 @@ const SettingsTab: FC<Props> = (props) => {
   const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
-  const { messageStyle, fontSize, language, theme } = useSettings()
+  const { messageStyle, fontSize, language } = useSettings()
+  const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
@@ -206,9 +208,14 @@ const SettingsTab: FC<Props> = (props) => {
         title={t('assistants.settings.title')}
         defaultExpanded={true}
         extra={
-          <HStack alignItems="center">
+          <HStack alignItems="center" gap={2}>
             <Tooltip title={t('chat.settings.reset')}>
-              <RotateCcw size={20} onClick={onReset} style={{ cursor: 'pointer', padding: '0 3px' }} />
+              <Button
+                type="text"
+                size="small"
+                onClick={onReset}
+                icon={<RotateCcw size={20} style={{ cursor: 'pointer', padding: '0 3px', opacity: 0.8 }} />}
+              />
             </Tooltip>
             <Button
               type="text"
@@ -220,13 +227,13 @@ const SettingsTab: FC<Props> = (props) => {
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
-            <Label>{t('chat.settings.temperature')}</Label>
+            <SettingRowTitleSmall>{t('chat.settings.temperature')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.temperature.tip')}>
-              <CircleHelp size={14} color="var(--color-text-2)" />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <div style={{ width: '100%' }}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={2}
@@ -235,16 +242,16 @@ const SettingsTab: FC<Props> = (props) => {
                 value={typeof temperature === 'number' ? temperature : 0}
                 step={0.1}
               />
-            </div>
+            </Col>
           </Row>
           <Row align="middle">
-            <Label>{t('chat.settings.context_count')}</Label>
+            <SettingRowTitleSmall>{t('chat.settings.context_count')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.context_count.tip')}>
-              <CircleHelp size={14} color="var(--color-text-2)" />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
-            <div style={{ width: '100%' }}>
+            <Col span={23}>
               <Slider
                 min={0}
                 max={maxContextCount}
@@ -253,7 +260,7 @@ const SettingsTab: FC<Props> = (props) => {
                 value={typeof contextCount === 'number' ? contextCount : 0}
                 step={1}
               />
-            </div>
+            </Col>
           </Row>
           <SettingDivider />
           <SettingRow>
@@ -269,12 +276,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <HStack alignItems="center">
-              <Label>{t('chat.settings.max_tokens')}</Label>
+            <Row align="middle">
+              <SettingRowTitleSmall>{t('chat.settings.max_tokens')}</SettingRowTitleSmall>
               <Tooltip title={t('chat.settings.max_tokens.tip')}>
-                <CircleHelp size={14} color="var(--color-text-2)" />
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
-            </HStack>
+            </Row>
             <Switch
               size="small"
               checked={enableMaxTokens}
@@ -700,12 +707,6 @@ const Container = styled(Scrollbar)`
   padding-right: 0;
   padding-top: 2px;
   padding-bottom: 10px;
-`
-
-const Label = styled.p`
-  margin: 0;
-  font-size: 12px;
-  margin-right: 5px;
 `
 
 const SettingRowTitleSmall = styled(SettingRowTitle)`

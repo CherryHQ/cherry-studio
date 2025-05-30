@@ -1,4 +1,6 @@
 import { ArrowLeftOutlined, EnterOutlined } from '@ant-design/icons'
+import { useAppDispatch } from '@renderer/store'
+import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { Input, InputRef } from 'antd'
@@ -28,6 +30,7 @@ const TopicsPage: FC = () => {
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
   const [message, setMessage] = useState<Message | undefined>(_message)
   const inputRef = useRef<InputRef>(null)
+  const dispatch = useAppDispatch()
 
   _search = search
   _stack = stack
@@ -55,6 +58,7 @@ const TopicsPage: FC = () => {
   }
 
   const onMessageClick = (message: Message) => {
+    dispatch(loadTopicMessagesThunk(message.topicId))
     setStack(['topics', 'search', 'message'])
     setMessage(message)
   }

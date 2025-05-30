@@ -399,6 +399,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       searchInputFocus()
     }
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     const implementation = {
       disable() {
         setEnableContentSearch(false)
@@ -526,8 +527,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       if (enableContentSearch && searchInputRef.current?.value.trim()) {
         implementation.search()
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isCaseSensitive, isWholeWord, enableContentSearch]) // Add enableContentSearch dependency
+    }, [isCaseSensitive, isWholeWord, enableContentSearch, implementation]) // Add enableContentSearch dependency
 
     const prevButtonOnClick = () => {
       implementation.searchPrev()
@@ -558,7 +558,13 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
         <NarrowLayout style={{ width: '100%' }}>
           <SearchBarContainer>
             <InputWrapper>
-              <Input ref={searchInputRef} onInput={userInputHandler} onKeyDown={keyDownHandler} />
+              <Input
+                ref={searchInputRef}
+                onInput={userInputHandler}
+                onKeyDown={keyDownHandler}
+                placeholder={t('chat.assistant.search.placeholder')}
+                style={{ lineHeight: '20px' }}
+              />
               <ToolBar>
                 <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
                   <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
@@ -624,17 +630,19 @@ const Container = styled.div`
 `
 
 const SearchBarContainer = styled.div`
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-primary);
   border-radius: 10px;
   transition: all 0.2s ease;
-  position: relative;
-  margin: 5px 20px;
-  margin-bottom: 0;
-  padding: 6px 15px 8px;
+  position: fixed;
+  top: 15px;
+  left: 20px;
+  right: 20px;
+  margin-bottom: 5px;
+  padding: 5px 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--color-background-opacity);
+  background-color: var(--color-background);
   flex: 1 1 auto; /* Take up input's previous space */
 `
 
@@ -682,18 +690,18 @@ const SearchResults = styled.div`
   width: 80px;
   margin: 0 2px;
   flex: 0 0 auto;
-  color: var(--color-text-secondary);
+  color: var(--color-text-1);
   font-size: 14px;
   font-family: Ubuntu;
 `
 
 const SearchResultsPlaceholder = styled.span`
-  color: var(--color-text-secondary);
+  color: var(--color-text-1);
   opacity: 0.5;
 `
 
 const NoResults = styled.span`
-  color: var(--color-text-secondary);
+  color: var(--color-text-1);
 `
 
 const SearchResultCount = styled.span`
