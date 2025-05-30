@@ -1,6 +1,6 @@
 import { isMac } from '@renderer/config/constant'
-import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'

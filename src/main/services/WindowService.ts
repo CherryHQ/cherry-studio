@@ -1,3 +1,6 @@
+// just import the themeService to ensure the theme is initialized
+import './ThemeService'
+
 import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
@@ -11,9 +14,6 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
-
-// just import the themeService to ensure the theme is initialized
-import './ThemeService'
 import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {

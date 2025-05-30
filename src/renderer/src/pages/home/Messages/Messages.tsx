@@ -53,7 +53,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     `topic-${topic.id}`
   )
   const { t } = useTranslation()
-  const { showPrompt, topicPosition, messageNavigation } = useSettings()
+  const { showPrompt, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
