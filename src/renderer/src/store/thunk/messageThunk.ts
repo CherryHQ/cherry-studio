@@ -114,34 +114,51 @@ const updateExistingMessageAndBlocksInDB = async (
   }
 }
 
-const blockUpdateRafMap = new Map<string, number>()
+const blockUpdateThrottlers = new Map<string, ReturnType<typeof throttle>>()
+const blockUpdateRafs = new Map<string, number>()
 
-// 更新单个块的逻辑，用于更新消息中的单个块
-const throttledBlockUpdate = throttle(async (id, blockUpdate) => {
-  // const state = store.getState()
-  // const block = state.messageBlocks.entities[id]
-  // throttle是异步函数,可能会在complete事件触发后才执行
-  // if (
-  //   blockUpdate.status === MessageBlockStatus.STREAMING &&
-  //   (block?.status === MessageBlockStatus.SUCCESS || block?.status === MessageBlockStatus.ERROR)
-  // )
-  //   return
+// 获取或创建消息块专用的节流函数
+const getBlockThrottler = (id: string) => {
+  if (!blockUpdateThrottlers.has(id)) {
+    const throttler = throttle(async (blockUpdate: any) => {
+      const existingRAF = blockUpdateRafs.get(id)
+      if (existingRAF) {
+        cancelAnimationFrame(existingRAF)
+      }
 
-  const rafId = requestAnimationFrame(() => {
-    store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
-    blockUpdateRafMap.delete(id) // 执行后立即清理
-  })
+      const rafId = requestAnimationFrame(() => {
+        store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
+        blockUpdateRafs.delete(id)
+      })
 
-  blockUpdateRafMap.set(id, rafId)
+      blockUpdateRafs.set(id, rafId)
+      await db.message_blocks.update(id, blockUpdate)
+    }, 150)
 
-  await db.message_blocks.update(id, blockUpdate)
-}, 150)
+    blockUpdateThrottlers.set(id, throttler)
+  }
 
+  return blockUpdateThrottlers.get(id)!
+}
+
+// 更新单个消息块
+const throttledBlockUpdate = (id: string, blockUpdate: any) => {
+  const throttler = getBlockThrottler(id)
+  throttler(blockUpdate)
+}
+
+// 取消单个块的节流更新，移除节流器和 RAF
 const cancelThrottledBlockUpdate = (id: string) => {
-  const rafId = blockUpdateRafMap.get(id)
+  const rafId = blockUpdateRafs.get(id)
   if (rafId) {
     cancelAnimationFrame(rafId)
-    blockUpdateRafMap.delete(id)
+    blockUpdateRafs.delete(id)
+  }
+
+  const throttler = blockUpdateThrottlers.get(id)
+  if (throttler) {
+    throttler.cancel()
+    blockUpdateThrottlers.delete(id)
   }
 }
 
