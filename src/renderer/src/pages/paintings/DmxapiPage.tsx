@@ -291,17 +291,24 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const downloadedFiles = await downloadImages(urls)
         const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
-        if (painting.autoCreate) {
-          // 保存文件并更新状态
-          await FileManager.addFiles(validFiles)
-          getNewPaintingPanel({ files: validFiles, urls })
-        } else {
-          // 删除之前的图片
-          await FileManager.deleteFiles(painting.files)
+        if (validFiles?.length > 0) {
+          if (painting.autoCreate && painting.files.length > 0) {
+            // 保存文件并更新状态
+            await FileManager.addFiles(validFiles)
+            getNewPaintingPanel({ files: validFiles, urls })
+          } else {
+            // 删除之前的图片
+            await FileManager.deleteFiles(painting.files)
 
-          // 保存文件并更新状态
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls })
+            // 保存文件并更新状态
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+        } else {
+          window.message.warning({
+            content: t('paintings.req_error_text'),
+            key: 'empty-url-warning'
+          })
         }
       }
     } catch (error) {
@@ -464,7 +471,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </RadioTextBox>
           </SliderContainer>
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.style_type')}</SettingTitle>
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.auto_create_paint')}
             <Tooltip title={t('paintings.auto_create_paint_tip')}>
