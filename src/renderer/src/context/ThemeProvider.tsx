@@ -4,8 +4,6 @@ import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
 
-let { theme: savedTheme, actualTheme: savedActualTheme } = await window.api.getTheme()
-
 interface ThemeContextType {
   theme: ThemeMode
   actualTheme: ThemeMode
@@ -14,8 +12,8 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: savedTheme,
-  actualTheme: savedActualTheme,
+  theme: ThemeMode.system,
+  actualTheme: ThemeMode.dark,
   toggleTheme: () => {},
   setTheme: () => {}
 })
@@ -25,8 +23,8 @@ interface ThemeProviderProps extends PropsWithChildren {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [theme, setTheme] = useState<ThemeMode>(savedTheme)
-  const [actualTheme, setActualTheme] = useState<ThemeMode>(savedActualTheme)
+  const [theme, setTheme] = useState<ThemeMode>(ThemeMode.system)
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(ThemeMode.dark)
   const { initUserTheme } = useUserTheme()
 
   const toggleTheme = () => {
@@ -39,13 +37,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }
 
   useEffect(() => {
-    window.api.setTheme(theme)
-  }, [theme])
-
-  useEffect(() => {
     // Set initial theme and OS attributes on body
-    document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-    document.body.setAttribute('theme-mode', actualTheme)
+    window.api.getTheme().then(({ theme, actualTheme }) => {
+      document.body.setAttribute('os', isMac ? 'mac' : 'windows')
+      document.body.setAttribute('theme-mode', actualTheme)
+      setTheme(theme)
+      setActualTheme(actualTheme)
+    })
 
     initUserTheme()
 
@@ -57,6 +55,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     return cleanup
   }, [])
+
+  useEffect(() => {
+    window.api.setTheme(theme)
+  }, [theme])
 
   return <ThemeContext value={{ theme, actualTheme, toggleTheme, setTheme }}>{children}</ThemeContext>
 }
