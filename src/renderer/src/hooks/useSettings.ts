@@ -10,14 +10,13 @@ import {
   setSendMessageShortcut as _setSendMessageShortcut,
   setSidebarIcons,
   setTargetLanguage,
-  setTheme,
   SettingsState,
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
   setWindowStyle
 } from '@renderer/store/settings'
-import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { SidebarIcon, TranslateLanguageVarious } from '@renderer/types'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -57,9 +56,6 @@ export function useSettings() {
       window.api.setAutoUpdate(isAutoUpdate)
     },
 
-    setTheme(theme: ThemeMode) {
-      dispatch(setTheme(theme))
-    },
     setWindowStyle(windowStyle: 'transparent' | 'opaque') {
       dispatch(setWindowStyle(windowStyle))
     },
