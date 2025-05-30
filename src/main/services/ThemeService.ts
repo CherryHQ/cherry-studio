@@ -10,7 +10,7 @@ class ThemeService {
   constructor() {
     this.theme = configManager.getTheme()
 
-    if (this.theme === ThemeMode.dark || this.theme === ThemeMode.light) {
+    if (this.theme === ThemeMode.dark || this.theme === ThemeMode.light || this.theme === ThemeMode.system) {
       nativeTheme.themeSource = this.theme
     } else {
       // 兼容旧版本

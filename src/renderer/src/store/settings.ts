@@ -8,6 +8,7 @@ import {
   OpenAIServiceTier,
   OpenAISummaryText,
   PaintingProvider,
+  ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
 
@@ -53,6 +54,7 @@ export interface SettingsState {
   launchToTray: boolean
   trayOnClose: boolean
   tray: boolean
+  theme: ThemeMode
   userTheme: UserTheme
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
@@ -196,6 +198,7 @@ export const initialState: SettingsState = {
   launchToTray: false,
   trayOnClose: true,
   tray: true,
+  theme: ThemeMode.system,
   userTheme: {
     colorPrimary: '#00b96b'
   },
@@ -372,6 +375,9 @@ const settingsSlice = createSlice({
     },
     setTrayOnClose: (state, action: PayloadAction<boolean>) => {
       state.trayOnClose = action.payload
+    },
+    setTheme: (state, action: PayloadAction<ThemeMode>) => {
+      state.theme = action.payload
     },
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
@@ -673,6 +679,7 @@ export const {
   setLaunchToTray,
   setTrayOnClose,
   setTray,
+  setTheme,
   setUserTheme,
   setFontSize,
   setWindowStyle,

@@ -1,5 +1,6 @@
 import { isMac } from '@renderer/config/constant'
 import useUserTheme from '@renderer/hooks/useUserTheme'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { ThemeMode } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
@@ -23,8 +24,10 @@ interface ThemeProviderProps extends PropsWithChildren {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [theme, setTheme] = useState<ThemeMode>(ThemeMode.system)
-  const [actualTheme, setActualTheme] = useState<ThemeMode>(ThemeMode.dark)
+  const { theme, setTheme } = useSettings()
+  const [actualTheme, setActualTheme] = useState(
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
+  )
   const { initUserTheme } = useUserTheme()
 
   const toggleTheme = () => {
@@ -38,12 +41,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Set initial theme and OS attributes on body
-    window.api.getTheme().then(({ theme, actualTheme }) => {
-      document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-      document.body.setAttribute('theme-mode', actualTheme)
-      setTheme(theme)
-      setActualTheme(actualTheme)
-    })
+    document.body.setAttribute('os', isMac ? 'mac' : 'windows')
+    document.body.setAttribute('theme-mode', actualTheme)
+
+    // if theme is old auto, then set theme to system
+    // we can delete this after next big release
+    if (theme !== ThemeMode.dark && theme !== ThemeMode.light && theme !== ThemeMode.system) {
+      setTheme(ThemeMode.system)
+    }
 
     initUserTheme()
 
