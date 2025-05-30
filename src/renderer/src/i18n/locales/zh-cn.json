@@ -1818,10 +1818,19 @@
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",
       "processing": "翻译中...",
-      "scroll_sync.disable": "关闭滚动同步",
-      "scroll_sync.enable": "开启滚动同步",
+      "language.same": "源语言和目标语言相同",
+      "language.not_pair": "源语言与设置的语言不同",
+      "settings": {
+        "title": "翻译设置",
+        "model": "模型设置",
+        "model_desc": "翻译服务使用的模型",
+        "bidirectional": "双向翻译设置",
+        "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
+        "scroll_sync": "滚动同步设置"
+      },
       "title": "翻译",
-      "tooltip.newline": "换行"
+      "tooltip.newline": "换行",
+      "detected.language": "检测到的语言"
     },
     "tray": {
       "quit": "退出",

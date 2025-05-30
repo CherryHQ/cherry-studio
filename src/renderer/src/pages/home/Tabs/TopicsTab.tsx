@@ -54,7 +54,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, topicPosition, pinTopicsToTop } = useSettings()
+  const { showTopicTime, pinTopicsToTop } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -394,7 +394,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
-      <Container right={topicPosition === 'right'} className="topics-tab">
+      <Container className="topics-tab">
         <DragableList list={sortedTopics} onUpdate={updateTopics}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id

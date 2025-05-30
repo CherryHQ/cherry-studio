@@ -1798,6 +1798,7 @@
       "close": "Close",
       "closed": "Translation closed",
       "copied": "Translation content copied",
+      "detected.language": "Detected Language",
       "empty": "Translation content is empty",
       "not.found": "Translation content not found",
       "confirm": {
@@ -1816,8 +1817,16 @@
       "input.placeholder": "Enter text to translate",
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
-      "scroll_sync.disable": "Disable synced scroll",
-      "scroll_sync.enable": "Enable synced scroll",
+      "language.same": "Source and target languages are the same",
+      "language.not_pair": "Source language is different from the set language",
+      "settings": {
+        "title": "Translation Settings",
+        "model": "Model Settings",
+        "model_desc": "Model used for translation service",
+        "bidirectional": "Bidirectional Translation Settings",
+        "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
+        "scroll_sync": "Scroll Sync Settings"
+      },
       "title": "Translation",
       "tooltip.newline": "Newline",
       "menu": {

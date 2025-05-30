@@ -615,7 +615,7 @@
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
-      "copy.success": "已複製！",
+      "copy.success": "複製成功",
       "delete.confirm.title": "刪除確認",
       "delete.confirm.content": "確認刪除選中的 {{count}} 條訊息嗎？",
       "delete.failed": "刪除失敗",
@@ -1815,13 +1815,22 @@
       "input.placeholder": "輸入文字進行翻譯",
       "output.placeholder": "翻譯",
       "processing": "翻譯中...",
-      "scroll_sync.disable": "關閉滾動同步",
-      "scroll_sync.enable": "開啟滾動同步",
+      "language.same": "源語言和目標語言相同",
+      "language.not_pair": "源語言與設定的語言不同",
+      "settings": {
+        "title": "翻譯設定",
+        "model": "模型設定",
+        "model_desc": "翻譯服務使用的模型",
+        "bidirectional": "雙向翻譯設定",
+        "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
+        "scroll_sync": "滾動同步設定"
+      },
       "title": "翻譯",
       "tooltip.newline": "換行",
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
-      }
+      },
+      "detected.language": "檢測到的語言"
     },
     "tray": {
       "quit": "結束",

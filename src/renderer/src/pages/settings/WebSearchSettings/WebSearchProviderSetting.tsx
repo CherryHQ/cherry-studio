@@ -141,7 +141,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     <>
       <SettingTitle>
         <Flex align="center" gap={8}>
-          <ProviderLogo shape="circle" src={getWebSearchProviderLogo(provider.id)} size={24} />
+          <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
