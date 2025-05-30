@@ -13,7 +13,7 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
+import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -43,6 +43,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import {
   anthropicToolUseToMcpTool,
+  isEnabledToolUse,
   mcpToolCallResponseToAnthropicMessage,
   mcpToolsToAnthropicTools,
   parseAndCallTools
@@ -188,7 +189,16 @@ export default class AnthropicProvider extends BaseProvider {
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    const budgetTokens = Math.floor((maxTokens || DEFAULT_MAX_TOKENS) * effortRatio * 0.8)
+    const budgetTokens = Math.max(
+      1024,
+      Math.floor(
+        Math.min(
+          (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
+            findTokenLimit(model.id)?.min!,
+          (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
+        )
+      )
+    )
 
     return {
       type: 'enabled',
@@ -207,7 +217,7 @@ export default class AnthropicProvider extends BaseProvider {
   public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput, enableToolUse } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
 
     const userMessagesParams: MessageParam[] = []
 
@@ -229,11 +239,11 @@ export default class AnthropicProvider extends BaseProvider {
     const { tools } = this.setupToolsConfig<ToolUnion>({
       model,
       mcpTools,
-      enableToolUse
+      enableToolUse: isEnabledToolUse(assistant)
     })
 
     if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
-      systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
+      systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools)
     }
 
     let systemMessage: TextBlockParam | undefined = undefined
@@ -244,7 +254,7 @@ export default class AnthropicProvider extends BaseProvider {
       }
     }
 
-    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
 
     if (isEnabledBuiltinWebSearch) {
       const webSearchTool = await this.getWebSearchParams(model)
@@ -312,7 +322,7 @@ export default class AnthropicProvider extends BaseProvider {
             reasoning_content,
             usage: message.usage as any,
             metrics: {
-              completion_tokens: message.usage.output_tokens,
+              completion_tokens: message.usage?.output_tokens || 0,
               time_completion_millsec,
               time_first_token_millsec: 0
             }
@@ -454,8 +464,8 @@ export default class AnthropicProvider extends BaseProvider {
               }
             }
 
-            finalUsage.prompt_tokens += message.usage.input_tokens
-            finalUsage.completion_tokens += message.usage.output_tokens
+            finalUsage.prompt_tokens += message.usage?.input_tokens || 0
+            finalUsage.completion_tokens += message.usage?.output_tokens || 0
             finalUsage.total_tokens += finalUsage.prompt_tokens + finalUsage.completion_tokens
             finalMetrics.completion_tokens = finalUsage.completion_tokens
             finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec

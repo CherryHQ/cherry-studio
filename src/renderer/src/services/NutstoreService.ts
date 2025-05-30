@@ -13,7 +13,7 @@ function getNutstoreToken() {
   const nutstoreToken = store.getState().nutstore.nutstoreToken
 
   if (!nutstoreToken) {
-    window.message.error({ content: i18n.t('error.invalid.nutstore_token'), key: 'nutstore' })
+    window.message.error({ content: i18n.t('message.error.invalid.nutstore_token'), key: 'nutstore' })
     return null
   }
   return nutstoreToken
@@ -98,9 +98,13 @@ export async function backupToNutstore({
   store.dispatch(setNutstoreSyncState({ syncing: true, lastSyncError: null }))
 
   const backupData = await getBackupData()
-
+  const skipBackupFile = store.getState().nutstore.nutstoreSkipBackupFile
   try {
-    const isSuccess = await window.api.backup.backupToWebdav(backupData, { ...config, fileName: finalFileName })
+    const isSuccess = await window.api.backup.backupToWebdav(backupData, {
+      ...config,
+      fileName: finalFileName,
+      skipBackupFile: skipBackupFile
+    })
 
     if (isSuccess) {
       store.dispatch(
@@ -160,8 +164,9 @@ export async function startNutstoreAutoSync() {
   }
 
   const nutstoreToken = getNutstoreToken()
+
   if (!nutstoreToken) {
-    window.message.error({ content: i18n.t('error.invalid.nutstore_token'), key: 'nutstore' })
+    Logger.log('[startNutstoreAutoSync] Invalid nutstore token, nutstore auto sync disabled')
     return
   }
 

@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists } from '@main/utils'
+import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
@@ -69,17 +70,7 @@ function withCache<T extends unknown[], R>(
 
 class McpService {
   private clients: Map<string, Client> = new Map()
-
-  private getServerKey(server: MCPServer): string {
-    return JSON.stringify({
-      baseUrl: server.baseUrl,
-      command: server.command,
-      args: server.args,
-      registryUrl: server.registryUrl,
-      env: server.env,
-      id: server.id
-    })
-  }
+  private pendingClients: Map<string, Promise<Client>> = new Map()
 
   constructor() {
     this.initClient = this.initClient.bind(this)
@@ -96,8 +87,25 @@ class McpService {
     this.cleanup = this.cleanup.bind(this)
   }
 
+  private getServerKey(server: MCPServer): string {
+    return JSON.stringify({
+      baseUrl: server.baseUrl,
+      command: server.command,
+      args: Array.isArray(server.args) ? server.args : [],
+      registryUrl: server.registryUrl,
+      env: server.env,
+      id: server.id
+    })
+  }
+
   async initClient(server: MCPServer): Promise<Client> {
     const serverKey = this.getServerKey(server)
+
+    // If there's a pending initialization, wait for it
+    const pendingClient = this.pendingClients.get(serverKey)
+    if (pendingClient) {
+      return pendingClient
+    }
 
     // Check if we already have a client for this server configuration
     const existingClient = this.clients.get(serverKey)
@@ -113,209 +121,232 @@ class McpService {
         } else {
           return existingClient
         }
-      } catch (error) {
-        Logger.error(`[MCP] Error pinging server ${server.name}:`, error)
+      } catch (error: any) {
+        Logger.error(`[MCP] Error pinging server ${server.name}:`, error?.message)
         this.clients.delete(serverKey)
       }
     }
-    // Create new client instance for each connection
-    const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
-    const args = [...(server.args || [])]
+    // Create a promise for the initialization process
+    const initPromise = (async () => {
+      try {
+        // Create new client instance for each connection
+        const client = new Client({ name: 'Cherry Studio', version: app.getVersion() }, { capabilities: {} })
 
-    // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
-    const authProvider = new McpOAuthClientProvider({
-      serverUrlHash: crypto
-        .createHash('md5')
-        .update(server.baseUrl || '')
-        .digest('hex')
-    })
+        const args = [...(server.args || [])]
 
-    const initTransport = async (): Promise<
-      StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
-    > => {
-      // Create appropriate transport based on configuration
-      if (server.type === 'inMemory') {
-        Logger.info(`[MCP] Using in-memory transport for server: ${server.name}`)
-        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
-        // start the in-memory server with the given name and environment variables
-        const inMemoryServer = createInMemoryMCPServer(server.name, args, server.env || {})
-        try {
-          await inMemoryServer.connect(serverTransport)
-          Logger.info(`[MCP] In-memory server started: ${server.name}`)
-        } catch (error: Error | any) {
-          Logger.error(`[MCP] Error starting in-memory server: ${error}`)
-          throw new Error(`Failed to start in-memory server: ${error.message}`)
-        }
-        // set the client transport to the client
-        return clientTransport
-      } else if (server.baseUrl) {
-        if (server.type === 'streamableHttp') {
-          const options: StreamableHTTPClientTransportOptions = {
-            requestInit: {
-              headers: server.headers || {}
-            },
-            authProvider
-          }
-          return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
-        } else if (server.type === 'sse') {
-          const options: SSEClientTransportOptions = {
-            eventSourceInit: {
-              fetch: async (url, init) => {
-                const headers = { ...(server.headers || {}), ...(init?.headers || {}) }
+        // let transport: StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+        const authProvider = new McpOAuthClientProvider({
+          serverUrlHash: crypto
+            .createHash('md5')
+            .update(server.baseUrl || '')
+            .digest('hex')
+        })
 
-                // Get tokens from authProvider to make sure using the latest tokens
-                if (authProvider && typeof authProvider.tokens === 'function') {
-                  try {
-                    const tokens = await authProvider.tokens()
-                    if (tokens && tokens.access_token) {
-                      headers['Authorization'] = `Bearer ${tokens.access_token}`
+        const initTransport = async (): Promise<
+          StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
+        > => {
+          // Create appropriate transport based on configuration
+          if (server.type === 'inMemory') {
+            Logger.info(`[MCP] Using in-memory transport for server: ${server.name}`)
+            const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+            // start the in-memory server with the given name and environment variables
+            const inMemoryServer = createInMemoryMCPServer(server.name, args, server.env || {})
+            try {
+              await inMemoryServer.connect(serverTransport)
+              Logger.info(`[MCP] In-memory server started: ${server.name}`)
+            } catch (error: Error | any) {
+              Logger.error(`[MCP] Error starting in-memory server: ${error}`)
+              throw new Error(`Failed to start in-memory server: ${error.message}`)
+            }
+            // set the client transport to the client
+            return clientTransport
+          } else if (server.baseUrl) {
+            if (server.type === 'streamableHttp') {
+              const options: StreamableHTTPClientTransportOptions = {
+                requestInit: {
+                  headers: server.headers || {}
+                },
+                authProvider
+              }
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+            } else if (server.type === 'sse') {
+              const options: SSEClientTransportOptions = {
+                eventSourceInit: {
+                  fetch: async (url, init) => {
+                    const headers = { ...(server.headers || {}), ...(init?.headers || {}) }
+
+                    // Get tokens from authProvider to make sure using the latest tokens
+                    if (authProvider && typeof authProvider.tokens === 'function') {
+                      try {
+                        const tokens = await authProvider.tokens()
+                        if (tokens && tokens.access_token) {
+                          headers['Authorization'] = `Bearer ${tokens.access_token}`
+                        }
+                      } catch (error) {
+                        Logger.error('Failed to fetch tokens:', error)
+                      }
                     }
-                  } catch (error) {
-                    Logger.error('Failed to fetch tokens:', error)
+
+                    return fetch(url, { ...init, headers })
                   }
+                },
+                requestInit: {
+                  headers: server.headers || {}
+                },
+                authProvider
+              }
+              return new SSEClientTransport(new URL(server.baseUrl!), options)
+            } else {
+              throw new Error('Invalid server type')
+            }
+          } else if (server.command) {
+            let cmd = server.command
+
+            if (server.command === 'npx') {
+              cmd = await getBinaryPath('bun')
+              Logger.info(`[MCP] Using command: ${cmd}`)
+
+              // add -x to args if args exist
+              if (args && args.length > 0) {
+                if (!args.includes('-y')) {
+                  args.unshift('-y')
+                }
+                if (!args.includes('x')) {
+                  args.unshift('x')
+                }
+              }
+              if (server.registryUrl) {
+                server.env = {
+                  ...server.env,
+                  NPM_CONFIG_REGISTRY: server.registryUrl
                 }
 
-                return fetch(url, { ...init, headers })
+                // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
+                if (server.name.includes('mcp-auto-install')) {
+                  const binPath = await getBinaryPath()
+                  makeSureDirExists(binPath)
+                  server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
+                }
               }
-            },
-            requestInit: {
-              headers: server.headers || {}
-            },
-            authProvider
-          }
-          return new SSEClientTransport(new URL(server.baseUrl!), options)
-        } else {
-          throw new Error('Invalid server type')
-        }
-      } else if (server.command) {
-        let cmd = server.command
-
-        if (server.command === 'npx') {
-          cmd = await getBinaryPath('bun')
-          Logger.info(`[MCP] Using command: ${cmd}`)
-
-          // add -x to args if args exist
-          if (args && args.length > 0) {
-            if (!args.includes('-y')) {
-              args.unshift('-y')
-            }
-            if (!args.includes('x')) {
-              args.unshift('x')
-            }
-          }
-          if (server.registryUrl) {
-            server.env = {
-              ...server.env,
-              NPM_CONFIG_REGISTRY: server.registryUrl
+            } else if (server.command === 'uvx' || server.command === 'uv') {
+              cmd = await getBinaryPath(server.command)
+              if (server.registryUrl) {
+                server.env = {
+                  ...server.env,
+                  UV_DEFAULT_INDEX: server.registryUrl,
+                  PIP_INDEX_URL: server.registryUrl
+                }
+              }
             }
 
-            // if the server name is mcp-auto-install, use the mcp-registry.json file in the bin directory
-            if (server.name.includes('mcp-auto-install')) {
-              const binPath = await getBinaryPath()
-              makeSureDirExists(binPath)
-              server.env.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
+            Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
+            // Logger.info(`[MCP] Environment variables for server:`, server.env)
+            const loginShellEnv = await this.getLoginShellEnv()
+
+            // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
+            if (cmd.includes('bun')) {
+              this.removeProxyEnv(loginShellEnv)
             }
-          }
-        } else if (server.command === 'uvx' || server.command === 'uv') {
-          cmd = await getBinaryPath(server.command)
-          if (server.registryUrl) {
-            server.env = {
-              ...server.env,
-              UV_DEFAULT_INDEX: server.registryUrl,
-              PIP_INDEX_URL: server.registryUrl
-            }
+
+            const stdioTransport = new StdioClientTransport({
+              command: cmd,
+              args,
+              env: {
+                ...loginShellEnv,
+                ...server.env
+              },
+              stderr: 'pipe'
+            })
+            stdioTransport.stderr?.on('data', (data) =>
+              Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
+            )
+            return stdioTransport
+          } else {
+            throw new Error('Either baseUrl or command must be provided')
           }
         }
 
-        Logger.info(`[MCP] Starting server with command: ${cmd} ${args ? args.join(' ') : ''}`)
-        // Logger.info(`[MCP] Environment variables for server:`, server.env)
-        const loginShellEnv = await this.getLoginShellEnv()
-        const stdioTransport = new StdioClientTransport({
-          command: cmd,
-          args,
-          env: {
-            ...loginShellEnv,
-            ...server.env
-          },
-          stderr: 'pipe'
-        })
-        stdioTransport.stderr?.on('data', (data) =>
-          Logger.info(`[MCP] Stdio stderr for server: ${server.name} `, data.toString())
-        )
-        return stdioTransport
-      } else {
-        throw new Error('Either baseUrl or command must be provided')
-      }
-    }
+        const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
+          Logger.info(`[MCP] Starting OAuth flow for server: ${server.name}`)
+          // Create an event emitter for the OAuth callback
+          const events = new EventEmitter()
 
-    const handleAuth = async (client: Client, transport: SSEClientTransport | StreamableHTTPClientTransport) => {
-      Logger.info(`[MCP] Starting OAuth flow for server: ${server.name}`)
-      // Create an event emitter for the OAuth callback
-      const events = new EventEmitter()
+          // Create a callback server
+          const callbackServer = new CallBackServer({
+            port: authProvider.config.callbackPort,
+            path: authProvider.config.callbackPath || '/oauth/callback',
+            events
+          })
 
-      // Create a callback server
-      const callbackServer = new CallBackServer({
-        port: authProvider.config.callbackPort,
-        path: authProvider.config.callbackPath || '/oauth/callback',
-        events
-      })
+          // Set a timeout to close the callback server
+          const timeoutId = setTimeout(() => {
+            Logger.warn(`[MCP] OAuth flow timed out for server: ${server.name}`)
+            callbackServer.close()
+          }, 300000) // 5 minutes timeout
 
-      // Set a timeout to close the callback server
-      const timeoutId = setTimeout(() => {
-        Logger.warn(`[MCP] OAuth flow timed out for server: ${server.name}`)
-        callbackServer.close()
-      }, 300000) // 5 minutes timeout
+          try {
+            // Wait for the authorization code
+            const authCode = await callbackServer.waitForAuthCode()
+            Logger.info(`[MCP] Received auth code: ${authCode}`)
 
-      try {
-        // Wait for the authorization code
-        const authCode = await callbackServer.waitForAuthCode()
-        Logger.info(`[MCP] Received auth code: ${authCode}`)
+            // Complete the OAuth flow
+            await transport.finishAuth(authCode)
 
-        // Complete the OAuth flow
-        await transport.finishAuth(authCode)
+            Logger.info(`[MCP] OAuth flow completed for server: ${server.name}`)
 
-        Logger.info(`[MCP] OAuth flow completed for server: ${server.name}`)
+            const newTransport = await initTransport()
+            // Try to connect again
+            await client.connect(newTransport)
 
-        const newTransport = await initTransport()
-        // Try to connect again
-        await client.connect(newTransport)
+            Logger.info(`[MCP] Successfully authenticated with server: ${server.name}`)
+          } catch (oauthError) {
+            Logger.error(`[MCP] OAuth authentication failed for server ${server.name}:`, oauthError)
+            throw new Error(
+              `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
+            )
+          } finally {
+            // Clear the timeout and close the callback server
+            clearTimeout(timeoutId)
+            callbackServer.close()
+          }
+        }
 
-        Logger.info(`[MCP] Successfully authenticated with server: ${server.name}`)
-      } catch (oauthError) {
-        Logger.error(`[MCP] OAuth authentication failed for server ${server.name}:`, oauthError)
-        throw new Error(
-          `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
-        )
+        try {
+          const transport = await initTransport()
+          try {
+            await client.connect(transport)
+          } catch (error: Error | any) {
+            if (
+              error instanceof Error &&
+              (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
+            ) {
+              Logger.info(`[MCP] Authentication required for server: ${server.name}`)
+              await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
+            } else {
+              throw error
+            }
+          }
+
+          // Store the new client in the cache
+          this.clients.set(serverKey, client)
+
+          Logger.info(`[MCP] Activated server: ${server.name}`)
+          return client
+        } catch (error: any) {
+          Logger.error(`[MCP] Error activating server ${server.name}:`, error?.message)
+          throw new Error(`[MCP] Error activating server ${server.name}: ${error.message}`)
+        }
       } finally {
-        // Clear the timeout and close the callback server
-        clearTimeout(timeoutId)
-        callbackServer.close()
+        // Clean up the pending promise when done
+        this.pendingClients.delete(serverKey)
       }
-    }
+    })()
 
-    try {
-      const transport = await initTransport()
-      try {
-        await client.connect(transport)
-      } catch (error: Error | any) {
-        if (error instanceof Error && (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))) {
-          Logger.info(`[MCP] Authentication required for server: ${server.name}`)
-          await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
-        } else {
-          throw error
-        }
-      }
+    // Store the pending promise
+    this.pendingClients.set(serverKey, initPromise)
 
-      // Store the new client in the cache
-      this.clients.set(serverKey, client)
-
-      Logger.info(`[MCP] Activated server: ${server.name}`)
-      return client
-    } catch (error: any) {
-      Logger.error(`[MCP] Error activating server ${server.name}:`, error)
-      throw new Error(`[MCP] Error activating server ${server.name}: ${error.message}`)
-    }
+    return initPromise
   }
 
   async closeClient(serverKey: string) {
@@ -357,9 +388,29 @@ class McpService {
     for (const [key] of this.clients) {
       try {
         await this.closeClient(key)
-      } catch (error) {
-        Logger.error(`[MCP] Failed to close client: ${error}`)
+      } catch (error: any) {
+        Logger.error(`[MCP] Failed to close client: ${error?.message}`)
       }
+    }
+  }
+
+  /**
+   * Check connectivity for an MCP server
+   */
+  public async checkMcpConnectivity(_: Electron.IpcMainInvokeEvent, server: MCPServer): Promise<boolean> {
+    Logger.info(`[MCP] Checking connectivity for server: ${server.name}`)
+    try {
+      const client = await this.initClient(server)
+      // Attempt to list tools as a way to check connectivity
+      await client.listTools()
+      Logger.info(`[MCP] Connectivity check successful for server: ${server.name}`)
+      return true
+    } catch (error) {
+      Logger.error(`[MCP] Connectivity check failed for server: ${server.name}`, error)
+      // Close the client if connectivity check fails to ensure a clean state for the next attempt
+      const serverKey = this.getServerKey(server)
+      await this.closeClient(serverKey)
+      return false
     }
   }
 
@@ -372,15 +423,15 @@ class McpService {
       tools.map((tool: any) => {
         const serverTool: MCPTool = {
           ...tool,
-          id: `f${nanoid()}`,
+          id: buildFunctionCallToolName(server.name, tool.name),
           serverId: server.id,
           serverName: server.name
         }
         serverTools.push(serverTool)
       })
       return serverTools
-    } catch (error) {
-      Logger.error(`[MCP] Failed to list tools for server: ${server.name}`, error)
+    } catch (error: any) {
+      Logger.error(`[MCP] Failed to list tools for server: ${server.name}`, error?.message)
       return []
     }
   }
@@ -439,8 +490,8 @@ class McpService {
    * List prompts available on an MCP server
    */
   private async listPromptsImpl(server: MCPServer): Promise<MCPPrompt[]> {
-    Logger.info(`[MCP] Listing prompts for server: ${server.name}`)
     const client = await this.initClient(server)
+    Logger.info(`[MCP] Listing prompts for server: ${server.name}`)
     try {
       const { prompts } = await client.listPrompts()
       return prompts.map((prompt: any) => ({
@@ -449,8 +500,11 @@ class McpService {
         serverId: server.id,
         serverName: server.name
       }))
-    } catch (error) {
-      Logger.error(`[MCP] Failed to list prompts for server: ${server.name}`, error)
+    } catch (error: any) {
+      // -32601 is the code for the method not found
+      if (error?.code !== -32601) {
+        Logger.error(`[MCP] Failed to list prompts for server: ${server.name}`, error?.message)
+      }
       return []
     }
   }
@@ -508,19 +562,21 @@ class McpService {
    * List resources available on an MCP server (implementation)
    */
   private async listResourcesImpl(server: MCPServer): Promise<MCPResource[]> {
-    Logger.info(`[MCP] Listing resources for server: ${server.name}`)
     const client = await this.initClient(server)
+    Logger.info(`[MCP] Listing resources for server: ${server.name}`)
     try {
       const result = await client.listResources()
       const resources = result.resources || []
-      const serverResources = (Array.isArray(resources) ? resources : []).map((resource: any) => ({
+      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
         ...resource,
         serverId: server.id,
         serverName: server.name
       }))
-      return serverResources
-    } catch (error) {
-      Logger.error(`[MCP] Failed to list resources for server: ${server.name}`, error)
+    } catch (error: any) {
+      // -32601 is the code for the method not found
+      if (error?.code !== -32601) {
+        Logger.error(`[MCP] Failed to list resources for server: ${server.name}`, error?.message)
+      }
       return []
     }
   }
@@ -563,7 +619,7 @@ class McpService {
         contents: contents
       }
     } catch (error: Error | any) {
-      Logger.error(`[MCP] Failed to get resource ${uri} from server: ${server.name}`, error)
+      Logger.error(`[MCP] Failed to get resource ${uri} from server: ${server.name}`, error.message)
       throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
     }
   }
@@ -600,7 +656,14 @@ class McpService {
       return {}
     }
   })
+
+  private removeProxyEnv(env: Record<string, string>) {
+    delete env.HTTPS_PROXY
+    delete env.HTTP_PROXY
+    delete env.grpc_proxy
+    delete env.http_proxy
+    delete env.https_proxy
+  }
 }
 
-const mcpService = new McpService()
-export default mcpService
+export default new McpService()

@@ -55,7 +55,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics, addTopic } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, topicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -474,6 +474,18 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     onDeleteTopic
   ])
 
+  // Sort topics based on pinned status if pinTopicsToTop is enabled
+  const sortedTopics = useMemo(() => {
+    if (pinTopicsToTop) {
+      return [...assistant.topics].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return 0
+      })
+    }
+    return assistant.topics
+  }, [assistant.topics, pinTopicsToTop])
+
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
       <Container right={topicPosition === 'right'} className="topics-tab">
@@ -543,9 +555,46 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 }}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
+                <TopicNameContainer>
+                  <TopicName className="name" title={topicName}>
+                    {topicName}
+                  </TopicName>
+                  {isActive && !topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      title={
+                        <div>
+                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                          </div>
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                        ) : (
+                          <CloseOutlined />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PushpinOutlined />
+                    </MenuButton>
+                  )}
+                </TopicNameContainer>
                 {topicPrompt && (
                   <TopicPromptText className="prompt" title={fullTopicPrompt}>
                     {fullTopicPrompt}
@@ -553,37 +602,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 )}
                 {showTopicTime && (
                   <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
-                )}
-                <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
-                {isActive && !topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    title={
-                      <div>
-                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                        </div>
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
-                      }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-                      ) : (
-                        <CloseOutlined />
-                      )}
-                    </MenuButton>
-                  </Tooltip>
                 )}
               </TopicListItem>
             )
@@ -604,13 +622,11 @@ const Container = styled(Scrollbar)`
 const TopicListItem = styled.div`
   padding: 7px 12px;
   border-radius: var(--list-item-border-radius);
-  font-family: Ubuntu;
   font-size: 13px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  font-family: Ubuntu;
   cursor: pointer;
   border: 0.5px solid transparent;
   position: relative;
@@ -640,6 +656,14 @@ const TopicListItem = styled.div`
     background-color: var(--color-background-selected);
     border: 0.5px solid var(--color-primary);
   }
+`
+
+const TopicNameContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
 `
 
 const TopicName = styled.div`
@@ -685,11 +709,8 @@ const MenuButton = styled.div`
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  min-width: 22px;
-  min-height: 22px;
-  position: absolute;
-  right: 8px;
-  top: 6px;
+  min-width: 20px;
+  min-height: 20px;
   .anticon {
     font-size: 12px;
   }

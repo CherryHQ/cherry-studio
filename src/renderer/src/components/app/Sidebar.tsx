@@ -3,11 +3,13 @@ import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
@@ -43,7 +45,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, settingTheme, toggleTheme } = useTheme()
+  const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -68,8 +70,13 @@ const Sidebar: FC = () => {
     })
   }
 
+  const isFullscreen = useFullscreen()
+
   return (
-    <Container id="app-sidebar" style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
+    <Container
+      $isFullscreen={isFullscreen}
+      id="app-sidebar"
+      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
           {avatar}
@@ -98,13 +105,13 @@ const Sidebar: FC = () => {
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settingTheme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settedTheme}`)}
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {settingTheme === 'dark' ? (
+            {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
-            ) : settingTheme === 'light' ? (
+            ) : settedTheme === ThemeMode.light ? (
               <Sun size={20} className="icon" />
             ) : (
               <SunMoon size={20} className="icon" />
@@ -131,7 +138,7 @@ const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const { sidebarIcons } = useSettings()
+  const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
@@ -152,7 +159,7 @@ const MainMenus: FC = () => {
   const pathMap = {
     assistants: '/',
     agents: '/agents',
-    paintings: '/paintings',
+    paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
@@ -311,7 +318,7 @@ const PinnedApps: FC = () => {
   )
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -319,9 +326,9 @@ const Container = styled.div`
   padding-bottom: 12px;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
+  height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
-  margin-top: ${isMac ? 'var(--navbar-height)' : 0};
+  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'var(--navbar-height)' : 0)};
 
   .sidebar-avatar {
     margin-bottom: ${isMac ? '12px' : '12px'};

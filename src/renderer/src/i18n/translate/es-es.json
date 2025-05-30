@@ -107,6 +107,7 @@
     "backup": {
       "confirm": "¿Está seguro de que desea realizar una copia de seguridad de los datos?",
       "confirm.button": "Seleccionar ubicación de copia de seguridad",
+      "confirm.file_checkbox": "El tamaño del archivo es {{size}}, ¿desea elegir el archivo de copia de seguridad?",
       "content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
       "progress": {
         "completed": "Copia de seguridad completada",
@@ -835,6 +836,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Antropológico",
       "azure-openai": "Azure OpenAI",
@@ -847,7 +849,7 @@
       "doubao": "Volcán Motor",
       "fireworks": "Fuegos Artificiales",
       "gemini": "Géminis",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modelos",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -879,7 +881,7 @@
       "zhinao": "360 Inteligente",
       "zhipu": "ZhiPu IA",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Yun"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "¿Está seguro de que desea restaurar los datos?",
@@ -1137,6 +1139,7 @@
       "display.sidebar.translate.icon": "Mostrar icono de traducción",
       "display.sidebar.visible": "Iconos visibles",
       "display.title": "Configuración de visualización",
+      "display.zoom.title": "Configuración de zoom",
       "display.topic.title": "Configuración de tema",
       "font_size.title": "Tamaño de fuente de mensajes",
       "general": "Configuración general",
@@ -1474,7 +1477,7 @@
         "zoom_out": "Reducir interfaz",
         "zoom_reset": "Restablecer zoom"
       },
-      "theme.auto": "Automático",
+      "theme.system": "Sistema",
       "theme.dark": "Oscuro",
       "theme.light": "Claro",
       "theme.title": "Tema",

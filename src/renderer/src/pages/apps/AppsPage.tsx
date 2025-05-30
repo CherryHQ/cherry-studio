@@ -1,14 +1,13 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { Center } from '@renderer/components/Layout'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { Empty, Input } from 'antd'
-import { isEmpty } from 'lodash'
+import { Input } from 'antd'
 import { Search } from 'lucide-react'
 import React, { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import App from './App'
+import NewAppButton from './NewAppButton'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
@@ -51,18 +50,12 @@ const AppsPage: FC = () => {
         </NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        {isEmpty(filteredApps) ? (
-          <Center>
-            <Empty />
-          </Center>
-        ) : (
-          <AppsContainer style={{ height: containerHeight }}>
-            {filteredApps.map((app) => (
-              <App key={app.id} app={app} />
-            ))}
-            <App isLast app={filteredApps[0]} />
-          </AppsContainer>
-        )}
+        <AppsContainer style={{ height: containerHeight }}>
+          {filteredApps.map((app) => (
+            <App key={app.id} app={app} />
+          ))}
+          <NewAppButton />
+        </AppsContainer>
       </ContentContainer>
     </Container>
   )

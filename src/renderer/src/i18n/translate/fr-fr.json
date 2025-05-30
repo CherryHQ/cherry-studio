@@ -835,6 +835,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -847,7 +848,7 @@
       "doubao": "Huoshan Engine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modèles",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -879,7 +880,7 @@
       "zhinao": "360 ZhiNao",
       "zhipu": "ZhiPu IA",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Êtes-vous sûr de vouloir restaurer les données ?",
@@ -930,6 +931,8 @@
         "app_knowledge.remove_all_confirm": "La suppression des fichiers de la base de connaissances libérera de l'espace de stockage, mais ne supprimera pas les données vectorisées de la base de connaissances. Après la suppression, vous ne pourrez plus ouvrir les fichiers sources. Souhaitez-vous continuer ?",
         "app_knowledge.remove_all_success": "Fichiers supprimés avec succès",
         "app_logs": "Journaux de l'application",
+        "backup.skip_file_data_title": "Sauvegarde réduite",
+        "backup.skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
         "clear_cache": {
           "button": "Effacer le cache",
           "confirm": "L'effacement du cache supprimera les données du cache de l'application, y compris les données des mini-programmes. Cette action ne peut pas être annulée, voulez-vous continuer ?",
@@ -1137,6 +1140,7 @@
       "display.sidebar.translate.icon": "Afficher l'icône de traduction",
       "display.sidebar.visible": "Icônes affichées",
       "display.title": "Paramètres d'affichage",
+      "display.zoom.title": "Paramètres de zoom",
       "display.topic.title": "Paramètres de sujet",
       "font_size.title": "Taille de police des messages",
       "general": "Paramètres généraux",
@@ -1474,7 +1478,7 @@
         "zoom_out": "Réduire l'interface",
         "zoom_reset": "Réinitialiser le zoom"
       },
-      "theme.auto": "Automatique",
+      "theme.system": "Système",
       "theme.dark": "Sombre",
       "theme.light": "Clair",
       "theme.title": "Thème",

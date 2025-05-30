@@ -12,30 +12,43 @@ electronLanguages:
 directories:
   buildResources: build
 files:
-  - '!{.vscode,.yarn,.github}'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '**/*'
+  - '!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
+  - '!electron.vite.config.{js,ts,mjs,cjs}}'
+  - '!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/{.editorconfig,.jekyll-metadata}'
   - '!src'
   - '!scripts'
   - '!local'
   - '!docs'
   - '!packages'
+  - '!.swc'
+  - '!.bin'
+  - '!._*'
+  - '!*.log'
   - '!stats.html'
   - '!*.md'
+  - '!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}'
   - '!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}'
-  - '!**/{test,tests,__tests__,coverage}/**'
+  - '!**/{test,tests,__tests__,powered-test,coverage}/**'
+  - '!**/{example,examples}/**'
   - '!**/*.{spec,test}.{js,jsx,ts,tsx}'
   - '!**/*.min.*.map'
   - '!**/*.d.ts'
-  - '!**/{.DS_Store,Thumbs.db}'
-  - '!**/{LICENSE,LICENSE.txt,LICENSE-MIT.txt,*.LICENSE.txt,NOTICE.txt,README.md,CHANGELOG.md}'
+  - '!**/dist/es6/**'
+  - '!**/dist/demo/**'
+  - '!**/amd/**'
+  - '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}'
+  - '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}'
   - '!node_modules/rollup-plugin-visualizer'
   - '!node_modules/js-tiktoken'
   - '!node_modules/@tavily/core/node_modules/js-tiktoken'
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
+  - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
+  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters}' # filter .node build files
 asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'
@@ -45,6 +58,9 @@ win:
   target:
     - target: nsis
     - target: portable
+  signtoolOptions:
+    sign: scripts/win-sign.js
+  verifyUpdateCodeSignature: false
 nsis:
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   shortcutName: ${productName}
@@ -61,6 +77,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
+  minimumSystemVersion: '20.1.0' # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -90,9 +107,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    重构消息结构，支持不同类型消息按时间顺序显示
-    智能体支持导入和导出
-    快捷面板增加网络搜索引擎选择
-    显示设置增加缩放控制按钮
-    支持添加自定义小程序
-    性能优化和错误修复
+    新增划词助手
+    助手支持分组
+    支持主题颜色切换
+    划词助手支持应用过滤
+    翻译模块功能改进
