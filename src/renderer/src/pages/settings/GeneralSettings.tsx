@@ -115,7 +115,7 @@ const GeneralSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={themeMode}>
+    <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
