@@ -45,7 +45,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, theme: actualTheme, toggleTheme } = useTheme()
+  const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -100,21 +100,18 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip title={t('docs.title')} mouseEnterDelay={0.8} placement="right">
-          <Icon
-            theme={actualTheme}
-            onClick={onOpenDocs}
-            className={minappShow && currentMinappId === docsId ? 'active' : ''}>
+          <Icon theme={theme} onClick={onOpenDocs} className={minappShow && currentMinappId === docsId ? 'active' : ''}>
             <CircleHelp size={20} className="icon" />
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${theme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settedTheme}`)}
           mouseEnterDelay={0.8}
           placement="right">
-          <Icon theme={actualTheme} onClick={() => toggleTheme()}>
-            {theme === ThemeMode.dark ? (
+          <Icon theme={theme} onClick={() => toggleTheme()}>
+            {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
-            ) : theme === ThemeMode.light ? (
+            ) : settedTheme === ThemeMode.light ? (
               <Sun size={20} className="icon" />
             ) : (
               <SunMoon size={20} className="icon" />
@@ -127,7 +124,7 @@ const Sidebar: FC = () => {
               hideMinappPopup()
               await to('/settings/provider')
             }}>
-            <Icon theme={actualTheme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
+            <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
             </Icon>
           </StyledLink>

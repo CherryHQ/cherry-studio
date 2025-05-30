@@ -12,7 +12,6 @@ export enum IpcChannel {
   App_SetTray = 'app:set-tray',
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_SetTheme = 'app:set-theme',
-  App_GetTheme = 'app:get-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
 

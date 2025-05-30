@@ -125,10 +125,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     themeService.setTheme(theme)
   })
 
-  ipcMain.handle(IpcChannel.App_GetTheme, () => {
-    return themeService.getTheme()
-  })
-
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
     handleZoomFactor(windows, delta, reset)

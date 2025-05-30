@@ -63,10 +63,11 @@ const DisplaySettings: FC = () => {
     pinTopicsToTop,
     customCss,
     sidebarIcons,
+    setTheme,
     assistantIconType,
     userTheme
   } = useSettings()
-  const { theme, theme: actualTheme, setTheme } = useTheme()
+  const { theme, settedTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
@@ -166,13 +167,13 @@ const DisplaySettings: FC = () => {
   )
 
   return (
-    <SettingContainer theme={actualTheme}>
+    <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
+          <Segmented value={settedTheme} shape="round" onChange={setTheme} options={themeOptions} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>

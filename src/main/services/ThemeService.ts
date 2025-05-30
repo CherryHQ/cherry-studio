@@ -43,10 +43,6 @@ class ThemeService {
     nativeTheme.themeSource = theme
     configManager.setTheme(theme)
   }
-
-  getTheme() {
-    return { theme: this.theme, actualTheme: nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light }
-  }
 }
 
 export const themeService = new ThemeService()
