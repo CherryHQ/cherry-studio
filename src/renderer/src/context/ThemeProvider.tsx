@@ -7,16 +7,14 @@ import React, { createContext, PropsWithChildren, use, useEffect, useState } fro
 
 interface ThemeContextType {
   theme: ThemeMode
-  actualTheme: ThemeMode
+  settedTheme: ThemeMode
   toggleTheme: () => void
-  setTheme: (theme: ThemeMode) => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: ThemeMode.system,
-  actualTheme: ThemeMode.dark,
-  toggleTheme: () => {},
-  setTheme: () => {}
+  settedTheme: ThemeMode.dark,
+  toggleTheme: () => {}
 })
 
 interface ThemeProviderProps extends PropsWithChildren {
@@ -24,8 +22,9 @@ interface ThemeProviderProps extends PropsWithChildren {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const { theme, setTheme } = useSettings()
-  const [actualTheme, setActualTheme] = useState(
+  // 用户设置的主题
+  const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(
     window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
   )
   const { initUserTheme } = useUserTheme()
@@ -35,8 +34,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.light]: ThemeMode.dark,
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
-    }[theme]
-    setTheme(nextTheme || ThemeMode.system)
+    }[settedTheme]
+    setSettedTheme(nextTheme || ThemeMode.system)
   }
 
   useEffect(() => {
@@ -46,8 +45,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
-    if (theme !== ThemeMode.dark && theme !== ThemeMode.light && theme !== ThemeMode.system) {
-      setTheme(ThemeMode.system)
+    if (settedTheme !== ThemeMode.dark && settedTheme !== ThemeMode.light && settedTheme !== ThemeMode.system) {
+      setSettedTheme(ThemeMode.system)
     }
 
     initUserTheme()
@@ -62,10 +61,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, [])
 
   useEffect(() => {
-    window.api.setTheme(theme)
-  }, [theme])
+    window.api.setTheme(settedTheme)
+  }, [settedTheme])
 
-  return <ThemeContext value={{ theme, actualTheme, toggleTheme, setTheme }}>{children}</ThemeContext>
+  return <ThemeContext value={{ theme: actualTheme, settedTheme, toggleTheme }}>{children}</ThemeContext>
 }
 
 export const useTheme = () => use(ThemeContext)

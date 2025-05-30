@@ -75,7 +75,7 @@ const SettingsTab: FC<Props> = (props) => {
   const { provider } = useProvider(assistant.model.provider)
 
   const { messageStyle, fontSize, language } = useSettings()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)

@@ -10,7 +10,7 @@ import styled from 'styled-components'
 
 const NewTopicButton: FC = () => {
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
 
   const addNewTopic = () => {
     EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)

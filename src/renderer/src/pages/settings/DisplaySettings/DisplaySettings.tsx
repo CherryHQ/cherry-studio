@@ -66,7 +66,7 @@ const DisplaySettings: FC = () => {
     assistantIconType,
     userTheme
   } = useSettings()
-  const { theme, actualTheme, setTheme } = useTheme()
+  const { theme, theme: actualTheme, setTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)

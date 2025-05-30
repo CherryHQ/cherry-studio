@@ -30,7 +30,7 @@ const loadMermaidModule = async () => {
 }
 
 export const useMermaid = () => {
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

@@ -16,7 +16,7 @@ const WebSearchSettings: FC = () => {
   const { provider: defaultProvider, setDefaultProvider } = useDefaultWebSearchProvider()
   const { t } = useTranslation()
   const [selectedProvider, setSelectedProvider] = useState<WebSearchProvider | undefined>(defaultProvider)
-  const { actualTheme: themeMode } = useTheme()
+  const { theme: themeMode } = useTheme()
 
   const isLocalProvider = selectedProvider?.id.startsWith('local')
 

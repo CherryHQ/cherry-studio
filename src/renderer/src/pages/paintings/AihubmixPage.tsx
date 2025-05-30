@@ -50,7 +50,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [fileMap, setFileMap] = useState<{ [key: string]: FileType }>({})
 
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)

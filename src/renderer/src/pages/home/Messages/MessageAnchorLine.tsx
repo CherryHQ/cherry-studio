@@ -30,7 +30,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const { t } = useTranslation()
   const avatar = useAvatar()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const dispatch = useAppDispatch()
 
   const { userName } = useSettings()

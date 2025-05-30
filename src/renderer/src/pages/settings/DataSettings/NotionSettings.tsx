@@ -20,7 +20,7 @@ import { useSelector } from 'react-redux'
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 const NotionSettings: FC = () => {
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 

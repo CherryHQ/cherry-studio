@@ -46,7 +46,7 @@ const HomeWindow: FC = () => {
   // 如果 quickAssistantModel 未設定，則使用 defaultModel
   const model = quickAssistantModel || defaultModel
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)

@@ -13,7 +13,7 @@ import McpSettings from './McpSettings'
 import NpxSearch from './NpxSearch'
 
 const MCPSettings: FC = () => {
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
 
   const location = useLocation()
   const pathname = location.pathname

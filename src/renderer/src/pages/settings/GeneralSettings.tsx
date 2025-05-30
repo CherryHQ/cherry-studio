@@ -29,7 +29,7 @@ const GeneralSettings: FC = () => {
     enableDataCollection
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
-  const { theme, actualTheme: themeMode } = useTheme()
+  const { theme, theme: themeMode } = useTheme()
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)

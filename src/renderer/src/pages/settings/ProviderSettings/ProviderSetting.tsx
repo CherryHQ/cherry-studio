@@ -60,7 +60,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'

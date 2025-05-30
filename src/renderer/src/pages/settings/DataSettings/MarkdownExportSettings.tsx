@@ -17,7 +17,7 @@ import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTi
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const dispatch = useAppDispatch()
 
   const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)

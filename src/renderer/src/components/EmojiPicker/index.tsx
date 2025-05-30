@@ -6,7 +6,7 @@ interface Props {
 }
 
 const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

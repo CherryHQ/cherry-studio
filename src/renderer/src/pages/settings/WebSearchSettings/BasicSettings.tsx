@@ -9,7 +9,7 @@ import { FC } from 'react'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const BasicSettings: FC = () => {
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const searchWithTime = useAppSelector((state) => state.websearch.searchWithTime)
   const maxResults = useAppSelector((state) => state.websearch.maxResults)
   const contentLimit = useAppSelector((state) => state.websearch.contentLimit)

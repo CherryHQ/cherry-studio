@@ -19,7 +19,7 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
     language,
     userTheme: { colorPrimary }
   } = useSettings()
-  const { actualTheme: _theme } = useTheme()
+  const { theme: _theme } = useTheme()
 
   return (
     <ConfigProvider

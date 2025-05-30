@@ -16,7 +16,7 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '.'
 
 const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { shortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})

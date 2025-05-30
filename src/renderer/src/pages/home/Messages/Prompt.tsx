@@ -12,7 +12,7 @@ interface Props {
 
 const Prompt: FC<Props> = ({ assistant, topic }) => {
   const { t } = useTranslation()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
 
   const prompt = assistant.prompt || t('chat.default.description')
   const topicPrompt = topic?.prompt || ''

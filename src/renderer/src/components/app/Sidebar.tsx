@@ -45,7 +45,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, actualTheme, toggleTheme } = useTheme()
+  const { theme, theme: actualTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -144,7 +144,7 @@ const MainMenus: FC = () => {
   const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
 
   const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
@@ -195,7 +195,7 @@ const SidebarOpenedMinappTabs: FC = () => {
   const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
   const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const { t } = useTranslation()
 
   const handleOnClick = (app) => {
@@ -285,7 +285,7 @@ const PinnedApps: FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
   const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const { openMinappKeepAlive } = useMinappPopup()
 
   return (

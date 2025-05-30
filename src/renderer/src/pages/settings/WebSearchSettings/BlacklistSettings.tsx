@@ -34,7 +34,7 @@ const BlacklistSettings: FC = () => {
   const [blacklistInput, setBlacklistInput] = useState('')
   const excludeDomains = useAppSelector((state) => state.websearch.excludeDomains)
   const { websearch, setSubscribeSources, addSubscribeSource } = useBlacklist()
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
   const [subscribeChecking, setSubscribeChecking] = useState(false)
   const [subscribeValid, setSubscribeValid] = useState(false)
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])

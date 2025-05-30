@@ -42,7 +42,7 @@ const PlatformOptions = [
 
 const DMXAPISettings: FC<DMXAPISettingsProps> = ({ provider: initialProvider }) => {
   const { provider, updateProvider } = useProvider(initialProvider.id)
-  const { actualTheme: theme } = useTheme()
+  const { theme } = useTheme()
 
   const { t } = useTranslation()
 
