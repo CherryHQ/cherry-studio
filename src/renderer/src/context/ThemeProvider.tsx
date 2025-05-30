@@ -21,7 +21,7 @@ interface ThemeProviderProps extends PropsWithChildren {
   defaultTheme?: ThemeMode
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme = ThemeMode.system}) => {
   // 用户设置的主题
   const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
   const [actualTheme, setActualTheme] = useState<ThemeMode>(
@@ -35,7 +35,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       [ThemeMode.dark]: ThemeMode.system,
       [ThemeMode.system]: ThemeMode.light
     }[settedTheme]
-    setSettedTheme(nextTheme || ThemeMode.system)
+    setSettedTheme(nextTheme || defaultTheme)
   }
 
   useEffect(() => {
