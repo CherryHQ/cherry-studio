@@ -12,7 +12,7 @@ import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -32,6 +32,7 @@ import {
   SettingTitle
 } from '..'
 import ApiCheckPopup from './ApiCheckPopup'
+import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import HealthCheckPopup from './HealthCheckPopup'
@@ -63,6 +64,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
+
+  const isDmxapi = provider.id === 'dmxapi'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const officialWebsite = providerConfig?.websites?.official
@@ -124,10 +127,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const keys = apiKey
-      .split(',')
-      .map((k) => k.trim())
-      .filter((k) => k)
+    const keys = splitApiKeyString(apiKey)
 
     // Add an empty key to enable health checks for local models.
     // Error messages will be shown for each model if a valid key is needed.
@@ -212,11 +212,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     }
 
     if (apiKey.includes(',')) {
-      const keys = apiKey
-        .split(/(?<!\\),/)
-        .map((k) => k.trim())
-        .map((k) => k.replace(/\\,/g, ','))
-        .filter((k) => k)
+      const keys = splitApiKeyString(apiKey)
 
       const result = await ApiCheckPopup.show({
         title: t('settings.provider.check_multiple_keys'),
@@ -328,6 +324,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       )}
       {provider.id === 'openai' && <OpenAIAlert />}
+      {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
       <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
       <Space.Compact style={{ width: '100%', marginTop: 5 }}>
         <Input.Password
@@ -358,35 +355,43 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {apiKeyWebsite && (
         <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
           <HStack>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
+            {!isDmxapi && (
+              <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                {t('settings.provider.get_api_key')}
+              </SettingHelpLink>
+            )}
           </HStack>
           <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
         </SettingHelpTextRow>
       )}
-      <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input
-          value={apiHost}
-          placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setApiHost(e.target.value)}
-          onBlur={onUpdateApiHost}
-        />
-        {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-          <Button danger onClick={onReset}>
-            {t('settings.provider.api.url.reset')}
-          </Button>
-        )}
-      </Space.Compact>
-      {isOpenAIProvider(provider) && (
-        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText
-            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
-            {hostPreview()}
-          </SettingHelpText>
-          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
-        </SettingHelpTextRow>
+      {!isDmxapi && (
+        <>
+          <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input
+              value={apiHost}
+              placeholder={t('settings.provider.api_host')}
+              onChange={(e) => setApiHost(e.target.value)}
+              onBlur={onUpdateApiHost}
+            />
+            {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
+              <Button danger onClick={onReset}>
+                {t('settings.provider.api.url.reset')}
+              </Button>
+            )}
+          </Space.Compact>
+          {isOpenAIProvider(provider) && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+              <SettingHelpText
+                style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                {hostPreview()}
+              </SettingHelpText>
+              <SettingHelpText style={{ minWidth: 'fit-content' }}>
+                {t('settings.provider.api.url.tip')}
+              </SettingHelpText>
+            </SettingHelpTextRow>
+          )}
+        </>
       )}
       {isAzureOpenAI && (
         <>

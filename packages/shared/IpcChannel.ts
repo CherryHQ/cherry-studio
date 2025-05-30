@@ -11,7 +11,6 @@ export enum IpcChannel {
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
   App_SetTrayOnClose = 'app:set-tray-on-close',
-  App_RestartTray = 'app:restart-tray',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
@@ -20,6 +19,9 @@ export enum IpcChannel {
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+
+  Notification_Send = 'notification:send',
+  Notification_OnClick = 'notification:on-click',
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
 
@@ -108,6 +110,7 @@ export enum IpcChannel {
   File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
   File_Base64Image = 'file:base64Image',
+  File_SaveBase64Image = 'file:saveBase64Image',
   File_Download = 'file:download',
   File_Copy = 'file:copy',
   File_BinaryImage = 'file:binaryImage',
@@ -141,7 +144,7 @@ export enum IpcChannel {
 
   // events
   BackupProgress = 'backup-progress',
-  ThemeChange = 'theme:change',
+  ThemeUpdated = 'theme:updated',
   UpdateDownloadedCancelled = 'update-downloaded-cancelled',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
@@ -170,5 +173,26 @@ export enum IpcChannel {
   StoreSync_Subscribe = 'store-sync:subscribe',
   StoreSync_Unsubscribe = 'store-sync:unsubscribe',
   StoreSync_OnUpdate = 'store-sync:on-update',
-  StoreSync_BroadcastSync = 'store-sync:broadcast-sync'
+  StoreSync_BroadcastSync = 'store-sync:broadcast-sync',
+
+  // Provider
+  Provider_AddKey = 'provider:add-key',
+
+  //Selection Assistant
+  Selection_TextSelected = 'selection:text-selected',
+  Selection_ToolbarHide = 'selection:toolbar-hide',
+  Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
+  Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
+  Selection_WriteToClipboard = 'selection:write-to-clipboard',
+  Selection_SetEnabled = 'selection:set-enabled',
+  Selection_SetTriggerMode = 'selection:set-trigger-mode',
+  Selection_SetFilterMode = 'selection:set-filter-mode',
+  Selection_SetFilterList = 'selection:set-filter-list',
+  Selection_SetFollowToolbar = 'selection:set-follow-toolbar',
+  Selection_SetRemeberWinSize = 'selection:set-remeber-win-size',
+  Selection_ActionWindowClose = 'selection:action-window-close',
+  Selection_ActionWindowMinimize = 'selection:action-window-minimize',
+  Selection_ActionWindowPin = 'selection:action-window-pin',
+  Selection_ProcessAction = 'selection:process-action',
+  Selection_UpdateActionData = 'selection:update-action-data'
 }

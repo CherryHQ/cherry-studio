@@ -5,8 +5,6 @@ import { Col, Image, Row, Spin, Table } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
-import GeminiFiles from './GeminiFiles'
-
 interface ContentViewProps {
   id: FileTypes | 'all' | string
   files?: FileType[]
@@ -43,10 +41,6 @@ const ContentView: React.FC<ContentViewProps> = ({ id, files, dataSource, column
         </Row>
       </Image.PreviewGroup>
     )
-  }
-
-  if (id.startsWith('gemini_')) {
-    return <GeminiFiles id={id.replace('gemini_', '') as string} />
   }
 
   return (

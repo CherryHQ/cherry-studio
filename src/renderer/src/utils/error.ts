@@ -1,3 +1,5 @@
+import { t } from 'i18next'
+
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
   if (err === null || typeof err !== 'object' || seen.has(err)) {
@@ -33,10 +35,15 @@ export function formatErrorMessage(error: any): string {
     delete detailedError?.headers
     delete detailedError?.stack
     delete detailedError?.request_id
-    return '```json\n' + JSON.stringify(detailedError, null, 2) + '\n```'
+
+    const formattedJson = JSON.stringify(detailedError, null, 2)
+      .split('\n')
+      .map((line) => `  ${line}`)
+      .join('\n')
+    return `Error Details:\n${formattedJson}`
   } catch (e) {
     try {
-      return '```\n' + String(error) + '\n```'
+      return `Error: ${String(error)}`
     } catch {
       return 'Error: Unable to format error message'
     }
@@ -84,4 +91,11 @@ export const isAbortError = (error: any): boolean => {
   }
 
   return false
+}
+
+export const formatMcpError = (error: any) => {
+  if (error.message.includes('32000')) {
+    return t('settings.mcp.errors.32000')
+  }
+  return error.message
 }

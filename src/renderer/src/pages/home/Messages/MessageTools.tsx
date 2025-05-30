@@ -1,9 +1,9 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
-import { useShikiWithMarkdownIt } from '@renderer/utils/shiki'
 import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
-import { FC, useMemo, useState } from 'react'
+import { FC, memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -192,12 +192,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
                 {
                   key: 'preview',
                   label: t('message.tools.preview'),
-                  children: (
-                    <CollapsedContent
-                      isExpanded={true}
-                      resultString={resultString}
-                    />
-                  )
+                  children: <CollapsedContent isExpanded={true} resultString={resultString} />
                 },
                 {
                   key: 'raw',
@@ -215,9 +210,17 @@ const MessageTools: FC<Props> = ({ blocks }) => {
 
 // New component to handle collapsed content
 const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ isExpanded, resultString }) => {
-  const { renderedMarkdown: styledResult } = useShikiWithMarkdownIt(
-    isExpanded ? `\`\`\`json\n${resultString}\n\`\`\`` : ''
-  )
+  const { highlightCode } = useCodeStyle()
+  const [styledResult, setStyledResult] = useState<string>('')
+
+  useEffect(() => {
+    const highlight = async () => {
+      const result = await highlightCode(isExpanded ? resultString : '', 'json')
+      setStyledResult(result)
+    }
+
+    setTimeout(highlight, 0)
+  }, [isExpanded, resultString, highlightCode])
 
   if (!isExpanded) {
     return null
@@ -247,8 +250,11 @@ const CollapseContainer = styled(Collapse)`
 `
 
 const MarkdownContainer = styled.div`
-  & pre span {
-    white-space: pre-wrap;
+  & pre {
+    background: transparent !important;
+    span {
+      white-space: pre-wrap;
+    }
   }
 `
 
@@ -371,4 +377,4 @@ const ExpandedResponseContainer = styled.div`
   }
 `
 
-export default MessageTools
+export default memo(MessageTools)

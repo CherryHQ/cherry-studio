@@ -5,8 +5,6 @@ import { FC, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
-import Scrollbar from '../Scrollbar'
-
 interface Props {
   children: React.ReactNode
   activeAssistant: Assistant
@@ -55,7 +53,8 @@ const FloatingSidebar: FC<Props> = ({
         forceToSeeAllTab={true}
         style={{
           background: 'transparent',
-          border: 'none'
+          border: 'none',
+          maxHeight: maxHeight
         }}
       />
     </PopoverContent>
@@ -81,9 +80,8 @@ const FloatingSidebar: FC<Props> = ({
   )
 }
 
-const PopoverContent = styled(Scrollbar)<{ maxHeight: number }>`
+const PopoverContent = styled.div<{ maxHeight: number }>`
   max-height: ${(props) => props.maxHeight}px;
-  overflow-y: auto;
 `
 
 export default FloatingSidebar
