@@ -1,885 +1,46 @@
-import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import {
-  findTokenLimit,
-  getOpenAIWebSearchParams,
-  isClaudeReasoningModel,
-  isOpenAIReasoningModel,
-  isReasoningModel,
-  isSupportedModel,
-  isSupportedReasoningEffortGrokModel,
-  isSupportedReasoningEffortModel,
-  isSupportedReasoningEffortOpenAIModel,
-  isSupportedThinkingTokenClaudeModel,
-  isSupportedThinkingTokenGeminiModel,
-  isSupportedThinkingTokenModel,
-  isSupportedThinkingTokenQwenModel,
-  isVisionModel
-} from '@renderer/config/models'
+import { isReasoningModel, isSupportedModel, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import { getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import {
-  Assistant,
-  EFFORT_RATIO,
-  FileTypes,
-  MCPCallToolResponse,
-  MCPTool,
-  MCPToolResponse,
-  Model,
-  Provider,
-  Suggestion
-} from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
+import { Assistant, Model, Provider, Suggestion } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import { mcpToolCallResponseToOpenAICompatibleMessage, mcpToolsToOpenAIChatTools } from '@renderer/utils/mcp-tools'
-import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { isEmpty, takeRight } from 'lodash'
-import OpenAI, { AzureOpenAI } from 'openai'
-import {
-  ChatCompletionContentPart,
-  ChatCompletionCreateParamsNonStreaming,
-  ChatCompletionMessageParam,
-  ChatCompletionToolMessageParam
-} from 'openai/resources'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { takeRight } from 'lodash'
+import OpenAI from 'openai'
+import { ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources'
 
-import { CompletionsOpenAIResult, CompletionsParams } from '.'
-import { BaseOpenAIProvider } from './OpenAIResponseProvider'
+import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
+import BaseProvider from './BaseProvider'
 
-// 1. 定义联合类型
-export type OpenAIStreamChunk =
-  | { type: 'reasoning' | 'text-delta'; textDelta: string }
-  | { type: 'tool-calls'; delta: any }
-  | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
-
-export default class OpenAIProvider extends BaseOpenAIProvider {
+export default class OpenAIProvider extends BaseProvider {
   constructor(provider: Provider) {
     super(provider)
-
-    if (provider.id === 'azure-openai' || provider.type === 'azure-openai') {
-      this.sdk = new AzureOpenAI({
-        dangerouslyAllowBrowser: true,
-        apiKey: this.apiKey,
-        apiVersion: provider.apiVersion,
-        endpoint: provider.apiHost
-      })
-      return
-    }
-
-    this.sdk = new OpenAI({
-      dangerouslyAllowBrowser: true,
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL(),
-      defaultHeaders: {
-        ...this.defaultHeaders(),
-        ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
-        ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
-      }
-    })
-  }
-
-  /**
-   * Check if the provider does not support files
-   * @returns True if the provider does not support files, false otherwise
-   */
-  private get isNotSupportFiles() {
-    if (this.provider?.isNotSupportArrayContent) {
-      return true
-    }
-
-    const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
-
-    return providers.includes(this.provider.id)
-  }
-
-  /**
-   * Get the message parameter
-   * @param message - The message
-   * @param model - The model
-   * @returns The message parameter
-   */
-  override async getMessageParam(
-    message: Message,
-    model: Model
-  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
-    const isVision = isVisionModel(model)
-    const content = await this.getMessageContent(message)
-    const fileBlocks = findFileBlocks(message)
-    const imageBlocks = findImageBlocks(message)
-
-    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
-      return {
-        role: message.role === 'system' ? 'user' : message.role,
-        content
-      }
-    }
-
-    // If the model does not support files, extract the file content
-    if (this.isNotSupportFiles) {
-      const fileContent = await this.extractFileContent(message)
-
-      return {
-        role: message.role === 'system' ? 'user' : message.role,
-        content: content + '\n\n---\n\n' + fileContent
-      }
-    }
-
-    // If the model supports files, add the file content to the message
-    const parts: ChatCompletionContentPart[] = []
-
-    if (content) {
-      parts.push({ type: 'text', text: content })
-    }
-
-    for (const imageBlock of imageBlocks) {
-      if (isVision) {
-        if (imageBlock.file) {
-          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
-          parts.push({ type: 'image_url', image_url: { url: image.data } })
-        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
-          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
-        }
-      }
-    }
-
-    for (const fileBlock of fileBlocks) {
-      const file = fileBlock.file
-      if (!file) {
-        continue
-      }
-
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-        parts.push({
-          type: 'text',
-          text: file.origin_name + '\n' + fileContent
-        })
-      }
-    }
-
-    return {
-      role: message.role === 'system' ? 'user' : message.role,
-      content: parts
-    } as ChatCompletionMessageParam
-  }
-
-  override getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
-      return undefined
-    }
-    return assistant.settings?.temperature
-  }
-
-  override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
-      return undefined
-    }
-    return assistant.settings?.topP
-  }
-
-  /**
-   * Get the provider specific parameters for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The provider specific parameters
-   */
-  private getProviderSpecificParameters(assistant: Assistant, model: Model) {
-    const { maxTokens } = getAssistantSettings(assistant)
-
-    if (this.provider.id === 'openrouter') {
-      if (model.id.includes('deepseek-r1')) {
-        return {
-          include_reasoning: true
-        }
-      }
-    }
-
-    if (isOpenAIReasoningModel(model)) {
-      return {
-        max_tokens: undefined,
-        max_completion_tokens: maxTokens
-      }
-    }
-
-    return {}
-  }
-
-  /**
-   * Get the reasoning effort for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The reasoning effort
-   */
-  private getReasoningEffort(assistant: Assistant, model: Model) {
-    if (this.provider.id === 'groq') {
-      return {}
-    }
-
-    if (!isReasoningModel(model)) {
-      return {}
-    }
-    const reasoningEffort = assistant?.settings?.reasoning_effort
-    if (!reasoningEffort) {
-      if (isSupportedThinkingTokenQwenModel(model)) {
-        return { enable_thinking: false }
-      }
-
-      if (isSupportedThinkingTokenClaudeModel(model)) {
-        return { thinking: { type: 'disabled' } }
-      }
-
-      if (isSupportedThinkingTokenGeminiModel(model)) {
-        // openrouter没有提供一个不推理的选项，先隐藏
-        if (this.provider.id === 'openrouter') {
-          return { reasoning: { maxTokens: 0, exclude: true } }
-        }
-        return {
-          reasoning_effort: 'none'
-        }
-      }
-
-      return {}
-    }
-    const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = Math.floor(
-      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
-    )
-
-    // OpenRouter models
-    if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
-        return {
-          reasoning: {
-            effort: assistant?.settings?.reasoning_effort
-          }
-        }
-      }
-
-      if (isSupportedThinkingTokenModel(model)) {
-        return {
-          reasoning: {
-            max_tokens: budgetTokens
-          }
-        }
-      }
-    }
-
-    // Qwen models
-    if (isSupportedThinkingTokenQwenModel(model)) {
-      return {
-        enable_thinking: true,
-        thinking_budget: budgetTokens
-      }
-    }
-
-    // Grok models
-    if (isSupportedReasoningEffortGrokModel(model)) {
-      return {
-        reasoning_effort: assistant?.settings?.reasoning_effort
-      }
-    }
-
-    // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
-      return {
-        reasoning_effort: assistant?.settings?.reasoning_effort
-      }
-    }
-
-    // Claude models
-    if (isSupportedThinkingTokenClaudeModel(model)) {
-      const maxTokens = assistant.settings?.maxTokens
-      return {
-        thinking: {
-          type: 'enabled',
-          budget_tokens: Math.floor(
-            Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
-          )
-        }
-      }
-    }
-
-    // Default case: no special thinking settings
-    return {}
-  }
-
-  public convertMcpTools<T>(mcpTools: MCPTool[]): T[] {
-    return mcpToolsToOpenAIChatTools(mcpTools) as T[]
-  }
-
-  public mcpToolCallResponseToMessage = (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => {
-    if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
-      return mcpToolCallResponseToOpenAICompatibleMessage(mcpToolResponse, resp, isVisionModel(model))
-    } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
-      const toolCallOut: ChatCompletionToolMessageParam = {
-        role: 'tool',
-        tool_call_id: mcpToolResponse.toolCallId,
-        content: JSON.stringify(resp.content)
-      }
-      return toolCallOut
-    }
-    return
   }
 
   /**
    * Generate completions for the assistant
-   * @param messages - The messages
-   * @param assistant - The assistant
-   * @param mcpTools - The MCP tools
-   * @param onChunk - The onChunk callback
-   * @param onFilterMessages - The onFilterMessages callback
+   * @param params - The completion parameters
    * @returns The completions
    */
-  async completions({ assistant, onChunk, _internal }: CompletionsParams): Promise<CompletionsOpenAIResult> {
-    // TODO: 图片生成
-    // if (assistant.enableGenerateImage) {
-    //   await this.generateImageByChat({ messages, assistant, onChunk } as CompletionsParams)
-    //   return
-    // }
-    // const defaultModel = getDefaultModel()
-    // const model = assistant.model || defaultModel
+  async completions(params: CompletionsParams): Promise<CompletionsResult> {
+    console.log('[OpenAIProvider] completions called with params:', {
+      messagesCount: params.messages?.length || 0,
+      streamOutput: params.streamOutput,
+      assistantId: params.assistant?.id,
+      modelId: params.assistant?.model?.id
+    })
 
-    // const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    // const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
-    // messages = addImageFileToContents(messages)
-    // const enableReasoning =
-    //   ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-    //     assistant.settings?.reasoning_effort !== undefined) ||
-    //   (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-    // let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    // if (isSupportedReasoningEffortOpenAIModel(model)) {
-    //   systemMessage = {
-    //     role: 'developer',
-    //     content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
-    //   }
-    // }
-    // if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
-    //   systemMessage = {
-    //     role: 'assistant',
-    //     content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
-    //   }
-    // }
-
-    // if (this.useSystemPromptForTools) {
-    //   systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
-    // }
-
-    // const userMessages: ChatCompletionMessageParam[] = []
-    // const _messages = filterUserRoleStartMessages(
-    //   filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 1)))
-    // )
-
-    // onFilterMessages(_messages)
-
-    // for (const message of _messages) {
-    //   userMessages.push(await this.getMessageParam(message, model))
-    // }
-
-    // const isSupportStreamOutput = () => {
-    //   return streamOutput
-    // }
-
-    // const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-    // const { abortController } = this.createAbortController(lastUserMessage?.id)
-    // const { signal } = abortController
-    // await this.checkIsCopilot()
-
-    // const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-    // if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
-    //   const postsuffix = '/no_think'
-    //   // qwenThinkMode === true 表示思考模式啓用，此時不應添加 /no_think，如果存在則移除
-    //   const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
-    //   const currentContent = lastUserMsg.content // content 類型：string | ChatCompletionContentPart[] | null
-
-    //   lastUserMsg.content = processPostsuffixQwen3Model(
-    //     currentContent,
-    //     postsuffix,
-    //     qwenThinkModeEnabled
-    //   ) as ChatCompletionContentPart[]
-    // }
-
-    // //当 systemMessage 内容为空时不发送 systemMessage
-    // let reqMessages: ChatCompletionMessageParam[]
-    // if (!systemMessage.content) {
-    //   reqMessages = [...userMessages]
-    // } else {
-    //   reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
-    // }
-
-    // let finalUsage: Usage = {
-    //   completion_tokens: 0,
-    //   prompt_tokens: 0,
-    //   total_tokens: 0
-    // }
-
-    // const finalMetrics: Metrics = {
-    //   completion_tokens: 0,
-    //   time_completion_millsec: 0,
-    //   time_first_token_millsec: 0
-    // }
-
-    // const toolResponses: MCPToolResponse[] = []
-
-    // const processToolResults = async (toolResults: Awaited<ReturnType<typeof parseAndCallTools>>, idx: number) => {
-    //   if (toolResults.length === 0) return
-
-    //   toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
-
-    //   console.debug('[tool] reqMessages before processing', model.id, reqMessages)
-    //   reqMessages = processReqMessages(model, reqMessages)
-    //   console.debug('[tool] reqMessages', model.id, reqMessages)
-
-    //   onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-    //   const newStream = await this.sdk.chat.completions
-    //     // @ts-ignore key is not typed
-    //     .create(
-    //       {
-    //         model: model.id,
-    //         messages: reqMessages,
-    //         temperature: this.getTemperature(assistant, model),
-    //         top_p: this.getTopP(assistant, model),
-    //         max_tokens: maxTokens,
-    //         keep_alive: this.keepAliveTime,
-    //         stream: isSupportStreamOutput(),
-    //         tools: !isEmpty(tools) ? tools : undefined,
-    //         service_tier: this.getServiceTier(model),
-    //         ...getOpenAIWebSearchParams(assistant, model),
-    //         ...this.getReasoningEffort(assistant, model),
-    //         ...this.getProviderSpecificParameters(assistant, model),
-    //         ...this.getCustomParameters(assistant)
-    //       },
-    //       {
-    //         signal
-    //       }
-    //     )
-    //   await processStream(newStream, idx + 1)
-    // }
-
-    // const processToolCalls = async (mcpTools, toolCalls: ChatCompletionMessageToolCall[]) => {
-    //   const mcpToolResponses = toolCalls
-    //     .map((toolCall) => {
-    //       const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall as ChatCompletionMessageToolCall)
-    //       if (!mcpTool) return undefined
-
-    //       const parsedArgs = (() => {
-    //         try {
-    //           return JSON.parse(toolCall.function.arguments)
-    //         } catch {
-    //           return toolCall.function.arguments
-    //         }
-    //       })()
-
-    //       return {
-    //         id: toolCall.id,
-    //         toolCallId: toolCall.id,
-    //         tool: mcpTool,
-    //         arguments: parsedArgs,
-    //         status: 'pending'
-    //       } as ToolCallResponse
-    //     })
-    //     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
-    //   return await parseAndCallTools(
-    //     mcpToolResponses,
-    //     toolResponses,
-    //     onChunk,
-    //     this.mcpToolCallResponseToMessage,
-    //     model,
-    //     mcpTools
-    //   )
-    // }
-
-    // const processToolUses = async (content: string) => {
-    //   return await parseAndCallTools(
-    //     content,
-    //     toolResponses,
-    //     onChunk,
-    //     this.mcpToolCallResponseToMessage,
-    //     model,
-    //     mcpTools
-    //   )
-    // }
-
-    // const processStream = async (stream: any, idx: number) => {
-    //   const toolCalls: ChatCompletionMessageToolCall[] = []
-    //   let time_first_token_millsec = 0
-
-    //   // Handle non-streaming case (already returns early, no change needed here)
-    // if (!isSupportStreamOutput()) {
-    // Calculate final metrics once
-    // finalMetrics.completion_tokens = stream.usage?.completion_tokens
-    // finalMetrics.time_completion_millsec = new Date().getTime() - start_time_millsec
-
-    // // Create a synthetic usage object if stream.usage is undefined
-    // finalUsage = { ...stream.usage }
-    // // Separate onChunk calls for text and usage/metrics
-    // let content = ''
-    // stream.choices.forEach((choice) => {
-    //   const reasoning = choice.message.reasoning || choice.message.reasoning_content
-    //   // reasoning
-    //   if (reasoning) {
-    //     onChunk({
-    //       type: ChunkType.THINKING_DELTA,
-    //       text: reasoning
-    //     })
-    //     onChunk({
-    //       type: ChunkType.THINKING_COMPLETE,
-    //       text: reasoning,
-    //       thinking_millsec: new Date().getTime() - start_time_millsec
-    //     })
-    //   }
-    //   // text
-    //   if (choice.message.content) {
-    //     content += choice.message.content
-    //     onChunk({ type: ChunkType.TEXT_DELTA, text: choice.message.content })
-    //   }
-    //   // tool call
-    //   if (choice.message.tool_calls && choice.message.tool_calls.length) {
-    //     choice.message.tool_calls.forEach((t) => toolCalls.push(t))
-    //   }
-
-    //       reqMessages.push({
-    //         role: choice.message.role,
-    //         content: choice.message.content,
-    //         tool_calls: toolCalls.length
-    //           ? toolCalls.map((toolCall) => ({
-    //               id: toolCall.id,
-    //               function: {
-    //                 ...toolCall.function,
-    //                 arguments:
-    //                   typeof toolCall.function.arguments === 'string'
-    //                     ? toolCall.function.arguments
-    //                     : JSON.stringify(toolCall.function.arguments)
-    //               },
-    //               type: 'function'
-    //             }))
-    //           : undefined
-    //       })
-    //     })
-
-    //     if (content.length) {
-    //       onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-    //     }
-
-    //     const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
-    //     if (toolCalls.length) {
-    //       toolResults.push(...(await processToolCalls(mcpTools, toolCalls)))
-    //     }
-    //     if (stream.choices[0].message?.content) {
-    //       toolResults.push(...(await processToolUses(stream.choices[0].message?.content)))
-    //     }
-    //     await processToolResults(toolResults, idx)
-
-    //     // Always send usage and metrics data
-    //     onChunk({ type: ChunkType.BLOCK_COMPLETE, response: { usage: finalUsage, metrics: finalMetrics } })
-    //     return
-    // }
-
-    //   let content = ''
-    //   let thinkingContent = ''
-    //   let isFirstChunk = true
-
-    //   // 1. 初始化中间件
-    //   const reasoningTags = [
-    //     { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
-    //     { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
-    //   ]
-    //   const getAppropriateTag = (model: Model) => {
-    //     if (model.id.includes('qwen3')) return reasoningTags[0]
-    //     return reasoningTags[0]
-    //   }
-    //   const reasoningTag = getAppropriateTag(model)
-    //   async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
-    //     for await (const chunk of stream) {
-    //       if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-    //         break
-    //       }
-
-    //       const delta = chunk.choices[0]?.delta
-    //       if (delta?.reasoning_content || delta?.reasoning) {
-    //         yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-    //       }
-    //       if (delta?.content) {
-    //         yield { type: 'text-delta', textDelta: delta.content }
-    //       }
-    //       if (delta?.tool_calls) {
-    //         yield { type: 'tool-calls', delta: delta }
-    //       }
-
-    //       const finishReason = chunk.choices[0]?.finish_reason
-    //       if (!isEmpty(finishReason)) {
-    //         yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
-    //         break
-    //       }
-    //     }
-    //   }
-
-    //   // 2. 使用中间件
-    //   const { stream: processedStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
-    //     openingTag: reasoningTag?.openingTag,
-    //     closingTag: reasoningTag?.closingTag,
-    //     separator: reasoningTag?.separator,
-    //     enableReasoning
-    //   }).wrapStream({
-    //     doStream: async () => ({
-    //       stream: asyncGeneratorToReadableStream(openAIChunkToTextDelta(stream))
-    //     })
-    //   })
-
-    //   // 3. 消费 processedStream，分发 onChunk
-    //   for await (const chunk of readableStreamAsyncIterable(processedStream)) {
-    //     const delta = chunk.type === 'finish' ? chunk.delta : chunk
-    //     const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
-
-    //     switch (chunk.type) {
-    //       case 'reasoning': {
-    //         if (time_first_token_millsec === 0) {
-    //           time_first_token_millsec = new Date().getTime()
-    //         }
-    //         thinkingContent += chunk.textDelta
-    //         onChunk({
-    //           type: ChunkType.THINKING_DELTA,
-    //           text: chunk.textDelta,
-    //           thinking_millsec: new Date().getTime() - time_first_token_millsec
-    //         })
-    //         break
-    //       }
-    //       case 'text-delta': {
-    //         let textDelta = chunk.textDelta
-    //         if (assistant.enableWebSearch && delta) {
-    //           const originalDelta = rawChunk?.choices?.[0]?.delta
-
-    //           if (originalDelta?.annotations) {
-    //             textDelta = convertLinks(textDelta, isFirstChunk)
-    //           } else if (assistant.model?.provider === 'openrouter') {
-    //             textDelta = convertLinksToOpenRouter(textDelta, isFirstChunk)
-    //           } else if (isZhipuModel(assistant.model)) {
-    //             textDelta = convertLinksToZhipu(textDelta, isFirstChunk)
-    //           } else if (isHunyuanSearchModel(assistant.model)) {
-    //             const searchResults = rawChunk?.search_info?.search_results || []
-    //             textDelta = convertLinksToHunyuan(textDelta, searchResults, isFirstChunk)
-    //           }
-    //         }
-    //         if (isFirstChunk) {
-    //           isFirstChunk = false
-    //           if (time_first_token_millsec === 0) {
-    //             time_first_token_millsec = new Date().getTime()
-    //           } else {
-    //             onChunk({
-    //               type: ChunkType.THINKING_COMPLETE,
-    //               text: thinkingContent,
-    //               thinking_millsec: new Date().getTime() - time_first_token_millsec
-    //             })
-    //           }
-    //         }
-    //         content += textDelta
-    //         onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
-    //         break
-    //       }
-    //       case 'tool-calls': {
-    //         if (isFirstChunk) {
-    //           isFirstChunk = false
-    //           if (time_first_token_millsec === 0) {
-    //             time_first_token_millsec = new Date().getTime()
-    //           } else {
-    //             onChunk({
-    //               type: ChunkType.THINKING_COMPLETE,
-    //               text: thinkingContent,
-    //               thinking_millsec: new Date().getTime() - time_first_token_millsec
-    //             })
-    //           }
-    //         }
-    //         chunk.delta.tool_calls.forEach((toolCall) => {
-    //           const { id, index, type, function: fun } = toolCall
-    //           if (id && type === 'function' && fun) {
-    //             const { name, arguments: args } = fun
-    //             toolCalls.push({
-    //               id,
-    //               function: {
-    //                 name: name || '',
-    //                 arguments: args || ''
-    //               },
-    //               type: 'function'
-    //             })
-    //           } else if (fun?.arguments) {
-    //             toolCalls[index].function.arguments += fun.arguments
-    //           }
-    //         })
-    //         break
-    //       }
-    //       case 'finish': {
-    //         const finishReason = chunk.finishReason
-    //         const usage = chunk.usage
-    //         const originalFinishDelta = chunk.delta
-    //         const originalFinishRawChunk = chunk.chunk
-    //         if (!isEmpty(finishReason)) {
-    //           if (content) {
-    //             onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-    //           }
-    //           if (thinkingContent) {
-    //             onChunk({
-    //               type: ChunkType.THINKING_COMPLETE,
-    //               text: thinkingContent,
-    //               thinking_millsec: new Date().getTime() - time_first_token_millsec
-    //             })
-    //           }
-    //           if (usage) {
-    //             finalUsage.completion_tokens += usage.completion_tokens || 0
-    //             finalUsage.prompt_tokens += usage.prompt_tokens || 0
-    //             finalUsage.total_tokens += usage.total_tokens || 0
-    //             finalMetrics.completion_tokens += usage.completion_tokens || 0
-    //           }
-    //           finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
-    //           finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
-    //           if (originalFinishDelta?.annotations) {
-    //             if (assistant.model?.provider === 'copilot') return
-
-    //           onChunk({
-    //             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-    //             llm_web_search: {
-    //               results: originalFinishDelta.annotations,
-    //               source: WebSearchSource.OPENAI_RESPONSE
-    //             }
-    //           } as LLMWebSearchCompleteChunk)
-    //         }
-    //         if (assistant.model?.provider === 'grok') {
-    //           const citations = originalFinishRawChunk.citations
-    //           if (citations) {
-    //             onChunk({
-    //               type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-    //               llm_web_search: {
-    //                 results: citations,
-    //                 source: WebSearchSource.GROK
-    //               }
-    //             } as LLMWebSearchCompleteChunk)
-    //           }
-    //         }
-    //         if (assistant.model?.provider === 'perplexity') {
-    //           const citations = originalFinishRawChunk.citations
-    //           if (citations) {
-    //             onChunk({
-    //               type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-    //               llm_web_search: {
-    //                 results: citations,
-    //                 source: WebSearchSource.PERPLEXITY
-    //               }
-    //             } as LLMWebSearchCompleteChunk)
-    //           }
-    //         }
-    //         if (
-    //           isEnabledBultinWebSearch &&
-    //           isZhipuModel(model) &&
-    //           finishReason === 'stop' &&
-    //           originalFinishRawChunk?.web_search
-    //         ) {
-    //           onChunk({
-    //             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-    //             llm_web_search: {
-    //               results: originalFinishRawChunk.web_search,
-    //               source: WebSearchSource.ZHIPU
-    //             }
-    //           } as LLMWebSearchCompleteChunk)
-    //         }
-    //         if (
-    //           isEnabledBultinWebSearch &&
-    //           isHunyuanSearchModel(model) &&
-    //           originalFinishRawChunk?.search_info?.search_results
-    //         ) {
-    //           onChunk({
-    //             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-    //             llm_web_search: {
-    //               results: originalFinishRawChunk.search_info.search_results,
-    //               source: WebSearchSource.HUNYUAN
-    //             }
-    //           } as LLMWebSearchCompleteChunk)
-    //         }
-    //       }
-    //       break
-    //     }
-    //   }
-    // }
-
-    //   reqMessages.push({
-    //     role: 'assistant',
-    //     content: content,
-    //     tool_calls: toolCalls.length
-    //       ? toolCalls.map((toolCall) => ({
-    //           id: toolCall.id,
-    //           function: {
-    //             ...toolCall.function,
-    //             arguments:
-    //               typeof toolCall.function.arguments === 'string'
-    //                 ? toolCall.function.arguments
-    //                 : JSON.stringify(toolCall.function.arguments)
-    //           },
-    //           type: 'function'
-    //         }))
-    //       : undefined
-    //   })
-    //   let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
-    //   if (toolCalls.length) {
-    //     toolResults = await processToolCalls(mcpTools, toolCalls)
-    //   }
-    //   if (content.length) {
-    //     toolResults = toolResults.concat(await processToolUses(content))
-    //   }
-    //   if (toolResults.length) {
-    //     await processToolResults(toolResults, idx)
-    //   }
-    //   onChunk({
-    //     type: ChunkType.BLOCK_COMPLETE,
-    //     response: {
-    //       usage: finalUsage,
-    //       metrics: finalMetrics
-    //     }
-    //   })
-    // }
-
-    // reqMessages = processReqMessages(model, reqMessages)
-    // 等待接口返回流
-    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-    // const start_time_millsec = new Date().getTime()
-    if (!_internal?.sdkParams) {
-      console.warn('🚀 [OpenAIProvider] transformedData is not found')
-      return {} as CompletionsOpenAIResult
+    try {
+      console.log('[OpenAIProvider] calling apiClient.completions...')
+      const result = await this.apiClient.completions(params)
+      console.log('[OpenAIProvider] apiClient.completions completed successfully')
+      return result
+    } catch (error) {
+      console.error('[OpenAIProvider] apiClient.completions failed:', error)
+      throw error
     }
-    const { reqMessages, tools, model, maxTokens, streamOutput } = _internal?.sdkParams ?? {}
-    const { signal } = _internal?.controller ?? {}
-
-    // @ts-ignore key is not typed
-    const stream = await this.sdk.chat.completions.create(
-      {
-        model: model.id,
-        messages: reqMessages,
-        temperature: this.getTemperature(assistant, model),
-        top_p: this.getTopP(assistant, model),
-        max_tokens: maxTokens,
-        keep_alive: this.keepAliveTime,
-        stream: streamOutput,
-        tools: !isEmpty(tools) ? tools : undefined,
-        service_tier: this.getServiceTier(model),
-        ...getOpenAIWebSearchParams(assistant, model),
-        ...this.getReasoningEffort(assistant, model),
-        ...this.getProviderSpecificParameters(assistant, model),
-        ...this.getCustomParameters(assistant)
-      },
-      {
-        signal,
-        timeout: this.getTimeout(model)
-      }
-    )
-    // stream.controller.signal.addEventListener('abort', () => {
-    //   console.log('addEventListener_abort')
-    // })
-    return { stream }
-
-    // .finally(cleanup)
-    // stream
-    // await processStream(stream, 0).finally(cleanup)
-    // 捕获signal的错误
-    // signalPromise?.promise?.catch((error) => {
-    //   throw error
-    // })
   }
 
   /**
@@ -909,18 +70,24 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     const stream = isSupportedStreamOutput()
 
-    await this.checkIsCopilot()
+    // 获取SDK实例来直接调用（这些方法暂时保持旧的实现）
+    const sdk = await (this.apiClient as any).getSdkInstance()
 
-    // console.debug('[translate] reqMessages', model.id, message)
+    if (this.provider.id === 'copilot') {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      sdk.apiKey = token
+    }
+
     // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
+    const response = await sdk.chat.completions.create({
       model: model.id,
       messages: messagesForApi as ChatCompletionMessageParam[],
       stream,
-      keep_alive: this.keepAliveTime,
-      temperature: this.getTemperature(assistant, model),
-      top_p: this.getTopP(assistant, model),
-      ...this.getReasoningEffort(assistant, model)
+      keep_alive: (this.apiClient as any).keepAliveTime,
+      temperature: (this.apiClient as any).getTemperature?.(assistant, model),
+      top_p: (this.apiClient as any).getTopP?.(assistant, model),
+      ...this.getReasoningEffort()
     })
 
     if (!stream) {
@@ -959,6 +126,14 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
   }
 
   /**
+   * Get the reasoning effort for the assistant (helper method)
+   */
+  private getReasoningEffort(): any {
+    // 这里可以委托给ApiClient的方法，或者直接返回空对象
+    return {}
+  }
+
+  /**
    * Summarize a message
    * @param messages - The messages
    * @param assistant - The assistant
@@ -989,14 +164,20 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       content: userMessageContent
     }
 
-    await this.checkIsCopilot()
+    const sdk = await (this.apiClient as any).getSdkInstance()
+
+    if (this.provider.id === 'copilot') {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      sdk.apiKey = token
+    }
 
     // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
+    const response = await sdk.chat.completions.create({
       model: model.id,
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
       stream: false,
-      keep_alive: this.keepAliveTime,
+      keep_alive: (this.apiClient as any).keepAliveTime,
       max_tokens: 1000
     })
 
@@ -1029,19 +210,26 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       content: userMessageContent
     }
 
-    const lastUserMessage = messages[messages.length - 1]
+    const sdk = await (this.apiClient as any).getSdkInstance()
 
-    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    if (this.provider.id === 'copilot') {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      sdk.apiKey = token
+    }
+
+    // 创建AbortController（简化版）
+    const abortController = new AbortController()
     const { signal } = abortController
 
-    const response = await this.sdk.chat.completions
+    const response = await sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
         {
           model: model.id,
           messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
           stream: false,
-          keep_alive: this.keepAliveTime,
+          keep_alive: (this.apiClient as any).keepAliveTime,
           max_tokens: 1000
         },
         {
@@ -1049,7 +237,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
           signal: signal
         }
       )
-      .finally(cleanup)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
@@ -1066,10 +253,15 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
    */
   public async generateText({ prompt, content }: { prompt: string; content: string }): Promise<string> {
     const model = getDefaultModel()
+    const sdk = await (this.apiClient as any).getSdkInstance()
 
-    await this.checkIsCopilot()
+    if (this.provider.id === 'copilot') {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      sdk.apiKey = token
+    }
 
-    const response = await this.sdk.chat.completions.create({
+    const response = await sdk.chat.completions.create({
       model: model.id,
       stream: false,
       messages: [
@@ -1094,7 +286,13 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return []
     }
 
-    await this.checkIsCopilot()
+    const sdk = await (this.apiClient as any).getSdkInstance()
+
+    if (this.provider.id === 'copilot') {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      sdk.apiKey = token
+    }
 
     const userMessagesForApi = messages
       .filter((m) => m.role === 'user')
@@ -1103,7 +301,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         content: getMainTextContent(m)
       }))
 
-    const response: any = await this.sdk.request({
+    const response: any = await sdk.request({
       method: 'post',
       path: '/advice_questions',
       body: {
@@ -1140,15 +338,22 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     try {
-      await this.checkIsCopilot()
+      const sdk = await (this.apiClient as any).getSdkInstance()
+
+      if (this.provider.id === 'copilot') {
+        const defaultHeaders = store.getState().copilot.defaultHeaders
+        const { token } = await window.api.copilot.getToken(defaultHeaders)
+        sdk.apiKey = token
+      }
+
       if (!stream) {
-        const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
+        const response = await sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
         if (!response?.choices[0].message) {
           throw new Error('Empty response')
         }
         return { valid: true, error: null }
       } else {
-        const response: any = await this.sdk.chat.completions.create(body as any)
+        const response: any = await sdk.chat.completions.create(body as any)
         // 等待整个流式响应结束
         let hasContent = false
         for await (const chunk of response) {
@@ -1175,9 +380,15 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
    */
   public async models(): Promise<OpenAI.Models.Model[]> {
     try {
-      await this.checkIsCopilot()
+      const sdk = await (this.apiClient as any).getSdkInstance()
 
-      const response = await this.sdk.models.list()
+      if (this.provider.id === 'copilot') {
+        const defaultHeaders = store.getState().copilot.defaultHeaders
+        const { token } = await window.api.copilot.getToken(defaultHeaders)
+        sdk.apiKey = token
+      }
+
+      const response = await sdk.models.list()
 
       if (this.provider.id === 'github') {
         // @ts-ignore key is not typed
@@ -1220,10 +431,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
    * @returns The embedding dimensions
    */
   public async getEmbeddingDimensions(model: Model): Promise<number> {
-    await this.checkIsCopilot()
+    const sdk = await (this.apiClient as any).getSdkInstance()
+
+    if (this.provider.id === 'copilot') {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      sdk.apiKey = token
+    }
 
     try {
-      const data = await this.sdk.embeddings.create({
+      const data = await sdk.embeddings.create({
         model: model.id,
         input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
         encoding_format: 'float'
@@ -1234,13 +451,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
   }
 
-  public async checkIsCopilot() {
-    if (this.provider.id !== 'copilot') {
-      return
-    }
-    const defaultHeaders = store.getState().copilot.defaultHeaders
-    // copilot每次请求前需要重新获取token，因为token中附带时间戳
-    const { token } = await window.api.copilot.getToken(defaultHeaders)
-    this.sdk.apiKey = token
+  // 占位符方法，需要根据具体需求实现
+  async generateImage(): Promise<string[]> {
+    throw new Error('generateImage not implemented')
+  }
+
+  async generateImageByChat(): Promise<void> {
+    throw new Error('generateImageByChat not implemented')
+  }
+
+  async getMessageParam(): Promise<any> {
+    throw new Error('getMessageParam not implemented')
   }
 }

@@ -1,27 +1,25 @@
-import { CompletionsParams } from '../AiProvider'
-import BaseProvider from '../AiProvider/BaseProvider'
-import { applyCompletionsMiddlewares } from './composer'
-import { applyMiddlewaresToMethod } from './composer'
-import { AiProviderMiddlewareConfig, CompletionsMiddleware, ProviderMethodMiddleware } from './middlewareTypes'
+import { BaseApiClient } from '../AiProvider/clients'
+import { applyCompletionsMiddlewares, applyMethodMiddlewares } from './composer'
+import { CompletionsParams } from './schemas'
+import { CompletionsMiddleware, MethodMiddleware, MiddlewareConfig } from './type'
 
 /**
- * Wraps a provider instance with middlewares defined in the AiProviderMiddlewareConfig. /
- * 使用在 AiProviderMiddlewareConfig 中定义的中间件包装一个提供者实例。
- * Middlewares are applied using the composer functions. /
- * 中间件通过 composer 函数应用。
- * @param providerInstance The provider instance to wrap. / 需要包装的提供者实例。
- * @param middlewareConfig The configuration object specifying which middlewares to apply to which methods. / 指定哪些中间件应用于哪些方法的配置对象。
- * @returns A new provider instance wrapped with the specified middlewares. / 一个用指定中间件包装的新提供者实例。
+ * Wraps a provider instance with middlewares.
  */
 export function wrapProviderWithMiddleware(
-  providerInstance: BaseProvider,
-  middlewareConfig: AiProviderMiddlewareConfig
-): BaseProvider {
-  // Cache for already wrapped methods to avoid re-wrapping on every access. /
-  // 缓存已包装的方法，以避免每次访问时重新包装。
+  apiClientInstance: BaseApiClient,
+  middlewareConfig: MiddlewareConfig
+): BaseApiClient {
+  console.log(`[wrapProviderWithMiddleware] Wrapping provider: ${apiClientInstance.provider?.id}`)
+  console.log(`[wrapProviderWithMiddleware] Middleware config:`, {
+    completions: middlewareConfig.completions?.length || 0,
+    methods: Object.keys(middlewareConfig.methods || {}).length
+  })
+
+  // Cache for already wrapped methods to avoid re-wrapping on every access.
   const wrappedMethodsCache = new Map<string, (...args: any[]) => Promise<any>>()
 
-  const proxy = new Proxy(providerInstance, {
+  const proxy = new Proxy(apiClientInstance, {
     get(target, propKey, receiver) {
       const methodName = typeof propKey === 'string' ? propKey : undefined
 
@@ -30,56 +28,53 @@ export function wrapProviderWithMiddleware(
       }
 
       if (wrappedMethodsCache.has(methodName)) {
+        console.log(`[wrapProviderWithMiddleware] Using cached wrapped method: ${methodName}`)
         return wrappedMethodsCache.get(methodName)
       }
 
       const originalMethod = Reflect.get(target, propKey, receiver)
 
-      // If the property is not a function, return it directly. /
-      // 如果属性不是函数，则直接返回。
+      // If the property is not a function, return it directly.
       if (typeof originalMethod !== 'function') {
         return originalMethod
       }
 
       let wrappedMethod: ((...args: any[]) => Promise<any>) | undefined
 
-      // Special handling for 'completions' method. /
-      // 对 'completions' 方法的特殊处理。
+      // Handle completions method
       if (methodName === 'completions' && middlewareConfig.completions?.length) {
-        const completionsOriginalMethod = originalMethod as (params: CompletionsParams) => Promise<any>
-        wrappedMethod = applyCompletionsMiddlewares(
-          target, // The original provider instance / 原始提供者实例
-          completionsOriginalMethod,
-          middlewareConfig.completions as CompletionsMiddleware[]
+        console.log(
+          `[wrapProviderWithMiddleware] Wrapping completions method with ${middlewareConfig.completions.length} middlewares`
         )
-      } else {
-        // Handle generic methods using the 'methods' config. /
-        // 使用 'methods' 配置处理通用方法。
-        const genericMethodMiddlewares = middlewareConfig.methods?.[methodName]
-        if (genericMethodMiddlewares?.length) {
-          const genericOriginalMethod = originalMethod as (...args: any[]) => Promise<any>
-          // For generic methods, applyMiddlewaresToMethod will use its default BaseContext. /
-          // 对于通用方法，applyMiddlewaresToMethod 将使用其默认的 BaseContext。
-          // A specificContextFactory could be passed here if needed for this particular method. /
-          // 如果特定方法需要，可以在此处传递 specificContextFactory。
-          wrappedMethod = applyMiddlewaresToMethod(
-            target, // Pass the original provider instance (target of proxy) / 传递原始提供者实例（代理的目标）
-            methodName,
-            genericOriginalMethod,
-            genericMethodMiddlewares as ProviderMethodMiddleware[]
+        const completionsOriginalMethod = originalMethod as (params: CompletionsParams) => Promise<any>
+        wrappedMethod = applyCompletionsMiddlewares(target, completionsOriginalMethod, middlewareConfig.completions)
+      }
+      // Handle other methods
+      else {
+        const methodMiddlewares = middlewareConfig.methods?.[methodName]
+        if (methodMiddlewares?.length) {
+          console.log(
+            `[wrapProviderWithMiddleware] Wrapping method ${methodName} with ${methodMiddlewares.length} middlewares`
           )
+          const genericOriginalMethod = originalMethod as (...args: any[]) => Promise<any>
+          wrappedMethod = applyMethodMiddlewares(target, methodName, genericOriginalMethod, methodMiddlewares)
         }
       }
 
       if (wrappedMethod) {
+        console.log(`[wrapProviderWithMiddleware] Successfully wrapped method: ${methodName}`)
         wrappedMethodsCache.set(methodName, wrappedMethod)
         return wrappedMethod
       }
 
       // If no middlewares are configured for this method, return the original method bound to the target. /
       // 如果没有为此方法配置中间件，则返回绑定到目标的原始方法。
+      console.log(`[wrapProviderWithMiddleware] No middlewares for method ${methodName}, returning original`)
       return originalMethod.bind(target)
     }
   })
-  return proxy as BaseProvider
+  return proxy as BaseApiClient
 }
+
+// Export types for external use
+export type { CompletionsMiddleware, MethodMiddleware, MiddlewareConfig }

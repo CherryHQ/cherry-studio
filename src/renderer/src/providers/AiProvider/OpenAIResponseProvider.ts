@@ -23,7 +23,6 @@ import {
   FileTypes,
   GenerateImageParams,
   MCPCallToolResponse,
-  MCPTool,
   MCPToolResponse,
   Metrics,
   Model,
@@ -43,7 +42,6 @@ import { convertLinks } from '@renderer/utils/linkConverter'
 import {
   isEnabledToolUse,
   mcpToolCallResponseToOpenAIMessage,
-  mcpToolsToOpenAIResponseTools,
   openAIToolsToMcpTool,
   parseAndCallTools
 } from '@renderer/utils/mcp-tools'
@@ -60,57 +58,8 @@ import BaseProvider from './BaseProvider'
 import OpenAIProvider from './OpenAIProvider'
 
 export abstract class BaseOpenAIProvider extends BaseProvider {
-  protected sdk: OpenAI
-
   constructor(provider: Provider) {
     super(provider)
-
-    this.sdk = new OpenAI({
-      dangerouslyAllowBrowser: true,
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL(),
-      defaultHeaders: {
-        ...this.defaultHeaders()
-      }
-    })
-  }
-
-  abstract convertMcpTools<T>(mcpTools: MCPTool[]): T[]
-
-  abstract mcpToolCallResponseToMessage: (
-    mcpToolResponse: MCPToolResponse,
-    resp: MCPCallToolResponse,
-    model: Model
-  ) => OpenAI.Responses.ResponseInputItem | ChatCompletionMessageParam | undefined
-
-  /**
-   * Extract the file content from the message
-   * @param message - The message
-   * @returns The file content
-   */
-  protected async extractFileContent(message: Message) {
-    const fileBlocks = findFileBlocks(message)
-    if (fileBlocks.length > 0) {
-      const textFileBlocks = fileBlocks.filter(
-        (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
-      )
-
-      if (textFileBlocks.length > 0) {
-        let text = ''
-        const divider = '\n\n---\n\n'
-
-        for (const fileBlock of textFileBlocks) {
-          const file = fileBlock.file
-          const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
-          const fileNameRow = 'file: ' + file.origin_name + '\n\n'
-          text = text + fileNameRow + fileContent + divider
-        }
-
-        return text
-      }
-    }
-
-    return ''
   }
 
   private async getReponseMessageParam(message: Message, model: Model): Promise<OpenAI.Responses.ResponseInputItem> {
@@ -1180,10 +1129,6 @@ export default class OpenAIResponseProvider extends BaseOpenAIProvider {
 
     const provider = this.getProvider(model)
     return provider === this ? super.completions(params) : provider.completions(params)
-  }
-
-  public convertMcpTools<T>(mcpTools: MCPTool[]) {
-    return mcpToolsToOpenAIResponseTools(mcpTools) as T[]
   }
 
   public mcpToolCallResponseToMessage = (

@@ -1,7 +1,5 @@
 import { Provider } from '@renderer/types'
 
-import { wrapProviderWithMiddleware } from '../middleware'
-import middlewareConfig from '../middleware/register'
 import AihubmixProvider from './AihubmixProvider'
 import AnthropicProvider from './AnthropicProvider'
 import BaseProvider from './BaseProvider'
@@ -11,29 +9,22 @@ import OpenAIResponseProvider from './OpenAIResponseProvider'
 
 export default class ProviderFactory {
   static create(provider: Provider): BaseProvider {
-    let instance: BaseProvider
-
     if (provider.id === 'aihubmix') {
-      instance = new AihubmixProvider(provider)
+      return new AihubmixProvider(provider)
     } else {
       switch (provider.type) {
         case 'openai':
-          instance = new OpenAIProvider(provider)
-          break
+          return new OpenAIProvider(provider)
         case 'openai-response':
-          instance = new OpenAIResponseProvider(provider)
-          break
+          return new OpenAIResponseProvider(provider)
         case 'anthropic':
-          instance = new AnthropicProvider(provider)
-          break
+          return new AnthropicProvider(provider)
         case 'gemini':
-          instance = new GeminiProvider(provider)
-          break
+          return new GeminiProvider(provider)
         default:
-          instance = new OpenAIProvider(provider)
+          return new OpenAIProvider(provider)
       }
     }
-    return wrapProviderWithMiddleware(instance, middlewareConfig)
   }
 }
 

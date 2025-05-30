@@ -31,7 +31,7 @@ import {
   ChatCompletionTool
 } from 'openai/resources'
 
-import { CompletionsParams } from '../providers/AiProvider'
+import { CompletionsParams } from '../providers/middleware/schemas'
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']

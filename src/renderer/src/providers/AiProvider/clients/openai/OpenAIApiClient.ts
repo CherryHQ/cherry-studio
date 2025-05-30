@@ -15,9 +15,18 @@ import {
 } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store' // For Copilot token
-import { Assistant, FileTypes, MCPCallToolResponse, MCPTool, MCPToolResponse, Model, Provider } from '@renderer/types'
-import { EFFORT_RATIO } from '@renderer/types'
-import { ChunkType, TextDeltaChunk, ThinkingDeltaChunk } from '@renderer/types/chunk' // Assuming GenericChunk variants are here
+import {
+  Assistant,
+  EFFORT_RATIO,
+  FileTypes,
+  MCPCallToolResponse,
+  MCPTool,
+  MCPToolResponse,
+  Model,
+  Provider,
+  WebSearchSource
+} from '@renderer/types'
+import { ChunkType, LLMResponseCompleteChunk, TextDeltaChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   mcpToolCallResponseToOpenAICompatibleMessage,
@@ -31,7 +40,7 @@ import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionTo
 import { GenericChunk } from '../../../middleware/schemas'
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
-import { OpenAISdkParams, ReasoningEffortOptionalParams } from './types'
+import { OpenAISdkParams, OpenAISdkRawChunk, OpenAISdkRawContentSource, ReasoningEffortOptionalParams } from './types'
 
 // Define a context type if your response transformer needs it
 interface OpenAIResponseTransformContext extends ResponseChunkTransformerContext {}
@@ -39,7 +48,7 @@ interface OpenAIResponseTransformContext extends ResponseChunkTransformerContext
 export class OpenAIApiClient extends BaseApiClient<
   OpenAI | AzureOpenAI,
   OpenAISdkParams,
-  OpenAI.Chat.Completions.ChatCompletionChunk,
+  OpenAISdkRawChunk,
   OpenAIResponseTransformContext
 > {
   constructor(provider: Provider) {
@@ -79,243 +88,53 @@ export class OpenAIApiClient extends BaseApiClient<
     return this.sdkInstance
   }
 
-  getRequestTransformer(): RequestTransformer<OpenAISdkParams> {
-    return {
-      transform: async (coreRequest, assistant, model): Promise<{ payload: OpenAISdkParams }> => {
-        const { messages, mcpTools, temperature, topP, maxTokens, streamOutput } = coreRequest
-
-        let systemMessageContent = assistant.prompt || ''
-        if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessageContent = `Formatting re-enabled${systemMessageContent ? '\n' + systemMessageContent : ''}`
-        }
-        if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
-          systemMessageContent = `Formatting re-enabled${systemMessageContent ? '\n' + systemMessageContent : ''}`
-        }
-
-        const reqMessages: ChatCompletionMessageParam[] = []
-        if (systemMessageContent) {
-          reqMessages.push({
-            role:
-              isSupportedReasoningEffortOpenAIModel(model) ||
-              model.id.includes('o1-preview') ||
-              model.id.includes('o1-mini')
-                ? 'system'
-                : 'system',
-            content: systemMessageContent
-          } as ChatCompletionMessageParam)
-        }
-
-        for (const message of messages) {
-          reqMessages.push(await this.convertMessageToSdkParam(message, model))
-        }
-
-        const tools = mcpTools && mcpTools.length > 0 ? this.convertMcpToolsToSdkTools(mcpTools) : undefined
-
-        // Create common parameters that will be used in both streaming and non-streaming cases
-        const commonParams = {
-          model: model.id,
-          messages: reqMessages,
-          temperature: this.getTemperature(assistant, model, temperature),
-          top_p: this.getTopP(assistant, model, topP),
-          max_tokens: maxTokens,
-          tools: tools as ChatCompletionTool[] | undefined,
-          ...this.getProviderSpecificParameters(assistant, model),
-          ...this.getReasoningEffort(assistant, model)
-        }
-
-        // Create the appropriate parameters object based on whether streaming is enabled
-        const sdkParams: OpenAISdkParams = streamOutput
-          ? {
-              ...commonParams,
-              stream: true
-            }
-          : {
-              ...commonParams,
-              stream: false
-            }
-
-        return { payload: sdkParams }
-      }
-    }
-  }
-
-  // 在RawSdkChunkToGenericChunkMiddleware中使用
-  getResponseChunkTransformer(): ResponseChunkTransformer<
-    OpenAI.Chat.Completions.ChatCompletionChunk,
-    OpenAIResponseTransformContext
-  > {
-    return async function* (chunk, context): AsyncGenerator<GenericChunk> {
-      const choice = chunk.choices[0]
-
-      if (!choice) return
-
-      const { delta } = choice
-
-      if (delta?.content) {
-        yield {
-          type: ChunkType.TEXT_DELTA,
-          text: delta.content
-        } as TextDeltaChunk
-      }
-
-      if (delta?.tool_calls && context?.isEnabledToolCalling) {
-        for (const toolCall of delta.tool_calls) {
-          if (toolCall.function?.name) {
-            // This is the start of a tool call
-            const mcpTool = openAIToolsToMcpTool(context.mcpTools || [], toolCall as any)
-            if (mcpTool) {
-              yield {
-                type: ChunkType.MCP_TOOL_IN_PROGRESS, // Or a more specific tool start chunk
-                responses: [
-                  {
-                    id: toolCall.id || '',
-                    toolCallId: toolCall.id,
-                    tool: mcpTool,
-                    arguments: {}, // Arguments will be accumulated
-                    status: 'pending'
-                  }
-                ]
-              } as GenericChunk
-            }
-          }
-          if (toolCall.function?.arguments) {
-            // Accumulate arguments. This part needs careful state management in the middleware
-            // For simplicity, we just signal that arguments are coming.
-            // Actual accumulation and parsing should happen in McpToolChunkMiddleware
-            const mcpTool = openAIToolsToMcpTool(context.mcpTools || [], toolCall as any)
-            if (mcpTool) {
-              yield {
-                type: ChunkType.MCP_TOOL_IN_PROGRESS, // Or a more specific tool start chunk
-                responses: [
-                  {
-                    id: toolCall.id || '',
-                    toolCallId: toolCall.id,
-                    tool: mcpTool,
-                    arguments: toolCall.function.arguments as any, // Cast to any, assuming middleware handles string fragments
-                    status: 'pending'
-                  }
-                ]
-              } as GenericChunk
-            }
-          }
-        }
-      }
-
-      // Handle reasoning content (e.g. from OpenRouter DeepSeek-R1)
-      // @ts-ignore reasoning_content is not in standard OpenAI types but some providers use it
-      if (delta?.reasoning_content || delta?.reasoning) {
-        yield {
-          type: ChunkType.THINKING_DELTA,
-          // @ts-ignore reasoning_content is a non-standard field from some providers
-          text: delta.reasoning_content || delta.reasoning
-        } as ThinkingDeltaChunk
-      }
-    }
-  }
-
-  private get isNotSupportFiles() {
-    if (this.provider?.isNotSupportArrayContent) {
-      return true
-    }
-
-    const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
-
-    return providers.includes(this.provider.id)
-  }
-
-  private async convertMessageToSdkParam(
-    message: Message,
-    model: Model
-  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
-    const isVision = isVisionModel(model)
-    const content = await this.getMessageContent(message)
-    const fileBlocks = findFileBlocks(message)
-    const imageBlocks = findImageBlocks(message)
-
-    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
-      return {
-        role: message.role === 'system' ? 'user' : message.role,
-        content
-      }
-    }
-
-    // If the model does not support files, extract the file content
-    if (this.isNotSupportFiles) {
-      const fileContent = await this.extractFileContent(message)
-
-      return {
-        role: message.role === 'system' ? 'user' : message.role,
-        content: content + '\n\n---\n\n' + fileContent
-      }
-    }
-
-    // If the model supports files, add the file content to the message
-    const parts: ChatCompletionContentPart[] = []
-
-    if (content) {
-      parts.push({ type: 'text', text: content })
-    }
-
-    for (const imageBlock of imageBlocks) {
-      if (isVision) {
-        if (imageBlock.file) {
-          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
-          parts.push({ type: 'image_url', image_url: { url: image.data } })
-        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
-          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
-        }
-      }
-    }
-
-    for (const fileBlock of fileBlocks) {
-      const file = fileBlock.file
-      if (!file) {
-        continue
-      }
-
-      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
-        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
-        parts.push({
-          type: 'text',
-          text: file.origin_name + '\n' + fileContent
-        })
-      }
-    }
-
-    return {
-      role: message.role === 'system' ? 'user' : message.role,
-      content: parts
-    } as ChatCompletionMessageParam
-  }
-
-  // Method to get temperature, moved from OpenAIProvider
-  override getTemperature(assistant: Assistant, model: Model, coreTemp?: number): number | undefined {
+  override getTemperature(assistant: Assistant, model: Model): number | undefined {
     if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
       return undefined
     }
-    return coreTemp ?? assistant.settings?.temperature
+    return assistant.settings?.temperature
   }
 
-  // Method to get topP, moved from OpenAIProvider
-  override getTopP(assistant: Assistant, model: Model, coreTopP?: number): number | undefined {
+  override getTopP(assistant: Assistant, model: Model): number | undefined {
     if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
       return undefined
     }
-    return coreTopP ?? assistant.settings?.topP
+    return assistant.settings?.topP
   }
 
-  // Method for provider-specific parameters, moved from OpenAIProvider
+  /**
+   * Get the provider specific parameters for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The provider specific parameters
+   */
   private getProviderSpecificParameters(assistant: Assistant, model: Model) {
-    const { maxTokens: assistantMaxTokens } = getAssistantSettings(assistant)
-    if (this.provider.id === 'openrouter' && model.id.includes('deepseek-r1')) {
-      return { include_reasoning: true }
+    const { maxTokens } = getAssistantSettings(assistant)
+
+    if (this.provider.id === 'openrouter') {
+      if (model.id.includes('deepseek-r1')) {
+        return {
+          include_reasoning: true
+        }
+      }
     }
+
     if (isOpenAIReasoningModel(model)) {
-      return { max_tokens: undefined, max_completion_tokens: assistantMaxTokens }
+      return {
+        max_tokens: undefined,
+        max_completion_tokens: maxTokens
+      }
     }
+
     return {}
   }
 
+  /**
+   * Get the reasoning effort for the assistant
+   * @param assistant - The assistant
+   * @param model - The model
+   * @returns The reasoning effort
+   */
   // Method for reasoning effort, moved from OpenAIProvider
   private getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
     if (this.provider.id === 'groq') {
@@ -402,8 +221,92 @@ export class OpenAIApiClient extends BaseApiClient<
     return {}
   }
 
-  // Tool conversion methods - directly from OpenAIProvider for now
-  convertMcpToolsToSdkTools<T>(mcpTools: MCPTool[]): T[] {
+  /**
+   * Check if the provider does not support files
+   * @returns True if the provider does not support files, false otherwise
+   */
+  private get isNotSupportFiles() {
+    if (this.provider?.isNotSupportArrayContent) {
+      return true
+    }
+
+    const providers = ['deepseek', 'baichuan', 'minimax', 'xirang']
+
+    return providers.includes(this.provider.id)
+  }
+
+  /**
+   * Get the message parameter
+   * @param message - The message
+   * @param model - The model
+   * @returns The message parameter
+   */
+  public async convertMessageToSdkParam(
+    message: Message,
+    model: Model
+  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
+    const isVision = isVisionModel(model)
+    const content = await this.getMessageContent(message)
+    const fileBlocks = findFileBlocks(message)
+    const imageBlocks = findImageBlocks(message)
+
+    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
+      return {
+        role: message.role === 'system' ? 'user' : message.role,
+        content
+      }
+    }
+
+    // If the model does not support files, extract the file content
+    if (this.isNotSupportFiles) {
+      const fileContent = await this.extractFileContent(message)
+
+      return {
+        role: message.role === 'system' ? 'user' : message.role,
+        content: content + '\n\n---\n\n' + fileContent
+      }
+    }
+
+    // If the model supports files, add the file content to the message
+    const parts: ChatCompletionContentPart[] = []
+
+    if (content) {
+      parts.push({ type: 'text', text: content })
+    }
+
+    for (const imageBlock of imageBlocks) {
+      if (isVision) {
+        if (imageBlock.file) {
+          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+          parts.push({ type: 'image_url', image_url: { url: image.data } })
+        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
+          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
+        }
+      }
+    }
+
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if (!file) {
+        continue
+      }
+
+      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+        const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
+        parts.push({
+          type: 'text',
+          text: file.origin_name + '\n' + fileContent
+        })
+      }
+    }
+
+    return {
+      role: message.role === 'system' ? 'user' : message.role,
+      content: parts
+    } as ChatCompletionMessageParam
+  }
+
+  public convertMcpToolsToSdkTools<T>(mcpTools: MCPTool[]): T[] {
     return mcpToolsToOpenAIChatTools(mcpTools) as T[]
   }
 
@@ -424,5 +327,262 @@ export class OpenAIApiClient extends BaseApiClient<
       } as OpenAI.Chat.Completions.ChatCompletionToolMessageParam
     }
     return undefined
+  }
+
+  getRequestTransformer(): RequestTransformer<OpenAISdkParams> {
+    return {
+      transform: async (coreRequest, assistant, model): Promise<{ payload: OpenAISdkParams }> => {
+        const { messages, mcpTools, maxTokens, streamOutput } = coreRequest
+
+        let systemMessageContent = assistant.prompt || ''
+        if (isSupportedReasoningEffortOpenAIModel(model)) {
+          systemMessageContent = `Formatting re-enabled${systemMessageContent ? '\n' + systemMessageContent : ''}`
+        }
+        if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+          systemMessageContent = `Formatting re-enabled${systemMessageContent ? '\n' + systemMessageContent : ''}`
+        }
+
+        const reqMessages: ChatCompletionMessageParam[] = []
+        if (systemMessageContent) {
+          reqMessages.push({
+            role:
+              isSupportedReasoningEffortOpenAIModel(model) ||
+              model.id.includes('o1-preview') ||
+              model.id.includes('o1-mini')
+                ? 'system'
+                : 'system',
+            content: systemMessageContent
+          } as ChatCompletionMessageParam)
+        }
+
+        for (const message of messages) {
+          reqMessages.push(await this.convertMessageToSdkParam(message, model))
+        }
+
+        const tools = mcpTools && mcpTools.length > 0 ? this.convertMcpToolsToSdkTools(mcpTools) : undefined
+
+        // Create common parameters that will be used in both streaming and non-streaming cases
+        const commonParams = {
+          model: model.id,
+          messages: reqMessages,
+          temperature: this.getTemperature(assistant, model),
+          top_p: this.getTopP(assistant, model),
+          max_tokens: maxTokens,
+          tools: tools as ChatCompletionTool[] | undefined,
+          ...this.getProviderSpecificParameters(assistant, model),
+          ...this.getReasoningEffort(assistant, model)
+        }
+
+        // Create the appropriate parameters object based on whether streaming is enabled
+        const sdkParams: OpenAISdkParams = streamOutput
+          ? {
+              ...commonParams,
+              stream: true
+            }
+          : {
+              ...commonParams,
+              stream: false
+            }
+
+        return { payload: sdkParams }
+      }
+    }
+  }
+
+  // 在RawSdkChunkToGenericChunkMiddleware中使用
+  getResponseChunkTransformer = (): ResponseChunkTransformer<OpenAISdkRawChunk, OpenAIResponseTransformContext> => {
+    const collectWebSearchData = (
+      chunk: OpenAISdkRawChunk,
+      contentSource: OpenAISdkRawContentSource,
+      context: OpenAIResponseTransformContext
+    ) => {
+      // OpenAI annotations
+      // @ts-ignore - annotations may not be in standard type definitions
+      const annotations = contentSource.annotations || chunk.annotations
+      if (annotations) {
+        return {
+          results: annotations,
+          source: WebSearchSource.OPENAI_RESPONSE
+        }
+      }
+
+      // Grok citations
+      // @ts-ignore - citations may not be in standard type definitions
+      if (context.provider?.id === 'grok' && chunk.citations) {
+        return {
+          // @ts-ignore - citations may not be in standard type definitions
+          results: chunk.citations,
+          source: WebSearchSource.GROK
+        }
+      }
+
+      // Perplexity citations
+      // @ts-ignore - citations may not be in standard type definitions
+      if (context.provider?.id === 'perplexity' && chunk.citations) {
+        return {
+          // @ts-ignore - citations may not be in standard type definitions
+          results: chunk.citations,
+          source: WebSearchSource.PERPLEXITY
+        }
+      }
+
+      // OpenRouter citations
+      // @ts-ignore - citations may not be in standard type definitions
+      if (context.provider?.id === 'openrouter' && chunk.citations) {
+        return {
+          // @ts-ignore - citations may not be in standard type definitions
+          results: chunk.citations,
+          source: WebSearchSource.OPENROUTER
+        }
+      }
+
+      // Zhipu web search
+      // @ts-ignore - web_search may not be in standard type definitions
+      if (context.provider?.id === 'zhipu' && chunk.web_search) {
+        return {
+          // @ts-ignore - web_search may not be in standard type definitions
+          results: chunk.web_search,
+          source: WebSearchSource.ZHIPU
+        }
+      }
+
+      // Hunyuan web search
+      // @ts-ignore - search_info may not be in standard type definitions
+      if (context.provider?.id === 'hunyuan' && chunk.search_info?.search_results) {
+        return {
+          // @ts-ignore - search_info may not be in standard type definitions
+          results: chunk.search_info.search_results,
+          source: WebSearchSource.HUNYUAN
+        }
+      }
+
+      // TODO: 放到GeminiApiClient中
+      // Gemini grounding metadata
+      // @ts-ignore - groundingMetadata may not be in standard type definitions
+      // const groundingMetadata = contentSource.groundingMetadata || chunk.groundingMetadata
+      // if (context.provider?.id === 'gemini' && groundingMetadata) {
+      //   return {
+      //     results: groundingMetadata,
+      //     source: 'gemini' as const
+      //   }
+      // }
+
+      // TODO: 放到AnthropicApiClient中
+      // // Other providers...
+      // // @ts-ignore - web_search may not be in standard type definitions
+      // if (chunk.web_search) {
+      //   const sourceMap: Record<string, string> = {
+      //     openai: 'openai',
+      //     anthropic: 'anthropic',
+      //     qwenlm: 'qwen'
+      //   }
+      //   const source = sourceMap[context.provider?.id] || 'openai_response'
+      //   return {
+      //     results: chunk.web_search,
+      //     source: source as const
+      //   }
+      // }
+
+      return null
+    }
+
+    return async function* (chunk, context): AsyncGenerator<GenericChunk> {
+      // 处理chunk
+      if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
+        const choice = chunk.choices[0]
+
+        if (!choice) return
+
+        // 对于流式响应，使用delta；对于非流式响应，使用message
+        const contentSource: OpenAISdkRawContentSource | null =
+          'delta' in choice ? choice.delta : 'message' in choice ? choice.message : null
+
+        if (!contentSource) return
+
+        // 处理文本内容
+        if (contentSource.content) {
+          yield {
+            type: ChunkType.TEXT_DELTA,
+            text: contentSource.content
+          } as TextDeltaChunk
+        }
+
+        // 处理工具调用
+        if (contentSource.tool_calls && context?.isEnabledToolCalling) {
+          for (const toolCall of contentSource.tool_calls) {
+            // 只有当工具调用包含完整信息时才生成chunk
+            if (toolCall.id && toolCall.function?.name && toolCall.function?.arguments) {
+              const mcpTool = openAIToolsToMcpTool(context.mcpTools || [], toolCall as any)
+              if (mcpTool) {
+                // 解析参数
+                let parsedArgs: any
+                try {
+                  parsedArgs =
+                    typeof toolCall.function.arguments === 'string'
+                      ? JSON.parse(toolCall.function.arguments)
+                      : toolCall.function.arguments
+                } catch {
+                  parsedArgs = toolCall.function.arguments
+                }
+
+                yield {
+                  type: ChunkType.MCP_TOOL_IN_PROGRESS,
+                  responses: [
+                    {
+                      id: toolCall.id,
+                      toolCallId: toolCall.id,
+                      tool: mcpTool,
+                      arguments: parsedArgs,
+                      status: 'pending'
+                    }
+                  ]
+                } as GenericChunk
+              }
+            }
+          }
+        }
+
+        // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
+        // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+        if (contentSource.reasoning_content || contentSource.reasoning) {
+          // @ts-ignore - reasoning_content is a non-standard field from some providers
+          const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+          yield {
+            type: ChunkType.THINKING_DELTA,
+            text: reasoningText
+          } as ThinkingDeltaChunk
+        }
+
+        // 处理finish_reason，发送流结束信号
+        if ('finish_reason' in choice && choice.finish_reason) {
+          console.log(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
+
+          // 检查Web搜索结果并发送
+          if (context?.isEnabledWebSearch) {
+            const webSearchData = collectWebSearchData(chunk, contentSource, context)
+            if (webSearchData) {
+              yield {
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: webSearchData
+              } as GenericChunk
+            }
+          }
+
+          // 提取usage数据（如果存在）
+          let extractedUsage = undefined
+          // @ts-ignore - usage字段可能存在于chunk的顶层
+          if (chunk.usage) {
+            // @ts-ignore - usage字段可能存在于chunk的顶层
+            extractedUsage = chunk.usage
+          }
+
+          // 发送流结束信号，包含usage数据
+          yield {
+            type: ChunkType.LLM_RESPONSE_COMPLETE,
+            response: extractedUsage ? { usage: extractedUsage } : undefined
+          } as LLMResponseCompleteChunk
+        }
+      }
+    }
   }
 }

@@ -1,51 +1,71 @@
 import { type Chunk, ChunkType, type ErrorChunk } from '@renderer/types/chunk'
 
-import type { CompletionsOpenAIResult } from '../../AiProvider'
-import type { CompletionsMiddleware } from '../middlewareTypes'
+import type { CompletionsMiddleware } from '../type'
 
 const MIDDLEWARE_NAME = 'AbortHandlerMiddleware'
 
-export const AbortHandlerMiddleware: CompletionsMiddleware = () => (next) => async (context, params) => {
-  const isRecursiveCall = context._internal?.isRecursiveCall || false
-  const recursionDepth = context._internal?.recursionDepth || 0
+export const AbortHandlerMiddleware: CompletionsMiddleware = async (ctx, next) => {
+  const params = ctx.originalParams
+  const internalData = (params as any)._internal
+  const isRecursiveCall = internalData?.isRecursiveCall || false
+  const recursionDepth = internalData?.recursionDepth || 0
 
   console.log(`🔄 [${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`)
 
   // 在递归调用中，跳过 AbortController 的创建，直接使用已有的
   if (isRecursiveCall) {
     console.log(`🔄 [${MIDDLEWARE_NAME}] Recursive call detected, skipping AbortController creation`)
-    return next(context, params)
+    await next()
+    return
   }
 
   console.log(`🔄 [${MIDDLEWARE_NAME}] Creating AbortController for request`)
 
-  // 从context获取provider实例
-  const provider = context._providerInstance
-  if (!provider) {
-    throw new Error('Provider instance not found in context')
+  // 从context获取apiClient实例
+  const apiClient = ctx.apiClientInstance
+  if (!apiClient) {
+    throw new Error('ApiClient instance not found in context')
   }
 
   // 获取当前消息的ID用于abort管理
   // 优先使用处理过的消息，如果没有则使用原始消息
-  const processedMessages = params._internal?.processedMessages || params.messages
-  const lastUserMessage = processedMessages.findLast((m) => m.role === 'user')
+  const processedMessages = internalData?.processedMessages || params.messages
+  const lastUserMessage = processedMessages.findLast((m: any) => m.role === 'user')
   const messageId = lastUserMessage?.id
 
-  // 使用BaseProvider的createAbortController方法创建AbortController
-  const { abortController, cleanup } = provider.createAbortController(messageId, false)
+  // 使用BaseApiClient的createAbortController方法创建AbortController
+  const apiClientWithAbort = apiClient
+  if (!apiClientWithAbort.createAbortController) {
+    console.warn(`🔄 [${MIDDLEWARE_NAME}] ApiClient does not have createAbortController method`)
+    await next()
+    return
+  }
+
+  const { abortController, cleanup } = apiClientWithAbort.createAbortController(messageId, false)
   const abortSignal = abortController.signal
 
   console.log(`🔄 [${MIDDLEWARE_NAME}] AbortController created for message: ${messageId}`)
 
-  // 将controller添加到params._internal中
-  if (params._internal) params._internal.controller = abortController
-  console.log('params._internal', params)
+  // 将controller添加到_internal中的flowControl状态
+  if (!ctx._internal.flowControl) {
+    ctx._internal.flowControl = {}
+  }
+  ctx._internal.flowControl.abortController = abortController
+  ctx._internal.flowControl.abortSignal = abortSignal
+  ctx._internal.flowControl.cleanup = cleanup
+
+  console.log('ctx._internal.flowControl', ctx._internal.flowControl)
 
   try {
-    const resultFromUpstream = await next(context, params)
+    // 调用下游中间件
+    await next()
 
-    if (resultFromUpstream.stream && resultFromUpstream.stream instanceof ReadableStream) {
-      const originalStream = resultFromUpstream.stream
+    // 响应后处理：为流式响应添加abort处理
+    if (
+      ctx._internal.apiCall?.genericChunkStream &&
+      ctx._internal.apiCall.genericChunkStream instanceof ReadableStream
+    ) {
+      const originalStream = ctx._internal.apiCall.genericChunkStream
 
       // 检查abort状态
       if (abortSignal.aborted) {
@@ -57,7 +77,7 @@ export const AbortHandlerMiddleware: CompletionsMiddleware = () => (next) => asy
       const error = new DOMException('Request was aborted', 'AbortError')
 
       // 使用 TransformStream 处理 abort 检测
-      const streamWithAbortHandler = (originalStream as ReadableStream<Chunk>).pipeThrough(
+      const streamWithAbortHandler = originalStream.pipeThrough(
         new TransformStream<Chunk, Chunk | ErrorChunk>({
           transform(chunk, controller) {
             // 检查 abort 状态
@@ -82,7 +102,6 @@ export const AbortHandlerMiddleware: CompletionsMiddleware = () => (next) => asy
             // 在流结束时再次检查 abort 状态
             if (abortSignal.aborted) {
               console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected at flush, converting to ErrorChunk`)
-              // TODO: 也可以手动throw error，更贴合现有的onError处理方式，但是会破坏流转换的统一逻辑，还没想好怎么处理比较好
               const errorChunk: ErrorChunk = {
                 type: ChunkType.ERROR,
                 error
@@ -96,21 +115,17 @@ export const AbortHandlerMiddleware: CompletionsMiddleware = () => (next) => asy
         })
       )
 
-      const adaptedResult: CompletionsOpenAIResult = {
-        ...resultFromUpstream,
-        stream: streamWithAbortHandler
-      }
+      // 更新流
+      ctx._internal.apiCall.genericChunkStream = streamWithAbortHandler
 
       console.log(
         `🔄 [${MIDDLEWARE_NAME}] Set up abort handling with TransformStream, cleanup will be called when stream ends`
       )
-      return adaptedResult
+    } else {
+      // 对于非流式响应，直接清理
+      console.log(`🔄 [${MIDDLEWARE_NAME}] No stream to process, cleaning up immediately`)
+      cleanup()
     }
-
-    // 对于非流式响应，直接清理并返回原始结果
-    console.log(`🔄 [${MIDDLEWARE_NAME}] No stream to process, cleaning up immediately`)
-    cleanup()
-    return resultFromUpstream
   } catch (error) {
     console.error(`🔄 [${MIDDLEWARE_NAME}] Error occurred, cleaning up:`, error)
     cleanup()

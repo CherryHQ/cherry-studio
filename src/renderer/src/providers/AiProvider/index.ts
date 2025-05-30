@@ -1,53 +1,10 @@
 import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
 import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
-import type { Assistant, GenerateImageParams, MCPTool, Model, Provider, Suggestion } from '@renderer/types'
-import { Chunk } from '@renderer/types/chunk'
+import type { Assistant, GenerateImageParams, Model, Provider, Suggestion } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import OpenAI from 'openai'
-import { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources'
-import type { Stream } from 'openai/streaming'
 
-export type OnFilterMessagesFunction = (messages: Message[]) => void
-
-export interface CompletionsParams {
-  messages: Message[]
-  assistant: Assistant
-  onChunk: (chunk: Chunk) => void
-  onFilterMessages: OnFilterMessagesFunction
-  mcpTools?: MCPTool[]
-  _internal?: {
-    // SDK接口需要的参数
-    sdkParams?: {
-      reqMessages: ChatCompletionMessageParam[]
-      tools: ChatCompletionTool[]
-      systemMessage: any
-      model: any
-      maxTokens: number | undefined
-      streamOutput: boolean
-    }
-    // 内部处理需要的参数
-    enableReasoning?: boolean
-    userMessages?: ChatCompletionMessageParam[]
-    contextCount?: number
-    processedMessages?: Message[]
-    // Abort控制器
-    controller?: AbortController
-  }
-}
-
-// Re-export CompletionsResult
-export interface CompletionsOpenAIResult {
-  stream: // openai sdk stream
-  | (OpenAI.Chat.Completions.ChatCompletion & {
-        _request_id?: string | null
-      } & Stream<OpenAI.Chat.Completions.ChatCompletionChunk>)
-    // our app-specific stream
-    | ReadableStream<OpenAI.Chat.Completions.ChatCompletionChunk>
-    | ReadableStream<Chunk>
-    | ReadableStream<Chunk | OpenAI.Chat.Completions.ChatCompletionChunk>
-  // 添加 abort controller 用于中间件处理和控制 abort 事件
-  controller?: AbortController
-}
+import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 
 export default class AiProvider {
   private sdk: BaseProvider
@@ -56,11 +13,7 @@ export default class AiProvider {
     this.sdk = ProviderFactory.create(provider)
   }
 
-  public async fakeCompletions(params: CompletionsParams): Promise<void> {
-    return this.sdk.fakeCompletions(params)
-  }
-
-  public async completions(params: CompletionsParams): Promise<CompletionsOpenAIResult> {
+  public async completions(params: CompletionsParams): Promise<CompletionsResult> {
     return this.sdk.completions(params)
   }
 

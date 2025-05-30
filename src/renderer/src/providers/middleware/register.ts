@@ -1,44 +1,41 @@
-// import { createCompletionsLoggingMiddleware } from './common/CompletionsLoggingMiddleware'
-import { createGenericLoggingMiddleware } from './common/LoggingMiddleware'
-import { AiProviderMiddlewareConfig } from './middlewareTypes'
-import { AbortHandlerMiddleware } from './openai/AbortHandlerMiddleware'
-import FinalChunkConsumerMiddleware from './openai/FinalChunkConsumerMiddleware'
-import { McpToolChunkMiddleware } from './openai/McpToolChunkMiddleware'
-import { StreamAdapterMiddleware } from './openai/StreamAdapterMiddleware'
-import { TextChunkMiddleware } from './openai/TextChunkMiddleware'
-import { ThinkChunkMiddleware } from './openai/ThinkChunkMiddleware'
-import { TransformParamsBeforeCompletions } from './openai/TransformParamsBeforeCompletions'
-import { WebSearchMiddleware } from './openai/WebSearchMiddleware'
+import { AbortHandlerMiddleware } from './common/AbortHandlerMiddleware'
+import FinalChunkConsumerMiddleware from './common/FinalChunkConsumerMiddleware'
+import { GenericLoggingMiddleware } from './common/LoggingMiddleware'
+import { McpToolChunkMiddleware } from './core/McpToolChunkMiddleware'
+import { ResponseTransformMiddleware } from './core/ResponseTransformMiddleware'
+import { SdkCallMiddleware } from './core/SdkCallMiddleware'
+import { StreamAdapterMiddleware } from './core/StreamAdapterMiddleware'
+import { TextChunkMiddleware } from './core/TextChunkMiddleware'
+import { ThinkChunkMiddleware } from './core/ThinkChunkMiddleware'
+import { TransformCoreToSdkParamsMiddleware } from './core/TransformCoreToSdkParamsMiddleware'
+import { WebSearchMiddleware } from './core/WebSearchMiddleware'
+import { ThinkingTagExtractionMiddleware } from './feat/ThinkingTagExtractionMiddleware'
+import { MiddlewareConfig } from './type'
 
-// Construct AiProviderMiddlewareConfig
-// Assuming loggingMiddleware is a ProviderMethodMiddleware. Adjust if it's a CompletionsMiddleware.
-const middlewareConfig: AiProviderMiddlewareConfig = {
-  // Use the specialized logger for 'completions'. This array expects CompletionsMiddleware.
+const middlewareConfig: MiddlewareConfig = {
+  id: 'universal-provider-middleware',
+  name: 'Universal Provider Middleware Stack',
+
+  // 通用Koa风格的completions中间件
   completions: [
-    // createCompletionsLoggingMiddleware(),
-    FinalChunkConsumerMiddleware, // 最终消费者中间件 - 包含usage/metrics累加功能
-    TransformParamsBeforeCompletions, // 参数转换中间件 - 最早执行，为其他中间件提供标准化参数
-    AbortHandlerMiddleware,
-    TextChunkMiddleware,
-    WebSearchMiddleware, // Web搜索处理中间件 - 处理链接转换和搜索结果
-    McpToolChunkMiddleware, // 工具处理中间件
-    ThinkChunkMiddleware,
-    StreamAdapterMiddleware
+    GenericLoggingMiddleware,
+    AbortHandlerMiddleware, // 中止处理 - 最外层
+    TransformCoreToSdkParamsMiddleware, // 参数转换
+    FinalChunkConsumerMiddleware, // 最终消费者
+    McpToolChunkMiddleware, // 工具处理
+    WebSearchMiddleware, // Web搜索处理
+    TextChunkMiddleware, // 文本处理
+    ThinkingTagExtractionMiddleware, // 思考标签提取处理（特定provider）
+    ThinkChunkMiddleware, // 思考处理（通用SDK）
+    ResponseTransformMiddleware, // 响应转换
+    StreamAdapterMiddleware, // 流适配器
+    SdkCallMiddleware // SDK调用
   ],
 
-  // Use the generic logger for other methods. These arrays expect ProviderMethodMiddleware.
+  // 通用Koa风格的通用方法中间件
   methods: {
-    translate: [createGenericLoggingMiddleware()],
-    summaries: [createGenericLoggingMiddleware()]
-    // Example: If you had another method like 'generateText' that needs generic logging:
-    // generateText: [createGenericLoggingMiddleware()],
-
-    // IMPORTANT: Based on current index.ts logic, if 'completions' array above is populated,
-    // the 'methods.completions' entry below would NOT be used for the 'completions' method.
-    // If the 'completions' array above were empty or undefined, then 'methods.completions' would be consulted.
-    // If you intend for generic logging to ALSO run for 'completions', the setup is more complex
-    // and might require changes in how index.ts composes middlewares from these two properties.
-    // For now, this structure assumes distinct middleware sets.
+    translate: [GenericLoggingMiddleware],
+    summaries: [GenericLoggingMiddleware]
   }
 }
 

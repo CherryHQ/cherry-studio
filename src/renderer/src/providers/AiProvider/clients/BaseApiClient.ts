@@ -6,27 +6,40 @@ import {
   FileTypes,
   KnowledgeReference,
   MCPTool,
+  Model,
   Provider,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
-import { Model } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
+import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
-import { isJSON, parseJSON } from '@renderer/utils/json'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
-import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
+import { CompletionsParams, CompletionsResult } from '../../middleware/schemas'
+import {
+  ApiClient,
+  RequestTransformer,
+  ResponseChunkTransformer,
+  ResponseChunkTransformerContext,
+  SdkInstance,
+  SdkParams,
+  SdkRawChunk
+} from './types'
 
 /**
  * Abstract base class for API clients.
  * Provides common functionality and structure for specific client implementations.
  */
-export abstract class BaseApiClient<TSdkInstance = any, TSdkParams = any, TRawChunk = any, TResponseContext = any>
-  implements ApiClient<TSdkInstance, TSdkParams, TRawChunk, TResponseContext>
+export abstract class BaseApiClient<
+  TSdkInstance = SdkInstance,
+  TSdkParams = SdkParams,
+  TRawChunk = SdkRawChunk,
+  TResponseContext = ResponseChunkTransformerContext
+> implements ApiClient<TSdkInstance, TSdkParams, TRawChunk, TResponseContext>
 {
   private static readonly SYSTEM_PROMPT_THRESHOLD: number = 128
   public provider: Provider
@@ -39,6 +52,22 @@ export abstract class BaseApiClient<TSdkInstance = any, TSdkParams = any, TRawCh
     this.provider = provider
     this.host = this.getBaseURL()
     this.apiKey = this.getApiKey()
+  }
+
+  // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
+  // 实际的SDK调用由SdkCallMiddleware处理
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async completions(_params: CompletionsParams): Promise<CompletionsResult> {
+    const providerId = this.provider?.id || 'unknown-provider'
+    console.log(`[BaseApiClient (${providerId})] completions called - middleware chain should handle actual execution`)
+    console.log(
+      `[BaseApiClient (${providerId})] This method should not be executed directly if middleware is working properly`
+    )
+    // 在中间件架构中，这个方法只是一个占位符
+    // 实际的SDK调用和流处理由中间件完成
+    return {
+      controller: new AbortController()
+    }
   }
 
   abstract getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
@@ -63,14 +92,6 @@ export abstract class BaseApiClient<TSdkInstance = any, TSdkParams = any, TRawCh
       model
     )
     return mcpToolResponse // Default pass-through
-  }
-
-  public defaultHeaders() {
-    return {
-      'HTTP-Referer': 'https://cherry-ai.com',
-      'X-Title': 'Cherry Studio',
-      'X-Api-Key': this.apiKey
-    }
   }
 
   public getBaseURL(): string {
@@ -98,6 +119,14 @@ export abstract class BaseApiClient<TSdkInstance = any, TSdkParams = any, TRawCh
     window.keyv.set(keyName, nextKey)
 
     return nextKey
+  }
+
+  public defaultHeaders() {
+    return {
+      'HTTP-Referer': 'https://cherry-ai.com',
+      'X-Title': 'Cherry Studio',
+      'X-Api-Key': this.apiKey
+    }
   }
 
   public get keepAliveTime() {

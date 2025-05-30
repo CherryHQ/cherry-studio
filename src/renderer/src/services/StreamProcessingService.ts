@@ -3,6 +3,7 @@ import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Response } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import Logger from 'electron-log/renderer'
 
 // Define the structure for the callbacks that the StreamProcessor will invoke
 export interface StreamProcessorCallbacks {
@@ -40,7 +41,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   // The returned function processes a single chunk or a final signal
   return (chunk: Chunk) => {
     try {
-      // console.log(`[${new Date().toLocaleString()}] createStreamProcessor ${chunk.type}`, chunk)
+      Logger.info(`[${new Date().toLocaleString()}] createStreamProcessor ${chunk.type}`, chunk)
       // 1. Handle the manual final signal first
       if (chunk?.type === ChunkType.BLOCK_COMPLETE) {
         callbacks.onComplete?.(AssistantMessageStatus.SUCCESS, chunk?.response)

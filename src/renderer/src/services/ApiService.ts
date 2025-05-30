@@ -1,5 +1,12 @@
 import Logger from '@renderer/config/logger'
-import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
+import {
+  getOpenAIWebSearchParams,
+  isOpenAIWebSearch,
+  isReasoningModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import {
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
@@ -304,13 +311,24 @@ export async function fetchChatCompletion({
 
   const filteredMessages = filterUsefulMessages(messages)
 
+  const model = assistant.model || getDefaultModel()
+
+  const enableReasoning =
+    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+      assistant.settings?.reasoning_effort !== undefined) ||
+    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+
   // --- Call AI Completions ---
   await AI.completions({
     messages: filteredMessages,
+    model,
     assistant,
     onFilterMessages: () => {},
     onChunk: onChunkReceived,
-    mcpTools: mcpTools
+    mcpTools: mcpTools,
+    streamOutput: assistant.settings?.streamOutput || false,
+    enableReasoning: enableReasoning,
+    enableWebSearch: (assistant.enableWebSearch && isWebSearchModel(model)) || false
   })
 }
 

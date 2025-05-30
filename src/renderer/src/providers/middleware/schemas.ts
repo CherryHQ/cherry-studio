@@ -6,15 +6,20 @@ import { Message } from '@renderer/types/newMessage'
 // Core Request Types - 核心请求结构
 // ============================================================================
 
+export type OnFilterMessagesFunction = (messages: Message[]) => void
+
 /**
  * 标准化的内部核心请求结构，用于所有AI Provider的统一处理
  * 这是应用层参数转换后的标准格式，不包含回调函数和控制逻辑
  */
-export interface CoreCompletionsRequest {
+export interface CompletionsParams {
   // 基础对话数据
   messages: Message[]
   assistant: Assistant
   model: Model
+
+  onChunk: (chunk: Chunk) => void
+  onFilterMessages: OnFilterMessagesFunction
 
   // 工具相关
   mcpTools?: MCPTool[]
@@ -31,12 +36,11 @@ export interface CoreCompletionsRequest {
 
   // 上下文控制
   contextCount?: number
+}
 
-  // 任务类型标记（为未来扩展准备）
-  taskType: 'completion' | 'translation' | 'summary' | 'search'
-
-  // 特定任务的额外参数
-  taskSpecificParams?: Record<string, any>
+export interface CompletionsResult {
+  stream?: ReadableStream<Chunk>
+  controller?: AbortController
 }
 
 // ============================================================================
