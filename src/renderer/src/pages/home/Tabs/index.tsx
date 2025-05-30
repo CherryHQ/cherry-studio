@@ -12,7 +12,6 @@ import styled from 'styled-components'
 
 import Assistants from './AssistantsTab'
 import Settings from './SettingsTab'
-import Topics from './TopicsTab'
 
 interface Props {
   activeAssistant: Assistant
@@ -77,13 +76,14 @@ const HomeTabs: FC<Props> = ({
         showTab && setTab('assistants')
       }),
       EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, (): any => {
-        showTab && setTab('topic')
+        // showTab && setTab('topic')
+        showTab && setTab('assistants')
       }),
       EventEmitter.on(EVENT_NAMES.SHOW_CHAT_SETTINGS, (): any => {
         showTab && setTab('settings')
       }),
       EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
-        showTab && setTab('topic')
+        // showTab && setTab('topic')
         if (position === 'left' && topicPosition === 'right') {
           toggleShowTopics()
         }
@@ -112,10 +112,10 @@ const HomeTabs: FC<Props> = ({
               (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
                 ? assistantTab
                 : undefined,
-              {
-                label: t('common.topics'),
-                value: 'topic'
-              },
+              // {
+              //   label: t('common.topics'),
+              //   value: 'topic'
+              // },
               {
                 label: t('settings.title'),
                 value: 'settings'
@@ -133,10 +133,9 @@ const HomeTabs: FC<Props> = ({
             setActiveAssistant={setActiveAssistant}
             onCreateAssistant={onCreateAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
+            activeTopic={activeTopic}
+            setActiveTopic={setActiveTopic}
           />
-        )}
-        {tab === 'topic' && (
-          <Topics assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
         )}
         {tab === 'settings' && <Settings assistant={activeAssistant} />}
       </TabContent>
@@ -149,7 +148,7 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
-  background-color: var(--color-background);
+  background-color: var(--color-background-mute);
   overflow: hidden;
   .collapsed {
     width: 0;

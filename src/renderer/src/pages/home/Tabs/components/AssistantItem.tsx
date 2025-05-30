@@ -158,11 +158,9 @@ const AssistantItem: FC<AssistantItemProps> = ({
           )}
           <AssistantName className="text-nowrap">{assistantName}</AssistantName>
         </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          </MenuButton>
-        )}
+        <MenuButton>
+          <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
+        </MenuButton>
       </Container>
     </Dropdown>
   )
@@ -395,10 +393,10 @@ const Container = styled.div`
     color: var(--color-text-3);
   }
   &:hover {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-background-opacity);
   }
   &.active {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-background-opacity);
     border: 0.5px solid var(--color-border);
   }
 `

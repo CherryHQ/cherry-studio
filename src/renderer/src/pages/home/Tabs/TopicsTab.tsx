@@ -460,7 +460,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             )
           }}
         </DragableList>
-        <div style={{ minHeight: '10px' }}></div>
       </Container>
     </Dropdown>
   )
@@ -481,21 +480,20 @@ const TopicListItem = styled.div`
   justify-content: space-between;
   position: relative;
   cursor: pointer;
-  border: 0.5px solid transparent;
   position: relative;
-  width: calc(var(--assistants-width) - 20px);
+  width: calc(var(--assistants-width) - 40px);
   .menu {
     opacity: 0;
     color: var(--color-text-3);
   }
   &:hover {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-background-opacity);
     .name {
     }
   }
   &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-background-opacity);
+    // border: 0.5px solid var(--color-border);
     .name {
     }
     .menu {
