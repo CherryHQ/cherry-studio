@@ -11,7 +11,9 @@ import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
-import { themeService } from './ThemeService'
+
+// just import the themeService to ensure the theme is initialized
+import './ThemeService'
 import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
@@ -44,8 +46,6 @@ export class WindowService {
       fullScreen: false,
       maximize: false
     })
-
-    themeService.initTheme()
 
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,

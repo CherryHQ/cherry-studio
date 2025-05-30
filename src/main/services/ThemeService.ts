@@ -6,11 +6,17 @@ import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 
 class ThemeService {
-  private theme: ThemeMode
-
+  private theme: ThemeMode = ThemeMode.system
   constructor() {
     this.theme = configManager.getTheme()
-    nativeTheme.themeSource = this.theme
+
+    if (this.theme === ThemeMode.dark || this.theme === ThemeMode.light) {
+      nativeTheme.themeSource = this.theme
+    } else {
+      // 兼容旧版本
+      configManager.setTheme(ThemeMode.system)
+      nativeTheme.themeSource = ThemeMode.system
+    }
     nativeTheme.on('updated', this.themeUpdatadHandler.bind(this))
   }
 
@@ -21,6 +27,7 @@ class ThemeService {
           win.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
         } catch (error) {
           // don't throw error if setTitleBarOverlay failed
+          // Because it may be called with some windows have some title bar
         }
       }
       win.webContents.send(IpcChannel.ThemeUpdated, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
@@ -37,21 +44,8 @@ class ThemeService {
     configManager.setTheme(theme)
   }
 
-  initTheme() {
-    this.theme = configManager.getTheme()
-
-    if (this.theme === ThemeMode.dark || this.theme === ThemeMode.light) {
-      nativeTheme.themeSource = this.theme
-      return
-    }
-
-    // 兼容旧版本
-    configManager.setTheme(ThemeMode.system)
-    nativeTheme.themeSource = ThemeMode.system
-  }
-
   getTheme() {
-    return this.theme
+    return { theme: this.theme, actualTheme: nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light }
   }
 }
 

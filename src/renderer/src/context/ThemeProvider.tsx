@@ -42,7 +42,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
   useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-    window.api.getTheme().then((savedTheme) => setTheme(savedTheme))
+
+    // init the theme from main process's config
+    window.api.getTheme().then(({ theme, actualTheme }) => {
+      setTheme(theme)
+      setActualTheme(actualTheme)
+    })
+
     initUserTheme()
 
     // listen for theme updates from main process
