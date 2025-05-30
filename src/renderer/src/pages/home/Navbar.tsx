@@ -129,6 +129,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               </NavbarIcon>
             </Tooltip>
           )}
+          {!showAssistants && (
+            <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+              <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
+                <MessageSquareDiff size={18} />
+              </NavbarIcon>
+            </Tooltip>
+          )}
           <SelectModelButton assistant={assistant} />
         </HStack>
         <HStack alignItems="center" gap={8}>
