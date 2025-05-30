@@ -204,7 +204,7 @@ export class SelectionService {
     switch (mode) {
       case 'blacklist':
         //combine the predefined blacklist with the user-defined blacklist
-        combinedList = [...list, ...SELECTION_PREDEFINED_BLACKLIST.WINDOWS]
+        combinedList = [...new Set([...list, ...SELECTION_PREDEFINED_BLACKLIST.WINDOWS])]
         break
       case 'whitelist':
         combinedList = [...list]
