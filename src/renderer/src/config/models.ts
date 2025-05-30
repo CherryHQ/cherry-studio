@@ -250,8 +250,8 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 )
 
 export function isFunctionCallingModel(model: Model): boolean {
-  if (model.type?.includes('function_calling')) {
-    return true
+  if (typeof model.type?.function_calling === 'boolean') {
+    return model.type.function_calling
   }
 
   if (isEmbeddingModel(model)) {
@@ -2156,6 +2156,9 @@ export function isEmbeddingModel(model: Model): boolean {
   if (!model) {
     return false
   }
+  if (typeof model.type?.embedding === 'boolean') {
+    return model.type.embedding
+  }
 
   if (['anthropic'].includes(model?.provider)) {
     return false
@@ -2169,7 +2172,7 @@ export function isEmbeddingModel(model: Model): boolean {
     return false
   }
 
-  return EMBEDDING_REGEX.test(model.id) || model.type?.includes('embedding') || false
+  return EMBEDDING_REGEX.test(model.id) || false
 }
 
 export function isRerankModel(model: Model): boolean {
@@ -2180,16 +2183,20 @@ export function isVisionModel(model: Model): boolean {
   if (!model) {
     return false
   }
+  if (typeof model.type?.vision === 'boolean') {
+    return model.type.vision
+  }
+
   // 新添字段 copilot-vision-request 后可使用 vision
   // if (model.provider === 'copilot') {
   //   return false
   // }
 
   if (model.provider === 'doubao') {
-    return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false
+    return VISION_REGEX.test(model.name) || false
   }
 
-  return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
+  return VISION_REGEX.test(model.id) || false
 }
 
 export function isOpenAIReasoningModel(model: Model): boolean {
@@ -2345,9 +2352,12 @@ export function isReasoningModel(model?: Model): boolean {
   if (!model) {
     return false
   }
+  if (typeof model.type?.reasoning === 'boolean') {
+    return model.type.reasoning
+  }
 
   if (model.provider === 'doubao') {
-    return REASONING_REGEX.test(model.name) || model.type?.includes('reasoning') || false
+    return REASONING_REGEX.test(model.name) || false
   }
 
   if (
@@ -2361,7 +2371,7 @@ export function isReasoningModel(model?: Model): boolean {
     return true
   }
 
-  return REASONING_REGEX.test(model.id) || model.type?.includes('reasoning') || false
+  return REASONING_REGEX.test(model.id) || false
 }
 
 export function isSupportedModel(model: OpenAI.Models.Model): boolean {
@@ -2388,11 +2398,8 @@ export function isWebSearchModel(model: Model): boolean {
   if (!model) {
     return false
   }
-
-  if (model.type) {
-    if (model.type.includes('web_search')) {
-      return true
-    }
+  if (typeof model.type?.web_search === 'boolean') {
+    return model.type.web_search
   }
 
   const provider = getProviderByModel(model)
