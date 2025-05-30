@@ -325,6 +325,7 @@ const TranslatePage: FC = () => {
       })
 
       await saveTranslateHistory(text, translatedText, sourceLanguage, actualTargetLanguage)
+      setLoading(false)
     } catch (error) {
       console.error('Translation error:', error)
       window.message.error({
