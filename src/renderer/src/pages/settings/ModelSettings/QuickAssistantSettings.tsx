@@ -100,7 +100,7 @@ const QuickAssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={20}>
+        <Col span={21}>
           <Slider
             min={0}
             max={2}
@@ -111,7 +111,7 @@ const QuickAssistantSettings: FC = () => {
             step={0.01}
           />
         </Col>
-        <Col span={4}>
+        <Col span={3}>
           <InputNumber
             min={0}
             max={2}
@@ -129,7 +129,7 @@ const QuickAssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={20}>
+        <Col span={21}>
           <Slider
             min={0}
             max={1}
@@ -140,7 +140,7 @@ const QuickAssistantSettings: FC = () => {
             step={0.01}
           />
         </Col>
-        <Col span={4}>
+        <Col span={3}>
           <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
         </Col>
       </Row>
@@ -151,7 +151,7 @@ const QuickAssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={20}>
+        <Col span={21}>
           <Slider
             min={0}
             max={20}
@@ -162,7 +162,7 @@ const QuickAssistantSettings: FC = () => {
             step={1}
           />
         </Col>
-        <Col span={4}>
+        <Col span={3}>
           <InputNumber
             min={0}
             max={20}
@@ -204,6 +204,7 @@ const PopupContainer = ({ resolve }: Props) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       centered
+      width={800}
       footer={null}>
       <QuickAssistantSettings />
     </Modal>
