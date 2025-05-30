@@ -1,6 +1,7 @@
 import { isMac } from '@renderer/config/constant'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
@@ -29,6 +30,7 @@ import ClipboardPreview from './components/ClipboardPreview'
 import FeatureMenus, { FeatureMenusRef } from './components/FeatureMenus'
 import Footer from './components/Footer'
 import InputBar from './components/InputBar'
+import { ThemeMode } from '@renderer/types'
 
 const HomeWindow: FC = () => {
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
@@ -43,7 +45,8 @@ const HomeWindow: FC = () => {
   const { defaultModel, quickAssistantModel } = useDefaultModel()
   // 如果 quickAssistantModel 未設定，則使用 defaultModel
   const model = quickAssistantModel || defaultModel
-  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { actualTheme: theme } = useTheme()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -258,12 +261,7 @@ const HomeWindow: FC = () => {
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
     // because the dark style under mac's vibrancy effect has not been implemented
-    if (
-      isMac &&
-      windowStyle === 'transparent' &&
-      theme === 'light' &&
-      !window.matchMedia('(prefers-color-scheme: dark)').matches
-    ) {
+    if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
 

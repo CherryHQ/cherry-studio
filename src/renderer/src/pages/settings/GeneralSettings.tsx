@@ -19,7 +19,6 @@ const GeneralSettings: FC = () => {
   const {
     language,
     proxyUrl: storeProxyUrl,
-    theme,
     setLaunch,
     setTray,
     launchOnBoot,
@@ -30,7 +29,7 @@ const GeneralSettings: FC = () => {
     enableDataCollection
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
-  const { actualTheme: themeMode } = useTheme()
+  const { theme, actualTheme: themeMode } = useTheme()
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
