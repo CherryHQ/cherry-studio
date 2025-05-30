@@ -114,6 +114,8 @@ const updateExistingMessageAndBlocksInDB = async (
   }
 }
 
+const blockUpdateRafMap = new Map<string, number>()
+
 // 更新单个块的逻辑，用于更新消息中的单个块
 const throttledBlockUpdate = throttle(async (id, blockUpdate) => {
   // const state = store.getState()
@@ -125,11 +127,23 @@ const throttledBlockUpdate = throttle(async (id, blockUpdate) => {
   // )
   //   return
 
-  store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
+  const rafId = requestAnimationFrame(() => {
+    store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
+    blockUpdateRafMap.delete(id) // 执行后立即清理
+  })
+
+  blockUpdateRafMap.set(id, rafId)
+
   await db.message_blocks.update(id, blockUpdate)
 }, 150)
 
-const cancelThrottledBlockUpdate = throttledBlockUpdate.cancel
+const cancelThrottledBlockUpdate = (id: string) => {
+  const rafId = blockUpdateRafMap.get(id)
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    blockUpdateRafMap.delete(id)
+  }
+}
 
 // // 修改: 节流更新单个块的内容/状态到数据库 (仅用于 Text/Thinking Chunks)
 // export const throttledBlockDbUpdate = throttle(
@@ -357,12 +371,12 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onTextComplete: async (finalText) => {
-        cancelThrottledBlockUpdate()
         if (lastBlockType === MessageBlockType.MAIN_TEXT && lastBlockId) {
           const changes = {
             content: finalText,
             status: MessageBlockStatus.SUCCESS
           }
+          cancelThrottledBlockUpdate(lastBlockId)
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
           saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
 
@@ -415,8 +429,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onThinkingComplete: (finalText, final_thinking_millsec) => {
-        cancelThrottledBlockUpdate()
-
         if (lastBlockType === MessageBlockType.THINKING && lastBlockId) {
           const changes = {
             type: MessageBlockType.THINKING,
@@ -424,6 +436,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             status: MessageBlockStatus.SUCCESS,
             thinking_millsec: final_thinking_millsec
           }
+          cancelThrottledBlockUpdate(lastBlockId)
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
           saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
         } else {
@@ -458,7 +471,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onToolCallComplete: (toolResponse: MCPToolResponse) => {
-        cancelThrottledBlockUpdate()
         const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
         if (toolResponse.status === 'done' || toolResponse.status === 'error') {
           if (!existingBlockId) {
@@ -476,6 +488,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           if (finalStatus === MessageBlockStatus.ERROR) {
             changes.error = { message: `Tool execution failed/error`, details: toolResponse.response }
           }
+          cancelThrottledBlockUpdate(existingBlockId)
           dispatch(updateOneBlock({ id: existingBlockId, changes }))
           saveUpdatedBlockToDB(existingBlockId, assistantMsgId, topicId, getState)
         } else {
@@ -577,7 +590,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onError: async (error) => {
-        cancelThrottledBlockUpdate()
         console.dir(error, { depth: null })
         const isErrorTypeAbort = isAbortError(error)
         let pauseErrorLanguagePlaceholder = ''
@@ -610,6 +622,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           const changes: Partial<MessageBlock> = {
             status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
           }
+          cancelThrottledBlockUpdate(lastBlockId)
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
           saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
         }
@@ -631,8 +644,6 @@ const fetchAndProcessAssistantResponseImpl = async (
         })
       },
       onComplete: async (status: AssistantMessageStatus, response?: Response) => {
-        cancelThrottledBlockUpdate()
-
         const finalStateOnComplete = getState()
         const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 
@@ -647,6 +658,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             const changes: Partial<MessageBlock> = {
               status: MessageBlockStatus.SUCCESS
             }
+            cancelThrottledBlockUpdate(lastBlockId)
             dispatch(updateOneBlock({ id: lastBlockId, changes }))
             saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
           }
