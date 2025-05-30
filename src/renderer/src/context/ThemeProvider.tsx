@@ -7,13 +7,13 @@ import React, { createContext, PropsWithChildren, use, useEffect, useState } fro
 
 interface ThemeContextType {
   theme: ThemeMode
-  settingTheme: ThemeMode
+  settedTheme: ThemeMode
   toggleTheme: () => void
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: ThemeMode.auto,
-  settingTheme: ThemeMode.auto,
+  theme: ThemeMode.system,
+  settedTheme: ThemeMode.dark,
   toggleTheme: () => {}
 })
 
@@ -21,53 +21,50 @@ interface ThemeProviderProps extends PropsWithChildren {
   defaultTheme?: ThemeMode
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, defaultTheme }) => {
-  const { theme, setTheme } = useSettings()
-  const [effectiveTheme, setEffectiveTheme] = useState(theme)
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  // 用户设置的主题
+  const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
+  const [actualTheme, setActualTheme] = useState<ThemeMode>(
+    window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
+  )
   const { initUserTheme } = useUserTheme()
 
   const toggleTheme = () => {
-    // 主题顺序是light, dark, auto, 所以需要先判断当前主题，然后取下一个主题
-    switch (theme) {
-      case ThemeMode.light:
-        setTheme(ThemeMode.dark)
-        break
-      case ThemeMode.dark:
-        setTheme(ThemeMode.auto)
-        break
-      case ThemeMode.auto:
-        setTheme(ThemeMode.light)
-        break
-    }
+    const nextTheme = {
+      [ThemeMode.light]: ThemeMode.dark,
+      [ThemeMode.dark]: ThemeMode.system,
+      [ThemeMode.system]: ThemeMode.light
+    }[settedTheme]
+    setSettedTheme(nextTheme || ThemeMode.system)
   }
 
   useEffect(() => {
-    window.api?.setTheme(defaultTheme || theme)
-  }, [defaultTheme, theme])
-
-  useEffect(() => {
-    document.body.setAttribute('theme-mode', effectiveTheme)
-  }, [effectiveTheme])
-
-  useEffect(() => {
+    // Set initial theme and OS attributes on body
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
-    const themeChangeListenerRemover = window.electron.ipcRenderer.on(
-      IpcChannel.ThemeChange,
-      (_, realTheam: ThemeMode) => {
-        setEffectiveTheme(realTheam)
-      }
-    )
-    return () => {
-      themeChangeListenerRemover()
-    }
-  })
+    document.body.setAttribute('theme-mode', actualTheme)
 
-  useEffect(() => {
+    // if theme is old auto, then set theme to system
+    // we can delete this after next big release
+    if (settedTheme !== ThemeMode.dark && settedTheme !== ThemeMode.light && settedTheme !== ThemeMode.system) {
+      setSettedTheme(ThemeMode.system)
+    }
+
     initUserTheme()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    // listen for theme updates from main process
+    const cleanup = window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
+      document.body.setAttribute('theme-mode', actualTheme)
+      setActualTheme(actualTheme)
+    })
+
+    return cleanup
   }, [])
 
-  return <ThemeContext value={{ theme: effectiveTheme, settingTheme: theme, toggleTheme }}>{children}</ThemeContext>
+  useEffect(() => {
+    window.api.setTheme(settedTheme)
+  }, [settedTheme])
+
+  return <ThemeContext value={{ theme: actualTheme, settedTheme, toggleTheme }}>{children}</ThemeContext>
 }
 
 export const useTheme = () => use(ThemeContext)

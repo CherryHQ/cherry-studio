@@ -28,6 +28,8 @@ export type Assistant = {
   tags?: string[] // 助手标签
 }
 
+export type AssistantsSortType = 'tags' | 'list'
+
 export type AssistantMessage = {
   role: 'user' | 'assistant'
   content: string
@@ -264,6 +266,7 @@ export interface DmxapiPainting extends PaintingParams {
   image_size?: string
   seed?: string
   style_type?: string
+  autoCreate?: boolean
 }
 
 export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
@@ -314,7 +317,7 @@ export enum FileTypes {
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
-  auto = 'auto'
+  system = 'system'
 }
 
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'

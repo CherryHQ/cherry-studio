@@ -76,6 +76,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     } finally {
       translatingRef.current = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [action, targetLanguage, translateModel])
 
   useEffect(() => {
@@ -154,7 +155,6 @@ const Result = styled.div`
   white-space: pre-wrap;
   word-break: break-word;
   width: 100%;
-  max-width: 960px;
 `
 
 const MenuContainer = styled.div`
@@ -163,7 +163,6 @@ const MenuContainer = styled.div`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  max-width: 960px;
 `
 
 const OriginalHeader = styled.div`
@@ -197,7 +196,6 @@ const OriginalContent = styled.div`
   white-space: pre-wrap;
   word-break: break-word;
   width: 100%;
-  max-width: 960px;
 `
 
 const OriginalContentCopyWrapper = styled.div`
@@ -206,7 +204,7 @@ const OriginalContentCopyWrapper = styled.div`
 `
 
 const FooterPadding = styled.div`
-  min-height: 32px;
+  min-height: 12px;
 `
 
 const ErrorMsg = styled.div`

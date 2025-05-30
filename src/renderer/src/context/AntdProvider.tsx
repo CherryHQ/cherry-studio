@@ -15,11 +15,11 @@ import { FC, PropsWithChildren } from 'react'
 import { useTheme } from './ThemeProvider'
 
 const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
-  const { theme: _theme } = useTheme()
   const {
     language,
     userTheme: { colorPrimary }
   } = useSettings()
+  const { theme: _theme } = useTheme()
 
   return (
     <ConfigProvider

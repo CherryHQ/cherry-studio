@@ -284,7 +284,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
-            effort: assistant?.settings?.reasoning_effort
+            effort: assistant?.settings?.reasoning_effort === 'auto' ? 'medium' : assistant?.settings?.reasoning_effort
           }
         }
       }

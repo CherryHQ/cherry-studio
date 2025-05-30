@@ -204,8 +204,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
-            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
-            getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}>
+            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}>
             <div style={{ cursor: 'pointer' }}>{messageContent}</div>
           </Popover>
         )

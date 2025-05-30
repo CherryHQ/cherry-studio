@@ -1,5 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { CircleX, Copy, Pause } from 'lucide-react'
+import { CircleX, Copy, Pause, RefreshCw } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -8,14 +8,22 @@ interface FooterProps {
   content?: string
   loading?: boolean
   onPause?: () => void
+  onRegenerate?: () => void
 }
 
-const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause = () => {} }) => {
+const WindowFooter: FC<FooterProps> = ({
+  content = '',
+  loading = false,
+  onPause = undefined,
+  onRegenerate = undefined
+}) => {
   const { t } = useTranslation()
 
   const [isWindowFocus, setIsWindowFocus] = useState(true)
   const [isCopyHovered, setIsCopyHovered] = useState(false)
   const [isEscHovered, setIsEscHovered] = useState(false)
+  const [isRegenerateHovered, setIsRegenerateHovered] = useState(false)
+  const [isContainerHovered, setIsContainerHovered] = useState(false)
 
   useEffect(() => {
     window.addEventListener('focus', handleWindowFocus)
@@ -29,6 +37,10 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause 
 
   useHotkeys('c', () => {
     handleCopy()
+  })
+
+  useHotkeys('r', () => {
+    handleRegenerate()
   })
 
   useHotkeys('esc', () => {
@@ -48,8 +60,26 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause 
     }
   }
 
+  const handleRegenerate = () => {
+    setIsRegenerateHovered(true)
+    setTimeout(() => {
+      setIsRegenerateHovered(false)
+    }, 200)
+
+    if (loading && onPause) {
+      onPause()
+    }
+
+    if (onRegenerate) {
+      //wait for a little time
+      setTimeout(() => {
+        onRegenerate()
+      }, 200)
+    }
+  }
+
   const handleCopy = () => {
-    if (!content) return
+    if (!content || loading) return
 
     navigator.clipboard
       .writeText(content)
@@ -74,7 +104,10 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause 
   }
 
   return (
-    <Container>
+    <Container
+      onMouseEnter={() => setIsContainerHovered(true)}
+      onMouseLeave={() => setIsContainerHovered(false)}
+      $isHovered={isContainerHovered}>
       <OpButtonWrapper>
         <OpButton onClick={handleEsc} $isWindowFocus={isWindowFocus} data-hovered={isEscHovered}>
           {loading ? (
@@ -96,6 +129,12 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause 
             </>
           )}
         </OpButton>
+        {onRegenerate && (
+          <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
+            <RefreshCw size={14} className="btn-icon" />
+            {t('selection.action.window.r_regenerate')}
+          </OpButton>
+        )}
         <OpButton onClick={handleCopy} $isWindowFocus={isWindowFocus && !!content} data-hovered={isCopyHovered}>
           <Copy size={14} className="btn-icon" />
           {t('selection.action.window.c_copy')}
@@ -105,19 +144,28 @@ const WindowFooter: FC<FooterProps> = ({ content = '', loading = false, onPause 
   )
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $isHovered: boolean }>`
   position: absolute;
   bottom: 0;
-  left: 8px;
-  right: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 480px;
+  min-width: min-content;
+  width: calc(100% - 16px);
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  padding: 5px 0;
+  padding: 5px 8px;
   height: 32px;
   backdrop-filter: blur(8px);
   border-radius: 8px;
+  opacity: 0;
+  transition: all 0.3s ease;
+
+  &:hover {
+    opacity: 1;
+  }
 `
 
 const OpButtonWrapper = styled.div`
@@ -144,6 +192,9 @@ const OpButton = styled.div<{ $isWindowFocus: boolean; $isHovered?: boolean }>`
   opacity: ${(props) => (props.$isWindowFocus ? 1 : 0.2)};
   transition: opacity 0.3s ease;
   transition: color 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   .btn-icon {
     color: var(--color-text-secondary);

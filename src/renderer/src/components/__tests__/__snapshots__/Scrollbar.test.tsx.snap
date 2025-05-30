@@ -33,7 +33,7 @@ exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
 }
 
 .c0::-webkit-scrollbar-thumb:hover {
-  background: transparent;
+  background: var(--color-scrollbar-thumb-hover);
 }
 
 <div

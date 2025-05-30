@@ -196,7 +196,6 @@ body,
   .group-message-wrapper {
     .message-content-container {
       width: 100%;
-      border: 1px solid var(--color-background-mute);
     }
   }
 
@@ -213,6 +212,7 @@ span.highlight {
   background-color: var(--color-background-highlight);
   color: var(--color-highlight);
 }
+
 span.highlight.selected {
   background-color: var(--color-background-highlight-accent);
 }

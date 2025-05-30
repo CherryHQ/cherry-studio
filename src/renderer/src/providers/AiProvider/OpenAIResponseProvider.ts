@@ -1089,7 +1089,8 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
           {
             model: model.id,
             image: images,
-            prompt: content || ''
+            prompt: content || '',
+            ...this.getCustomParameters(assistant)
           },
           {
             signal,
@@ -1101,7 +1102,8 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
           {
             model: model.id,
             prompt: content || '',
-            response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
+            response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json',
+            ...this.getCustomParameters(assistant)
           },
           {
             signal,

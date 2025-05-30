@@ -1,6 +1,7 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types/newMessage'
+import { Popover } from 'antd'
 import { t } from 'i18next'
 import styled from 'styled-components'
 
@@ -40,15 +41,24 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
       })
     }
 
+    const tokensInfo = (
+      <span className="tokens">
+        Tokens:
+        <span>{message?.usage?.total_tokens}</span>
+        <span>↑{message?.usage?.prompt_tokens}</span>
+        <span>↓{message?.usage?.completion_tokens}</span>
+      </span>
+    )
+
     return (
-      <MessageMetadata className={`message-tokens ${hasMetrics ? 'has-metrics' : ''}`} onClick={locateMessage}>
-        <span className="metrics">{metrixs}</span>
-        <span className="tokens">
-          Tokens:
-          <span>{message?.usage?.total_tokens}</span>
-          <span>↑{message?.usage?.prompt_tokens}</span>
-          <span>↓{message?.usage?.completion_tokens}</span>
-        </span>
+      <MessageMetadata className="message-tokens" onClick={locateMessage}>
+        {hasMetrics ? (
+          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+            {tokensInfo}
+          </Popover>
+        ) : (
+          tokensInfo
+        )}
       </MessageMetadata>
     )
   }
@@ -64,25 +74,11 @@ const MessageMetadata = styled.div`
   cursor: pointer;
   text-align: right;
 
-  .metrics {
-    display: none;
-  }
-
   .tokens {
     display: block;
 
     span {
       padding: 0 2px;
-    }
-  }
-
-  &.has-metrics:hover {
-    .metrics {
-      display: block;
-    }
-
-    .tokens {
-      display: none;
     }
   }
 `
