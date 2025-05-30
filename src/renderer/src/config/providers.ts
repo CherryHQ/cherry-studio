@@ -614,3 +614,6 @@ export const PROVIDER_CONFIG = {
     }
   }
 }
+
+// DeepSeek和OpenAI是自动支持
+export const SUPPORTED_PROMPT_CACHE_PROVIDERS = ['gemini', 'anthropic', 'openrouter']

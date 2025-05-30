@@ -19,6 +19,7 @@ import {
   Tool
 } from '@google/genai'
 import { nanoid } from '@reduxjs/toolkit'
+import { MIN_GEMINI_CACHE_TOKEN } from '@renderer/config/constant'
 import {
   findTokenLimit,
   isGeminiReasoningModel,
@@ -37,6 +38,7 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
+import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
@@ -346,7 +348,7 @@ export default class GeminiProvider extends BaseProvider {
       await this.generateImageByChat({ messages, assistant, onChunk })
       return
     }
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const { contextCount, maxTokens, enablePromptCache, cacheTTL, streamOutput } = getAssistantSettings(assistant)
 
     const userMessages = filterUserRoleStartMessages(
       filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
@@ -360,6 +362,8 @@ export default class GeminiProvider extends BaseProvider {
     for (const message of userMessages) {
       history.push(await this.getMessageContents(message))
     }
+
+    let generateContentConfig: GenerateContentConfig
 
     let systemInstruction = assistant.prompt
 
@@ -381,17 +385,36 @@ export default class GeminiProvider extends BaseProvider {
         googleSearch: {}
       })
     }
+    const estimateToken = await estimateHistoryTokens(assistant, userMessages)
+    if (enablePromptCache && estimateToken > MIN_GEMINI_CACHE_TOKEN) {
+      const cache = await this.sdk.caches.create({
+        model: model.id,
+        config: {
+          ttl: `${cacheTTL}s`,
+          contents: history,
+          systemInstruction: systemInstruction,
+          tools: tools
+        }
+      })
 
-    const generateContentConfig: GenerateContentConfig = {
-      safetySettings: this.getSafetySettings(),
-      // generate image don't need system instruction
-      systemInstruction: isGemmaModel(model) ? undefined : systemInstruction,
-      temperature: this.getTemperature(assistant, model),
-      topP: this.getTopP(assistant, model),
-      maxOutputTokens: maxTokens,
-      tools: tools,
-      ...this.getBudgetToken(assistant, model),
-      ...this.getCustomParameters(assistant)
+      generateContentConfig = {
+        temperature: this.getTemperature(assistant, model),
+        topP: this.getTopP(assistant, model),
+        cachedContent: cache.name,
+        maxOutputTokens: maxTokens,
+        tools: tools,
+        ...this.getBudgetToken(assistant, model),
+        ...this.getCustomParameters(assistant)
+      }
+    } else {
+      generateContentConfig = {
+        temperature: this.getTemperature(assistant, model),
+        topP: this.getTopP(assistant, model),
+        maxOutputTokens: maxTokens,
+        tools: tools,
+        ...this.getBudgetToken(assistant, model),
+        ...this.getCustomParameters(assistant)
+      }
     }
 
     const messageContents: Content = await this.getMessageContents(userLastMessage!)
