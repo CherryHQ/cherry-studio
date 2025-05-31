@@ -74,29 +74,33 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
     }
 
     providers.forEach((p) => {
-      const providerModels = p.models
-        .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
-        .filter((m) => !pinnedModels.includes(getModelUniqId(m)))
-        .map((m) => ({
-          label: (
-            <>
-              <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
-              <span style={{ opacity: 0.8 }}> | {m.name}</span>
-            </>
-          ),
-          description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-          icon: (
-            <Avatar src={getModelLogo(m.id)} size={20}>
-              {first(m.name)}
-            </Avatar>
-          ),
-          filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
-          action: () => onMentionModel(m),
-          isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
-        }))
+      const providerModels = sortBy(
+        p.models
+          .filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
+          .filter((m) => !pinnedModels.includes(getModelUniqId(m))),
+        ['group', 'name']
+      )
 
-      if (providerModels.length > 0) {
-        items.push(...sortBy(providerModels, ['label']))
+      const providerModelItems = providerModels.map((m) => ({
+        label: (
+          <>
+            <ProviderName>{p.isSystem ? t(`provider.${p.id}`) : p.name}</ProviderName>
+            <span style={{ opacity: 0.8 }}> | {m.name}</span>
+          </>
+        ),
+        description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+        icon: (
+          <Avatar src={getModelLogo(m.id)} size={20}>
+            {first(m.name)}
+          </Avatar>
+        ),
+        filterText: (p.isSystem ? t(`provider.${p.id}`) : p.name) + m.name,
+        action: () => onMentionModel(m),
+        isSelected: mentionModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+      }))
+
+      if (providerModelItems.length > 0) {
+        items.push(...providerModelItems)
       }
     })
 
