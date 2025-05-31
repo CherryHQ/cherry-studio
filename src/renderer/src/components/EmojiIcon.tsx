@@ -7,7 +7,6 @@ interface EmojiIconProps {
 }
 
 const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
-
   return (
     <Container className={className}>
       <EmojiBackground>{emoji || '⭐️'}</EmojiBackground>

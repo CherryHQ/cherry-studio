@@ -423,7 +423,6 @@ const MenuButton = styled.div`
   align-items: center;
   min-width: 22px;
   height: 22px;
-  min-width: 22px;
   min-height: 22px;
   border-radius: 11px;
   position: absolute;
