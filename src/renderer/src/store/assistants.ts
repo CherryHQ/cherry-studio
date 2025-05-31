@@ -65,7 +65,7 @@ const assistantsSlice = createSlice({
         assistant.id === action.payload.assistantId
           ? {
               ...assistant,
-              topics: uniqBy([topic, ...assistant.topics], 'id')
+              topics: uniqBy([...assistant.topics, topic], 'id')
             }
           : assistant
       )

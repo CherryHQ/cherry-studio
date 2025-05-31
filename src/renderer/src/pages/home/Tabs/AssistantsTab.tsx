@@ -5,25 +5,30 @@ import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import { Assistant, AssistantsSortType, Topic } from '@renderer/types'
 import { Divider, Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './components/AssistantItem'
+import Topics from './TopicsTab'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
+  activeTopic: Topic
+  setActiveTopic: (topic: Topic) => void
 }
 const Assistants: FC<AssistantsTabProps> = ({
   activeAssistant,
   setActiveAssistant,
   onCreateAssistant,
-  onCreateDefaultAssistant
+  onCreateDefaultAssistant,
+  activeTopic,
+  setActiveTopic
 }) => {
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
@@ -100,18 +105,23 @@ const Assistants: FC<AssistantsTabProps> = ({
         onDragStart={() => setDragging(true)}
         onDragEnd={() => setDragging(false)}>
         {(assistant) => (
-          <AssistantItem
-            key={assistant.id}
-            assistant={assistant}
-            isActive={assistant.id === activeAssistant.id}
-            sortBy={assistantsTabSortType}
-            onSwitch={setActiveAssistant}
-            onDelete={onDelete}
-            addAgent={addAgent}
-            addAssistant={addAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-            handleSortByChange={handleSortByChange}
-          />
+          <MenuContainer className={assistant.id === activeAssistant.id ? 'active' : ''}>
+            <AssistantItem
+              key={assistant.id}
+              assistant={assistant}
+              isActive={assistant.id === activeAssistant.id}
+              sortBy={assistantsTabSortType}
+              onSwitch={setActiveAssistant}
+              onDelete={onDelete}
+              addAgent={addAgent}
+              addAssistant={addAssistant}
+              onCreateDefaultAssistant={onCreateDefaultAssistant}
+              handleSortByChange={handleSortByChange}
+            />
+            {assistant.id === activeAssistant.id && (
+              <Topics assistant={assistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
+            )}
+          </MenuContainer>
         )}
       </DragableList>
       {!dragging && (
@@ -122,10 +132,18 @@ const Assistants: FC<AssistantsTabProps> = ({
           </AssistantName>
         </AssistantAddItem>
       )}
-      <div style={{ minHeight: 10 }}></div>
     </Container>
   )
 }
+
+const MenuContainer = styled.div`
+  --list-item-border-radius: 8px;
+  &.active {
+    background-color: var(--color-background);
+    border-radius: var(--list-item-border-radius);
+    width: calc(var(--assistants-width) - 20px);
+  }
+`
 
 // 样式组件
 const Container = styled(Scrollbar)`
@@ -152,11 +170,11 @@ const AssistantAddItem = styled.div`
   cursor: pointer;
 
   &:hover {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-white-mute);
   }
 
   &.active {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-white-mute);
     border: 0.5px solid var(--color-border);
   }
 `
