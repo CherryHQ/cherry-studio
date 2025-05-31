@@ -3,14 +3,20 @@ import { CompletionsMiddleware } from '../type'
 const MIDDLEWARE_NAME = 'TransformCoreToSdkParamsMiddleware'
 
 /**
- * 中间件：将CoreCompletionsRequest转换为SDK特定的参数 - Koa洋葱圈风格
+ * 中间件：将CoreCompletionsRequest转换为SDK特定的参数
  * 使用上下文中ApiClient实例的requestTransformer进行转换
  */
 export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware = async (ctx, next) => {
-  console.log(`🔄 [${MIDDLEWARE_NAME}] Starting core to SDK params transformation`)
+  console.log(`🔄 [${MIDDLEWARE_NAME}] Starting core to SDK params transformation:`, ctx)
 
-  const params = ctx.originalParams // 初始化注入
-  const apiClient = ctx.apiClientInstance // 初始化注入
+  const params = ctx.originalParams
+  const internal = ctx._internal
+
+  // 🔧 检测递归调用：检查 params 中是否携带了预处理的 SDK 消息
+  const isRecursiveCall = internal?.toolProcessingState?.isRecursiveCall || false
+  const recursiveSdkMessages = internal?.sdkPayload?.messages
+
+  const apiClient = ctx.apiClientInstance
 
   if (!apiClient) {
     console.error(`🔄 [${MIDDLEWARE_NAME}] ApiClient instance not found in context.`)
@@ -38,12 +44,22 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware = async (
 
   try {
     // 调用transformer进行转换
-    const transformResult = await requestTransformer.transform(params, assistant, model, apiClient.provider)
+    console.log(
+      `🔄 [${MIDDLEWARE_NAME}] Transforming ${params.messages?.length || 0} application messages to SDK format`
+    )
+    const transformResult = await requestTransformer.transform(
+      params,
+      assistant,
+      model,
+      isRecursiveCall,
+      recursiveSdkMessages
+    )
 
-    const { payload: sdkPayload, metadata } = transformResult
+    const { payload: sdkPayload, metadata, processedMessages } = transformResult
 
     // 将SDK特定的payload和metadata存储在状态中，供下游中间件使用
     ctx._internal.sdkPayload = sdkPayload
+    ctx._internal.processedMessages = processedMessages
     if (metadata) {
       ctx._internal.customState = {
         ...ctx._internal.customState,
@@ -52,7 +68,7 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware = async (
     }
 
     console.log(`🔄 [${MIDDLEWARE_NAME}] Successfully transformed CoreCompletionsRequest to SDK params`)
-    console.log(`🔄 [${MIDDLEWARE_NAME}] SDK payload`, sdkPayload)
+    console.log(`🔄 [${MIDDLEWARE_NAME}] SDK payload messages count: ${sdkPayload?.messages?.length || 0}`)
     console.log(`🔄 [${MIDDLEWARE_NAME}] Has metadata:`, !!metadata)
 
     await next()

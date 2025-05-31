@@ -1,8 +1,10 @@
 import { MCPTool, MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
 import { Chunk, ErrorChunk } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
+import { SdkParams, SdkRawChunk, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
 
-import { BaseApiClient, SdkParams, SdkRawChunk, SdkRawOutput, SdkToolCall } from '../AiProvider/clients'
-import { CompletionsParams, GenericChunk, OnFilterMessagesFunction } from './schemas'
+import { BaseApiClient } from '../AiProvider/clients'
+import { CompletionsParams, GenericChunk } from './schemas'
 
 /**
  * Symbol to uniquely identify middleware context objects.
@@ -22,9 +24,6 @@ export interface BaseContext {
   methodName: string
   apiClientInstance: BaseApiClient
   originalParams: Readonly<CompletionsParams>
-
-  readonly onChunkCallback: (chunk: Chunk) => void
-  readonly onFilterMessagesCallback?: OnFilterMessagesFunction // 可选
 }
 
 /**
@@ -32,6 +31,7 @@ export interface BaseContext {
  */
 export interface ProcessingState {
   sdkPayload?: Readonly<SdkParams>
+  processedMessages?: Message[]
   capabilities?: {
     isStreaming: boolean
     isEnabledToolCalling: boolean
@@ -50,8 +50,8 @@ export interface ProcessingState {
     genericChunkStream?: ReadableStream<GenericChunk> // Output from SdkChunkToGenericChunkMiddleware, consumed by Generic processors (Text, Think, Image, etc.)
   }
   toolProcessingState?: {
-    pendingToolCalls: Array<SdkToolCall>
-    executingToolCalls: Array<{
+    pendingToolCalls?: Array<SdkToolCall>
+    executingToolCalls?: Array<{
       sdkToolCall: SdkToolCall
       mcpToolResponse: MCPToolResponse
     }>

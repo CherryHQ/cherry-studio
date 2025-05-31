@@ -1,5 +1,6 @@
 import { ExternalToolResult, KnowledgeReference, MCPToolResponse, WebSearchResponse } from '.'
 import { Response, ResponseError } from './newMessage'
+import { SdkToolCall } from './sdk'
 
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期
@@ -11,6 +12,7 @@ export enum ChunkType {
   WEB_SEARCH_COMPLETE = 'web_search_complete',
   KNOWLEDGE_SEARCH_IN_PROGRESS = 'knowledge_search_in_progress',
   KNOWLEDGE_SEARCH_COMPLETE = 'knowledge_search_complete',
+  MCP_TOOL_CREATED = 'mcp_tool_created',
   MCP_TOOL_IN_PROGRESS = 'mcp_tool_in_progress',
   MCP_TOOL_COMPLETE = 'mcp_tool_complete',
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
@@ -253,6 +255,11 @@ export interface ExternalToolCompleteChunk {
   type: ChunkType.EXTERNEL_TOOL_COMPLETE
 }
 
+export interface MCPToolCreatedChunk {
+  type: ChunkType.MCP_TOOL_CREATED
+  tool_calls: SdkToolCall[]
+}
+
 export interface MCPToolInProgressChunk {
   /**
    * The type of the chunk
@@ -345,6 +352,7 @@ export type Chunk =
   | WebSearchCompleteChunk // 互联网搜索完成
   | KnowledgeSearchInProgressChunk // 知识库搜索进行中
   | KnowledgeSearchCompleteChunk // 知识库搜索完成
+  | MCPToolCreatedChunk // MCP工具被大模型创建
   | MCPToolInProgressChunk // MCP工具调用中
   | MCPToolCompleteChunk // MCP工具调用完成
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器

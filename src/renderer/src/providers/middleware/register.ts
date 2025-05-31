@@ -19,8 +19,8 @@ const middlewareConfig: MiddlewareConfig = {
   // 通用Koa风格的completions中间件
   completions: [
     GenericLoggingMiddleware,
-    AbortHandlerMiddleware, // 中止处理 - 最外层
     TransformCoreToSdkParamsMiddleware, // 参数转换
+    AbortHandlerMiddleware, // 中止处理
     FinalChunkConsumerMiddleware, // 最终消费者
     McpToolChunkMiddleware, // 工具处理
     WebSearchMiddleware, // Web搜索处理

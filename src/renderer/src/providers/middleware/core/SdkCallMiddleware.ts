@@ -37,7 +37,7 @@ export const SdkCallMiddleware: CompletionsMiddleware = async (ctx, next) => {
     console.log(`🚀 [${MIDDLEWARE_NAME}] Making SDK call with transformed parameters`)
     console.log(`🚀 [${MIDDLEWARE_NAME}] SDK payload type:`, typeof sdkPayload)
 
-    ctx.onChunkCallback({ type: ChunkType.LLM_RESPONSE_CREATED })
+    ctx.originalParams.onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     // 执行实际的SDK调用
     // @ts-ignore - SDK参数可能有额外的字段
     const rawSdkOutput = await sdk.chat.completions.create(sdkPayload)

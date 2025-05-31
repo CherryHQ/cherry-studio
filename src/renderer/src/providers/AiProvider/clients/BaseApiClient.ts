@@ -1,6 +1,7 @@
 import { isFunctionCallingModel, isNotSupportTemperatureAndTopP } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
+import { ProcessingState } from '@renderer/providers/middleware/type'
 import {
   Assistant,
   FileTypes,
@@ -12,6 +13,7 @@ import {
   WebSearchResponse
 } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
+import { SdkInstance, SdkParams, SdkRawChunk, SdkToolCall } from '@renderer/types/sdk'
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
@@ -20,15 +22,7 @@ import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
 import { CompletionsParams, CompletionsResult } from '../../middleware/schemas'
-import {
-  ApiClient,
-  RequestTransformer,
-  ResponseChunkTransformer,
-  ResponseChunkTransformerContext,
-  SdkInstance,
-  SdkParams,
-  SdkRawChunk
-} from './types'
+import { ApiClient, RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from './types'
 
 /**
  * Abstract base class for API clients.
@@ -57,7 +51,7 @@ export abstract class BaseApiClient<
   // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
   // 实际的SDK调用由SdkCallMiddleware处理
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async completions(_params: CompletionsParams): Promise<CompletionsResult> {
+  async completions(_params: CompletionsParams, _internal?: ProcessingState): Promise<CompletionsResult> {
     const providerId = this.provider?.id || 'unknown-provider'
     console.log(`[BaseApiClient (${providerId})] completions called - middleware chain should handle actual execution`)
     console.log(
@@ -79,12 +73,9 @@ export abstract class BaseApiClient<
   // Optional tool conversion methods - implement if needed by the specific provider
   abstract convertMcpToolsToSdkTools<T>(mcpTools: MCPTool[]): T[]
 
-  convertSdkToolCallToMcp?(toolCall: any, mcpTools?: any[]): any {
-    console.warn(`convertSdkToolCallToMcp not implemented for provider: ${this.provider.id}`, toolCall, mcpTools)
-    return toolCall // Default pass-through
-  }
+  abstract convertSdkToolCallToMcp(toolCall: SdkToolCall, mcpTools: MCPTool[]): MCPTool | undefined
 
-  convertMcpToolResponseToSdkMessage?(mcpToolResponse: any, resp: any, model: Model): any {
+  convertMcpToolResponseToSdkMessage(mcpToolResponse: any, resp: any, model: Model): any {
     console.warn(
       `convertMcpToolResponseToSdkMessage not implemented for provider: ${this.provider.id}`,
       mcpToolResponse,

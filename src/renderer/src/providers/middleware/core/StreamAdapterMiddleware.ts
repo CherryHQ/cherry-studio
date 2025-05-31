@@ -1,4 +1,4 @@
-import { SdkRawChunk } from '@renderer/providers/AiProvider/clients'
+import { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream } from '@renderer/utils/stream'
 
 import { CompletionsMiddleware } from '../type'

@@ -1,10 +1,11 @@
 import { wrapProviderWithMiddleware } from '@renderer/providers/middleware'
 import middlewareConfig from '@renderer/providers/middleware/register'
 import { Provider } from '@renderer/types'
+import { SdkInstance, SdkParams, SdkRawChunk } from '@renderer/types/sdk'
 
 import { BaseApiClient } from './BaseApiClient'
 import { OpenAIApiClient } from './openai/OpenAIApiClient'
-import { ResponseChunkTransformerContext, SdkInstance, SdkParams, SdkRawChunk } from './types'
+import { ResponseChunkTransformerContext } from './types'
 
 /**
  * Factory for creating ApiClient instances based on provider configuration

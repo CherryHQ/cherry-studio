@@ -1,11 +1,7 @@
-import { isVisionModel } from '@renderer/config/models'
-import { MCPTool, MCPToolResponse, ToolCallResponse } from '@renderer/types'
-import { ChunkType, MCPToolInProgressChunk } from '@renderer/types/chunk'
-import {
-  mcpToolCallResponseToOpenAICompatibleMessage,
-  openAIToolsToMcpTool,
-  parseAndCallTools
-} from '@renderer/utils/mcp-tools'
+import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
+import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
+import { SdkMessage, SdkToolCall } from '@renderer/types/sdk'
+import { parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { ChatCompletionMessageParam, ChatCompletionMessageToolCall } from 'openai/resources'
 
 import { CompletionsParams, GenericChunk } from '../schemas'
@@ -35,52 +31,38 @@ export const McpToolChunkMiddleware: CompletionsMiddleware = async (ctx, next) =
 
   console.log(`🔧 [${MIDDLEWARE_NAME}] Starting tool handling with ${mcpTools.length} tools`)
 
-  // 初始化递归状态（仅在顶层调用时）
-  const params = ctx.originalParams
-  const internalData = (params as any)._internal
-  const isRecursiveCall = internalData?.isRecursiveCall || false
-  const recursionDepth = internalData?.recursionDepth || 0
-
-  if (!isRecursiveCall) {
-    console.log(`🔧 [${MIDDLEWARE_NAME}] Top-level call, initializing recursion state`)
-    // 保存增强后的completions函数用于递归调用
-    if (!ctx._internal.customState) {
-      ctx._internal.customState = {}
+  // 初始化工具处理状态
+  if (!ctx._internal.toolProcessingState) {
+    ctx._internal.toolProcessingState = {
+      recursionDepth: 0,
+      isRecursiveCall: false
     }
-    // 增强后的completions方法已经在composer中保存到context
-    console.log(
-      `🔧 [${MIDDLEWARE_NAME}] Enhanced completions method available:`,
-      !!ctx._internal.customState?.enhancedCompletions
-    )
+    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Initialized tool processing state`)
   }
 
-  console.log(`🔧 [${MIDDLEWARE_NAME}] Processing at depth ${recursionDepth}, isRecursive: ${isRecursiveCall}`)
+  const currentDepth = ctx._internal.toolProcessingState.recursionDepth || 0
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current recursion depth: ${currentDepth}`)
 
-  // 调用下游中间件
+  if (currentDepth >= MAX_TOOL_RECURSION_DEPTH) {
+    console.error(`🔧 [${MIDDLEWARE_NAME}] Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
+    throw new Error(`Maximum tool recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
+  }
+
+  // 创建工具处理的 Transform Stream 并应用到流上
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Creating tool handling transform stream at depth ${currentDepth}`)
+  const toolTransform = createToolHandlingTransform(ctx, mcpTools, currentDepth)
+
+  // 调用下一个中间件获取流
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling next middleware to get upstream stream`)
   await next()
 
-  // 响应后处理：处理MCP工具调用
-  if (ctx._internal.apiCall && ctx._internal.apiCall.genericChunkStream) {
-    const resultFromUpstream = ctx._internal.apiCall.genericChunkStream
-
-    console.log(`🔧 [${MIDDLEWARE_NAME}] Processing result from upstream, has stream: ${!!resultFromUpstream}`)
-
-    if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
-      // 防止无限递归
-      if (recursionDepth >= MAX_TOOL_RECURSION_DEPTH) {
-        console.error(`🔧 [${MIDDLEWARE_NAME}] Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
-        throw new Error(`Maximum tool recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
-      }
-
-      const enhancedToolStream = resultFromUpstream.pipeThrough(
-        createToolHandlingTransform(ctx, mcpTools, recursionDepth)
-      )
-
-      // 更新响应结果
-      ctx._internal.apiCall.genericChunkStream = enhancedToolStream
-    } else {
-      console.log(`🔧 [${MIDDLEWARE_NAME}] No stream to process or not a ReadableStream`)
-    }
+  // 将工具处理转换应用到现有的流上
+  if (ctx._internal.apiCall?.genericChunkStream) {
+    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Applying tool transform to upstream stream`)
+    ctx._internal.apiCall.genericChunkStream = ctx._internal.apiCall.genericChunkStream.pipeThrough(toolTransform)
+    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool transform pipeline established successfully`)
+  } else {
+    console.warn(`🔧 [${MIDDLEWARE_NAME}][DEBUG] No upstream stream found to apply transform`)
   }
 }
 
@@ -92,37 +74,27 @@ function createToolHandlingTransform(
   mcpTools: MCPTool[],
   depth: number
 ): TransformStream<GenericChunk, GenericChunk> {
-  const toolCalls: ChatCompletionMessageToolCall[] = []
+  const toolCalls: SdkToolCall[] = []
   const toolResponses: MCPToolResponse[] = []
   let assistantContent = ''
   let hasToolCalls = false
   let streamEnded = false
 
-  const params = ctx.originalParams
+  const originalParams = ctx.originalParams
+
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Transform stream created at depth ${depth}`)
 
   return new TransformStream({
-    async transform(chunk, controller) {
+    async transform(chunk: GenericChunk, controller) {
       try {
         // 处理MCP工具进展chunk
-        if (chunk.type === ChunkType.MCP_TOOL_IN_PROGRESS) {
-          const inProgressChunk = chunk as MCPToolInProgressChunk
-          for (const response of inProgressChunk.responses) {
-            if (response.id && response.tool && response.arguments) {
-              // 转换为 ChatCompletionMessageToolCall 格式
-              const toolCall: ChatCompletionMessageToolCall = {
-                id: response.id,
-                type: 'function',
-                function: {
-                  name: response.tool.name,
-                  arguments:
-                    typeof response.arguments === 'string' ? response.arguments : JSON.stringify(response.arguments)
-                }
-              }
-              toolCalls.push(toolCall)
-              hasToolCalls = true
-              console.log(`🔧 [${MIDDLEWARE_NAME}] ✅ Detected tool call from MCP chunk:`, response.tool.name)
-            }
-          }
+        if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
+          const createdChunk = chunk as MCPToolCreatedChunk
+          toolCalls.push(...createdChunk.tool_calls)
+          hasToolCalls = true
+          console.log(
+            `🔧 [${MIDDLEWARE_NAME}][DEBUG] Intercepted ${createdChunk.tool_calls.length} tool calls, total: ${toolCalls.length}`
+          )
           // 不转发MCP工具进展chunks，避免重复处理
           console.log(`🔧 [${MIDDLEWARE_NAME}] Intercepting MCP tool progress chunk to prevent duplicate processing`)
           return
@@ -132,105 +104,6 @@ function createToolHandlingTransform(
         if (chunk.type === ChunkType.TEXT_DELTA) {
           assistantContent += chunk.text || ''
         }
-
-        // 处理流结束信号
-        if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
-          const shouldProcessTools = (hasToolCalls && toolCalls.length > 0) || assistantContent.length > 0
-
-          console.log(`🔧 [${MIDDLEWARE_NAME}] Stream end detected:`, {
-            shouldProcessTools,
-            hasToolCalls,
-            toolCallsLength: toolCalls.length,
-            contentLength: assistantContent.length,
-            depth,
-            streamEnded
-          })
-
-          if (!streamEnded && shouldProcessTools) {
-            streamEnded = true
-            console.log(
-              `🔧 [${MIDDLEWARE_NAME}] ⚡ Processing tools. ToolCalls: ${toolCalls.length}, Content length: ${assistantContent.length}`
-            )
-
-            // 1. 执行工具调用
-            let toolResults: ChatCompletionMessageParam[] = []
-
-            // Function Call 方式
-            if (toolCalls.length > 0) {
-              const functionCallResults = await executeToolCalls(
-                toolCalls,
-                mcpTools,
-                toolResponses,
-                params.onChunk,
-                params.assistant.model!
-              )
-              toolResults = toolResults.concat(functionCallResults)
-            }
-
-            // Prompt 方式
-            if (assistantContent.length > 0) {
-              const promptToolResults = await executeToolUses(
-                assistantContent,
-                mcpTools,
-                toolResponses,
-                params.onChunk,
-                params.assistant.model!
-              )
-              toolResults = toolResults.concat(promptToolResults)
-            }
-
-            // 2. 递归处理工具结果
-            if (toolResults.length > 0) {
-              console.log(`🔧 [${MIDDLEWARE_NAME}] Found ${toolResults.length} tool results, starting recursion`)
-
-              // 构建新的参数
-              const newParams = buildParamsWithToolResults(params, toolResults, assistantContent, toolCalls)
-
-              // 获取增强后的completions函数
-              const enhancedCompletions = ctx._internal.customState?.enhancedCompletions
-              if (!enhancedCompletions) {
-                console.error(`🔧 [${MIDDLEWARE_NAME}] Enhanced completions method not found`)
-                throw new Error('Enhanced completions method not found for recursive tool call')
-              }
-
-              // 递归调用
-              console.log(`🔧 [${MIDDLEWARE_NAME}] Recursively calling at depth ${depth + 1}`)
-
-              try {
-                const recursiveResult = await enhancedCompletions(newParams)
-
-                // 如果递归调用有流结果，将其内容转发到当前流
-                if (recursiveResult?.stream && recursiveResult.stream instanceof ReadableStream) {
-                  const reader = recursiveResult.stream.getReader()
-
-                  try {
-                    while (true) {
-                      const { done, value } = await reader.read()
-                      if (done) break
-
-                      // 转发递归调用的chunks
-                      controller.enqueue(value)
-                    }
-                  } finally {
-                    reader.releaseLock()
-                  }
-                }
-              } catch (error) {
-                console.error(`🔧 [${MIDDLEWARE_NAME}] Recursive call failed:`, error)
-                // 发送错误chunk
-                controller.enqueue({
-                  type: ChunkType.ERROR,
-                  error: {
-                    message: error instanceof Error ? error.message : 'Unknown error in recursive tool processing',
-                    code: 'TOOL_RECURSION_ERROR'
-                  }
-                } as GenericChunk)
-              }
-            }
-          }
-        }
-
-        // 转发其他chunks
         controller.enqueue(chunk)
       } catch (error) {
         console.error(`🔧 [${MIDDLEWARE_NAME}] Error processing chunk:`, error)
@@ -238,28 +111,154 @@ function createToolHandlingTransform(
       }
     },
 
-    flush() {
+    async flush(controller) {
+      console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Transform stream flushing at depth ${depth}`)
+      console.log(
+        `🔧 [${MIDDLEWARE_NAME}][DEBUG] hasToolCalls: ${hasToolCalls}, toolCalls.length: ${toolCalls.length}, assistantContent.length: ${assistantContent.length}`
+      )
+
+      const shouldProcessTools = (hasToolCalls && toolCalls.length > 0) || assistantContent.length > 0
+
+      if (!streamEnded && shouldProcessTools) {
+        streamEnded = true
+        console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting tool processing at depth ${depth}`)
+
+        try {
+          let toolResult: Array<SdkMessage> = []
+
+          if (toolCalls.length > 0) {
+            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing ${toolCalls.length} function calls`)
+            toolResult = await executeToolCalls(
+              ctx,
+              toolCalls,
+              mcpTools,
+              toolResponses,
+              originalParams.onChunk,
+              originalParams.model
+            )
+            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Function calls completed, got ${toolResult.length} results`)
+          } else if (assistantContent.length > 0) {
+            console.log(
+              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing tool uses from ${assistantContent.length} chars of content`
+            )
+            toolResult = await executeToolUses(
+              ctx,
+              assistantContent,
+              mcpTools,
+              toolResponses,
+              originalParams.onChunk,
+              originalParams.model
+            )
+            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool uses completed, got ${toolResult.length} results`)
+          }
+
+          if (toolResult.length > 0) {
+            console.log(
+              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Building params for recursive call with ${toolResult.length} tool results`
+            )
+            const newMessages = buildParamsWithToolResults(ctx, toolResult, assistantContent, toolCalls)
+            console.log(
+              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting recursive tool call from depth ${depth} to ${depth + 1}`
+            )
+            await handleRecursiveToolCall(ctx, newMessages, depth + 1, controller)
+          } else {
+            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] No tool results to process, skipping recursion`)
+          }
+        } catch (error) {
+          console.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
+          controller.error(error)
+        }
+      } else {
+        console.log(
+          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Skipping tool processing - streamEnded: ${streamEnded}, shouldProcessTools: ${shouldProcessTools}`
+        )
+      }
+
       console.log(`🔧 [${MIDDLEWARE_NAME}] Transform stream flushed at depth ${depth}`)
     }
   })
 }
 
 /**
+ * 处理递归工具调用
+ */
+async function handleRecursiveToolCall(
+  ctx: CompletionsContext,
+  newSdkMessages: SdkMessage[],
+  newDepth: number,
+  controller: TransformStreamDefaultController<GenericChunk>
+): Promise<void> {
+  console.log(`🔧 [${MIDDLEWARE_NAME}] Starting recursive tool call at depth ${newDepth}`)
+
+  // 检查是否有增强的completions方法可供递归调用
+  const enhancedCompletions = ctx._internal.customState?.enhancedCompletions
+  if (!enhancedCompletions) {
+    console.warn(`🔧 [${MIDDLEWARE_NAME}] Enhanced completions method not found, cannot perform recursive call`)
+    return
+  }
+
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Enhanced completions method found, proceeding with recursive call`)
+
+  try {
+    // 更新递归状态
+    if (!ctx._internal.toolProcessingState) {
+      ctx._internal.toolProcessingState = {}
+    }
+    ctx._internal.toolProcessingState.isRecursiveCall = true
+    ctx._internal.toolProcessingState.recursionDepth = newDepth
+
+    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Updated recursion state - depth: ${newDepth}, isRecursive: true`)
+
+    const recursiveParams = {
+      ...ctx.originalParams,
+      onChunk: (chunk: GenericChunk) => {
+        console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Forwarding recursive chunk: ${chunk.type}`)
+        try {
+          controller.enqueue(chunk)
+        } catch (error) {
+          console.error(`🔧 [${MIDDLEWARE_NAME}] Error forwarding recursive chunk:`, error)
+        }
+      }
+    }
+
+    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting recursive call with onChunk forwarding: `, recursiveParams)
+
+    await enhancedCompletions(recursiveParams, {
+      sdkPayload: {
+        messages: newSdkMessages
+      },
+      toolProcessingState: ctx._internal.toolProcessingState
+    })
+    console.log(`🔧 [${MIDDLEWARE_NAME}] Recursive call completed at depth ${newDepth}`)
+  } catch (error) {
+    console.error(`🔧 [${MIDDLEWARE_NAME}] Recursive tool call failed at depth ${newDepth}:`, error)
+    console.error(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Error stack:`, (error as Error)?.stack || 'No stack trace')
+    controller.error(error)
+  }
+}
+
+/**
  * 执行工具调用（Function Call 方式）
  */
 async function executeToolCalls(
+  ctx: CompletionsContext,
   toolCalls: ChatCompletionMessageToolCall[],
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: any
+  model: Model
 ): Promise<ChatCompletionMessageParam[]> {
   console.log(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolCalls.length} tools`)
+  console.log(
+    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool calls:`,
+    toolCalls.map((tc) => `${tc.function.name}(${tc.id})`).join(', ')
+  )
 
   // 转换为MCPToolResponse格式
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
-      const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall)
+      console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting tool call: ${toolCall.function.name}`)
+      const mcpTool = ctx.apiClientInstance.convertSdkToolCallToMcp(toolCall, mcpTools)
       if (!mcpTool) {
         console.warn(`🔧 [${MIDDLEWARE_NAME}] MCP tool not found for: ${toolCall.function.name}`)
         return undefined
@@ -268,8 +267,13 @@ async function executeToolCalls(
       let parsedArgs: any
       try {
         parsedArgs = JSON.parse(toolCall.function.arguments)
+        console.log(
+          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Parsed arguments for ${toolCall.function.name}:`,
+          Object.keys(parsedArgs)
+        )
       } catch {
         parsedArgs = toolCall.function.arguments
+        console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Using raw arguments for ${toolCall.function.name}`)
       }
 
       return {
@@ -282,24 +286,36 @@ async function executeToolCalls(
     })
     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
 
+  console.log(
+    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Successfully converted ${mcpToolResponses.length}/${toolCalls.length} tool calls`
+  )
+
   if (mcpToolResponses.length === 0) {
     console.warn(`🔧 [${MIDDLEWARE_NAME}] No valid MCP tool responses to execute`)
     return []
   }
 
   // 使用现有的parseAndCallTools函数执行工具
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with ${mcpToolResponses.length} responses`)
   const toolResults = await parseAndCallTools(
     mcpToolResponses,
     allToolResponses,
     onChunk,
     (mcpToolResponse, resp, model) => {
-      return mcpToolCallResponseToOpenAICompatibleMessage(mcpToolResponse, resp, isVisionModel(model))
+      console.log(
+        `🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting MCP response to SDK message for tool: ${mcpToolResponse.tool?.name}`
+      )
+      return ctx.apiClientInstance.convertMcpToolResponseToSdkMessage(mcpToolResponse, resp, model)
     },
     model,
     mcpTools
   )
 
   console.log(`🔧 [${MIDDLEWARE_NAME}] Tool execution completed, ${toolResults.length} results`)
+  console.log(
+    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool results types:`,
+    toolResults.map((r: any) => r.role || r.type || 'unknown').join(', ')
+  )
   return toolResults as ChatCompletionMessageParam[]
 }
 
@@ -307,27 +323,37 @@ async function executeToolCalls(
  * 执行工具调用（Prompt 方式）
  */
 async function executeToolUses(
+  ctx: CompletionsContext,
   content: string,
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
-  model: any
+  model: Model
 ): Promise<ChatCompletionMessageParam[]> {
   console.log(`🔧 [${MIDDLEWARE_NAME}] Executing tool uses from content:`, content.substring(0, 200) + '...')
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Available tools:`, mcpTools.map((t) => t.name).join(', '))
 
   // 使用现有的parseAndCallTools函数处理prompt中的工具使用
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with content-based tool parsing`)
   const toolResults = await parseAndCallTools(
     content,
     allToolResponses,
     onChunk,
     (mcpToolResponse, resp, model) => {
-      return mcpToolCallResponseToOpenAICompatibleMessage(mcpToolResponse, resp, isVisionModel(model))
+      console.log(
+        `🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting MCP response to SDK message for tool: ${mcpToolResponse.tool?.name}`
+      )
+      return ctx.apiClientInstance.convertMcpToolResponseToSdkMessage(mcpToolResponse, resp, model)
     },
     model,
     mcpTools
   )
 
   console.log(`🔧 [${MIDDLEWARE_NAME}] Tool uses execution completed, ${toolResults.length} results`)
+  console.log(
+    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool results types:`,
+    toolResults.map((r: any) => r.role || r.type || 'unknown').join(', ')
+  )
   return toolResults as ChatCompletionMessageParam[]
 }
 
@@ -335,49 +361,47 @@ async function executeToolUses(
  * 构建包含工具结果的新参数
  */
 function buildParamsWithToolResults(
-  originalParams: CompletionsParams,
-  toolResults: ChatCompletionMessageParam[],
+  ctx: CompletionsContext,
+  toolResults: SdkMessage[],
   assistantContent: string,
-  toolCalls: ChatCompletionMessageToolCall[]
-): CompletionsParams {
+  toolCalls: SdkToolCall[]
+): SdkMessage[] {
   console.log(`🔧 [${MIDDLEWARE_NAME}] Building new params with ${toolResults.length} tool results`)
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Assistant content length: ${assistantContent.length}`)
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool calls count: ${toolCalls.length}`)
 
   // 获取当前已经转换好的reqMessages，如果没有则使用原始messages
-  const currentReqMessages = (originalParams as any)._internal?.sdkParams?.reqMessages || []
+  const currentReqMessages = ctx._internal.sdkPayload?.messages || []
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current messages count: ${currentReqMessages.length}`)
 
   // 构建新的reqMessages数组（使用SDK格式）
-  const newReqMessages: ChatCompletionMessageParam[] = [
+  const newReqMessages: SdkMessage[] = [
     ...currentReqMessages,
     // 添加助手的回复（包含工具调用）
     {
       role: 'assistant',
       content: assistantContent,
-      tool_calls: toolCalls.map((tc) => ({
-        id: tc.id,
-        type: 'function',
-        function: {
-          name: tc.function.name,
-          arguments:
-            typeof tc.function.arguments === 'string' ? tc.function.arguments : JSON.stringify(tc.function.arguments)
-        }
-      }))
+      tool_calls: toolCalls
     },
     // 添加工具执行结果
     ...toolResults
   ]
 
-  return {
-    ...originalParams,
-    _internal: {
-      ...(originalParams as any)._internal,
-      isRecursiveCall: true,
-      recursionDepth: ((originalParams as any)._internal?.recursionDepth || 0) + 1,
-      sdkParams: {
-        ...(originalParams as any)._internal?.sdkParams,
-        reqMessages: newReqMessages
-      }
-    }
-  } as CompletionsParams
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
+  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Message roles:`, newReqMessages.map((m) => m.role).join(' -> '))
+
+  // 更新递归状态
+  if (!ctx._internal.toolProcessingState) {
+    ctx._internal.toolProcessingState = {}
+  }
+  ctx._internal.toolProcessingState.isRecursiveCall = true
+  ctx._internal.toolProcessingState.recursionDepth = (ctx._internal.toolProcessingState?.recursionDepth || 0) + 1
+
+  console.log(
+    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Updated recursion state - depth: ${ctx._internal.toolProcessingState.recursionDepth}`
+  )
+
+  return newReqMessages
 }
 
 export default McpToolChunkMiddleware

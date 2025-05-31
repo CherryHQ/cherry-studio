@@ -18,9 +18,9 @@ const MIDDLEWARE_NAME = 'FinalChunkConsumerAndNotifierMiddleware'
  */
 const FinalChunkConsumerMiddleware: CompletionsMiddleware = async (ctx, next) => {
   const params = ctx.originalParams
-  const internalData = (params as any)._internal
-  const isRecursiveCall = internalData?.isRecursiveCall || false
-  const recursionDepth = internalData?.recursionDepth || 0
+  const internal = ctx._internal
+  const isRecursiveCall = internal?.toolProcessingState?.isRecursiveCall || false
+  const recursionDepth = internal?.toolProcessingState?.recursionDepth || 0
 
   console.log(`[${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`)
 
@@ -75,8 +75,8 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware = async (ctx, next) =>
               const genericChunk = chunk as GenericChunk
 
               // 转发chunk给onChunk回调
-              if (ctx.onChunkCallback) {
-                ctx.onChunkCallback(genericChunk as Chunk)
+              if (params.onChunk) {
+                params.onChunk(genericChunk as Chunk)
               }
 
               // 检查是否是LLM_RESPONSE_COMPLETE，用于发送最终的BLOCK_COMPLETE
@@ -85,13 +85,13 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware = async (ctx, next) =>
                 extractAndAccumulateUsageMetrics(genericChunk, ctx._internal.observer)
 
                 // 只在顶层调用时发送最终的累计数据
-                if (ctx.onChunkCallback && !isRecursiveCall) {
+                if (params.onChunk && !isRecursiveCall) {
                   console.log(
                     `[${MIDDLEWARE_NAME}] Sending final BLOCK_COMPLETE with accumulated data (top-level call)`
                   )
 
                   // 发送包含累计数据的 BLOCK_COMPLETE
-                  ctx.onChunkCallback({
+                  params.onChunk({
                     type: ChunkType.BLOCK_COMPLETE,
                     response: {
                       usage: ctx._internal.observer?.usage ? { ...ctx._internal.observer.usage } : undefined,

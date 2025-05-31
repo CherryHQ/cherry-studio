@@ -6,9 +6,9 @@ const MIDDLEWARE_NAME = 'AbortHandlerMiddleware'
 
 export const AbortHandlerMiddleware: CompletionsMiddleware = async (ctx, next) => {
   const params = ctx.originalParams
-  const internalData = (params as any)._internal
-  const isRecursiveCall = internalData?.isRecursiveCall || false
-  const recursionDepth = internalData?.recursionDepth || 0
+  const internal = ctx._internal
+  const isRecursiveCall = internal?.toolProcessingState?.isRecursiveCall || false
+  const recursionDepth = internal?.toolProcessingState?.recursionDepth || 0
 
   console.log(`🔄 [${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`)
 
@@ -29,8 +29,8 @@ export const AbortHandlerMiddleware: CompletionsMiddleware = async (ctx, next) =
 
   // 获取当前消息的ID用于abort管理
   // 优先使用处理过的消息，如果没有则使用原始消息
-  const processedMessages = internalData?.processedMessages || params.messages
-  const lastUserMessage = processedMessages.findLast((m: any) => m.role === 'user')
+  const processedMessages = internal?.processedMessages || params.messages
+  const lastUserMessage = processedMessages.findLast((m) => m.role === 'user')
   const messageId = lastUserMessage?.id
 
   // 使用BaseApiClient的createAbortController方法创建AbortController

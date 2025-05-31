@@ -6,7 +6,8 @@ import {
   CompletionsMiddleware,
   MethodMiddleware,
   MIDDLEWARE_CONTEXT_SYMBOL,
-  Next
+  Next,
+  ProcessingState
 } from './type'
 
 // /**
@@ -288,26 +289,31 @@ export function applyCompletionsMiddlewares(
 
   const composed = compose(middlewares)
 
-  const enhancedCompletionsMethod = async function (params: CompletionsParams): Promise<CompletionsResult> {
+  const enhancedCompletionsMethod = async function (
+    params: CompletionsParams,
+    _internal?: ProcessingState
+  ): Promise<CompletionsResult> {
     console.log(
       `[applyCompletionsMiddlewares] Enhanced completions method called for provider: ${originalApiClientInstance.provider?.id}`
     )
+
+    console.log(`[applyCompletionsMiddlewares] _internal in Recursion:`, _internal)
 
     const completionsContext: CompletionsContext = {
       [MIDDLEWARE_CONTEXT_SYMBOL]: true,
       methodName: 'completions',
       apiClientInstance: originalApiClientInstance,
       originalParams: params,
-      onChunkCallback: params.onChunk,
-      onFilterMessagesCallback: params.onFilterMessages,
       _internal: {
+        ..._internal,
         capabilities: {
           isStreaming: params.streamOutput,
           isEnabledToolCalling: (params.mcpTools && params.mcpTools.length > 0) || false,
           isEnabledWebSearch: params.enableWebSearch || false,
           isEnabledReasoning: params.enableReasoning || false,
           mcpTools: params.mcpTools || []
-        }
+        },
+        toolProcessingState: _internal?.toolProcessingState || {}
       }
     }
 
@@ -371,8 +377,7 @@ export function applyMethodMiddlewares<TArgs extends any[], TResult>(
       [MIDDLEWARE_CONTEXT_SYMBOL]: true,
       methodName,
       apiClientInstance: originalApiClientInstance,
-      originalParams: defaultParams,
-      onChunkCallback: () => {}
+      originalParams: defaultParams
     }
 
     // 最终处理函数：调用原始方法

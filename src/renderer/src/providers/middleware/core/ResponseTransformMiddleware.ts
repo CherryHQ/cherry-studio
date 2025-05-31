@@ -1,4 +1,6 @@
-import { ResponseChunkTransformerContext, SdkRawChunk } from '../../AiProvider/clients/types'
+import { SdkRawChunk } from '@renderer/types/sdk'
+
+import { ResponseChunkTransformerContext } from '../../AiProvider/clients/types'
 import { GenericChunk } from '../schemas'
 import { CompletionsMiddleware } from '../type'
 

@@ -14,6 +14,12 @@ import {
   isVisionModel
 } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterUserRoleStartMessages
+} from '@renderer/services/MessagesService'
+import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store' // For Copilot token
 import {
   Assistant,
@@ -26,21 +32,36 @@ import {
   Provider,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, LLMResponseCompleteChunk, TextDeltaChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
+import {
+  ChunkType,
+  LLMResponseCompleteChunk,
+  MCPToolCreatedChunk,
+  TextDeltaChunk,
+  ThinkingDeltaChunk
+} from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
+  OpenAISdkParams,
+  OpenAISdkRawChunk,
+  OpenAISdkRawContentSource,
+  ReasoningEffortOptionalParams
+} from '@renderer/types/sdk'
+import { addImageFileToContents } from '@renderer/utils/formats'
+import {
+  isEnabledToolUse,
   mcpToolCallResponseToOpenAICompatibleMessage,
   mcpToolsToOpenAIChatTools,
   openAIToolsToMcpTool
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { buildSystemPrompt } from '@renderer/utils/prompt'
+import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources'
 
 import { GenericChunk } from '../../../middleware/schemas'
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
-import { OpenAISdkParams, OpenAISdkRawChunk, OpenAISdkRawContentSource, ReasoningEffortOptionalParams } from './types'
 
 // Define a context type if your response transformer needs it
 interface OpenAIResponseTransformContext extends ResponseChunkTransformerContext {}
@@ -310,6 +331,13 @@ export class OpenAIApiClient extends BaseApiClient<
     return mcpToolsToOpenAIChatTools(mcpTools) as T[]
   }
 
+  convertSdkToolCallToMcp(
+    toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+    mcpTools: MCPTool[]
+  ): MCPTool | undefined {
+    return openAIToolsToMcpTool(mcpTools, toolCall)
+  }
+
   convertMcpToolResponseToSdkMessage(
     mcpToolResponse: MCPToolResponse,
     resp: MCPCallToolResponse,
@@ -331,40 +359,78 @@ export class OpenAIApiClient extends BaseApiClient<
 
   getRequestTransformer(): RequestTransformer<OpenAISdkParams> {
     return {
-      transform: async (coreRequest, assistant, model): Promise<{ payload: OpenAISdkParams }> => {
+      transform: async (
+        coreRequest,
+        assistant,
+        model,
+        isRecursiveCall,
+        recursiveSdkMessages
+      ): Promise<{
+        payload: OpenAISdkParams
+        messages: ChatCompletionMessageParam[]
+        processedMessages: Message[]
+      }> => {
         const { messages, mcpTools, maxTokens, streamOutput } = coreRequest
 
-        let systemMessageContent = assistant.prompt || ''
+        const { contextCount } = getAssistantSettings(assistant)
+
+        const processedMessages = addImageFileToContents(messages)
+
+        let systemMessage = { role: 'system', content: assistant.prompt || '' }
+
         if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessageContent = `Formatting re-enabled${systemMessageContent ? '\n' + systemMessageContent : ''}`
-        }
-        if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
-          systemMessageContent = `Formatting re-enabled${systemMessageContent ? '\n' + systemMessageContent : ''}`
-        }
-
-        const reqMessages: ChatCompletionMessageParam[] = []
-        if (systemMessageContent) {
-          reqMessages.push({
-            role:
-              isSupportedReasoningEffortOpenAIModel(model) ||
-              model.id.includes('o1-preview') ||
-              model.id.includes('o1-mini')
-                ? 'system'
-                : 'system',
-            content: systemMessageContent
-          } as ChatCompletionMessageParam)
+          systemMessage = {
+            role: 'developer',
+            content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+          }
         }
 
+        const { tools } = this.setupToolsConfig<ChatCompletionTool>({
+          mcpTools: mcpTools,
+          model,
+          enableToolUse: isEnabledToolUse(assistant)
+        })
+
+        if (this.useSystemPromptForTools) {
+          systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+        }
+
+        const userMessages: ChatCompletionMessageParam[] = []
+
+        const _messages = filterUserRoleStartMessages(
+          filterEmptyMessages(filterContextMessages(takeRight(processedMessages, contextCount + 1)))
+        )
+
+        coreRequest.onFilterMessages(_messages)
         for (const message of messages) {
-          reqMessages.push(await this.convertMessageToSdkParam(message, model))
+          userMessages.push(await this.convertMessageToSdkParam(message, model))
         }
 
-        const tools = mcpTools && mcpTools.length > 0 ? this.convertMcpToolsToSdkTools(mcpTools) : undefined
+        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+        if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
+          const postsuffix = '/no_think'
+          const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+          const currentContent = lastUserMsg.content
+
+          lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+        }
+
+        let reqMessages: ChatCompletionMessageParam[]
+        if (!systemMessage.content) {
+          reqMessages = [...userMessages]
+        } else {
+          reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+        }
+
+        reqMessages = processReqMessages(model, reqMessages)
 
         // Create common parameters that will be used in both streaming and non-streaming cases
         const commonParams = {
           model: model.id,
-          messages: reqMessages,
+          messages:
+            isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
+              ? recursiveSdkMessages
+              : reqMessages,
           temperature: this.getTemperature(assistant, model),
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
@@ -384,7 +450,7 @@ export class OpenAIApiClient extends BaseApiClient<
               stream: false
             }
 
-        return { payload: sdkParams }
+        return { payload: sdkParams, messages: reqMessages, processedMessages }
       }
     }
   }
@@ -509,37 +575,10 @@ export class OpenAIApiClient extends BaseApiClient<
 
         // 处理工具调用
         if (contentSource.tool_calls && context?.isEnabledToolCalling) {
-          for (const toolCall of contentSource.tool_calls) {
-            // 只有当工具调用包含完整信息时才生成chunk
-            if (toolCall.id && toolCall.function?.name && toolCall.function?.arguments) {
-              const mcpTool = openAIToolsToMcpTool(context.mcpTools || [], toolCall as any)
-              if (mcpTool) {
-                // 解析参数
-                let parsedArgs: any
-                try {
-                  parsedArgs =
-                    typeof toolCall.function.arguments === 'string'
-                      ? JSON.parse(toolCall.function.arguments)
-                      : toolCall.function.arguments
-                } catch {
-                  parsedArgs = toolCall.function.arguments
-                }
-
-                yield {
-                  type: ChunkType.MCP_TOOL_IN_PROGRESS,
-                  responses: [
-                    {
-                      id: toolCall.id,
-                      toolCallId: toolCall.id,
-                      tool: mcpTool,
-                      arguments: parsedArgs,
-                      status: 'pending'
-                    }
-                  ]
-                } as GenericChunk
-              }
-            }
-          }
+          yield {
+            type: ChunkType.MCP_TOOL_CREATED,
+            tool_calls: contentSource.tool_calls
+          } as MCPToolCreatedChunk
         }
 
         // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)

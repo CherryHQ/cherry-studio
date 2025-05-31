@@ -1,11 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { GoogleGenAI } from '@google/genai'
 import { Assistant, MCPTool, Model } from '@renderer/types'
 import { Provider } from '@renderer/types'
-import OpenAI, { AzureOpenAI } from 'openai'
+import { Message } from '@renderer/types/newMessage'
+import { SdkMessage } from '@renderer/types/sdk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../../middleware/schemas'
-import { OpenAISdkParams, OpenAISdkRawChunk, OpenAISdkRawOutput } from './openai/types'
 
 /**
  * 请求转换器接口
@@ -15,9 +13,12 @@ export interface RequestTransformer<TSdkParams = any> {
     completionsParams: CompletionsParams,
     assistant: Assistant,
     model: Model,
-    provider?: Provider
+    isRecursiveCall?: boolean,
+    recursiveSdkMessages?: SdkMessage[]
   ): Promise<{
     payload: TSdkParams
+    messages: SdkMessage[]
+    processedMessages: Message[]
     metadata?: Record<string, any>
   }>
 }
@@ -37,13 +38,6 @@ export interface ResponseChunkTransformerContext {
   isEnabledReasoning: boolean
   mcpTools: MCPTool[]
 }
-
-export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
-export type SdkParams = OpenAISdkParams
-export type SdkRawChunk = OpenAISdkRawChunk
-export type SdkRawOutput = OpenAISdkRawOutput
-export type SdkMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
-export type SdkToolCall = OpenAI.Chat.Completions.ChatCompletionMessageToolCall
 
 /**
  * API客户端接口
