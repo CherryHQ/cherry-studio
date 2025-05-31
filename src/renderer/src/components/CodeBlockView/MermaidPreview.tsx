@@ -1,8 +1,10 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { useMermaid } from '@renderer/hooks/useMermaid'
-import { Flex } from 'antd'
-import React, { memo, startTransition, useCallback, useEffect, useRef, useState } from 'react'
+import { Flex, Spin } from 'antd'
+import { debounce } from 'lodash'
+import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -10,12 +12,16 @@ interface Props {
   setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
+/** 预览 Mermaid 图表
+ * 通过防抖渲染提供比较统一的体验，减少闪烁。
+ * FIXME: 等将来容易判断代码块结束位置时再重构。
+ */
 const MermaidPreview: React.FC<Props> = ({ children, setTools }) => {
-  const { mermaid, isLoading, error: mermaidError } = useMermaid()
+  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError } = useMermaid()
   const mermaidRef = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState<string | null>(null)
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
-  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isRendering, setIsRendering] = useState(false)
 
   // 使用通用图像工具
   const { handleZoom, handleCopyImage, handleDownload } = usePreviewToolHandlers(mermaidRef, {
@@ -32,55 +38,69 @@ const MermaidPreview: React.FC<Props> = ({ children, setTools }) => {
     handleDownload
   })
 
-  const render = useCallback(async () => {
-    try {
-      if (!children) return
+  // 实际的渲染函数
+  const renderMermaid = useCallback(
+    async (content: string) => {
+      if (!content || !mermaidRef.current) return
 
-      // 验证语法，提前抛出异常
-      await mermaid.parse(children)
+      try {
+        setIsRendering(true)
 
-      if (!mermaidRef.current) return
-      const { svg } = await mermaid.render(diagramId, children, mermaidRef.current)
+        // 验证语法，提前抛出异常
+        await mermaid.parse(content)
 
-      // 避免不可见时产生 undefined 和 NaN
-      const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
-      mermaidRef.current.innerHTML = fixedSvg
+        const { svg } = await mermaid.render(diagramId, content, mermaidRef.current)
 
-      // 没有语法错误时清除错误记录和定时器
-      setError(null)
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current)
-        errorTimeoutRef.current = null
-      }
-    } catch (error) {
-      // 延迟显示错误
-      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current)
-      errorTimeoutRef.current = setTimeout(() => {
+        // 避免不可见时产生 undefined 和 NaN
+        const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
+        mermaidRef.current.innerHTML = fixedSvg
+
+        // 渲染成功，清除错误记录
+        setError(null)
+      } catch (error) {
         setError((error as Error).message)
-      }, 500)
-    }
-  }, [children, diagramId, mermaid])
-
-  // 渲染Mermaid图表
-  useEffect(() => {
-    if (isLoading) return
-
-    startTransition(render)
-
-    // 清理定时器
-    return () => {
-      if (errorTimeoutRef.current) {
-        clearTimeout(errorTimeoutRef.current)
-        errorTimeoutRef.current = null
+      } finally {
+        setIsRendering(false)
       }
+    },
+    [diagramId, mermaid]
+  )
+
+  // debounce 渲染
+  const debouncedRender = useMemo(
+    () =>
+      debounce((content: string) => {
+        startTransition(() => renderMermaid(content))
+      }, 300),
+    [renderMermaid]
+  )
+
+  // 触发渲染
+  useEffect(() => {
+    if (isLoadingMermaid) return
+
+    if (children) {
+      setIsRendering(true)
+      debouncedRender(children)
+    } else {
+      debouncedRender.cancel()
+      setIsRendering(false)
     }
-  }, [isLoading, render])
+
+    return () => {
+      debouncedRender.cancel()
+    }
+  }, [children, isLoadingMermaid, debouncedRender])
+
+  const isLoading = isLoadingMermaid || isRendering
 
   return (
-    <Flex vertical>
-      {(mermaidError || error) && <StyledError>{mermaidError || error}</StyledError>}
-      <StyledMermaid ref={mermaidRef} className="mermaid" />
-    </Flex>
+    <Spin spinning={isLoading} indicator={<SvgSpinners180Ring color="var(--color-text-2)" />}>
+      <Flex vertical style={{ minHeight: isLoading ? '2rem' : 'auto' }}>
+        {(mermaidError || error) && <StyledError>{mermaidError || error}</StyledError>}
+        <StyledMermaid ref={mermaidRef} className="mermaid" />
+      </Flex>
+    </Spin>
   )
 }
 
