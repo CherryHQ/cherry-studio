@@ -1,20 +1,31 @@
 export const download = (url: string, filename?: string) => {
-  // 处理 file:// 协议
-  if (url.startsWith('file://')) {
+  // 处理可直接通过 <a> 标签下载的 URL:
+  // - 本地文件 ( file:// )
+  // - 对象 URL ( blob: )
+  // - 相对安全的内联数据 ( data:image/png, data:image/jpeg )
+  //   (注: 其他 data 类型，如 data:text/html 或 data:image/svg+xml，
+  //    因其潜在安全风险，不在此处理，将由后续 fetch 逻辑处理或被 CSP 阻止。)
+  const SUPPORTED_PREFIXES = ['file://', 'blob:', 'data:image/png', 'data:image/jpeg']
+  if (SUPPORTED_PREFIXES.some((prefix) => url.startsWith(prefix))) {
     const link = document.createElement('a')
     link.href = url
-    link.download = filename || url.split('/').pop() || 'download'
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    return
-  }
 
-  // 处理 Blob URL
-  if (url.startsWith('blob:')) {
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename || `${Date.now()}_diagram.svg`
+    let resolvedFilename = filename
+    if (!resolvedFilename) {
+      if (url.startsWith('file://')) {
+        const pathname = new URL(url).pathname
+        resolvedFilename = decodeURIComponent(pathname.substring(pathname.lastIndexOf('/') + 1))
+      } else if (url.startsWith('blob:')) {
+        resolvedFilename = `${Date.now()}_diagram.svg`
+      } else if (url.startsWith('data:')) {
+        const mimeMatch = url.match(/^data:([^;,]+)[;,]/)
+        const mimeType = mimeMatch && mimeMatch[1]
+        const extension = getExtensionFromMimeType(mimeType)
+        resolvedFilename = `${Date.now()}_download${extension}`
+      } else resolvedFilename = 'download'
+    }
+    link.download = resolvedFilename
+
     document.body.appendChild(link)
     link.click()
     link.remove()
