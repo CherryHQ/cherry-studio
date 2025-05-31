@@ -14,14 +14,24 @@ interface IBlacklist {
  *************************************************************************/
 export const SELECTION_PREDEFINED_BLACKLIST: IBlacklist = {
   WINDOWS: [
+    // Screenshot
     'snipaste.exe',
     'pixpin.exe',
     'sharex.exe',
+    // Image Editor
     'photoshop.exe',
-    'adobe premiere pro.exe',
     'illustrator.exe',
+    // Video Editor
+    'adobe premiere pro.exe',
     'afterfx.exe',
+    // Audio Editor
     'adobe audition.exe',
-    'acad.exe'
+    // 3D Editor
+    'blender.exe',
+    '3dsmax.exe',
+    'maya.exe',
+    // CAD
+    'acad.exe',
+    'sldworks.exe'
   ]
 }
