@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
@@ -7,11 +7,18 @@ import { isEmpty, uniqBy } from 'lodash'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
+  quickAssistant: Assistant
   assistants: Assistant[]
 }
 
 const initialState: AssistantsState = {
   defaultAssistant: getDefaultAssistant(),
+  quickAssistant: {
+    ...getDefaultAssistant(),
+    id: 'quick-assistant',
+    name: 'Quick Assistant',
+    emoji: '🚀'
+  },
   assistants: [getDefaultAssistant()]
 }
 
@@ -21,6 +28,34 @@ const assistantsSlice = createSlice({
   reducers: {
     updateDefaultAssistant: (state, action: PayloadAction<{ assistant: Assistant }>) => {
       state.defaultAssistant = action.payload.assistant
+    },
+    updateQuickAssistant: (state, action: PayloadAction<Partial<Assistant>>) => {
+      const currentSettings = state.quickAssistant?.settings || {}
+      const payloadSettings = action.payload?.settings || {}
+
+      const update = Object.entries(action.payload).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value
+        }
+        return acc
+      }, {} as Partial<Assistant>)
+
+      const mergedSettings = {
+        temperature: DEFAULT_TEMPERATURE,
+        contextCount: DEFAULT_CONTEXTCOUNT,
+        enableMaxTokens: false,
+        maxTokens: DEFAULT_MAX_TOKENS,
+        streamOutput: true,
+        hideMessages: false,
+        ...currentSettings,
+        ...(payloadSettings || {})
+      }
+
+      state.quickAssistant = {
+        ...state.quickAssistant,
+        ...update,
+        settings: mergedSettings
+      }
     },
     updateAssistants: (state, action: PayloadAction<Assistant[]>) => {
       state.assistants = action.payload
@@ -135,6 +170,7 @@ const assistantsSlice = createSlice({
 
 export const {
   updateDefaultAssistant,
+  updateQuickAssistant,
   updateAssistants,
   addAssistant,
   removeAssistant,
