@@ -685,3 +685,11 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+
+export interface MemoryConfig {
+  embedderModel?: Model
+  embedderDimensions?: number
+  llmModel?: Model
+  customFactExtractionPrompt?: string
+  customUpdateMemoryPrompt?: string
+}
