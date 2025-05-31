@@ -3,6 +3,24 @@ import type { Message } from '@renderer/types/newMessage'
 import { findImageBlocks, getMainTextContent } from './messageUtils/find'
 
 /**
+ * HTML实体编码辅助函数
+ * @param str 输入字符串
+ * @returns string 编码后的字符串
+ */
+export const encodeHTML = (str: string) => {
+  return str.replace(/[&<>"']/g, (match) => {
+    const entities: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&apos;'
+    }
+    return entities[match]
+  })
+}
+
+/**
  * 清理Markdown内容
  * @param text 要清理的文本
  * @returns 清理后的文本

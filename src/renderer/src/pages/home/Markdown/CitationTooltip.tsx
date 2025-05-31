@@ -1,6 +1,6 @@
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { Tooltip } from 'antd'
-import React from 'react'
+import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
 
 interface CitationTooltipProps {
@@ -13,55 +13,61 @@ interface CitationTooltipProps {
 }
 
 const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation }) => {
-  let hostname = ''
-  try {
-    hostname = new URL(citation.url).hostname
-  } catch {
-    hostname = citation.url
-  }
+  const hostname = useMemo(() => {
+    try {
+      return new URL(citation.url).hostname
+    } catch {
+      return citation.url
+    }
+  }, [citation.url])
+
+  const sourceTitle = useMemo(() => {
+    return citation.title?.trim() || hostname
+  }, [citation.title, hostname])
+
+  const handleClick = useCallback(() => {
+    window.open(citation.url, '_blank', 'noopener,noreferrer')
+  }, [citation.url])
 
   // 自定义悬浮卡片内容
-  const tooltipContent = (
-    <TooltipContentWrapper>
-      <TooltipHeader onClick={() => window.open(citation.url, '_blank')}>
-        <Favicon hostname={hostname} alt={citation.title || hostname} />
-        <TooltipTitle title={citation.title || hostname}>{citation.title || hostname}</TooltipTitle>
-      </TooltipHeader>
-      {citation.content && <TooltipBody>{citation.content}</TooltipBody>}
-      <TooltipFooter onClick={() => window.open(citation.url, '_blank')}>{hostname}</TooltipFooter>
-    </TooltipContentWrapper>
+  const tooltipContent = useMemo(
+    () => (
+      <div>
+        <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
+          <Favicon hostname={hostname} alt={sourceTitle} />
+          <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
+            {sourceTitle}
+          </TooltipTitle>
+        </TooltipHeader>
+        {citation.content?.trim() && (
+          <TooltipBody role="article" aria-label="Citation content">
+            {citation.content}
+          </TooltipBody>
+        )}
+        <TooltipFooter role="button" aria-label={`Visit ${hostname}`} onClick={handleClick}>
+          {hostname}
+        </TooltipFooter>
+      </div>
+    ),
+    [citation.content, hostname, handleClick, sourceTitle]
   )
 
   return (
-    <StyledTooltip
-      title={tooltipContent}
+    <Tooltip
+      overlay={tooltipContent}
       placement="top"
-      arrow={false}
-      overlayInnerStyle={{
-        backgroundColor: 'var(--color-background-mute)',
-        border: '1px solid var(--color-border)',
-        padding: 0,
-        borderRadius: '8px'
+      color="var(--color-background-mute)"
+      styles={{
+        body: {
+          border: '1px solid var(--color-border)',
+          padding: '12px',
+          borderRadius: '8px'
+        }
       }}>
       {children}
-    </StyledTooltip>
+    </Tooltip>
   )
 }
-
-// 使用styled-components来自定义Tooltip的样式，包括箭头
-const StyledTooltip = styled(Tooltip)`
-  .ant-tooltip-arrow {
-    .ant-tooltip-arrow-content {
-      background-color: var(--color-background-1);
-    }
-  }
-`
-
-const TooltipContentWrapper = styled.div`
-  padding: 12px;
-  background-color: var(--color-background-soft);
-  border-radius: 8px;
-`
 
 const TooltipHeader = styled.div`
   display: flex;
@@ -108,4 +114,4 @@ const TooltipFooter = styled.div`
   }
 `
 
-export default CitationTooltip
+export default memo(CitationTooltip)

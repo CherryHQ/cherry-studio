@@ -63,24 +63,6 @@ export function getCodeBlockId(start: any): string | null {
 }
 
 /**
- * HTML实体编码辅助函数
- * @param str 输入字符串
- * @returns string 编码后的字符串
- */
-export const encodeHTML = (str: string) => {
-  return str.replace(/[&<>"']/g, (match) => {
-    const entities: { [key: string]: string } = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&apos;'
-    }
-    return entities[match]
-  })
-}
-
-/**
  * 更新Markdown字符串中的代码块内容。
  *
  * 由于使用了remark-stringify，所以会有一些默认格式化操作，例如：

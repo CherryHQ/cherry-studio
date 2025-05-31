@@ -1,0 +1,98 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
+.c0 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.c0:hover {
+  opacity: 0.8;
+}
+
+.c1 {
+  color: var(--color-text-1);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c2 {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  color: var(--color-text-2);
+}
+
+.c3 {
+  font-size: 12px;
+  color: var(--color-link);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.c3:hover {
+  text-decoration: underline;
+}
+
+<div
+  data-color="var(--color-background-mute)"
+  data-placement="top"
+  data-styles="{"body":{"border":"1px solid var(--color-border)","padding":"12px","borderRadius":"8px"}}"
+  data-testid="tooltip-wrapper"
+>
+  <span>
+    Test content
+  </span>
+  <div
+    data-testid="tooltip-content"
+  >
+    <div>
+      <div
+        aria-label="Open Example Article in new tab"
+        class="c0"
+        role="button"
+      >
+        <div
+          alt="Example Article"
+          data-testid="mock-favicon"
+          hostname="example.com"
+        />
+        <div
+          aria-level="3"
+          class="c1"
+          role="heading"
+          title="Example Article"
+        >
+          Example Article
+        </div>
+      </div>
+      <div
+        aria-label="Citation content"
+        class="c2"
+        role="article"
+      >
+        This is the article content for testing purposes.
+      </div>
+      <div
+        aria-label="Visit example.com"
+        class="c3"
+        role="button"
+      >
+        example.com
+      </div>
+    </div>
+  </div>
+</div>
+`;

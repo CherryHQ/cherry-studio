@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   addImageFileToContents,
+  encodeHTML,
   escapeBrackets,
   escapeDollarNumber,
   extractTitle,
@@ -121,6 +122,41 @@ function createMessage(
 // --- Tests ---
 
 describe('formats', () => {
+  describe('encodeHTML', () => {
+    it('should encode all special HTML characters', () => {
+      const input = `Tom & Jerry's "cat" <dog>`
+      const result = encodeHTML(input)
+      expect(result).toBe('Tom &amp; Jerry&apos;s &quot;cat&quot; &lt;dog&gt;')
+    })
+
+    it('should return the same string if no special characters', () => {
+      const input = 'Hello World!'
+      const result = encodeHTML(input)
+      expect(result).toBe('Hello World!')
+    })
+
+    it('should return empty string if input is empty', () => {
+      const input = ''
+      const result = encodeHTML(input)
+      expect(result).toBe('')
+    })
+
+    it('should encode single special character', () => {
+      expect(encodeHTML('&')).toBe('&amp;')
+      expect(encodeHTML('<')).toBe('&lt;')
+      expect(encodeHTML('>')).toBe('&gt;')
+      expect(encodeHTML('"')).toBe('&quot;')
+      expect(encodeHTML("'")).toBe('&apos;')
+    })
+
+    it('should throw if input is not a string', () => {
+      // @ts-expect-error purposely pass wrong type to test error branch
+      expect(() => encodeHTML(null)).toThrow()
+      // @ts-expect-error purposely pass wrong type to test error branch
+      expect(() => encodeHTML(undefined)).toThrow()
+    })
+  })
+
   describe('escapeDollarNumber', () => {
     it('should escape dollar signs followed by numbers', () => {
       expect(escapeDollarNumber('The cost is $5')).toBe('The cost is \\$5')
