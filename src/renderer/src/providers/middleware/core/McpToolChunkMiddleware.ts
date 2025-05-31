@@ -207,7 +207,7 @@ async function handleRecursiveToolCall(
     ctx._internal.toolProcessingState.isRecursiveCall = true
     ctx._internal.toolProcessingState.recursionDepth = newDepth
 
-    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Updated recursion state - depth: ${newDepth}, isRecursive: true`)
+    console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Updated recursion state - depth: ${newDepth}`)
 
     const recursiveParams = {
       ...ctx.originalParams,
