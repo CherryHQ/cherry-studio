@@ -1,4 +1,5 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { Assistant, Topic } from '@renderer/types'
 import { FC } from 'react'
@@ -18,13 +19,15 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
   const topicPrompt = topic?.prompt || ''
   const isDark = theme === 'dark'
 
+  const processedPrompt = usePromptProcessor({ prompt, modelName: assistant.model?.name })
+
   if (!prompt && !topicPrompt) {
     return null
   }
 
   return (
     <Container className="system-prompt" onClick={() => AssistantSettingsPopup.show({ assistant })} $isDark={isDark}>
-      <Text>{prompt}</Text>
+      <Text>{processedPrompt || prompt}</Text>
     </Container>
   )
 }

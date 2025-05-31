@@ -3,9 +3,11 @@ import 'emoji-picker-element'
 import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
+import { supportedVariables } from '@renderer/utils/prompt'
 import { Button, Input, Popover, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
@@ -35,6 +37,11 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     }
     updateTokenCount()
   }, [prompt])
+
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: assistant.model?.name
+  })
 
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
@@ -92,14 +99,14 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       </HStack>
       <HStack mt={8} mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Tooltip title={t('agents.add.prompt.variables.tip')}>
+        <Tooltip title={t('agents.add.prompt.variables.tip', { variable_list: supportedVariables.join(', ') })}>
           <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
         </Tooltip>
       </HStack>
       <TextAreaContainer>
         {showMarkdown ? (
           <MarkdownContainer onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown className="markdown">{prompt}</ReactMarkdown>
+            <ReactMarkdown className="markdown">{processedPrompt || prompt}</ReactMarkdown>
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (

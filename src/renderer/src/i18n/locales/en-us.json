@@ -8,7 +8,7 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
-      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": "Available variables: {{variable_list}}",
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -1790,6 +1790,12 @@
         "service_tier.auto": "auto",
         "service_tier.default": "default",
         "service_tier.flex": "flex"
+      },
+      "prompt": {
+        "title": "Prompt Settings",
+        "show_replacement": "Show Variable Replacement",
+        "auto_refresh": "Auto Refresh Variables",
+        "refresh_interval": "Refresh Interval"
       }
     },
     "translate": {

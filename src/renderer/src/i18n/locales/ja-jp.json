@@ -8,7 +8,7 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
-      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": "利用可能な変数：{{variable_list}}",
       "add.title": "エージェントを作成",
       "import": {
         "title": "外部からインポート",
@@ -1789,6 +1789,12 @@
         "assistant": "アシスタントメッセージ",
         "backup": "バックアップメッセージ",
         "knowledge_embed": "ナレッジベースメッセージ"
+      },
+      "prompt": {
+        "title": "プロンプト設定",
+        "show_replacement": "変数置換を表示",
+        "auto_refresh": "変数の自動更新",
+        "refresh_interval": "更新間隔"
       }
     },
     "translate": {

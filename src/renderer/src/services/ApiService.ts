@@ -22,6 +22,7 @@ import { Message } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { promptVariableReplacer } from '@renderer/utils/prompt'
 import { findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -287,9 +288,16 @@ export async function fetchChatCompletion({
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
-
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
   messages = filterContextMessages(messages)
+
+  // 替换 assistant 系统提示词中的变量
+  if (assistant.prompt) {
+    assistant = {
+      ...assistant,
+      prompt: await promptVariableReplacer(assistant.prompt, assistant.model?.name)
+    }
+  }
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
