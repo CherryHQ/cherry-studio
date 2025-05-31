@@ -2,7 +2,7 @@ import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/typ
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { SdkMessage, SdkToolCall } from '@renderer/types/sdk'
 import { parseAndCallTools } from '@renderer/utils/mcp-tools'
-import { ChatCompletionMessageParam, ChatCompletionMessageToolCall } from 'openai/resources'
+import { ChatCompletionMessageParam } from 'openai/resources'
 
 import { CompletionsParams, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../type'
@@ -242,12 +242,12 @@ async function handleRecursiveToolCall(
  */
 async function executeToolCalls(
   ctx: CompletionsContext,
-  toolCalls: ChatCompletionMessageToolCall[],
+  toolCalls: SdkToolCall[],
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model
-): Promise<ChatCompletionMessageParam[]> {
+): Promise<SdkMessage[]> {
   console.log(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolCalls.length} tools`)
   console.log(
     `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool calls:`,
@@ -329,7 +329,7 @@ async function executeToolUses(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model
-): Promise<ChatCompletionMessageParam[]> {
+): Promise<SdkMessage[]> {
   console.log(`🔧 [${MIDDLEWARE_NAME}] Executing tool uses from content:`, content.substring(0, 200) + '...')
   console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Available tools:`, mcpTools.map((t) => t.name).join(', '))
 
