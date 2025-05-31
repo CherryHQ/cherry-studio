@@ -1059,16 +1059,18 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         const assistantFiles = findImageBlocks(lastAssistantMessage)
         const assistantImages = await Promise.all(
           assistantFiles.filter(Boolean).map(async (f) => {
-            const base64Data = f?.url?.replace(/^data:image\/\w+;base64,/, '')
-            if (!base64Data) return null
-            const binary = atob(base64Data)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) {
-              bytes[i] = binary.charCodeAt(i)
+            const match = f?.url?.match(/^data:(image\/\w+);base64,(.+)$/)
+            if (!match) return null
+            const mimeType = match[1]
+            const base64Data = match[2]
+            const binaryString = atob(base64Data)
+            const bytes = new Uint8Array(binaryString.length)
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i)
             }
-            return await toFile(bytes, 'assistant_image.png', {
-              type: 'image/png'
-            })
+            const extension = mimeType.split('/')[1] || 'bin'
+            const fileName = `assistant_image.${extension}`
+            return await toFile(bytes, fileName, { type: mimeType })
           })
         )
         images = images.concat(assistantImages.filter(Boolean) as FileLike[])
