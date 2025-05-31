@@ -5,6 +5,7 @@ import MinAppsPopover from '@renderer/components/Popups/MinAppsPopover'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -33,6 +34,7 @@ interface Props {
 const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const { assistant } = useAssistant(activeAssistant.id)
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
+  const isFullscreen = useFullscreen()
   const { topicPosition, sidebarIcons, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
@@ -90,7 +92,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       {showAssistants && (
         <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={handleToggleShowAssistants} style={{ marginLeft: isMac ? 16 : 0 }}>
+            <NavbarIcon onClick={handleToggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
@@ -113,7 +115,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
                 <NavbarIcon
                   onClick={() => toggleShowAssistants()}
-                  style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}>
+                  style={{ marginRight: 8, marginLeft: isMac && !isFullscreen ? 4 : -12 }}>
                   <PanelRightClose size={18} />
                 </NavbarIcon>
               </Tooltip>
@@ -123,7 +125,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
               <NavbarIcon
                 onClick={() => toggleShowAssistants()}
-                style={{ marginRight: 8, marginLeft: isMac ? 4 : -12 }}
+                style={{ marginRight: 8, marginLeft: isMac && !isFullscreen ? 4 : -12 }}
                 onMouseOut={() => setSidebarHideCooldown(false)}>
                 <PanelRightClose size={18} />
               </NavbarIcon>
