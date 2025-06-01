@@ -178,7 +178,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     try {
       if (mode === 'generate') {
         if (painting.model.startsWith('imagen-')) {
-          const AI = new AiProvider(aihubmixProvider)
+          const AI = await AiProvider.create(aihubmixProvider)
           const base64s = await AI.generateImage({
             prompt,
             model: painting.model,
