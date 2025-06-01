@@ -16,10 +16,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
-  exportMarkdownToNotion,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
@@ -244,7 +244,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToNotion(title, markdown)
+              exportMessageToNotion(title, markdown, message)
             }
           },
           exportMenuOptions.yuque && {

@@ -131,8 +131,7 @@ export interface SettingsState {
   showModelNameInMarkdown: boolean
   showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
-  notionAutoSplit: boolean
-  notionSplitSize: number
+  notionExportReasoning: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
@@ -275,8 +274,7 @@ export const initialState: SettingsState = {
   showModelNameInMarkdown: false,
   showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
-  notionAutoSplit: false,
-  notionSplitSize: 90,
+  notionExportReasoning: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
@@ -590,11 +588,8 @@ const settingsSlice = createSlice({
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
-    setNotionAutoSplit: (state, action: PayloadAction<boolean>) => {
-      state.notionAutoSplit = action.payload
-    },
-    setNotionSplitSize: (state, action: PayloadAction<number>) => {
-      state.notionSplitSize = action.payload
+    setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.notionExportReasoning = action.payload
     },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
@@ -748,8 +743,7 @@ export const {
   setForceDollarMathInMarkdown,
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
-  setNotionAutoSplit,
-  setNotionSplitSize,
+  setNotionExportReasoning,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
