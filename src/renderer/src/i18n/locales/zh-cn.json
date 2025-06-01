@@ -940,7 +940,10 @@
         "seed_tip": "控制放大结果的随机性",
         "magic_prompt_option_tip": "智能优化放大提示词"
       },
-      "text_desc_required": "请先输入图片描述"
+      "text_desc_required": "请先输入图片描述",
+      "req_error_text" : "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "auto_create_paint": "自动新建图片",
+      "auto_create_paint_tip": "在图片生成后，会自动新建图片"
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",
@@ -1710,7 +1713,7 @@
         "zoom_out": "缩小界面",
         "zoom_reset": "重置缩放"
       },
-      "theme.auto": "自动",
+      "theme.system": "系统",
       "theme.dark": "深色",
       "theme.light": "浅色",
       "theme.title": "主题",
@@ -1837,10 +1840,19 @@
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",
       "processing": "翻译中...",
-      "scroll_sync.disable": "关闭滚动同步",
-      "scroll_sync.enable": "开启滚动同步",
+      "language.same": "源语言和目标语言相同",
+      "language.not_pair": "源语言与设置的语言不同",
+      "settings": {
+        "title": "翻译设置",
+        "model": "模型设置",
+        "model_desc": "翻译服务使用的模型",
+        "bidirectional": "双向翻译设置",
+        "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
+        "scroll_sync": "滚动同步设置"
+      },
       "title": "翻译",
-      "tooltip.newline": "换行"
+      "tooltip.newline": "换行",
+      "detected.language": "检测到的语言"
     },
     "tray": {
       "quit": "退出",

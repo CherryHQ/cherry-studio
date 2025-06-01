@@ -940,7 +940,10 @@
         "magic_prompt_option_tip": "智能優化放大提示詞"
       },
       "rendering_speed": "渲染速度",
-      "text_desc_required": "請先輸入圖片描述"
+      "text_desc_required": "請先輸入圖片描述",
+      "req_error_text" : "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "auto_create_paint": "自動新增圖片",
+      "auto_create_paint_tip": "圖片生成後，會自動新增圖片"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -1703,7 +1706,7 @@
         "zoom_reset": "重設縮放",
         "exit_fullscreen": "退出螢幕"
       },
-      "theme.auto": "自動",
+      "theme.system": "系統",
       "theme.dark": "深色",
       "theme.light": "淺色",
       "theme.title": "主題",
@@ -1834,13 +1837,22 @@
       "input.placeholder": "輸入文字進行翻譯",
       "output.placeholder": "翻譯",
       "processing": "翻譯中...",
-      "scroll_sync.disable": "關閉滾動同步",
-      "scroll_sync.enable": "開啟滾動同步",
+      "language.same": "源語言和目標語言相同",
+      "language.not_pair": "源語言與設定的語言不同",
+      "settings": {
+        "title": "翻譯設定",
+        "model": "模型設定",
+        "model_desc": "翻譯服務使用的模型",
+        "bidirectional": "雙向翻譯設定",
+        "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
+        "scroll_sync": "滾動同步設定"
+      },
       "title": "翻譯",
       "tooltip.newline": "換行",
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
-      }
+      },
+      "detected.language": "檢測到的語言"
     },
     "tray": {
       "quit": "結束",

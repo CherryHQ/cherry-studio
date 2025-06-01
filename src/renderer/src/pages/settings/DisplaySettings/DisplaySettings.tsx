@@ -54,8 +54,6 @@ const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
 
 const DisplaySettings: FC = () => {
   const {
-    setTheme,
-    theme,
     windowStyle,
     setWindowStyle,
     topicPosition,
@@ -65,10 +63,11 @@ const DisplaySettings: FC = () => {
     pinTopicsToTop,
     customCss,
     sidebarIcons,
+    setTheme,
     assistantIconType,
     userTheme
   } = useSettings()
-  const { theme: themeMode } = useTheme()
+  const { theme, settedTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const [currentZoom, setCurrentZoom] = useState(1.0)
@@ -121,11 +120,11 @@ const DisplaySettings: FC = () => {
         )
       },
       {
-        value: ThemeMode.auto,
+        value: ThemeMode.system,
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
             <SyncOutlined />
-            <span>{t('settings.theme.auto')}</span>
+            <span>{t('settings.theme.system')}</span>
           </div>
         )
       }
@@ -168,13 +167,13 @@ const DisplaySettings: FC = () => {
   )
 
   return (
-    <SettingContainer theme={themeMode}>
+    <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Segmented value={theme} shape="round" onChange={setTheme} options={themeOptions} />
+          <Segmented value={settedTheme} shape="round" onChange={setTheme} options={themeOptions} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>

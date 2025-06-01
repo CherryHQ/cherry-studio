@@ -1478,7 +1478,7 @@
         "zoom_out": "Réduire l'interface",
         "zoom_reset": "Réinitialiser le zoom"
       },
-      "theme.auto": "Automatique",
+      "theme.system": "Système",
       "theme.dark": "Sombre",
       "theme.light": "Clair",
       "theme.title": "Thème",

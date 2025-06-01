@@ -1,3 +1,4 @@
+import { SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, ipcMain, screen } from 'electron'
@@ -196,7 +197,27 @@ export class SelectionService {
       whitelist: 1,
       blacklist: 2
     }
-    if (!this.selectionHook.setGlobalFilterMode(modeMap[mode], list)) {
+
+    let combinedList: string[] = []
+    let combinedMode = mode
+
+    switch (mode) {
+      case 'blacklist':
+        //combine the predefined blacklist with the user-defined blacklist
+        combinedList = [...new Set([...list, ...SELECTION_PREDEFINED_BLACKLIST.WINDOWS])]
+        break
+      case 'whitelist':
+        combinedList = [...list]
+        break
+      case 'default':
+      default:
+        //use the predefined blacklist as the default filter list
+        combinedList = [...SELECTION_PREDEFINED_BLACKLIST.WINDOWS]
+        combinedMode = 'blacklist'
+        break
+    }
+
+    if (!this.selectionHook.setGlobalFilterMode(modeMap[combinedMode], combinedList)) {
       this.logError(new Error('Failed to set selection-hook global filter mode'))
     }
   }

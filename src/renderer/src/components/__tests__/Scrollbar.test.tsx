@@ -160,21 +160,6 @@ describe('Scrollbar', () => {
   })
 
   describe('props handling', () => {
-    it('should handle right prop correctly', () => {
-      const { container } = render(
-        <Scrollbar data-testid="scrollbar" right>
-          内容
-        </Scrollbar>
-      )
-
-      const scrollbar = screen.getByTestId('scrollbar')
-
-      // 验证 right 属性被正确传递
-      expect(scrollbar).toBeDefined()
-      // snapshot 测试 styled-components 样式
-      expect(container.firstChild).toMatchSnapshot()
-    })
-
     it('should handle ref forwarding', () => {
       const ref = { current: null }
 

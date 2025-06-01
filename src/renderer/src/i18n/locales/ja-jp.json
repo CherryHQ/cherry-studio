@@ -940,7 +940,10 @@
       },
       "rendering_speed": "レンダリング速度",
       "translating": "翻訳中...",
-      "text_desc_required": "画像の説明を先に入力してください"
+      "text_desc_required": "画像の説明を先に入力してください",
+      "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "auto_create_paint": "画像を自動作成",
+      "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
@@ -1700,7 +1703,7 @@
         "zoom_out": "ズームアウト",
         "zoom_reset": "ズームをリセット"
       },
-      "theme.auto": "自動",
+      "theme.system": "システム",
       "theme.dark": "ダーク",
       "theme.light": "ライト",
       "theme.title": "テーマ",
@@ -1834,13 +1837,22 @@
       "input.placeholder": "翻訳するテキストを入力",
       "output.placeholder": "翻訳",
       "processing": "翻訳中...",
-      "scroll_sync.disable": "關閉滾動同步",
-      "scroll_sync.enable": "開啟滾動同步",
+      "language.same": "ソース言語と目標言語が同じです",
+      "language.not_pair": "ソース言語が設定された言語と異なります",
+      "settings": {
+        "title": "翻訳設定",
+        "model": "モデル設定",
+        "model_desc": "翻訳サービスで使用されるモデル",
+        "bidirectional": "双方向翻訳設定",
+        "bidirectional_tip": "有効にすると、ソース言語と目標言語間の双方向翻訳のみがサポートされます",
+        "scroll_sync": "スクロール同期設定"
+      },
       "title": "翻訳",
       "tooltip.newline": "改行",
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
-      }
+      },
+      "detected.language": "検出された言語"
     },
     "tray": {
       "quit": "終了",

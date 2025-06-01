@@ -43,7 +43,7 @@ export class ConfigManager {
   }
 
   getTheme(): ThemeMode {
-    return this.get(ConfigKeys.Theme, ThemeMode.auto)
+    return this.get(ConfigKeys.Theme, ThemeMode.system)
   }
 
   setTheme(theme: ThemeMode) {
