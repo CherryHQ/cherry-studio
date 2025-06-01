@@ -1117,8 +1117,6 @@
         "minute_interval_other": "{{count}} 分鐘",
         "notion.api_key": "Notion 金鑰",
         "notion.api_key_placeholder": "請輸入 Notion 金鑰",
-        "notion.auto_split": "匯出對話時自動分頁",
-        "notion.auto_split_tip": "當要匯出的話題過長時自動分頁匯出到 Notion",
         "notion.check": {
           "button": "檢查",
           "empty_api_key": "未設定 API key",
@@ -1132,10 +1130,9 @@
         "notion.help": "Notion 設定文件",
         "notion.page_name_key": "頁面標題欄位名稱",
         "notion.page_name_key_placeholder": "請輸入頁面標題欄位名稱，預設為 Name",
-        "notion.split_size": "自動分頁大小",
-        "notion.split_size_help": "Notion 免費版使用者建議設定為 90，進階版使用者建議設定為 24990，預設值為 90",
-        "notion.split_size_placeholder": "請輸入每頁塊數限制 (預設 90)",
         "notion.title": "Notion 設定",
+        "notion.export_reasoning.title": "匯出時包含思維鏈",
+        "notion.export_reasoning.help": "啟用後，匯出到Notion時會包含思維鏈內容。",
         "title": "資料設定",
         "webdav": {
           "autoSync": "自動備份",

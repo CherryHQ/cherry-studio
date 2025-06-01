@@ -1115,8 +1115,6 @@
         "minute_interval_other": "{{count}} минут",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
-        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
-        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
         "notion.check": {
           "button": "Проверить",
           "empty_api_key": "Не настроен API key",
@@ -1130,10 +1128,9 @@
         "notion.help": "Документация по настройке Notion",
         "notion.page_name_key": "Название поля заголовка страницы",
         "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
-        "notion.split_size": "Размер автоматического разбиения",
-        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90",
-        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
         "notion.title": "Настройки Notion",
+        "notion.export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+        "notion.export_reasoning.help": "При включении, содержимое цепочки рассуждений будет включено при экспорте в Notion.",
         "title": "Настройки данных",
         "webdav": {
           "autoSync": "Автоматическое резервное копирование",
