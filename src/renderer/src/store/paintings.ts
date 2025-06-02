@@ -7,7 +7,8 @@ const initialState: PaintingsState = {
   remix: [],
   edit: [],
   upscale: [],
-  DMXAPIPaintings: []
+  DMXAPIPaintings: [],
+  tokenFluxPaintings: []
 }
 
 const paintingsSlice = createSlice({

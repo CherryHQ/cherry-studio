@@ -1473,6 +1473,16 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '110': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.tokenFluxPaintings) {
+        state.paintings.tokenFluxPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

@@ -1,0 +1,846 @@
+import { PlusOutlined } from '@ant-design/icons'
+import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import Scrollbar from '@renderer/components/Scrollbar'
+import TranslateButton from '@renderer/components/TranslateButton'
+import { isMac } from '@renderer/config/constant'
+import { getProviderLogo } from '@renderer/config/providers'
+import { usePaintings } from '@renderer/hooks/usePaintings'
+import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
+import FileManager from '@renderer/services/FileManager'
+import { translateText } from '@renderer/services/TranslateService'
+import { useAppDispatch } from '@renderer/store'
+import { setGenerating } from '@renderer/store/runtime'
+import type { FileType, TokenFluxPainting } from '@renderer/types'
+import { getErrorMessage, uuid } from '@renderer/utils'
+import { Avatar, Button, Input, InputNumber, Select, Spin, Switch, Tooltip } from 'antd'
+import TextArea from 'antd/es/input/TextArea'
+import { Info } from 'lucide-react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useLocation, useNavigate } from 'react-router-dom'
+import styled from 'styled-components'
+
+import SendMessageButton from '../home/Inputbar/SendMessageButton'
+import { SettingHelpLink, SettingTitle } from '../settings'
+import Artboard from './components/Artboard'
+import PaintingsList from './components/PaintingsList'
+import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
+
+const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
+  const [models, setModels] = useState<TokenFluxModel[]>([])
+  const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
+  const [formData, setFormData] = useState<Record<string, any>>({})
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const [spaceClickCount, setSpaceClickCount] = useState(0)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
+
+  const { t } = useTranslation()
+  const providers = useAllProviders()
+  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
+  const tokenFluxPaintings = useMemo(() => persistentData.tokenFluxPaintings || [], [persistentData.tokenFluxPaintings])
+  const [painting, setPainting] = useState<TokenFluxPainting>(
+    tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
+  )
+
+  const providerOptions = Options.map((option) => {
+    const provider = providers.find((p) => p.id === option)
+    return {
+      label: t(`provider.${provider?.id}`),
+      value: provider?.id
+    }
+  })
+
+  const dispatch = useAppDispatch()
+  const { generating } = useRuntime()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { autoTranslateWithSpace } = useSettings()
+  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
+  const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
+  const textareaRef = useRef<any>(null)
+
+  const renderFormField = (
+    schemaProperty: any,
+    propertyName: string,
+    value: any,
+    onChange: (field: string, value: any) => void
+  ): React.ReactNode => {
+    const { type, enum: enumValues, description, default: defaultValue } = schemaProperty
+
+    if (type === 'string' && enumValues) {
+      return (
+        <Select
+          style={{ width: '100%' }}
+          value={value || defaultValue}
+          options={enumValues.map((val: string) => ({ label: val, value: val }))}
+          onChange={(v) => onChange(propertyName, v)}
+        />
+      )
+    }
+
+    if (type === 'string') {
+      if (propertyName.toLowerCase().includes('prompt') && propertyName !== 'prompt') {
+        return (
+          <TextArea
+            value={value || defaultValue || ''}
+            onChange={(e) => onChange(propertyName, e.target.value)}
+            rows={3}
+            placeholder={description}
+          />
+        )
+      }
+      return (
+        <Input
+          value={value || defaultValue || ''}
+          onChange={(e) => onChange(propertyName, e.target.value)}
+          placeholder={description}
+        />
+      )
+    }
+
+    if (type === 'integer' || type === 'number') {
+      const step = type === 'number' ? 0.1 : 1
+      return (
+        <InputNumber
+          style={{ width: '100%' }}
+          value={value || defaultValue}
+          onChange={(v) => onChange(propertyName, v)}
+          step={step}
+          min={schemaProperty.minimum}
+          max={schemaProperty.maximum}
+        />
+      )
+    }
+
+    if (type === 'boolean') {
+      return (
+        <Switch
+          checked={value !== undefined ? value : defaultValue}
+          onChange={(checked) => onChange(propertyName, checked)}
+          style={{ width: '2px' }}
+        />
+      )
+    }
+
+    return null
+  }
+
+  const getNewPainting = useCallback(() => {
+    return {
+      ...DEFAULT_TOKENFLUX_PAINTING,
+      id: uuid(),
+      modelId: selectedModel?.id || '',
+      timestamp: Date.now()
+    }
+  }, [selectedModel])
+
+  const updatePaintingState = useCallback(
+    (updates: Partial<TokenFluxPainting>) => {
+      const updatedPainting = { ...painting, ...updates }
+      setPainting(updatedPainting)
+      updatePainting('tokenFluxPaintings', updatedPainting)
+    },
+    [painting, updatePainting]
+  )
+
+  const handleError = (error: unknown) => {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      window.modal.error({
+        content: getErrorMessage(error),
+        centered: true
+      })
+    }
+  }
+
+  const fetchModels = useCallback(async () => {
+    if (!tokenfluxProvider?.apiKey) {
+      return
+    }
+
+    setIsLoadingModels(true)
+    try {
+      const response = await fetch(`${tokenfluxProvider.apiHost}/v1/images/models`, {
+        headers: {
+          Authorization: `Bearer ${tokenfluxProvider.apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch models')
+      }
+
+      const data = await response.json()
+      if (data.success && data.data) {
+        setModels(data.data)
+        if (data.data.length > 0 && !selectedModel) {
+          const firstModel = data.data[0]
+          setSelectedModel(firstModel)
+          updatePaintingState({ model: firstModel.id })
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch TokenFlux models:', error)
+      handleError(error)
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }, [tokenfluxProvider, selectedModel, updatePaintingState])
+
+  const handleModelChange = (modelId: string) => {
+    const model = models.find((m) => m.id === modelId)
+    if (model) {
+      setSelectedModel(model)
+      setFormData({})
+      updatePaintingState({ model: model.id, inputParams: {} })
+    }
+  }
+
+  const handleFormFieldChange = (field: string, value: any) => {
+    const newFormData = { ...formData, [field]: value }
+    setFormData(newFormData)
+    updatePaintingState({ inputParams: newFormData })
+  }
+
+  const downloadImages = async (urls: string[]) => {
+    const downloadedFiles = await Promise.all(
+      urls.map(async (url) => {
+        try {
+          if (!url?.trim()) {
+            console.error('Image URL is empty')
+            window.message.warning({
+              content: t('message.empty_url'),
+              key: 'empty-url-warning'
+            })
+            return null
+          }
+          return await window.api.file.download(url)
+        } catch (error) {
+          console.error('Failed to download image:', error)
+          return null
+        }
+      })
+    )
+
+    return downloadedFiles.filter((file): file is FileType => file !== null)
+  }
+
+  const pollGenerationResult = async (generationId: string) => {
+    try {
+      const response = await fetch(`${tokenfluxProvider.apiHost}/v1/images/generations/${generationId}`, {
+        headers: {
+          Authorization: `Bearer ${tokenfluxProvider.apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get generation result')
+      }
+
+      const data = await response.json()
+      if (data.success && data.data) {
+        const { status, images, error } = data.data
+
+        updatePaintingState({ status })
+
+        if (status === 'succeeded' && images?.length > 0) {
+          const urls = images.map((img: { url: string }) => img.url)
+          const validFiles = await downloadImages(urls)
+          await FileManager.addFiles(validFiles)
+          updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
+
+          if (pollingInterval) {
+            clearInterval(pollingInterval)
+            setPollingInterval(null)
+          }
+          setIsLoading(false)
+          dispatch(setGenerating(false))
+        } else if (status === 'failed') {
+          if (pollingInterval) {
+            clearInterval(pollingInterval)
+            setPollingInterval(null)
+          }
+          setIsLoading(false)
+          dispatch(setGenerating(false))
+          window.modal.error({
+            content: error || 'Image generation failed',
+            centered: true
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Polling error:', error)
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+        setPollingInterval(null)
+      }
+      setIsLoading(false)
+      dispatch(setGenerating(false))
+      handleError(error)
+    }
+  }
+
+  const onGenerate = async () => {
+    if (painting.files.length > 0) {
+      const confirmed = await window.modal.confirm({
+        content: t('paintings.regenerate.confirm'),
+        centered: true
+      })
+
+      if (!confirmed) return
+      await FileManager.deleteFiles(painting.files)
+    }
+
+    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+
+    if (!tokenfluxProvider.enabled) {
+      window.modal.error({
+        content: t('error.provider_disabled'),
+        centered: true
+      })
+      return
+    }
+
+    if (!tokenfluxProvider.apiKey) {
+      window.modal.error({
+        content: t('error.no_api_key'),
+        centered: true
+      })
+      return
+    }
+
+    if (!selectedModel || !prompt) {
+      window.modal.error({
+        content: t('paintings.text_desc_required'),
+        centered: true
+      })
+      return
+    }
+
+    const controller = new AbortController()
+    setAbortController(controller)
+    setIsLoading(true)
+    dispatch(setGenerating(true))
+
+    try {
+      const requestBody = {
+        model: selectedModel.id,
+        input: {
+          prompt,
+          ...formData
+        }
+      }
+
+      const response = await fetch(`${tokenfluxProvider.apiHost}/v1/images/generations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${tokenfluxProvider.apiKey}`
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Generation failed')
+      }
+
+      const data = await response.json()
+      if (data.success && data.data) {
+        const generationId = data.data.id
+        updatePaintingState({
+          prompt,
+          generationId,
+          status: 'processing',
+          inputParams: { prompt, ...formData }
+        })
+
+        // Start polling
+        const interval = setInterval(() => pollGenerationResult(generationId), 2000)
+        setPollingInterval(interval)
+      }
+    } catch (error: unknown) {
+      handleError(error)
+      setIsLoading(false)
+      dispatch(setGenerating(false))
+      setAbortController(null)
+    }
+  }
+
+  const onCancel = () => {
+    abortController?.abort()
+    if (pollingInterval) {
+      clearInterval(pollingInterval)
+      setPollingInterval(null)
+    }
+    setIsLoading(false)
+    dispatch(setGenerating(false))
+    setAbortController(null)
+  }
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
+  }
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
+  }
+
+  const handleAddPainting = () => {
+    const newPainting = addPainting('tokenFluxPaintings', getNewPainting())
+    updatePainting('tokenFluxPaintings', newPainting)
+    setPainting(newPainting as TokenFluxPainting)
+    return newPainting
+  }
+
+  const onDeletePainting = (paintingToDelete: TokenFluxPainting) => {
+    if (paintingToDelete.id === painting.id) {
+      const currentIndex = tokenFluxPaintings.findIndex((p) => p.id === paintingToDelete.id)
+
+      if (currentIndex > 0) {
+        setPainting(tokenFluxPaintings[currentIndex - 1])
+      } else if (tokenFluxPaintings.length > 1) {
+        setPainting(tokenFluxPaintings[1])
+      }
+    }
+
+    removePainting('tokenFluxPaintings', paintingToDelete)
+  }
+
+  const translate = async () => {
+    if (isTranslating) {
+      return
+    }
+
+    if (!painting.prompt) {
+      return
+    }
+
+    try {
+      setIsTranslating(true)
+      const translatedText = await translateText(painting.prompt, 'english')
+      updatePaintingState({ prompt: translatedText })
+    } catch (error) {
+      console.error('Translation failed:', error)
+    } finally {
+      setIsTranslating(false)
+    }
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (autoTranslateWithSpace && event.key === ' ') {
+      setSpaceClickCount((prev) => prev + 1)
+
+      if (spaceClickTimer.current) {
+        clearTimeout(spaceClickTimer.current)
+      }
+
+      spaceClickTimer.current = setTimeout(() => {
+        setSpaceClickCount(0)
+      }, 200)
+
+      if (spaceClickCount === 2) {
+        setSpaceClickCount(0)
+        setIsTranslating(true)
+        translate()
+      }
+    }
+  }
+
+  const handleProviderChange = (providerId: string) => {
+    const routeName = location.pathname.split('/').pop()
+    if (providerId !== routeName) {
+      navigate('../' + providerId, { replace: true })
+    }
+  }
+
+  const onSelectPainting = (newPainting: TokenFluxPainting) => {
+    if (generating) return
+    setPainting(newPainting)
+    setCurrentImageIndex(0)
+
+    // Set form data from painting's input params
+    if (newPainting.inputParams) {
+      setFormData(newPainting.inputParams)
+    }
+
+    // Set selected model if available
+    if (newPainting.model) {
+      const model = models.find((m) => m.id === newPainting.model)
+      if (model) {
+        setSelectedModel(model)
+      }
+    }
+  }
+
+  useEffect(() => {
+    fetchModels()
+  }, [])
+
+  useEffect(() => {
+    if (tokenFluxPaintings.length === 0) {
+      const newPainting = getNewPainting()
+      addPainting('tokenFluxPaintings', newPainting)
+      setPainting(newPainting)
+    }
+  }, [tokenFluxPaintings, addPainting, getNewPainting])
+
+  useEffect(() => {
+    const timer = spaceClickTimer.current
+    return () => {
+      if (timer) {
+        clearTimeout(timer)
+      }
+      if (pollingInterval) {
+        clearInterval(pollingInterval)
+      }
+    }
+  }, [pollingInterval])
+  return (
+    <Container>
+      <Navbar>
+        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
+        {isMac && (
+          <NavbarRight style={{ justifyContent: 'flex-end' }}>
+            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+              {t('paintings.button.new.image')}
+            </Button>
+          </NavbarRight>
+        )}
+      </Navbar>
+      <ContentContainer id="content-container">
+        <LeftContainer>
+          {/* Provider Section */}
+          <SectionGroup>
+            <ProviderTitleContainer>
+              <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
+              <SettingHelpLink target="_blank" href="https://tokenflux.ai">
+                {t('paintings.learn_more')}
+                <ProviderLogo shape="square" src={getProviderLogo('tokenflux')} size={16} style={{ marginLeft: 5 }} />
+              </SettingHelpLink>
+            </ProviderTitleContainer>
+
+            <Select
+              value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
+              onChange={handleProviderChange}
+              style={{ width: '100%' }}>
+              {providerOptions.map((provider) => (
+                <Select.Option value={provider.value} key={provider.value}>
+                  <SelectOptionContainer>
+                    <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                    {provider.label}
+                  </SelectOptionContainer>
+                </Select.Option>
+              ))}
+            </Select>
+          </SectionGroup>
+
+          {/* Model & Pricing Section */}
+          <SectionGroup>
+            <SectionTitle>{t('common.model')} & Pricing</SectionTitle>
+
+            {isLoadingModels ? (
+              <LoadingContainer>
+                <Spin />
+              </LoadingContainer>
+            ) : (
+              <>
+                <Select
+                  style={{ width: '100%', marginBottom: 12 }}
+                  value={selectedModel?.id}
+                  onChange={handleModelChange}
+                  placeholder={t('paintings.select_model')}>
+                  {models.map((model) => (
+                    <Select.Option key={model.id} value={model.id}>
+                      <Tooltip title={model.description} placement="right">
+                        <ModelOptionContainer>
+                          <ModelName>{model.name}</ModelName>
+                        </ModelOptionContainer>
+                      </Tooltip>
+                    </Select.Option>
+                  ))}
+                </Select>
+
+                {selectedModel && selectedModel.pricing && (
+                  <PricingContainer>
+                    <PricingBadge>
+                      {selectedModel.pricing.price} {selectedModel.pricing.currency} per {selectedModel.pricing.unit}{' '}
+                      image
+                      {selectedModel.pricing.unit > 1 ? 's' : ''}
+                    </PricingBadge>
+                  </PricingContainer>
+                )}
+              </>
+            )}
+          </SectionGroup>
+
+          {/* Input Parameters Section */}
+          {selectedModel && selectedModel.input_schema && (
+            <SectionGroup>
+              <SectionTitle>Input Parameters</SectionTitle>
+              <ParametersContainer>
+                {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
+                  if (key === 'prompt') return null // Skip prompt as it's handled separately
+
+                  const isRequired = selectedModel.input_schema.required?.includes(key)
+
+                  return (
+                    <ParameterField key={key}>
+                      <ParameterLabel>
+                        <ParameterName>
+                          {key}
+                          {isRequired && <RequiredIndicator> *</RequiredIndicator>}
+                        </ParameterName>
+                        {property.description && (
+                          <Tooltip title={property.description}>
+                            <InfoIcon />
+                          </Tooltip>
+                        )}
+                      </ParameterLabel>
+                      {renderFormField(property, key, formData[key], handleFormFieldChange)}
+                    </ParameterField>
+                  )
+                })}
+              </ParametersContainer>
+            </SectionGroup>
+          )}
+        </LeftContainer>
+
+        <MainContainer>
+          <Artboard
+            painting={painting}
+            isLoading={isLoading}
+            currentImageIndex={currentImageIndex}
+            onPrevImage={prevImage}
+            onNextImage={nextImage}
+            onCancel={onCancel}
+          />
+          <InputContainer>
+            <Textarea
+              ref={textareaRef}
+              variant="borderless"
+              disabled={isLoading}
+              value={painting.prompt || ''}
+              spellCheck={false}
+              onChange={(e) => updatePaintingState({ prompt: e.target.value })}
+              placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+              onKeyDown={handleKeyDown}
+            />
+            <Toolbar>
+              <ToolbarMenu>
+                <TranslateButton
+                  text={textareaRef.current?.resizableTextArea?.textArea?.value}
+                  onTranslated={(translatedText) => updatePaintingState({ prompt: translatedText })}
+                  disabled={isLoading || isTranslating}
+                  isLoading={isTranslating}
+                  style={{ marginRight: 6, borderRadius: '50%' }}
+                />
+                <SendMessageButton sendMessage={onGenerate} disabled={isLoading} />
+              </ToolbarMenu>
+            </Toolbar>
+          </InputContainer>
+        </MainContainer>
+
+        <PaintingsList
+          namespace="tokenFluxPaintings"
+          paintings={tokenFluxPaintings}
+          selectedPainting={painting}
+          onSelectPainting={onSelectPainting as any}
+          onDeletePainting={onDeletePainting as any}
+          onNewPainting={handleAddPainting}
+        />
+      </ContentContainer>
+    </Container>
+  )
+}
+
+const SectionGroup = styled.div`
+  background-color: var(--color-background-soft);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+`
+
+const SectionTitle = styled.div`
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+`
+
+const LoadingContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+`
+
+const ModelOptionContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+`
+
+const ModelName = styled.div`
+  font-weight: 500;
+  color: var(--color-text);
+`
+
+const PricingContainer = styled.div`
+  display: flex;
+  justify-content: flex-end;
+`
+
+const PricingBadge = styled.div`
+  background-color: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-primary-border);
+`
+
+const ParametersContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const ParameterField = styled.div`
+  display: flex;
+  flex-direction: column;
+`
+
+const ParameterLabel = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+`
+
+const ParameterName = styled.span`
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text);
+  text-transform: capitalize;
+`
+
+const RequiredIndicator = styled.span`
+  color: var(--color-error);
+  font-weight: 600;
+`
+
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+`
+
+const ContentContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  height: 100%;
+  background-color: var(--color-background);
+  overflow: hidden;
+`
+
+const LeftContainer = styled(Scrollbar)`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px;
+  background-color: var(--color-background);
+  max-width: var(--assistants-width);
+  border-right: 0.5px solid var(--color-border);
+`
+
+const MainContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-background);
+`
+
+const InputContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-height: 95px;
+  max-height: 95px;
+  position: relative;
+  border: 1px solid var(--color-border-soft);
+  transition: all 0.3s ease;
+  margin: 0 20px 15px 20px;
+  border-radius: 10px;
+`
+
+const Textarea = styled(TextArea)`
+  padding: 10px;
+  border-radius: 0;
+  display: flex;
+  flex: 1;
+  resize: none !important;
+  overflow: auto;
+  width: auto;
+`
+
+const Toolbar = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  justify-content: flex-end;
+  padding: 0 8px;
+  padding-bottom: 0;
+  height: 40px;
+`
+
+const ToolbarMenu = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+`
+
+const InfoIcon = styled(Info)`
+  margin-left: 5px;
+  cursor: help;
+  color: var(--color-text-2);
+  opacity: 0.6;
+  width: 14px;
+  height: 16px;
+
+  &:hover {
+    opacity: 1;
+  }
+`
+
+const ProviderLogo = styled(Avatar)`
+  border: 0.5px solid var(--color-border);
+`
+
+const ProviderTitleContainer = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+`
+
+const SelectOptionContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+export default TokenFluxPage
