@@ -6,14 +6,16 @@ import {
   Assistant,
   FileTypes,
   KnowledgeReference,
+  MCPCallToolResponse,
   MCPTool,
+  MCPToolResponse,
   Model,
   Provider,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
-import { SdkInstance, SdkParams, SdkRawChunk, SdkToolCall } from '@renderer/types/sdk'
+import { SdkInstance, SdkMessage, SdkParams, SdkRawChunk, SdkToolCall } from '@renderer/types/sdk'
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatApiHost } from '@renderer/utils/api'
@@ -75,15 +77,18 @@ export abstract class BaseApiClient<
 
   abstract convertSdkToolCallToMcp(toolCall: SdkToolCall, mcpTools: MCPTool[]): MCPTool | undefined
 
-  convertMcpToolResponseToSdkMessage(mcpToolResponse: any, resp: any, model: Model): any {
-    console.warn(
-      `convertMcpToolResponseToSdkMessage not implemented for provider: ${this.provider.id}`,
-      mcpToolResponse,
-      resp,
-      model
-    )
-    return mcpToolResponse // Default pass-through
-  }
+  abstract buildSdkMessages(
+    currentReqMessages: SdkMessage[],
+    assistantContent: string,
+    toolCalls: SdkToolCall[],
+    toolResults: SdkMessage[]
+  ): SdkMessage[]
+
+  abstract convertMcpToolResponseToSdkMessage(
+    mcpToolResponse: MCPToolResponse,
+    resp: MCPCallToolResponse,
+    model: Model
+  ): SdkMessage | undefined
 
   public getBaseURL(): string {
     const host = this.provider.apiHost

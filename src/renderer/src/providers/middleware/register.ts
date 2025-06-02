@@ -1,6 +1,6 @@
 import { AbortHandlerMiddleware } from './common/AbortHandlerMiddleware'
 import FinalChunkConsumerMiddleware from './common/FinalChunkConsumerMiddleware'
-import { GenericLoggingMiddleware } from './common/LoggingMiddleware'
+import { createGenericLoggingMiddleware } from './common/LoggingMiddleware'
 import { McpToolChunkMiddleware } from './core/McpToolChunkMiddleware'
 import { ResponseTransformMiddleware } from './core/ResponseTransformMiddleware'
 import { SdkCallMiddleware } from './core/SdkCallMiddleware'
@@ -16,12 +16,12 @@ const middlewareConfig: MiddlewareConfig = {
   id: 'universal-provider-middleware',
   name: 'Universal Provider Middleware Stack',
 
-  // 通用Koa风格的completions中间件
+  // 通用completions中间件
   completions: [
-    GenericLoggingMiddleware,
+    // createGenericLoggingMiddleware(),
+    FinalChunkConsumerMiddleware, // 最终消费者
     TransformCoreToSdkParamsMiddleware, // 参数转换
     AbortHandlerMiddleware, // 中止处理
-    FinalChunkConsumerMiddleware, // 最终消费者
     McpToolChunkMiddleware, // 工具处理
     WebSearchMiddleware, // Web搜索处理
     TextChunkMiddleware, // 文本处理
@@ -34,8 +34,8 @@ const middlewareConfig: MiddlewareConfig = {
 
   // 通用Koa风格的通用方法中间件
   methods: {
-    translate: [GenericLoggingMiddleware],
-    summaries: [GenericLoggingMiddleware]
+    translate: [createGenericLoggingMiddleware()],
+    summaries: [createGenericLoggingMiddleware()]
   }
 }
 

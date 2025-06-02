@@ -1,10 +1,10 @@
-import { MCPTool, MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
+import { MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
 import { Chunk, ErrorChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
-import { SdkParams, SdkRawChunk, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
+import { SdkParams, SdkToolCall } from '@renderer/types/sdk'
 
 import { BaseApiClient } from '../AiProvider/clients'
-import { CompletionsParams, GenericChunk } from './schemas'
+import { CompletionsParams, CompletionsResult } from './schemas'
 
 /**
  * Symbol to uniquely identify middleware context objects.
@@ -22,8 +22,8 @@ export type OnChunkFunction = (chunk: Chunk | ErrorChunk) => void
 export interface BaseContext {
   [MIDDLEWARE_CONTEXT_SYMBOL]: true
   methodName: string
+  originalArgs: Readonly<any[]>
   apiClientInstance: BaseApiClient
-  originalParams: Readonly<CompletionsParams>
 }
 
 /**
@@ -32,22 +32,9 @@ export interface BaseContext {
 export interface ProcessingState {
   sdkPayload?: Readonly<SdkParams>
   processedMessages?: Message[]
-  capabilities?: {
-    isStreaming: boolean
-    isEnabledToolCalling: boolean
-    isEnabledWebSearch: boolean
-    isEnabledReasoning: boolean
-    mcpTools: MCPTool[]
-  }
   observer?: {
     usage?: Usage
     metrics?: Metrics
-  }
-  apiCall?: {
-    requestTimestamp?: number
-    rawSdkOutput?: SdkRawOutput
-    rawSdkStream?: ReadableStream<SdkRawChunk> // Output from StreamAdapterMiddleware, consumed by SdkChunkToGenericChunkMiddleware
-    genericChunkStream?: ReadableStream<GenericChunk> // Output from SdkChunkToGenericChunkMiddleware, consumed by Generic processors (Text, Think, Image, etc.)
   }
   toolProcessingState?: {
     pendingToolCalls?: Array<SdkToolCall>
@@ -79,25 +66,29 @@ export interface CompletionsContext extends BaseContext {
   _internal: ProcessingState // 包含所有可变的处理状态
 }
 
-/**
- * Next function type in Koa style.
- */
-export type Next = () => Promise<void>
+export interface MiddlewareAPI<Ctx extends BaseContext = BaseContext, Args extends any[] = any[]> {
+  getContext: () => Ctx // Function to get the current context / 获取当前上下文的函数
+  getOriginalArgs: () => Args // Function to get the original arguments of the method call / 获取方法调用原始参数的函数
+  getApiClientInstance: () => BaseApiClient // Function to get the ApiClient instance / 获取ApiClient实例的函数
+}
 
 /**
  * Base middleware type.
  */
-export type Middleware<TContext extends BaseContext> = (ctx: TContext, next: Next) => Promise<void>
+export type Middleware<TContext extends BaseContext> = (
+  api: MiddlewareAPI<TContext>
+) => (next: (context: TContext, args: any[]) => Promise<any>) => (context: TContext, args: any[]) => Promise<any>
+
+export type MethodMiddleware = Middleware<BaseContext>
 
 /**
  * Completions middleware type.
  */
-export type CompletionsMiddleware = Middleware<CompletionsContext>
-
-/**
- * Generic method middleware type.
- */
-export type MethodMiddleware = Middleware<BaseContext>
+export type CompletionsMiddleware = (
+  api: MiddlewareAPI<CompletionsContext, [CompletionsParams]>
+) => (
+  next: (context: CompletionsContext, params: CompletionsParams) => Promise<CompletionsResult>
+) => (context: CompletionsContext, params: CompletionsParams) => Promise<CompletionsResult>
 
 /**
  * Base configuration for any middleware.

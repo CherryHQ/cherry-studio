@@ -44,7 +44,9 @@ import {
   OpenAISdkParams,
   OpenAISdkRawChunk,
   OpenAISdkRawContentSource,
-  ReasoningEffortOptionalParams
+  ReasoningEffortOptionalParams,
+  SdkMessage,
+  SdkToolCall
 } from '@renderer/types/sdk'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
@@ -355,6 +357,24 @@ export class OpenAIApiClient extends BaseApiClient<
       } as OpenAI.Chat.Completions.ChatCompletionToolMessageParam
     }
     return undefined
+  }
+
+  buildSdkMessages(
+    currentReqMessages: SdkMessage[],
+    assistantContent: string,
+    toolCalls: SdkToolCall[],
+    toolResults: SdkMessage[]
+  ): SdkMessage[] {
+    const newReqMessages = [
+      ...currentReqMessages,
+      {
+        role: 'assistant',
+        content: assistantContent,
+        tool_calls: toolCalls
+      } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam,
+      ...toolResults
+    ]
+    return newReqMessages
   }
 
   getRequestTransformer(): RequestTransformer<OpenAISdkParams> {

@@ -1,10 +1,4 @@
-import {
-  ContentBlockParam,
-  MessageParam,
-  ToolResultBlockParam,
-  ToolUnion,
-  ToolUseBlock
-} from '@anthropic-ai/sdk/resources'
+import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
 import Logger from '@renderer/config/logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
@@ -21,6 +15,7 @@ import {
 } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { SdkMessage } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -497,9 +492,7 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[]
-): Promise<
-  (ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.ResponseInputItem | ToolResultBlockParam)[]
->
+): Promise<SdkMessage[]>
 
 export async function parseAndCallTools<R>(
   content: string,
@@ -508,9 +501,7 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[]
-): Promise<
-  (ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.ResponseInputItem | ToolResultBlockParam)[]
->
+): Promise<SdkMessage[]>
 
 export async function parseAndCallTools<R>(
   content: string | MCPToolResponse[],

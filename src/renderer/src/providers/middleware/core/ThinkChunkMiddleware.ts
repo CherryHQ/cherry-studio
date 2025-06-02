@@ -1,7 +1,8 @@
+import Logger from '@renderer/config/logger'
 import { ChunkType, ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
 
-import { GenericChunk } from '../schemas'
-import { CompletionsMiddleware } from '../type'
+import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import { CompletionsContext, CompletionsMiddleware } from '../type'
 
 const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
 
@@ -20,83 +21,90 @@ const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
  * 3. 计算准确的思考时间
  *
  */
-export const ThinkChunkMiddleware: CompletionsMiddleware = async (ctx, next) => {
-  // 调用下游中间件
-  await next()
+export const ThinkChunkMiddleware: CompletionsMiddleware =
+  () =>
+  (next) =>
+  async (ctx: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
+    // 调用下游中间件
+    const result = await next(ctx, params)
 
-  // 响应后处理：处理思考内容
-  if (ctx._internal.apiCall?.genericChunkStream) {
-    const resultFromUpstream = ctx._internal.apiCall.genericChunkStream
+    // 响应后处理：处理思考内容
+    if (result.stream) {
+      const resultFromUpstream = result.stream as ReadableStream<GenericChunk>
 
-    console.log(
-      `[${MIDDLEWARE_NAME}] Received generic chunk stream from upstream. Stream is: ${resultFromUpstream ? 'present' : 'absent'}`
-    )
-
-    // 检查是否启用reasoning
-    const params = ctx.originalParams
-    const enableReasoning = params.enableReasoning || false
-    if (!enableReasoning) {
-      console.log(`[${MIDDLEWARE_NAME}] Reasoning not enabled, passing through unchanged.`)
-      return
-    }
-
-    // 检查是否有流需要处理
-    if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
-      console.log(`[${MIDDLEWARE_NAME}] Processing reasoning chunks from SDK.`)
-
-      // thinking 处理状态
-      let accumulatedThinkingContent = ''
-      let hasThinkingContent = false
-      let thinkingStartTime = 0
-
-      const processedStream = resultFromUpstream.pipeThrough(
-        new TransformStream<GenericChunk, GenericChunk>({
-          transform(chunk: GenericChunk, controller) {
-            if (chunk.type === ChunkType.THINKING_DELTA) {
-              const thinkingChunk = chunk as ThinkingDeltaChunk
-
-              // 第一次接收到思考内容时记录开始时间
-              if (!hasThinkingContent) {
-                hasThinkingContent = true
-                thinkingStartTime = Date.now()
-              }
-
-              accumulatedThinkingContent += thinkingChunk.text
-
-              // 更新思考时间并传递
-              const enhancedChunk: ThinkingDeltaChunk = {
-                ...thinkingChunk,
-                thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
-              }
-              controller.enqueue(enhancedChunk)
-            } else if (chunk.type === ChunkType.TEXT_DELTA) {
-              // 如果有累积的思考内容，在第一个文本块到达时生成THINKING_COMPLETE
-              if (hasThinkingContent && thinkingStartTime > 0) {
-                const thinkingCompleteChunk: ThinkingCompleteChunk = {
-                  type: ChunkType.THINKING_COMPLETE,
-                  text: accumulatedThinkingContent,
-                  thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
-                }
-                controller.enqueue(thinkingCompleteChunk)
-                hasThinkingContent = false
-                accumulatedThinkingContent = ''
-                thinkingStartTime = 0
-              }
-
-              // 直接传递文本块
-              controller.enqueue(chunk)
-            } else {
-              // 其他类型的chunk直接传递
-              controller.enqueue(chunk)
-            }
-          }
-        })
+      Logger.debug(
+        `[${MIDDLEWARE_NAME}] Received generic chunk stream from upstream. Stream is: ${resultFromUpstream ? 'present' : 'absent'}`
       )
 
-      // 更新响应结果
-      ctx._internal.apiCall.genericChunkStream = processedStream
-    } else {
-      console.log(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+      // 检查是否启用reasoning
+      const enableReasoning = params.enableReasoning || false
+      if (!enableReasoning) {
+        Logger.debug(`[${MIDDLEWARE_NAME}] Reasoning not enabled, passing through unchanged.`)
+        return result
+      }
+
+      // 检查是否有流需要处理
+      if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
+        console.log(`[${MIDDLEWARE_NAME}] Processing reasoning chunks from SDK.`)
+
+        // thinking 处理状态
+        let accumulatedThinkingContent = ''
+        let hasThinkingContent = false
+        let thinkingStartTime = 0
+
+        const processedStream = resultFromUpstream.pipeThrough(
+          new TransformStream<GenericChunk, GenericChunk>({
+            transform(chunk: GenericChunk, controller) {
+              if (chunk.type === ChunkType.THINKING_DELTA) {
+                const thinkingChunk = chunk as ThinkingDeltaChunk
+
+                // 第一次接收到思考内容时记录开始时间
+                if (!hasThinkingContent) {
+                  hasThinkingContent = true
+                  thinkingStartTime = Date.now()
+                }
+
+                accumulatedThinkingContent += thinkingChunk.text
+
+                // 更新思考时间并传递
+                const enhancedChunk: ThinkingDeltaChunk = {
+                  ...thinkingChunk,
+                  thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
+                }
+                controller.enqueue(enhancedChunk)
+              } else if (chunk.type === ChunkType.TEXT_DELTA || chunk.type === ChunkType.MCP_TOOL_CREATED) {
+                // 如果有累积的思考内容，在第一个文本块到达时生成THINKING_COMPLETE
+                if (hasThinkingContent && thinkingStartTime > 0) {
+                  const thinkingCompleteChunk: ThinkingCompleteChunk = {
+                    type: ChunkType.THINKING_COMPLETE,
+                    text: accumulatedThinkingContent,
+                    thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
+                  }
+                  controller.enqueue(thinkingCompleteChunk)
+                  hasThinkingContent = false
+                  accumulatedThinkingContent = ''
+                  thinkingStartTime = 0
+                }
+
+                // 直接传递文本块
+                controller.enqueue(chunk)
+              } else {
+                // 其他类型的chunk直接传递
+                controller.enqueue(chunk)
+              }
+            }
+          })
+        )
+
+        // 更新响应结果
+        return {
+          ...result,
+          stream: processedStream
+        }
+      } else {
+        Logger.debug(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+      }
     }
+
+    return result
   }
-}

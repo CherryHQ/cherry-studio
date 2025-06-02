@@ -1,6 +1,9 @@
 import { Assistant, MCPTool, Model } from '@renderer/types'
 import { Chunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
+import { SdkRawChunk } from '@renderer/types/sdk'
+
+import { ProcessingState } from './type'
 
 // ============================================================================
 // Core Request Types - 核心请求结构
@@ -36,10 +39,12 @@ export interface CompletionsParams {
 
   // 上下文控制
   contextCount?: number
+
+  _internal?: ProcessingState
 }
 
 export interface CompletionsResult {
-  stream?: ReadableStream<Chunk>
+  stream?: ReadableStream<SdkRawChunk> | ReadableStream<Chunk> | AsyncIterable<Chunk>
   controller?: AbortController
 }
 
