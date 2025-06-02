@@ -557,6 +557,7 @@
       "error.enter.api.key": "Παρακαλώ εισάγετε το κλειδί API σας",
       "error.enter.model": "Παρακαλώ επιλέξτε ένα μοντέλο",
       "error.enter.name": "Παρακαλώ εισάγετε ένα όνομα για τη βάση γνώσεων",
+      "error.fetchTopicName": "Αποτυχία ονοματοδοσίας θέματος",
       "error.get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
       "error.invalid.api.host": "Μη έγκυρη διεύθυνση API",
       "error.invalid.api.key": "Μη έγκυρο κλειδί API",

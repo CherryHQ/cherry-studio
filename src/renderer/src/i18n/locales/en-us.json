@@ -627,6 +627,7 @@
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
+      "error.fetchTopicName": "Failed to name the topic",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
       "error.invalid.api.host": "Invalid API Host",
       "error.invalid.api.key": "Invalid API Key",
@@ -944,7 +945,6 @@
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
       "auto_create_paint": "Auto-create image",
       "auto_create_paint_tip": "After the image is generated, a new image will be created automatically."
-
     },
     "prompts": {
       "explanation": "Explain this concept to me",

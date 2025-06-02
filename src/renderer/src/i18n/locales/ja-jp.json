@@ -627,6 +627,7 @@
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
       "error.enter.name": "ナレッジベース名を入力してください",
+      "error.fetchTopicName": "トピックの命名に失敗しました",
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "error.invalid.api.host": "無効なAPIアドレスです",
       "error.invalid.api.key": "無効なAPIキーです",
