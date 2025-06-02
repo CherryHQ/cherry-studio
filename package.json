@@ -86,6 +86,7 @@
     "@cherrystudio/embedjs-loader-xml": "^0.1.31",
     "@cherrystudio/embedjs-ollama": "^0.1.31",
     "@cherrystudio/embedjs-openai": "^0.1.31",
+    "opendal": "^0.48.3",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/preload": "^3.0.0",
