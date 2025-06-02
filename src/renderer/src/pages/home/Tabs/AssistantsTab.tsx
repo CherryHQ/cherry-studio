@@ -60,6 +60,23 @@ const Assistants: FC<AssistantsTabProps> = ({
     [setAssistantsTabSortType]
   )
 
+  const handleGroupReorder = useCallback(
+    (tag: string, newGroupList: Assistant[]) => {
+      let insertIndex = 0
+      const newGlobal = assistants.map((a) => {
+        const tags = a.tags?.length ? a.tags : [t('assistants.tags.untagged')]
+        if (tags.includes(tag)) {
+          const replaced = newGroupList[insertIndex]
+          insertIndex += 1
+          return replaced
+        }
+        return a
+      })
+      updateAssistants(newGlobal)
+    },
+    [assistants, t, updateAssistants]
+  )
+
   if (assistantsTabSortType === 'tags') {
     return (
       <Container className="assistants-tab" ref={containerRef}>
@@ -81,20 +98,27 @@ const Assistants: FC<AssistantsTabProps> = ({
               </GroupTitle>
               {!collapsedTags[group.tag] && (
                 <div>
-                  {group.assistants.map((assistant) => (
-                    <AssistantItem
-                      key={assistant.id}
-                      assistant={assistant}
-                      isActive={assistant.id === activeAssistant.id}
-                      sortBy={assistantsTabSortType}
-                      onSwitch={setActiveAssistant}
-                      onDelete={onDelete}
-                      addAgent={addAgent}
-                      addAssistant={addAssistant}
-                      onCreateDefaultAssistant={onCreateDefaultAssistant}
-                      handleSortByChange={handleSortByChange}
-                    />
-                  ))}
+                  <DragableList
+                    list={group.assistants}
+                    onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
+                    style={{ paddingBottom: dragging ? '34px' : 0 }}
+                    onDragStart={() => setDragging(true)}
+                    onDragEnd={() => setDragging(false)}>
+                    {(assistant) => (
+                      <AssistantItem
+                        key={assistant.id}
+                        assistant={assistant}
+                        isActive={assistant.id === activeAssistant.id}
+                        sortBy={assistantsTabSortType}
+                        onSwitch={setActiveAssistant}
+                        onDelete={onDelete}
+                        addAgent={addAgent}
+                        addAssistant={addAssistant}
+                        onCreateDefaultAssistant={onCreateDefaultAssistant}
+                        handleSortByChange={handleSortByChange}
+                      />
+                    )}
+                  </DragableList>
                 </div>
               )}
             </TagsContainer>
