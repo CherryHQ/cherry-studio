@@ -1,4 +1,4 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
@@ -27,6 +27,7 @@ const Assistants: FC<AssistantsTabProps> = ({
 }) => {
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
+  const [collapsedTags, setCollapsedTags] = useState<Record<string, boolean>>({})
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const { getGroupedAssistants } = useTags()
@@ -45,6 +46,13 @@ const Assistants: FC<AssistantsTabProps> = ({
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
   )
 
+  const toggleTagCollapse = useCallback((tag: string) => {
+    setCollapsedTags((prev) => ({
+      ...prev,
+      [tag]: !prev[tag]
+    }))
+  }, [])
+
   const handleSortByChange = useCallback(
     (sortType: AssistantsSortType) => {
       setAssistantsTabSortType(sortType)
@@ -58,26 +66,37 @@ const Assistants: FC<AssistantsTabProps> = ({
         <div style={{ marginBottom: '8px' }}>
           {getGroupedAssistants.map((group) => (
             <TagsContainer key={group.tag}>
-              <GroupTitle>
+              <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
                 <Tooltip title={group.tag}>
-                  <GroupTitleName>{group.tag}</GroupTitleName>
+                  <GroupTitleName>
+                    {collapsedTags[group.tag] ? (
+                      <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
+                    ) : (
+                      <DownOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
+                    )}
+                    {group.tag}
+                  </GroupTitleName>
                 </Tooltip>
                 <Divider style={{ margin: '12px 0' }}></Divider>
               </GroupTitle>
-              {group.assistants.map((assistant) => (
-                <AssistantItem
-                  key={assistant.id}
-                  assistant={assistant}
-                  isActive={assistant.id === activeAssistant.id}
-                  sortBy={assistantsTabSortType}
-                  onSwitch={setActiveAssistant}
-                  onDelete={onDelete}
-                  addAgent={addAgent}
-                  addAssistant={addAssistant}
-                  onCreateDefaultAssistant={onCreateDefaultAssistant}
-                  handleSortByChange={handleSortByChange}
-                />
-              ))}
+              {!collapsedTags[group.tag] && (
+                <div>
+                  {group.assistants.map((assistant) => (
+                    <AssistantItem
+                      key={assistant.id}
+                      assistant={assistant}
+                      isActive={assistant.id === activeAssistant.id}
+                      sortBy={assistantsTabSortType}
+                      onSwitch={setActiveAssistant}
+                      onDelete={onDelete}
+                      addAgent={addAgent}
+                      addAssistant={addAssistant}
+                      onCreateDefaultAssistant={onCreateDefaultAssistant}
+                      handleSortByChange={handleSortByChange}
+                    />
+                  ))}
+                </div>
+              )}
             </TagsContainer>
           ))}
         </div>
@@ -162,12 +181,13 @@ const AssistantAddItem = styled.div`
 `
 
 const GroupTitle = styled.div`
-  padding: 8px 0px;
+  padding: 8px 0;
   position: relative;
   color: var(--color-text-2);
   font-size: 12px;
   font-weight: 500;
   margin-bottom: -8px;
+  cursor: pointer;
 `
 
 const GroupTitleName = styled.div`
