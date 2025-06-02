@@ -17,9 +17,9 @@ export interface TokenFluxModel {
 
 export const DEFAULT_TOKENFLUX_PAINTING: TokenFluxPainting = {
   id: uuid(),
-  model: undefined,
+  model: '',
   prompt: '',
-  inputParams: undefined,
+  inputParams: {},
   status: 'starting',
   generationId: undefined,
   urls: [],

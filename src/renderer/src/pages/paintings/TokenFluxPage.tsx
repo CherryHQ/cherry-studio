@@ -80,18 +80,21 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     return {
       ...DEFAULT_TOKENFLUX_PAINTING,
       id: uuid(),
-      modelId: selectedModel?.id || '',
-      timestamp: Date.now()
+      model: selectedModel?.id || '',
+      inputParams: {},
+      generationId: undefined
     }
   }, [selectedModel])
 
   const updatePaintingState = useCallback(
     (updates: Partial<TokenFluxPainting>) => {
-      const updatedPainting = { ...painting, ...updates }
-      setPainting(updatedPainting)
-      updatePainting('tokenFluxPaintings', updatedPainting)
+      setPainting((prevPainting) => {
+        const updatedPainting = { ...prevPainting, ...updates }
+        updatePainting('tokenFluxPaintings', updatedPainting)
+        return updatedPainting
+      })
     },
-    [painting, updatePainting]
+    [updatePainting]
   )
 
   const handleError = (error: unknown) => {
@@ -169,21 +172,18 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
       }
 
+      const inputParams = { prompt, ...formData }
       updatePaintingState({
+        model: selectedModel.id,
         prompt,
         status: 'processing',
-        inputParams: { prompt, ...formData }
+        inputParams
       })
 
       const result = await tokenFluxService.generateAndWait(requestBody, {
         signal: controller.signal,
-        onStatusUpdate: (status) => {
-          updatePaintingState({ status: status as any })
-        },
-        onProgress: (data) => {
-          if (data) {
-            updatePaintingState({ generationId: data.id, status: data.status as any })
-          }
+        onStatusUpdate: (updates) => {
+          updatePaintingState(updates)
         }
       })
 
@@ -295,7 +295,12 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     // Set form data from painting's input params
     if (newPainting.inputParams) {
-      setFormData(newPainting.inputParams)
+      // Filter out the prompt from inputParams since it's handled separately
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { prompt, ...formInputParams } = newPainting.inputParams
+      setFormData(formInputParams)
+    } else {
+      setFormData({})
     }
 
     // Set selected model if available
@@ -304,6 +309,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (model) {
         setSelectedModel(model)
       }
+    } else {
+      setSelectedModel(null)
     }
   }
 
@@ -323,6 +330,31 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (painting.status === 'processing' && painting.generationId) {
+      tokenFluxService
+        .pollGenerationResult(painting.generationId, {
+          onStatusUpdate: (updates) => {
+            console.log('Polling status update:', updates)
+            updatePaintingState(updates)
+          }
+        })
+        .then((result) => {
+          if (result && result.images && result.images.length > 0) {
+            const urls = result.images.map((img: { url: string }) => img.url)
+            tokenFluxService.downloadImages(urls).then(async (validFiles) => {
+              await FileManager.addFiles(validFiles)
+              updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
+            })
+          }
+        })
+        .catch((error) => {
+          console.error('Polling failed:', error)
+          updatePaintingState({ status: 'failed' })
+        })
+    }
+  }, [painting.generationId, painting.status, tokenFluxService, updatePaintingState])
 
   return (
     <Container>
@@ -371,14 +403,30 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               value={selectedModel?.id}
               onChange={handleModelChange}
               placeholder={t('paintings.select_model')}>
-              {models.map((model) => (
-                <Select.Option key={model.id} value={model.id}>
-                  <Tooltip title={model.description} placement="right">
-                    <ModelOptionContainer>
-                      <ModelName>{model.name}</ModelName>
-                    </ModelOptionContainer>
-                  </Tooltip>
-                </Select.Option>
+              {Object.entries(
+                models.reduce(
+                  (acc, model) => {
+                    const provider = model.model_provider || 'Other'
+                    if (!acc[provider]) {
+                      acc[provider] = []
+                    }
+                    acc[provider].push(model)
+                    return acc
+                  },
+                  {} as Record<string, typeof models>
+                )
+              ).map(([provider, providerModels]) => (
+                <Select.OptGroup key={provider} label={provider}>
+                  {providerModels.map((model) => (
+                    <Select.Option key={model.id} value={model.id}>
+                      <Tooltip title={model.description} placement="right">
+                        <ModelOptionContainer>
+                          <ModelName>{model.name}</ModelName>
+                        </ModelOptionContainer>
+                      </Tooltip>
+                    </Select.Option>
+                  ))}
+                </Select.OptGroup>
               ))}
             </Select>
 

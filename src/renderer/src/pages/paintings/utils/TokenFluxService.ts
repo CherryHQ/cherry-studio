@@ -1,4 +1,4 @@
-import { FileType } from '@renderer/types'
+import { FileType, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
 
@@ -114,8 +114,7 @@ export class TokenFluxService {
   async pollGenerationResult(
     generationId: string,
     options: {
-      onStatusUpdate?: (status: string) => void
-      onProgress?: (data: TokenFluxGenerationResponse['data']) => void
+      onStatusUpdate?: (updates: Partial<TokenFluxPainting>) => void
       maxRetries?: number
       timeoutMs?: number
       intervalMs?: number
@@ -123,9 +122,8 @@ export class TokenFluxService {
   ): Promise<TokenFluxGenerationResponse['data']> {
     const {
       onStatusUpdate,
-      onProgress,
-      maxRetries = 3,
-      timeoutMs = 300000, // 5 minutes
+      maxRetries = 10,
+      timeoutMs = 120000, // 2 minutes
       intervalMs = 2000
     } = options
 
@@ -147,8 +145,7 @@ export class TokenFluxService {
           retryCount = 0
 
           if (result) {
-            onStatusUpdate?.(result.status)
-            onProgress?.(result)
+            onStatusUpdate?.({ status: result.status as TokenFluxPainting['status'] })
 
             if (result.status === 'succeeded') {
               resolve(result)
@@ -186,18 +183,19 @@ export class TokenFluxService {
   async generateAndWait(
     request: TokenFluxGenerationRequest,
     options: {
-      onStatusUpdate?: (status: string) => void
-      onProgress?: (data: TokenFluxGenerationResponse['data']) => void
+      onStatusUpdate?: (updates: Partial<TokenFluxPainting>) => void
       signal?: AbortSignal
       maxRetries?: number
       timeoutMs?: number
       intervalMs?: number
     } = {}
   ): Promise<TokenFluxGenerationResponse['data']> {
-    const { signal, ...pollOptions } = options
-
+    const { signal, onStatusUpdate, ...pollOptions } = options
     const generationId = await this.createGeneration(request, signal)
-    return this.pollGenerationResult(generationId, pollOptions)
+    if (onStatusUpdate) {
+      onStatusUpdate({ generationId })
+    }
+    return this.pollGenerationResult(generationId, { ...pollOptions, onStatusUpdate })
   }
 
   async downloadImages(urls: string[]) {
