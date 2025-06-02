@@ -5621,7 +5621,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
-    franc: "npm:^6.2.0"
+    franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -9820,12 +9820,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"franc@npm:^6.2.0":
+"franc-min@npm:^6.2.0":
   version: 6.2.0
-  resolution: "franc@npm:6.2.0"
+  resolution: "franc-min@npm:6.2.0"
   dependencies:
     trigram-utils: "npm:^2.0.0"
-  checksum: 10c0/136a08d6e4632f17eae6f0ae93b224b0bf2233dc1d5dbd0b23e479960f6c71c0847bef834d3b6b7c9cefb4f905d5e08fc82b0738bb3ed4a6c83faffcf9fa2a11
+  checksum: 10c0/21c243982b713a7726ffdb185415636c63711e7267be301b6d0607e3533f76771f2396091d9f1ca017f98357e4aa885c0cf4a2c0f90012e138f741cd9cfb5e45
   languageName: node
   linkType: hard
 
