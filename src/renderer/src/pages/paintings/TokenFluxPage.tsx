@@ -400,7 +400,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* Model & Pricing Section */}
           <SectionGroup>
-            <SectionTitle>{t('common.model')} & Pricing</SectionTitle>
+            <SectionTitle>{t('paintings.model_and_pricing')}</SectionTitle>
             <Select
               style={{ width: '100%', marginBottom: 12 }}
               value={selectedModel?.id}
@@ -436,8 +436,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             {selectedModel && selectedModel.pricing && (
               <PricingContainer>
                 <PricingBadge>
-                  {selectedModel.pricing.price} {selectedModel.pricing.currency} per {selectedModel.pricing.unit} image
-                  {selectedModel.pricing.unit > 1 ? 's' : ''}
+                  {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
+                  {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
                 </PricingBadge>
               </PricingContainer>
             )}
@@ -446,7 +446,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (
             <SectionGroup>
-              <SectionTitle>Input Parameters</SectionTitle>
+              <SectionTitle>{t('paintings.input_parameters')}</SectionTitle>
               <ParametersContainer>
                 {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
                   if (key === 'prompt') return null // Skip prompt as it's handled separately
@@ -485,7 +485,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
             <ComparisonContainer>
               <ImageComparisonSection>
-                <SectionLabel>Input Image</SectionLabel>
+                <SectionLabel>{t('paintings.input_image')}</SectionLabel>
                 <UploadedImageContainer>
                   {Object.entries(formData).map(([key, value]) => {
                     if (key.toLowerCase().includes('image') && value) {
@@ -493,7 +493,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                         <ImageWrapper key={key}>
                           <img
                             src={value}
-                            alt="Uploaded input"
+                            alt={t('paintings.uploaded_input')}
                             style={{
                               maxWidth: '100%',
                               maxHeight: '70vh',
@@ -509,7 +509,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 </UploadedImageContainer>
               </ImageComparisonSection>
               <ImageComparisonSection>
-                <SectionLabel>Generated Image</SectionLabel>
+                <SectionLabel>{t('paintings.generated_image')}</SectionLabel>
                 <Artboard
                   painting={painting}
                   isLoading={isLoading}

@@ -943,8 +943,17 @@
       "text_desc_required": "Please enter image description first",
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
       "auto_create_paint": "Auto-create image",
-      "auto_create_paint_tip": "After the image is generated, a new image will be created automatically."
-
+      "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
+      "select_model": "Select Model",
+      "input_parameters": "Input Parameters",
+      "input_image": "Input Image",
+      "generated_image": "Generated Image",
+      "pricing": "Pricing",
+      "model_and_pricing": "Model & Pricing",
+      "per_image": "per image",
+      "per_images": "per images",
+      "required_field": "Required field",
+      "uploaded_input": "Uploaded input"
     },
     "prompts": {
       "explanation": "Explain this concept to me",
