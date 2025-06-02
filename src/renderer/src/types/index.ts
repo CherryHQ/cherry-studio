@@ -270,6 +270,7 @@ export interface DmxapiPainting extends PaintingParams {
 }
 
 export interface TokenFluxPainting extends PaintingParams {
+  generationId?: string
   model?: string
   prompt?: string
   inputParams?: Record<string, any>

@@ -1,4 +1,4 @@
-import { PlusOutlined } from '@ant-design/icons'
+import { CloseOutlined, PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -14,6 +14,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileType, TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
+import { convertToBase64 } from '@renderer/utils/image'
 import { Avatar, Button, Input, InputNumber, Select, Spin, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
@@ -66,13 +67,74 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)
 
+  const handleImageUpload = async (
+    propertyName: string,
+    file: File,
+    onChange: (field: string, value: any) => void
+  ): Promise<void> => {
+    if (file) {
+      try {
+        const base64Image = await convertToBase64(file)
+        if (typeof base64Image === 'string') {
+          onChange(propertyName, base64Image)
+        } else {
+          console.error('Failed to convert image to base64')
+          // Optionally, display an error message to the user
+        }
+      } catch (error) {
+        console.error('Error converting image to base64:', error)
+        // Optionally, display an error message to the user
+      }
+    }
+  }
+
   const renderFormField = (
     schemaProperty: any,
     propertyName: string,
     value: any,
     onChange: (field: string, value: any) => void
   ): React.ReactNode => {
-    const { type, enum: enumValues, description, default: defaultValue } = schemaProperty
+    const { type, enum: enumValues, description, default: defaultValue, format } = schemaProperty
+
+    if (type === 'string' && propertyName.toLowerCase().includes('image') && format === 'uri') {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                handleImageUpload(propertyName, e.target.files[0], onChange)
+              }
+            }}
+            placeholder={description || 'Select an image'}
+          />
+          {value && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <img
+                src={value}
+                alt="Uploaded"
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  objectFit: 'cover',
+                  borderRadius: '4px',
+                  border: '1px solid var(--color-border)'
+                }}
+              />
+              <Button
+                size="small"
+                danger
+                icon={<CloseOutlined />}
+                onClick={() => onChange(propertyName, null)}
+                title="Remove image">
+                Remove
+              </Button>
+            </div>
+          )}
+        </div>
+      )
+    }
 
     if (type === 'string' && enumValues) {
       return (
@@ -101,6 +163,25 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           value={value || defaultValue || ''}
           onChange={(e) => onChange(propertyName, e.target.value)}
           placeholder={description}
+        />
+      )
+    }
+
+    if (type === 'integer' && propertyName === 'seed') {
+      return (
+        <Input
+          style={{ width: '100%' }}
+          value={value || defaultValue}
+          onChange={(v) => onChange(propertyName, v)}
+          step={1}
+          min={schemaProperty.minimum}
+          max={schemaProperty.maximum}
+          suffix={
+            <RedoOutlined
+              onClick={() => onChange(propertyName, Math.floor(Math.random() * 1000000).toString())}
+              style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+            />
+          }
         />
       )
     }
@@ -614,14 +695,55 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         </LeftContainer>
 
         <MainContainer>
-          <Artboard
-            painting={painting}
-            isLoading={isLoading}
-            currentImageIndex={currentImageIndex}
-            onPrevImage={prevImage}
-            onNextImage={nextImage}
-            onCancel={onCancel}
-          />
+          {/* Check if any form field contains an uploaded image */}
+          {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
+            <ComparisonContainer>
+              <ImageComparisonSection>
+                <SectionLabel>Input Image</SectionLabel>
+                <UploadedImageContainer>
+                  {Object.entries(formData).map(([key, value]) => {
+                    if (key.toLowerCase().includes('image') && value) {
+                      return (
+                        <ImageWrapper key={key}>
+                          <img
+                            src={value}
+                            alt="Uploaded input"
+                            style={{
+                              maxWidth: '100%',
+                              maxHeight: '70vh',
+                              objectFit: 'contain',
+                              backgroundColor: 'var(--color-background-soft)'
+                            }}
+                          />
+                        </ImageWrapper>
+                      )
+                    }
+                    return null
+                  })}
+                </UploadedImageContainer>
+              </ImageComparisonSection>
+              <ImageComparisonSection>
+                <SectionLabel>Generated Image</SectionLabel>
+                <Artboard
+                  painting={painting}
+                  isLoading={isLoading}
+                  currentImageIndex={currentImageIndex}
+                  onPrevImage={prevImage}
+                  onNextImage={nextImage}
+                  onCancel={onCancel}
+                />
+              </ImageComparisonSection>
+            </ComparisonContainer>
+          ) : (
+            <Artboard
+              painting={painting}
+              isLoading={isLoading}
+              currentImageIndex={currentImageIndex}
+              onPrevImage={prevImage}
+              onNextImage={nextImage}
+              onCancel={onCancel}
+            />
+          )}
           <InputContainer>
             <Textarea
               ref={textareaRef}
@@ -772,6 +894,48 @@ const MainContainer = styled.div`
   flex-direction: column;
   height: 100%;
   background-color: var(--color-background);
+`
+
+const ComparisonContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: row;
+  height: 100%;
+  gap: 1px;
+`
+
+const ImageComparisonSection = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-background);
+`
+
+const SectionLabel = styled.div`
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-2);
+  background-color: var(--color-background-soft);
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+`
+
+const UploadedImageContainer = styled.div`
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background-color: var(--color-background-soft);
+`
+
+const ImageWrapper = styled.div`
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 `
 
 const InputContainer = styled.div`
