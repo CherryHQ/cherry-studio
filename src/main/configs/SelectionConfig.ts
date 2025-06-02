@@ -9,6 +9,7 @@ interface IBlacklist {
  * -----------------------------------------------------------------------
  * A predefined application filter list to include commonly used software
  * that does not require text selection but may conflict with it, and disable them in advance.
+ * Only available in the selected mode.
  *
  * Specification: must be all lowercase, need to accurately find the actual running program name
  *************************************************************************/
@@ -18,6 +19,9 @@ export const SELECTION_PREDEFINED_BLACKLIST: IBlacklist = {
     'snipaste.exe',
     'pixpin.exe',
     'sharex.exe',
+    // Office
+    'excel.exe',
+    'powerpnt.exe',
     // Image Editor
     'photoshop.exe',
     'illustrator.exe',
