@@ -1022,14 +1022,20 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     await this.checkIsCopilot()
 
-    // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
+    const params = {
       model: model.id,
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
       stream: false,
       keep_alive: this.keepAliveTime,
       max_tokens: 1000
-    })
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      params['enable_thinking'] = false
+    }
+
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create(params as ChatCompletionCreateParamsNonStreaming)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
