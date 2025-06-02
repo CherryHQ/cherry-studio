@@ -1,4 +1,4 @@
-import { CloseOutlined, PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -12,10 +12,9 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType, TokenFluxPainting } from '@renderer/types'
+import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { convertToBase64 } from '@renderer/utils/image'
-import { Avatar, Button, Input, InputNumber, Select, Spin, Switch, Tooltip } from 'antd'
+import { Avatar, Button, Select, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -27,8 +26,10 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingsList from './components/PaintingsList'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
+import TokenFluxService from './utils/TokenFluxService'
 
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [models, setModels] = useState<TokenFluxModel[]>([])
@@ -36,11 +37,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const [isLoadingModels, setIsLoadingModels] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
 
   const { t } = useTranslation()
   const providers = useAllProviders()
@@ -66,152 +65,16 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)
+  const tokenFluxService = useMemo(
+    () => new TokenFluxService(tokenfluxProvider.apiHost, tokenfluxProvider.apiKey),
+    [tokenfluxProvider]
+  )
 
-  const handleImageUpload = async (
-    propertyName: string,
-    file: File,
-    onChange: (field: string, value: any) => void
-  ): Promise<void> => {
-    if (file) {
-      try {
-        const base64Image = await convertToBase64(file)
-        if (typeof base64Image === 'string') {
-          onChange(propertyName, base64Image)
-        } else {
-          console.error('Failed to convert image to base64')
-          // Optionally, display an error message to the user
-        }
-      } catch (error) {
-        console.error('Error converting image to base64:', error)
-        // Optionally, display an error message to the user
-      }
-    }
-  }
-
-  const renderFormField = (
-    schemaProperty: any,
-    propertyName: string,
-    value: any,
-    onChange: (field: string, value: any) => void
-  ): React.ReactNode => {
-    const { type, enum: enumValues, description, default: defaultValue, format } = schemaProperty
-
-    if (type === 'string' && propertyName.toLowerCase().includes('image') && format === 'uri') {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                handleImageUpload(propertyName, e.target.files[0], onChange)
-              }
-            }}
-            placeholder={description || 'Select an image'}
-          />
-          {value && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <img
-                src={value}
-                alt="Uploaded"
-                style={{
-                  width: '60px',
-                  height: '60px',
-                  objectFit: 'cover',
-                  borderRadius: '4px',
-                  border: '1px solid var(--color-border)'
-                }}
-              />
-              <Button
-                size="small"
-                danger
-                icon={<CloseOutlined />}
-                onClick={() => onChange(propertyName, null)}
-                title="Remove image">
-                Remove
-              </Button>
-            </div>
-          )}
-        </div>
-      )
-    }
-
-    if (type === 'string' && enumValues) {
-      return (
-        <Select
-          style={{ width: '100%' }}
-          value={value || defaultValue}
-          options={enumValues.map((val: string) => ({ label: val, value: val }))}
-          onChange={(v) => onChange(propertyName, v)}
-        />
-      )
-    }
-
-    if (type === 'string') {
-      if (propertyName.toLowerCase().includes('prompt') && propertyName !== 'prompt') {
-        return (
-          <TextArea
-            value={value || defaultValue || ''}
-            onChange={(e) => onChange(propertyName, e.target.value)}
-            rows={3}
-            placeholder={description}
-          />
-        )
-      }
-      return (
-        <Input
-          value={value || defaultValue || ''}
-          onChange={(e) => onChange(propertyName, e.target.value)}
-          placeholder={description}
-        />
-      )
-    }
-
-    if (type === 'integer' && propertyName === 'seed') {
-      return (
-        <Input
-          style={{ width: '100%' }}
-          value={value || defaultValue}
-          onChange={(v) => onChange(propertyName, v)}
-          step={1}
-          min={schemaProperty.minimum}
-          max={schemaProperty.maximum}
-          suffix={
-            <RedoOutlined
-              onClick={() => onChange(propertyName, Math.floor(Math.random() * 1000000).toString())}
-              style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
-            />
-          }
-        />
-      )
-    }
-
-    if (type === 'integer' || type === 'number') {
-      const step = type === 'number' ? 0.1 : 1
-      return (
-        <InputNumber
-          style={{ width: '100%' }}
-          value={value || defaultValue}
-          onChange={(v) => onChange(propertyName, v)}
-          step={step}
-          min={schemaProperty.minimum}
-          max={schemaProperty.maximum}
-        />
-      )
-    }
-
-    if (type === 'boolean') {
-      return (
-        <Switch
-          checked={value !== undefined ? value : defaultValue}
-          onChange={(checked) => onChange(propertyName, checked)}
-          style={{ width: '2px' }}
-        />
-      )
-    }
-
-    return null
-  }
+  useEffect(() => {
+    tokenFluxService.fetchModels().then((models) => {
+      setModels(models)
+    })
+  }, [tokenFluxService])
 
   const getNewPainting = useCallback(() => {
     return {
@@ -240,40 +103,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const fetchModels = useCallback(async () => {
-    if (!tokenfluxProvider?.apiKey) {
-      return
-    }
-
-    setIsLoadingModels(true)
-    try {
-      const response = await fetch(`${tokenfluxProvider.apiHost}/v1/images/models`, {
-        headers: {
-          Authorization: `Bearer ${tokenfluxProvider.apiKey}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch models')
-      }
-
-      const data = await response.json()
-      if (data.success && data.data) {
-        setModels(data.data)
-        if (data.data.length > 0 && !selectedModel) {
-          const firstModel = data.data[0]
-          setSelectedModel(firstModel)
-          updatePaintingState({ model: firstModel.id })
-        }
-      }
-    } catch (error) {
-      console.error('Failed to fetch TokenFlux models:', error)
-      handleError(error)
-    } finally {
-      setIsLoadingModels(false)
-    }
-  }, [tokenfluxProvider, selectedModel, updatePaintingState])
-
   const handleModelChange = (modelId: string) => {
     const model = models.find((m) => m.id === modelId)
     if (model) {
@@ -287,84 +116,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     const newFormData = { ...formData, [field]: value }
     setFormData(newFormData)
     updatePaintingState({ inputParams: newFormData })
-  }
-
-  const downloadImages = async (urls: string[]) => {
-    const downloadedFiles = await Promise.all(
-      urls.map(async (url) => {
-        try {
-          if (!url?.trim()) {
-            console.error('Image URL is empty')
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
-            return null
-          }
-          return await window.api.file.download(url)
-        } catch (error) {
-          console.error('Failed to download image:', error)
-          return null
-        }
-      })
-    )
-
-    return downloadedFiles.filter((file): file is FileType => file !== null)
-  }
-
-  const pollGenerationResult = async (generationId: string) => {
-    try {
-      const response = await fetch(`${tokenfluxProvider.apiHost}/v1/images/generations/${generationId}`, {
-        headers: {
-          Authorization: `Bearer ${tokenfluxProvider.apiKey}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to get generation result')
-      }
-
-      const data = await response.json()
-      if (data.success && data.data) {
-        const { status, images, error } = data.data
-
-        updatePaintingState({ status })
-
-        if (status === 'succeeded' && images?.length > 0) {
-          const urls = images.map((img: { url: string }) => img.url)
-          const validFiles = await downloadImages(urls)
-          await FileManager.addFiles(validFiles)
-          updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
-
-          if (pollingInterval) {
-            clearInterval(pollingInterval)
-            setPollingInterval(null)
-          }
-          setIsLoading(false)
-          dispatch(setGenerating(false))
-        } else if (status === 'failed') {
-          if (pollingInterval) {
-            clearInterval(pollingInterval)
-            setPollingInterval(null)
-          }
-          setIsLoading(false)
-          dispatch(setGenerating(false))
-          window.modal.error({
-            content: error || 'Image generation failed',
-            centered: true
-          })
-        }
-      }
-    } catch (error) {
-      console.error('Polling error:', error)
-      if (pollingInterval) {
-        clearInterval(pollingInterval)
-        setPollingInterval(null)
-      }
-      setIsLoading(false)
-      dispatch(setGenerating(false))
-      handleError(error)
-    }
   }
 
   const onGenerate = async () => {
@@ -418,35 +169,34 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
       }
 
-      const response = await fetch(`${tokenfluxProvider.apiHost}/v1/images/generations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${tokenfluxProvider.apiKey}`
-        },
-        body: JSON.stringify(requestBody),
-        signal: controller.signal
+      updatePaintingState({
+        prompt,
+        status: 'processing',
+        inputParams: { prompt, ...formData }
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Generation failed')
+      const result = await tokenFluxService.generateAndWait(requestBody, {
+        signal: controller.signal,
+        onStatusUpdate: (status) => {
+          updatePaintingState({ status: status as any })
+        },
+        onProgress: (data) => {
+          if (data) {
+            updatePaintingState({ generationId: data.id, status: data.status as any })
+          }
+        }
+      })
+
+      if (result && result.images && result.images.length > 0) {
+        const urls = result.images.map((img: { url: string }) => img.url)
+        const validFiles = await tokenFluxService.downloadImages(urls)
+        await FileManager.addFiles(validFiles)
+        updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
       }
 
-      const data = await response.json()
-      if (data.success && data.data) {
-        const generationId = data.data.id
-        updatePaintingState({
-          prompt,
-          generationId,
-          status: 'processing',
-          inputParams: { prompt, ...formData }
-        })
-
-        // Start polling
-        const interval = setInterval(() => pollGenerationResult(generationId), 2000)
-        setPollingInterval(interval)
-      }
+      setIsLoading(false)
+      dispatch(setGenerating(false))
+      setAbortController(null)
     } catch (error: unknown) {
       handleError(error)
       setIsLoading(false)
@@ -457,10 +207,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onCancel = () => {
     abortController?.abort()
-    if (pollingInterval) {
-      clearInterval(pollingInterval)
-      setPollingInterval(null)
-    }
     setIsLoading(false)
     dispatch(setGenerating(false))
     setAbortController(null)
@@ -562,10 +308,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    fetchModels()
-  }, [])
-
-  useEffect(() => {
     if (tokenFluxPaintings.length === 0) {
       const newPainting = getNewPainting()
       addPainting('tokenFluxPaintings', newPainting)
@@ -579,11 +321,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (timer) {
         clearTimeout(timer)
       }
-      if (pollingInterval) {
-        clearInterval(pollingInterval)
-      }
     }
-  }, [pollingInterval])
+  }, [])
+
   return (
     <Container>
       <Navbar>
@@ -626,39 +366,29 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* Model & Pricing Section */}
           <SectionGroup>
             <SectionTitle>{t('common.model')} & Pricing</SectionTitle>
+            <Select
+              style={{ width: '100%', marginBottom: 12 }}
+              value={selectedModel?.id}
+              onChange={handleModelChange}
+              placeholder={t('paintings.select_model')}>
+              {models.map((model) => (
+                <Select.Option key={model.id} value={model.id}>
+                  <Tooltip title={model.description} placement="right">
+                    <ModelOptionContainer>
+                      <ModelName>{model.name}</ModelName>
+                    </ModelOptionContainer>
+                  </Tooltip>
+                </Select.Option>
+              ))}
+            </Select>
 
-            {isLoadingModels ? (
-              <LoadingContainer>
-                <Spin />
-              </LoadingContainer>
-            ) : (
-              <>
-                <Select
-                  style={{ width: '100%', marginBottom: 12 }}
-                  value={selectedModel?.id}
-                  onChange={handleModelChange}
-                  placeholder={t('paintings.select_model')}>
-                  {models.map((model) => (
-                    <Select.Option key={model.id} value={model.id}>
-                      <Tooltip title={model.description} placement="right">
-                        <ModelOptionContainer>
-                          <ModelName>{model.name}</ModelName>
-                        </ModelOptionContainer>
-                      </Tooltip>
-                    </Select.Option>
-                  ))}
-                </Select>
-
-                {selectedModel && selectedModel.pricing && (
-                  <PricingContainer>
-                    <PricingBadge>
-                      {selectedModel.pricing.price} {selectedModel.pricing.currency} per {selectedModel.pricing.unit}{' '}
-                      image
-                      {selectedModel.pricing.unit > 1 ? 's' : ''}
-                    </PricingBadge>
-                  </PricingContainer>
-                )}
-              </>
+            {selectedModel && selectedModel.pricing && (
+              <PricingContainer>
+                <PricingBadge>
+                  {selectedModel.pricing.price} {selectedModel.pricing.currency} per {selectedModel.pricing.unit} image
+                  {selectedModel.pricing.unit > 1 ? 's' : ''}
+                </PricingBadge>
+              </PricingContainer>
             )}
           </SectionGroup>
 
@@ -685,7 +415,12 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           </Tooltip>
                         )}
                       </ParameterLabel>
-                      {renderFormField(property, key, formData[key], handleFormFieldChange)}
+                      <DynamicFormRender
+                        schemaProperty={property}
+                        propertyName={key}
+                        value={formData[key]}
+                        onChange={handleFormFieldChange}
+                      />
                     </ParameterField>
                   )
                 })}
@@ -798,13 +533,6 @@ const SectionTitle = styled.div`
   margin-bottom: 12px;
   display: flex;
   align-items: center;
-`
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
 `
 
 const ModelOptionContainer = styled.div`
