@@ -49,6 +49,7 @@ export default abstract class BaseProvider {
     onResponse?: (text: string, isComplete: boolean) => void
   ): Promise<string>
   abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
+  abstract nameTopic(messages: Message[], assistant: Assistant): Promise<string>
   abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
   abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
   abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>

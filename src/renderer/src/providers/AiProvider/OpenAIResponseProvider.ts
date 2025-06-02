@@ -810,6 +810,44 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
    * @returns The summary
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
+    const model = assistant.model || getDefaultModel()
+    const userMessages = takeRight(messages, 5)
+      .filter((message) => !message.isPreset)
+      .map((message) => ({
+        role: message.role,
+        content: getMainTextContent(message)
+      }))
+    const userMessageContent = userMessages.reduce((prev, curr) => {
+      const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
+      return prev + (prev ? '\n' : '') + content
+    }, '')
+
+    const systemMessage: OpenAI.Responses.EasyInputMessage = {
+      role: 'system',
+      content: i18n.t('prompts.summarize')
+    }
+
+    const userMessage: OpenAI.Responses.EasyInputMessage = {
+      role: 'user',
+      content: userMessageContent
+    }
+
+    const response = await this.sdk.responses.create({
+      model: model.id,
+      input: [systemMessage, userMessage],
+      stream: false,
+      max_output_tokens: 1000
+    })
+    return removeSpecialCharactersForTopicName(response.output_text.substring(0, 50))
+  }
+
+  /**
+   * Name a topic for a conversation
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The name of the topic
+   */
+  public async nameTopic(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
     const userMessages = takeRight(messages, 5)
       .filter((message) => !message.isPreset)
@@ -836,7 +874,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
       model: model.id,
       input: [systemMessage, userMessage],
       stream: false,
-      max_output_tokens: 1000
+      max_output_tokens: 64
     })
     return removeSpecialCharactersForTopicName(response.output_text.substring(0, 50))
   }

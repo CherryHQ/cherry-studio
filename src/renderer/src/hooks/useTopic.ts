@@ -93,10 +93,10 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     }
 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
-      const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
-      const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
-      if (summaryText) {
-        const data = { ...topic, name: summaryText }
+      const { fetchTopicName } = await import('@renderer/services/ApiService')
+      const topicName = await fetchTopicName({ messages: topic.messages, assistant })
+      if (topicName) {
+        const data = { ...topic, name: topicName }
         _setActiveTopic(data)
         store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
       }

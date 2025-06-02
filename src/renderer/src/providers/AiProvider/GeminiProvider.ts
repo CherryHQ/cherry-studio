@@ -758,6 +758,58 @@ export default class GeminiProvider extends BaseProvider {
    * @returns The summary
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
+    const model = assistant.model || getDefaultModel()
+
+    const userMessages = takeRight(messages, 5)
+      .filter((message) => !message.isPreset)
+      .map((message) => ({
+        role: message.role,
+        // Get content using helper
+        content: getMainTextContent(message)
+      }))
+
+    const userMessageContent = userMessages.reduce((prev, curr) => {
+      const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
+      return prev + (prev ? '\n' : '') + content
+    }, '')
+
+    const systemMessage = {
+      role: 'system',
+      content: i18n.t('prompts.summarize')
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: userMessageContent
+    }
+
+    const content = isGemmaModel(model)
+      ? `<start_of_turn>user\n${systemMessage.content}<end_of_turn>\n<start_of_turn>user\n${userMessage.content}<end_of_turn>`
+      : userMessage.content
+
+    const response = await this.sdk.models.generateContent({
+      model: model.id,
+      config: {
+        systemInstruction: isGemmaModel(model) ? undefined : systemMessage.content
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: content }]
+        }
+      ]
+    })
+
+    return removeSpecialCharactersForTopicName(response.text || '')
+  }
+
+  /**
+   * Name a topic for a conversation
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The name of the topic
+   */
+  public async nameTopic(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
     const userMessages = takeRight(messages, 5)

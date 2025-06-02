@@ -2,7 +2,7 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT } from '@renderer/config/constant'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { fetchTopicName } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -220,7 +220,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
         blocks: message.blocks
       })
 
-      const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+      const title = await fetchTopicName({ messages: [tempMessage], assistant: {} as Assistant })
 
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 

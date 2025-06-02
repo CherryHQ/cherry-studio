@@ -343,7 +343,7 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const model = assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -354,6 +354,24 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   try {
     const text = await AI.summaries(filterMessages(messages), assistant)
+    return text?.replace(/["']/g, '') || null
+  } catch (error: any) {
+    return null
+  }
+}
+
+export async function fetchTopicName({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    return null
+  }
+
+  const AI = new AiProvider(provider)
+
+  try {
+    const text = await AI.nameTopic(filterMessages(messages), assistant)
     return text?.replace(/["']/g, '') || null
   } catch (error: any) {
     return null

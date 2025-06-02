@@ -18,7 +18,7 @@ import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { TopicManager } from '@renderer/hooks/useTopic'
-import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { fetchTopicName } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { RootState } from '@renderer/store'
@@ -172,7 +172,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         async onClick() {
           const messages = await TopicManager.getTopicMessages(topic.id)
           if (messages.length >= 2) {
-            const summaryText = await fetchMessagesSummary({ messages, assistant })
+            const summaryText = await fetchTopicName({ messages, assistant })
             if (summaryText) {
               updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
             }

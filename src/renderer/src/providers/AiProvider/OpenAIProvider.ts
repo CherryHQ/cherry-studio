@@ -996,8 +996,54 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
    * @returns The summary
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
-    const model = getTopNamingModel() || assistant.model || getDefaultModel()
+    const model = assistant.model || getDefaultModel()
+    const userMessages = takeRight(messages, 5)
+      .filter((message) => !message.isPreset)
+      .map((message) => ({
+        role: message.role,
+        content: getMainTextContent(message)
+      }))
 
+    const userMessageContent = userMessages.reduce((prev, curr) => {
+      const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
+      return prev + (prev ? '\n' : '') + content
+    }, '')
+
+    const systemMessage = {
+      role: 'system',
+      content: i18n.t('prompts.summarize')
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: userMessageContent
+    }
+
+    await this.checkIsCopilot()
+
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create({
+      model: model.id,
+      messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+      stream: false,
+      keep_alive: this.keepAliveTime,
+      max_tokens: 1000
+    })
+
+    // 针对思考类模型的返回，总结仅截取</think>之后的内容
+    let content = response.choices[0].message?.content || ''
+    content = content.replace(/^<think>(.*?)<\/think>/s, '')
+
+    return removeSpecialCharactersForTopicName(content.substring(0, 50))
+  }
+  /**
+   * Name a topic for a conversation
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The name of the topic
+   */
+  public async nameTopic(messages: Message[], assistant: Assistant): Promise<string> {
+    const model = getTopNamingModel() || assistant.model || getDefaultModel()
     const userMessages = takeRight(messages, 5)
       .filter((message) => !message.isPreset)
       .map((message) => ({
@@ -1028,7 +1074,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
       stream: false,
       keep_alive: this.keepAliveTime,
-      max_tokens: 1000
+      max_tokens: 64
     })
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容

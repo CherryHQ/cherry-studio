@@ -547,6 +547,53 @@ export default class AnthropicProvider extends BaseProvider {
    * @returns The summary
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
+    const model = assistant.model || getDefaultModel()
+
+    const userMessages = takeRight(messages, 5)
+      .filter((message) => !message.isPreset)
+      .map((message) => ({
+        role: message.role,
+        content: getMainTextContent(message)
+      }))
+
+    if (first(userMessages)?.role === 'assistant') {
+      userMessages.shift()
+    }
+
+    const userMessageContent = userMessages.reduce((prev, curr) => {
+      const currentContent = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
+      return prev + (prev ? '\n' : '') + currentContent
+    }, '')
+
+    const systemMessage = {
+      role: 'system',
+      content: i18n.t('prompts.summarize')
+    }
+
+    const userMessage = {
+      role: 'user',
+      content: userMessageContent
+    }
+
+    const message = await this.sdk.messages.create({
+      messages: [userMessage] as Anthropic.Messages.MessageParam[],
+      model: model.id,
+      system: systemMessage.content,
+      stream: false,
+      max_tokens: 4096
+    })
+
+    const responseContent = message.content[0].type === 'text' ? message.content[0].text : ''
+    return removeSpecialCharactersForTopicName(responseContent)
+  }
+
+  /**
+   * Name a topic for a conversation
+   * @param messages - The messages
+   * @param assistant - The assistant
+   * @returns The name of the topic
+   */
+  public async nameTopic(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
     const userMessages = takeRight(messages, 5)
@@ -580,7 +627,7 @@ export default class AnthropicProvider extends BaseProvider {
       model: model.id,
       system: systemMessage.content,
       stream: false,
-      max_tokens: 4096
+      max_tokens: 64
     })
 
     const responseContent = message.content[0].type === 'text' ? message.content[0].text : ''
