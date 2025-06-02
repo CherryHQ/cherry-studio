@@ -944,7 +944,6 @@
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
       "auto_create_paint": "Auto-create image",
       "auto_create_paint_tip": "After the image is generated, a new image will be created automatically."
-
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -1794,6 +1793,8 @@
     },
     "translate": {
       "any.language": "Any language",
+      "target_language": "Target Language",
+      "alter_language": "Alternative Language",
       "button.translate": "Translate",
       "close": "Close",
       "closed": "Translation closed",
@@ -1866,6 +1867,9 @@
           "esc_stop": "Esc: Stop",
           "c_copy": "C: Copy",
           "r_regenerate": "R: Regenerate"
+        },
+        "translate": {
+          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
         }
       },
       "settings": {
