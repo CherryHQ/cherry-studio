@@ -73,6 +73,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     tokenFluxService.fetchModels().then((models) => {
       setModels(models)
+      if (models.length > 0) {
+        setSelectedModel(models[0])
+      }
     })
   }, [tokenFluxService])
 
