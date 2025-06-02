@@ -320,7 +320,7 @@ export enum ThemeMode {
   system = 'system'
 }
 
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
+export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'es-MX' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
 export type TranslateLanguageVarious =
   | 'chinese'
@@ -328,6 +328,7 @@ export type TranslateLanguageVarious =
   | 'greek'
   | 'english'
   | 'spanish'
+  | 'spanish-latam'
   | 'french'
   | 'japanese'
   | 'portuguese'
