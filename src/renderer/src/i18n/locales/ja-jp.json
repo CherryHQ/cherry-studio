@@ -586,7 +586,14 @@
       "korean": "韓国語",
       "portuguese": "ポルトガル語",
       "russian": "ロシア語",
-      "spanish": "スペイン語"
+      "spanish": "スペイン語",
+      "polish": "ポーランド語",
+      "turkish": "トルコ語",
+      "thai": "タイ語",
+      "vietnamese": "ベトナム語",
+      "indonesian": "インドネシア語",
+      "urdu": "ウルドゥー語",
+      "malay": "マレー語"
     },
     "lmstudio": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",

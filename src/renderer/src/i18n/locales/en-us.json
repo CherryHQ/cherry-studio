@@ -586,7 +586,14 @@
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
+      "spanish": "Spanish",
+      "polish": "Polish",
+      "turkish": "Turkish",
+      "thai": "Thai",
+      "vietnamese": "Vietnamese",
+      "indonesian": "Indonesian",
+      "urdu": "Urdu",
+      "malay": "Malay"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
