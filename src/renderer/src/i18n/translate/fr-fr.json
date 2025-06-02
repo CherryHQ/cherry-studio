@@ -557,6 +557,7 @@
       "error.enter.api.key": "Veuillez entrer votre clé API",
       "error.enter.model": "Veuillez sélectionner un modèle",
       "error.enter.name": "Veuillez entrer le nom de la base de connaissances",
+      "error.fetchTopicName": "Échec de la dénomination du sujet",
       "error.get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "error.invalid.api.host": "Adresse API invalide",
       "error.invalid.api.key": "Clé API invalide",

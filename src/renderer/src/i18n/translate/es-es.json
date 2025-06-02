@@ -558,6 +558,7 @@
       "error.enter.api.key": "Ingrese su clave API",
       "error.enter.model": "Seleccione un modelo",
       "error.enter.name": "Ingrese el nombre de la base de conocimiento",
+      "error.fetchTopicName": "Error al nombrar el tema",
       "error.get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "error.invalid.api.host": "Dirección API inválida",
       "error.invalid.api.key": "Clave API inválida",

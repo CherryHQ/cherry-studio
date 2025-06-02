@@ -627,6 +627,7 @@
       "error.enter.api.key": "請先輸入您的 API 金鑰",
       "error.enter.model": "請先選擇一個模型",
       "error.enter.name": "請先輸入知識庫名稱",
+      "error.fetchTopicName": "話題命名失敗",
       "error.get_embedding_dimensions": "取得嵌入維度失敗",
       "error.invalid.api.host": "無效的 API 位址",
       "error.invalid.api.key": "無效的 API 金鑰",
@@ -941,7 +942,7 @@
       },
       "rendering_speed": "渲染速度",
       "text_desc_required": "請先輸入圖片描述",
-      "req_error_text" : "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
       "auto_create_paint": "自動新增圖片",
       "auto_create_paint_tip": "圖片生成後，會自動新增圖片"
     },
