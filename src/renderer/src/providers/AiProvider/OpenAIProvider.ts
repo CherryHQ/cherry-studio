@@ -1067,7 +1067,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     await this.checkIsCopilot()
-
     const params = {
       model: model.id,
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
@@ -1076,7 +1075,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       max_tokens: 64
     }
 
-    if (model?.provider === 'dashscope') {
+    if (isSupportedThinkingTokenQwenModel(model)) {
       params['enable_thinking'] = false
     }
 
