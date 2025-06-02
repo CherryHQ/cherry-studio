@@ -91,6 +91,10 @@ export default class AihubmixProvider extends BaseProvider {
     return this.getProvider(assistant.model || getDefaultModel()).summaries(messages, assistant)
   }
 
+  public async nameTopic(messages: Message[], assistant: Assistant): Promise<string> {
+    return this.getProvider(assistant.model || getDefaultModel()).nameTopic(messages, assistant)
+  }
+
   public async summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null> {
     return this.getProvider(assistant.model || getDefaultModel()).summaryForSearch(messages, assistant)
   }
