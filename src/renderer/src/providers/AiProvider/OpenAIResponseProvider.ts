@@ -944,28 +944,32 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-    if (stream) {
-      const response = await this.sdk.responses.create({
-        model: model.id,
-        input: [{ role: 'user', content: 'hi' }],
-        stream: true
-      })
-      for await (const chunk of response) {
-        if (chunk.type === 'response.output_text.delta') {
-          return { valid: true, error: null }
+    try {
+      if (stream) {
+        const response = await this.sdk.responses.create({
+          model: model.id,
+          input: [{ role: 'user', content: 'hi' }],
+          stream: true
+        })
+        for await (const chunk of response) {
+          if (chunk.type === 'response.output_text.delta') {
+            return { valid: true, error: null }
+          }
         }
+        return { valid: false, error: new Error('No streaming response') }
+      } else {
+        const response = await this.sdk.responses.create({
+          model: model.id,
+          input: [{ role: 'user', content: 'hi' }],
+          stream: false
+        })
+        if (!response.output_text) {
+          return { valid: false, error: new Error('No response') }
+        }
+        return { valid: true, error: null }
       }
-      throw new Error('Empty streaming response')
-    } else {
-      const response = await this.sdk.responses.create({
-        model: model.id,
-        input: [{ role: 'user', content: 'hi' }],
-        stream: false
-      })
-      if (!response.output_text) {
-        throw new Error('Empty response')
-      }
-      return { valid: true, error: null }
+    } catch (error: any) {
+      return { valid: false, error: error }
     }
   }
 

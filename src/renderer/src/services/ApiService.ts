@@ -471,7 +471,7 @@ export function checkApiProvider(provider: Provider): {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
+export async function checkApi(provider: Provider, model: Model): Promise<{ valid: boolean; error: Error | null }> {
   const validation = checkApiProvider(provider)
   if (!validation.valid) {
     return {
@@ -484,9 +484,16 @@ export async function checkApi(provider: Provider, model: Model) {
 
   // Try streaming check first
   const result = await ai.check(model, true)
+
   if (result.valid && !result.error) {
     return result
   }
 
-  return ai.check(model, false)
+  // 不应该假设错误由流式引发。多次发起检测请求可能触发429，掩盖了真正的问题。
+  // 但这里错误类型做的很粗糙，暂时先这样
+  if (result.error && result.error.message.includes('stream')) {
+    return ai.check(model, false)
+  } else {
+    return result
+  }
 }
