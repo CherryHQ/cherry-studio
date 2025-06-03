@@ -332,11 +332,11 @@ export function useMessageOperations(topic: Topic) {
         }
 
         // 6. Log operations for debugging
-        console.log('[editMessageBlocks] Operations:', {
-          blocksToRemove: blockIdsToRemove.length,
-          blocksToUpdate: blocksToUpdate.length,
-          blocksToAdd: blocksToAdd.length
-        })
+        // console.log('[editMessageBlocks] Operations:', {
+        //   blocksToRemove: blockIdsToRemove.length,
+        //   blocksToUpdate: blocksToUpdate.length,
+        //   blocksToAdd: blocksToAdd.length
+        // })
 
         // 7. Update Redux state and database
         // First update message and add/update blocks

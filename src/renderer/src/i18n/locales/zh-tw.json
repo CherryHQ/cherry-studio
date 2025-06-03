@@ -627,6 +627,7 @@
       "error.enter.api.key": "請先輸入您的 API 金鑰",
       "error.enter.model": "請先選擇一個模型",
       "error.enter.name": "請先輸入知識庫名稱",
+      "error.fetchTopicName": "話題命名失敗",
       "error.get_embedding_dimensions": "取得嵌入維度失敗",
       "error.invalid.api.host": "無效的 API 位址",
       "error.invalid.api.key": "無效的 API 金鑰",
@@ -1852,6 +1853,13 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "update": {
+      "title": "更新提示",
+      "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
+      "later": "稍後",
+      "install": "立即安裝",
+      "noReleaseNotes": "暫無更新日誌"
     },
     "selection": {
       "name": "劃詞助手",

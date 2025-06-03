@@ -2315,7 +2315,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   return (
-    model.id.toLowerCase().includes('qwen3') ||
+    model.id.toLowerCase().startsWith('qwen3') ||
+    model.id.toLowerCase().startsWith('qwen/qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',

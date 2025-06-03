@@ -49,7 +49,9 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
+import { Base64 } from 'js-base64'
 import { isEmpty, takeRight } from 'lodash'
+import mime from 'mime'
 import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
@@ -1059,16 +1061,13 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         const assistantFiles = findImageBlocks(lastAssistantMessage)
         const assistantImages = await Promise.all(
           assistantFiles.filter(Boolean).map(async (f) => {
-            const base64Data = f?.url?.replace(/^data:image\/\w+;base64,/, '')
-            if (!base64Data) return null
-            const binary = atob(base64Data)
-            const bytes = new Uint8Array(binary.length)
-            for (let i = 0; i < binary.length; i++) {
-              bytes[i] = binary.charCodeAt(i)
-            }
-            return await toFile(bytes, 'assistant_image.png', {
-              type: 'image/png'
-            })
+            const match = f?.url?.match(/^data:(image\/\w+);base64,(.+)$/)
+            if (!match) return null
+            const mimeType = match[1]
+            const extension = mime.getExtension(mimeType) || 'bin'
+            const bytes = Base64.toUint8Array(match[2])
+            const fileName = `assistant_image.${extension}`
+            return await toFile(bytes, fileName, { type: mimeType })
           })
         )
         images = images.concat(assistantImages.filter(Boolean) as FileLike[])

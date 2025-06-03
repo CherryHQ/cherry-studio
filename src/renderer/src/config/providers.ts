@@ -124,8 +124,8 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://o3.fan',
       apiKey: 'https://o3.fan/token',
-      docs: 'https://docs.o3.fan',
-      models: 'https://docs.o3.fan/models'
+      docs: '',
+      models: 'https://o3.fan/info/models/'
     }
   },
   burncloud: {

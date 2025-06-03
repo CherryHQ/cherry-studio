@@ -612,6 +612,8 @@ export interface GetMCPPromptResponse {
 
 export interface MCPConfig {
   servers: MCPServer[]
+  isUvInstalled: boolean
+  isBunInstalled: boolean
 }
 
 interface BaseToolResponse {

@@ -175,6 +175,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             const summaryText = await fetchMessagesSummary({ messages, assistant })
             if (summaryText) {
               updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+            } else {
+              window.message?.error(t('message.error.fetchTopicName'))
             }
           }
         }

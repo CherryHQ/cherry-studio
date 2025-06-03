@@ -37,6 +37,11 @@ type RelativeOrientation =
   | 'middleRight'
   | 'center'
 
+enum TriggerMode {
+  Selected = 'selected',
+  Ctrlkey = 'ctrlkey'
+}
+
 /** SelectionService is a singleton class that manages the selection hook and the toolbar window
  *
  * Features:
@@ -59,7 +64,7 @@ export class SelectionService {
   private initStatus: boolean = false
   private started: boolean = false
 
-  private triggerMode = 'selected'
+  private triggerMode = TriggerMode.Selected
   private isFollowToolbar = true
   private isRemeberWinSize = false
   private filterMode = 'default'
@@ -145,7 +150,7 @@ export class SelectionService {
   }
 
   private initConfig() {
-    this.triggerMode = configManager.getSelectionAssistantTriggerMode()
+    this.triggerMode = configManager.getSelectionAssistantTriggerMode() as TriggerMode
     this.isFollowToolbar = configManager.getSelectionAssistantFollowToolbar()
     this.isRemeberWinSize = configManager.getSelectionAssistantRemeberWinSize()
     this.filterMode = configManager.getSelectionAssistantFilterMode()
@@ -153,9 +158,16 @@ export class SelectionService {
 
     this.setHookGlobalFilterMode(this.filterMode, this.filterList)
 
-    configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: string) => {
+    configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: TriggerMode) => {
+      const oldTriggerMode = this.triggerMode
+
       this.triggerMode = triggerMode
       this.processTriggerMode()
+
+      //trigger mode changed, need to update the filter list
+      if (oldTriggerMode !== triggerMode) {
+        this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+      }
     })
 
     configManager.subscribe(ConfigKeys.SelectionAssistantFollowToolbar, (isFollowToolbar: boolean) => {
@@ -198,23 +210,26 @@ export class SelectionService {
       blacklist: 2
     }
 
-    let combinedList: string[] = []
+    let combinedList: string[] = list
     let combinedMode = mode
 
-    switch (mode) {
-      case 'blacklist':
-        //combine the predefined blacklist with the user-defined blacklist
-        combinedList = [...new Set([...list, ...SELECTION_PREDEFINED_BLACKLIST.WINDOWS])]
-        break
-      case 'whitelist':
-        combinedList = [...list]
-        break
-      case 'default':
-      default:
-        //use the predefined blacklist as the default filter list
-        combinedList = [...SELECTION_PREDEFINED_BLACKLIST.WINDOWS]
-        combinedMode = 'blacklist'
-        break
+    //only the selected mode need to combine the predefined blacklist with the user-defined blacklist
+    if (this.triggerMode === TriggerMode.Selected) {
+      switch (mode) {
+        case 'blacklist':
+          //combine the predefined blacklist with the user-defined blacklist
+          combinedList = [...new Set([...list, ...SELECTION_PREDEFINED_BLACKLIST.WINDOWS])]
+          break
+        case 'whitelist':
+          combinedList = [...list]
+          break
+        case 'default':
+        default:
+          //use the predefined blacklist as the default filter list
+          combinedList = [...SELECTION_PREDEFINED_BLACKLIST.WINDOWS]
+          combinedMode = 'blacklist'
+          break
+      }
     }
 
     if (!this.selectionHook.setGlobalFilterMode(modeMap[combinedMode], combinedList)) {
@@ -774,7 +789,7 @@ export class SelectionService {
    */
   private handleKeyDownHide = (data: KeyboardEventData) => {
     //dont hide toolbar when ctrlkey is pressed
-    if (this.triggerMode === 'ctrlkey' && this.isCtrlkey(data.vkCode)) {
+    if (this.triggerMode === TriggerMode.Ctrlkey && this.isCtrlkey(data.vkCode)) {
       return
     }
     //dont hide toolbar when shiftkey is pressed, because it's used for selection
@@ -1042,7 +1057,7 @@ export class SelectionService {
    * Manages appropriate event listeners for each mode
    */
   private processTriggerMode() {
-    if (this.triggerMode === 'selected') {
+    if (this.triggerMode === TriggerMode.Selected) {
       if (this.isCtrlkeyListenerActive) {
         this.selectionHook!.off('key-down', this.handleKeyDownCtrlkeyMode)
         this.selectionHook!.off('key-up', this.handleKeyUpCtrlkeyMode)
@@ -1051,7 +1066,7 @@ export class SelectionService {
       }
 
       this.selectionHook!.setSelectionPassiveMode(false)
-    } else if (this.triggerMode === 'ctrlkey') {
+    } else if (this.triggerMode === TriggerMode.Ctrlkey) {
       if (!this.isCtrlkeyListenerActive) {
         this.selectionHook!.on('key-down', this.handleKeyDownCtrlkeyMode)
         this.selectionHook!.on('key-up', this.handleKeyUpCtrlkeyMode)
