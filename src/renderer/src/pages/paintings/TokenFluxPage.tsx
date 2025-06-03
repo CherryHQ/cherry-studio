@@ -41,7 +41,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
 
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const providers = useAllProviders()
   const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
   const tokenFluxPaintings = useMemo(() => persistentData.tokenFluxPaintings || [], [persistentData.tokenFluxPaintings])
@@ -317,6 +317,12 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
+  const readI18nContext = (property: Record<string, any>, key: string): string => {
+    const lang = i18n.language.split('-')[0] // Get the base language code (e.g., 'en' from 'en-US')
+    console.log('readI18nContext', { property, key, lang })
+    return property[`${key}_${lang}`] || property[key]
+  }
+
   useEffect(() => {
     if (tokenFluxPaintings.length === 0) {
       const newPainting = getNewPainting()
@@ -457,11 +463,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                     <ParameterField key={key}>
                       <ParameterLabel>
                         <ParameterName>
-                          {key}
+                          {readI18nContext(property, 'title')}
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
                         {property.description && (
-                          <Tooltip title={property.description}>
+                          <Tooltip title={readI18nContext(property, 'description')}>
                             <InfoIcon />
                           </Tooltip>
                         )}
