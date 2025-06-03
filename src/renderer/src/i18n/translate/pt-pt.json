@@ -1660,6 +1660,13 @@
       "quit": "Sair",
       "show_window": "Exibir Janela",
       "visualization": "Visualização"
+    },
+    "update": {
+      "title": "Atualização",
+      "message": "Nova versão {{version}} disponível, deseja instalar agora?",
+      "later": "Mais tarde",
+      "install": "Instalar",
+      "noReleaseNotes": "Sem notas de versão"
     }
   }
 }

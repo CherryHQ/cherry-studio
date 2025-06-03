@@ -1844,6 +1844,13 @@
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
     },
+    "update": {
+      "title": "更新",
+      "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
+      "later": "後で",
+      "install": "今すぐインストール",
+      "noReleaseNotes": "暫無更新日誌"
+    },
     "selection": {
       "name": "テキスト選択ツール",
       "action": {

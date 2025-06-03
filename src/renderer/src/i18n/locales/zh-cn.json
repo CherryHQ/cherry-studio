@@ -1844,6 +1844,13 @@
       "show_window": "显示窗口",
       "visualization": "可视化"
     },
+    "update": {
+      "title": "更新提示",
+      "message": "发现新版本 {{version}}，是否立即安装？",
+      "later": "稍后",
+      "install": "立即安装",
+      "noReleaseNotes": "暂无更新日志"
+    },
     "selection": {
       "name": "划词助手",
       "action": {

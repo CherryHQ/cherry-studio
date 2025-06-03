@@ -1657,6 +1657,13 @@
       "quit": "Salir",
       "show_window": "Mostrar Ventana",
       "visualization": "Visualización"
+    },
+    "update": {
+      "title": "Actualización",
+      "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
+      "later": "Más tarde",
+      "install": "Instalar",
+      "noReleaseNotes": "Sin notas de la versión"
     }
   }
 }

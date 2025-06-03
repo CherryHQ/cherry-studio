@@ -1844,6 +1844,13 @@
       "show_window": "Show Window",
       "visualization": "Visualization"
     },
+    "update": {
+      "title": "Update",
+      "message": "New version {{version}} is ready, do you want to install it now?",
+      "later": "Later",
+      "install": "Install",
+      "noReleaseNotes": "No release notes"
+    },
     "selection": {
       "name": "Selection Assistant",
       "action": {

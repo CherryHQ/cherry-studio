@@ -1844,6 +1844,13 @@
       "show_window": "Показать окно",
       "visualization": "Визуализация"
     },
+    "update": {
+      "title": "Обновление",
+      "message": "Новая версия {{version}} готова, установить сейчас?",
+      "later": "Позже",
+      "install": "Установить",
+      "noReleaseNotes": "Нет заметок об обновлении"
+    },
     "selection": {
       "name": "Помощник выбора",
       "action": {
