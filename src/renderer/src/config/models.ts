@@ -1348,15 +1348,39 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   grok: [
     {
-      id: 'grok-beta',
+      id: 'grok-3',
       provider: 'grok',
-      name: 'Grok Beta',
+      name: 'Grok 3',
       group: 'Grok'
     },
     {
-      id: 'grok-vision-beta',
+      id: 'grok-3-fast',
       provider: 'grok',
-      name: 'Grok Vision Beta',
+      name: 'Grok 3 Fast',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-3-mini',
+      provider: 'grok',
+      name: 'Grok 3 Mini',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-3-mini-fast',
+      provider: 'grok',
+      name: 'Grok 3 Mini Fast',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-2-vision-1212',
+      provider: 'grok',
+      name: 'Grok 2 Vision 1212',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-2-1212',
+      provider: 'grok',
+      name: 'Grok 2 1212',
       group: 'Grok'
     }
   ],
