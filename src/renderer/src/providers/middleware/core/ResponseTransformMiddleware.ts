@@ -3,9 +3,9 @@ import { SdkRawChunk } from '@renderer/types/sdk'
 
 import { ResponseChunkTransformerContext } from '../../AiProvider/clients/types'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'ResponseTransformMiddleware'
+export const MIDDLEWARE_NAME = 'ResponseTransformMiddleware'
 
 /**
  * 响应转换中间件

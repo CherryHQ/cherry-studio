@@ -3,9 +3,9 @@ import { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream } from '@renderer/utils/stream'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'StreamAdapterMiddleware'
+export const MIDDLEWARE_NAME = 'StreamAdapterMiddleware'
 
 /**
  * 流适配器中间件

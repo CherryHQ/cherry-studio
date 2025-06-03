@@ -3,7 +3,7 @@ import { Chunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkRawChunk } from '@renderer/types/sdk'
 
-import { ProcessingState } from './type'
+import { ProcessingState } from './types'
 
 // ============================================================================
 // Core Request Types - 核心请求结构

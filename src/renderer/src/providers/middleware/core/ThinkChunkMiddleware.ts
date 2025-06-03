@@ -2,9 +2,9 @@ import Logger from '@renderer/config/logger'
 import { ChunkType, ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
+export const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
 
 /**
  * 处理思考内容的中间件

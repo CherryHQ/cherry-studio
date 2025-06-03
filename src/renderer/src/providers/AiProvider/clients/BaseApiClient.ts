@@ -1,7 +1,7 @@
 import { isFunctionCallingModel, isNotSupportTemperatureAndTopP } from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
-import { ProcessingState } from '@renderer/providers/middleware/type'
+import { ProcessingState } from '@renderer/providers/middleware/types'
 import {
   Assistant,
   FileTypes,

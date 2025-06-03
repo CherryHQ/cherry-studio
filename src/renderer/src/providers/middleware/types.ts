@@ -90,21 +90,5 @@ export type CompletionsMiddleware = (
   next: (context: CompletionsContext, params: CompletionsParams) => Promise<CompletionsResult>
 ) => (context: CompletionsContext, params: CompletionsParams) => Promise<CompletionsResult>
 
-/**
- * Base configuration for any middleware.
- */
-export interface BaseMiddlewareConfig {
-  id?: string
-  name?: string
-}
-
-/**
- * Middleware configuration structure.
- */
-export interface MiddlewareConfig extends BaseMiddlewareConfig {
-  completions?: CompletionsMiddleware[]
-  methods?: Record<string, MethodMiddleware[]>
-}
-
 // Re-export for convenience
 export type { Chunk as OnChunkArg } from '@renderer/types/chunk'

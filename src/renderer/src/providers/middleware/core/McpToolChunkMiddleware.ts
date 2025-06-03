@@ -6,9 +6,9 @@ import { parseAndCallTools } from '@renderer/utils/mcp-tools'
 import { ChatCompletionMessageParam } from 'openai/resources'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'McpToolChunkMiddleware'
+export const MIDDLEWARE_NAME = 'McpToolChunkMiddleware'
 const MAX_TOOL_RECURSION_DEPTH = 20 // 防止无限递归
 
 /**

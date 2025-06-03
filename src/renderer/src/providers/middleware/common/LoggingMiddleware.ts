@@ -1,4 +1,6 @@
-import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../type'
+import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../types'
+
+export const MIDDLEWARE_NAME = 'GenericLoggingMiddleware'
 
 /**
  * Helper function to safely stringify arguments for logging, handling circular references and large objects.

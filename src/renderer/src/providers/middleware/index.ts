@@ -1,7 +1,7 @@
 import { BaseApiClient } from '../AiProvider/clients'
 import { applyCompletionsMiddlewares, applyMethodMiddlewares } from './composer'
 import { CompletionsParams } from './schemas'
-import { CompletionsMiddleware, MethodMiddleware, MiddlewareConfig } from './type'
+import { CompletionsMiddleware, MethodMiddleware } from './types'
 
 /**
  * Wraps a provider instance with middlewares.
@@ -77,4 +77,16 @@ export function wrapProviderWithMiddleware(
 }
 
 // Export types for external use
-export type { CompletionsMiddleware, MethodMiddleware, MiddlewareConfig }
+export type { CompletionsMiddleware, MethodMiddleware }
+
+// Export MiddlewareBuilder related types and classes
+export {
+  CompletionsMiddlewareBuilder,
+  createCompletionsBuilder,
+  createMethodBuilder,
+  MethodMiddlewareBuilder,
+  MiddlewareBuilder,
+  type MiddlewareExecutor,
+  MiddlewareName,
+  type NamedMiddleware
+} from './builder'

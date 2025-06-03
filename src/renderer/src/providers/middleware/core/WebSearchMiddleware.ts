@@ -1,9 +1,9 @@
 import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'WebSearchMiddleware'
+export const MIDDLEWARE_NAME = 'WebSearchMiddleware'
 
 /**
  * Web搜索处理中间件 - 基于GenericChunk流处理
