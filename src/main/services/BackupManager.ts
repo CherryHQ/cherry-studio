@@ -11,7 +11,7 @@ import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
-import S3Storage from './S3Storage'
+import S3Storage from './RemoteStorage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
