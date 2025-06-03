@@ -4,6 +4,7 @@ import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
+import { locales } from '@main/utils/locales'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
@@ -94,15 +95,22 @@ export default class AppUpdater {
     if (!this.releaseInfo) {
       return
     }
+    const locale = locales[configManager.getLanguage()]
+    const { update: updateLocale } = locale.translation
+
+    let detail = this.formatReleaseNotes(this.releaseInfo.releaseNotes)
+    if (detail === '') {
+      detail = updateLocale.noReleaseNotes
+    }
 
     dialog
       .showMessageBox({
         type: 'info',
-        title: '安装更新',
+        title: updateLocale.title,
         icon,
-        message: `新版本 ${this.releaseInfo.version} 已准备就绪`,
-        detail: this.formatReleaseNotes(this.releaseInfo.releaseNotes),
-        buttons: ['稍后安装', '立即安装'],
+        message: updateLocale.message.replace('{{version}}', this.releaseInfo.version),
+        detail,
+        buttons: [updateLocale.later, updateLocale.install],
         defaultId: 1,
         cancelId: 0
       })
@@ -118,7 +126,7 @@ export default class AppUpdater {
 
   private formatReleaseNotes(releaseNotes: string | ReleaseNoteInfo[] | null | undefined): string {
     if (!releaseNotes) {
-      return '暂无更新说明'
+      return ''
     }
 
     if (typeof releaseNotes === 'string') {

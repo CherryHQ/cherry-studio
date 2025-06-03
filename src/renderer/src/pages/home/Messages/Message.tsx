@@ -21,6 +21,7 @@ import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
 import MessageTokens from './MessageTokens'
+import { estimateMessageUsage } from '@renderer/services/TokenService'
 
 interface Props {
   message: Message
@@ -52,7 +53,7 @@ const MessageItem: FC<Props> = ({
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize, narrowMode, messageStyle } = useSettings()
-  const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
+  const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
   const isEditing = editingMessageId === message.id
@@ -69,14 +70,15 @@ const MessageItem: FC<Props> = ({
   const handleEditSave = useCallback(
     async (blocks: MessageBlock[]) => {
       try {
-        console.log('after save blocks', blocks)
         await editMessageBlocks(message.id, blocks)
+        const usage = await estimateMessageUsage(message)
+        editMessage(message.id, { usage: usage })
         stopEditing()
       } catch (error) {
         console.error('Failed to save message blocks:', error)
       }
     },
-    [message, editMessageBlocks, stopEditing]
+    [message, editMessageBlocks, stopEditing, editMessage]
   )
 
   const handleEditResend = useCallback(

@@ -627,6 +627,7 @@
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
+      "error.fetchTopicName": "Не удалось назвать тему",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "error.invalid.api.host": "Неверный API адрес",
       "error.invalid.api.key": "Неверный API ключ",
@@ -1842,6 +1843,13 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "update": {
+      "title": "Обновление",
+      "message": "Новая версия {{version}} готова, установить сейчас?",
+      "later": "Позже",
+      "install": "Установить",
+      "noReleaseNotes": "Нет заметок об обновлении"
     },
     "selection": {
       "name": "Помощник выбора",

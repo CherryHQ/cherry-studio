@@ -1,4 +1,4 @@
-import { franc } from 'franc'
+import { franc } from 'franc-min'
 import React, { MutableRefObject } from 'react'
 
 /**
