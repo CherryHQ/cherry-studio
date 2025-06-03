@@ -1490,7 +1490,7 @@
         "advancedSettings": "高級設定"
       },
       "messages.prompt": "提示詞顯示",
-      "messages.tokens": "顯示 Token 使用情況",
+      "messages.tokens": "Token用量顯示",
       "messages.divider": "訊息間顯示分隔線",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
