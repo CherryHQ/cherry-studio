@@ -10,7 +10,7 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
-import S3Storage from './S3Storage'
+import S3Storage from './RemoteStorage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
