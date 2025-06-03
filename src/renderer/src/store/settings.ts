@@ -189,6 +189,16 @@ export interface SettingsState {
     knowledge: boolean
   }
   defaultPaintingProvider: PaintingProvider
+  s3Endpoint: string
+  s3Region: string
+  s3Bucket: string
+  s3AccessKeyId: string
+  s3SecretAccessKey: string
+  s3Root: string
+  s3AutoSync: boolean
+  s3SyncInterval: number
+  s3MaxBackups: number
+  s3SkipBackupFile: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -336,7 +346,17 @@ export const initialState: SettingsState = {
     backup: false,
     knowledge: false
   },
-  defaultPaintingProvider: 'aihubmix'
+  defaultPaintingProvider: 'aihubmix',
+  s3Endpoint: '',
+  s3Region: '',
+  s3Bucket: '',
+  s3AccessKeyId: '',
+  s3SecretAccessKey: '',
+  s3Root: '',
+  s3AutoSync: false,
+  s3SyncInterval: 0,
+  s3MaxBackups: 0,
+  s3SkipBackupFile: false
 }
 
 const settingsSlice = createSlice({
@@ -703,6 +723,36 @@ const settingsSlice = createSlice({
     },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
+    },
+    setS3Endpoint: (state, action: PayloadAction<string>) => {
+      state.s3Endpoint = action.payload
+    },
+    setS3Region: (state, action: PayloadAction<string>) => {
+      state.s3Region = action.payload
+    },
+    setS3Bucket: (state, action: PayloadAction<string>) => {
+      state.s3Bucket = action.payload
+    },
+    setS3AccessKeyId: (state, action: PayloadAction<string>) => {
+      state.s3AccessKeyId = action.payload
+    },
+    setS3SecretAccessKey: (state, action: PayloadAction<string>) => {
+      state.s3SecretAccessKey = action.payload
+    },
+    setS3Root: (state, action: PayloadAction<string>) => {
+      state.s3Root = action.payload
+    },
+    setS3AutoSync: (state, action: PayloadAction<boolean>) => {
+      state.s3AutoSync = action.payload
+    },
+    setS3SyncInterval: (state, action: PayloadAction<number>) => {
+      state.s3SyncInterval = action.payload
+    },
+    setS3MaxBackups: (state, action: PayloadAction<number>) => {
+      state.s3MaxBackups = action.payload
+    },
+    setS3SkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.s3SkipBackupFile = action.payload
     }
   }
 })
@@ -812,7 +862,17 @@ export const {
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
-  setDefaultPaintingProvider
+  setDefaultPaintingProvider,
+  setS3Endpoint,
+  setS3Region,
+  setS3Bucket,
+  setS3AccessKeyId,
+  setS3SecretAccessKey,
+  setS3Root,
+  setS3AutoSync,
+  setS3SyncInterval,
+  setS3MaxBackups,
+  setS3SkipBackupFile
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
