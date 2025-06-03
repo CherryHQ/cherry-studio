@@ -13,7 +13,7 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
     if (ref.current) {
       ref.current.addEventListener('emoji-click', (event: any) => {
         event.stopPropagation()
-        onEmojiClick(event.detail.emoji.unicode)
+        onEmojiClick(event.detail.unicode || event.detail.emoji.unicode)
       })
     }
   }, [onEmojiClick])

@@ -634,6 +634,7 @@
       "error.enter.api.key": "请输入您的 API 密钥",
       "error.enter.model": "请选择一个模型",
       "error.enter.name": "请输入知识库名称",
+      "error.fetchTopicName": "话题命名失败",
       "error.get_embedding_dimensions": "获取嵌入维度失败",
       "error.invalid.api.host": "无效的 API 地址",
       "error.invalid.api.key": "无效的 API 密钥",
@@ -1851,6 +1852,13 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "update": {
+      "title": "更新提示",
+      "message": "发现新版本 {{version}}，是否立即安装？",
+      "later": "稍后",
+      "install": "立即安装",
+      "noReleaseNotes": "暂无更新日志"
     },
     "selection": {
       "name": "划词助手",
