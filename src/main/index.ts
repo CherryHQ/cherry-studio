@@ -24,9 +24,12 @@ import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
 
-// Disable chromium's window animations
-// main purpose for this is to avoid the transparent window flashing when it is shown
-// (especially on Windows for SelectionAssistant Toolbar)
+/**
+ * Disable chromium's window animations
+ * main purpose for this is to avoid the transparent window flashing when it is shown
+ * (especially on Windows for SelectionAssistant Toolbar)
+ * Know Issue: https://github.com/electron/electron/issues/12130#issuecomment-627198990
+ */
 if (isWin) {
   app.commandLine.appendSwitch('wm-window-animations-disabled')
 }
