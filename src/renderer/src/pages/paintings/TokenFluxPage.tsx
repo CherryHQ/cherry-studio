@@ -570,7 +570,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 }
 
 const SectionGroup = styled.div`
-  background-color: var(--color-background-soft);
+  // background-color: var(--color-background-soft);
   border: 1px solid var(--color-border-soft);
   border-radius: 8px;
   padding: 16px;

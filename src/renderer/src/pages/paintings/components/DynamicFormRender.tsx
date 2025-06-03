@@ -1,6 +1,6 @@
-import { CloseOutlined, RedoOutlined } from '@ant-design/icons'
+import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
 import { convertToBase64 } from '@renderer/utils'
-import { Button, Input, InputNumber, Select, Switch } from 'antd'
+import { Button, Input, InputNumber, Select, Switch, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
 
@@ -20,20 +20,30 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   const { type, enum: enumValues, description, default: defaultValue, format } = schemaProperty
 
   const handleImageUpload = useCallback(
-    async (propertyName: string, file: File, onChange: (field: string, value: any) => void): Promise<void> => {
-      if (file) {
-        try {
-          const base64Image = await convertToBase64(file)
+    async (
+      propertyName: string,
+      fileOrUrl: File | string,
+      onChange: (field: string, value: any) => void
+    ): Promise<void> => {
+      try {
+        if (typeof fileOrUrl === 'string') {
+          // Handle URL case - validate and set directly
+          if (fileOrUrl.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
+            onChange(propertyName, fileOrUrl)
+          } else {
+            window.message?.error('Invalid image URL format')
+          }
+        } else {
+          // Handle File case - convert to base64
+          const base64Image = await convertToBase64(fileOrUrl)
           if (typeof base64Image === 'string') {
             onChange(propertyName, base64Image)
           } else {
             console.error('Failed to convert image to base64')
-            // Optionally, display an error message to the user
           }
-        } catch (error) {
-          console.error('Error converting image to base64:', error)
-          // Optionally, display an error message to the user
         }
+      } catch (error) {
+        console.error('Error processing image:', error)
       }
     },
     []
@@ -41,38 +51,81 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
 
   if (type === 'string' && propertyName.toLowerCase().includes('image') && format === 'uri') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <Input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            if (e.target.files && e.target.files[0]) {
-              handleImageUpload(propertyName, e.target.files[0], onChange)
-            }
-          }}
-          placeholder={description || 'Select an image'}
-        />
-        {value && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <img
-              src={value}
-              alt="Uploaded"
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '0' }}>
+          <Input
+            style={{
+              borderTopRightRadius: 0,
+              borderBottomRightRadius: 0,
+              borderRight: 'none'
+            }}
+            value={value || defaultValue || ''}
+            onChange={(e) => onChange(propertyName, e.target.value)}
+            placeholder="Enter image URL or upload file"
+            prefix={<LinkOutlined style={{ color: '#999' }} />}
+          />
+          <Upload
+            accept="image/*"
+            showUploadList={false}
+            beforeUpload={(file) => {
+              handleImageUpload(propertyName, file, onChange)
+              return false
+            }}>
+            <Button
+              icon={<UploadOutlined />}
+              title="Upload image file"
               style={{
-                width: '60px',
-                height: '60px',
-                objectFit: 'cover',
-                borderRadius: '4px',
-                border: '1px solid var(--color-border)'
+                borderTopLeftRadius: 0,
+                borderBottomLeftRadius: 0,
+                height: '32px'
               }}
             />
+          </Upload>
+        </div>
+
+        {value && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px',
+              backgroundColor: 'var(--color-fill-quaternary)',
+              borderRadius: '6px',
+              border: '1px solid var(--color-border)'
+            }}>
+            <img
+              src={value}
+              alt="Image preview"
+              style={{
+                width: '48px',
+                height: '48px',
+                objectFit: 'cover',
+                borderRadius: '4px',
+                border: '1px solid var(--color-border-secondary)',
+                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)',
+                flexShrink: 0
+              }}
+            />
+            <div
+              style={{
+                flex: 1,
+                fontSize: '12px',
+                color: 'var(--color-text-secondary)',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+              {value.startsWith('data:') ? 'Uploaded image' : 'Image URL'}
+            </div>
             <Button
               size="small"
               danger
               icon={<CloseOutlined />}
-              onClick={() => onChange(propertyName, null)}
-              title="Remove image">
-              Remove
-            </Button>
+              onClick={() => onChange(propertyName, '')}
+              title="Remove image"
+              style={{ flexShrink: 0, minWidth: 'auto', padding: '0 8px' }}
+            />
           </div>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { CacheService } from '@renderer/services/CacheService'
 import { FileType, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
@@ -54,6 +55,14 @@ export class TokenFluxService {
    * Fetch available models from TokenFlux API
    */
   async fetchModels(): Promise<TokenFluxModel[]> {
+    const cacheKey = `tokenflux_models_${this.apiHost}`
+
+    // Check cache first
+    const cachedModels = CacheService.get<TokenFluxModel[]>(cacheKey)
+    if (cachedModels) {
+      return cachedModels
+    }
+
     const response = await fetch(`${this.apiHost}/v1/images/models`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`
@@ -65,6 +74,9 @@ export class TokenFluxService {
     if (!data.success || !data.data) {
       throw new Error('Failed to fetch models')
     }
+
+    // Cache for 60 minutes (3,600,000 milliseconds)
+    CacheService.set(cacheKey, data.data, 60 * 60 * 1000)
 
     return data.data
   }
