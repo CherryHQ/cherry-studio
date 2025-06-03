@@ -709,7 +709,6 @@ const UploadedImageContainer = styled.div`
   flex: 1;
   justify-content: center;
   align-items: center;
-  padding: 20px;
   background-color: var(--color-background);
 `
 
