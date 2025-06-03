@@ -1491,6 +1491,7 @@
         "advancedSettings": "Advanced Settings"
       },
       "messages.prompt": "Show prompt",
+      "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
