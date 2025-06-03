@@ -689,6 +689,9 @@ const ImageComparisonSection = styled.div`
   flex-direction: column;
   height: 100%;
   background-color: var(--color-background);
+  &:first-child {
+    border-right: 0.5px solid var(--color-border);
+  }
 `
 
 const SectionLabel = styled.div`
@@ -707,7 +710,7 @@ const UploadedImageContainer = styled.div`
   justify-content: center;
   align-items: center;
   padding: 20px;
-  background-color: var(--color-background-soft);
+  background-color: var(--color-background);
 `
 
 const ImageWrapper = styled.div`
