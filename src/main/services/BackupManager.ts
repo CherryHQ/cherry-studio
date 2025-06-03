@@ -1,5 +1,6 @@
 import { IpcChannel } from '@shared/IpcChannel'
 import { WebDavConfig } from '@types'
+import { S3Config } from '@types'
 import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
@@ -10,6 +11,7 @@ import * as path from 'path'
 import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
+import S3Storage from './S3Storage'
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
 
@@ -25,6 +27,11 @@ class BackupManager {
     this.restoreFromWebdav = this.restoreFromWebdav.bind(this)
     this.listWebdavFiles = this.listWebdavFiles.bind(this)
     this.deleteWebdavFile = this.deleteWebdavFile.bind(this)
+    this.backupToS3 = this.backupToS3.bind(this)
+    this.restoreFromS3 = this.restoreFromS3.bind(this)
+    this.listS3Files = this.listS3Files.bind(this)
+    this.deleteS3File = this.deleteS3File.bind(this)
+    this.checkS3Connection = this.checkS3Connection.bind(this)
   }
 
   private async setWritableRecursive(dirPath: string): Promise<void> {
@@ -422,6 +429,128 @@ class BackupManager {
       Logger.error('Failed to delete WebDAV file:', error)
       throw new Error(error.message || 'Failed to delete backup file')
     }
+  }
+
+  async backupToS3(_: Electron.IpcMainInvokeEvent, data: string, s3Config: S3Config) {
+    // 获取设备名
+    const os = require('os')
+    const deviceName = os.hostname ? os.hostname() : 'device'
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[-:T.Z]/g, '')
+      .slice(0, 14)
+    const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
+    const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
+    const s3Client = new S3Storage('s3', {
+      endpoint: s3Config.endpoint,
+      region: s3Config.region,
+      bucket: s3Config.bucket,
+      access_key_id: s3Config.access_key_id,
+      secret_access_key: s3Config.secret_access_key,
+      root: s3Config.root || ''
+    })
+    try {
+      const fileBuffer = await fs.promises.readFile(backupedFilePath)
+      const result = await s3Client.putFileContents(filename, fileBuffer)
+      await fs.remove(backupedFilePath)
+      return result
+    } catch (error) {
+      await fs.remove(backupedFilePath)
+      throw error
+    }
+  }
+
+  async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const filename = s3Config.fileName || 'cherry-studio.backup.zip'
+    const s3Client = new S3Storage('s3', {
+      endpoint: s3Config.endpoint,
+      region: s3Config.region,
+      bucket: s3Config.bucket,
+      access_key_id: s3Config.access_key_id,
+      secret_access_key: s3Config.secret_access_key,
+      root: s3Config.root || ''
+    })
+    try {
+      const retrievedFile = await s3Client.getFileContents(filename)
+      const backupedFilePath = path.join(this.backupDir, filename)
+      if (!fs.existsSync(this.backupDir)) {
+        fs.mkdirSync(this.backupDir, { recursive: true })
+      }
+      await new Promise<void>((resolve, reject) => {
+        const writeStream = fs.createWriteStream(backupedFilePath)
+        writeStream.write(retrievedFile as Buffer)
+        writeStream.end()
+        writeStream.on('finish', () => resolve())
+        writeStream.on('error', (error) => reject(error))
+      })
+      return await this.restore(_, backupedFilePath)
+    } catch (error: any) {
+      Logger.error('[backup] Failed to restore from S3:', error)
+      throw new Error(error.message || 'Failed to restore backup file')
+    }
+  }
+
+  listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
+    try {
+      const s3Client = new S3Storage('s3', {
+        endpoint: s3Config.endpoint,
+        region: s3Config.region,
+        bucket: s3Config.bucket,
+        access_key_id: s3Config.access_key_id,
+        secret_access_key: s3Config.secret_access_key,
+        root: s3Config.root || ''
+      })
+      const entries = await s3Client.instance?.list('/')
+      const files: Array<{ fileName: string; modifiedTime: string; size: number }> = []
+      if (entries) {
+        for await (const entry of entries) {
+          const path = entry.path()
+          if (path.endsWith('.zip')) {
+            const meta = await s3Client.instance!.stat(path)
+            if (meta.isFile()) {
+              files.push({
+                fileName: path.replace(/^\/+/, ''),
+                modifiedTime: meta.lastModified || '',
+                size: Number(meta.contentLength || 0n)
+              })
+            }
+          }
+        }
+      }
+      return files.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime())
+    } catch (error: any) {
+      Logger.error('Failed to list S3 files:', error)
+      throw new Error(error.message || 'Failed to list backup files')
+    }
+  }
+
+  async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
+    try {
+      const s3Client = new S3Storage('s3', {
+        endpoint: s3Config.endpoint,
+        region: s3Config.region,
+        bucket: s3Config.bucket,
+        access_key_id: s3Config.access_key_id,
+        secret_access_key: s3Config.secret_access_key,
+        root: s3Config.root || ''
+      })
+      return await s3Client.deleteFile(fileName)
+    } catch (error: any) {
+      Logger.error('Failed to delete S3 file:', error)
+      throw new Error(error.message || 'Failed to delete backup file')
+    }
+  }
+
+  async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
+    const s3Client = new S3Storage('s3', {
+      endpoint: s3Config.endpoint,
+      region: s3Config.region,
+      bucket: s3Config.bucket,
+      access_key_id: s3Config.access_key_id,
+      secret_access_key: s3Config.secret_access_key,
+      root: s3Config.root || ''
+    })
+    return await s3Client.checkConnection()
   }
 }
 
