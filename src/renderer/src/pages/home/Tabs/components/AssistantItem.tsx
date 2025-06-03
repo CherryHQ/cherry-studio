@@ -19,7 +19,7 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps } from 'antd'
 import { omit } from 'lodash'
@@ -151,7 +151,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
           ) : (
             assistantIconType === 'emoji' && (
               <EmojiIcon
-                emoji={assistant.emoji || assistantName.slice(0, 1)}
+                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
                 className={isPending && !isActive ? 'animation-pulse' : ''}
               />
             )
@@ -423,7 +423,6 @@ const MenuButton = styled.div`
   align-items: center;
   min-width: 22px;
   height: 22px;
-  min-width: 22px;
   min-height: 22px;
   border-radius: 11px;
   position: absolute;
