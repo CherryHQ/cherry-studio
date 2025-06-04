@@ -231,6 +231,8 @@ const DataSettings: FC = () => {
     const modal = window.modal.confirm({
       title,
       className,
+      width: 'min(600px, 90vw)',
+      style: { minHeight: '400px' },
       content: (
         <MigrationModalContent>
           <PathsContent />
@@ -245,10 +247,15 @@ const DataSettings: FC = () => {
       centered: true,
       onOk: async () => {
         try {
+          // 立即关闭确认对话框
+          modal.destroy()
+
           // 显示进度模态框
           const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
 
           try {
+            // 设置停止退出应用
+            window.api.setStopQuitApp(true)
             // 执行迁移
             await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
 
@@ -268,16 +275,12 @@ const DataSettings: FC = () => {
             throw error
           }
         } catch (error) {
-          try {
-            modal.destroy()
-          } catch (e) {
-            // 忽略模态框销毁错误
-          }
-
           window.message.error({
             content: t('settings.data.app_data.copy_failed') + ': ' + error,
             duration: 5
           })
+        } finally {
+          window.api.setStopQuitApp(false)
         }
       }
     })
@@ -292,6 +295,8 @@ const DataSettings: FC = () => {
     const loadingModal = window.modal.info({
       title,
       className,
+      width: 'min(600px, 90vw)',
+      style: { minHeight: '400px' },
       icon: <LoadingOutlined style={{ fontSize: 18 }} />,
       content: (
         <MigrationModalContent>
