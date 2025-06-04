@@ -6,7 +6,7 @@ import Logger from 'electron-log/renderer'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
+export const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
 
 // 不同模型的思考标签配置
 const reasoningTags: TagConfig[] = [

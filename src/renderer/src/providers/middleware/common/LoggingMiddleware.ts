@@ -1,5 +1,7 @@
 import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../types'
 
+export const MIDDLEWARE_NAME = 'GenericLoggingMiddlewares'
+
 /**
  * Helper function to safely stringify arguments for logging, handling circular references and large objects.
  * 安全地字符串化日志参数的辅助函数，处理循环引用和大型对象。

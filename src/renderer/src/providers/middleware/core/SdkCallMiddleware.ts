@@ -4,7 +4,7 @@ import { ChunkType } from '@renderer/types/chunk'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'SdkCallMiddleware'
+export const MIDDLEWARE_NAME = 'SdkCallMiddleware'
 
 /**
  * SDK调用中间件

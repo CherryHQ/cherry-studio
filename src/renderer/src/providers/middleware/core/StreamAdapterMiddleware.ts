@@ -6,7 +6,7 @@ import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 import { isAsyncIterable } from '../utils'
 
-const MIDDLEWARE_NAME = 'StreamAdapterMiddleware'
+export const MIDDLEWARE_NAME = 'StreamAdapterMiddleware'
 
 /**
  * 流适配器中间件

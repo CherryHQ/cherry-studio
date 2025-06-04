@@ -3,7 +3,7 @@ import { type Chunk, ChunkType, type ErrorChunk } from '@renderer/types/chunk'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'AbortHandlerMiddleware'
+export const MIDDLEWARE_NAME = 'AbortHandlerMiddleware'
 
 export const AbortHandlerMiddleware: CompletionsMiddleware =
   () =>

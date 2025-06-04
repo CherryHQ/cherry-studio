@@ -3,7 +3,7 @@ import Logger from '@renderer/config/logger'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'TransformCoreToSdkParamsMiddleware'
+export const MIDDLEWARE_NAME = 'TransformCoreToSdkParamsMiddleware'
 
 /**
  * 中间件：将CoreCompletionsRequest转换为SDK特定的参数

@@ -5,7 +5,7 @@ import { completeLinks, smartLinkConverter } from '@renderer/utils/linkConverter
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'TextChunkMiddleware'
+export const MIDDLEWARE_NAME = 'TextChunkMiddleware'
 
 /**
  * 文本块处理中间件
