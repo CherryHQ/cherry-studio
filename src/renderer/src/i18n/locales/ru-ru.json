@@ -1268,6 +1268,7 @@
         },
         "s3": {
           "title": "S3-совместимое хранилище",
+          "title.help": "Сервисы объектного хранения, совместимые с AWS S3 API, такие как AWS S3, Cloudflare R2, Alibaba Cloud OSS, Tencent Cloud COS и т.д.",
           "endpoint": "Конечная точка API",
           "endpoint.placeholder": "https://s3.example.com",
           "region": "Регион",
