@@ -158,7 +158,6 @@ const textExtsByCategory = new Map([
       '.toml', // TOML
       '.cfg', // 通用配置
       '.properties', // Java属性
-      '.plist', // macOS属性列表
       '.desktop', // Linux桌面文件
       '.service', // systemd服务
       '.rc',
@@ -314,8 +313,7 @@ const textExtsByCategory = new Map([
     'log',
     [
       '.log',
-      '.rpt', // 日志和报告,
-      '.out'
+      '.rpt' // 日志和报告 (移除了.out，因为通常是二进制可执行文件)
     ]
   ],
   [
@@ -346,14 +344,11 @@ const textExtsByCategory = new Map([
   [
     'game',
     [
-      '.obj', // Wavefront OBJ
       '.mtl', // Material Template Library
       '.x3d', // X3D文件
       '.gltf', // glTF JSON
-      '.unity', // Unity场景
-      '.prefab',
-      '.asset',
-      '.meta' // Unity文件
+      '.prefab', // Unity预制体 (YAML格式)
+      '.meta' // Unity元数据文件 (YAML格式)
     ]
   ],
   [
