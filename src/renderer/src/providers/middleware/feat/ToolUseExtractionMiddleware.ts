@@ -7,7 +7,7 @@ import { TagConfig, TagExtractor } from '@renderer/utils/tagExtraction'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'ToolUseExtractionMiddleware'
+export const MIDDLEWARE_NAME = 'ToolUseExtractionMiddleware'
 
 // 工具使用标签配置
 const TOOL_USE_TAG_CONFIG: TagConfig = {

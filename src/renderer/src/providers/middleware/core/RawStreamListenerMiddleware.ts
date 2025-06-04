@@ -15,7 +15,7 @@ import { AnthropicStreamListener } from '../../AiProvider/clients/types'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
-const MIDDLEWARE_NAME = 'RawStreamListenerMiddleware'
+export const MIDDLEWARE_NAME = 'RawStreamListenerMiddleware'
 
 /**
  * 将 ContentBlock 数组转换为 ContentBlockParam 数组

@@ -41,6 +41,10 @@ export const MiddlewareRegistry = {
     name: StreamAdapterModule.MIDDLEWARE_NAME,
     middleware: StreamAdapterModule.StreamAdapterMiddleware
   },
+  [RawStreamListenerModule.MIDDLEWARE_NAME]: {
+    name: RawStreamListenerModule.MIDDLEWARE_NAME,
+    middleware: RawStreamListenerModule.RawStreamListenerMiddleware
+  },
   [ResponseTransformModule.MIDDLEWARE_NAME]: {
     name: ResponseTransformModule.MIDDLEWARE_NAME,
     middleware: ResponseTransformModule.ResponseTransformMiddleware
@@ -50,6 +54,10 @@ export const MiddlewareRegistry = {
   [ThinkingTagExtractionModule.MIDDLEWARE_NAME]: {
     name: ThinkingTagExtractionModule.MIDDLEWARE_NAME,
     middleware: ThinkingTagExtractionModule.ThinkingTagExtractionMiddleware
+  },
+  [ToolUseExtractionMiddleware.MIDDLEWARE_NAME]: {
+    name: ToolUseExtractionMiddleware.MIDDLEWARE_NAME,
+    middleware: ToolUseExtractionMiddleware.ToolUseExtractionMiddleware
   },
   [ThinkChunkModule.MIDDLEWARE_NAME]: {
     name: ThinkChunkModule.MIDDLEWARE_NAME,
