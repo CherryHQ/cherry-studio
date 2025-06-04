@@ -58,10 +58,9 @@ export async function getTopicById(topicId: string) {
 }
 
 /**
- * 添加正在重命名的主题
- * @param topicId 主题ID
+ * 开始重命名指定话题
  */
-export const addRenamingTopic = (topicId: string) => {
+export const startTopicRenaming = (topicId: string) => {
   const currentIds = store.getState().runtime.renamingTopicIds
   if (!currentIds.includes(topicId)) {
     store.dispatch(setRenamingTopicIds([...currentIds, topicId]))
@@ -69,17 +68,15 @@ export const addRenamingTopic = (topicId: string) => {
 }
 
 /**
- * 移除正在重命名的主题
- * @param topicId 主题ID
+ * 完成重命名指定话题
  */
-export const removeRenamingTopic = (topicId: string) => {
+export const finishTopicRenaming = (topicId: string) => {
   const currentIds = store.getState().runtime.renamingTopicIds
   store.dispatch(setRenamingTopicIds(currentIds.filter((id) => id !== topicId)))
 }
 
 /**
- * 判断主题是否正在重命名
- * @param topicId 主题ID
+ * 判断指定话题是否正在重命名
  */
 export const isTopicRenaming = (topicId: string) => {
   return store.getState().runtime.renamingTopicIds.includes(topicId)
@@ -91,7 +88,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
   }
 
   try {
-    addRenamingTopic(topicId)
+    startTopicRenaming(topicId)
 
     const topic = await getTopicById(topicId)
     const enableTopicNaming = getStoreSetting('enableTopicNaming')
@@ -131,7 +128,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       }
     }
   } finally {
-    removeRenamingTopic(topicId)
+    finishTopicRenaming(topicId)
   }
 }
 
@@ -155,7 +152,7 @@ export const TopicManager = {
 
     await store.dispatch(loadTopicMessagesThunk(id))
 
-    // 获取更新后的主题
+    // 获取更新后的话题
     const updatedTopic = await TopicManager.getTopic(id)
     return updatedTopic?.messages || []
   },
