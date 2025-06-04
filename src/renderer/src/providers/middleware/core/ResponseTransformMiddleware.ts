@@ -3,7 +3,7 @@ import { SdkRawChunk } from '@renderer/types/sdk'
 
 import { ResponseChunkTransformerContext } from '../../AiProvider/clients/types'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 const MIDDLEWARE_NAME = 'ResponseTransformMiddleware'
 
@@ -28,10 +28,9 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
     if (result.stream) {
       const adaptedStream = result.stream
 
-      Logger.debug(`[${MIDDLEWARE_NAME}] Processing result, has stream: ${!!adaptedStream}`)
-
       // 处理ReadableStream类型的流
       if (adaptedStream instanceof ReadableStream) {
+        Logger.debug(`[${MIDDLEWARE_NAME}] Processing result, has stream: ${!!adaptedStream}`)
         const apiClient = ctx.apiClientInstance
         if (!apiClient) {
           console.error(`[${MIDDLEWARE_NAME}] ApiClient instance not found in context`)

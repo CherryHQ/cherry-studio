@@ -3,7 +3,8 @@ import { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream } from '@renderer/utils/stream'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
+import { isAsyncIterable } from '../utils'
 
 const MIDDLEWARE_NAME = 'StreamAdapterMiddleware'
 
@@ -24,26 +25,24 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
     // 调用下游中间件
     const result = await next(ctx, params)
 
-    if (result.stream && !(result.stream instanceof ReadableStream) && isAsyncIterable<SdkRawChunk>(result.stream)) {
-      const whatwgReadableStream: ReadableStream<SdkRawChunk> = asyncGeneratorToReadableStream(result.stream)
+    if (
+      result.rawOutput &&
+      !(result.rawOutput instanceof ReadableStream) &&
+      isAsyncIterable<SdkRawChunk>(result.rawOutput)
+    ) {
+      const whatwgReadableStream: ReadableStream<SdkRawChunk> = asyncGeneratorToReadableStream<SdkRawChunk>(
+        result.rawOutput
+      )
       return {
         ...result,
         stream: whatwgReadableStream
       }
-    } else if (result.stream && result.stream instanceof ReadableStream) {
+    } else if (result.rawOutput && result.rawOutput instanceof ReadableStream) {
       Logger.debug(`[${MIDDLEWARE_NAME}] Stream is already ReadableStream, passing through`)
-      return result
+      return {
+        ...result,
+        stream: result.rawOutput
+      }
     }
     return result
   }
-
-/**
- * 检查对象是否实现了AsyncIterable接口
- */
-function isAsyncIterable<T = unknown>(obj: unknown): obj is AsyncIterable<T> {
-  return (
-    obj !== null &&
-    typeof obj === 'object' &&
-    typeof (obj as Record<symbol, unknown>)[Symbol.asyncIterator] === 'function'
-  )
-}

@@ -44,3 +44,14 @@ export function capitalize(str: string): string {
   if (!str) return ''
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
+
+/**
+ * 检查对象是否实现了AsyncIterable接口
+ */
+export function isAsyncIterable<T = unknown>(obj: unknown): obj is AsyncIterable<T> {
+  return (
+    obj !== null &&
+    typeof obj === 'object' &&
+    typeof (obj as Record<symbol, unknown>)[Symbol.asyncIterator] === 'function'
+  )
+}

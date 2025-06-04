@@ -30,5 +30,5 @@ export default abstract class BaseProvider {
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
   abstract getEmbeddingDimensions(model: Model): Promise<number>
-  abstract getMessageParam(message: Message, model?: Model): Promise<any>
+  // abstract getMessageParam(message: Message, model?: Model): Promise<any>
 }

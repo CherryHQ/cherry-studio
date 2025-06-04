@@ -1,12 +1,11 @@
 import Logger from '@renderer/config/logger'
 import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
-import { SdkMessage, SdkToolCall } from '@renderer/types/sdk'
+import { SdkMessageParam, SdkToolCall } from '@renderer/types/sdk'
 import { parseAndCallTools } from '@renderer/utils/mcp-tools'
-import { ChatCompletionMessageParam } from 'openai/resources'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 const MIDDLEWARE_NAME = 'McpToolChunkMiddleware'
 const MAX_TOOL_RECURSION_DEPTH = 20 // 防止无限递归
@@ -15,8 +14,8 @@ const MAX_TOOL_RECURSION_DEPTH = 20 // 防止无限递归
  * MCP工具处理中间件
  *
  * 职责：
- * 1. 检测并拦截MCP工具进展chunk
- * 2. 执行工具调用（Function Call和Prompt方式）
+ * 1. 检测并拦截MCP工具进展chunk（Function Call方式和Tool Use方式）
+ * 2. 执行工具调用
  * 3. 递归处理工具结果
  * 4. 管理工具调用状态和递归深度
  */
@@ -88,9 +87,12 @@ function createToolHandlingTransform(
   executeWithToolHandling: (params: CompletionsParams, depth: number) => Promise<CompletionsResult>
 ): TransformStream<GenericChunk, GenericChunk> {
   const toolCalls: SdkToolCall[] = []
-  const toolResponses: MCPToolResponse[] = []
-  let assistantContent = ''
+  const toolUseResponses: MCPToolResponse[] = []
+  const allToolResponses: MCPToolResponse[] = [] // 统一的工具响应状态管理数组
+  let assistantMessage: SdkMessageParam | null = null
+  let assistantMessageContent: string | null = null
   let hasToolCalls = false
+  let hasToolUseResponses = false
   let streamEnded = false
 
   return new TransformStream({
@@ -99,20 +101,35 @@ function createToolHandlingTransform(
         // 处理MCP工具进展chunk
         if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
           const createdChunk = chunk as MCPToolCreatedChunk
-          toolCalls.push(...createdChunk.tool_calls)
-          hasToolCalls = true
-          console.log(
-            `🔧 [${MIDDLEWARE_NAME}][DEBUG] Intercepted ${createdChunk.tool_calls.length} tool calls, total: ${toolCalls.length}`
-          )
+
+          // 1. 处理Function Call方式的工具调用
+          if (createdChunk.tool_calls && createdChunk.tool_calls.length > 0) {
+            toolCalls.push(...createdChunk.tool_calls)
+            hasToolCalls = true
+            Logger.debug(
+              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Intercepted ${createdChunk.tool_calls.length} tool calls, total: ${toolCalls.length}`
+            )
+          }
+
+          // 2. 处理Tool Use方式的工具调用
+          if (createdChunk.tool_use_responses && createdChunk.tool_use_responses.length > 0) {
+            toolUseResponses.push(...createdChunk.tool_use_responses)
+            hasToolUseResponses = true
+            Logger.debug(
+              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Intercepted ${createdChunk.tool_use_responses.length} tool use responses, total: ${toolUseResponses.length}`
+            )
+          }
+
           // 不转发MCP工具进展chunks，避免重复处理
-          console.log(`🔧 [${MIDDLEWARE_NAME}] Intercepting MCP tool progress chunk to prevent duplicate processing`)
+          Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Intercepting MCP tool progress chunk to prevent duplicate processing`)
           return
         }
-
-        // 收集助手的文本内容
+        // 处理 OpenAI 的 assistantMessageContent
         if (chunk.type === ChunkType.TEXT_DELTA) {
-          assistantContent += chunk.text || ''
+          assistantMessageContent += chunk.text
         }
+
+        // 转发其他所有chunk
         controller.enqueue(chunk)
       } catch (error) {
         console.error(`🔧 [${MIDDLEWARE_NAME}] Error processing chunk:`, error)
@@ -121,69 +138,92 @@ function createToolHandlingTransform(
     },
 
     async flush(controller) {
-      console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Transform stream flushing at depth ${depth}`)
-      console.log(
-        `🔧 [${MIDDLEWARE_NAME}][DEBUG] hasToolCalls: ${hasToolCalls}, toolCalls.length: ${toolCalls.length}, assistantContent.length: ${assistantContent.length}`
+      Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Transform stream flushing at depth ${depth}`)
+      Logger.debug(
+        `🔧 [${MIDDLEWARE_NAME}][DEBUG] hasToolCalls: ${hasToolCalls}, toolCalls.length: ${toolCalls.length}`
+      )
+      Logger.debug(
+        `🔧 [${MIDDLEWARE_NAME}][DEBUG] hasToolUseResponses: ${hasToolUseResponses}, toolUseResponses.length: ${toolUseResponses.length}`
       )
 
-      const shouldProcessTools = (hasToolCalls && toolCalls.length > 0) || assistantContent.length > 0
+      const shouldExecuteToolCalls = hasToolCalls && toolCalls.length > 0
+      const shouldExecuteToolUseResponses = hasToolUseResponses && toolUseResponses.length > 0
 
-      if (!streamEnded && shouldProcessTools) {
+      if (!streamEnded && (shouldExecuteToolCalls || shouldExecuteToolUseResponses)) {
         streamEnded = true
-        console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting tool processing at depth ${depth}`)
+        Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting tool processing at depth ${depth}`)
 
         try {
-          let toolResult: Array<SdkMessage> = []
+          let toolResult: SdkMessageParam[] = []
 
-          if (toolCalls.length > 0) {
-            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing ${toolCalls.length} function calls`)
+          if (shouldExecuteToolCalls) {
+            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing ${toolCalls.length} function calls`)
             toolResult = await executeToolCalls(
               ctx,
               toolCalls,
               mcpTools,
-              toolResponses,
+              allToolResponses,
               currentParams.onChunk,
               currentParams.model
             )
-            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Function calls completed, got ${toolResult.length} results`)
-          } else if (assistantContent.length > 0) {
-            console.log(
-              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing tool uses from ${assistantContent.length} chars of content`
-            )
-            toolResult = await executeToolUses(
+            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Function calls completed, got ${toolResult.length} results`)
+          } else if (shouldExecuteToolUseResponses) {
+            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing ${toolUseResponses.length} tool use responses`)
+            toolResult = await executeToolUseResponses(
               ctx,
-              assistantContent,
+              toolUseResponses,
               mcpTools,
-              toolResponses,
+              allToolResponses,
               currentParams.onChunk,
               currentParams.model
             )
-            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool uses completed, got ${toolResult.length} results`)
+            Logger.debug(
+              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool use responses completed, got ${toolResult.length} results`
+            )
           }
 
           if (toolResult.length > 0) {
-            console.log(
+            Logger.debug(
               `🔧 [${MIDDLEWARE_NAME}][DEBUG] Building params for recursive call with ${toolResult.length} tool results`
             )
-            const newParams = buildParamsWithToolResults(ctx, currentParams, toolResult, assistantContent, toolCalls)
+            console.log('assistantMessageContent', assistantMessageContent)
             console.log(
+              'ctx._internal.toolProcessingState?.assistantMessage',
+              ctx._internal.toolProcessingState?.assistantMessage
+            )
+            // anthropic 的 assistantMessage 在 RawStreamListenerMiddleware 中设置
+            if (ctx._internal.toolProcessingState?.assistantMessage) {
+              assistantMessage = ctx._internal.toolProcessingState.assistantMessage
+            } else if (assistantMessageContent) {
+              assistantMessage = {
+                role: 'assistant',
+                content: assistantMessageContent
+              } as SdkMessageParam
+            }
+
+            const newParams = buildParamsWithToolResults(ctx, currentParams, toolResult, assistantMessage!, toolCalls)
+            Logger.debug(
               `🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting recursive tool call from depth ${depth} to ${depth + 1}`
             )
             await executeWithToolHandling(newParams, depth + 1)
           } else {
-            console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] No tool results to process, skipping recursion`)
+            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] No tool results to process, skipping recursion`)
           }
         } catch (error) {
           console.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
           controller.error(error)
+        } finally {
+          assistantMessage = null
+          hasToolCalls = false
+          hasToolUseResponses = false
         }
       } else {
-        console.log(
-          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Skipping tool processing - streamEnded: ${streamEnded}, shouldProcessTools: ${shouldProcessTools}`
+        Logger.debug(
+          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Skipping tool processing - streamEnded: ${streamEnded}, shouldExecuteToolCalls: ${shouldExecuteToolCalls}, shouldExecuteToolUseResponses: ${shouldExecuteToolUseResponses}`
         )
       }
 
-      console.log(`🔧 [${MIDDLEWARE_NAME}] Transform stream flushed at depth ${depth}`)
+      Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Transform stream flushed at depth ${depth}`)
     }
   })
 }
@@ -198,46 +238,21 @@ async function executeToolCalls(
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model
-): Promise<SdkMessage[]> {
-  console.log(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolCalls.length} tools`)
-  console.log(
-    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool calls:`,
-    toolCalls.map((tc) => `${tc.function.name}(${tc.id})`).join(', ')
-  )
+): Promise<SdkMessageParam[]> {
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolCalls.length} tools`)
 
   // 转换为MCPToolResponse格式
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
-      console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting tool call: ${toolCall.function.name}`)
       const mcpTool = ctx.apiClientInstance.convertSdkToolCallToMcp(toolCall, mcpTools)
       if (!mcpTool) {
-        console.warn(`🔧 [${MIDDLEWARE_NAME}] MCP tool not found for: ${toolCall.function.name}`)
         return undefined
       }
-
-      let parsedArgs: any
-      try {
-        parsedArgs = JSON.parse(toolCall.function.arguments)
-        console.log(
-          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Parsed arguments for ${toolCall.function.name}:`,
-          Object.keys(parsedArgs)
-        )
-      } catch {
-        parsedArgs = toolCall.function.arguments
-        console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Using raw arguments for ${toolCall.function.name}`)
-      }
-
-      return {
-        id: toolCall.id,
-        toolCallId: toolCall.id,
-        tool: mcpTool,
-        arguments: parsedArgs,
-        status: 'pending'
-      } as ToolCallResponse
+      return ctx.apiClientInstance.convertSdkToolCallToMcpToolResponse(toolCall, mcpTool)
     })
     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
 
-  console.log(
+  Logger.debug(
     `🔧 [${MIDDLEWARE_NAME}][DEBUG] Successfully converted ${mcpToolResponses.length}/${toolCalls.length} tool calls`
   )
 
@@ -247,23 +262,23 @@ async function executeToolCalls(
   }
 
   // 使用现有的parseAndCallTools函数执行工具
-  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with ${mcpToolResponses.length} responses`)
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with ${mcpToolResponses.length} responses`)
   const toolResults = await parseAndCallTools(
     mcpToolResponses,
     allToolResponses,
     onChunk,
     (mcpToolResponse, resp, model) => {
-      console.log(
+      Logger.debug(
         `🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting MCP response to SDK message for tool: ${mcpToolResponse.tool?.name}`
       )
-      return ctx.apiClientInstance.convertMcpToolResponseToSdkMessage(mcpToolResponse, resp, model)
+      return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
     mcpTools
   )
 
-  console.log(`🔧 [${MIDDLEWARE_NAME}] Tool execution completed, ${toolResults.length} results`)
-  console.log(
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Tool execution completed, ${toolResults.length} results`)
+  Logger.debug(
     `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool results types:`,
     toolResults.map((r: any) => r.role || r.type || 'unknown').join(', ')
   )
@@ -271,41 +286,44 @@ async function executeToolCalls(
 }
 
 /**
- * 执行工具调用（Prompt 方式）
+ * 执行工具使用响应（Tool Use Response 方式）
+ * 处理已经解析好的 ToolUseResponse[]，不需要重新解析字符串
  */
-async function executeToolUses(
+async function executeToolUseResponses(
   ctx: CompletionsContext,
-  content: string,
+  toolUseResponses: MCPToolResponse[],
   mcpTools: MCPTool[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
   model: Model
-): Promise<SdkMessage[]> {
-  console.log(`🔧 [${MIDDLEWARE_NAME}] Executing tool uses from content:`, content.substring(0, 200) + '...')
-  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Available tools:`, mcpTools.map((t) => t.name).join(', '))
+): Promise<SdkMessageParam[]> {
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolUseResponses.length} tool use responses`)
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Available tools:`, mcpTools.map((t) => t.name).join(', '))
 
-  // 使用现有的parseAndCallTools函数处理prompt中的工具使用
-  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with content-based tool parsing`)
+  // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
+  Logger.debug(
+    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with ${toolUseResponses.length} tool use responses`
+  )
   const toolResults = await parseAndCallTools(
-    content,
+    toolUseResponses,
     allToolResponses,
     onChunk,
     (mcpToolResponse, resp, model) => {
-      console.log(
+      Logger.debug(
         `🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting MCP response to SDK message for tool: ${mcpToolResponse.tool?.name}`
       )
-      return ctx.apiClientInstance.convertMcpToolResponseToSdkMessage(mcpToolResponse, resp, model)
+      return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
     mcpTools
   )
 
-  console.log(`🔧 [${MIDDLEWARE_NAME}] Tool uses execution completed, ${toolResults.length} results`)
-  console.log(
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Tool use responses execution completed, ${toolResults.length} results`)
+  Logger.debug(
     `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool results types:`,
     toolResults.map((r: any) => r.role || r.type || 'unknown').join(', ')
   )
-  return toolResults as ChatCompletionMessageParam[]
+  return toolResults
 }
 
 /**
@@ -314,20 +332,21 @@ async function executeToolUses(
 function buildParamsWithToolResults(
   ctx: CompletionsContext,
   currentParams: CompletionsParams,
-  toolResults: SdkMessage[],
-  assistantContent: string,
+  toolResults: SdkMessageParam[],
+  assistantMessage: SdkMessageParam,
   toolCalls: SdkToolCall[]
 ): CompletionsParams {
   // 获取当前已经转换好的reqMessages，如果没有则使用原始messages
   const currentReqMessages = ctx._internal.sdkPayload?.messages || []
-  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current messages count: ${currentReqMessages.length}`)
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current messages count: ${currentReqMessages.length}`)
 
   const apiClient = ctx.apiClientInstance
 
-  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, assistantContent, toolCalls, toolResults)
+  // 从回复中构建助手消息
+  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, toolResults, assistantMessage, toolCalls)
 
-  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
-  console.log(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Message roles:`, newReqMessages.map((m) => m.role).join(' -> '))
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
+  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Message roles:`, newReqMessages.map((m) => m.role).join(' -> '))
 
   // 更新递归状态
   if (!ctx._internal.toolProcessingState) {
@@ -336,7 +355,7 @@ function buildParamsWithToolResults(
   ctx._internal.toolProcessingState.isRecursiveCall = true
   ctx._internal.toolProcessingState.recursionDepth = (ctx._internal.toolProcessingState?.recursionDepth || 0) + 1
 
-  console.log(
+  Logger.debug(
     `🔧 [${MIDDLEWARE_NAME}][DEBUG] Updated recursion state - depth: ${ctx._internal.toolProcessingState.recursionDepth}`
   )
 
@@ -344,10 +363,8 @@ function buildParamsWithToolResults(
     ...currentParams,
     _internal: {
       ...ctx._internal,
-      sdkPayload: {
-        ...ctx._internal.sdkPayload!,
-        messages: newReqMessages
-      }
+      sdkPayload: ctx._internal.sdkPayload,
+      newReqMessages: newReqMessages
     }
   }
 }

@@ -1,20 +1,20 @@
 import { Model } from '@renderer/types'
 import { ChunkType, TextDeltaChunk, ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
-import { getPotentialStartIndex } from '@renderer/utils/getPotentialIndex'
+import { TagConfig, TagExtractor } from '@renderer/utils/tagExtraction'
 import Logger from 'electron-log/renderer'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 const MIDDLEWARE_NAME = 'ThinkingTagExtractionMiddleware'
 
 // 不同模型的思考标签配置
-const reasoningTags = [
+const reasoningTags: TagConfig[] = [
   { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
   { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
 ]
 
-const getAppropriateTag = (model?: Model) => {
+const getAppropriateTag = (model?: Model): TagConfig => {
   if (model?.id?.includes('qwen3')) return reasoningTags[0]
   // 可以在这里添加更多模型特定的标签配置
   return reasoningTags[0] // 默认使用 <think> 标签
@@ -72,23 +72,17 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         // 获取当前模型的思考标签配置
         const model = params.assistant?.model
         const reasoningTag = getAppropriateTag(model)
-        const { openingTag, closingTag, separator } = reasoningTag
 
         Logger.debug(
-          `[${MIDDLEWARE_NAME}] Using reasoning tags: ${openingTag} ... ${closingTag} for model: ${model?.id}`
+          `[${MIDDLEWARE_NAME}] Using reasoning tags: ${reasoningTag.openingTag} ... ${reasoningTag.closingTag} for model: ${model?.id}`
         )
 
+        // 创建标签提取器
+        const tagExtractor = new TagExtractor(reasoningTag)
+
         // thinking 处理状态
-        let accumulatedThinkingContent = ''
         let hasThinkingContent = false
         let thinkingStartTime = 0
-
-        // 标签提取状态
-        let textBuffer = ''
-        let isReasoning = false
-        let isFirstReasoning = true
-        let isFirstText = true
-        let afterSwitch = false
 
         const processedStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
@@ -96,82 +90,61 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
               if (chunk.type === ChunkType.TEXT_DELTA) {
                 const textChunk = chunk as TextDeltaChunk
 
-                // 处理文本流中的思考标签提取
-                textBuffer += textChunk.text
+                // 使用 TagExtractor 处理文本
+                const extractionResults = tagExtractor.processText(textChunk.text)
 
-                function publishContent(text: string, isThinking: boolean) {
-                  if (text.length > 0) {
-                    const prefix = afterSwitch && (isThinking ? !isFirstReasoning : !isFirstText) ? separator : ''
-                    const content = prefix + text
+                for (const extractionResult of extractionResults) {
+                  if (extractionResult.complete && extractionResult.tagContentExtracted) {
+                    // 生成 THINKING_COMPLETE 事件
+                    const thinkingCompleteChunk: ThinkingCompleteChunk = {
+                      type: ChunkType.THINKING_COMPLETE,
+                      text: extractionResult.tagContentExtracted,
+                      thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
+                    }
+                    controller.enqueue(thinkingCompleteChunk)
 
-                    if (isThinking) {
+                    // 重置思考状态
+                    hasThinkingContent = false
+                    thinkingStartTime = 0
+                  } else if (extractionResult.content.length > 0) {
+                    if (extractionResult.isTagContent) {
                       // 第一次接收到思考内容时记录开始时间
                       if (!hasThinkingContent) {
                         hasThinkingContent = true
                         thinkingStartTime = Date.now()
                       }
 
-                      accumulatedThinkingContent += content
-
                       const thinkingDeltaChunk: ThinkingDeltaChunk = {
                         type: ChunkType.THINKING_DELTA,
-                        text: content,
+                        text: extractionResult.content,
                         thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                       }
                       controller.enqueue(thinkingDeltaChunk)
-                      isFirstReasoning = false
                     } else {
-                      // 在思考内容结束时生成 THINKING_COMPLETE 事件
-                      if (hasThinkingContent && accumulatedThinkingContent) {
-                        const thinkingCompleteChunk: ThinkingCompleteChunk = {
-                          type: ChunkType.THINKING_COMPLETE,
-                          text: accumulatedThinkingContent,
-                          thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
-                        }
-                        controller.enqueue(thinkingCompleteChunk)
-                        hasThinkingContent = false
-                        accumulatedThinkingContent = ''
-                        thinkingStartTime = 0
-                      }
-
                       // 发送清理后的文本内容
                       const cleanTextChunk: TextDeltaChunk = {
                         ...textChunk,
-                        text: content
+                        text: extractionResult.content
                       }
                       controller.enqueue(cleanTextChunk)
-                      isFirstText = false
                     }
-                    afterSwitch = false
-                  }
-                }
-
-                // 处理标签提取逻辑
-                while (true) {
-                  const nextTag = isReasoning ? closingTag : openingTag
-                  const startIndex = getPotentialStartIndex(textBuffer, nextTag)
-
-                  if (startIndex == null) {
-                    publishContent(textBuffer, isReasoning)
-                    textBuffer = ''
-                    break
-                  }
-
-                  publishContent(textBuffer.slice(0, startIndex), isReasoning)
-                  const foundFullMatch = startIndex + nextTag.length <= textBuffer.length
-
-                  if (foundFullMatch) {
-                    textBuffer = textBuffer.slice(startIndex + nextTag.length)
-                    isReasoning = !isReasoning
-                    afterSwitch = true
-                  } else {
-                    textBuffer = textBuffer.slice(startIndex)
-                    break
                   }
                 }
               } else {
                 // 其他类型的chunk直接传递（包括 THINKING_DELTA, THINKING_COMPLETE 等）
                 controller.enqueue(chunk)
+              }
+            },
+            flush(controller) {
+              // 处理可能剩余的思考内容
+              const finalResult = tagExtractor.finalize()
+              if (finalResult?.tagContentExtracted) {
+                const thinkingCompleteChunk: ThinkingCompleteChunk = {
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: finalResult.tagContentExtracted,
+                  thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
+                }
+                controller.enqueue(thinkingCompleteChunk)
               }
             }
           })

@@ -1,11 +1,10 @@
 import { wrapProviderWithMiddleware } from '@renderer/providers/middleware'
 import middlewareConfig from '@renderer/providers/middleware/register'
 import { Provider } from '@renderer/types'
-import { SdkInstance, SdkParams, SdkRawChunk } from '@renderer/types/sdk'
 
+import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
-import { OpenAIApiClient } from './openai/OpenAIApiClient'
-import { ResponseChunkTransformerContext } from './types'
+import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 
 /**
  * Factory for creating ApiClient instances based on provider configuration
@@ -16,29 +15,28 @@ export class ApiClientFactory {
    * Create an ApiClient instance for the given provider
    * 为给定的提供者创建ApiClient实例
    */
-  static create(
-    provider: Provider
-  ): BaseApiClient<SdkInstance, SdkParams, SdkRawChunk, ResponseChunkTransformerContext> {
+  static create(provider: Provider): BaseApiClient {
     console.log(`[ApiClientFactory] Creating ApiClient for provider:`, {
       id: provider.id,
       type: provider.type
     })
 
-    let instance: BaseApiClient<SdkInstance, SdkParams, SdkRawChunk, ResponseChunkTransformerContext>
+    let instance: BaseApiClient
     // 然后检查标准的provider type
     switch (provider.type) {
       case 'openai':
       case 'azure-openai':
         console.log(`[ApiClientFactory] Creating OpenAIApiClient for provider: ${provider.id}`)
-        instance = new OpenAIApiClient(provider)
+        instance = new OpenAIAPIClient(provider) as BaseApiClient
         break
       case 'gemini':
         throw new Error(`GeminiApiClient not implemented yet for provider: ${provider.id}`)
       case 'anthropic':
-        throw new Error(`ClaudeApiClient not implemented yet for provider: ${provider.id}`)
+        instance = new AnthropicAPIClient(provider) as BaseApiClient
+        break
       default:
         console.log(`[ApiClientFactory] Using default OpenAIApiClient for provider: ${provider.id}`)
-        instance = new OpenAIApiClient(provider)
+        instance = new OpenAIAPIClient(provider) as BaseApiClient
         break
     }
 

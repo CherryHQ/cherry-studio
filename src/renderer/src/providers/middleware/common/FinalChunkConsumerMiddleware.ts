@@ -4,12 +4,12 @@ import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware, ProcessingState } from '../type'
+import { CompletionsContext, CompletionsMiddleware, ProcessingState } from '../types'
 
 const MIDDLEWARE_NAME = 'FinalChunkConsumerAndNotifierMiddleware'
 
 /**
- * 最终Chunk消费和通知中间件 - Koa洋葱圈风格
+ * 最终Chunk消费和通知中间件
  *
  * 职责：
  * 1. 消费所有GenericChunk流中的chunks并转发给onChunk回调

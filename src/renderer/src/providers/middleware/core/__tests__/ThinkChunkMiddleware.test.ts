@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseApiClient } from '../../../AiProvider/clients'
 import { GenericChunk } from '../../schemas'
-import { CompletionsContext, MIDDLEWARE_CONTEXT_SYMBOL } from '../../type'
+import { CompletionsContext, MIDDLEWARE_CONTEXT_SYMBOL } from '../../types'
 import { ThinkChunkMiddleware } from '../ThinkChunkMiddleware'
 
 // Mock console methods

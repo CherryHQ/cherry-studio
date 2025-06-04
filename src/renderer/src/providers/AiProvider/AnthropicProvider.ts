@@ -6,74 +6,39 @@ import {
   MessageParam,
   TextBlockParam,
   ToolResultBlockParam,
-  ToolUnion,
-  ToolUseBlock,
-  WebSearchResultBlock,
-  WebSearchTool20250305,
-  WebSearchToolResultError
+  WebSearchTool20250305
 } from '@anthropic-ai/sdk/resources'
-import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
+import Logger from '@renderer/config/logger'
+import { isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import { getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import {
-  filterContextMessages,
-  filterEmptyMessages,
-  filterUserRoleStartMessages
-} from '@renderer/services/MessagesService'
-import {
   Assistant,
-  EFFORT_RATIO,
   FileTypes,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
-  Metrics,
   Model,
   Provider,
-  Suggestion,
-  ToolCallResponse,
-  Usage,
-  WebSearchSource
+  Suggestion
 } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
-import {
-  anthropicToolUseToMcpTool,
-  isEnabledToolUse,
-  mcpToolCallResponseToAnthropicMessage,
-  mcpToolsToAnthropicTools,
-  parseAndCallTools
-} from '@renderer/utils/mcp-tools'
+import { mcpToolCallResponseToAnthropicMessage, mcpToolsToAnthropicTools } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { first, flatten, takeRight } from 'lodash'
+import { first, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
-import { CompletionsParams } from '.'
+import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import BaseProvider from './BaseProvider'
-
-interface ReasoningConfig {
-  type: 'enabled' | 'disabled'
-  budget_tokens?: number
-}
 
 export default class AnthropicProvider extends BaseProvider {
   private sdk: Anthropic
-
   constructor(provider: Provider) {
     super(provider)
-    this.sdk = new Anthropic({
-      apiKey: this.apiKey,
-      baseURL: this.getBaseURL(),
-      dangerouslyAllowBrowser: true,
-      defaultHeaders: {
-        'anthropic-beta': 'output-128k-2025-02-19'
-      }
-    })
+    this.sdk = this.apiClient.getSdkInstance()
   }
 
   public getBaseURL(): string {
@@ -153,59 +118,6 @@ export default class AnthropicProvider extends BaseProvider {
     } as WebSearchTool20250305
   }
 
-  override getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
-      return undefined
-    }
-    return assistant.settings?.temperature
-  }
-
-  override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
-      return undefined
-    }
-    return assistant.settings?.topP
-  }
-
-  /**
-   * Get the reasoning effort
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The reasoning effort
-   */
-  private getBudgetToken(assistant: Assistant, model: Model): ReasoningConfig | undefined {
-    if (!isReasoningModel(model)) {
-      return undefined
-    }
-    const { maxTokens } = getAssistantSettings(assistant)
-
-    const reasoningEffort = assistant?.settings?.reasoning_effort
-
-    if (reasoningEffort === undefined) {
-      return {
-        type: 'disabled'
-      }
-    }
-
-    const effortRatio = EFFORT_RATIO[reasoningEffort]
-
-    const budgetTokens = Math.max(
-      1024,
-      Math.floor(
-        Math.min(
-          (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
-            findTokenLimit(model.id)?.min!,
-          (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
-        )
-      )
-    )
-
-    return {
-      type: 'enabled',
-      budget_tokens: budgetTokens
-    }
-  }
-
   /**
    * Generate completions
    * @param messages - The messages
@@ -214,281 +126,23 @@ export default class AnthropicProvider extends BaseProvider {
    * @param onChunk - The onChunk callback
    * @param onFilterMessages - The onFilterMessages callback
    */
-  public async completions({ messages, assistant, mcpTools, onChunk, onFilterMessages }: CompletionsParams) {
-    const defaultModel = getDefaultModel()
-    const model = assistant.model || defaultModel
-    const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-
-    const userMessagesParams: MessageParam[] = []
-
-    const _messages = filterUserRoleStartMessages(
-      filterContextMessages(filterEmptyMessages(takeRight(messages, contextCount + 2)))
-    )
-
-    onFilterMessages(_messages)
-
-    for (const message of _messages) {
-      userMessagesParams.push(await this.getMessageParam(message))
-    }
-
-    const userMessages = flatten(userMessagesParams)
-    const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-
-    let systemPrompt = assistant.prompt
-
-    const { tools } = this.setupToolsConfig<ToolUnion>({
-      model,
-      mcpTools,
-      enableToolUse: isEnabledToolUse(assistant)
+  async completions(params: CompletionsParams): Promise<CompletionsResult> {
+    Logger.debug('[AnthropicProvider] completions called with params:', {
+      messagesCount: params.messages?.length || 0,
+      streamOutput: params.streamOutput,
+      assistantId: params.assistant?.id,
+      modelId: params.assistant?.model?.id
     })
 
-    if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
-      systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
+    try {
+      Logger.debug('[AnthropicProvider] calling apiClient.completions...')
+      const result = await this.apiClient.completions(params)
+      Logger.debug('[AnthropicProvider] apiClient.completions completed successfully')
+      return result
+    } catch (error) {
+      Logger.error('[AnthropicProvider] apiClient.completions failed:', error)
+      throw error
     }
-
-    let systemMessage: TextBlockParam | undefined = undefined
-    if (systemPrompt) {
-      systemMessage = {
-        type: 'text',
-        text: systemPrompt
-      }
-    }
-
-    const isEnabledBuiltinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
-
-    if (isEnabledBuiltinWebSearch) {
-      const webSearchTool = await this.getWebSearchParams(model)
-      if (webSearchTool) {
-        tools.push(webSearchTool)
-      }
-    }
-
-    const body: MessageCreateParamsNonStreaming = {
-      model: model.id,
-      messages: userMessages,
-      max_tokens: maxTokens || DEFAULT_MAX_TOKENS,
-      temperature: this.getTemperature(assistant, model),
-      top_p: this.getTopP(assistant, model),
-      system: systemMessage ? [systemMessage] : undefined,
-      // @ts-ignore thinking
-      thinking: this.getBudgetToken(assistant, model),
-      tools: tools,
-      ...this.getCustomParameters(assistant)
-    }
-
-    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
-    const { signal } = abortController
-
-    const finalUsage: Usage = {
-      completion_tokens: 0,
-      prompt_tokens: 0,
-      total_tokens: 0
-    }
-
-    const finalMetrics: Metrics = {
-      completion_tokens: 0,
-      time_completion_millsec: 0,
-      time_first_token_millsec: 0
-    }
-    const toolResponses: MCPToolResponse[] = []
-
-    const processStream = async (body: MessageCreateParamsNonStreaming, idx: number) => {
-      let time_first_token_millsec = 0
-
-      if (!streamOutput) {
-        const message = await this.sdk.messages.create({ ...body, stream: false })
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-
-        let text = ''
-        let reasoning_content = ''
-
-        if (message.content && message.content.length > 0) {
-          const thinkingBlock = message.content.find((block) => block.type === 'thinking')
-          const textBlock = message.content.find((block) => block.type === 'text')
-
-          if (thinkingBlock && 'thinking' in thinkingBlock) {
-            reasoning_content = thinkingBlock.thinking
-          }
-
-          if (textBlock && 'text' in textBlock) {
-            text = textBlock.text
-          }
-        }
-
-        return onChunk({
-          type: ChunkType.BLOCK_COMPLETE,
-          response: {
-            text,
-            reasoning_content,
-            usage: message.usage as any,
-            metrics: {
-              completion_tokens: message.usage?.output_tokens || 0,
-              time_completion_millsec,
-              time_first_token_millsec: 0
-            }
-          }
-        })
-      }
-
-      let thinking_content = ''
-      let isFirstChunk = true
-
-      return new Promise<void>((resolve, reject) => {
-        // 等待接口返回流
-        const toolCalls: ToolUseBlock[] = []
-
-        this.sdk.messages
-          .stream({ ...body, stream: true }, { signal, timeout: 5 * 60 * 1000 })
-          .on('text', (text) => {
-            if (isFirstChunk) {
-              isFirstChunk = false
-              if (time_first_token_millsec == 0) {
-                time_first_token_millsec = new Date().getTime()
-              } else {
-                onChunk({
-                  type: ChunkType.THINKING_COMPLETE,
-                  text: thinking_content,
-                  thinking_millsec: new Date().getTime() - time_first_token_millsec
-                })
-              }
-            }
-
-            onChunk({ type: ChunkType.TEXT_DELTA, text })
-          })
-          .on('contentBlock', (block) => {
-            if (block.type === 'server_tool_use' && block.name === 'web_search') {
-              onChunk({
-                type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
-              })
-            } else if (block.type === 'web_search_tool_result') {
-              if (
-                block.content &&
-                (block.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
-              ) {
-                onChunk({
-                  type: ChunkType.ERROR,
-                  error: {
-                    code: (block.content as WebSearchToolResultError).error_code,
-                    message: (block.content as WebSearchToolResultError).error_code
-                  }
-                })
-              } else {
-                onChunk({
-                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                  llm_web_search: {
-                    results: block.content as Array<WebSearchResultBlock>,
-                    source: WebSearchSource.ANTHROPIC
-                  }
-                })
-              }
-            }
-            if (block.type === 'tool_use') {
-              toolCalls.push(block)
-            }
-          })
-          .on('thinking', (thinking) => {
-            if (time_first_token_millsec == 0) {
-              time_first_token_millsec = new Date().getTime()
-            }
-
-            onChunk({
-              type: ChunkType.THINKING_DELTA,
-              text: thinking,
-              thinking_millsec: new Date().getTime() - time_first_token_millsec
-            })
-            thinking_content += thinking
-          })
-          .on('finalMessage', async (message) => {
-            const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
-            // tool call
-            if (toolCalls.length > 0) {
-              const mcpToolResponses = toolCalls
-                .map((toolCall) => {
-                  const mcpTool = anthropicToolUseToMcpTool(mcpTools, toolCall)
-                  if (!mcpTool) {
-                    return undefined
-                  }
-                  return {
-                    id: toolCall.id,
-                    toolCallId: toolCall.id,
-                    tool: mcpTool,
-                    arguments: toolCall.input as Record<string, unknown>,
-                    status: 'pending'
-                  } as ToolCallResponse
-                })
-                .filter((t) => typeof t !== 'undefined')
-              toolResults.push(
-                ...(await parseAndCallTools(
-                  mcpToolResponses,
-                  toolResponses,
-                  onChunk,
-                  this.mcpToolCallResponseToMessage,
-                  model,
-                  mcpTools
-                ))
-              )
-            }
-
-            // tool use
-            const content = message.content[0]
-            if (content && content.type === 'text') {
-              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content.text })
-              toolResults.push(
-                ...(await parseAndCallTools(
-                  content.text,
-                  toolResponses,
-                  onChunk,
-                  this.mcpToolCallResponseToMessage,
-                  model,
-                  mcpTools
-                ))
-              )
-            }
-
-            userMessages.push({
-              role: message.role,
-              content: message.content
-            })
-
-            if (toolResults.length > 0) {
-              toolResults.forEach((ts) => userMessages.push(ts as MessageParam))
-              const newBody = body
-              newBody.messages = userMessages
-
-              onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-              try {
-                await processStream(newBody, idx + 1)
-              } catch (error) {
-                console.error('Error processing stream:', error)
-                reject(error)
-              }
-            }
-
-            finalUsage.prompt_tokens += message.usage?.input_tokens || 0
-            finalUsage.completion_tokens += message.usage?.output_tokens || 0
-            finalUsage.total_tokens += finalUsage.prompt_tokens + finalUsage.completion_tokens
-            finalMetrics.completion_tokens = finalUsage.completion_tokens
-            finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
-            finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
-
-            onChunk({
-              type: ChunkType.BLOCK_COMPLETE,
-              response: {
-                usage: finalUsage,
-                metrics: finalMetrics
-              }
-            })
-            resolve()
-          })
-          .on('error', (error) => reject(error))
-          .on('abort', () => {
-            reject(new Error('Request was aborted.'))
-          })
-      })
-    }
-    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
-    const start_time_millsec = new Date().getTime()
-    await processStream(body, 0).finally(cleanup)
   }
 
   /**
@@ -506,6 +160,8 @@ export default class AnthropicProvider extends BaseProvider {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
 
+    const sdk = await this.apiClient.getSdkInstance()
+
     const messagesForApi = [{ role: 'user' as const, content: content }]
 
     const stream = !!onResponse
@@ -519,14 +175,14 @@ export default class AnthropicProvider extends BaseProvider {
     }
 
     if (!stream) {
-      const response = await this.sdk.messages.create({ ...body, stream: false })
+      const response = await sdk.messages.create({ ...body, stream: false })
       return response.content[0].type === 'text' ? response.content[0].text : ''
     }
 
     let text = ''
 
     return new Promise<string>((resolve, reject) => {
-      this.sdk.messages
+      sdk.messages
         .stream({ ...body, stream: true })
         .on('text', (_text) => {
           text += _text
@@ -603,22 +259,17 @@ export default class AnthropicProvider extends BaseProvider {
       role: 'user' as const,
       content: userMessageContent
     }
-    const lastUserMessage = messages[messages.length - 1]
-    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
-    const { signal } = abortController
 
-    const response = await this.sdk.messages
-      .create(
-        {
-          messages: [userMessage],
-          model: model.id,
-          system: systemMessage.content,
-          stream: false,
-          max_tokens: 4096
-        },
-        { timeout: 20 * 1000, signal }
-      )
-      .finally(cleanup)
+    const response = await this.sdk.messages.create(
+      {
+        messages: [userMessage],
+        model: model.id,
+        system: systemMessage.content,
+        stream: false,
+        max_tokens: 4096
+      },
+      { timeout: 20 * 1000 }
+    )
 
     return response.content[0].type === 'text' ? response.content[0].text : ''
   }

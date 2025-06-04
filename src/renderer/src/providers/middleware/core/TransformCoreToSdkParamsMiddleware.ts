@@ -1,7 +1,7 @@
 import Logger from '@renderer/config/logger'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 const MIDDLEWARE_NAME = 'TransformCoreToSdkParamsMiddleware'
 
@@ -19,7 +19,7 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
 
     // 🔧 检测递归调用：检查 params 中是否携带了预处理的 SDK 消息
     const isRecursiveCall = internal?.toolProcessingState?.isRecursiveCall || false
-    const newSdkMessages = params._internal?.sdkPayload?.messages
+    const newSdkMessages = params._internal?.newReqMessages
 
     const apiClient = ctx.apiClientInstance
 

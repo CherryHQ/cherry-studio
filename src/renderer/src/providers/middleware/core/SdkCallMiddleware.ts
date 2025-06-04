@@ -2,7 +2,7 @@ import Logger from '@renderer/config/logger'
 import { ChunkType } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../type'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 const MIDDLEWARE_NAME = 'SdkCallMiddleware'
 
@@ -37,22 +37,19 @@ export const SdkCallMiddleware: CompletionsMiddleware =
     }
 
     try {
-      // 获取SDK实例
-      const sdk = await apiClient.getSdkInstance()
-
       Logger.debug(`🚀 [${MIDDLEWARE_NAME}] Making SDK call with transformed parameters`)
       Logger.debug(`🚀 [${MIDDLEWARE_NAME}] SDK payload type:`, typeof sdkPayload)
 
       params.onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
       // 执行实际的SDK调用
       // @ts-ignore - SDK参数可能有额外的字段
-      const rawSdkOutput = await sdk.chat.completions.create(sdkPayload)
+      const rawSdkOutput = await apiClient.createCompletions(sdkPayload)
 
       Logger.debug(`🚀 [${MIDDLEWARE_NAME}] SDK call completed successfully`)
-      Logger.debug(`🚀 [${MIDDLEWARE_NAME}] Response type:`, typeof rawSdkOutput)
+      Logger.debug(`🚀 [${MIDDLEWARE_NAME}] Response:`, rawSdkOutput)
 
       return {
-        stream: rawSdkOutput
+        rawOutput: rawSdkOutput
       }
     } catch (error) {
       Logger.error(`🚀 [${MIDDLEWARE_NAME}] SDK call failed:`, error)

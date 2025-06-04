@@ -1,7 +1,7 @@
 import { BaseApiClient } from '../AiProvider/clients'
 import { applyCompletionsMiddlewares, applyMethodMiddlewares } from './composer'
 import { CompletionsParams } from './schemas'
-import { CompletionsMiddleware, MethodMiddleware, MiddlewareConfig } from './type'
+import { CompletionsMiddleware, MethodMiddleware, MiddlewareConfig } from './types'
 
 /**
  * Wraps a provider instance with middlewares.

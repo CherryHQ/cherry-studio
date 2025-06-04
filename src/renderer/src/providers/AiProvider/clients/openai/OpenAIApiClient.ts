@@ -1,6 +1,7 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
+  getOpenAIWebSearchParams,
   isClaudeReasoningModel,
   isOpenAIReasoningModel,
   isReasoningModel,
@@ -30,24 +31,20 @@ import {
   MCPToolResponse,
   Model,
   Provider,
+  ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import {
-  ChunkType,
-  LLMResponseCompleteChunk,
-  MCPToolCreatedChunk,
-  TextDeltaChunk,
-  ThinkingDeltaChunk
-} from '@renderer/types/chunk'
+import { ChunkType, MCPToolCreatedChunk, TextDeltaChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
+  OpenAISdkMessageParam,
   OpenAISdkParams,
   OpenAISdkRawChunk,
   OpenAISdkRawContentSource,
-  ReasoningEffortOptionalParams,
-  SdkMessage,
-  SdkToolCall
+  OpenAISdkRawOutput,
+  ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
+import { formatApiHost } from '@renderer/utils/api'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -59,26 +56,47 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
-import { ChatCompletionContentPart, ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources'
+import { ChatCompletionContentPart, ChatCompletionTool } from 'openai/resources'
+import { Stream } from 'openai/streaming'
 
 import { GenericChunk } from '../../../middleware/schemas'
 import { BaseApiClient } from '../BaseApiClient'
-import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
+import {
+  RawStreamListener,
+  RequestTransformer,
+  ResponseChunkTransformer,
+  ResponseChunkTransformerContext
+} from '../types'
 
-// Define a context type if your response transformer needs it
-interface OpenAIResponseTransformContext extends ResponseChunkTransformerContext {}
-
-export class OpenAIApiClient extends BaseApiClient<
+export class OpenAIAPIClient extends BaseApiClient<
   OpenAI | AzureOpenAI,
   OpenAISdkParams,
+  OpenAISdkRawOutput,
   OpenAISdkRawChunk,
-  OpenAIResponseTransformContext
+  OpenAISdkMessageParam,
+  OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+  ChatCompletionTool
 > {
   constructor(provider: Provider) {
     super(provider)
   }
 
-  async getSdkInstance(): Promise<OpenAI | AzureOpenAI> {
+  // 仅适用于openai
+  override getBaseURL(): string {
+    const host = this.provider.apiHost
+    return formatApiHost(host)
+  }
+
+  override async createCompletions(
+    payload: OpenAISdkParams,
+    options?: OpenAI.RequestOptions
+  ): Promise<OpenAISdkRawOutput> {
+    const sdk = await this.getSdkInstance()
+    // @ts-ignore - SDK参数可能有额外的字段
+    return sdk.chat.completions.create(payload, options)
+  }
+
+  async getSdkInstance() {
     if (this.sdkInstance) {
       return this.sdkInstance
     }
@@ -264,10 +282,7 @@ export class OpenAIApiClient extends BaseApiClient<
    * @param model - The model
    * @returns The message parameter
    */
-  public async convertMessageToSdkParam(
-    message: Message,
-    model: Model
-  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
+  public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAISdkMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
     const fileBlocks = findFileBlocks(message)
@@ -277,7 +292,7 @@ export class OpenAIApiClient extends BaseApiClient<
       return {
         role: message.role === 'system' ? 'user' : message.role,
         content
-      }
+      } as OpenAISdkMessageParam
     }
 
     // If the model does not support files, extract the file content
@@ -287,7 +302,7 @@ export class OpenAIApiClient extends BaseApiClient<
       return {
         role: message.role === 'system' ? 'user' : message.role,
         content: content + '\n\n---\n\n' + fileContent
-      }
+      } as OpenAISdkMessageParam
     }
 
     // If the model supports files, add the file content to the message
@@ -326,11 +341,11 @@ export class OpenAIApiClient extends BaseApiClient<
     return {
       role: message.role === 'system' ? 'user' : message.role,
       content: parts
-    } as ChatCompletionMessageParam
+    } as OpenAISdkMessageParam
   }
 
-  public convertMcpToolsToSdkTools<T>(mcpTools: MCPTool[]): T[] {
-    return mcpToolsToOpenAIChatTools(mcpTools) as T[]
+  public convertMcpToolsToSdkTools(mcpTools: MCPTool[]): ChatCompletionTool[] {
+    return mcpToolsToOpenAIChatTools(mcpTools)
   }
 
   convertSdkToolCallToMcp(
@@ -340,11 +355,30 @@ export class OpenAIApiClient extends BaseApiClient<
     return openAIToolsToMcpTool(mcpTools, toolCall)
   }
 
-  convertMcpToolResponseToSdkMessage(
+  convertSdkToolCallToMcpToolResponse(
+    toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
+    mcpTool: MCPTool
+  ): ToolCallResponse {
+    let parsedArgs: any
+    try {
+      parsedArgs = JSON.parse(toolCall.function.arguments)
+    } catch {
+      parsedArgs = toolCall.function.arguments
+    }
+    return {
+      id: toolCall.id,
+      toolCallId: toolCall.id,
+      tool: mcpTool,
+      arguments: parsedArgs,
+      status: 'pending'
+    } as ToolCallResponse
+  }
+
+  convertMcpToolResponseToSdkMessageParam(
     mcpToolResponse: MCPToolResponse,
     resp: MCPCallToolResponse,
     model: Model
-  ): OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined {
+  ): OpenAISdkMessageParam | undefined {
     if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
       // This case is for Anthropic/Claude like tool usage, OpenAI uses tool_call_id
       // For OpenAI, we primarily expect toolCallId. This might need adjustment if mixing provider concepts.
@@ -360,24 +394,21 @@ export class OpenAIApiClient extends BaseApiClient<
   }
 
   buildSdkMessages(
-    currentReqMessages: SdkMessage[],
-    assistantContent: string,
-    toolCalls: SdkToolCall[],
-    toolResults: SdkMessage[]
-  ): SdkMessage[] {
-    const newReqMessages = [
-      ...currentReqMessages,
-      {
-        role: 'assistant',
-        content: assistantContent,
-        tool_calls: toolCalls
-      } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam,
-      ...toolResults
-    ]
+    currentReqMessages: OpenAISdkMessageParam[],
+    toolResults: OpenAISdkMessageParam[],
+    assistantMessage: OpenAISdkMessageParam,
+    toolCalls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
+  ): OpenAISdkMessageParam[] {
+    const newAssistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
+      role: 'assistant',
+      content: assistantMessage.content as string,
+      tool_calls: toolCalls
+    }
+    const newReqMessages = [...currentReqMessages, newAssistantMessage, ...(toolResults || [])]
     return newReqMessages
   }
 
-  getRequestTransformer(): RequestTransformer<OpenAISdkParams> {
+  getRequestTransformer(): RequestTransformer<OpenAISdkParams, OpenAISdkMessageParam> {
     return {
       transform: async (
         coreRequest,
@@ -387,10 +418,10 @@ export class OpenAIApiClient extends BaseApiClient<
         recursiveSdkMessages
       ): Promise<{
         payload: OpenAISdkParams
-        messages: ChatCompletionMessageParam[]
+        messages: OpenAISdkMessageParam[]
         processedMessages: Message[]
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput } = coreRequest
+        const { messages, mcpTools, maxTokens, streamOutput, onFilterMessages } = coreRequest
 
         const { contextCount } = getAssistantSettings(assistant)
 
@@ -405,7 +436,7 @@ export class OpenAIApiClient extends BaseApiClient<
           }
         }
 
-        const { tools } = this.setupToolsConfig<ChatCompletionTool>({
+        const { tools } = this.setupToolsConfig({
           mcpTools: mcpTools,
           model,
           enableToolUse: isEnabledToolUse(assistant)
@@ -415,13 +446,13 @@ export class OpenAIApiClient extends BaseApiClient<
           systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
         }
 
-        const userMessages: ChatCompletionMessageParam[] = []
+        const userMessages: OpenAISdkMessageParam[] = []
 
         const _messages = filterUserRoleStartMessages(
           filterEmptyMessages(filterContextMessages(takeRight(processedMessages, contextCount + 1)))
         )
 
-        coreRequest.onFilterMessages(_messages)
+        onFilterMessages(_messages)
         for (const message of messages) {
           userMessages.push(await this.convertMessageToSdkParam(message, model))
         }
@@ -435,11 +466,11 @@ export class OpenAIApiClient extends BaseApiClient<
           lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
         }
 
-        let reqMessages: ChatCompletionMessageParam[]
+        let reqMessages: OpenAISdkMessageParam[]
         if (!systemMessage.content) {
           reqMessages = [...userMessages]
         } else {
-          reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
+          reqMessages = [systemMessage, ...userMessages].filter(Boolean) as OpenAISdkMessageParam[]
         }
 
         reqMessages = processReqMessages(model, reqMessages)
@@ -454,9 +485,12 @@ export class OpenAIApiClient extends BaseApiClient<
           temperature: this.getTemperature(assistant, model),
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
-          tools: tools as ChatCompletionTool[] | undefined,
+          tools: tools,
+          service_tier: this.getServiceTier(model),
           ...this.getProviderSpecificParameters(assistant, model),
-          ...this.getReasoningEffort(assistant, model)
+          ...this.getReasoningEffort(assistant, model),
+          ...this.getCustomParameters(assistant),
+          ...getOpenAIWebSearchParams(assistant, model)
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
@@ -476,11 +510,11 @@ export class OpenAIApiClient extends BaseApiClient<
   }
 
   // 在RawSdkChunkToGenericChunkMiddleware中使用
-  getResponseChunkTransformer = (): ResponseChunkTransformer<OpenAISdkRawChunk, OpenAIResponseTransformContext> => {
+  getResponseChunkTransformer = (): ResponseChunkTransformer<OpenAISdkRawChunk> => {
     const collectWebSearchData = (
       chunk: OpenAISdkRawChunk,
       contentSource: OpenAISdkRawContentSource,
-      context: OpenAIResponseTransformContext
+      context: ResponseChunkTransformerContext
     ) => {
       // OpenAI annotations
       // @ts-ignore - annotations may not be in standard type definitions
@@ -594,7 +628,7 @@ export class OpenAIApiClient extends BaseApiClient<
         }
 
         // 处理工具调用
-        if (contentSource.tool_calls && context?.isEnabledToolCalling) {
+        if (contentSource.tool_calls) {
           yield {
             type: ChunkType.MCP_TOOL_CREATED,
             tool_calls: contentSource.tool_calls
@@ -603,9 +637,8 @@ export class OpenAIApiClient extends BaseApiClient<
 
         // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
         // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
-        if (contentSource.reasoning_content || contentSource.reasoning) {
-          // @ts-ignore - reasoning_content is a non-standard field from some providers
-          const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+        const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+        if (reasoningText) {
           yield {
             type: ChunkType.THINKING_DELTA,
             text: reasoningText
@@ -615,33 +648,30 @@ export class OpenAIApiClient extends BaseApiClient<
         // 处理finish_reason，发送流结束信号
         if ('finish_reason' in choice && choice.finish_reason) {
           console.log(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
-
-          // 检查Web搜索结果并发送
-          if (context?.isEnabledWebSearch) {
-            const webSearchData = collectWebSearchData(chunk, contentSource, context)
-            if (webSearchData) {
-              yield {
-                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                llm_web_search: webSearchData
-              } as GenericChunk
-            }
+          const webSearchData = collectWebSearchData(chunk, contentSource, context)
+          if (webSearchData) {
+            yield {
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: webSearchData
+            } as GenericChunk
           }
-
-          // 提取usage数据（如果存在）
-          let extractedUsage = undefined
-          // @ts-ignore - usage字段可能存在于chunk的顶层
-          if (chunk.usage) {
-            // @ts-ignore - usage字段可能存在于chunk的顶层
-            extractedUsage = chunk.usage
-          }
-
-          // 发送流结束信号，包含usage数据
-          yield {
-            type: ChunkType.LLM_RESPONSE_COMPLETE,
-            response: extractedUsage ? { usage: extractedUsage } : undefined
-          } as LLMResponseCompleteChunk
         }
       }
     }
+  }
+
+  /**
+   * OpenAI专用的原始流监听器
+   * 处理OpenAI Stream对象的特定事件
+   */
+  override attachRawStreamListener(
+    rawOutput: OpenAISdkRawOutput,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _listener: RawStreamListener<OpenAISdkRawChunk>
+  ): OpenAISdkRawOutput {
+    if (rawOutput instanceof Stream) {
+      return rawOutput
+    }
+    return rawOutput
   }
 }

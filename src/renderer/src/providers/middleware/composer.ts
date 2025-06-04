@@ -7,7 +7,7 @@ import {
   MethodMiddleware,
   MIDDLEWARE_CONTEXT_SYMBOL,
   MiddlewareAPI
-} from './type'
+} from './types'
 
 /**
  * Creates the initial context for a method call, populating method-specific fields. /

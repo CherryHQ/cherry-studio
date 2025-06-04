@@ -4,7 +4,7 @@ import { Assistant, MCPCallToolResponse, MCPTool, MCPToolResponse, Model, Provid
 import { Message } from '@renderer/types/newMessage'
 import OpenAI from 'openai'
 
-import { CompletionsParams } from '.'
+import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import AnthropicProvider from './AnthropicProvider'
 import BaseProvider from './BaseProvider'
 import GeminiProvider from './GeminiProvider'
@@ -71,7 +71,7 @@ export default class AihubmixProvider extends BaseProvider {
     return this.defaultProvider.generateImageByChat(params)
   }
 
-  public async completions(params: CompletionsParams): Promise<void> {
+  public async completions(params: CompletionsParams): Promise<CompletionsResult> {
     const model = params.assistant.model
     this.currentProvider = this.getProvider(model!)
     return this.currentProvider.completions(params)

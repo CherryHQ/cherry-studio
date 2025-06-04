@@ -1,7 +1,7 @@
 import { MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
 import { Chunk, ErrorChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
-import { SdkParams, SdkToolCall } from '@renderer/types/sdk'
+import { SdkMessageParam, SdkParams, SdkToolCall } from '@renderer/types/sdk'
 
 import { BaseApiClient } from '../AiProvider/clients'
 import { CompletionsParams, CompletionsResult } from './schemas'
@@ -29,19 +29,25 @@ export interface BaseContext {
 /**
  * Processing state shared between middlewares.
  */
-export interface ProcessingState {
-  sdkPayload?: Readonly<SdkParams>
+export interface ProcessingState<
+  TParams extends SdkParams = SdkParams,
+  TMessageParam extends SdkMessageParam = SdkMessageParam,
+  TToolCall extends SdkToolCall = SdkToolCall
+> {
+  sdkPayload?: Readonly<TParams>
+  newReqMessages?: TMessageParam[]
   processedMessages?: Message[]
   observer?: {
     usage?: Usage
     metrics?: Metrics
   }
   toolProcessingState?: {
-    pendingToolCalls?: Array<SdkToolCall>
+    pendingToolCalls?: Array<TToolCall>
     executingToolCalls?: Array<{
-      sdkToolCall: SdkToolCall
+      sdkToolCall: TToolCall
       mcpToolResponse: MCPToolResponse
     }>
+    assistantMessage?: TMessageParam
     isRecursiveCall?: boolean
     recursionDepth?: number
   }

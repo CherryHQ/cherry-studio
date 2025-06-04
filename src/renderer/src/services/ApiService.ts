@@ -34,6 +34,7 @@ import { findLast, isEmpty } from 'lodash'
 import AiProvider from '../providers/AiProvider'
 import {
   getAssistantProvider,
+  getAssistantSettings,
   getDefaultModel,
   getProviderByModel,
   getTopNamingModel,
@@ -313,6 +314,8 @@ export async function fetchChatCompletion({
 
   const model = assistant.model || getDefaultModel()
 
+  const { maxTokens } = getAssistantSettings(assistant)
+
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
@@ -326,6 +329,7 @@ export async function fetchChatCompletion({
     onFilterMessages: () => {},
     onChunk: onChunkReceived,
     mcpTools: mcpTools,
+    maxTokens,
     streamOutput: assistant.settings?.streamOutput || false,
     enableReasoning: enableReasoning,
     enableWebSearch: (assistant.enableWebSearch && isWebSearchModel(model)) || false

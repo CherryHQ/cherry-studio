@@ -1,4 +1,4 @@
-import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../type'
+import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../types'
 
 /**
  * Helper function to safely stringify arguments for logging, handling circular references and large objects.

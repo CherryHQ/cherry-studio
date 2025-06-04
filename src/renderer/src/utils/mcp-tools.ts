@@ -15,7 +15,7 @@ import {
 } from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { SdkMessage } from '@renderer/types/sdk'
+import { SdkMessageParam } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -492,7 +492,7 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[]
-): Promise<SdkMessage[]>
+): Promise<SdkMessageParam[]>
 
 export async function parseAndCallTools<R>(
   content: string,
@@ -501,7 +501,7 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[]
-): Promise<SdkMessage[]>
+): Promise<SdkMessageParam[]>
 
 export async function parseAndCallTools<R>(
   content: string | MCPToolResponse[],

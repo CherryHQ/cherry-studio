@@ -1,7 +1,14 @@
-import { isFunctionCallingModel, isNotSupportTemperatureAndTopP } from '@renderer/config/models'
+import {
+  isFunctionCallingModel,
+  isNotSupportTemperatureAndTopP,
+  isOpenAIModel,
+  isSupportedFlexServiceTier
+} from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
-import { ProcessingState } from '@renderer/providers/middleware/type'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
+import { ProcessingState } from '@renderer/providers/middleware/types'
+import { SettingsState } from '@renderer/store/settings'
 import {
   Assistant,
   FileTypes,
@@ -10,32 +17,45 @@ import {
   MCPTool,
   MCPToolResponse,
   Model,
+  OpenAIServiceTier,
   Provider,
+  ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
-import { SdkInstance, SdkMessage, SdkParams, SdkRawChunk, SdkToolCall } from '@renderer/types/sdk'
+import {
+  RequestOptions,
+  SdkInstance,
+  SdkMessageParam,
+  SdkParams,
+  SdkRawChunk,
+  SdkRawOutput,
+  SdkTool,
+  SdkToolCall
+} from '@renderer/types/sdk'
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
-import { formatApiHost } from '@renderer/utils/api'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
 import { CompletionsParams, CompletionsResult } from '../../middleware/schemas'
-import { ApiClient, RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from './types'
+import { ApiClient, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from './types'
 
 /**
  * Abstract base class for API clients.
  * Provides common functionality and structure for specific client implementations.
  */
 export abstract class BaseApiClient<
-  TSdkInstance = SdkInstance,
-  TSdkParams = SdkParams,
-  TRawChunk = SdkRawChunk,
-  TResponseContext = ResponseChunkTransformerContext
-> implements ApiClient<TSdkInstance, TSdkParams, TRawChunk, TResponseContext>
+  TSdkInstance extends SdkInstance = SdkInstance,
+  TSdkParams extends SdkParams = SdkParams,
+  TRawOutput extends SdkRawOutput = SdkRawOutput,
+  TRawChunk extends SdkRawChunk = SdkRawChunk,
+  TMessageParam extends SdkMessageParam = SdkMessageParam,
+  TToolCall extends SdkToolCall = SdkToolCall,
+  TSdkSpecificTool extends SdkTool = SdkTool
+> implements ApiClient<TSdkInstance, TSdkParams, TRawOutput, TRawChunk, TMessageParam, TToolCall, TSdkSpecificTool>
 {
   private static readonly SYSTEM_PROMPT_THRESHOLD: number = 128
   public provider: Provider
@@ -54,11 +74,6 @@ export abstract class BaseApiClient<
   // 实际的SDK调用由SdkCallMiddleware处理
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async completions(_params: CompletionsParams, _internal?: ProcessingState): Promise<CompletionsResult> {
-    const providerId = this.provider?.id || 'unknown-provider'
-    console.log(`[BaseApiClient (${providerId})] completions called - middleware chain should handle actual execution`)
-    console.log(
-      `[BaseApiClient (${providerId})] This method should not be executed directly if middleware is working properly`
-    )
     // 在中间件架构中，这个方法只是一个占位符
     // 实际的SDK调用和流处理由中间件完成
     return {
@@ -66,36 +81,47 @@ export abstract class BaseApiClient<
     }
   }
 
+  abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
+
   abstract getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
   // 在 CoreRequestToSdkParamsMiddleware中使用
-  abstract getRequestTransformer(): RequestTransformer<TSdkParams>
+  abstract getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>
   // 在RawSdkChunkToGenericChunkMiddleware中使用
-  abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk, TResponseContext>
+  abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
+
+  /**
+   * 附加原始流监听器
+   */
+  abstract attachRawStreamListener<TListener extends RawStreamListener<TRawChunk>>(
+    rawOutput: TRawOutput,
+    listener: TListener
+  ): TRawOutput
 
   // Optional tool conversion methods - implement if needed by the specific provider
-  abstract convertMcpToolsToSdkTools<T>(mcpTools: MCPTool[]): T[]
+  abstract convertMcpToolsToSdkTools(mcpTools: MCPTool[]): TSdkSpecificTool[]
 
-  abstract convertSdkToolCallToMcp(toolCall: SdkToolCall, mcpTools: MCPTool[]): MCPTool | undefined
+  abstract convertSdkToolCallToMcp(toolCall: TToolCall, mcpTools: MCPTool[]): MCPTool | undefined
+
+  abstract convertSdkToolCallToMcpToolResponse(toolCall: TToolCall, mcpTool: MCPTool): ToolCallResponse
 
   abstract buildSdkMessages(
-    currentReqMessages: SdkMessage[],
-    assistantContent: string,
-    toolCalls: SdkToolCall[],
-    toolResults: SdkMessage[]
-  ): SdkMessage[]
+    currentReqMessages: TMessageParam[],
+    toolResults: TMessageParam[],
+    assistantMessage: TMessageParam,
+    toolCalls?: TToolCall[]
+  ): TMessageParam[]
 
-  abstract convertMcpToolResponseToSdkMessage(
+  abstract convertMcpToolResponseToSdkMessageParam(
     mcpToolResponse: MCPToolResponse,
     resp: MCPCallToolResponse,
     model: Model
-  ): SdkMessage | undefined
+  ): TMessageParam | undefined
 
-  public getBaseURL(): string {
-    const host = this.provider.apiHost
-    return formatApiHost(host)
+  protected getBaseURL(): string {
+    return this.provider.apiHost
   }
 
-  public getApiKey() {
+  protected getApiKey() {
     const keys = this.provider.apiKey.split(',').map((key) => key.trim())
     const keyName = `provider:${this.provider.id}:last_used_key`
 
@@ -135,6 +161,27 @@ export abstract class BaseApiClient<
 
   public getTopP(assistant: Assistant, model: Model): number | undefined {
     return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.topP
+  }
+
+  protected getServiceTier(model: Model) {
+    if (!isOpenAIModel(model) || model.provider === 'github' || model.provider === 'copilot') {
+      return undefined
+    }
+
+    const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+    let serviceTier = 'auto' as OpenAIServiceTier
+
+    if (openAI && openAI?.serviceTier === 'flex') {
+      if (isSupportedFlexServiceTier(model)) {
+        serviceTier = 'flex'
+      } else {
+        serviceTier = 'auto'
+      }
+    } else {
+      serviceTier = openAI.serviceTier
+    }
+
+    return serviceTier
   }
 
   public async getMessageContent(message: Message): Promise<string> {
@@ -301,11 +348,11 @@ export abstract class BaseApiClient<
   }
 
   // Setup tools configuration based on provided parameters
-  public setupToolsConfig<T>(params: { mcpTools?: MCPTool[]; model: Model; enableToolUse?: boolean }): {
-    tools: T[]
+  public setupToolsConfig(params: { mcpTools?: MCPTool[]; model: Model; enableToolUse?: boolean }): {
+    tools: TSdkSpecificTool[]
   } {
     const { mcpTools, model, enableToolUse } = params
-    let tools: T[] = []
+    let tools: TSdkSpecificTool[] = []
 
     // If there are no tools, return an empty array
     if (!mcpTools?.length) {

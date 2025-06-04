@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { BaseApiClient } from '../../../AiProvider/clients'
-import { BaseContext, MIDDLEWARE_CONTEXT_SYMBOL } from '../../type'
+import { BaseContext, MIDDLEWARE_CONTEXT_SYMBOL } from '../../types'
 import { GenericLoggingMiddleware } from '../LoggingMiddleware'
 
 // Mock console methods
