@@ -4,6 +4,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
+import { setRenamingTopicIds } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
@@ -12,8 +13,6 @@ import { useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
-
-const renamingTopics = new Set<string>()
 
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
@@ -58,13 +57,41 @@ export async function getTopicById(topicId: string) {
   return { ...topic, messages } as Topic
 }
 
+/**
+ * 添加正在重命名的主题
+ * @param topicId 主题ID
+ */
+export const addRenamingTopic = (topicId: string) => {
+  const currentIds = store.getState().runtime.renamingTopicIds
+  if (!currentIds.includes(topicId)) {
+    store.dispatch(setRenamingTopicIds([...currentIds, topicId]))
+  }
+}
+
+/**
+ * 移除正在重命名的主题
+ * @param topicId 主题ID
+ */
+export const removeRenamingTopic = (topicId: string) => {
+  const currentIds = store.getState().runtime.renamingTopicIds
+  store.dispatch(setRenamingTopicIds(currentIds.filter((id) => id !== topicId)))
+}
+
+/**
+ * 判断主题是否正在重命名
+ * @param topicId 主题ID
+ */
+export const isTopicRenaming = (topicId: string) => {
+  return store.getState().runtime.renamingTopicIds.includes(topicId)
+}
+
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
-  if (renamingTopics.has(topicId)) {
+  if (isTopicRenaming(topicId)) {
     return
   }
 
   try {
-    renamingTopics.add(topicId)
+    addRenamingTopic(topicId)
 
     const topic = await getTopicById(topicId)
     const enableTopicNaming = getStoreSetting('enableTopicNaming')
@@ -104,7 +131,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       }
     }
   } finally {
-    renamingTopics.delete(topicId)
+    removeRenamingTopic(topicId)
   }
 }
 

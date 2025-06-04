@@ -17,7 +17,7 @@ import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { TopicManager } from '@renderer/hooks/useTopic'
+import { addRenamingTopic, isTopicRenaming, removeRenamingTopic, TopicManager } from '@renderer/hooks/useTopic'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
@@ -55,6 +55,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
   const { showTopicTime, pinTopicsToTop } = useSettings()
+  const renamingTopicIds = useSelector((state: RootState) => state.runtime.renamingTopicIds)
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -169,15 +170,18 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         label: t('chat.topics.auto_rename'),
         key: 'auto-rename',
         icon: <i className="iconfont icon-business-smart-assistant" style={{ fontSize: '14px' }} />,
+        disabled: isTopicRenaming(topic.id),
         async onClick() {
           const messages = await TopicManager.getTopicMessages(topic.id)
           if (messages.length >= 2) {
+            addRenamingTopic(topic.id)
             const summaryText = await fetchMessagesSummary({ messages, assistant })
             if (summaryText) {
               updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
             } else {
               window.message?.error(t('message.error.fetchTopicName'))
             }
+            removeRenamingTopic(topic.id)
           }
         }
       },
@@ -185,6 +189,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         label: t('chat.topics.edit.title'),
         key: 'rename',
         icon: <EditOutlined />,
+        disabled: isTopicRenaming(topic.id),
         async onClick() {
           const name = await PromptPopup.show({
             title: t('chat.topics.edit.title'),
@@ -403,6 +408,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             const topicName = topic.name.replace('`', '')
             const topicPrompt = topic.prompt
             const fullTopicPrompt = t('common.prompt') + ': ' + topicPrompt
+            const isRenaming = renamingTopicIds.includes(topic.id)
             return (
               <TopicListItem
                 onContextMenu={() => setTargetTopic(topic)}
@@ -411,7 +417,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
                 <TopicNameContainer>
-                  <TopicName className="name" title={topicName}>
+                  <TopicName className={isRenaming ? 'shimmer' : ''} title={topicName}>
                     {topicName}
                   </TopicName>
                   {isActive && !topic.pinned && (
@@ -492,14 +498,10 @@ const TopicListItem = styled.div`
   }
   &:hover {
     background-color: var(--color-background-soft);
-    .name {
-    }
   }
   &.active {
     background-color: var(--color-background-soft);
     border: 0.5px solid var(--color-border);
-    .name {
-    }
     .menu {
       opacity: 1;
       &:hover {
@@ -523,6 +525,25 @@ const TopicName = styled.div`
   -webkit-box-orient: vertical;
   overflow: hidden;
   font-size: 13px;
+  position: relative;
+
+  &.shimmer {
+    background: linear-gradient(120deg, var(--color-text-1) 0%, var(--color-text-3) 50%, var(--color-text-1) 100%);
+    background-size: 200% 100%;
+    background-clip: text;
+    color: transparent;
+    will-change: background-position;
+    animation: shimmer 3s linear infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
 `
 
 const PendingIndicator = styled.div.attrs({
