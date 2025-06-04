@@ -28,7 +28,7 @@ function getAppDataPathFromConfig() {
     const configPath = path.join(getConfigDir(), 'config.json')
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (config.appDataPath) {
+      if (config.appDataPath && fs.existsSync(config.appDataPath)) {
         return config.appDataPath
       }
     }

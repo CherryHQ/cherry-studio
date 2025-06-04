@@ -194,6 +194,13 @@ const DataSettings: FC = () => {
       return
     }
 
+    // check new app data path is root path
+    const pathParts = newAppDataPath.split(/[/\\]/).filter((part) => part !== '')
+    if (pathParts.length <= 1) {
+      window.message.error(t('settings.data.app_data.select_error_root_path'))
+      return
+    }
+
     // 准备迁移所需的UI组件和信息
     const migrationTitle = (
       <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>

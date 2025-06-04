@@ -234,9 +234,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // Set app data path
-  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, path: string) => {
-    updateConfig(path)
-    app.setPath('userData', path)
+  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
+    updateConfig(filePath)
+    app.setPath('userData', filePath)
   })
 
   // Copy user data to new location

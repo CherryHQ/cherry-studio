@@ -1064,6 +1064,7 @@
         "app_data.migration_title": "數據遷移",
         "app_data.original_path": "原始路徑",
         "app_data.new_path": "新路徑",
+        "app_data.select_error_root_path": "新路徑不能是根路徑",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",
