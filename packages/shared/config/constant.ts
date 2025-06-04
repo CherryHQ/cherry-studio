@@ -260,7 +260,6 @@ const textExtsByCategory = new Map([
       '.spec', // RPM spec
       '.pom',
       '.build', // Meson
-      '.xcodeproj', // Xcode project
       '.bazel' // Bazel
     ]
   ],
