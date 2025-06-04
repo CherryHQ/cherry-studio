@@ -8,6 +8,7 @@ import {
   setIsAutoPin,
   setIsCompact,
   setIsFollowToolbar,
+  setIsRemeberWinSize,
   setSelectionEnabled,
   setTriggerMode
 } from '@renderer/store/selectionStore'
@@ -39,6 +40,10 @@ export function useSelectionAssistant() {
     setIsFollowToolbar: (isFollowToolbar: boolean) => {
       dispatch(setIsFollowToolbar(isFollowToolbar))
       window.api.selection.setFollowToolbar(isFollowToolbar)
+    },
+    setIsRemeberWinSize: (isRemeberWinSize: boolean) => {
+      dispatch(setIsRemeberWinSize(isRemeberWinSize))
+      window.api.selection.setRemeberWinSize(isRemeberWinSize)
     },
     setFilterMode: (mode: FilterMode) => {
       dispatch(setFilterMode(mode))

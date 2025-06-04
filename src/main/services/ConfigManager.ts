@@ -20,6 +20,7 @@ export enum ConfigKeys {
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
   SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
+  SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
   SelectionAssistantFilterList = 'selectionAssistantFilterList'
 }
@@ -42,7 +43,7 @@ export class ConfigManager {
   }
 
   getTheme(): ThemeMode {
-    return this.get(ConfigKeys.Theme, ThemeMode.auto)
+    return this.get(ConfigKeys.Theme, ThemeMode.system)
   }
 
   setTheme(theme: ThemeMode) {
@@ -173,6 +174,14 @@ export class ConfigManager {
 
   setSelectionAssistantFollowToolbar(value: boolean) {
     this.setAndNotify(ConfigKeys.SelectionAssistantFollowToolbar, value)
+  }
+
+  getSelectionAssistantRemeberWinSize(): boolean {
+    return this.get<boolean>(ConfigKeys.SelectionAssistantRemeberWinSize, false)
+  }
+
+  setSelectionAssistantRemeberWinSize(value: boolean) {
+    this.setAndNotify(ConfigKeys.SelectionAssistantRemeberWinSize, value)
   }
 
   getSelectionAssistantFilterMode(): string {

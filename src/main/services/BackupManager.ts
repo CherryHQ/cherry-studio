@@ -7,7 +7,7 @@ import Logger from 'electron-log'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
-import { createClient, CreateDirectoryOptions, FileStat } from 'webdav'
+import { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import WebDav from './WebDav'
 import { windowService } from './WindowService'
@@ -340,12 +340,8 @@ class BackupManager {
 
   listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
     try {
-      const client = createClient(config.webdavHost, {
-        username: config.webdavUser,
-        password: config.webdavPass
-      })
-
-      const response = await client.getDirectoryContents(config.webdavPath)
+      const client = new WebDav(config)
+      const response = await client.getDirectoryContents()
       const files = Array.isArray(response) ? response : response.data
 
       return files

@@ -1,5 +1,5 @@
-import { Assistant } from '@renderer/types'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { flatMap, groupBy, uniq } from 'lodash'
+import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useAssistants } from './useAssistant'
@@ -10,63 +10,44 @@ import { useAssistants } from './useAssistant'
 
 export const useTags = () => {
   const { assistants } = useAssistants()
-  const [allTags, setAllTags] = useState<string[]>([])
   const { t } = useTranslation()
 
   // 计算所有标签
-  const calculateTags = useCallback(() => {
-    const tags = new Set<string>()
-    assistants.forEach((assistant) => {
-      assistant.tags?.forEach((tag) => tags.add(tag))
-    })
-    return Array.from(tags)
+  const allTags = useMemo(() => {
+    return uniq(flatMap(assistants, (assistant) => assistant.tags || []))
   }, [assistants])
 
-  // 当assistants变化时重新计算标签
-  useEffect(() => {
-    setAllTags(calculateTags())
-  }, [assistants, calculateTags])
-
   const getAssistantsByTag = useCallback(
-    (tag: string) => {
-      return assistants.filter((assistant) => assistant.tags?.includes(tag))
-    },
+    (tag: string) => assistants.filter((assistant) => assistant.tags?.includes(tag)),
     [assistants]
   )
 
-  const addTag = useCallback((tag: string) => {
-    setAllTags((prev) => [...prev, tag])
-  }, [])
-
   const getGroupedAssistants = useMemo(() => {
-    const grouped: { tag: string; assistants: Assistant[] }[] = []
-
-    allTags.forEach((tag) => {
-      const taggedAssistants = assistants.filter((a) => a.tags?.includes(tag))
-      if (taggedAssistants.length > 0) {
-        grouped.push({
-          tag,
-          assistants: taggedAssistants.sort((a, b) => a.name.localeCompare(b.name))
-        })
-      }
+    // 按标签分组，处理多标签的情况
+    const assistantsByTags = flatMap(assistants, (assistant) => {
+      const tags = assistant.tags?.length ? assistant.tags : [t('assistants.tags.untagged')]
+      return tags.map((tag) => ({ tag, assistant }))
     })
 
-    grouped.sort((a, b) => a.tag.localeCompare(b.tag))
+    // 按标签分组并构建结果
+    const grouped = Object.entries(groupBy(assistantsByTags, 'tag')).map(([tag, group]) => ({
+      tag,
+      assistants: group.map((g) => g.assistant)
+    }))
 
-    const untagged = assistants.filter((a) => !a.tags?.length)
-    if (untagged.length > 0) {
-      grouped.unshift({
-        tag: t('assistants.tags.untagged'),
-        assistants: untagged
-      })
+    // 将未标记的组移到最前面
+    const untaggedIndex = grouped.findIndex((g) => g.tag === t('assistants.tags.untagged'))
+    if (untaggedIndex > -1) {
+      const [untagged] = grouped.splice(untaggedIndex, 1)
+      grouped.unshift(untagged)
     }
+
     return grouped
-  }, [allTags, assistants, t])
+  }, [assistants, t])
 
   return {
     allTags,
     getAssistantsByTag,
-    getGroupedAssistants,
-    addTag
+    getGroupedAssistants
   }
 }

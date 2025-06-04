@@ -204,8 +204,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
-            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
-            getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}>
+            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}>
             <div style={{ cursor: 'pointer' }}>{messageContent}</div>
           </Popover>
         )
@@ -288,7 +287,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
-    minmax(550px, 1fr)
+    minmax(480px, 1fr)
   );
   @media (max-width: 800px) {
     grid-template-columns: repeat(

@@ -2,6 +2,7 @@ import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { VStack } from '@renderer/components/Layout'
+import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
@@ -13,9 +14,9 @@ import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileType, PaintingsState } from '@renderer/types'
-import { getErrorMessage, uuid } from '@renderer/utils'
+import { uuid } from '@renderer/utils'
 import { DmxapiPainting, PaintingAction } from '@types'
-import { Avatar, Button, Input, Radio, Select, Tooltip } from 'antd'
+import { Avatar, Button, Input, Radio, Select, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import React, { FC } from 'react'
@@ -71,6 +72,16 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
+  const getNewPaintingPanel = (updates: Partial<DmxapiPainting>) => {
+    const copyPainting = {
+      ...painting,
+      ...updates,
+      id: uuid()
+    }
+
+    setPainting(addPainting('DMXAPIPaintings', copyPainting))
+  }
+
   const modelOptions = TEXT_TO_IMAGES_MODELS.map((model) => ({
     label: model.name,
     value: model.id
@@ -106,6 +117,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     } else {
       updatePaintingState({ style_type: v })
     }
+  }
+
+  const onChangeAutoCreate = (v: boolean) => {
+    updatePaintingState({ autoCreate: v })
   }
 
   const onInputSeed = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -194,8 +209,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error?.message || '操作失败')
+      throw new Error('操作失败,请稍后重试')
     }
 
     const data = await response.json()
@@ -251,7 +265,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       checkProviderStatus()
 
       // 处理已有文件
-      if (painting.files.length > 0) {
+      if (painting.files.length > 0 && !painting.autoCreate) {
         const confirmed = await window.modal.confirm({
           content: t('paintings.regenerate.confirm'),
           centered: true
@@ -277,11 +291,25 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const downloadedFiles = await downloadImages(urls)
         const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
 
-        // 删除之前的图片
-        await FileManager.deleteFiles(painting.files)
-        // 保存文件并更新状态
-        await FileManager.addFiles(validFiles)
-        updatePaintingState({ files: validFiles, urls })
+        if (validFiles?.length > 0) {
+          if (painting.autoCreate && painting.files.length > 0) {
+            // 保存文件并更新状态
+            await FileManager.addFiles(validFiles)
+            getNewPaintingPanel({ files: validFiles, urls })
+          } else {
+            // 删除之前的图片
+            await FileManager.deleteFiles(painting.files)
+
+            // 保存文件并更新状态
+            await FileManager.addFiles(validFiles)
+            updatePaintingState({ files: validFiles, urls })
+          }
+        } else {
+          window.message.warning({
+            content: t('paintings.req_error_text'),
+            key: 'empty-url-warning'
+          })
+        }
       }
     } catch (error) {
       // 错误处理
@@ -290,7 +318,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           content:
             error.message.startsWith('paintings.') || error.message.startsWith('error.')
               ? t(error.message)
-              : getErrorMessage(error),
+              : t('paintings.req_error_text'),
           centered: true
         })
       }
@@ -442,6 +470,16 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               ))}
             </RadioTextBox>
           </SliderContainer>
+
+          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+            {t('paintings.auto_create_paint')}
+            <Tooltip title={t('paintings.auto_create_paint_tip')}>
+              <InfoIcon />
+            </Tooltip>
+          </SettingTitle>
+          <HStack>
+            <Switch checked={painting.autoCreate} onChange={(checked) => onChangeAutoCreate(checked)} />
+          </HStack>
         </LeftContainer>
         <MainContainer>
           <Artboard

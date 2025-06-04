@@ -1,4 +1,5 @@
 import { isMac } from '@renderer/config/constant'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -9,6 +10,7 @@ import store from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { ThemeMode } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
@@ -43,7 +45,8 @@ const HomeWindow: FC = () => {
   const { defaultModel, quickAssistantModel } = useDefaultModel()
   // 如果 quickAssistantModel 未設定，則使用 defaultModel
   const model = quickAssistantModel || defaultModel
-  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
+  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -258,12 +261,7 @@ const HomeWindow: FC = () => {
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
     // because the dark style under mac's vibrancy effect has not been implemented
-    if (
-      isMac &&
-      windowStyle === 'transparent' &&
-      theme === 'light' &&
-      !window.matchMedia('(prefers-color-scheme: dark)').matches
-    ) {
+    if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
 

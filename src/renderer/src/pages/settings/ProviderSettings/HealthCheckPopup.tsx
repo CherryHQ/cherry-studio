@@ -3,6 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Modal, Radio, Segmented, Space, Typography } from 'antd'
+import { Alert } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -166,6 +167,8 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
           </Button>
         </Space>
       }>
+      <Alert message={t('settings.models.check.disclaimer')} type="warning" showIcon style={{ fontSize: 12 }} />
+
       {/* API key selection section - only shown for 'single' mode and multiple keys */}
       {keyCheckMode === 'single' && hasMultipleKeys && (
         <Box style={{ marginBottom: 16 }}>

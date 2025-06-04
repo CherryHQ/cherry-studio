@@ -3,8 +3,9 @@ import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant } from '@renderer/types'
+import { Assistant, AssistantsSortType } from '@renderer/types'
 import { Divider, Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,19 +13,13 @@ import styled from 'styled-components'
 
 import AssistantItem from './components/AssistantItem'
 
-type SortType = '' | 'tags' | 'list'
-
 interface AssistantsTabProps {
-  sortBy: SortType
-  setSortBy: (assistant: SortType) => void
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
   onCreateAssistant: () => void
   onCreateDefaultAssistant: () => void
 }
 const Assistants: FC<AssistantsTabProps> = ({
-  sortBy,
-  setSortBy,
   activeAssistant,
   setActiveAssistant,
   onCreateAssistant,
@@ -35,6 +30,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   const { addAgent } = useAgents()
   const { t } = useTranslation()
   const { getGroupedAssistants } = useTags()
+  const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const containerRef = useRef<HTMLDivElement>(null)
 
   const onDelete = useCallback(
@@ -50,14 +46,15 @@ const Assistants: FC<AssistantsTabProps> = ({
   )
 
   const handleSortByChange = useCallback(
-    (sortType: SortType) => {
-      setSortBy(sortType)
+    (sortType: AssistantsSortType) => {
+      setAssistantsTabSortType(sortType)
     },
-    [setSortBy]
+    [setAssistantsTabSortType]
   )
-  return (
-    <Container className="assistants-tab" ref={containerRef}>
-      {sortBy === 'tags' && (
+
+  if (assistantsTabSortType === 'tags') {
+    return (
+      <Container className="assistants-tab" ref={containerRef}>
         <div style={{ marginBottom: '8px' }}>
           {getGroupedAssistants.map((group) => (
             <TagsContainer key={group.tag}>
@@ -72,7 +69,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                   key={assistant.id}
                   assistant={assistant}
                   isActive={assistant.id === activeAssistant.id}
-                  sortBy={sortBy}
+                  sortBy={assistantsTabSortType}
                   onSwitch={setActiveAssistant}
                   onDelete={onDelete}
                   addAgent={addAgent}
@@ -84,30 +81,39 @@ const Assistants: FC<AssistantsTabProps> = ({
             </TagsContainer>
           ))}
         </div>
-      )}
-      {sortBy === 'list' && (
-        <DragableList
-          list={assistants}
-          onUpdate={updateAssistants}
-          style={{ paddingBottom: dragging ? '34px' : 0 }}
-          onDragStart={() => setDragging(true)}
-          onDragEnd={() => setDragging(false)}>
-          {(assistant) => (
-            <AssistantItem
-              key={assistant.id}
-              assistant={assistant}
-              isActive={assistant.id === activeAssistant.id}
-              sortBy={sortBy}
-              onSwitch={setActiveAssistant}
-              onDelete={onDelete}
-              addAgent={addAgent}
-              addAssistant={addAssistant}
-              onCreateDefaultAssistant={onCreateDefaultAssistant}
-              handleSortByChange={handleSortByChange}
-            />
-          )}
-        </DragableList>
-      )}
+        <AssistantAddItem onClick={onCreateAssistant}>
+          <AssistantName>
+            <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
+            {t('chat.add.assistant.title')}
+          </AssistantName>
+        </AssistantAddItem>
+      </Container>
+    )
+  }
+
+  return (
+    <Container className="assistants-tab" ref={containerRef}>
+      <DragableList
+        list={assistants}
+        onUpdate={updateAssistants}
+        style={{ paddingBottom: dragging ? '34px' : 0 }}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={() => setDragging(false)}>
+        {(assistant) => (
+          <AssistantItem
+            key={assistant.id}
+            assistant={assistant}
+            isActive={assistant.id === activeAssistant.id}
+            sortBy={assistantsTabSortType}
+            onSwitch={setActiveAssistant}
+            onDelete={onDelete}
+            addAgent={addAgent}
+            addAssistant={addAssistant}
+            onCreateDefaultAssistant={onCreateDefaultAssistant}
+            handleSortByChange={handleSortByChange}
+          />
+        )}
+      </DragableList>
       {!dragging && (
         <AssistantAddItem onClick={onCreateAssistant}>
           <AssistantName>
@@ -132,7 +138,6 @@ const TagsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: px;
 `
 
 const AssistantAddItem = styled.div`
@@ -162,6 +167,7 @@ const GroupTitle = styled.div`
   color: var(--color-text-2);
   font-size: 12px;
   font-weight: 500;
+  margin-bottom: -8px;
 `
 
 const GroupTitleName = styled.div`

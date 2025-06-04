@@ -48,10 +48,25 @@ async function getMessageParam(message: Message): Promise<MessageItem[]> {
   return param
 }
 
+/**
+ * 估算文本内容的 token 数量
+ *
+ * @param text - 需要估算的文本内容
+ * @returns 返回估算的 token 数量
+ */
 export function estimateTextTokens(text: string) {
   return approximateTokenSize(text)
 }
 
+/**
+ * 估算图片文件的 token 数量
+ *
+ * 根据图片文件大小计算预估的 token 数量。
+ * 当前使用简单的文件大小除以 100 的方式进行估算。
+ *
+ * @param file - 图片文件对象
+ * @returns 返回估算的 token 数量
+ */
 export function estimateImageTokens(file: FileType) {
   return Math.floor(file.size / 100)
 }

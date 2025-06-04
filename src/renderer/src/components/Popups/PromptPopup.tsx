@@ -38,8 +38,9 @@ const PromptPopupContainer: React.FC<Props> = ({
     setOpen(false)
   }
 
-  const onClose = () => {
+  const onAfterClose = () => {
     resolve(null)
+    TopView.hide(TopViewKey)
   }
 
   const handleAfterOpenChange = (visible: boolean) => {
@@ -61,7 +62,7 @@ const PromptPopupContainer: React.FC<Props> = ({
       open={open}
       onOk={onOk}
       onCancel={onCancel}
-      afterClose={onClose}
+      afterClose={onAfterClose}
       afterOpenChange={handleAfterOpenChange}
       transitionName="animation-move-down"
       centered>
@@ -95,16 +96,7 @@ export default class PromptPopup {
   }
   static show(props: PromptPopupShowParams) {
     return new Promise<string>((resolve) => {
-      TopView.show(
-        <PromptPopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        'PromptPopup'
-      )
+      TopView.show(<PromptPopupContainer {...props} resolve={resolve} />, 'PromptPopup')
     })
   }
 }

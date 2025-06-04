@@ -9,6 +9,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
@@ -34,6 +35,7 @@ import styled from 'styled-components'
 import DragableList from '../DragableList'
 import MinAppIcon from '../Icons/MinAppIcon'
 import UserPopup from '../Popups/UserPopup'
+import i18n from '@renderer/i18n'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup, openMinapp } = useMinappPopup()
@@ -44,7 +46,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, settingTheme, toggleTheme } = useTheme()
+  const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -61,10 +63,13 @@ const Sidebar: FC = () => {
 
   const docsId = 'cherrystudio-docs'
   const onOpenDocs = () => {
+    const isChinese = i18n.language.startsWith('zh')
     openMinapp({
       id: docsId,
       name: t('docs.title'),
-      url: 'https://docs.cherry-ai.com/',
+      url: isChinese
+        ? 'https://docs.cherry-ai.com/'
+        : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us',
       logo: AppLogo
     })
   }
@@ -104,13 +109,13 @@ const Sidebar: FC = () => {
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settingTheme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settedTheme}`)}
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {settingTheme === 'dark' ? (
+            {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
-            ) : settingTheme === 'light' ? (
+            ) : settedTheme === ThemeMode.light ? (
               <Sun size={20} className="icon" />
             ) : (
               <SunMoon size={20} className="icon" />

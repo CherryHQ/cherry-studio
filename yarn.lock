@@ -5621,6 +5621,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
+    franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -5667,7 +5668,7 @@ __metadata:
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.15"
+    selection-hook: "npm:^0.9.20"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -6951,6 +6952,13 @@ __metadata:
     "@codemirror/state": "npm:^6.0.0"
     "@codemirror/view": "npm:^6.0.0"
   checksum: 10c0/219b0f6ee91d373380fba2e0564a2665990a3cdada0b01861768005b09061187c58eeb3db96aef486777b02b77b50a50ee843635e3743c47d3725034913c4b60
+  languageName: node
+  linkType: hard
+
+"collapse-white-space@npm:^2.0.0":
+  version: 2.1.0
+  resolution: "collapse-white-space@npm:2.1.0"
+  checksum: 10c0/b2e2800f4ab261e62eb27a1fbe853378296e3a726d6695117ed033e82d61fb6abeae4ffc1465d5454499e237005de9cfc52c9562dc7ca4ac759b9a222ef14453
   languageName: node
   linkType: hard
 
@@ -9810,6 +9818,15 @@ __metadata:
     react-dom:
       optional: true
   checksum: 10c0/a24a44b7a1b21e347f93f9ec3c1218b9ebf2b2bc2883c26ab9951e19a62fdc2e03f80a57d0c78eaf408d098ed6f0fbcae48207313921c1f5462eb04296adf55b
+  languageName: node
+  linkType: hard
+
+"franc-min@npm:^6.2.0":
+  version: 6.2.0
+  resolution: "franc-min@npm:6.2.0"
+  dependencies:
+    trigram-utils: "npm:^2.0.0"
+  checksum: 10c0/21c243982b713a7726ffdb185415636c63711e7267be301b6d0607e3533f76771f2396091d9f1ca017f98357e4aa885c0cf4a2c0f90012e138f741cd9cfb5e45
   languageName: node
   linkType: hard
 
@@ -13544,6 +13561,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"n-gram@npm:^2.0.0":
+  version: 2.0.2
+  resolution: "n-gram@npm:2.0.2"
+  checksum: 10c0/72e2cdc8c37c9253b556a0deb9cd26d5ac59a5d7a38b2d2928927e3959bc7d3cb591d766e30309a4c685dbc51330025cb30c5c6518ee516caf3318aed2635f1b
+  languageName: node
+  linkType: hard
+
 "nanoid@npm:^3.3.7, nanoid@npm:^3.3.8":
   version: 3.3.11
   resolution: "nanoid@npm:3.3.11"
@@ -16384,13 +16408,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.15":
-  version: 0.9.15
-  resolution: "selection-hook@npm:0.9.15"
+"selection-hook@npm:^0.9.20":
+  version: 0.9.20
+  resolution: "selection-hook@npm:0.9.20"
   dependencies:
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/e1b5fdfc9135f9d1a37a99d46414517ff63c11250e7510005adbaa144f35f8ae72871effd26245abb657cd85a8539d9b25df92c5850f46a0aa95224e17d7f0a1
+  checksum: 10c0/2508fc5093a735467bd7082ae84432e2b7d8675d194f9bcf74dab755a63f72ffcbbeee2784297402fbb295faddd590b0333ca290b37047d8af25ed584cd04e60
   languageName: node
   linkType: hard
 
@@ -17514,6 +17538,16 @@ __metadata:
   version: 0.0.3
   resolution: "tr46@npm:0.0.3"
   checksum: 10c0/047cb209a6b60c742f05c9d3ace8fa510bff609995c129a37ace03476a9b12db4dbf975e74600830ef0796e18882b2381fb5fb1f6b4f96b832c374de3ab91a11
+  languageName: node
+  linkType: hard
+
+"trigram-utils@npm:^2.0.0":
+  version: 2.0.1
+  resolution: "trigram-utils@npm:2.0.1"
+  dependencies:
+    collapse-white-space: "npm:^2.0.0"
+    n-gram: "npm:^2.0.0"
+  checksum: 10c0/d024dc91a9c0310e75fa68422185e3a32814831971b9e86a2925e74bd1932a30501aa2ac214768f0a545f3db63610ee14b4748ac31532e1bc46c791941d71c6d
   languageName: node
   linkType: hard
 

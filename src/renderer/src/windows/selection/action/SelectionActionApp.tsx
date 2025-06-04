@@ -7,7 +7,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Slider, Tooltip } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -140,14 +140,14 @@ const SelectionActionApp: FC = () => {
     setOpacity(value)
   }
 
-  const handleScrollToBottom = () => {
+  const handleScrollToBottom = useCallback(() => {
     if (contentElementRef.current && isAutoScrollEnabled.current) {
       contentElementRef.current.scrollTo({
         top: contentElementRef.current.scrollHeight,
         behavior: 'smooth'
       })
     }
-  }
+  }, [])
 
   const handleUserScroll = () => {
     if (!contentElementRef.current) return
@@ -221,10 +221,12 @@ const SelectionActionApp: FC = () => {
           <WinButton type="text" icon={<X size={16} />} onClick={handleClose} className="close" />
         </TitleBarButtons>
       </TitleBar>
-      <Content ref={contentElementRef}>
-        {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
-        {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
-      </Content>
+      <MainContainer>
+        <Content ref={contentElementRef}>
+          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+        </Content>
+      </MainContainer>
     </WindowFrame>
   )
 }
@@ -340,6 +342,14 @@ const WinButton = styled(Button)`
   }
 `
 
+const MainContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+`
+
 const Content = styled.div`
   display: flex;
   flex-direction: column;
@@ -349,7 +359,8 @@ const Content = styled.div`
   font-size: 14px;
   -webkit-app-region: none;
   user-select: text;
-  width: 100%;
+  /* width: 100%; */
+  max-width: 1280px;
 `
 
 const OpacitySlider = styled.div`

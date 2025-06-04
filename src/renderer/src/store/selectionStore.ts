@@ -24,6 +24,7 @@ export const initialState: SelectionState = {
   isAutoClose: false,
   isAutoPin: false,
   isFollowToolbar: true,
+  isRemeberWinSize: false,
   filterMode: 'default',
   filterList: [],
   actionWindowOpacity: 100,
@@ -52,6 +53,9 @@ const selectionSlice = createSlice({
     setIsFollowToolbar: (state, action: PayloadAction<boolean>) => {
       state.isFollowToolbar = action.payload
     },
+    setIsRemeberWinSize: (state, action: PayloadAction<boolean>) => {
+      state.isRemeberWinSize = action.payload
+    },
     setFilterMode: (state, action: PayloadAction<FilterMode>) => {
       state.filterMode = action.payload
     },
@@ -74,6 +78,7 @@ export const {
   setIsAutoClose,
   setIsAutoPin,
   setIsFollowToolbar,
+  setIsRemeberWinSize,
   setFilterMode,
   setFilterList,
   setActionWindowOpacity,

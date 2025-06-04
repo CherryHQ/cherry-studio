@@ -59,6 +59,7 @@ const CheckboxWrapper = styled.div`
 
 const MessageContent = styled.div<{ isMultiSelectMode: boolean }>`
   flex: 1;
+  min-width: 0;
   ${(props) => props.isMultiSelectMode && 'margin-left: 8px;'}
 `
 
