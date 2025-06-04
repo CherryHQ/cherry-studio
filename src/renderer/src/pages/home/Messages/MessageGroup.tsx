@@ -287,7 +287,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
-    minmax(550px, 1fr)
+    minmax(480px, 1fr)
   );
   @media (max-width: 800px) {
     grid-template-columns: repeat(
