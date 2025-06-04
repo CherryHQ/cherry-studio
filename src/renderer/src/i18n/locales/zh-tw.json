@@ -1242,6 +1242,7 @@
         },
         "s3": {
           "title": "S3 相容儲存",
+          "title.help": "與AWS S3 API相容的物件儲存服務，例如AWS S3、Cloudflare R2、阿里雲OSS、騰訊雲COS等",
           "endpoint": "API 位址",
           "endpoint.placeholder": "https://s3.example.com",
           "region": "區域",

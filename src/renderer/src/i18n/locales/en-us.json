@@ -1242,6 +1242,7 @@
         },
         "s3": {
           "title": "S3 Compatible Storage",
+          "title.help": "Object storage services compatible with AWS S3 API, such as AWS S3, Cloudflare R2, Alibaba Cloud OSS, Tencent Cloud COS, etc.",
           "endpoint": "API Endpoint",
           "endpoint.placeholder": "https://s3.example.com",
           "region": "Region",

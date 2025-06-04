@@ -1,4 +1,5 @@
 import {
+  CloudServerOutlined,
   CloudSyncOutlined,
   FileSearchOutlined,
   FolderOpenOutlined,
@@ -89,7 +90,7 @@ const DataSettings: FC = () => {
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
     { key: 'nutstore', title: 'settings.data.nutstore.title', icon: <NutstoreIcon /> },
-    { key: 's3', title: 'settings.data.s3.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
+    { key: 's3', title: 'settings.data.s3.title', icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
     { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
     {
       key: 'export_menu',
@@ -689,8 +690,12 @@ const MenuList = styled.div`
   gap: 5px;
   width: var(--settings-width);
   padding: 12px;
+  padding-bottom: 48px;
   border-right: 0.5px solid var(--color-border);
-  height: 100%;
+  height: 100vh;
+  overflow: auto;
+  box-sizing: border-box;
+  min-height: 0;
   .iconfont {
     color: var(--color-text-2);
     line-height: 16px;
