@@ -116,6 +116,7 @@ const S3Settings: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.s3.title')}</SettingTitle>
+      <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.endpoint')}</SettingRowTitle>
@@ -187,7 +188,11 @@ const S3Settings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
         <HStack gap="5px" justifyContent="space-between">
-          <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
+          <Button
+            onClick={showBackupModal}
+            icon={<SaveOutlined />}
+            loading={backuping}
+            disabled={!accessKeyId || !secretAccessKey}>
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
@@ -201,7 +206,11 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.autoSync')}</SettingRowTitle>
-        <Select value={syncInterval} onChange={onSyncIntervalChange} disabled={!endpoint} style={{ width: 120 }}>
+        <Select
+          value={syncInterval}
+          onChange={onSyncIntervalChange}
+          disabled={!endpoint || !accessKeyId || !secretAccessKey}
+          style={{ width: 120 }}>
           <Select.Option value={0}>{t('settings.data.s3.autoSync.off')}</Select.Option>
           <Select.Option value={1}>{t('settings.data.s3.autoSync.minute', { count: 1 })}</Select.Option>
           <Select.Option value={5}>{t('settings.data.s3.autoSync.minute', { count: 5 })}</Select.Option>
@@ -217,7 +226,11 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.maxBackups')}</SettingRowTitle>
-        <Select value={maxBackups} onChange={onMaxBackupsChange} disabled={!endpoint} style={{ width: 120 }}>
+        <Select
+          value={maxBackups}
+          onChange={onMaxBackupsChange}
+          disabled={!endpoint || !accessKeyId || !secretAccessKey}
+          style={{ width: 120 }}>
           <Select.Option value={0}>{t('settings.data.s3.maxBackups.unlimited')}</Select.Option>
           <Select.Option value={1}>1</Select.Option>
           <Select.Option value={3}>3</Select.Option>
