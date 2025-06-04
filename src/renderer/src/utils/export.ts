@@ -405,11 +405,11 @@ export const exportMarkdownToYuque = async (title: string, content: string) => {
 export const exportMarkdownToObsidian = async (attributes: any) => {
   try {
     // 从参数获取Vault名称
-    const obsidianValut = attributes.vault
+    const obsidianVault = attributes.vault
     let obsidianFolder = attributes.folder || ''
     let isMarkdownFile = false
 
-    if (!obsidianValut) {
+    if (!obsidianVault) {
       window.message.error(i18n.t('chat.topics.export.obsidian_not_configured'))
       return
     }
@@ -441,7 +441,7 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
       filePath = obsidianFolder + fileName + '.md'
     }
 
-    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(obsidianValut)}&clipboard`
+    let obsidianUrl = `obsidian://new?file=${encodeURIComponent(filePath)}&vault=${encodeURIComponent(obsidianVault)}&clipboard`
 
     if (attributes.processingMethod === '3') {
       obsidianUrl += '&overwrite=true'
