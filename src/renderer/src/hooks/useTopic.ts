@@ -155,7 +155,9 @@ export const TopicManager = {
 
     await store.dispatch(loadTopicMessagesThunk(id))
 
-    return topic.messages
+    // 获取更新后的主题
+    const updatedTopic = await TopicManager.getTopic(id)
+    return updatedTopic?.messages || []
   },
 
   async removeTopic(id: string) {

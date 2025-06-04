@@ -175,13 +175,16 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           const messages = await TopicManager.getTopicMessages(topic.id)
           if (messages.length >= 2) {
             addRenamingTopic(topic.id)
-            const summaryText = await fetchMessagesSummary({ messages, assistant })
-            if (summaryText) {
-              updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
-            } else {
-              window.message?.error(t('message.error.fetchTopicName'))
+            try {
+              const summaryText = await fetchMessagesSummary({ messages, assistant })
+              if (summaryText) {
+                updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+              } else {
+                window.message?.error(t('message.error.fetchTopicName'))
+              }
+            } finally {
+              removeRenamingTopic(topic.id)
             }
-            removeRenamingTopic(topic.id)
           }
         }
       },
