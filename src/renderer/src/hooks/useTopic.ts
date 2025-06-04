@@ -146,9 +146,16 @@ export const TopicManager = {
     return await db.topics.toArray()
   },
 
+  /**
+   * 加载并返回指定话题的消息
+   */
   async getTopicMessages(id: string) {
     const topic = await TopicManager.getTopic(id)
-    return topic ? topic.messages : []
+    if (!topic) return []
+
+    await store.dispatch(loadTopicMessagesThunk(id))
+
+    return topic.messages
   },
 
   async removeTopic(id: string) {
