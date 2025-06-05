@@ -69,7 +69,6 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
         try {
           while (true) {
             const { done, value: chunk } = await reader.read()
-
             if (done) {
               Logger.debug(`[${MIDDLEWARE_NAME}] Input stream finished.`)
               break
@@ -90,11 +89,7 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
                 Logger.debug(
                   `[${MIDDLEWARE_NAME}] Skipping completion chunk in recursive call - Type: ${genericChunk.type}`
                 )
-              } else {
-                if (params.onChunk) {
-                  params.onChunk(genericChunk)
-                }
-              }
+              } else params.onChunk?.(genericChunk)
             } else {
               Logger.warn(`[${MIDDLEWARE_NAME}] Received undefined chunk before stream was done.`)
             }

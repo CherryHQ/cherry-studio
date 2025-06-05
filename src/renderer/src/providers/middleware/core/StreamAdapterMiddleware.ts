@@ -1,4 +1,5 @@
 import Logger from '@renderer/config/logger'
+import { ChunkType } from '@renderer/types/chunk'
 import { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream } from '@renderer/utils/stream'
 
@@ -22,6 +23,9 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
   () =>
   (next) =>
   async (ctx: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
+    // TODO:调用开始，因为这个是最靠近接口请求的地方，next执行代表着开始接口请求了
+    // 但是这个中间件的职责是流适配，是否在这调用优待商榷
+    params.onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     // 调用下游中间件
     const result = await next(ctx, params)
 

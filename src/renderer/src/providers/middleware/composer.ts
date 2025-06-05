@@ -195,7 +195,7 @@ export function applyCompletionsMiddlewares<
   > => {
     return {
       ...base,
-      methodName: 'completions',
+      methodName,
       apiClientInstance: originalApiClientInstance,
       originalArgs: callArgs,
       _internal: {
@@ -280,12 +280,7 @@ export function applyCompletionsMiddlewares<
 
     // 将 enhancedDispatch 保存到 context 中，供中间件进行递归调用
     // 这样可以避免重复执行整个中间件链
-    ctx._internal = {
-      ...ctx._internal,
-      customState: {
-        enhancedCompletions: enhancedDispatch
-      }
-    }
+    ctx._internal.enhancedDispatch = enhancedDispatch
 
     // Execute with context and the single params object. /
     // 使用上下文和单个参数对象执行。

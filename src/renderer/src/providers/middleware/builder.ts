@@ -2,39 +2,6 @@ import { DefaultCompletionsNamedMiddlewares } from './register'
 import { BaseContext, CompletionsMiddleware, MethodMiddleware } from './types'
 
 /**
- * 中间件名称枚举，用于标识特定的中间件
- * 方便 MiddlewareBuilder 进行动态操作（插入、替换、移除等）
- */
-export enum MiddlewareName {
-  // 通用中间件
-  LOGGING_START = 'LoggingStartMiddleware',
-  LOGGING_END = 'LoggingEndMiddleware',
-  ERROR_HANDLING = 'ErrorHandlingMiddleware',
-  ABORT_HANDLER = 'AbortHandlerMiddleware',
-
-  // 核心流程中间件
-  TRANSFORM_CORE_TO_SDK_PARAMS = 'TransformCoreToSdkParamsMiddleware',
-  REQUEST_EXECUTION = 'RequestExecutionMiddleware',
-  SDK_CALL = 'SdkCallMiddleware',
-  RAW_STREAM_LISTENER = 'RawStreamListenerMiddleware',
-  STREAM_ADAPTER = 'StreamAdapterMiddleware',
-  RESPONSE_TRANSFORM = 'ResponseTransformMiddleware',
-  RAW_SDK_CHUNK_TO_APP_CHUNK = 'RawSdkChunkToAppChunkMiddleware',
-
-  // 特性处理中间件
-  THINKING_TAG_EXTRACTION = 'ThinkingTagExtractionMiddleware',
-  THINK_CHUNK = 'ThinkChunkMiddleware',
-  TOOL_USE_TAG_EXTRACTION = 'ToolUseTagExtractionMiddleware',
-  MCP_TOOL_HANDLER = 'McpToolHandlerMiddleware',
-  MCP_TOOL_CHUNK = 'McpToolChunkMiddleware',
-  WEB_SEARCH = 'WebSearchMiddleware',
-  TEXT_CHUNK = 'TextChunkMiddleware',
-
-  // 最终处理中间件
-  FINAL_CHUNK_CONSUMER = 'FinalChunkConsumerAndNotifierMiddleware'
-}
-
-/**
  * 带有名称标识的中间件接口
  */
 export interface NamedMiddleware<TMiddleware = any> {

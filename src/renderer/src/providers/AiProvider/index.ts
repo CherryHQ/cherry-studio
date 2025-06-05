@@ -6,6 +6,10 @@ import OpenAI from 'openai'
 
 import { CompletionsMiddlewareBuilder } from '../middleware/builder'
 import { applyCompletionsMiddlewares } from '../middleware/composer'
+import { MIDDLEWARE_NAME as ThinkChunkMiddlewareName } from '../middleware/core/ThinkChunkMiddleware'
+import { MIDDLEWARE_NAME as WebSearchMiddlewareName } from '../middleware/core/WebSearchMiddleware'
+import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from '../middleware/feat/ThinkingTagExtractionMiddleware'
+import { MIDDLEWARE_NAME as ToolUseExtractionMiddlewareName } from '../middleware/feat/ToolUseExtractionMiddleware'
 import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 
 export default class AiProvider {
@@ -18,8 +22,17 @@ export default class AiProvider {
 
   public async completions(params: CompletionsParams): Promise<CompletionsResult> {
     // 1. Build the middleware chain
-    // TODO:动态选择
     const builder = CompletionsMiddlewareBuilder.withDefaults()
+    if (!params.enableReasoning) {
+      builder.remove(ThinkingTagExtractionMiddlewareName)
+      builder.remove(ThinkChunkMiddlewareName)
+    }
+    if (!params.enableWebSearch) {
+      builder.remove(WebSearchMiddlewareName)
+    }
+    if (!params.mcpTools?.length) {
+      builder.remove(ToolUseExtractionMiddlewareName)
+    }
     const middlewares = builder.build()
 
     // 2. Create the wrapped SDK method with middlewares

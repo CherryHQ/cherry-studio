@@ -51,7 +51,7 @@
   - **支持流式回调**：服务方法的参数 (如 `CompletionsParams`) 依然包含 `onChunk` 回调，用于向调用方实时推送处理过程中的 `Chunk` 数据，实现流式UI更新。
   - **封装特定任务的提示工程 (Prompt Engineering)**：
     - 例如，`translateText` 方法内部会构建一个包含特定翻译指令的 `CoreRequest`。
-  - **编排和调用中间件链**：通过内部的 `MiddlewareBuilder` (参见 `middleware/MIDDLEWARE_SPECIFICATION.md`) 实例，根据调用的业务方法和参数，动态构建和组织合适的中间件序列，然后通过 `MiddlewareExecutor` (或 `applyMiddlewares`) 执行。
+  - **编排和调用中间件链**：通过内部的 `MiddlewareBuilder` (参见 `middleware/BUILDER_USAGE.md`) 实例，根据调用的业务方法和参数，动态构建和组织合适的中间件序列，然后通过 `applyCompletionsMiddlewares` 等组合函数执行。
   - 获取 `ApiClient` 实例并将其注入到中间件上游的 `Context` 中。
   - **将 `Promise` 的 `resolve` 和 `reject` 函数传递给中间件链** (通过 `Context`)，以便 `FinalChunkConsumerAndNotifierMiddleware` 可以在操作完成或发生错误时结束该 `Promise`。
 - **优势**：
@@ -67,14 +67,14 @@
 
 ### 2.2. `middleware`
 
-中间件层负责处理请求和响应流中的通用逻辑和特定特性。其设计和使用遵循 `middleware/MIDDLEWARE_SPECIFICATION.md` 中定义的规范。
+中间件层负责处理请求和响应流中的通用逻辑和特定特性。其设计和使用遵循 `middleware/BUILDER_USAGE.md` 中定义的规范。
 
 **核心组件包括：**
 
 - **`MiddlewareBuilder`**: 一个通用的、提供流式API的类，用于动态构建中间件链。它支持从基础链开始，根据条件添加、插入、替换或移除中间件。
-- **`MiddlewareExecutor` (或 `applyMiddlewares`)**: 负责接收 `MiddlewareBuilder` 构建的链并按顺序执行。
-- **`MiddlewareName` (enum)**: 为关键中间件提供唯一标识，便于 `MiddlewareBuilder` 进行精确操作。
-- **各种独立的中间件模块** (存放于 `common/`, `core/`, `feature/` 子目录)。
+- **`applyCompletionsMiddlewares`**: 负责接收 `MiddlewareBuilder` 构建的链并按顺序执行，专门用于 Completions 流程。
+- **`MiddlewareRegistry`**: 集中管理所有可用中间件的注册表，提供统一的中间件访问接口。
+- **各种独立的中间件模块** (存放于 `common/`, `core/`, `feat/` 子目录)。
 
 #### 2.2.1. `middlewareTypes.ts`
 
@@ -88,25 +88,32 @@
   - **`RawSdkChunk`**：指特定AI提供商SDK在流式响应中返回的、未经应用层统一处理的原始数据块格式 (例如 OpenAI 的 `ChatCompletionChunk`，Gemini 的 `GenerateContentResponse` 中的部分等)。
 - **`RawSdkChunkToAppChunkMiddleware.ts`**: (新增) 消费 `ReadableStream<RawSdkChunk>`，在其内部对每个 `RawSdkChunk` 调用 `ApiClient.getResponseChunkTransformer()`，将其转换为一个或多个基础的应用层 `Chunk` 对象，并输出 `ReadableStream<Chunk>`。
 
-#### 2.2.3. 特性中间件 (`middleware/feature/`)
+#### 2.2.3. 特性中间件 (`middleware/feat/`)
 
-这些中间件消费由 `RawSdkChunkToAppChunkMiddleware` 输出的、相对标准化的 `Chunk` 流，并处理更复杂的逻辑。
+这些中间件消费由 `ResponseTransformMiddleware` 输出的、相对标准化的 `Chunk` 流，并处理更复杂的逻辑。
 
 - **`ThinkingTagExtractionMiddleware.ts`**: 检查 `TextDeltaChunk`，解析其中可能包含的 `<think>...</think>` 文本内嵌标签，生成 `ThinkingDeltaChunk` 和 `ThinkingCompleteChunk`。
-- **`ToolUseTagExtractionMiddleware.ts`**: 检查 `TextDeltaChunk`，解析其中可能包含的 `<tool_use>...</tool_use>` 文本内嵌标签，生成 `McpToolCallRequestChunk` (或其前置标准化Chunk)。如果 `ApiClient` 输出了 `RawToolCallChunk` (来自SDK原生工具调用)，此中间件或其后续也可能负责将其转换为标准格式。
-- **`McpToolHandlerMiddleware.ts`**: 处理标准化的工具调用请求 (`McpToolCallRequestChunk`)，执行工具并处理响应，可能涉及递归调用 `AiCoreService`。
-- **`WebSearchHandlerMiddleware.ts`**: 处理 Web 搜索相关逻辑。
-- **`TextChunkMiddleware.ts`**: 处理最终的、不含特殊标签的文本流。
+- **`ToolUseExtractionMiddleware.ts`**: 检查 `TextDeltaChunk`，解析其中可能包含的 `<tool_use>...</tool_use>` 文本内嵌标签，生成工具调用相关的 Chunk。如果 `ApiClient` 输出了原生工具调用数据，此中间件也负责将其转换为标准格式。
 
-#### 2.2.4. 通用中间件 (`middleware/common/`)
+#### 2.2.4. 核心处理中间件 (`middleware/core/`)
+
+- **`TransformCoreToSdkParamsMiddleware.ts`**: 调用 `ApiClient.getRequestTransformer()` 将 `CoreRequest` 转换为特定 SDK 的参数，并存入上下文。
+- **`SdkCallMiddleware.ts`**: 调用 `ApiClient.getSdkInstance()` 获取 SDK 实例，并使用转换后的参数执行实际的 API 调用，返回原始 SDK 流。
+- **`StreamAdapterMiddleware.ts`**: 将各种形态的原始 SDK 流统一适配为标准流格式。
+- **`ResponseTransformMiddleware.ts`**: 将原始 SDK 响应转换为应用层标准 `Chunk` 对象。
+- **`TextChunkMiddleware.ts`**: 处理文本相关的 Chunk 流。
+- **`ThinkChunkMiddleware.ts`**: 处理思考相关的 Chunk 流。
+- **`McpToolChunkMiddleware.ts`**: 处理工具调用相关的 Chunk 流。
+- **`WebSearchMiddleware.ts`**: 处理 Web 搜索相关逻辑。
+
+#### 2.2.5. 通用中间件 (`middleware/common/`)
 
 - **`LoggingMiddleware.ts`**: 请求和响应日志。
 - **`AbortHandlerMiddleware.ts`**: 处理请求中止。
-- **`ErrorHandlingMiddleware.ts`**: 统一错误处理。
-- **`FinalChunkConsumerAndNotifierMiddleware.ts`**: 消费最终的 `Chunk` 流，通过 `context.onChunk` 回调通知应用层实时数据。
+- **`FinalChunkConsumerMiddleware.ts`**: 消费最终的 `Chunk` 流，通过 `context.onChunk` 回调通知应用层实时数据。
   - **累积数据**：在流式处理过程中，累积关键数据，如文本片段、工具调用信息、`usage`/`metrics` 等。
-  - **结束 `Promise`**：当输入流结束（或收到如 `BLOCK_COMPLETE` 这样的明确结束信号，并确认是顶层调用时），使用累积的聚合结果调用 `context.resolvePromise()` 来 `resolve` 由 `AiCoreService` 发起的 `Promise`。如果发生错误，则调用 `context.rejectPromise()`。
-  - 在流结束时，如果适用，发送包含最终累加 `usage` 和 `metrics` 的 `BLOCK_COMPLETE` Chunk (主要用于 `onChunk` 回调的最终信号)。
+  - **结束 `Promise`**：当输入流结束时，使用累积的聚合结果来完成整个处理流程。
+  - 在流结束时，发送包含最终累加信息的完成信号。
 
 ### 2.3. `types/chunk.ts`
 
@@ -118,55 +125,48 @@
 **应用层 (例如 UI 组件)**
 ||
 \\/
-**`AiCoreService.executeCompletions` (`aiCore/services/AiCoreService.ts`)**
-(1. 准备ApiClient, CoreRequest. 2. 使用 `MiddlewareBuilder` 根据参数动态构建中间件链. 3. 创建 `Context`. 4. 调用 `applyMiddlewares`)
+**`AiProvider.completions` (`providers/AiProvider/index.ts`)**
+(1. 准备ApiClient实例. 2. 使用 `CompletionsMiddlewareBuilder.withDefaults()` 构建中间件链. 3. 调用 `applyCompletionsMiddlewares`)
 ||
 \\/
-**`applyMiddlewares` (或 `MiddlewareExecutor.execute`)**
-(接收构建好的链、Context、Params，开始按序执行中间件)
+**`applyCompletionsMiddlewares` (`middleware/composer.ts`)**
+(接收构建好的链、ApiClient实例、原始SDK方法，开始按序执行中间件)
 ||
 \\/
-**[ 请求预处理与适配阶段中间件 ]**
-(例如: 日志记录, 请求中止处理, `CoreRequest` 到 SDK 特定参数的转换)
+**[ 预处理阶段中间件 ]**
+(例如: `FinalChunkConsumerMiddleware`, `TransformCoreToSdkParamsMiddleware`, `AbortHandlerMiddleware`)
 || (Context 中准备好 SDK 请求参数)
 \\/
-**`RequestExecutionMiddleware` (核心)**
-(调用 `context._apiClientInstance` 的方法执行实际的 SDK API 调用)
-|| (输出: 原始 SDK 流, 如 `AsyncIterable<RawSdkChunk>`)
+**[ 处理阶段中间件 ]**
+(例如: `McpToolChunkMiddleware`, `WebSearchMiddleware`, `TextChunkMiddleware`, `ThinkingTagExtractionMiddleware`)
+|| (处理各种特性和Chunk类型)
 \\/
-**[ 响应流处理与特性解析阶段中间件 ]**
-(例如: SDK原始流适配为 `ReadableStream<RawSdkChunk>`, `RawSdkChunk` 转换为标准 `Chunk`, 文本内嵌标签如 `<think>`, `<tool_use>` 的解析与处理, MCP工具调用处理等)
-|| (输出: `ReadableStream<Chunk>` - 标准化的应用层Chunk流)
+**[ SDK调用阶段中间件 ]**
+(例如: `ResponseTransformMiddleware`, `StreamAdapterMiddleware`, `SdkCallMiddleware`)
+|| (输出: 标准化的应用层Chunk流)
 \\/
-**`FinalChunkConsumerAndNotifierMiddleware` (核心)**
-(消费最终的 `Chunk` 流, 通过 `context.onChunk` 回调通知应用层, 并在流结束时使用聚合结果调用 `context.resolvePromise()` 来结束 `AiCoreService` 的 Promise)
+**`FinalChunkConsumerMiddleware` (核心)**
+(消费最终的 `Chunk` 流, 通过 `context.onChunk` 回调通知应用层, 并在流结束时完成处理)
 ||
 \\/
-**[ 清理与后处理阶段中间件 ]**
-(例如: 最终日志记录, 统一错误处理封装)
-||
-\\/
-**`AiCoreService.executeCompletions` 返回 `Promise`**
+**`AiProvider.completions` 返回 `Promise<CompletionsResult>`**
 ```
 
 ## 4. 建议的文件/目录结构
 
 ```
 src/renderer/src/
-├── aiCore/                             # 原 AiProvider 文件夹
-│   ├── openai/                       # 特定 Provider 的适配层
-│   │   └── OpenAIApiClient.ts
-│   │   └── types.ts                  # (可选) OpenAI 特有类型
-│   ├── gemini/
-│   │   └── GeminiApiClient.ts
-│   ├── ...                            # 其他 Provider 的 ApiClient
-│   ├── services/                      # 统一的业务服务层
-│   │   ├── AiCoreService.ts
-│   │   └── types.ts                  # 服务层参数、选项等类型
-│   ├── ApiClient.ts                    # ApiClient 接口定义
-│   ├── ApiClientFactory.ts             # ApiClient 工厂
-│   ├── coreRequestTypes.ts             # CoreRequest 等核心请求类型
-│   └── index.ts                        # 导出主要接口和服务
+├── providers/                          # AI提供者相关代码
+│   ├── AiProvider/                     # 主要的 AI Provider 层
+│   │   ├── clients/                    # 特定 Provider 的适配层
+│   │   │   ├── openai/
+│   │   │   │   └── OpenAIApiClient.ts
+│   │   │   ├── gemini/
+│   │   │   │   └── GeminiApiClient.ts
+│   │   │   ├── BaseApiClient.ts        # ApiClient 基类
+│   │   │   ├── ApiClientFactory.ts     # ApiClient 工厂
+│   │   │   └── types.ts                # 客户端相关类型
+│   │   └── index.ts                    # AiProvider 主入口
 │
 ├── middleware/                         # 中间件
 │   ├── common/                         # 通用型中间件

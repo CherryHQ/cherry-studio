@@ -34,7 +34,7 @@ import {
   ToolCallResponse,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, MCPToolCreatedChunk, TextDeltaChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
   OpenAISdkMessageParam,
@@ -42,7 +42,8 @@ import {
   OpenAISdkRawChunk,
   OpenAISdkRawContentSource,
   OpenAISdkRawOutput,
-  ReasoningEffortOptionalParams
+  ReasoningEffortOptionalParams,
+  SdkToolCall
 } from '@renderer/types/sdk'
 import { formatApiHost } from '@renderer/utils/api'
 import { addImageFileToContents } from '@renderer/utils/formats'
@@ -606,58 +607,60 @@ export class OpenAIAPIClient extends BaseApiClient<
       return null
     }
 
-    return async function* (chunk, context): AsyncGenerator<GenericChunk> {
-      // 处理chunk
-      if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
-        const choice = chunk.choices[0]
+    return (context: ResponseChunkTransformerContext) => ({
+      async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+        // 处理chunk
+        if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
+          const choice = chunk.choices[0]
 
-        if (!choice) return
+          if (!choice) return
 
-        // 对于流式响应，使用delta；对于非流式响应，使用message
-        const contentSource: OpenAISdkRawContentSource | null =
-          'delta' in choice ? choice.delta : 'message' in choice ? choice.message : null
+          // 对于流式响应，使用delta；对于非流式响应，使用message
+          const contentSource: OpenAISdkRawContentSource | null =
+            'delta' in choice ? choice.delta : 'message' in choice ? choice.message : null
 
-        if (!contentSource) return
+          if (!contentSource) return
 
-        // 处理文本内容
-        if (contentSource.content) {
-          yield {
-            type: ChunkType.TEXT_DELTA,
-            text: contentSource.content
-          } as TextDeltaChunk
-        }
+          // 处理文本内容
+          if (contentSource.content) {
+            controller.enqueue({
+              type: ChunkType.TEXT_DELTA,
+              text: contentSource.content
+            })
+          }
 
-        // 处理工具调用
-        if (contentSource.tool_calls) {
-          yield {
-            type: ChunkType.MCP_TOOL_CREATED,
-            tool_calls: contentSource.tool_calls
-          } as MCPToolCreatedChunk
-        }
+          // 处理工具调用
+          if (contentSource.tool_calls) {
+            controller.enqueue({
+              type: ChunkType.MCP_TOOL_CREATED,
+              tool_calls: contentSource.tool_calls as SdkToolCall[]
+            })
+          }
 
-        // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
-        // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
-        const reasoningText = contentSource.reasoning_content || contentSource.reasoning
-        if (reasoningText) {
-          yield {
-            type: ChunkType.THINKING_DELTA,
-            text: reasoningText
-          } as ThinkingDeltaChunk
-        }
+          // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
+          // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+          const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+          if (reasoningText) {
+            controller.enqueue({
+              type: ChunkType.THINKING_DELTA,
+              text: reasoningText
+            })
+          }
 
-        // 处理finish_reason，发送流结束信号
-        if ('finish_reason' in choice && choice.finish_reason) {
-          console.log(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
-          const webSearchData = collectWebSearchData(chunk, contentSource, context)
-          if (webSearchData) {
-            yield {
-              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-              llm_web_search: webSearchData
-            } as GenericChunk
+          // 处理finish_reason，发送流结束信号
+          if ('finish_reason' in choice && choice.finish_reason) {
+            console.log(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
+            const webSearchData = collectWebSearchData(chunk, contentSource, context)
+            if (webSearchData) {
+              controller.enqueue({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: webSearchData
+              })
+            }
           }
         }
       }
-    }
+    })
   }
 
   /**

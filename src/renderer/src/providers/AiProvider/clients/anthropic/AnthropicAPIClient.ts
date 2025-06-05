@@ -443,94 +443,98 @@ export class AnthropicAPIClient extends BaseApiClient<
   }
 
   getResponseChunkTransformer(): ResponseChunkTransformer<AnthropicSdkRawChunk> {
-    let accumulatedJson = ''
-    const toolCalls: Record<number, ToolUseBlock> = {}
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    return async function* (rawChunk: AnthropicSdkRawChunk, _context): AsyncGenerator<GenericChunk> {
-      switch (rawChunk.type) {
-        case 'content_block_start': {
-          const contentBlock = rawChunk.content_block
-          switch (contentBlock.type) {
-            case 'server_tool_use': {
-              if (contentBlock.name === 'web_search') {
-                yield {
-                  type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
-                } as LLMWebSearchInProgressChunk
-              }
-              break
-            }
-            case 'web_search_tool_result': {
-              if (
-                contentBlock.content &&
-                (contentBlock.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
-              ) {
-                yield {
-                  type: ChunkType.ERROR,
-                  error: {
-                    code: (contentBlock.content as WebSearchToolResultError).error_code,
-                    message: (contentBlock.content as WebSearchToolResultError).error_code
+    return () => {
+      let accumulatedJson = ''
+      const toolCalls: Record<number, ToolUseBlock> = {}
+
+      return {
+        async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+          switch (rawChunk.type) {
+            case 'content_block_start': {
+              const contentBlock = rawChunk.content_block
+              switch (contentBlock.type) {
+                case 'server_tool_use': {
+                  if (contentBlock.name === 'web_search') {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS
+                    } as LLMWebSearchInProgressChunk)
                   }
-                } as ErrorChunk
-              } else {
-                yield {
-                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-                  llm_web_search: {
-                    results: contentBlock.content as Array<WebSearchResultBlock>,
-                    source: WebSearchSource.ANTHROPIC
+                  break
+                }
+                case 'web_search_tool_result': {
+                  if (
+                    contentBlock.content &&
+                    (contentBlock.content as WebSearchToolResultError).type === 'web_search_tool_result_error'
+                  ) {
+                    controller.enqueue({
+                      type: ChunkType.ERROR,
+                      error: {
+                        code: (contentBlock.content as WebSearchToolResultError).error_code,
+                        message: (contentBlock.content as WebSearchToolResultError).error_code
+                      }
+                    } as ErrorChunk)
+                  } else {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                      llm_web_search: {
+                        results: contentBlock.content as Array<WebSearchResultBlock>,
+                        source: WebSearchSource.ANTHROPIC
+                      }
+                    } as LLMWebSearchCompleteChunk)
                   }
-                } as LLMWebSearchCompleteChunk
+                  break
+                }
+                case 'tool_use': {
+                  toolCalls[rawChunk.index] = contentBlock
+                  break
+                }
               }
               break
             }
-            case 'tool_use': {
-              toolCalls[rawChunk.index] = contentBlock
-              break
-            }
-          }
-          break
-        }
-        case 'content_block_delta': {
-          const messageDelta = rawChunk.delta
-          switch (messageDelta.type) {
-            case 'text_delta': {
-              if (messageDelta.text) {
-                yield {
-                  type: ChunkType.TEXT_DELTA,
-                  text: messageDelta.text
-                } as TextDeltaChunk
+            case 'content_block_delta': {
+              const messageDelta = rawChunk.delta
+              switch (messageDelta.type) {
+                case 'text_delta': {
+                  if (messageDelta.text) {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_DELTA,
+                      text: messageDelta.text
+                    } as TextDeltaChunk)
+                  }
+                  break
+                }
+                case 'thinking_delta': {
+                  if (messageDelta.thinking) {
+                    controller.enqueue({
+                      type: ChunkType.THINKING_DELTA,
+                      text: messageDelta.thinking
+                    } as ThinkingDeltaChunk)
+                  }
+                  break
+                }
+                case 'input_json_delta': {
+                  if (messageDelta.partial_json) {
+                    accumulatedJson += messageDelta.partial_json
+                  }
+                  break
+                }
               }
               break
             }
-            case 'thinking_delta': {
-              if (messageDelta.thinking) {
-                yield {
-                  type: ChunkType.THINKING_DELTA,
-                  text: messageDelta.thinking
-                } as ThinkingDeltaChunk
+            case 'content_block_stop': {
+              const toolCall = toolCalls[rawChunk.index]
+              if (toolCall) {
+                try {
+                  toolCall.input = JSON.parse(accumulatedJson)
+                  Logger.debug(`Tool call id: ${toolCall.id}, accumulated json: ${accumulatedJson}`)
+                  controller.enqueue({
+                    type: ChunkType.MCP_TOOL_CREATED,
+                    tool_calls: [toolCall]
+                  } as MCPToolCreatedChunk)
+                } catch (error) {
+                  Logger.error(`Error parsing tool call input: ${error}`)
+                }
               }
-              break
-            }
-            case 'input_json_delta': {
-              if (messageDelta.partial_json) {
-                accumulatedJson += messageDelta.partial_json
-              }
-              break
-            }
-          }
-          break
-        }
-        case 'content_block_stop': {
-          const toolCall = toolCalls[rawChunk.index]
-          if (toolCall) {
-            try {
-              toolCall.input = JSON.parse(accumulatedJson)
-              Logger.debug(`Tool call id: ${toolCall.id}, accumulated json: ${accumulatedJson}`)
-              yield {
-                type: ChunkType.MCP_TOOL_CREATED,
-                tool_calls: [toolCall]
-              } as MCPToolCreatedChunk
-            } catch (error) {
-              Logger.error(`Error parsing tool call input: ${error}`)
             }
           }
         }
