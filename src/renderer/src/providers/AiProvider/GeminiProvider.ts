@@ -300,7 +300,11 @@ export default class GeminiProvider extends BaseProvider {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
 
       if (effortRatio > 1) {
-        return {}
+        return {
+          thinkingConfig: {
+            includeThoughts: true
+          }
+        }
       }
 
       const { max } = findTokenLimit(model.id) || { max: 0 }

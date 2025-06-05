@@ -586,7 +586,14 @@
       "korean": "韩文",
       "portuguese": "葡萄牙文",
       "russian": "俄文",
-      "spanish": "西班牙文"
+      "spanish": "西班牙文",
+      "polish": "波兰文",
+      "turkish": "土耳其文",
+      "thai": "泰文",
+      "vietnamese": "越南文",
+      "indonesian": "印尼文",
+      "urdu": "乌尔都文",
+      "malay": "马来文"
     },
     "lmstudio": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -627,6 +634,7 @@
       "error.enter.api.key": "请输入您的 API 密钥",
       "error.enter.model": "请选择一个模型",
       "error.enter.name": "请输入知识库名称",
+      "error.fetchTopicName": "话题命名失败",
       "error.get_embedding_dimensions": "获取嵌入维度失败",
       "error.invalid.api.host": "无效的 API 地址",
       "error.invalid.api.key": "无效的 API 密钥",
@@ -941,7 +949,7 @@
         "magic_prompt_option_tip": "智能优化放大提示词"
       },
       "text_desc_required": "请先输入图片描述",
-      "req_error_text" : "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
       "auto_create_paint": "自动新建图片",
       "auto_create_paint_tip": "在图片生成后，会自动新建图片"
     },
@@ -1793,6 +1801,8 @@
     },
     "translate": {
       "any.language": "任意语言",
+      "target_language": "目标语言",
+      "alter_language": "备用语言",
       "button.translate": "翻译",
       "close": "关闭",
       "closed": "翻译已关闭",
@@ -1843,6 +1853,13 @@
       "show_window": "显示窗口",
       "visualization": "可视化"
     },
+    "update": {
+      "title": "更新提示",
+      "message": "发现新版本 {{version}}，是否立即安装？",
+      "later": "稍后",
+      "install": "立即安装",
+      "noReleaseNotes": "暂无更新日志"
+    },
     "selection": {
       "name": "划词助手",
       "action": {
@@ -1865,6 +1882,9 @@
           "esc_stop": "Esc 停止",
           "c_copy": "C 复制",
           "r_regenerate": "R 重新生成"
+        },
+        "translate": {
+          "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
         }
       },
       "settings": {

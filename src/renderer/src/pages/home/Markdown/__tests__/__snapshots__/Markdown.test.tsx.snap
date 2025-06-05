@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Markdown > rendering > should match snapshot 1`] = `
+<div
+  class="markdown"
+  data-testid="markdown-content"
+>
+  # Test Markdown
+
+This is **bold** text.
+  <span
+    data-testid="has-link-component"
+  >
+    link
+  </span>
+  <div
+    data-testid="has-code-component"
+  >
+    <div
+      data-id="code-block-1"
+      data-testid="code-block"
+    >
+      <code>
+        test code
+      </code>
+      <button
+        type="button"
+      >
+        Save
+      </button>
+    </div>
+  </div>
+  <span
+    data-testid="has-img-component"
+  >
+    img
+  </span>
+</div>
+`;

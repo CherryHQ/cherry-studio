@@ -25,13 +25,13 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
   const handleSave = async () => {
     try {
       const values = await form.validateFields()
-      const newList = values.filterList
+      const newList = (values.filterList as string)
         .trim()
         .toLowerCase()
         .split('\n')
-        .map((line: string) => line.trim())
+        .map((line: string) => line.trim().slice(0, 32))
         .filter((line: string) => line.length > 0)
-      onSave(newList)
+      onSave([...new Set(newList)])
       onClose()
     } catch (error) {
       // validation failed
@@ -57,7 +57,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
       <UserTip>{t('selection.settings.filter_modal.user_tips')}</UserTip>
       <Form form={form} layout="vertical" initialValues={{ filterList: '' }}>
         <Form.Item name="filterList" noStyle>
-          <StyledTextArea autoSize={{ minRows: 6, maxRows: 16 }} autoFocus />
+          <StyledTextArea autoSize={{ minRows: 6, maxRows: 16 }} spellCheck={false} autoFocus />
         </Form.Item>
       </Form>
     </Modal>

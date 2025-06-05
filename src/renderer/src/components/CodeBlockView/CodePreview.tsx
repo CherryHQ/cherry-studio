@@ -231,19 +231,17 @@ const ContentContainer = styled.div<{
   $wrap: boolean
   $fadeIn: boolean
 }>`
-  display: block;
   position: relative;
   overflow: auto;
   border-radius: inherit;
   margin-top: 0;
 
   .shiki {
-    display: flex;
-    min-width: 100%;
     padding: 1em;
 
     code {
-      display: block;
+      display: flex;
+      flex-direction: column;
 
       .line {
         display: block;

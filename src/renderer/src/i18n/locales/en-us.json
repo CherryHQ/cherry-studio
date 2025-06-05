@@ -586,7 +586,14 @@
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
+      "spanish": "Spanish",
+      "polish": "Polish",
+      "turkish": "Turkish",
+      "thai": "Thai",
+      "vietnamese": "Vietnamese",
+      "indonesian": "Indonesian",
+      "urdu": "Urdu",
+      "malay": "Malay"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -627,6 +634,7 @@
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
+      "error.fetchTopicName": "Failed to name the topic",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
       "error.invalid.api.host": "Invalid API Host",
       "error.invalid.api.key": "Invalid API Key",
@@ -944,7 +952,6 @@
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
       "auto_create_paint": "Auto-create image",
       "auto_create_paint_tip": "After the image is generated, a new image will be created automatically."
-
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -1794,6 +1801,8 @@
     },
     "translate": {
       "any.language": "Any language",
+      "target_language": "Target Language",
+      "alter_language": "Alternative Language",
       "button.translate": "Translate",
       "close": "Close",
       "closed": "Translation closed",
@@ -1844,6 +1853,13 @@
       "show_window": "Show Window",
       "visualization": "Visualization"
     },
+    "update": {
+      "title": "Update",
+      "message": "New version {{version}} is ready, do you want to install it now?",
+      "later": "Later",
+      "install": "Install",
+      "noReleaseNotes": "No release notes"
+    },
     "selection": {
       "name": "Selection Assistant",
       "action": {
@@ -1866,6 +1882,9 @@
           "esc_stop": "Esc: Stop",
           "c_copy": "C: Copy",
           "r_regenerate": "R: Regenerate"
+        },
+        "translate": {
+          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
         }
       },
       "settings": {

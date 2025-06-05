@@ -18,7 +18,17 @@ import styled from 'styled-components'
 import ChatFlowHistory from './ChatFlowHistory'
 
 // Exclude some areas from the navigation
-const EXCLUDED_SELECTORS = ['.MessageFooter', '.code-toolbar', '.ant-collapse-header', '.group-menu-bar', '.code-block']
+const EXCLUDED_SELECTORS = [
+  '.MessageFooter',
+  '.code-toolbar',
+  '.ant-collapse-header',
+  '.group-menu-bar',
+  '.code-block',
+  '.message-editor'
+]
+
+// Gap between the navigation bar and the right element
+const RIGHT_GAP = 16
 
 interface ChatNavigationProps {
   containerId: string
@@ -264,10 +274,10 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       const triggerWidth = 60 // Same as the width in styled component
 
       // Safe way to calculate position when using calc expressions
-      let rightOffset = 16 // Default right offset
+      let rightOffset = RIGHT_GAP // Default right offset
       if (showRightTopics) {
         // When topics are shown on right, we need to account for topic list width
-        rightOffset = 16 + 300 // Assuming topic list width is 300px, adjust if different
+        rightOffset += 275 // --topic-list-width
       }
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
@@ -280,7 +290,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       const isInTriggerArea =
         !isInExcludedArea &&
         e.clientX > rightPosition &&
-        e.clientX < rightPosition + triggerWidth &&
+        e.clientX < rightPosition + triggerWidth + RIGHT_GAP &&
         e.clientY > topPosition &&
         e.clientY < topPosition + height
 
@@ -412,7 +422,7 @@ interface NavigationContainerProps {
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  right: 16px;
+  right: ${RIGHT_GAP}px;
   top: 50%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;
