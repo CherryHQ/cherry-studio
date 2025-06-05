@@ -1,3 +1,5 @@
+import { RequestOptions, SdkParams, SdkRawOutput } from '@renderer/types/sdk'
+
 import { BaseApiClient } from '../AiProvider/clients'
 import { CompletionsParams, CompletionsResult } from './schemas'
 import {
@@ -130,13 +132,16 @@ export function applyMethodMiddlewares<
  * This version adapts for `CompletionsMiddleware` expecting a single `params` object. /
  * 此版本适配了期望单个 `params` 对象的 `CompletionsMiddleware`。
  * @param originalProviderInstance - The original provider instance. / 原始提供者实例。
- * @param originalCompletionsMethod - The original `completions` method. / 原始的 `completions` 方法。
+ * @param originalCompletionsMethod - The original SDK `createCompletions` method. / 原始的 SDK `createCompletions` 方法。
  * @param middlewares - An array of `CompletionsMiddleware` to apply. / 要应用的 `CompletionsMiddleware` 数组。
  * @returns An enhanced `completions` method with the middlewares applied. / 应用了中间件的增强版 `completions` 方法。
  */
-export function applyCompletionsMiddlewares(
-  originalApiClientInstance: BaseApiClient,
-  originalCompletionsMethod: (params: CompletionsParams) => Promise<CompletionsResult>,
+export function applyCompletionsMiddlewares<
+  TSdkParams extends SdkParams = SdkParams,
+  TRawOutput extends SdkRawOutput = SdkRawOutput
+>(
+  originalApiClientInstance: BaseApiClient<any, TSdkParams, TRawOutput>,
+  originalCompletionsMethod: (payload: TSdkParams, options?: RequestOptions) => Promise<TRawOutput>,
   middlewares: CompletionsMiddleware[]
 ): (params: CompletionsParams) => Promise<CompletionsResult> {
   // Returns a function matching the original method signature. /
@@ -185,12 +190,28 @@ export function applyCompletionsMiddlewares(
     // `finalDispatch` for CompletionsMiddleware: expects (context, params) not (context, args_array). /
     // `CompletionsMiddleware` 的 `finalDispatch`：期望 (context, params) 而不是 (context, args_array)。
     const finalDispatch = async (
-      _context: CompletionsContext, // Context passed through / 上下文透传
-      currentParams: CompletionsParams // Directly takes params / 直接接收参数
+      context: CompletionsContext // Context passed through / 上下文透传
+      // _currentParams: CompletionsParams // Directly takes params / 直接接收参数
     ): Promise<CompletionsResult> => {
-      // Call original method with original `this` and the params object. /
-      // 使用原始的 `this` 和参数对象调用原始方法。
-      return originalCompletionsMethod.call(originalApiClientInstance, currentParams)
+      // At this point, middleware should have transformed CompletionsParams to SDK params
+      // and stored them in context. If no transformation happened, we need to handle it.
+      // 此时，中间件应该已经将 CompletionsParams 转换为 SDK 参数并存储在上下文中。
+      // 如果没有进行转换，我们需要处理它。
+
+      const sdkPayload = context._internal?.sdkPayload
+      if (!sdkPayload) {
+        throw new Error('SDK payload not found in context. Middleware chain should have transformed parameters.')
+      }
+
+      // Call the original SDK method with transformed parameters
+      // 使用转换后的参数调用原始 SDK 方法
+      const rawOutput = await originalCompletionsMethod.call(originalApiClientInstance, sdkPayload as TSdkParams)
+
+      // Return result wrapped in CompletionsResult format
+      // 以 CompletionsResult 格式返回包装的结果
+      return {
+        rawOutput
+      } as CompletionsResult
     }
 
     const chain = middlewares.map((middleware) => middleware(api))

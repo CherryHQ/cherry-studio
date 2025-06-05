@@ -1,5 +1,3 @@
-import { wrapProviderWithMiddleware } from '@renderer/providers/middleware'
-import middlewareConfig from '@renderer/providers/middleware/register'
 import { Provider } from '@renderer/types'
 
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
@@ -40,14 +38,15 @@ export class ApiClientFactory {
         break
     }
 
-    console.log(`[ApiClientFactory] Wrapping ${provider.id} with middleware. Config:`, {
-      completionsMiddlewares: middlewareConfig.completions?.length || 0,
-      methodMiddlewares: Object.keys(middlewareConfig.methods || {}).length
-    })
-
-    const wrappedInstance = wrapProviderWithMiddleware(instance, middlewareConfig)
-    console.log(`[ApiClientFactory] Successfully wrapped ${provider.id} with middleware`)
-
-    return wrappedInstance
+    // console.log(`[ApiClientFactory] Wrapping ${provider.id} with middleware. Config:`, {
+    //   completionsMiddlewares: middlewareConfig.completions?.length || 0,
+    //   methodMiddlewares: Object.keys(middlewareConfig.methods || {}).length
+    // })
+    //
+    // const wrappedInstance = wrapProviderWithMiddleware(instance, middlewareConfig)
+    // console.log(`[ApiClientFactory] Successfully wrapped ${provider.id} with middleware`)
+    //
+    // return wrappedInstance
+    return instance // Return the raw instance
   }
 }
