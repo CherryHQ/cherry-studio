@@ -53,6 +53,16 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
 
 const SearchEntryPoint = styled.div`
   margin: 10px 2px;
+  @media (max-width: 768px) {
+    display: none;
+  }
+  .carousel {
+    white-space: normal;
+    .chip {
+      margin: 0;
+      margin-left: 5px;
+    }
+  }
 `
 
 export default React.memo(CitationBlock)

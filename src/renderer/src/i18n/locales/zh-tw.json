@@ -105,19 +105,15 @@
         "showByTags": "標籤展示"
       },
       "tags": {
-        "untagged": "未分組標籤",
+        "untagged": "未分組",
         "none": "暫無標籤",
         "manage": "標籤管理",
         "add": "添加標籤",
         "modify": "修改標籤",
         "delete": "刪除標籤",
+        "deleteConfirm": "確定要刪除這個標籤嗎？",
         "settings": {
-          "title": "標籤設定",
-          "current": "當前標籤",
-          "searchTagsPlaceholder": "請輸入標籤名稱以過濾標籤",
-          "addTagsPlaceholder": "請輸入標籤名稱以新增",
-          "tagsLsitTitle": "標籤列表",
-          "tagsLsitTitleTips": "點擊標籤可切換"
+          "title": "標籤設定"
         }
       },
       "settings.tool_use_mode": "工具調用方式",
@@ -590,7 +586,14 @@
       "korean": "韓文",
       "portuguese": "葡萄牙文",
       "russian": "俄文",
-      "spanish": "西班牙文"
+      "spanish": "西班牙文",
+      "polish": "波蘭文",
+      "turkish": "土耳其文",
+      "thai": "泰文",
+      "vietnamese": "越南文",
+      "indonesian": "印尼文",
+      "urdu": "烏爾都文",
+      "malay": "馬來文"
     },
     "lmstudio": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
@@ -619,12 +622,11 @@
       "citations": "引用內容",
       "copied": "已複製！",
       "copy.failed": "複製失敗",
-      "copy.success": "已複製！",
+      "copy.success": "複製成功",
       "delete.confirm.title": "刪除確認",
       "delete.confirm.content": "確認刪除選中的 {{count}} 條訊息嗎？",
       "delete.failed": "刪除失敗",
       "delete.success": "刪除成功",
-      "copy.success": "複製成功",
       "empty_url": "無法下載圖片，可能是提示詞包含敏感內容或違禁詞彙",
       "error.chunk_overlap_too_large": "分段重疊不能大於分段大小",
       "error.dimension_too_large": "內容尺寸過大",
@@ -632,6 +634,7 @@
       "error.enter.api.key": "請先輸入您的 API 金鑰",
       "error.enter.model": "請先選擇一個模型",
       "error.enter.name": "請先輸入知識庫名稱",
+      "error.fetchTopicName": "話題命名失敗",
       "error.get_embedding_dimensions": "取得嵌入維度失敗",
       "error.invalid.api.host": "無效的 API 位址",
       "error.invalid.api.key": "無效的 API 金鑰",
@@ -945,7 +948,10 @@
         "magic_prompt_option_tip": "智能優化放大提示詞"
       },
       "rendering_speed": "渲染速度",
-      "text_desc_required": "請先輸入圖片描述"
+      "text_desc_required": "請先輸入圖片描述",
+      "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "auto_create_paint": "自動新增圖片",
+      "auto_create_paint_tip": "圖片生成後，會自動新增圖片"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -999,7 +1005,7 @@
       "zhinao": "360 智腦",
       "zhipu": "智譜 AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛雲",
+      "qiniu": "七牛雲 AI 推理",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1282,6 +1288,7 @@
       "display.sidebar.translate.icon": "顯示翻譯圖示",
       "display.sidebar.visible": "顯示的圖示",
       "display.title": "顯示設定",
+      "display.zoom.title": "縮放設定",
       "display.topic.title": "話題設定",
       "miniapps": {
         "title": "小程式設置",
@@ -1516,7 +1523,7 @@
       "messages.input.send_shortcuts": "傳送快捷鍵",
       "messages.input.show_estimated_tokens": "顯示預估 Token 數",
       "messages.input.title": "輸入設定",
-      "messages.input.enable_quick_triggers": "啟用 '/' 和 '@' 觸發快捷選單",
+      "messages.input.enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
       "messages.input.enable_delete_model": "啟用刪除鍵刪除模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "messages.math_engine": "數學公式引擎",
@@ -1559,6 +1566,7 @@
       "models.check.start": "開始",
       "models.check.title": "模型健康檢查",
       "models.check.use_all_keys": "使用密鑰",
+      "models.check.disclaimer": "健康檢查需要發送請求，請謹慎使用。按次收費的模型可能產生更多費用，請自行承擔。",
       "models.default_assistant_model": "預設助手模型",
       "models.default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "models.empty": "找不到模型",
@@ -1700,10 +1708,11 @@
         "zoom_reset": "重設縮放",
         "exit_fullscreen": "退出螢幕"
       },
-      "theme.auto": "自動",
+      "theme.system": "系統",
       "theme.dark": "深色",
       "theme.light": "淺色",
       "theme.title": "主題",
+      "theme.color_primary": "主題顏色",
       "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
@@ -1808,6 +1817,8 @@
     },
     "translate": {
       "any.language": "任意語言",
+      "target_language": "目標語言",
+      "alter_language": "備用語言",
       "button.translate": "翻譯",
       "close": "關閉",
       "closed": "翻譯已關閉",
@@ -1830,13 +1841,22 @@
       "input.placeholder": "輸入文字進行翻譯",
       "output.placeholder": "翻譯",
       "processing": "翻譯中...",
-      "scroll_sync.disable": "關閉滾動同步",
-      "scroll_sync.enable": "開啟滾動同步",
+      "language.same": "源語言和目標語言相同",
+      "language.not_pair": "源語言與設定的語言不同",
+      "settings": {
+        "title": "翻譯設定",
+        "model": "模型設定",
+        "model_desc": "翻譯服務使用的模型",
+        "bidirectional": "雙向翻譯設定",
+        "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
+        "scroll_sync": "滾動同步設定"
+      },
       "title": "翻譯",
       "tooltip.newline": "換行",
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
-      }
+      },
+      "detected.language": "檢測到的語言"
     },
     "tray": {
       "quit": "結束",
@@ -1848,6 +1868,13 @@
       "quit": "結束",
       "show_window": "顯示視窗",
       "visualization": "視覺化"
+    },
+    "update": {
+      "title": "更新提示",
+      "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
+      "later": "稍後",
+      "install": "立即安裝",
+      "noReleaseNotes": "暫無更新日誌"
     },
     "selection": {
       "name": "劃詞助手",
@@ -1869,7 +1896,11 @@
           "original_copy": "複製原文",
           "esc_close": "Esc 關閉",
           "esc_stop": "Esc 停止",
-          "c_copy": "C 複製"
+          "c_copy": "C 複製",
+          "r_regenerate": "R 重新生成"
+        },
+        "translate": {
+          "smart_translate_tips": "智能翻譯：內容將優先翻譯為目標語言；內容已是目標語言的，將翻譯為備用語言"
         }
       },
       "settings": {
@@ -1898,6 +1929,10 @@
             "title": "跟隨工具列",
             "description": "視窗位置將跟隨工具列顯示，停用後則始終置中顯示"
           },
+          "remember_size": {
+            "title": "記住大小",
+            "description": "應用運行期間，視窗會按上次調整的大小顯示"
+          },
           "auto_close": {
             "title": "自動關閉",
             "description": "當視窗未置頂且失去焦點時，將自動關閉該視窗"
@@ -1924,6 +1959,20 @@
           },
           "delete_confirm": "確定要刪除這個自訂功能嗎？",
           "drag_hint": "拖曳排序，移動到上方以啟用功能 ({{enabled}}/{{max}})"
+        },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "應用篩選",
+            "description": "可以限制劃詞助手只在特定應用中生效（白名單）或不生效（黑名單）",
+            "default": "關閉",
+            "whitelist": "白名單",
+            "blacklist": "黑名單"
+          },
+          "filter_list": {
+            "title": "篩選名單",
+            "description": "進階功能，建議有經驗的用戶在了解情況下再進行設置"
+          }
         },
         "user_modal": {
           "title": {
@@ -1981,6 +2030,10 @@
             },
             "test": "測試"
           }
+        },
+        "filter_modal": {
+          "title": "應用篩選名單",
+          "user_tips": "請輸入應用的執行檔名稱，每行一個，不區分大小寫，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
     }

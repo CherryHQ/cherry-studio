@@ -32,6 +32,14 @@ export const usePreviewToolHandlers = (
   // 创建选择器函数
   const getImgElement = useCallback(() => {
     if (!containerRef.current) return null
+
+    // 优先尝试从 Shadow DOM 中查找
+    const shadowRoot = containerRef.current.shadowRoot
+    if (shadowRoot) {
+      return shadowRoot.querySelector(imgSelector) as SVGElement | null
+    }
+
+    // 降级到常规 DOM 查找
     return containerRef.current.querySelector(imgSelector) as SVGElement | null
   }, [containerRef, imgSelector])
 

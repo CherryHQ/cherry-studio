@@ -557,6 +557,7 @@
       "error.enter.api.key": "Παρακαλώ εισάγετε το κλειδί API σας",
       "error.enter.model": "Παρακαλώ επιλέξτε ένα μοντέλο",
       "error.enter.name": "Παρακαλώ εισάγετε ένα όνομα για τη βάση γνώσεων",
+      "error.fetchTopicName": "Αποτυχία ονοματοδοσίας θέματος",
       "error.get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
       "error.invalid.api.host": "Μη έγκυρη διεύθυνση API",
       "error.invalid.api.key": "Μη έγκυρο κλειδί API",
@@ -880,7 +881,7 @@
       "zhinao": "360 Intelligent Brain",
       "zhipu": "Zhipu AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Είστε σίγουροι ότι θέλετε να επαναφέρετε τα δεδομένα;",
@@ -1140,6 +1141,7 @@
       "display.sidebar.translate.icon": "Εμφάνιση εικονιδίου μετάφρασης",
       "display.sidebar.visible": "Εμφανιζόμενα εικονίδια",
       "display.title": "Ρυθμίσεις εμφάνισης",
+      "display.zoom.title": "Ρυθμίσεις κλίμακας",
       "display.topic.title": "Ρυθμίσεις Θεμάτων",
       "font_size.title": "Μέγεθος γραμμάτων των μηνυμάτων",
       "general": "Γενικές ρυθμίσεις",
@@ -1477,7 +1479,7 @@
         "zoom_out": "Σμικρύνση εμφάνισης",
         "zoom_reset": "Επαναφορά εμφάνισης"
       },
-      "theme.auto": "Αυτόματο",
+      "theme.system": "Σύστημα",
       "theme.dark": "Σκοτεινό",
       "theme.light": "Φωτεινό",
       "theme.title": "Θέμα",
@@ -1656,6 +1658,13 @@
       "quit": "Έξοδος",
       "show_window": "Εμφάνιση Παραθύρου",
       "visualization": "προβολή"
+    },
+    "update": {
+      "title": "Ενημέρωση",
+      "message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
+      "later": "Μετά",
+      "install": "Εγκατάσταση",
+      "noReleaseNotes": "Χωρίς σημειώσεις"
     }
   }
 }

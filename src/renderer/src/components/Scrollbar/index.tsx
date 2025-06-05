@@ -4,47 +4,53 @@ import styled from 'styled-components'
 
 interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   ref?: React.RefObject<HTMLDivElement | null>
-  right?: boolean
   onScroll?: () => void // Custom onScroll prop for useScrollPosition's handleScroll
 }
 
-const Scrollbar: FC<Props> = ({ ref: passedRef, right, children, onScroll: externalOnScroll, ...htmlProps }) => {
+const Scrollbar: FC<Props> = ({ ref: passedRef, children, onScroll: externalOnScroll, ...htmlProps }) => {
   const [isScrolling, setIsScrolling] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const handleScroll = useCallback(() => {
-    setIsScrolling(true)
-
+  const clearScrollingTimeout = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
     }
-
-    timeoutRef.current = setTimeout(() => setIsScrolling(false), 1500)
   }, [])
 
-  const throttledInternalScrollHandler = throttle(handleScroll, 200)
+  const handleScroll = useCallback(() => {
+    setIsScrolling(true)
+    clearScrollingTimeout()
+    timeoutRef.current = setTimeout(() => {
+      setIsScrolling(false)
+      timeoutRef.current = null
+    }, 1500)
+  }, [clearScrollingTimeout])
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const throttledInternalScrollHandler = useCallback(throttle(handleScroll, 100, { leading: true, trailing: true }), [
+    handleScroll
+  ])
 
   // Combined scroll handler
   const combinedOnScroll = useCallback(() => {
-    // Event is available if needed by internal handler
-    throttledInternalScrollHandler() // Call internal logic
+    throttledInternalScrollHandler()
     if (externalOnScroll) {
-      externalOnScroll() // Call external logic (from useScrollPosition)
+      externalOnScroll()
     }
   }, [throttledInternalScrollHandler, externalOnScroll])
 
   useEffect(() => {
     return () => {
-      timeoutRef.current && clearTimeout(timeoutRef.current)
+      clearScrollingTimeout()
       throttledInternalScrollHandler.cancel()
     }
-  }, [throttledInternalScrollHandler])
+  }, [throttledInternalScrollHandler, clearScrollingTimeout])
 
   return (
     <Container
       {...htmlProps} // Pass other HTML attributes
       $isScrolling={isScrolling}
-      $right={right}
       onScroll={combinedOnScroll} // Use the combined handler
       ref={passedRef}>
       {children}
@@ -52,15 +58,13 @@ const Scrollbar: FC<Props> = ({ ref: passedRef, right, children, onScroll: exter
   )
 }
 
-const Container = styled.div<{ $isScrolling: boolean; $right?: boolean }>`
+const Container = styled.div<{ $isScrolling: boolean }>`
   overflow-y: auto;
   &::-webkit-scrollbar-thumb {
     transition: background 2s ease;
-    background: ${(props) =>
-      props.$isScrolling ? `var(--color-scrollbar-thumb${props.$right ? '-right' : ''})` : 'transparent'};
+    background: ${(props) => (props.$isScrolling ? 'var(--color-scrollbar-thumb)' : 'transparent')};
     &:hover {
-      background: ${(props) =>
-        props.$isScrolling ? `var(--color-scrollbar-thumb${props.$right ? '-right' : ''}-hover)` : 'transparent'};
+      background: var(--color-scrollbar-thumb-hover);
     }
   }
 `

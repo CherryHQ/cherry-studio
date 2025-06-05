@@ -90,5 +90,6 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
   n: 1,
   seed: '',
   style_type: '',
-  model: TEXT_TO_IMAGES_MODELS[0].id
+  model: TEXT_TO_IMAGES_MODELS[0].id,
+  autoCreate: false
 }
