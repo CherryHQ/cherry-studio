@@ -380,65 +380,32 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           {/* Provider Section */}
-          <SectionGroup>
-            <ProviderTitleContainer>
-              <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
-              <SettingHelpLink target="_blank" href="https://tokenflux.ai">
-                {t('paintings.learn_more')}
-                <ProviderLogo shape="square" src={getProviderLogo('tokenflux')} size={16} style={{ marginLeft: 5 }} />
-              </SettingHelpLink>
-            </ProviderTitleContainer>
+          <ProviderTitleContainer>
+            <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
+            <SettingHelpLink target="_blank" href="https://tokenflux.ai">
+              {t('paintings.learn_more')}
+              <ProviderLogo shape="square" src={getProviderLogo('tokenflux')} size={16} style={{ marginLeft: 5 }} />
+            </SettingHelpLink>
+          </ProviderTitleContainer>
 
-            <Select
-              value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
-              onChange={handleProviderChange}
-              style={{ width: '100%' }}>
-              {providerOptions.map((provider) => (
-                <Select.Option value={provider.value} key={provider.value}>
-                  <SelectOptionContainer>
-                    <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
-                    {provider.label}
-                  </SelectOptionContainer>
-                </Select.Option>
-              ))}
-            </Select>
-          </SectionGroup>
+          <Select
+            value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
+            onChange={handleProviderChange}
+            style={{ width: '100%' }}>
+            {providerOptions.map((provider) => (
+              <Select.Option value={provider.value} key={provider.value}>
+                <SelectOptionContainer>
+                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  {provider.label}
+                </SelectOptionContainer>
+              </Select.Option>
+            ))}
+          </Select>
 
           {/* Model & Pricing Section */}
-          <SectionGroup>
-            <SectionTitle>{t('paintings.model_and_pricing')}</SectionTitle>
-            <Select
-              style={{ width: '100%', marginBottom: 12 }}
-              value={selectedModel?.id}
-              onChange={handleModelChange}
-              placeholder={t('paintings.select_model')}>
-              {Object.entries(
-                models.reduce(
-                  (acc, model) => {
-                    const provider = model.model_provider || 'Other'
-                    if (!acc[provider]) {
-                      acc[provider] = []
-                    }
-                    acc[provider].push(model)
-                    return acc
-                  },
-                  {} as Record<string, typeof models>
-                )
-              ).map(([provider, providerModels]) => (
-                <Select.OptGroup key={provider} label={provider}>
-                  {providerModels.map((model) => (
-                    <Select.Option key={model.id} value={model.id}>
-                      <Tooltip title={model.description} placement="right">
-                        <ModelOptionContainer>
-                          <ModelName>{model.name}</ModelName>
-                        </ModelOptionContainer>
-                      </Tooltip>
-                    </Select.Option>
-                  ))}
-                </Select.OptGroup>
-              ))}
-            </Select>
-
+          <SectionTitle
+            style={{ marginBottom: 5, marginTop: 15, justifyContent: 'space-between', alignItems: 'center' }}>
+            {t('paintings.model_and_pricing')}
             {selectedModel && selectedModel.pricing && (
               <PricingContainer>
                 <PricingBadge>
@@ -447,11 +414,42 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 </PricingBadge>
               </PricingContainer>
             )}
-          </SectionGroup>
+          </SectionTitle>
+          <Select
+            style={{ width: '100%', marginBottom: 12 }}
+            value={selectedModel?.id}
+            onChange={handleModelChange}
+            placeholder={t('paintings.select_model')}>
+            {Object.entries(
+              models.reduce(
+                (acc, model) => {
+                  const provider = model.model_provider || 'Other'
+                  if (!acc[provider]) {
+                    acc[provider] = []
+                  }
+                  acc[provider].push(model)
+                  return acc
+                },
+                {} as Record<string, typeof models>
+              )
+            ).map(([provider, providerModels]) => (
+              <Select.OptGroup key={provider} label={provider}>
+                {providerModels.map((model) => (
+                  <Select.Option key={model.id} value={model.id}>
+                    <Tooltip title={model.description} placement="right">
+                      <ModelOptionContainer>
+                        <ModelName>{model.name}</ModelName>
+                      </ModelOptionContainer>
+                    </Tooltip>
+                  </Select.Option>
+                ))}
+              </Select.OptGroup>
+            ))}
+          </Select>
 
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (
-            <SectionGroup>
+            <>
               <SectionTitle>{t('paintings.input_parameters')}</SectionTitle>
               <ParametersContainer>
                 {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
@@ -482,7 +480,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   )
                 })}
               </ParametersContainer>
-            </SectionGroup>
+            </>
           )}
         </LeftContainer>
 
