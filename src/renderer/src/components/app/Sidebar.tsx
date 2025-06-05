@@ -35,6 +35,7 @@ import styled from 'styled-components'
 import DragableList from '../DragableList'
 import MinAppIcon from '../Icons/MinAppIcon'
 import UserPopup from '../Popups/UserPopup'
+import i18n from '@renderer/i18n'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup, openMinapp } = useMinappPopup()
@@ -62,10 +63,13 @@ const Sidebar: FC = () => {
 
   const docsId = 'cherrystudio-docs'
   const onOpenDocs = () => {
+    const isChinese = i18n.language.startsWith('zh')
     openMinapp({
       id: docsId,
       name: t('docs.title'),
-      url: 'https://docs.cherry-ai.com/',
+      url: isChinese
+        ? 'https://docs.cherry-ai.com/'
+        : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us',
       logo: AppLogo
     })
   }

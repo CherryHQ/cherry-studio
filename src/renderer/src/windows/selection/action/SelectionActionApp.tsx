@@ -7,7 +7,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Slider, Tooltip } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -140,14 +140,14 @@ const SelectionActionApp: FC = () => {
     setOpacity(value)
   }
 
-  const handleScrollToBottom = () => {
+  const handleScrollToBottom = useCallback(() => {
     if (contentElementRef.current && isAutoScrollEnabled.current) {
       contentElementRef.current.scrollTo({
         top: contentElementRef.current.scrollHeight,
         behavior: 'smooth'
       })
     }
-  }
+  }, [])
 
   const handleUserScroll = () => {
     if (!contentElementRef.current) return

@@ -450,7 +450,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (
             <>
-              <SectionTitle>{t('paintings.input_parameters')}</SectionTitle>
+              <SectionTitle style={{ marginBottom: 5, marginTop: 10 }}>{t('paintings.input_parameters')}</SectionTitle>
               <ParametersContainer>
                 {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
                   if (key === 'prompt') return null // Skip prompt as it's handled separately
@@ -573,14 +573,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   )
 }
 
-const SectionGroup = styled.div`
-  // background-color: var(--color-background-soft);
-  border: 1px solid var(--color-border-soft);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-`
-
 const SectionTitle = styled.div`
   font-size: 14px;
   font-weight: 600;
@@ -596,7 +588,6 @@ const ModelOptionContainer = styled.div`
 `
 
 const ModelName = styled.div`
-  font-weight: 500;
   color: var(--color-text);
 `
 
@@ -610,7 +601,7 @@ const PricingBadge = styled.div`
   color: var(--color-primary);
   font-size: 11px;
   font-weight: 500;
-  padding: 4px 8px;
+  padding: 4px 0;
   border-radius: 4px;
   border: 1px solid var(--color-primary-border);
 `

@@ -394,7 +394,7 @@ export const PROVIDER_CONFIG = {
       official: 'https://openrouter.ai/',
       apiKey: 'https://openrouter.ai/settings/keys',
       docs: 'https://openrouter.ai/docs/quick-start',
-      models: 'https://openrouter.ai/docs/models'
+      models: 'https://openrouter.ai/models'
     }
   },
   groq: {
@@ -446,7 +446,7 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://x.ai/',
       docs: 'https://docs.x.ai/',
-      models: 'https://docs.x.ai/docs#getting-started'
+      models: 'https://docs.x.ai/docs/models'
     }
   },
   hyperbolic: {

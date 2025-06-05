@@ -174,7 +174,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           if (messages.length >= 2) {
             const summaryText = await fetchMessagesSummary({ messages, assistant })
             if (summaryText) {
-              updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+              const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
+              updateTopic(updatedTopic)
+              topic.id === activeTopic.id && setActiveTopic(updatedTopic)
             } else {
               window.message?.error(t('message.error.fetchTopicName'))
             }
@@ -192,7 +194,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             defaultValue: topic?.name || ''
           })
           if (name && topic?.name !== name) {
-            updateTopic({ ...topic, name, isNameManuallyEdited: true })
+            const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+            updateTopic(updatedTopic)
+            topic.id === activeTopic.id && setActiveTopic(updatedTopic)
           }
         }
       },
@@ -308,16 +312,15 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = await topicToMarkdown(topic)
-              await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
+              await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
             }
           },
           exportMenuOptions.joplin && {
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
-              const markdown = await topicToMarkdown(topic)
-              exportMarkdownToJoplin(topic.name, markdown)
+              const topicMessages = await TopicManager.getTopicMessages(topic.id)
+              exportMarkdownToJoplin(topic.name, topicMessages)
             }
           },
           exportMenuOptions.siyuan && {
