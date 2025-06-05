@@ -1,6 +1,7 @@
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
+import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -11,6 +12,7 @@ import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
 import store, { useAppDispatch } from '@renderer/store'
@@ -102,14 +104,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     async (data: Topic) => {
       const defaultTopic = getDefaultTopic(assistant.id)
 
+      async function deleteTopicRelatedFiles(topicId: string) {
+        const topicFiles = await db.files.where({ topicId }).toArray()
+        if (topicFiles.length > 0) {
+          await FileManager.deleteFiles(topicFiles)
+        }
+      }
+
       if (data && data.id !== topic.id) {
         await clearTopicMessages(data.id)
+        await deleteTopicRelatedFiles(data.id)
         updateTopic({ ...data, name: defaultTopic.name } as Topic)
         return
       }
 
       await clearTopicMessages()
-
+      await deleteTopicRelatedFiles(topic.id)
       setDisplayMessages([])
 
       const _topic = getTopic(assistant, topic.id)
