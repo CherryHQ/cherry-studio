@@ -703,6 +703,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                   text: thinkingContent,
                   thinking_millsec: new Date().getTime() - time_first_token_millsec
                 })
+                thinkingContent = ''
               }
             }
             content += textDelta
@@ -720,6 +721,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                   text: thinkingContent,
                   thinking_millsec: new Date().getTime() - time_first_token_millsec
                 })
+                thinkingContent = ''
               }
             }
             chunk.delta.tool_calls.forEach((toolCall) => {
@@ -748,6 +750,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             if (!isEmpty(finishReason)) {
               if (content) {
                 onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+                content = ''
               }
               if (thinkingContent) {
                 onChunk({
@@ -755,6 +758,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                   text: thinkingContent,
                   thinking_millsec: new Date().getTime() - time_first_token_millsec
                 })
+                thinkingContent = ''
               }
               if (usage) {
                 finalUsage.completion_tokens += usage.completion_tokens || 0

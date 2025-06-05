@@ -331,6 +331,7 @@ export default class AnthropicProvider extends BaseProvider {
       }
 
       let thinking_content = ''
+      let content = ''
       let isFirstChunk = true
 
       return new Promise<void>((resolve, reject) => {
@@ -350,10 +351,12 @@ export default class AnthropicProvider extends BaseProvider {
                   text: thinking_content,
                   thinking_millsec: new Date().getTime() - time_first_token_millsec
                 })
+                thinking_content = ''
               }
             }
 
             onChunk({ type: ChunkType.TEXT_DELTA, text })
+            content += text
           })
           .on('contentBlock', (block) => {
             if (block.type === 'server_tool_use' && block.name === 'web_search') {
@@ -384,6 +387,22 @@ export default class AnthropicProvider extends BaseProvider {
             }
             if (block.type === 'tool_use') {
               toolCalls.push(block)
+            }
+          })
+          .on('streamEvent', async (event) => {
+            if (event.type === 'content_block_stop') {
+              if (thinking_content) {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinking_content,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+                thinking_content = ''
+              }
+              if (content) {
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+                content = ''
+              }
             }
           })
           .on('thinking', (thinking) => {
@@ -432,7 +451,6 @@ export default class AnthropicProvider extends BaseProvider {
             // tool use
             const content = message.content[0]
             if (content && content.type === 'text') {
-              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content.text })
               toolResults.push(
                 ...(await parseAndCallTools(
                   content.text,
@@ -451,6 +469,7 @@ export default class AnthropicProvider extends BaseProvider {
                 text: thinking_content,
                 thinking_millsec: new Date().getTime() - time_first_token_millsec
               })
+              thinking_content = ''
             }
 
             userMessages.push({
