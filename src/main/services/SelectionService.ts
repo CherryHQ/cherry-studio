@@ -1,4 +1,4 @@
-import { SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
+import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isWin } from '@main/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, ipcMain, screen } from 'electron'
@@ -157,6 +157,7 @@ export class SelectionService {
     this.filterList = configManager.getSelectionAssistantFilterList()
 
     this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+    this.setHookFineTunedList()
 
     configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: TriggerMode) => {
       const oldTriggerMode = this.triggerMode
@@ -205,9 +206,9 @@ export class SelectionService {
     if (!this.selectionHook) return
 
     const modeMap = {
-      default: 0,
-      whitelist: 1,
-      blacklist: 2
+      default: SelectionHook!.FilterMode.DEFAULT,
+      whitelist: SelectionHook!.FilterMode.INCLUDE_LIST,
+      blacklist: SelectionHook!.FilterMode.EXCLUDE_LIST
     }
 
     let combinedList: string[] = list
@@ -235,6 +236,20 @@ export class SelectionService {
     if (!this.selectionHook.setGlobalFilterMode(modeMap[combinedMode], combinedList)) {
       this.logError(new Error('Failed to set selection-hook global filter mode'))
     }
+  }
+
+  private setHookFineTunedList() {
+    if (!this.selectionHook) return
+
+    this.selectionHook.setFineTunedList(
+      SelectionHook!.FineTunedListType.EXCLUDE_CLIPBOARD_CURSOR_DETECT,
+      SELECTION_FINETUNED_LIST.EXCLUDE_CLIPBOARD_CURSOR_DETECT.WINDOWS
+    )
+
+    this.selectionHook.setFineTunedList(
+      SelectionHook!.FineTunedListType.INCLUDE_CLIPBOARD_DELAY_READ,
+      SELECTION_FINETUNED_LIST.INCLUDE_CLIPBOARD_DELAY_READ.WINDOWS
+    )
   }
 
   /**
