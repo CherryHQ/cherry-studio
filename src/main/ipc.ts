@@ -181,6 +181,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     mainWindow.webContents.send('notification-click', notification)
   })
 
+  /**
+   * 解决App切换主题后，系统级主题不一致问题
+   * 比如App为dark，系统为light，会导致Mac透明模式时泛白
+   */
+  ipcMain.handle(IpcChannel.App_SetNativeThemeSource, (_, source: 'system' | 'light' | 'dark') => {
+    configManager.setNativeThemeSource(source)
+  })
+
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))

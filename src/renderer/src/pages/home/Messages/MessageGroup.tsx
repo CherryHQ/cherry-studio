@@ -347,7 +347,7 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
         padding: 10px;
         border-radius: 6px;
         max-height: 600px;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
       `
     }
     return ''
@@ -364,11 +364,9 @@ const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
           border: 0.5px solid ${$isInPopover ? 'transparent' : 'var(--color-border)'};
           padding: 10px;
           border-radius: 6px;
-          background-color: var(--color-background);
         `
       : css`
           overflow-y: ${$layout === 'horizontal' ? 'auto' : 'visible'};
-          border-radius: 6px;
         `
   }}
 `

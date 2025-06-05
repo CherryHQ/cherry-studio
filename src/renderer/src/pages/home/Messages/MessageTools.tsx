@@ -147,6 +147,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   return (
     <>
       <CollapseContainer
+        ghost
         activeKey={activeKeys}
         size="small"
         onChange={handleCollapseChange}

@@ -1,6 +1,6 @@
 import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
-import { app } from 'electron'
+import { app, nativeTheme } from 'electron'
 import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
@@ -211,6 +211,10 @@ export class ConfigManager {
 
   get<T>(key: string, defaultValue?: T) {
     return this.store.get(key, defaultValue) as T
+  }
+
+  setNativeThemeSource(source: 'system' | 'light' | 'dark') {
+    nativeTheme.themeSource = source
   }
 }
 

@@ -587,6 +587,7 @@ const QuickPanelContainer = styled.div<{
 `
 
 const QuickPanelBody = styled.div`
+  --quick-panel-background-color: rgba(240, 240, 240, 0.5);
   border-radius: 8px 8px 0 0;
   padding: 5px 0;
   border-width: 0.5px 0.5px 0 0.5px;
@@ -598,13 +599,19 @@ const QuickPanelBody = styled.div`
     content: '';
     position: absolute;
     inset: 0;
-    background-color: rgba(240, 240, 240, 0.5);
+    background-color: var(--quick-panel-background-color);
     backdrop-filter: blur(35px) saturate(150%);
     z-index: -1;
     border-radius: inherit;
 
     body[theme-mode='dark'] & {
-      background-color: rgba(40, 40, 40, 0.4);
+      --quick-panel-background-color: rgba(40, 40, 40, 0.4);
+    }
+    body[opacity='true'][theme-mode='light'] & {
+      --quick-panel-background-color: rgba(240, 240, 240, 0.98);
+    }
+    body[opacity='true'][theme-mode='dark'] & {
+      --quick-panel-background-color: rgba(40, 40, 40, 0.98);
     }
   }
 

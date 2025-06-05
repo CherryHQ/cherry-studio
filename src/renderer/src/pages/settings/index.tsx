@@ -88,5 +88,5 @@ export const SettingGroup = styled.div<{ theme?: ThemeMode; css?: CSSProp }>`
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid var(--color-border);
   padding: 16px;
-  background: ${(props) => (props.theme === 'dark' ? '#00000010' : 'var(--color-background)')};
+  background: var(--color-background);
 `

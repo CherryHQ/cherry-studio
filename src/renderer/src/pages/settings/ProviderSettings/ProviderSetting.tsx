@@ -283,7 +283,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   }, [apiKey, provider, updateProvider])
 
   return (
-    <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
+    <SettingContainer theme={theme} style={{ background: 'transparent' }}>
       <SettingTitle>
         <Flex align="center" gap={5}>
           <ProviderName>{provider.isSystem ? t(`provider.${provider.id}`) : provider.name}</ProviderName>

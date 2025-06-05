@@ -541,7 +541,6 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   height: 100%;
-  background-color: var(--color-background);
   overflow: hidden;
 `
 
@@ -551,7 +550,6 @@ const LeftContainer = styled(Scrollbar)`
   flex-direction: column;
   height: 100%;
   padding: 20px;
-  background-color: var(--color-background);
   max-width: var(--assistants-width);
   border-right: 0.5px solid var(--color-border);
 `
@@ -561,7 +559,6 @@ const MainContainer = styled.div`
   flex: 1;
   flex-direction: column;
   height: 100%;
-  background-color: var(--color-background);
 `
 
 const InputContainer = styled.div`

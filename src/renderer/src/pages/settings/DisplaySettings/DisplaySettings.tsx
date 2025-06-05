@@ -24,6 +24,7 @@ import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import SidebarIconsManager from './SidebarIconsManager'
+import UserThemeSettings from './UserThemeSettings'
 
 const ColorCircleWrapper = styled.div`
   width: 24px;
@@ -232,6 +233,7 @@ const DisplaySettings: FC = () => {
           </ZoomButtonGroup>
         </SettingRow>
       </SettingGroup>
+      <UserThemeSettings />
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />

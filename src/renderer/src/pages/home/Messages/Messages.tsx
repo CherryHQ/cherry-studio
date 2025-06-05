@@ -373,7 +373,6 @@ const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   flex-direction: column-reverse;
   padding: 10px 0 20px;
   overflow-x: hidden;
-  background-color: var(--color-background);
   z-index: 1;
   margin-right: 2px;
 `

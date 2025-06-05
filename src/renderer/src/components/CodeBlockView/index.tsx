@@ -285,6 +285,7 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
 
 const SplitViewWrapper = styled.div`
   display: flex;
+  border-radius: 0 0 10px 10px;
 
   > * {
     flex: 1 1 auto;

@@ -106,7 +106,14 @@ const HomeTabs: FC<Props> = ({
       {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
         <Segmented
           value={tab}
-          style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
+          style={{
+            borderRadius: 16,
+            paddingTop: 10,
+            margin: '0 10px',
+            gap: 2,
+            background: 'none',
+            backdropFilter: 'none'
+          }}
           options={
             [
               (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
@@ -149,7 +156,7 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
-  background-color: var(--color-background);
+  height: calc(100vh - var(--navbar-height));
   overflow: hidden;
   .collapsed {
     width: 0;

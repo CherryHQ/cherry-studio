@@ -1,5 +1,6 @@
 import { CopyOutlined } from '@ant-design/icons'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import CustomTag from '@renderer/components/CustomTag'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import { FileType, KnowledgeBase } from '@renderer/types'
@@ -84,7 +85,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
 
   return (
     <Modal
-      title={t('knowledge.search')}
+      title={t('knowledge.search') + ` - ${base.name}`}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -111,6 +112,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           ) : (
             <List
               dataSource={results}
+              split={false}
               renderItem={(item) => (
                 <List.Item>
                   <ResultItem>
@@ -134,7 +136,13 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                           item.metadata.source
                         )}
                       </Text>
+                      <CustomTag color="#68B76F" size={13}>
+                        Score: {(item.score * 100).toFixed(1)}%
+                      </CustomTag>
                     </MetadataContainer>
+                    <ResultContent>
+                      <Paragraph style={{ userSelect: 'text' }}>{highlightText(item.pageContent)}</Paragraph>
+                    </ResultContent>
                   </ResultItem>
                 </List.Item>
               )}
@@ -167,8 +175,6 @@ const LoadingContainer = styled.div`
 const ResultItem = styled.div`
   width: 100%;
   position: relative;
-  padding: 16px;
-  background: var(--color-background-soft);
   border-radius: 8px;
 `
 
@@ -208,10 +214,18 @@ const CopyButton = styled.div`
 `
 
 const MetadataContainer = styled.div`
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--color-border);
   user-select: text;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`
+
+const ResultContent = styled.div`
+  padding: 16px;
+  user-select: text;
+  background-color: var(--color-background-soft);
+  border-radius: 8px;
+  margin-top: 16px;
 `
 
 const TopViewKey = 'KnowledgeSearchPopup'

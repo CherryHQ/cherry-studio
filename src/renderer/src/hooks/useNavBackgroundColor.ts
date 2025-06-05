@@ -11,7 +11,7 @@ function useNavBackgroundColor() {
     return 'transparent'
   }
 
-  return 'var(--navbar-background)'
+  return 'transparent'
 }
 
 export default useNavBackgroundColor

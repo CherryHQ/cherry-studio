@@ -43,6 +43,8 @@ const NavbarContainer = styled.div`
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
   padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
   -webkit-app-region: drag;
+  position: relative;
+  z-index: 10;
 `
 
 const NavbarLeftContainer = styled.div`

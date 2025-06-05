@@ -920,7 +920,6 @@ const InputBarContainer = styled.div`
   margin-top: 0;
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
-  background-color: var(--color-background-opacity);
 
   &.file-dragging {
     border: 2px dashed #2ecc71;

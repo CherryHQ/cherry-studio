@@ -108,10 +108,11 @@
   p code,
   li code {
     background: var(--color-background-mute);
-    padding: 3px 5px;
+    padding: 2px 3px;
     border-radius: 5px;
     word-break: keep-all;
     white-space: pre;
+    font-size: 90%;
   }
 
   code {
@@ -119,7 +120,7 @@
   }
 
   pre {
-    border-radius: 5px;
+    border-radius: 10px;
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
@@ -136,6 +137,7 @@
     }
     pre {
       margin: 0 !important;
+      border-radius: inherit;
       code {
         background: none;
         padding: 0;
@@ -157,15 +159,28 @@
   }
 
   table {
-    border-collapse: collapse;
+    --table-border-radius: 10px;
     margin: 1em 0;
     width: 100%;
+    border-radius: var(--table-border-radius);
+    overflow: hidden;
+    border-collapse: separate;
+    border: 0.5px solid var(--color-border);
+    border-spacing: 0;
   }
 
   th,
   td {
-    border: 0.5px solid var(--color-border);
+    border-right: 0.5px solid var(--color-border);
+    border-bottom: 0.5px solid var(--color-border);
     padding: 0.5em;
+    &:last-child {
+      border-right: none;
+    }
+  }
+
+  tr:last-child td {
+    border-bottom: none;
   }
 
   th {

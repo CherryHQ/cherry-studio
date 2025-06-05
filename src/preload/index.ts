@@ -27,6 +27,8 @@ const api = {
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
+  setNativeThemeSource: (source: 'system' | 'light' | 'dark') =>
+    ipcRenderer.invoke(IpcChannel.App_SetNativeThemeSource, source),
   notification: {
     send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)
   },

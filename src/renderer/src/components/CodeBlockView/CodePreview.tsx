@@ -233,8 +233,7 @@ const ContentContainer = styled.div<{
 }>`
   position: relative;
   overflow: auto;
-  border: 0.5px solid transparent;
-  border-radius: 5px;
+  border-radius: inherit;
   margin-top: 0;
 
   .shiki {

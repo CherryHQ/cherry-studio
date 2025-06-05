@@ -34,7 +34,8 @@ const Container = styled.div<{ $isDark: boolean }>`
   margin: 5px 20px 0 20px;
   border-radius: 10px;
   cursor: pointer;
-  border: 1px solid var(--color-border);
+  border: 0 solid var(--color-border);
+  background-color: var(--color-background-soft);
 `
 
 const Text = styled.div`
