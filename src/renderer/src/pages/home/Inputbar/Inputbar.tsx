@@ -723,48 +723,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [])
 
   const onToggleExpended = () => {
-    if (textareaHeight) {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        setTextareaHeight(undefined)
-        setTimeout(() => {
-          textArea.style.height = `${textArea.scrollHeight}px`
-        }, 200)
-        return
-      }
-    }
-
-    const isExpended = !expended
-    setExpend(isExpended)
+    const currentlyExpanded = expended || !!textareaHeight
+    const shouldExpand = !currentlyExpanded
+    setExpend(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
-
-    if (textArea) {
-      if (isExpended) {
-        textArea.style.height = '70vh'
-      } else {
-        resetHeight()
-      }
+    if (!textArea) return
+    if (shouldExpand) {
+      textArea.style.height = '70vh'
+      setTextareaHeight(window.innerHeight * 0.7)
+    } else {
+      textArea.style.height = 'auto'
+      setTextareaHeight(undefined)
+      requestAnimationFrame(() => {
+        if (textArea) {
+          const contentHeight = textArea.scrollHeight
+          textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+        }
+      })
     }
 
     textareaRef.current?.focus()
-  }
-
-  const resetHeight = () => {
-    if (expended) {
-      setExpend(false)
-    }
-
-    setTextareaHeight(undefined)
-
-    requestAnimationFrame(() => {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        const contentHeight = textArea.scrollHeight
-        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
-      }
-    })
   }
 
   const isExpended = expended || !!textareaHeight
@@ -921,6 +899,8 @@ const InputBarContainer = styled.div`
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
+  display: flex;
+  flex-direction: column;
 
   &.file-dragging {
     border: 2px dashed #2ecc71;
@@ -954,6 +934,7 @@ const Textarea = styled(TextArea)`
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
+  transition: height 0.2s ease;
   &.ant-input {
     line-height: 1.4;
   }
@@ -968,6 +949,9 @@ const Toolbar = styled.div`
   margin-bottom: 4px;
   height: 30px;
   gap: 16px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
 `
 
 const ToolbarMenu = styled.div`
