@@ -3,25 +3,15 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { ThemeMode } from '@renderer/types'
-import { ColorPicker, Image, Segmented, Slider, Tooltip, Upload } from 'antd'
+import { Image, Segmented, Slider, Tooltip, Upload } from 'antd'
 import { Info } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC } from 'react'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const UserThemeSettings: FC = () => {
   const { theme, userTheme } = useSettings()
   const { setUserTheme } = useUserTheme()
-
-  const handleColorPrimaryChange = useCallback(
-    (colorHex: string) => {
-      setUserTheme({
-        ...userTheme,
-        colorPrimary: colorHex
-      })
-    },
-    [setUserTheme, userTheme]
-  )
 
   const handleBackgroundImageChange = async (file: File) => {
     await ImageStorage.set('background', file)
@@ -37,22 +27,6 @@ const UserThemeSettings: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>主题设置</SettingTitle>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>主题色</SettingRowTitle>
-        <ColorPicker
-          className="color-picker"
-          value={userTheme.colorPrimary}
-          onChange={(color) => handleColorPrimaryChange(color.toHexString())}
-          showText
-          presets={[
-            {
-              label: 'Presets',
-              colors: ['#007BFF', '#F74F9E', '#FF5257', '#F7821B', '#FFC600', '#62BA46', '#000000']
-            }
-          ]}
-        />
-      </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>背景设置</SettingRowTitle>
