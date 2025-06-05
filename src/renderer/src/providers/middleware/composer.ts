@@ -157,7 +157,7 @@ export function applyCompletionsMiddlewares<
   ): CompletionsContext => {
     return {
       ...base,
-      methodName: 'completions',
+      methodName,
       apiClientInstance: originalApiClientInstance,
       originalArgs: callArgs,
       _internal: {

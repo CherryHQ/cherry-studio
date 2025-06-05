@@ -30,7 +30,6 @@ export default class AiProvider {
     if (!params.enableWebSearch) {
       builder.remove(WebSearchMiddlewareName)
     }
-    console.log('params.onChunk', params.onChunk)
     if (!params.mcpTools?.length) {
       builder.remove(ToolUseExtractionMiddlewareName)
     }
