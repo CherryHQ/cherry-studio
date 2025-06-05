@@ -9,6 +9,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import i18n from '@renderer/i18n'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
@@ -19,7 +20,7 @@ import {
   Folder,
   Languages,
   LayoutGrid,
-  MessageSquareQuote,
+  MessageSquare,
   Moon,
   Palette,
   Settings,
@@ -62,10 +63,11 @@ const Sidebar: FC = () => {
 
   const docsId = 'cherrystudio-docs'
   const onOpenDocs = () => {
+    const isChinese = i18n.language.startsWith('zh')
     openMinapp({
       id: docsId,
       name: t('docs.title'),
-      url: 'https://docs.cherry-ai.com/',
+      url: isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us',
       logo: AppLogo
     })
   }
@@ -147,7 +149,7 @@ const MainMenus: FC = () => {
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
-    assistants: <MessageSquareQuote size={18} className="icon" />,
+    assistants: <MessageSquare size={18} className="icon" />,
     agents: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,

@@ -644,8 +644,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
               break
             }
-          } else {
-            yield { type: 'unknown', chunk }
           }
         }
       }

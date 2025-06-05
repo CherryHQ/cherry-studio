@@ -3,29 +3,21 @@ import CopyButton from '@renderer/components/CopyButton'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
 import {
   getAssistantById,
   getDefaultAssistant,
   getDefaultModel,
   getDefaultTopic
 } from '@renderer/services/AssistantService'
-import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store from '@renderer/store'
-import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
-import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { abortCompletion } from '@renderer/utils/abortController'
-import { isAbortError } from '@renderer/utils/error'
-import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { ChevronDown } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 
 interface Props {
@@ -101,110 +93,40 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     promptContentRef.current = userContent
   }, [action, language])
 
-  const allMessages = useTopicMessages(topicRef.current?.id || '')
-
-  const fetchResult = useCallback(async () => {
-    if (!assistantRef.current || !topicRef.current) return
-
-    try {
-      const { message: userMessage, blocks: userBlocks } = getUserMessage({
-        assistant: assistantRef.current,
-        topic: topicRef.current,
-        content: promptContentRef.current
-      })
-
-      askId.current = userMessage.id
-
-      store.dispatch(newMessagesActions.addMessage({ topicId: topicRef.current.id, message: userMessage }))
-      store.dispatch(upsertManyBlocks(userBlocks))
-
-      let blockId: string | null = null
-      let blockContent: string = ''
-
-      const assistantMessage = getAssistantMessage({
-        assistant: assistantRef.current,
-        topic: topicRef.current
-      })
-      store.dispatch(
-        newMessagesActions.addMessage({
-          topicId: topicRef.current.id,
-          message: assistantMessage
-        })
-      )
-
-      await fetchChatCompletion({
-        messages: [userMessage],
-        assistant: assistantRef.current,
-        onChunkReceived: (chunk: Chunk) => {
-          switch (chunk.type) {
-            case ChunkType.THINKING_DELTA:
-            case ChunkType.THINKING_COMPLETE:
-              //TODO
-              break
-            case ChunkType.TEXT_DELTA:
-              {
-                setIsContented(true)
-                blockContent += chunk.text
-                if (!blockId) {
-                  const block = createMainTextBlock(assistantMessage.id, chunk.text, {
-                    status: MessageBlockStatus.STREAMING
-                  })
-                  blockId = block.id
-                  store.dispatch(
-                    newMessagesActions.updateMessage({
-                      topicId: topicRef.current!.id,
-                      messageId: assistantMessage.id,
-                      updates: { blockInstruction: { id: block.id } }
-                    })
-                  )
-                  store.dispatch(upsertOneBlock(block))
-                } else {
-                  store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
-                }
-
-                scrollToBottom?.()
-              }
-              break
-            case ChunkType.TEXT_COMPLETE:
-              {
-                blockId &&
-                  store.dispatch(
-                    updateOneBlock({
-                      id: blockId,
-                      changes: { status: MessageBlockStatus.SUCCESS }
-                    })
-                  )
-                store.dispatch(
-                  newMessagesActions.updateMessage({
-                    topicId: topicRef.current!.id,
-                    messageId: assistantMessage.id,
-                    updates: { status: AssistantMessageStatus.SUCCESS }
-                  })
-                )
-                setContentToCopy(chunk.text)
-              }
-              break
-            case ChunkType.BLOCK_COMPLETE:
-            case ChunkType.ERROR:
-              setIsLoading(false)
-              break
-          }
-        }
-      })
-    } catch (err) {
-      if (isAbortError(err)) return
-      setIsLoading(false)
-      setError(err instanceof Error ? err.message : 'An error occurred')
-      console.error('Error fetching result:', err)
+  const fetchResult = useCallback(() => {
+    const setAskId = (id: string) => {
+      askId.current = id
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    const onStream = () => {
+      setIsContented(true)
+      scrollToBottom?.()
+    }
+    const onFinish = (content: string) => {
+      setContentToCopy(content)
+      setIsLoading(false)
+    }
+    const onError = (error: Error) => {
+      setIsLoading(false)
+      setError(error.message)
+    }
+
+    if (!assistantRef.current || !topicRef.current) return
+    processMessages(
+      assistantRef.current,
+      topicRef.current,
+      promptContentRef.current,
+      setAskId,
+      onStream,
+      onFinish,
+      onError
+    )
+  }, [scrollToBottom])
 
   useEffect(() => {
-    if (assistantRef.current && topicRef.current) {
-      fetchResult()
-    }
+    fetchResult()
   }, [fetchResult])
+
+  const allMessages = useTopicMessages(topicRef.current?.id || '')
 
   // Memoize the messages to prevent unnecessary re-renders
   const messageContent = useMemo(() => {

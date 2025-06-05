@@ -172,7 +172,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   }
 
   return (
-    <EditorContainer onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+    <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       {editedBlocks
         .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
         .map((block) => (

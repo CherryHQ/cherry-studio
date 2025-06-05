@@ -157,9 +157,11 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
 
     if (customCss) {
+      const newCustomCss = customCss.replace(/background(-image|-color)?\s*:[^;]+;/gi, '')
+
       customCssElement = document.createElement('style')
       customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = customCss
+      customCssElement.textContent = newCustomCss
       document.head.appendChild(customCssElement)
     }
   }, [customCss])
