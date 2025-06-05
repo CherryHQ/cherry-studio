@@ -571,6 +571,16 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
             if (time_first_token_millsec === 0) {
               time_first_token_millsec = new Date().getTime()
             }
+            // Insert separation between summary parts
+            if (thinkContent.length > 0) {
+              const separator = '\n\n'
+              onChunk({
+                type: ChunkType.THINKING_DELTA,
+                text: separator,
+                thinking_millsec: new Date().getTime() - time_first_token_millsec
+              })
+              thinkContent += separator
+            }
             break
           case 'response.reasoning_summary_text.delta':
             onChunk({
