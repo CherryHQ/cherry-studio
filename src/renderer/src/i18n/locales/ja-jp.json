@@ -1736,6 +1736,7 @@
         "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
       },
       "general.auto_check_update.title": "自動更新",
+      "general.check_beta_update.title": "ベータ版更新を確認する",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",

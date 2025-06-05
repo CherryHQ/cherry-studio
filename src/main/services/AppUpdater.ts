@@ -91,6 +91,21 @@ export default class AppUpdater {
     }
   }
 
+  public async checkForBetaUpdates() {
+    const prevAllowPrerelease = this.autoUpdater.allowPrerelease
+    const prevChannel = this.autoUpdater.channel
+
+    this.autoUpdater.allowPrerelease = true
+    this.autoUpdater.channel = 'beta'
+
+    const result = await this.checkForUpdates()
+
+    this.autoUpdater.allowPrerelease = prevAllowPrerelease
+    this.autoUpdater.channel = prevChannel
+
+    return result
+  }
+
   public async showUpdateDialog(mainWindow: BrowserWindow) {
     if (!this.releaseInfo) {
       return

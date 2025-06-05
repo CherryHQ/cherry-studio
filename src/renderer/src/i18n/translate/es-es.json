@@ -1610,6 +1610,7 @@
       "assistant.icon.type.emoji": "Emoji",
       "assistant.icon.type.none": "No mostrar",
       "general.auto_check_update.title": "Actualización automática",
+      "general.check_beta_update.title": "Buscar actualizaciones beta",
       "input.show_translate_confirm": "Mostrar diálogo de confirmación de traducción",
       "messages.prompt": "Palabra de indicación",
       "messages.input.enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",

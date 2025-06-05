@@ -16,6 +16,7 @@ export enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
+  CheckBetaUpdate = 'checkBetaUpdate',
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
@@ -139,6 +140,14 @@ export class ConfigManager {
 
   setAutoUpdate(value: boolean) {
     this.set(ConfigKeys.AutoUpdate, value)
+  }
+
+  getCheckBetaUpdate(): boolean {
+    return this.get<boolean>(ConfigKeys.CheckBetaUpdate, false)
+  }
+
+  setCheckBetaUpdate(value: boolean) {
+    this.set(ConfigKeys.CheckBetaUpdate, value)
   }
 
   getEnableDataCollection(): boolean {

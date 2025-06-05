@@ -1613,6 +1613,7 @@
       "assistant.icon.type.emoji": "Emoji",
       "assistant.icon.type.none": "Não mostrar",
       "general.auto_check_update.title": "Atualização automática",
+      "general.check_beta_update.title": "Verificar atualizações Beta",
       "input.show_translate_confirm": "Mostrar diálogo de confirmação de tradução",
       "messages.prompt": "Exibir palavra-chave",
       "messages.input.enable_quick_triggers": "Ativar menu rápido com '/' e '@'",

@@ -1611,6 +1611,7 @@
       "assistant.icon.type.emoji": "Emoji",
       "assistant.icon.type.none": "Ne pas afficher",
       "general.auto_check_update.title": "Mise à jour automatique",
+      "general.check_beta_update.title": "Vérifier les mises à jour bêta",
       "input.show_translate_confirm": "Afficher la boîte de dialogue de confirmation de traduction",
       "messages.prompt": "Mot-clé d'affichage",
       "messages.input.enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",

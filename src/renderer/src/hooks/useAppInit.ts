@@ -19,7 +19,16 @@ import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const { proxyUrl, language, windowStyle, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
+  const {
+    proxyUrl,
+    language,
+    windowStyle,
+    autoCheckUpdate,
+    checkBetaUpdate,
+    proxyMode,
+    customCss,
+    enableDataCollection
+  } = useSettings()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -42,11 +51,13 @@ export function useAppInit() {
       const { isPackaged } = await window.api.getAppInfo()
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
-        const { updateInfo } = await window.api.checkForUpdate()
+        const { updateInfo } = checkBetaUpdate
+          ? await window.api.checkForBetaUpdate()
+          : await window.api.checkForUpdate()
         dispatch(setUpdateState({ info: updateInfo }))
       }
     })
-  }, [dispatch, autoCheckUpdate])
+  }, [dispatch, autoCheckUpdate, checkBetaUpdate])
 
   useEffect(() => {
     if (proxyMode === 'system') {

@@ -111,6 +111,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     appUpdater.setAutoUpdate(isActive)
     configManager.setAutoUpdate(isActive)
   })
+  ipcMain.handle(IpcChannel.App_SetCheckBetaUpdate, (_, isActive: boolean) => {
+    configManager.setCheckBetaUpdate(isActive)
+  })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
     configManager.set(key, value, isNotify)
@@ -171,6 +174,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
     return await appUpdater.checkForUpdates()
+  })
+  ipcMain.handle(IpcChannel.App_CheckForBetaUpdate, async () => {
+    return await appUpdater.checkForBetaUpdates()
   })
 
   // notification

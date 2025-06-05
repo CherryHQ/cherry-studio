@@ -4,6 +4,7 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setCheckBetaUpdate as _setCheckBetaUpdate,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -55,6 +56,11 @@ export function useSettings() {
     setAutoCheckUpdate(isAutoUpdate: boolean) {
       dispatch(_setAutoCheckUpdate(isAutoUpdate))
       window.api.setAutoUpdate(isAutoUpdate)
+    },
+
+    setCheckBetaUpdate(isBeta: boolean) {
+      dispatch(_setCheckBetaUpdate(isBeta))
+      window.api.setCheckBetaUpdate(isBeta)
     },
 
     setTheme(theme: ThemeMode) {

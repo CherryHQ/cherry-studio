@@ -1611,6 +1611,7 @@
       "assistant.icon.type.emoji": "Emoji",
       "assistant.icon.type.none": "Κανένα",
       "general.auto_check_update.title": "Αυτόματη ενημέρωση",
+      "general.check_beta_update.title": "Έλεγχος beta ενημερώσεων",
       "input.show_translate_confirm": "Εμφάνιση παραθύρου επιβεβαίωσης μετάφρασης",
       "messages.prompt": "Λήμμα προτροπής",
       "messages.input.enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",

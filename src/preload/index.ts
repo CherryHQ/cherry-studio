@@ -14,6 +14,7 @@ const api = {
   reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
   setProxy: (proxy: string | undefined) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
+  checkForBetaUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForBetaUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
@@ -24,6 +25,8 @@ const api = {
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
+  setCheckBetaUpdate: (isActive: boolean) =>
+    ipcRenderer.invoke(IpcChannel.App_SetCheckBetaUpdate, isActive),
   openWebsite: (url: string) => ipcRenderer.invoke(IpcChannel.Open_Website, url),
   getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
   clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),

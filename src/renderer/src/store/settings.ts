@@ -66,6 +66,7 @@ export interface SettingsState {
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
+  checkBetaUpdate: boolean
   renderInputMessageAsMarkdown: boolean
   // 代码执行
   codeExecution: {
@@ -212,6 +213,7 @@ export const initialState: SettingsState = {
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
+  checkBetaUpdate: false,
   renderInputMessageAsMarkdown: false,
   codeExecution: {
     enabled: false,
@@ -408,6 +410,9 @@ const settingsSlice = createSlice({
     },
     setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
       state.autoCheckUpdate = action.payload
+    },
+    setCheckBetaUpdate: (state, action: PayloadAction<boolean>) => {
+      state.checkBetaUpdate = action.payload
     },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
@@ -689,6 +694,7 @@ export const {
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
+  setCheckBetaUpdate,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
   setSkipBackupFile,

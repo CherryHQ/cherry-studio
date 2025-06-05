@@ -25,7 +25,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
+  const { autoCheckUpdate, checkBetaUpdate, setAutoCheckUpdate, setCheckBetaUpdate } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -45,7 +45,11 @@ const AboutSettings: FC = () => {
       dispatch(setUpdateState({ checking: true }))
 
       try {
-        await window.api.checkForUpdate()
+        if (checkBetaUpdate) {
+          await window.api.checkForBetaUpdate()
+        } else {
+          await window.api.checkForUpdate()
+        }
       } catch (error) {
         window.message.error(t('settings.about.updateError'))
       }
@@ -160,6 +164,10 @@ const AboutSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+            </SettingRow>
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.check_beta_update.title')}</SettingRowTitle>
+              <Switch value={checkBetaUpdate} onChange={(v) => setCheckBetaUpdate(v)} />
             </SettingRow>
           </>
         )}

@@ -1324,6 +1324,7 @@
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
       "general.auto_check_update.title": "Auto Update",
+      "general.check_beta_update.title": "Check Beta Updates",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
