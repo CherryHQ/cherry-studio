@@ -444,13 +444,25 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
   }
+
+  // 支持两种格式：
+  // 1. 完整的 <tool_use></tool_use> 标签包围的内容
+  // 2. 只有内部内容（从 TagExtractor 提取出来的）
+
+  let contentToProcess = content
+
+  // 如果内容不包含 <tool_use> 标签，说明是从 TagExtractor 提取的内部内容，需要包装
+  if (!content.includes('<tool_use>')) {
+    contentToProcess = `<tool_use>\n${content}\n</tool_use>`
+  }
+
   const toolUsePattern =
     /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
   const tools: ToolUseResponse[] = []
   let match
   let idx = 0
   // Find all tool use blocks
-  while ((match = toolUsePattern.exec(content)) !== null) {
+  while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     // const fullMatch = match[0]
     const toolName = match[2].trim()
     const toolArgs = match[4].trim()

@@ -16,6 +16,7 @@ export enum MiddlewareName {
   TRANSFORM_CORE_TO_SDK_PARAMS = 'TransformCoreToSdkParamsMiddleware',
   REQUEST_EXECUTION = 'RequestExecutionMiddleware',
   SDK_CALL = 'SdkCallMiddleware',
+  RAW_STREAM_LISTENER = 'RawStreamListenerMiddleware',
   STREAM_ADAPTER = 'StreamAdapterMiddleware',
   RESPONSE_TRANSFORM = 'ResponseTransformMiddleware',
   RAW_SDK_CHUNK_TO_APP_CHUNK = 'RawSdkChunkToAppChunkMiddleware',
