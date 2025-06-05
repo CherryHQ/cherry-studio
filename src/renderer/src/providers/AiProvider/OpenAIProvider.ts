@@ -635,7 +635,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             if (delta?.content) {
               yield { type: 'text-delta', textDelta: delta.content }
             }
-            if (delta?.tool_calls) {
+            if (delta?.tool_calls && delta?.tool_calls.length > 0) {
               yield { type: 'tool-calls', delta: delta }
             }
 
@@ -664,7 +664,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       for await (const chunk of readableStreamAsyncIterable(processedStream)) {
         const delta = chunk.type === 'finish' ? chunk.delta : chunk
         const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
-
         switch (chunk.type) {
           case 'reasoning': {
             if (time_first_token_millsec === 0) {
