@@ -386,13 +386,13 @@ const fetchAndProcessAssistantResponseImpl = async (
     }
 
     callbacks = {
-      onLLMResponseCreated: () => {
+      onLLMResponseCreated: async () => {
         const baseBlock = createBaseMessageBlock(assistantMsgId, MessageBlockType.UNKNOWN, {
           status: MessageBlockStatus.PROCESSING
         })
-        handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
+        await handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
       },
-      onTextChunk: (text) => {
+      onTextChunk: async (text) => {
         accumulatedContent += text
         if (lastBlockId) {
           if (lastBlockType === MessageBlockType.UNKNOWN) {
@@ -418,7 +418,7 @@ const fetchAndProcessAssistantResponseImpl = async (
               status: MessageBlockStatus.STREAMING,
               citationReferences: citationBlockId ? [{ citationBlockId }] : []
             })
-            handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
+            await handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
             mainTextBlockId = newBlock.id
           }
         }
@@ -431,7 +431,9 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
           cancelThrottledBlockUpdate(lastBlockId)
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
-          saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState).catch((error) => {
+            console.error(`[onTextComplete] Failed to save block ${lastBlockId} to DB:`, error)
+          })
 
           if (assistant.enableWebSearch && assistant.model?.provider === 'openrouter') {
             const extractedUrls = extractUrlsFromMarkdown(finalText)
@@ -451,7 +453,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           )
         }
       },
-      onThinkingChunk: (text, thinking_millsec) => {
+      onThinkingChunk: async (text, thinking_millsec) => {
         accumulatedThinking += text
         if (lastBlockId) {
           if (lastBlockType === MessageBlockType.UNKNOWN) {
@@ -477,7 +479,7 @@ const fetchAndProcessAssistantResponseImpl = async (
               status: MessageBlockStatus.STREAMING,
               thinking_millsec: 0
             })
-            handleBlockTransition(newBlock, MessageBlockType.THINKING)
+            await handleBlockTransition(newBlock, MessageBlockType.THINKING)
           }
         }
       },
@@ -550,10 +552,10 @@ const fetchAndProcessAssistantResponseImpl = async (
           )
         }
       },
-      onExternalToolInProgress: () => {
+      onExternalToolInProgress: async () => {
         const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
         citationBlockId = citationBlock.id
-        handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
       },
       onExternalToolComplete: (externalToolResult: ExternalToolResult) => {
@@ -569,10 +571,10 @@ const fetchAndProcessAssistantResponseImpl = async (
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
       },
-      onLLMWebSearchInProgress: () => {
+      onLLMWebSearchInProgress: async () => {
         const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
         citationBlockId = citationBlock.id
-        handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
       },
       onLLMWebSearchComplete: async (llmWebSearchResult) => {
@@ -590,7 +592,7 @@ const fetchAndProcessAssistantResponseImpl = async (
             { status: MessageBlockStatus.SUCCESS }
           )
           citationBlockId = citationBlock.id
-          handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+          await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
         if (mainTextBlockId) {
           const state = getState()
