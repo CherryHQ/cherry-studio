@@ -5,6 +5,7 @@ import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
@@ -188,6 +189,9 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         case 'search':
           handleSearch(newAction)
           break
+        case 'quote':
+          handleQuote(newAction)
+          break
         default:
           handleDefaultAction(newAction)
           break
@@ -218,6 +222,17 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     const searchUrl = customUrl.replace('{{queryString}}', encodeURIComponent(action.selectedText || ''))
     window.api?.openWebsite(searchUrl)
     window.api?.selection.hideToolbar()
+  }
+
+  /**
+   * Quote the selected text to the inputbar of the main window
+   */
+  const handleQuote = (action: ActionItem) => {
+    if (action.selectedText) {
+      const quotedText = formatQuotedText(action.selectedText)
+      window.api?.selection.quoteToMainWindow(quotedText)
+      window.api?.selection.hideToolbar()
+    }
   }
 
   const handleDefaultAction = (action: ActionItem) => {

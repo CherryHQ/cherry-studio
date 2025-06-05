@@ -420,6 +420,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, setActiveTopic, setModel])
 
+  const onQuote = useCallback(
+    (quotedText: string) => {
+      setText((prevText) => {
+        const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+        setTimeout(() => resizeTextArea(), 0)
+        return newText
+      })
+      textareaRef.current?.focus()
+    },
+    [resizeTextArea]
+  )
+
   const onPause = async () => {
     await pauseMessages()
   }
@@ -625,17 +637,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
       EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
-      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
-        setText((prevText) => {
-          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-          setTimeout(() => resizeTextArea(), 0)
-          return newText
-        })
-        textareaRef.current?.focus()
-      })
+      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, onQuote)
     ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+
+    // 监听从 selection 窗口发送过来的引用事件
+    const quoteFromSelectionRemover = window.electron?.ipcRenderer.on(
+      'quote-text-from-selection',
+      (_, selectedText: string) => onQuote(selectedText)
+    )
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub())
+      quoteFromSelectionRemover?.()
+    }
+  }, [addNewTopic, onQuote])
 
   useEffect(() => {
     textareaRef.current?.focus()

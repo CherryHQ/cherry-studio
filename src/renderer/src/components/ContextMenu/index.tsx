@@ -1,4 +1,5 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { Dropdown } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,11 +21,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
       e.preventDefault()
       const _selectedText = window.getSelection()?.toString()
       if (_selectedText) {
-        const quotedText =
-          _selectedText
-            .split('\n')
-            .map((line) => `> ${line}`)
-            .join('\n') + '\n-------------'
+        const quotedText = formatQuotedText(_selectedText)
         setSelectedQuoteText(quotedText)
         setContextMenuPosition({ x: e.clientX, y: e.clientY })
         setSelectedText(_selectedText)

@@ -1884,7 +1884,8 @@
           "summary": "要約",
           "search": "検索",
           "refine": "最適化",
-          "copy": "コピー"
+          "copy": "コピー",
+          "quote": "引用"
         },
         "window": {
           "pin": "最前面に固定",

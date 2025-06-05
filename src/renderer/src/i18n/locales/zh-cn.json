@@ -1884,7 +1884,8 @@
           "summary": "总结",
           "search": "搜索",
           "refine": "优化",
-          "copy": "复制"
+          "copy": "复制",
+          "quote": "引用"
         },
         "window": {
           "pin": "置顶",

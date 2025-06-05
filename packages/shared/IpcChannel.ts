@@ -194,5 +194,6 @@ export enum IpcChannel {
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data'
+  Selection_UpdateActionData = 'selection:update-action-data',
+  Selection_QuoteToMainWindow = 'selection:quote-to-main-window'
 }

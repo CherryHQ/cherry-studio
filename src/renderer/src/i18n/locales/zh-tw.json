@@ -1884,7 +1884,8 @@
           "summary": "總結",
           "search": "搜尋",
           "refine": "優化",
-          "copy": "複製"
+          "copy": "複製",
+          "quote": "引用"
         },
         "window": {
           "pin": "置頂",
