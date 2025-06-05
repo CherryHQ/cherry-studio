@@ -1060,6 +1060,8 @@
         "app_data.copy_failed": "Failed to copy data",
         "app_data.select_success": "Data directory changed, the app will restart to apply changes",
         "app_data.select_error": "Failed to change data directory",
+        "app_data.migration_title": "Data Migration",
+        "app_data.original_path": "Original Path",
         "app_data.new_path": "New Path",
         "app_data.select_error_root_path": "New path cannot be the root path",
         "app_data.select_error_write_permission": "New path does not have write permission",

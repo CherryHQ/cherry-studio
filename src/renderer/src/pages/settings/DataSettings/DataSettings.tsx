@@ -284,6 +284,7 @@ const DataSettings: FC = () => {
             // 通知用户并重启应用
             setTimeout(() => {
               window.message.success(t('settings.data.app_data.select_success'))
+              window.api.setStopQuitApp(false, '')
               window.api.relaunchApp()
             }, 1000)
           } catch (error) {
@@ -294,12 +295,11 @@ const DataSettings: FC = () => {
             throw error
           }
         } catch (error) {
+          window.api.setStopQuitApp(false, '')
           window.message.error({
             content: t('settings.data.app_data.copy_failed') + ': ' + error,
             duration: 5
           })
-        } finally {
-          window.api.setStopQuitApp(false, '')
         }
       }
     })
