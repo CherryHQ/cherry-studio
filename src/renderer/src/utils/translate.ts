@@ -84,7 +84,14 @@ export const detectLanguage = async (inputText: string): Promise<string> => {
       deu: 'de',
       ita: 'it',
       por: 'pt',
-      eng: 'en'
+      eng: 'en',
+      pol: 'pl',
+      tur: 'tr',
+      tha: 'th',
+      vie: 'vi',
+      ind: 'id',
+      urd: 'ur',
+      zsm: 'ms'
     }
     code = isoMap[iso3] || 'en'
   }
@@ -101,7 +108,14 @@ export const detectLanguage = async (inputText: string): Promise<string> => {
     it: 'italian',
     pt: 'portuguese',
     ar: 'arabic',
-    en: 'english'
+    en: 'english',
+    pl: 'polish',
+    tr: 'turkish',
+    th: 'thai',
+    vi: 'vietnamese',
+    id: 'indonesian',
+    ur: 'urdu',
+    ms: 'malay'
   }
 
   return languageMap[code] || 'english'

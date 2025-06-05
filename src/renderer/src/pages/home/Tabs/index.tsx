@@ -58,6 +58,7 @@ const HomeTabs: FC<Props> = ({
   const assistantTab = {
     label: t('assistants.abbr'),
     value: 'assistants'
+    // icon: <BotIcon size={16} />
   }
 
   const onCreateAssistant = async () => {
@@ -104,28 +105,35 @@ const HomeTabs: FC<Props> = ({
   return (
     <Container style={{ ...border, ...style }} className="home-tabs">
       {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
-        <Segmented
-          value={tab}
-          style={{ borderRadius: 16, paddingTop: 10, margin: '0 10px', gap: 2 }}
-          options={
-            [
-              (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
-                ? assistantTab
-                : undefined,
-              {
-                label: t('common.topics'),
-                value: 'topic'
-              },
-              {
-                label: t('settings.title'),
-                value: 'settings'
-              }
-            ].filter(Boolean) as SegmentedProps['options']
-          }
-          onChange={(value) => setTab(value as 'topic' | 'settings')}
-          block
-        />
+        <>
+          <Segmented
+            value={tab}
+            style={{ borderRadius: 50 }}
+            shape="round"
+            options={
+              [
+                (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
+                  ? assistantTab
+                  : undefined,
+                {
+                  label: t('common.topics'),
+                  value: 'topic'
+                  // icon: <MessageSquareQuote size={16} />
+                },
+                {
+                  label: t('settings.title'),
+                  value: 'settings'
+                  // icon: <SettingsIcon size={16} />
+                }
+              ].filter(Boolean) as SegmentedProps['options']
+            }
+            onChange={(value) => setTab(value as 'topic' | 'settings')}
+            block
+          />
+          <Divider />
+        </>
       )}
+
       <TabContent className="home-tabs-content">
         {tab === 'assistants' && (
           <Assistants
@@ -149,7 +157,7 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
-  background-color: var(--color-background);
+  background-color: transparent;
   overflow: hidden;
   .collapsed {
     width: 0;
@@ -165,14 +173,21 @@ const TabContent = styled.div`
   overflow-x: hidden;
 `
 
+const Divider = styled.div`
+  border-top: 0.5px solid var(--color-border);
+  margin-top: 10px;
+  margin-left: 10px;
+  margin-right: 10px;
+`
+
 const Segmented = styled(AntSegmented)`
   font-family: var(--font-family);
 
   &.ant-segmented {
     background-color: transparent;
-    border-radius: 0 !important;
-    border-bottom: 0.5px solid var(--color-border);
-    padding-bottom: 10px;
+    margin: 0 10px;
+    margin-top: 10px;
+    padding: 0;
   }
   .ant-segmented-item {
     overflow: hidden;
@@ -184,10 +199,10 @@ const Segmented = styled(AntSegmented)`
     border-radius: var(--list-item-border-radius);
     box-shadow: none;
   }
-  .ant-segmented-item-selected {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+  .ant-segmented-item-selected,
+  .ant-segmented-item-selected:active {
     transition: none !important;
+    background-color: var(--color-list-item);
   }
   .ant-segmented-item-label {
     align-items: center;
@@ -200,25 +215,17 @@ const Segmented = styled(AntSegmented)`
   .ant-segmented-item-label[aria-selected='true'] {
     color: var(--color-text);
   }
-  .iconfont {
-    font-size: 13px;
-    margin-left: -2px;
-  }
-  .anticon-setting {
-    font-size: 12px;
-  }
   .icon-business-smart-assistant {
     margin-right: -2px;
   }
-  .ant-segmented-item-icon + * {
-    margin-left: 4px;
-  }
   .ant-segmented-thumb {
     transition: none !important;
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-list-item);
     border-radius: var(--list-item-border-radius);
     box-shadow: none;
+    &:hover {
+      background-color: transparent;
+    }
   }
   .ant-segmented-item-label,
   .ant-segmented-item-icon {

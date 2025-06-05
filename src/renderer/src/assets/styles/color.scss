@@ -26,6 +26,7 @@
   --color-primary-mute: #00b96b33;
 
   --color-text: var(--color-text-1);
+  --color-text-secondary: rgba(235, 235, 245, 0.7);
   --color-icon: #ffffff99;
   --color-icon-white: #ffffff;
   --color-border: #ffffff19;
@@ -42,6 +43,9 @@
   --color-reference: #404040;
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
+
+  --color-list-item: #222;
+  --color-list-item-hover: #1e1e1e;
 
   --modal-background: #1f1f1f;
 
@@ -67,7 +71,7 @@
   --chat-background-assistant: #2c2c2c;
   --chat-text-user: var(--color-black);
 
-  --list-item-border-radius: 16px;
+  --list-item-border-radius: 20px;
 }
 
 [theme-mode='light'] {
@@ -98,6 +102,7 @@
   --color-primary-mute: #00b96b33;
 
   --color-text: var(--color-text-1);
+  --color-text-secondary: rgba(0, 0, 0, 0.75);
   --color-icon: #00000099;
   --color-icon-white: #000000;
   --color-border: #00000019;
@@ -114,6 +119,9 @@
   --color-reference: #cfe1ff;
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
+
+  --color-list-item: #eee;
+  --color-list-item-hover: #f5f5f5;
 
   --modal-background: var(--color-white);
 

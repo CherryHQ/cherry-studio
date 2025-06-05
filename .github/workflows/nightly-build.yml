@@ -53,7 +53,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: main
 
       - name: Install Node.js
         uses: actions/setup-node@v4

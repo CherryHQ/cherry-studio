@@ -45,6 +45,13 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           },
           Tooltip: {
             fontSize: 13
+          },
+          ColorPicker: {
+            fontFamily: 'var(--code-font-family)'
+          },
+          Segmented: {
+            itemActiveBg: 'var(--color-background-mute)',
+            itemHoverBg: 'var(--color-background-mute)'
           }
         },
         token: {

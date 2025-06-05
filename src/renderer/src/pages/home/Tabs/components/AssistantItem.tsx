@@ -383,23 +383,18 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 8px;
   height: 37px;
   position: relative;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
   width: calc(var(--assistants-width) - 20px);
   cursor: pointer;
-  .iconfont {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
   &:hover {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-list-item-hover);
   }
   &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-list-item);
   }
 `
 

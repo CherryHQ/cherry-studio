@@ -571,6 +571,16 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
             if (time_first_token_millsec === 0) {
               time_first_token_millsec = new Date().getTime()
             }
+            // Insert separation between summary parts
+            if (thinkContent.length > 0) {
+              const separator = '\n\n'
+              onChunk({
+                type: ChunkType.THINKING_DELTA,
+                text: separator,
+                thinking_millsec: new Date().getTime() - time_first_token_millsec
+              })
+              thinkContent += separator
+            }
             break
           case 'response.reasoning_summary_text.delta':
             onChunk({
@@ -944,28 +954,32 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-    if (stream) {
-      const response = await this.sdk.responses.create({
-        model: model.id,
-        input: [{ role: 'user', content: 'hi' }],
-        stream: true
-      })
-      for await (const chunk of response) {
-        if (chunk.type === 'response.output_text.delta') {
-          return { valid: true, error: null }
+    try {
+      if (stream) {
+        const response = await this.sdk.responses.create({
+          model: model.id,
+          input: [{ role: 'user', content: 'hi' }],
+          stream: true
+        })
+        for await (const chunk of response) {
+          if (chunk.type === 'response.output_text.delta') {
+            return { valid: true, error: null }
+          }
         }
+        return { valid: false, error: new Error('No streaming response') }
+      } else {
+        const response = await this.sdk.responses.create({
+          model: model.id,
+          input: [{ role: 'user', content: 'hi' }],
+          stream: false
+        })
+        if (!response.output_text) {
+          return { valid: false, error: new Error('No response') }
+        }
+        return { valid: true, error: null }
       }
-      throw new Error('Empty streaming response')
-    } else {
-      const response = await this.sdk.responses.create({
-        model: model.id,
-        input: [{ role: 'user', content: 'hi' }],
-        stream: false
-      })
-      if (!response.output_text) {
-        throw new Error('Empty response')
-      }
-      return { valid: true, error: null }
+    } catch (error: any) {
+      return { valid: false, error: error }
     }
   }
 
