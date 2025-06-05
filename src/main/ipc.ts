@@ -28,6 +28,7 @@ import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
+import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -39,6 +40,7 @@ const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const obsidianVaultService = new ObsidianVaultService()
+const vertexAIService = VertexAIService.getInstance()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -266,6 +268,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     if (width < 1080) {
       mainWindow?.setSize(1080, height)
     }
+  })
+
+  // VertexAI
+  ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
+    return vertexAIService.getAuthHeaders(params)
+  })
+
+  ipcMain.handle(IpcChannel.VertexAI_ClearAuthCache, async (_, projectId: string, clientEmail?: string) => {
+    vertexAIService.clearAuthCache(projectId, clientEmail)
   })
 
   // mini window

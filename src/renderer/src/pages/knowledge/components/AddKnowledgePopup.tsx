@@ -107,7 +107,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           return
         }
 
-        const aiProvider = new AiProvider(provider)
+        const aiProvider = await AiProvider.create(provider)
         let dimensions = 0
 
         try {
@@ -132,7 +132,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           version: 1
         }
 
-        await window.api.knowledgeBase.create(getKnowledgeBaseParams(newBase))
+        await window.api.knowledgeBase.create(await getKnowledgeBaseParams(newBase))
 
         addKnowledgeBase(newBase as any)
         setOpen(false)

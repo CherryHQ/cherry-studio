@@ -1006,7 +1006,8 @@
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
       "qiniu": "七牛云 AI 推理",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "vertexai": "Vertex AI"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -1646,6 +1647,27 @@
         },
         "openai": {
           "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
+        },
+        "vertex_ai": {
+          "project_id": "プロジェクトID",
+          "project_id_placeholder": "your-google-cloud-project-id",
+          "project_id_help": "Google CloudプロジェクトID",
+          "location": "場所",
+          "location_help": "Vertex AIサービスの場所、例：us-central1",
+          "service_account": {
+            "title": "サービスアカウント設定",
+            "private_key": "秘密鍵",
+            "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
+            "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
+            "client_email": "クライアントメール",
+            "client_email_placeholder": "サービスアカウントのクライアントメールを入力してください",
+            "client_email_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのclient_emailフィールド",
+            "description": "ADCが利用できない環境での認証に適しています",
+            "auth_success": "サービスアカウントの認証が成功しました",
+            "incomplete_config": "まずサービスアカウントの設定を完了してください"
+          },
+          "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
+          "learn_more": "詳細を確認"
         }
       },
       "proxy": {

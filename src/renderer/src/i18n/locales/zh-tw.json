@@ -1006,7 +1006,8 @@
       "zhipu": "智譜 AI",
       "voyageai": "Voyage AI",
       "qiniu": "七牛雲 AI 推理",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "vertexai": "Vertex AI"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1649,6 +1650,27 @@
         },
         "openai": {
           "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
+        },
+        "vertex_ai": {
+          "project_id": "專案ID",
+          "project_id_placeholder": "your-google-cloud-project-id",
+          "project_id_help": "您的 Google Cloud 專案 ID",
+          "location": "地區",
+          "location_help": "Vertex AI 服務地區，例如：us-central1",
+          "service_account": {
+            "title": "服務帳戶設定",
+            "private_key": "私密金鑰",
+            "private_key_placeholder": "輸入服務帳戶私密金鑰",
+            "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
+            "client_email": "Client Email",
+            "client_email_placeholder": "輸入服務帳戶 client email",
+            "client_email_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 client_email 欄位",
+            "description": "使用服務帳戶進行身份驗證，適用於 ADC 不可用的環境",
+            "auth_success": "服務帳戶驗證成功",
+            "incomplete_config": "請先完成服務帳戶設定"
+          },
+          "documentation": "檢視官方文件以取得更多設定詳細資訊：",
+          "learn_more": "瞭解更多"
         }
       },
       "proxy": {

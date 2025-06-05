@@ -19,7 +19,10 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client', 'bufferutil', 'utf-8-validate']
+        external: ['@libsql/client', 'bufferutil', 'utf-8-validate'],
+        output: {
+          externalLiveBindings: false // 不加启动不了
+        }
       },
       sourcemap: process.env.NODE_ENV === 'development'
     },
