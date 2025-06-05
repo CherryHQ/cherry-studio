@@ -23,12 +23,21 @@ function initFileTypeMap() {
 // 初始化映射表
 initFileTypeMap()
 
+export function hasWritePermission(path: string) {
+  try {
+    fs.accessSync(path, fs.constants.W_OK)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
 function getAppDataPathFromConfig() {
   try {
     const configPath = path.join(getConfigDir(), 'config.json')
     if (fs.existsSync(configPath)) {
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (config.appDataPath && fs.existsSync(config.appDataPath)) {
+      if (config.appDataPath && fs.existsSync(config.appDataPath) && hasWritePermission(config.appDataPath)) {
         return config.appDataPath
       }
     }

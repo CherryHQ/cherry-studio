@@ -195,13 +195,20 @@ const DataSettings: FC = () => {
     }
 
     // check new app data path is root path
-    const pathParts = newAppDataPath.split(/[/\\]/).filter((part) => part !== '')
+    // if is root path, show error
+    const pathParts = newAppDataPath.split(/[/\\]/).filter((part: string) => part !== '')
     if (pathParts.length <= 1) {
       window.message.error(t('settings.data.app_data.select_error_root_path'))
       return
     }
 
-    // 准备迁移所需的UI组件和信息
+    // check new app data path has write permission
+    const hasWritePermission = await window.api.hasWritePermission(newAppDataPath)
+    if (!hasWritePermission) {
+      window.message.error(t('settings.data.app_data.select_error_write_permission'))
+      return
+    }
+
     const migrationTitle = (
       <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
     )
@@ -262,8 +269,8 @@ const DataSettings: FC = () => {
 
           try {
             // 设置停止退出应用
-            window.api.setStopQuitApp(true)
-            // 执行迁移
+            window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
+
             await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
 
             // 更新应用数据路径
@@ -287,7 +294,7 @@ const DataSettings: FC = () => {
             duration: 5
           })
         } finally {
-          window.api.setStopQuitApp(false)
+          window.api.setStopQuitApp(false, '')
         }
       }
     })

@@ -1062,6 +1062,8 @@
         "app_data.select_error": "Failed to change data directory",
         "app_data.new_path": "New Path",
         "app_data.select_error_root_path": "New path cannot be the root path",
+        "app_data.select_error_write_permission": "New path does not have write permission",
+        "app_data.stop_quit_app_reason": "The app is currently migrating data and cannot be exited",
         "app_knowledge": "Knowledge Base Files",
         "app_knowledge.button.delete": "Delete File",
         "app_knowledge.remove_all": "Remove Knowledge Base Files",

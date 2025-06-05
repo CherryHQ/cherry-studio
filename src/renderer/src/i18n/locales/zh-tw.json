@@ -1065,6 +1065,8 @@
         "app_data.original_path": "原始路徑",
         "app_data.new_path": "新路徑",
         "app_data.select_error_root_path": "新路徑不能是根路徑",
+        "app_data.select_error_write_permission": "新路徑沒有寫入權限",
+        "app_data.stop_quit_app_reason": "應用目前正在遷移數據，不能退出",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",

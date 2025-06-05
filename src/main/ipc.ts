@@ -33,7 +33,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, updateConfig } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -197,15 +197,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   let preventQuitListener: ((event: Electron.Event) => void) | null = null
-  ipcMain.handle(IpcChannel.App_SetStopQuitApp, (_, stop: boolean = false) => {
+  ipcMain.handle(IpcChannel.App_SetStopQuitApp, (_, stop: boolean = false, reason: string = '') => {
     if (stop) {
       // Only add listener if not already added
       if (!preventQuitListener) {
         preventQuitListener = (event: Electron.Event) => {
           event.preventDefault()
           notificationService.sendNotification({
-            title: 'App can not quit',
-            message: 'App can not quit because of the app is transferring data'
+            title: reason,
+            message: reason
           } as Notification)
         }
         app.on('before-quit', preventQuitListener)
@@ -231,6 +231,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       log.error('Failed to select app data path:', error)
       return null
     }
+  })
+
+  ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
+    return hasWritePermission(filePath)
   })
 
   // Set app data path

@@ -1064,6 +1064,8 @@
         "app_data.original_path": "原始路径",
         "app_data.new_path": "新路径",
         "app_data.select_error_root_path": "新路径不能是根路径",
+        "app_data.select_error_write_permission": "新路径没有写入权限",
+        "app_data.stop_quit_app_reason": "应用目前在迁移数据, 不能退出",
         "app_knowledge": "知识库文件",
         "app_knowledge.button.delete": "删除文件",
         "app_knowledge.remove_all": "删除知识库文件",
