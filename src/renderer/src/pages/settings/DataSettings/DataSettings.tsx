@@ -259,6 +259,11 @@ const DataSettings: FC = () => {
         </MigrationModalContent>
       ),
       centered: true,
+      okButtonProps: {
+        danger: true
+      },
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
       onOk: async () => {
         try {
           // 立即关闭确认对话框
