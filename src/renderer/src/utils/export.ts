@@ -11,7 +11,6 @@ import { convertMathFormula } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
-//TODO: 添加对思考内容的支持
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -43,9 +42,35 @@ export function getTitleFromString(str: string, length: number = 80) {
   return title
 }
 
+const getRoleText = (role: string, modelName?: string, modelProvider?: string) => {
+  const { showModelNameInMarkdown, showModelProviderInMarkdown } = store.getState().settings
+
+  if (role === 'user') {
+    return '🧑‍💻 User'
+  } else if (role === 'system') {
+    return '🤖 System'
+  } else {
+    let assistantText = '🤖 '
+    if (showModelNameInMarkdown && modelName) {
+      assistantText += `${modelName}`
+      if (showModelProviderInMarkdown && modelProvider) {
+        const providerDisplayName = i18n.t(`provider.${modelProvider}`, { defaultValue: modelProvider })
+        assistantText += ` | ${providerDisplayName}`
+        return assistantText
+      }
+      return assistantText
+    } else if (showModelProviderInMarkdown && modelProvider) {
+      const providerDisplayName = i18n.t(`provider.${modelProvider}`, { defaultValue: modelProvider })
+      assistantText += `Assistant | ${providerDisplayName}`
+      return assistantText
+    }
+    return assistantText + 'Assistant'
+  }
+}
+
 const createBaseMarkdown = (message: Message, includeReasoning: boolean = false) => {
   const { forceDollarMathInMarkdown } = store.getState().settings
-  const roleText = message.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+  const roleText = getRoleText(message.role, message.model?.name, message.model?.provider)
   const titleSection = `### ${roleText}`
   let reasoningSection = ''
 
@@ -57,15 +82,22 @@ const createBaseMarkdown = (message: Message, includeReasoning: boolean = false)
       } else if (reasoningContent.startsWith('<think>')) {
         reasoningContent = reasoningContent.substring(7)
       }
-      reasoningContent = reasoningContent.replace(/\n/g, '<br>')
-
+      reasoningContent = reasoningContent
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/\n/g, '<br>')
       if (forceDollarMathInMarkdown) {
         reasoningContent = convertMathFormula(reasoningContent)
       }
-      reasoningSection = `<details style="background-color: #f5f5f5; padding: 5px; border-radius: 10px; margin-bottom: 10px;">
-      <summary>${i18n.t('common.reasoning_content')}</summary><hr>
+      reasoningSection = `<div style="border: 2px solid #dddddd; border-radius: 10px;">
+  <details style="padding: 5px;">
+    <summary>${i18n.t('common.reasoning_content')}</summary>
     ${reasoningContent}
-</details>`
+  </details>
+</div>`
     }
   }
 
@@ -81,7 +113,6 @@ export const messageToMarkdown = (message: Message) => {
   return [titleSection, '', contentSection, citation].join('\n\n')
 }
 
-// 保留接口用于其它导出方法使用
 export const messageToMarkdownWithReasoning = (message: Message) => {
   const { titleSection, reasoningSection, contentSection, citation } = createBaseMarkdown(message, true)
   return [titleSection, '', reasoningSection + contentSection, citation].join('\n\n')
@@ -167,14 +198,10 @@ export const exportMessageAsMarkdown = async (message: Message, exportReasoning?
 const convertMarkdownToNotionBlocks = async (markdown: string) => {
   return markdownToBlocks(markdown)
 }
-// 修改 splitNotionBlocks 函数
-const splitNotionBlocks = (blocks: any[]) => {
-  const { notionAutoSplit, notionSplitSize } = store.getState().settings
 
-  // 如果未开启自动分页,返回单页
-  if (!notionAutoSplit) {
-    return [blocks]
-  }
+const splitNotionBlocks = (blocks: any[]) => {
+  // Notion API限制单次传输100块
+  const notionSplitSize = 95
 
   const pages: any[][] = []
   let currentPage: any[] = []
@@ -195,25 +222,68 @@ const splitNotionBlocks = (blocks: any[]) => {
   return pages
 }
 
-export const exportTopicToNotion = async (topic: Topic) => {
+const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<any[]> => {
+  if (!thinkingContent.trim()) {
+    return []
+  }
+
+  const thinkingBlocks = [
+    {
+      object: 'block',
+      type: 'toggle',
+      toggle: {
+        rich_text: [
+          {
+            type: 'text',
+            text: {
+              content: '🤔 ' + i18n.t('common.reasoning_content')
+            },
+            annotations: {
+              bold: true
+            }
+          }
+        ],
+        children: [
+          {
+            object: 'block',
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [
+                {
+                  type: 'text',
+                  text: {
+                    content: thinkingContent
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+
+  return thinkingBlocks
+}
+
+const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any> => {
   const { isExporting } = store.getState().runtime.export
   if (isExporting) {
     window.message.warning({ content: i18n.t('message.warn.notion.exporting'), key: 'notion-exporting' })
-    return
+    return null
   }
-  setExportState({
-    isExporting: true
-  })
+
+  setExportState({ isExporting: true })
+
   const { notionDatabaseID, notionApiKey } = store.getState().settings
   if (!notionApiKey || !notionDatabaseID) {
     window.message.error({ content: i18n.t('message.error.notion.no_api_key'), key: 'notion-no-apikey-error' })
-    return
+    setExportState({ isExporting: false })
+    return null
   }
 
   try {
     const notion = new Client({ auth: notionApiKey })
-    const markdown = await topicToMarkdown(topic)
-    const allBlocks = await convertMarkdownToNotionBlocks(markdown)
     const blockPages = splitNotionBlocks(allBlocks)
 
     if (blockPages.length === 0) {
@@ -223,25 +293,33 @@ export const exportTopicToNotion = async (topic: Topic) => {
     // 创建主页面和子页面
     let mainPageResponse: any = null
     let parentBlockId: string | null = null
+
     for (let i = 0; i < blockPages.length; i++) {
-      const pageTitle = topic.name
       const pageBlocks = blockPages[i]
 
       // 导出进度提示
-      window.message.loading({
-        content: i18n.t('message.loading.notion.exporting_progress', {
-          current: i + 1,
-          total: blockPages.length
-        }),
-        key: 'notion-export-progress'
-      })
+      if (blockPages.length > 1) {
+        window.message.loading({
+          content: i18n.t('message.loading.notion.exporting_progress', {
+            current: i + 1,
+            total: blockPages.length
+          }),
+          key: 'notion-export-progress'
+        })
+      } else {
+        window.message.loading({
+          content: i18n.t('message.loading.notion.preparing'),
+          key: 'notion-export-progress'
+        })
+      }
 
       if (i === 0) {
+        // 创建主页面
         const response = await notion.pages.create({
           parent: { database_id: notionDatabaseID },
           properties: {
             [store.getState().settings.notionPageNameKey || 'Name']: {
-              title: [{ text: { content: pageTitle } }]
+              title: [{ text: { content: title } }]
             }
           },
           children: pageBlocks
@@ -249,6 +327,7 @@ export const exportTopicToNotion = async (topic: Topic) => {
         mainPageResponse = response
         parentBlockId = response.id
       } else {
+        // 追加后续页面的块到主页面
         if (!parentBlockId) {
           throw new Error('Parent block ID is null')
         }
@@ -259,63 +338,71 @@ export const exportTopicToNotion = async (topic: Topic) => {
       }
     }
 
-    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-export-progress' })
+    const messageKey = blockPages.length > 1 ? 'notion-export-progress' : 'notion-success'
+    window.message.success({ content: i18n.t('message.success.notion.export'), key: messageKey })
     return mainPageResponse
   } catch (error: any) {
     window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-progress' })
     return null
   } finally {
-    setExportState({
-      isExporting: false
-    })
+    setExportState({ isExporting: false })
   }
 }
 
-export const exportMarkdownToNotion = async (title: string, content: string) => {
-  const { isExporting } = store.getState().runtime.export
+export const exportMessageToNotion = async (title: string, content: string, message?: Message) => {
+  const { notionExportReasoning } = store.getState().settings
 
-  if (isExporting) {
-    window.message.warning({ content: i18n.t('message.warn.notion.exporting'), key: 'notion-exporting' })
-    return
+  const notionBlocks = await convertMarkdownToNotionBlocks(content)
+
+  if (notionExportReasoning && message) {
+    const thinkingContent = getThinkingContent(message)
+    if (thinkingContent) {
+      const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
+      if (notionBlocks.length > 0) {
+        notionBlocks.splice(1, 0, ...thinkingBlocks)
+      } else {
+        notionBlocks.push(...thinkingBlocks)
+      }
+    }
   }
 
-  setExportState({ isExporting: true })
+  return executeNotionExport(title, notionBlocks)
+}
 
-  const { notionDatabaseID, notionApiKey } = store.getState().settings
+export const exportTopicToNotion = async (topic: Topic) => {
+  const { notionExportReasoning } = store.getState().settings
 
-  if (!notionApiKey || !notionDatabaseID) {
-    window.message.error({ content: i18n.t('message.error.notion.no_api_key'), key: 'notion-no-apikey-error' })
-    return
-  }
+  // 获取话题消息
+  const topicRecord = await db.topics.get(topic.id)
+  const topicMessages = topicRecord?.messages || []
 
-  try {
-    const notion = new Client({ auth: notionApiKey })
-    const notionBlocks = await convertMarkdownToNotionBlocks(content)
+  // 创建话题标题块
+  const titleBlocks = await convertMarkdownToNotionBlocks(`# ${topic.name}`)
 
-    if (notionBlocks.length === 0) {
-      throw new Error('No content to export')
+  // 为每个消息创建blocks
+  const allBlocks: any[] = [...titleBlocks]
+
+  for (const message of topicMessages) {
+    // 将单个消息转换为markdown
+    const messageMarkdown = messageToMarkdown(message)
+    const messageBlocks = await convertMarkdownToNotionBlocks(messageMarkdown)
+
+    if (notionExportReasoning) {
+      const thinkingContent = getThinkingContent(message)
+      if (thinkingContent) {
+        const thinkingBlocks = await convertThinkingToNotionBlocks(thinkingContent)
+        if (messageBlocks.length > 0) {
+          messageBlocks.splice(1, 0, ...thinkingBlocks)
+        } else {
+          messageBlocks.push(...thinkingBlocks)
+        }
+      }
     }
 
-    const response = await notion.pages.create({
-      parent: { database_id: notionDatabaseID },
-      properties: {
-        [store.getState().settings.notionPageNameKey || 'Name']: {
-          title: [{ text: { content: title } }]
-        }
-      },
-      children: notionBlocks as any[]
-    })
-
-    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
-    return response
-  } catch (error: any) {
-    window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-error' })
-    return null
-  } finally {
-    setExportState({
-      isExporting: false
-    })
+    allBlocks.push(...messageBlocks)
   }
+
+  return executeNotionExport(topic.name, allBlocks)
 }
 
 export const exportMarkdownToYuque = async (title: string, content: string) => {
@@ -464,7 +551,6 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
  * @param fileName
  * @returns
  */
-
 function transformObsidianFileName(fileName: string): string {
   const platform = window.navigator.userAgent
   const isWindows = /win/i.test(platform)
@@ -482,7 +568,7 @@ function transformObsidianFileName(fileName: string): string {
   } else if (isMac) {
     // Mac 的清理
     sanitized = sanitized
-      .replace(/[/:\u0020-\u007E]/g, '') // 移除无效字符
+      .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符
       .replace(/^\./, '_') // 避免以句点开头
   } else {
     // Linux 或其他系统
@@ -504,12 +590,25 @@ function transformObsidianFileName(fileName: string): string {
 
   return sanitized
 }
-export const exportMarkdownToJoplin = async (title: string, content: string) => {
-  const { joplinUrl, joplinToken } = store.getState().settings
+
+export const exportMarkdownToJoplin = async (title: string, contentOrMessages: string | Message | Message[]) => {
+  const { joplinUrl, joplinToken, joplinExportReasoning } = store.getState().settings
 
   if (!joplinUrl || !joplinToken) {
     window.message.error(i18n.t('message.error.joplin.no_config'))
     return
+  }
+
+  let content: string
+  if (typeof contentOrMessages === 'string') {
+    content = contentOrMessages
+  } else if (Array.isArray(contentOrMessages)) {
+    content = messagesToMarkdown(contentOrMessages, joplinExportReasoning)
+  } else {
+    // 单条Message
+    content = joplinExportReasoning
+      ? messageToMarkdownWithReasoning(contentOrMessages)
+      : messageToMarkdown(contentOrMessages)
   }
 
   try {
