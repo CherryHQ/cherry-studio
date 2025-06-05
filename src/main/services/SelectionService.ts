@@ -841,8 +841,9 @@ export class SelectionService {
     //ctrlkey pressed
     if (this.lastCtrlkeyDownTime === 0) {
       this.lastCtrlkeyDownTime = Date.now()
-      //add the mouse-wheel listener, detect if user is zooming in/out
+      //add the mouse-wheel&mouse-down listener, detect if user is zooming in/out or multi-selecting
       this.selectionHook!.on('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
+      this.selectionHook!.on('mouse-down', this.handleMouseDownCtrlkeyMode)
       return
     }
 
@@ -866,8 +867,9 @@ export class SelectionService {
    */
   private handleKeyUpCtrlkeyMode = (data: KeyboardEventData) => {
     if (!this.isCtrlkey(data.vkCode)) return
-    //remove the mouse-wheel listener
+    //remove the mouse-wheel&mouse-down listener
     this.selectionHook!.off('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
+    this.selectionHook!.off('mouse-down', this.handleMouseDownCtrlkeyMode)
     this.lastCtrlkeyDownTime = 0
   }
 
@@ -877,6 +879,15 @@ export class SelectionService {
    * because user is zooming in/out
    */
   private handleMouseWheelCtrlkeyMode = () => {
+    this.lastCtrlkeyDownTime = -1
+  }
+
+  /**
+   * Handle mouse down events in ctrlkey trigger mode
+   * ignore CtrlKey pressing when mouse down is used
+   * because user is multi-selecting
+   */
+  private handleMouseDownCtrlkeyMode = () => {
     this.lastCtrlkeyDownTime = -1
   }
 
