@@ -61,7 +61,6 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                   processedText = smartLinkConverter(processedText, pendingWebSearchResults, providerType, isFirstChunk)
                   isFirstChunk = false
                 }
-
                 // 创建新的chunk，包含处理后的文本
                 controller.enqueue({
                   ...textChunk,

@@ -45,7 +45,7 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
       if (depth === 0) {
         result = await next(ctx, currentParams)
       } else {
-        const enhancedCompletions = ctx._internal.customState?.enhancedCompletions
+        const enhancedCompletions = ctx._internal.enhancedDispatch
         if (!enhancedCompletions) {
           Logger.error(`🔧 [${MIDDLEWARE_NAME}] Enhanced completions method not found, cannot perform recursive call`)
           throw new Error('Enhanced completions method not found')

@@ -63,19 +63,12 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
         console.log(`[${MIDDLEWARE_NAME}] Transforming raw SDK chunks with context:`, transformerContext)
 
         try {
-          // 创建转换后的异步迭代器
+          // 创建转换后的流
           const genericChunkTransformStream = (adaptedStream as ReadableStream<SdkRawChunk>).pipeThrough<GenericChunk>(
-            new TransformStream<SdkRawChunk, GenericChunk>({
-              async transform(chunk: SdkRawChunk, controller) {
-                const transformedChunks = responseChunkTransformer(chunk, transformerContext)
-                for await (const genericChunk of transformedChunks) {
-                  controller.enqueue(genericChunk)
-                }
-              }
-            })
+            new TransformStream<SdkRawChunk, GenericChunk>(responseChunkTransformer(transformerContext))
           )
 
-          // 将转换后的AsyncIterable保存到ctx.state，供下游中间件使用
+          // 将转换后的ReadableStream保存到result，供下游中间件使用
           return {
             ...result,
             stream: genericChunkTransformStream

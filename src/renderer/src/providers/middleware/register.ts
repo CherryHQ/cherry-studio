@@ -95,26 +95,6 @@ export function getRegisteredMiddlewareNames(): string[] {
 }
 
 /**
- * 默认的 Completions 中间件配置 - 纯中间件函数数组
- */
-export const DefaultCompletionsMiddlewares = [
-  FinalChunkConsumerModule.default, // 最终消费者
-  TransformCoreToSdkParamsModule.TransformCoreToSdkParamsMiddleware, // 参数转换
-  AbortHandlerModule.AbortHandlerMiddleware, // 中止处理
-  McpToolChunkModule.McpToolChunkMiddleware, // 工具处理
-  WebSearchModule.WebSearchMiddleware, // Web搜索处理
-  ToolUseExtractionMiddleware.ToolUseExtractionMiddleware, // 工具使用提取处理
-  TextChunkModule.TextChunkMiddleware, // 文本处理
-  ThinkingTagExtractionModule.ThinkingTagExtractionMiddleware, // 思考标签提取处理（特定provider）
-  ThinkChunkModule.ThinkChunkMiddleware, // 思考处理（通用SDK）
-  ResponseTransformModule.ResponseTransformMiddleware, // 响应转换
-  StreamAdapterModule.StreamAdapterMiddleware, // 流适配器
-  RawStreamListenerModule.RawStreamListenerMiddleware, // 原始流监听器
-  ToolUseExtractionMiddleware.ToolUseExtractionMiddleware, // 工具使用提取处理
-  SdkCallModule.SdkCallMiddleware // SDK调用
-]
-
-/**
  * 默认的 Completions 中间件配置 - NamedMiddleware 格式，用于 MiddlewareBuilder
  */
 export const DefaultCompletionsNamedMiddlewares = [
@@ -124,11 +104,12 @@ export const DefaultCompletionsNamedMiddlewares = [
   MiddlewareRegistry[McpToolChunkModule.MIDDLEWARE_NAME], // 工具处理
   MiddlewareRegistry[WebSearchModule.MIDDLEWARE_NAME], // Web搜索处理
   MiddlewareRegistry[TextChunkModule.MIDDLEWARE_NAME], // 文本处理
+  MiddlewareRegistry[ToolUseExtractionMiddleware.MIDDLEWARE_NAME], // 工具使用提取处理
   MiddlewareRegistry[ThinkingTagExtractionModule.MIDDLEWARE_NAME], // 思考标签提取处理（特定provider）
   MiddlewareRegistry[ThinkChunkModule.MIDDLEWARE_NAME], // 思考处理（通用SDK）
   MiddlewareRegistry[ResponseTransformModule.MIDDLEWARE_NAME], // 响应转换
-  MiddlewareRegistry[StreamAdapterModule.MIDDLEWARE_NAME], // 流适配器
-  MiddlewareRegistry[SdkCallModule.MIDDLEWARE_NAME] // SDK调用
+  MiddlewareRegistry[StreamAdapterModule.MIDDLEWARE_NAME] // 流适配器
+  // MiddlewareRegistry[SdkCallModule.MIDDLEWARE_NAME] // SDK调用
 ]
 
 /**

@@ -59,6 +59,7 @@ export interface ProcessingState<
     abortSignal?: AbortSignal
     cleanup?: () => void
   }
+  enhancedDispatch?: (context: CompletionsContext, params: CompletionsParams) => Promise<CompletionsResult>
   customState?: Record<string, any>
 }
 
