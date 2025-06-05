@@ -5639,7 +5639,7 @@ __metadata:
     node-stream-zip: "npm:^1.15.0"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
+    openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     playwright: "npm:^1.52.0"
@@ -13993,17 +13993,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.96.0":
-  version: 4.96.0
-  resolution: "openai@npm:4.96.0"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
+"openai@npm:5.1.0":
+  version: 5.1.0
+  resolution: "openai@npm:5.1.0"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -14014,21 +14006,13 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/d4c3fa76374730c856f774e07f375b51041b8e8429ae2cbd8605b168bf81673017f5dd1c0e42419ca54d8d3fd7cd93d57830d6bc6b9dcd317e70109018d599ea
+  checksum: 10c0/d5882c95f95bfc4127ccbe494d298f43fe56cd3a9fd5711d1f02a040cfa6cdcc1e706ffe05f3d428421ec4caa526fe1b5ff50e1849dbfb3016d289853262ea3d
   languageName: node
   linkType: hard
 
-"openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch":
-  version: 4.96.0
-  resolution: "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch::version=4.96.0&hash=6bc976"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
+"openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch":
+  version: 5.1.0
+  resolution: "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch::version=5.1.0&hash=cf4b11"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -14039,7 +14023,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/e50e4b9b60e94fadaca541cf2c36a12c55221555dd2ce977738e13978b7187504263f2e31b4641f2b6e70fce562b4e1fa2affd68caeca21248ddfa8847eeb003
+  checksum: 10c0/26abab8311c5e130759d8b2a939ac408872d808c8e8b8f6a7bb5c85f2df0a66d61aece3af783dbf04a2aa401481cf20a6eddcb777b545b387f66220a6a6d25d7
   languageName: node
   linkType: hard
 

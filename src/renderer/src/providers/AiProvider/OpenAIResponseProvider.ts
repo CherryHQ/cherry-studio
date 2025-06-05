@@ -49,13 +49,14 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
+import Logger from 'electron-log'
 import { Base64 } from 'js-base64'
 import { isEmpty, takeRight } from 'lodash'
 import mime from 'mime'
 import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
-import { FileLike, toFile } from 'openai/uploads'
+import { toFile, Uploadable } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
@@ -1042,7 +1043,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const { signal } = abortController
     const content = getMainTextContent(lastUserMessage!)
     let response: OpenAI.Images.ImagesResponse | null = null
-    let images: FileLike[] = []
+    let images: Uploadable[] = []
 
     try {
       if (lastUserMessage) {
@@ -1065,6 +1066,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         const assistantFiles = findImageBlocks(lastAssistantMessage)
         const assistantImages = await Promise.all(
           assistantFiles.filter(Boolean).map(async (f) => {
+            Logger.info('[generateImageByChat] assistantFiles', f)
             const match = f?.url?.match(/^data:(image\/\w+);base64,(.+)$/)
             if (!match) return null
             const mimeType = match[1]
@@ -1074,7 +1076,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
             return await toFile(bytes, fileName, { type: mimeType })
           })
         )
-        images = images.concat(assistantImages.filter(Boolean) as FileLike[])
+        images = images.concat(assistantImages.filter(Boolean) as Uploadable[])
       }
 
       onChunk({
