@@ -837,7 +837,7 @@ export class SelectionService {
     if (this.lastCtrlkeyDownTime === 0) {
       this.lastCtrlkeyDownTime = Date.now()
       //add the mouse-wheel listener, detect if user is zooming in/out
-      this.selectionHook!.on('mouse-wheel', this.handleMouseCtrlkeyMode)
+      this.selectionHook!.on('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
       return
     }
 
@@ -862,7 +862,7 @@ export class SelectionService {
   private handleKeyUpCtrlkeyMode = (data: KeyboardEventData) => {
     if (!this.isCtrlkey(data.vkCode)) return
     //remove the mouse-wheel listener
-    this.selectionHook!.off('mouse-wheel', this.handleMouseCtrlkeyMode)
+    this.selectionHook!.off('mouse-wheel', this.handleMouseWheelCtrlkeyMode)
     this.lastCtrlkeyDownTime = 0
   }
 
@@ -871,7 +871,7 @@ export class SelectionService {
    * ignore CtrlKey pressing when mouse wheel is used
    * because user is zooming in/out
    */
-  private handleMouseCtrlkeyMode = () => {
+  private handleMouseWheelCtrlkeyMode = () => {
     this.lastCtrlkeyDownTime = -1
   }
 
