@@ -49,7 +49,6 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import Logger from 'electron-log'
 import { Base64 } from 'js-base64'
 import { isEmpty, takeRight } from 'lodash'
 import mime from 'mime'
@@ -1066,7 +1065,6 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
         const assistantFiles = findImageBlocks(lastAssistantMessage)
         const assistantImages = await Promise.all(
           assistantFiles.filter(Boolean).map(async (f) => {
-            Logger.info('[generateImageByChat] assistantFiles', f)
             const match = f?.url?.match(/^data:(image\/\w+);base64,(.+)$/)
             if (!match) return null
             const mimeType = match[1]
