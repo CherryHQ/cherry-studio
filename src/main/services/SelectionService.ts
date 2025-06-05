@@ -304,7 +304,12 @@ export class SelectionService {
     if (!this.selectionHook) return false
 
     this.selectionHook.stop()
-    this.selectionHook.cleanup()
+    this.selectionHook.cleanup() //already remove all listeners
+
+    //reset the listener states
+    this.isCtrlkeyListenerActive = false
+    this.isHideByMouseKeyListenerActive = false
+
     if (this.toolbarWindow) {
       this.toolbarWindow.close()
       this.toolbarWindow = null
