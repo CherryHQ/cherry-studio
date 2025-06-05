@@ -1473,6 +1473,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '110': (state: RootState) => {
+    try {
+      state.settings.showTokens = true
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
