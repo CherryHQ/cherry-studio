@@ -557,6 +557,7 @@
       "error.enter.api.key": "Veuillez entrer votre clé API",
       "error.enter.model": "Veuillez sélectionner un modèle",
       "error.enter.name": "Veuillez entrer le nom de la base de connaissances",
+      "error.fetchTopicName": "Échec de la dénomination du sujet",
       "error.get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "error.invalid.api.host": "Adresse API invalide",
       "error.invalid.api.key": "Clé API invalide",
@@ -848,7 +849,7 @@
       "doubao": "Huoshan Engine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modèles",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -880,7 +881,7 @@
       "zhinao": "360 ZhiNao",
       "zhipu": "ZhiPu IA",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Êtes-vous sûr de vouloir restaurer les données ?",
@@ -1140,6 +1141,7 @@
       "display.sidebar.translate.icon": "Afficher l'icône de traduction",
       "display.sidebar.visible": "Icônes affichées",
       "display.title": "Paramètres d'affichage",
+      "display.zoom.title": "Paramètres de zoom",
       "display.topic.title": "Paramètres de sujet",
       "font_size.title": "Taille de police des messages",
       "general": "Paramètres généraux",
@@ -1477,7 +1479,7 @@
         "zoom_out": "Réduire l'interface",
         "zoom_reset": "Réinitialiser le zoom"
       },
-      "theme.auto": "Automatique",
+      "theme.system": "Système",
       "theme.dark": "Sombre",
       "theme.light": "Clair",
       "theme.title": "Thème",
@@ -1656,6 +1658,13 @@
       "quit": "Quitter",
       "show_window": "Afficher la fenêtre",
       "visualization": "Visualisation"
+    },
+    "update": {
+      "title": "Mise à jour",
+      "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
+      "later": "Plus tard",
+      "install": "Installer",
+      "noReleaseNotes": "Aucune note de version"
     }
   }
 }

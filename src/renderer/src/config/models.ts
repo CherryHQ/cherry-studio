@@ -1348,15 +1348,39 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   grok: [
     {
-      id: 'grok-beta',
+      id: 'grok-3',
       provider: 'grok',
-      name: 'Grok Beta',
+      name: 'Grok 3',
       group: 'Grok'
     },
     {
-      id: 'grok-vision-beta',
+      id: 'grok-3-fast',
       provider: 'grok',
-      name: 'Grok Vision Beta',
+      name: 'Grok 3 Fast',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-3-mini',
+      provider: 'grok',
+      name: 'Grok 3 Mini',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-3-mini-fast',
+      provider: 'grok',
+      name: 'Grok 3 Mini Fast',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-2-vision-1212',
+      provider: 'grok',
+      name: 'Grok 2 Vision 1212',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-2-1212',
+      provider: 'grok',
+      name: 'Grok 2 1212',
       group: 'Grok'
     }
   ],
@@ -2315,7 +2339,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   return (
-    model.id.toLowerCase().includes('qwen3') ||
+    model.id.toLowerCase().startsWith('qwen3') ||
+    model.id.toLowerCase().startsWith('qwen/qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2617,7 +2642,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
 
   // Claude models
   'claude-3[.-]7.*sonnet.*$': { min: 1024, max: 64000 },
-  'claude-(:?sonnet|opus)-4.*$': { min: 1024, max: 64000 }
+  'claude-(:?sonnet|opus)-4.*$': { min: 1024, max: 32000 }
 }
 
 export const findTokenLimit = (modelId: string): { min: number; max: number } | undefined => {

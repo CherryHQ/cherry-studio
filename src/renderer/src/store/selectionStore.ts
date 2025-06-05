@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { ActionItem, SelectionState, TriggerMode } from '@renderer/types/selectionTypes'
+import { ActionItem, FilterMode, SelectionState, TriggerMode } from '@renderer/types/selectionTypes'
 
 export const defaultActionItems: ActionItem[] = [
   { id: 'translate', name: 'selection.action.builtin.translate', enabled: true, isBuiltIn: true, icon: 'languages' },
@@ -24,6 +24,9 @@ export const initialState: SelectionState = {
   isAutoClose: false,
   isAutoPin: false,
   isFollowToolbar: true,
+  isRemeberWinSize: false,
+  filterMode: 'default',
+  filterList: [],
   actionWindowOpacity: 100,
   actionItems: defaultActionItems
 }
@@ -50,6 +53,15 @@ const selectionSlice = createSlice({
     setIsFollowToolbar: (state, action: PayloadAction<boolean>) => {
       state.isFollowToolbar = action.payload
     },
+    setIsRemeberWinSize: (state, action: PayloadAction<boolean>) => {
+      state.isRemeberWinSize = action.payload
+    },
+    setFilterMode: (state, action: PayloadAction<FilterMode>) => {
+      state.filterMode = action.payload
+    },
+    setFilterList: (state, action: PayloadAction<string[]>) => {
+      state.filterList = action.payload
+    },
     setActionWindowOpacity: (state, action: PayloadAction<number>) => {
       state.actionWindowOpacity = action.payload
     },
@@ -66,6 +78,9 @@ export const {
   setIsAutoClose,
   setIsAutoPin,
   setIsFollowToolbar,
+  setIsRemeberWinSize,
+  setFilterMode,
+  setFilterList,
   setActionWindowOpacity,
   setActionItems
 } = selectionSlice.actions

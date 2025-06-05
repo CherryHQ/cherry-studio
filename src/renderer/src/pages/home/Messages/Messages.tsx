@@ -53,7 +53,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     `topic-${topic.id}`
   )
   const { t } = useTranslation()
-  const { showPrompt, showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
+  const { showPrompt, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
@@ -85,13 +85,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     setDisplayMessages(newDisplayMessages)
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
-
-  const maxWidth = useMemo(() => {
-    const showRightTopics = showTopics && topicPosition === 'right'
-    const minusAssistantsWidth = showAssistants ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
-    const minusRightTopicsWidth = showRightTopics ? `- var(--assistants-width) - var(--scrollbar-width)` : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
-  }, [showAssistants, showTopics, topicPosition])
 
   const scrollToBottom = useCallback(() => {
     if (scrollContainerRef.current) {
@@ -274,17 +267,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
-    <Container
+    <MessagesContainer
       id="messages"
+      className="messages-container"
       ref={scrollContainerRef}
-      style={{
-        position: 'relative',
-        maxWidth,
-        paddingTop: showPrompt ? 10 : 0
-      }}
+      style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
-      onScroll={handleScrollPosition}
-      $right={topicPosition === 'left'}>
+      onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
@@ -315,14 +304,13 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-
       <SelectionBox
         isMultiSelectMode={isMultiSelectMode}
         scrollContainerRef={scrollContainerRef}
         messageElements={messageElements.current}
         handleSelectMessage={handleSelectMessage}
       />
-    </Container>
+    </MessagesContainer>
   )
 }
 
@@ -380,13 +368,14 @@ interface ContainerProps {
   $right?: boolean
 }
 
-const Container = styled(Scrollbar)<ContainerProps>`
+const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
   padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;
+  margin-right: 2px;
 `
 
 export default Messages

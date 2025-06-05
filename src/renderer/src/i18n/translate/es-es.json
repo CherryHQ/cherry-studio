@@ -558,6 +558,7 @@
       "error.enter.api.key": "Ingrese su clave API",
       "error.enter.model": "Seleccione un modelo",
       "error.enter.name": "Ingrese el nombre de la base de conocimiento",
+      "error.fetchTopicName": "Error al nombrar el tema",
       "error.get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "error.invalid.api.host": "Dirección API inválida",
       "error.invalid.api.key": "Clave API inválida",
@@ -849,7 +850,7 @@
       "doubao": "Volcán Motor",
       "fireworks": "Fuegos Artificiales",
       "gemini": "Géminis",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modelos",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -881,7 +882,7 @@
       "zhinao": "360 Inteligente",
       "zhipu": "ZhiPu IA",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Yun"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "¿Está seguro de que desea restaurar los datos?",
@@ -1139,6 +1140,7 @@
       "display.sidebar.translate.icon": "Mostrar icono de traducción",
       "display.sidebar.visible": "Iconos visibles",
       "display.title": "Configuración de visualización",
+      "display.zoom.title": "Configuración de zoom",
       "display.topic.title": "Configuración de tema",
       "font_size.title": "Tamaño de fuente de mensajes",
       "general": "Configuración general",
@@ -1476,7 +1478,7 @@
         "zoom_out": "Reducir interfaz",
         "zoom_reset": "Restablecer zoom"
       },
-      "theme.auto": "Automático",
+      "theme.system": "Sistema",
       "theme.dark": "Oscuro",
       "theme.light": "Claro",
       "theme.title": "Tema",
@@ -1655,6 +1657,13 @@
       "quit": "Salir",
       "show_window": "Mostrar Ventana",
       "visualization": "Visualización"
+    },
+    "update": {
+      "title": "Actualización",
+      "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
+      "later": "Más tarde",
+      "install": "Instalar",
+      "noReleaseNotes": "Sin notas de la versión"
     }
   }
 }

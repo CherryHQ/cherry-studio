@@ -133,7 +133,7 @@ export const getCitationContent = (message: Message): string => {
   return citationBlocks
     .map((block) => formatCitationsFromBlock(block))
     .flat()
-    .map((citation) => `[${citation.number}] [${citation.url}](${citation.title || citation.url})`)
+    .map((citation) => `[${citation.number}] [${citation.title || citation.url}](${citation.url})`)
     .join('\n\n')
 }
 

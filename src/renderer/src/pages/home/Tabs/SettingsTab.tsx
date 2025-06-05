@@ -46,6 +46,7 @@ import {
   setShowInputEstimatedTokens,
   setShowMessageDivider,
   setShowPrompt,
+  setShowTokens,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
@@ -59,7 +60,7 @@ import {
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
-import { CircleHelp, RotateCcw, Settings2 } from 'lucide-react'
+import { CircleHelp, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -71,7 +72,7 @@ interface Props {
 }
 
 const SettingsTab: FC<Props> = (props) => {
-  const { assistant, updateAssistantSettings, updateAssistant } = useAssistant(props.assistant.id)
+  const { assistant, updateAssistantSettings } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
   const { messageStyle, fontSize, language } = useSettings()
@@ -113,7 +114,8 @@ const SettingsTab: FC<Props> = (props) => {
     messageNavigation,
     enableQuickPanelTriggers,
     enableBackspaceDeleteModel,
-    showTranslateConfirm
+    showTranslateConfirm,
+    showTokens
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -136,24 +138,6 @@ const SettingsTab: FC<Props> = (props) => {
     if (!isNaN(value as number)) {
       onUpdateAssistantSettings({ maxTokens: value })
     }
-  }
-
-  const onReset = () => {
-    setTemperature(DEFAULT_TEMPERATURE)
-    setContextCount(DEFAULT_CONTEXTCOUNT)
-    updateAssistant({
-      ...assistant,
-      settings: {
-        ...assistant.settings,
-        temperature: DEFAULT_TEMPERATURE,
-        contextCount: DEFAULT_CONTEXTCOUNT,
-        enableMaxTokens: false,
-        maxTokens: DEFAULT_MAX_TOKENS,
-        streamOutput: true,
-        hideMessages: false,
-        customParameters: []
-      }
-    })
   }
 
   const codeStyle = useMemo(() => {
@@ -209,14 +193,6 @@ const SettingsTab: FC<Props> = (props) => {
         defaultExpanded={true}
         extra={
           <HStack alignItems="center" gap={2}>
-            <Tooltip title={t('chat.settings.reset')}>
-              <Button
-                type="text"
-                size="small"
-                onClick={onReset}
-                icon={<RotateCcw size={20} style={{ cursor: 'pointer', padding: '0 3px', opacity: 0.8 }} />}
-              />
-            </Tooltip>
             <Button
               type="text"
               size="small"
@@ -227,9 +203,9 @@ const SettingsTab: FC<Props> = (props) => {
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
-            <Label>{t('chat.settings.temperature')}</Label>
+            <SettingRowTitleSmall>{t('chat.settings.temperature')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.temperature.tip')}>
-              <CircleHelp size={14} color="var(--color-text-2)" />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
@@ -245,9 +221,9 @@ const SettingsTab: FC<Props> = (props) => {
             </Col>
           </Row>
           <Row align="middle">
-            <Label>{t('chat.settings.context_count')}</Label>
+            <SettingRowTitleSmall>{t('chat.settings.context_count')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.context_count.tip')}>
-              <CircleHelp size={14} color="var(--color-text-2)" />
+              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </Row>
           <Row align="middle" gutter={10}>
@@ -276,12 +252,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <HStack alignItems="center">
-              <Label>{t('chat.settings.max_tokens')}</Label>
+            <Row align="middle">
+              <SettingRowTitleSmall>{t('chat.settings.max_tokens')}</SettingRowTitleSmall>
               <Tooltip title={t('chat.settings.max_tokens.tip')}>
-                <CircleHelp size={14} color="var(--color-text-2)" />
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
-            </HStack>
+            </Row>
             <Switch
               size="small"
               checked={enableMaxTokens}
@@ -334,6 +310,11 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
             <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.tokens')}</SettingRowTitleSmall>
+            <Switch size="small" checked={showTokens} onChange={(checked) => dispatch(setShowTokens(checked))} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -707,12 +688,7 @@ const Container = styled(Scrollbar)`
   padding-right: 0;
   padding-top: 2px;
   padding-bottom: 10px;
-`
-
-const Label = styled.p`
-  margin: 0;
-  font-size: 12px;
-  margin-right: 5px;
+  margin-top: 3px;
 `
 
 const SettingRowTitleSmall = styled(SettingRowTitle)`

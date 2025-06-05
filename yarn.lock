@@ -2599,7 +2599,7 @@ __metadata:
 
 "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch":
   version: 0.3.44
-  resolution: "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch::version=0.3.44&hash=c14420"
+  resolution: "@langchain/core@patch:@langchain/core@npm%3A0.3.44#~/.yarn/patches/@langchain-core-npm-0.3.44-41d5c3cb0a.patch::version=0.3.44&hash=41dd7b"
   dependencies:
     "@cfworker/json-schema": "npm:^4.0.2"
     ansi-styles: "npm:^5.0.0"
@@ -2613,7 +2613,7 @@ __metadata:
     uuid: "npm:^10.0.0"
     zod: "npm:^3.22.4"
     zod-to-json-schema: "npm:^3.22.3"
-  checksum: 10c0/184fa7720f49fe4619661bcc5f12ed2a778520dd9f0da3c2d97f1b404f0a8697fa4b3f5cf96652234ae96c29b07fb4f9ec48260c3d1233e92286c87bca56f5fd
+  checksum: 10c0/7002581999230bc6fbdb6c2fad0eda2c1ca93a7629e28eadf1501dd0a7f785010d6b3e7841148ced186fc0fb4a84ec5f3b75850985579610e222943cc57e1649
   languageName: node
   linkType: hard
 
@@ -5621,6 +5621,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
+    franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
@@ -5638,7 +5639,7 @@ __metadata:
     node-stream-zip: "npm:^1.15.0"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
+    openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     playwright: "npm:^1.52.0"
@@ -5666,7 +5667,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.14"
+    selection-hook: "npm:^0.9.21"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -6950,6 +6951,13 @@ __metadata:
     "@codemirror/state": "npm:^6.0.0"
     "@codemirror/view": "npm:^6.0.0"
   checksum: 10c0/219b0f6ee91d373380fba2e0564a2665990a3cdada0b01861768005b09061187c58eeb3db96aef486777b02b77b50a50ee843635e3743c47d3725034913c4b60
+  languageName: node
+  linkType: hard
+
+"collapse-white-space@npm:^2.0.0":
+  version: 2.1.0
+  resolution: "collapse-white-space@npm:2.1.0"
+  checksum: 10c0/b2e2800f4ab261e62eb27a1fbe853378296e3a726d6695117ed033e82d61fb6abeae4ffc1465d5454499e237005de9cfc52c9562dc7ca4ac759b9a222ef14453
   languageName: node
   linkType: hard
 
@@ -9809,6 +9817,15 @@ __metadata:
     react-dom:
       optional: true
   checksum: 10c0/a24a44b7a1b21e347f93f9ec3c1218b9ebf2b2bc2883c26ab9951e19a62fdc2e03f80a57d0c78eaf408d098ed6f0fbcae48207313921c1f5462eb04296adf55b
+  languageName: node
+  linkType: hard
+
+"franc-min@npm:^6.2.0":
+  version: 6.2.0
+  resolution: "franc-min@npm:6.2.0"
+  dependencies:
+    trigram-utils: "npm:^2.0.0"
+  checksum: 10c0/21c243982b713a7726ffdb185415636c63711e7267be301b6d0607e3533f76771f2396091d9f1ca017f98357e4aa885c0cf4a2c0f90012e138f741cd9cfb5e45
   languageName: node
   linkType: hard
 
@@ -13543,6 +13560,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"n-gram@npm:^2.0.0":
+  version: 2.0.2
+  resolution: "n-gram@npm:2.0.2"
+  checksum: 10c0/72e2cdc8c37c9253b556a0deb9cd26d5ac59a5d7a38b2d2928927e3959bc7d3cb591d766e30309a4c685dbc51330025cb30c5c6518ee516caf3318aed2635f1b
+  languageName: node
+  linkType: hard
+
 "nanoid@npm:^3.3.7, nanoid@npm:^3.3.8":
   version: 3.3.11
   resolution: "nanoid@npm:3.3.11"
@@ -13969,17 +13993,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.96.0":
-  version: 4.96.0
-  resolution: "openai@npm:4.96.0"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
+"openai@npm:5.1.0":
+  version: 5.1.0
+  resolution: "openai@npm:5.1.0"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -13990,21 +14006,13 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/d4c3fa76374730c856f774e07f375b51041b8e8429ae2cbd8605b168bf81673017f5dd1c0e42419ca54d8d3fd7cd93d57830d6bc6b9dcd317e70109018d599ea
+  checksum: 10c0/d5882c95f95bfc4127ccbe494d298f43fe56cd3a9fd5711d1f02a040cfa6cdcc1e706ffe05f3d428421ec4caa526fe1b5ff50e1849dbfb3016d289853262ea3d
   languageName: node
   linkType: hard
 
-"openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch":
-  version: 4.96.0
-  resolution: "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch::version=4.96.0&hash=6bc976"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
+"openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch":
+  version: 5.1.0
+  resolution: "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch::version=5.1.0&hash=cf4b11"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -14015,7 +14023,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/e50e4b9b60e94fadaca541cf2c36a12c55221555dd2ce977738e13978b7187504263f2e31b4641f2b6e70fce562b4e1fa2affd68caeca21248ddfa8847eeb003
+  checksum: 10c0/26abab8311c5e130759d8b2a939ac408872d808c8e8b8f6a7bb5c85f2df0a66d61aece3af783dbf04a2aa401481cf20a6eddcb777b545b387f66220a6a6d25d7
   languageName: node
   linkType: hard
 
@@ -16376,13 +16384,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.14":
-  version: 0.9.14
-  resolution: "selection-hook@npm:0.9.14"
+"selection-hook@npm:^0.9.21":
+  version: 0.9.21
+  resolution: "selection-hook@npm:0.9.21"
   dependencies:
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/114a5c28d3753c215450a23b3999d7782c11f2868e41555a0034d49e33d90b1fe35f0a15dc240bca859f6fc186e09859bff5e3213fc8385b501f1f05ba9233f8
+  checksum: 10c0/e458f8d37c049899e0f9450ca29f882ee01e11b15490f7ee2ddd088843e3e9a201fd5410083faebfbf11e1259a2a74b0b736ff8f1789b626a21ea48ef0ca8705
   languageName: node
   linkType: hard
 
@@ -17506,6 +17514,16 @@ __metadata:
   version: 0.0.3
   resolution: "tr46@npm:0.0.3"
   checksum: 10c0/047cb209a6b60c742f05c9d3ace8fa510bff609995c129a37ace03476a9b12db4dbf975e74600830ef0796e18882b2381fb5fb1f6b4f96b832c374de3ab91a11
+  languageName: node
+  linkType: hard
+
+"trigram-utils@npm:^2.0.0":
+  version: 2.0.1
+  resolution: "trigram-utils@npm:2.0.1"
+  dependencies:
+    collapse-white-space: "npm:^2.0.0"
+    n-gram: "npm:^2.0.0"
+  checksum: 10c0/d024dc91a9c0310e75fa68422185e3a32814831971b9e86a2925e74bd1932a30501aa2ac214768f0a545f3db63610ee14b4748ac31532e1bc46c791941d71c6d
   languageName: node
   linkType: hard
 

@@ -1,27 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Scrollbar > props handling > should handle right prop correctly 1`] = `
-.c0 {
-  overflow-y: auto;
-}
-
-.c0::-webkit-scrollbar-thumb {
-  transition: background 2s ease;
-  background: transparent;
-}
-
-.c0::-webkit-scrollbar-thumb:hover {
-  background: transparent;
-}
-
-<div
-  class="c0"
-  data-testid="scrollbar"
->
-  内容
-</div>
-`;
-
 exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
 .c0 {
   overflow-y: auto;
@@ -33,7 +11,7 @@ exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
 }
 
 .c0::-webkit-scrollbar-thumb:hover {
-  background: transparent;
+  background: var(--color-scrollbar-thumb-hover);
 }
 
 <div

@@ -307,17 +307,21 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
             </CustomCollapse>
           </CustomCollapseWrapper>
         ))}
-        {docsWebsite && (
+        {(docsWebsite || modelsWebsite) && (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
-            <SettingHelpLink target="_blank" href={docsWebsite}>
-              {t(`provider.${provider.id}`) + ' '}
-              {t('common.docs')}
-            </SettingHelpLink>
-            <SettingHelpText>{t('common.and')}</SettingHelpText>
-            <SettingHelpLink target="_blank" href={modelsWebsite}>
-              {t('common.models')}
-            </SettingHelpLink>
+            {docsWebsite && (
+              <SettingHelpLink target="_blank" href={docsWebsite}>
+                {t(`provider.${provider.id}`) + ' '}
+                {t('common.docs')}
+              </SettingHelpLink>
+            )}
+            {docsWebsite && modelsWebsite && <SettingHelpText>{t('common.and')}</SettingHelpText>}
+            {modelsWebsite && (
+              <SettingHelpLink target="_blank" href={modelsWebsite}>
+                {t('common.models')}
+              </SettingHelpLink>
+            )}
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         )}

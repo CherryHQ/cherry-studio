@@ -147,22 +147,26 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [demo, isCompact, actionItems])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
-  }, [language])
+    !demo && i18n.changeLanguage(language || navigator.language || defaultLanguage)
+  }, [language, demo])
 
   useEffect(() => {
+    if (demo) return
+
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
     if (customCssElement) {
       customCssElement.remove()
     }
 
     if (customCss) {
+      const newCustomCss = customCss.replace(/background(-image|-color)?\s*:[^;]+;/gi, '')
+
       customCssElement = document.createElement('style')
       customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = customCss
+      customCssElement.textContent = newCustomCss
       document.head.appendChild(customCssElement)
     }
-  }, [customCss])
+  }, [customCss, demo])
 
   const onHideCleanUp = () => {
     setCopyIconStatus('normal')
@@ -263,6 +267,7 @@ const LogoWrapper = styled.div`
   justify-content: center;
   -webkit-app-region: drag;
   margin-left: 5px;
+  background-color: transparent;
 `
 
 const Logo = styled(Avatar)`
@@ -293,6 +298,7 @@ const ActionWrapper = styled.div`
   align-items: center;
   justify-content: center;
   margin-left: 3px;
+  background-color: transparent;
 `
 const ActionButton = styled.div`
   display: flex;
@@ -300,6 +306,7 @@ const ActionButton = styled.div`
   align-items: center;
   justify-content: center;
   margin: 0 2px;
+  background-color: transparent;
   cursor: pointer;
   border-radius: 4px;
   padding: 4px 6px;
@@ -307,6 +314,7 @@ const ActionButton = styled.div`
     width: 16px;
     height: 16px;
     color: var(--color-selection-toolbar-text);
+    background-color: transparent;
   }
   .btn-title {
     color: var(--color-selection-toolbar-text);
@@ -327,10 +335,10 @@ const ActionIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  /* margin-right: 3px; */
   position: relative;
   height: 16px;
   width: 16px;
+  background-color: transparent;
 
   .btn-icon {
     position: absolute;
@@ -414,6 +422,7 @@ const ActionTitle = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-left: 3px;
+  background-color: transparent;
 `
 
 export default SelectionToolbar

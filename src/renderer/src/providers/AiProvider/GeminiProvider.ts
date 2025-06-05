@@ -291,8 +291,7 @@ export default class GeminiProvider extends BaseProvider {
       if (reasoningEffort === undefined) {
         return {
           thinkingConfig: {
-            includeThoughts: false,
-            thinkingBudget: 0
+            includeThoughts: false
           } as ThinkingConfig
         }
       }
@@ -300,15 +299,19 @@ export default class GeminiProvider extends BaseProvider {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
 
       if (effortRatio > 1) {
-        return {}
+        return {
+          thinkingConfig: {
+            includeThoughts: true
+          }
+        }
       }
 
       const { max } = findTokenLimit(model.id) || { max: 0 }
+      const budget = Math.floor(max * effortRatio)
 
-      // 如果thinking_budget是明确设置的值（包括0），使用该值
       return {
         thinkingConfig: {
-          thinkingBudget: Math.floor(max * effortRatio),
+          ...(budget > 0 ? { thinkingBudget: budget } : {}),
           includeThoughts: true
         } as ThinkingConfig
       }

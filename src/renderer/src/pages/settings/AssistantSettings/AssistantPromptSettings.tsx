@@ -13,6 +13,8 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
+import { SettingDivider } from '..'
+
 interface Props {
   assistant: Assistant
   updateAssistant: (assistant: Assistant) => void
@@ -90,7 +92,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           style={{ flex: 1 }}
         />
       </HStack>
-      <HStack mt={8} mb={8} alignItems="center" gap={4}>
+      <SettingDivider />
+      <HStack mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
         <Tooltip title={t('agents.add.prompt.variables.tip')}>
           <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
@@ -139,7 +142,6 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  padding: 5px;
 `
 
 const EmojiButtonWrapper = styled.div`
