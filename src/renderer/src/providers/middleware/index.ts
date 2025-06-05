@@ -84,6 +84,5 @@ export {
   MethodMiddlewareBuilder,
   MiddlewareBuilder,
   type MiddlewareExecutor,
-  MiddlewareName,
   type NamedMiddleware
 } from './builder'
