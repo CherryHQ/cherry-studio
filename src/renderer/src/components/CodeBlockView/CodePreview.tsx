@@ -134,26 +134,31 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     return () => cleanupTokenizers(callerId)
   }, [callerId, cleanupTokenizers])
 
-  // 处理第二次开始的代码高亮
+  // 触发代码高亮
+  // - 进入视口后触发第一次高亮
+  // - 内容变化后触发之后的高亮
   useEffect(() => {
-    if (prevCodeLengthRef.current > 0) {
-      setTimeout(highlightCode, 0)
-    }
-  }, [highlightCode])
-
-  // 视口检测逻辑，只处理第一次代码高亮
-  useEffect(() => {
-    const codeElement = codeContentRef.current
-    if (!codeElement || prevCodeLengthRef.current > 0) return
-
     let isMounted = true
 
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && isMounted) {
-        setTimeout(highlightCode, 0)
-        observer.disconnect()
+    if (prevCodeLengthRef.current > 0) {
+      setTimeout(highlightCode, 0)
+      return
+    }
+
+    const codeElement = codeContentRef.current
+    if (!codeElement) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].intersectionRatio > 0 && isMounted) {
+          setTimeout(highlightCode, 0)
+          observer.disconnect()
+        }
+      },
+      {
+        rootMargin: '50px 0px 50px 0px'
       }
-    })
+    )
 
     observer.observe(codeElement)
 

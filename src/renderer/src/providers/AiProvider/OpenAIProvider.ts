@@ -664,11 +664,11 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             if (delta?.content) {
               yield { type: 'text-delta', textDelta: delta.content, chunk }
             }
-            if (delta?.tool_calls) {
-              yield { type: 'tool-calls', delta: delta, chunk }
-            }
 
-            // 检查 citations 信息，无论是否有 content
+            if (delta?.tool_calls && delta?.tool_calls.length > 0) {
+              yield { type: 'tool-calls', delta: delta }
+            }
+             // 检查 citations 信息，无论是否有 content
             if (chunk.citations || delta?.annotations) {
               yield { type: 'citation', chunk }
             }
@@ -696,6 +696,8 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
       // 3. 消费 processedStream，分发 onChunk
       for await (const chunk of readableStreamAsyncIterable(processedStream)) {
+        const delta = chunk.type === 'finish' ? chunk.delta : chunk
+        const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
         switch (chunk.type) {
           case 'reasoning': {
             if (time_first_token_millsec === 0) {

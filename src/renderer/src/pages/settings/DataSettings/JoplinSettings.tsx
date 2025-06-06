@@ -3,14 +3,14 @@ import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
-import { Button, Tooltip } from 'antd'
+import { setJoplinExportReasoning, setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
+import { Button, Switch, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const JoplinSettings: FC = () => {
   const { t } = useTranslation()
@@ -20,6 +20,7 @@ const JoplinSettings: FC = () => {
 
   const joplinToken = useSelector((state: RootState) => state.settings.joplinToken)
   const joplinUrl = useSelector((state: RootState) => state.settings.joplinUrl)
+  const joplinExportReasoning = useSelector((state: RootState) => state.settings.joplinExportReasoning)
 
   const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setJoplinToken(e.target.value))
@@ -72,6 +73,10 @@ const JoplinSettings: FC = () => {
     })
   }
 
+  const handleToggleJoplinExportReasoning = (checked: boolean) => {
+    dispatch(setJoplinExportReasoning(checked))
+  }
+
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.joplin.title')}</SettingTitle>
@@ -110,6 +115,14 @@ const JoplinSettings: FC = () => {
           />
           <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
         </HStack>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.joplin.export_reasoning.title')}</SettingRowTitle>
+        <Switch checked={joplinExportReasoning} onChange={handleToggleJoplinExportReasoning} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.joplin.export_reasoning.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

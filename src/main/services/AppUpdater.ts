@@ -1,10 +1,10 @@
 import { isWin } from '@main/constant'
+import { locales } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
-import { locales } from '@main/utils/locales'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
