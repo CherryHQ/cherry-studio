@@ -4,10 +4,13 @@ import store, { persistor } from '@renderer/store'
 import { Provider } from 'react-redux'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
-import styled from 'styled-components'; // Added styled-components
+import styled from 'styled-components';
+import { useState, useCallback, useEffect } from 'react'; // Added React hooks
+import { LayoutDashboard } from 'lucide-react'; // Added icon
 
-import CodeAnimator from './components/effects/CodeAnimator'; // Added CodeAnimator
-import HolographicGlobe from './components/effects/HolographicGlobe'; // Added HolographicGlobe
+import BrowserViewPane from './components/BrowserViewPane/BrowserViewPane'; // Added BrowserViewPane
+import CodeAnimator from './components/effects/CodeAnimator';
+import HolographicGlobe from './components/effects/HolographicGlobe';
 import Sidebar from './components/app/Sidebar'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
@@ -19,6 +22,8 @@ import HistoryPage from './pages/history/HistoryPage'
 import HomePage from './pages/home/HomePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
+import HuggingFacePage from './pages/external/HuggingFacePage';
+import GitHubPage from './pages/external/GitHubPage'; // Added
 
 
 // Styled Components
@@ -50,6 +55,28 @@ const AppHeader = styled.header`
   flex-shrink: 0;
 `;
 
+// New styled component for header controls (e.g., toggle button)
+const HeaderControls = styled.div`
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+`;
+
+const ControlButton = styled.button`
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+`;
+
 const AppTitle = styled.h1`
   font-size: 1.75rem;
   font-weight: bold;
@@ -79,13 +106,43 @@ const AppFooter = styled.footer`
 `;
 
 const MainAppArea = styled.div`
-  display: flex;
+  display: flex; // Changed to flex row for side-by-side content
   flex-grow: 1;
   overflow: hidden;
 `;
 
+const PrimaryContent = styled.div`
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+`;
+
+const BrowserPaneWrapper = styled.div<{ $isVisible: boolean }>`
+  width: ${props => props.$isVisible ? '50%' : '0px'};
+  flex-shrink: 0;
+  border-left: ${props => props.$isVisible ? '1px solid rgba(50, 50, 70, 0.5)' : 'none'};
+  transition: width 0.3s ease-in-out;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+`;
+
 
 function App(): JSX.Element {
+  const [showBrowserPane, setShowBrowserPane] = useState(false);
+  const BROWSER_VIEW_ID = 'mainSkyscopeBrowser';
+
+  const toggleBrowserPane = useCallback(() => {
+    const newVisibility = !showBrowserPane;
+    setShowBrowserPane(newVisibility);
+    if (newVisibility) {
+      window.api?.browserViewManager.showView(BROWSER_VIEW_ID);
+    } else {
+      window.api?.browserViewManager.hideView(BROWSER_VIEW_ID);
+    }
+  }, [showBrowserPane]);
+
   return (
     <Provider store={store}>
       <ThemeProvider>
@@ -97,22 +154,40 @@ function App(): JSX.Element {
                 <AppHeader>
                   <HolographicGlobe size={40} />
                   <AppTitle>SKYSCOPE AI</AppTitle>
+                  <HeaderControls>
+                    <ControlButton onClick={toggleBrowserPane}>
+                      <LayoutDashboard size={16}/> Browser
+                    </ControlButton>
+                  </HeaderControls>
                 </AppHeader>
                 <MainAppArea>
-                  <TopViewContainer> {/* Assuming TopViewContainer was a direct child of PersistGate before */}
-                    <HashRouter>
-                      <Sidebar /> {/* Sidebar might need style adjustments if it was full height */}
-                      <Routes>
-                        <Route path="/" element={<HomePage />} />
-                        <Route path="/files" element={<FilesPage />} />
-                        <Route path="/agents" element={<AgentsPage />} />
-                        <Route path="/translate" element={<TranslatePage />} />
-                        <Route path="/apps" element={<AppsPage />} />
-                        <Route path="/messages/*" element={<HistoryPage />} />
-                        <Route path="/settings/*" element={<SettingsPage />} />
-                      </Routes>
-                    </HashRouter>
-                  </TopViewContainer>
+                  <PrimaryContent>
+                    <TopViewContainer>
+                      <HashRouter>
+                        <Sidebar />
+                        <Routes>
+                          <Route path="/" element={<HomePage />} />
+                          <Route path="/files" element={<FilesPage />} />
+                          <Route path="/agents" element={<AgentsPage />} />
+                          <Route path="/translate" element={<TranslatePage />} />
+                          <Route path="/apps" element={<AppsPage />} />
+                          <Route path="/messages/*" element={<HistoryPage />} />
+                          <Route path="/settings/*" element={<SettingsPage />} />
+                          <Route path="/huggingface" element={<HuggingFacePage />} />
+                          <Route path="/github" element={<GitHubPage />} /> {/* Added */}
+                        </Routes>
+                      </HashRouter>
+                    </TopViewContainer>
+                  </PrimaryContent>
+                  <BrowserPaneWrapper $isVisible={showBrowserPane}>
+                    {showBrowserPane && (
+                      <BrowserViewPane
+                        key={BROWSER_VIEW_ID}
+                        viewId={BROWSER_VIEW_ID}
+                        initialUrl="https://duckduckgo.com"
+                      />
+                    )}
+                  </BrowserPaneWrapper>
                 </MainAppArea>
                 <AppFooter>
                   <p>Developer Miss Casey Jay Topojani</p>

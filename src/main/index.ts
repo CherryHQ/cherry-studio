@@ -4,6 +4,9 @@ import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
 import { AgentMultiplexerService } from './services/AgentMultiplexerService';
+import { BrowserViewManagerService } from './services/BrowserViewManagerService';
+import { HuggingFaceService } from './services/HuggingFaceService';
+import { GitHubService } from './services/GitHubService'; // Added
 import { updateUserDataPath } from './utils/upgrade'
 import { createMainWindow } from './window'
 
@@ -35,7 +38,17 @@ app.whenReady().then(async () => {
   const agentMultiplexerService = new AgentMultiplexerService(); // Add your Ollama base URL if not default, e.g., 'http://host.docker.internal:11434'
   agentMultiplexerService.startProcessingLoop(); // Start its processing loop
 
-  registerIpc(mainWindow, app, agentMultiplexerService)
+  const browserViewManagerService = new BrowserViewManagerService();
+
+  // TODO: Retrieve actual Hugging Face API key from a secure config or environment variable
+  const HUGGING_FACE_API_KEY = process.env.HUGGING_FACE_API_KEY || undefined;
+  const huggingFaceService = new HuggingFaceService(HUGGING_FACE_API_KEY);
+
+  // TODO: Retrieve actual GitHub API key from a secure config or environment variable
+  const GITHUB_API_KEY = process.env.GITHUB_API_KEY || undefined;
+  const githubService = new GitHubService(GITHUB_API_KEY); // Added
+
+  registerIpc(mainWindow, app, agentMultiplexerService, browserViewManagerService, huggingFaceService, githubService) // Added githubService
 
   if (process.env.NODE_ENV === 'development') {
     installExtension(REDUX_DEVTOOLS)

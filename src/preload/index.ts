@@ -44,6 +44,73 @@ const api = {
       ipcRenderer.invoke('agentMultiplexer:removeAgent', agentId),
     sendMessage: (agentId: string, message: string, images?: string[]) =>
       ipcRenderer.invoke('agentMultiplexer:sendMessage', agentId, message, images)
+  },
+  browserViewManager: {
+    create: (viewId: string, hostWindowId?: number, initialUrl?: string) =>
+      ipcRenderer.invoke('browserView:create', viewId, hostWindowId, initialUrl),
+    destroy: (viewId: string) =>
+      ipcRenderer.invoke('browserView:destroy', viewId),
+    setBounds: (viewId: string, bounds: Electron.Rectangle) =>
+      ipcRenderer.invoke('browserView:setBounds', viewId, bounds),
+    showView: (viewId: string, hostWindowId?: number) =>
+      ipcRenderer.invoke('browserView:showView', viewId, hostWindowId),
+    hideView: (viewId: string) =>
+      ipcRenderer.invoke('browserView:hideView', viewId),
+    navigateTo: (viewId: string, url: string) =>
+      ipcRenderer.invoke('browserView:navigateTo', viewId, url),
+    goBack: (viewId: string) =>
+      ipcRenderer.invoke('browserView:goBack', viewId),
+    goForward: (viewId: string) =>
+      ipcRenderer.invoke('browserView:goForward', viewId),
+    reload: (viewId: string) =>
+      ipcRenderer.invoke('browserView:reload', viewId),
+    openDevTools: (viewId: string) =>
+      ipcRenderer.invoke('browserView:openDevTools', viewId),
+    getCurrentURL: (viewId: string) =>
+      ipcRenderer.invoke('browserView:getCurrentURL', viewId),
+    canGoBack: (viewId: string) =>
+      ipcRenderer.invoke('browserView:canGoBack', viewId),
+    canGoForward: (viewId: string) =>
+      ipcRenderer.invoke('browserView:canGoForward', viewId),
+    // Listener registration for events from main to renderer
+    onNavigationStateChanged: (viewId: string, callback: (state: {url: string, title: string, isLoading: boolean, canGoBack: boolean, canGoForward: boolean}) => void) => {
+      const channel = `browserView:navigationStateChanged:${viewId}`;
+      const handler = (_: Electron.IpcRendererEvent, state) => callback(state);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler); // Return a cleanup function
+    },
+    onTitleUpdated: (viewId: string, callback: (title: string) => void) => {
+      const channel = `browserView:titleUpdated:${viewId}`;
+      const handler = (_: Electron.IpcRendererEvent, title) => callback(title);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler);
+    },
+    onLoadFailed: (viewId: string, callback: (details: {url: string, error: string, code: number}) => void) => {
+      const channel = `browserView:loadFailed:${viewId}`;
+      const handler = (_: Electron.IpcRendererEvent, details) => callback(details);
+      ipcRenderer.on(channel, handler);
+      return () => ipcRenderer.removeListener(channel, handler);
+    }
+  },
+  huggingFaceService: {
+    listModels: (search?: string, author?: string, tags?: string[], limit?: number, full?: boolean) =>
+      ipcRenderer.invoke('huggingFace:listModels', search, author, tags, limit, full),
+    getModelInfo: (modelId: string) =>
+      ipcRenderer.invoke('huggingFace:getModelInfo', modelId),
+    getSpaceInfo: (spaceId: string) =>
+      ipcRenderer.invoke('huggingFace:getSpaceInfo', spaceId),
+    getSpaceUrl: (spaceId: string) => // This will return a Promise due to invoke
+      ipcRenderer.invoke('huggingFace:getSpaceUrl', spaceId)
+  },
+  githubService: {
+    getRepoInfo: (owner: string, repo: string) =>
+      ipcRenderer.invoke('github:getRepoInfo', owner, repo),
+    getRepoContents: (owner: string, repo: string, contentPath: string = '', ref?: string) =>
+      ipcRenderer.invoke('github:getRepoContents', owner, repo, contentPath, ref),
+    getFileContent: (owner: string, repo: string, filePath: string, ref?: string) =>
+      ipcRenderer.invoke('github:getFileContent', owner, repo, filePath, ref),
+    listUserRepos: (username: string, type?: 'all' | 'owner' | 'member', sort?: 'created' | 'updated' | 'pushed' | 'full_name', direction?: 'asc' | 'desc', perPage?: number, page?: number) =>
+      ipcRenderer.invoke('github:listUserRepos', username, type, sort, direction, perPage, page)
   }
 }
 
