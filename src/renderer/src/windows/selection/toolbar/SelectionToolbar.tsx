@@ -5,7 +5,6 @@ import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
-import { formatQuotedText } from '@renderer/utils/formats'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
@@ -229,8 +228,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
    */
   const handleQuote = (action: ActionItem) => {
     if (action.selectedText) {
-      const quotedText = formatQuotedText(action.selectedText)
-      window.api?.selection.quoteToMainWindow(quotedText)
+      window.api?.quoteToMainWindow(action.selectedText)
       window.api?.selection.hideToolbar()
     }
   }

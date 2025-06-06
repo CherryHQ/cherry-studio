@@ -35,6 +35,7 @@ import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
@@ -636,19 +637,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
-      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, onQuote)
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
     ]
 
-    // 监听从 selection 窗口发送过来的引用事件
-    const quoteFromSelectionRemover = window.electron?.ipcRenderer.on(
-      'quote-text-from-selection',
+    // 监听引用事件
+    const quoteFromAnywhereRemover = window.electron?.ipcRenderer.on(
+      IpcChannel.App_QuoteToMain,
       (_, selectedText: string) => onQuote(selectedText)
     )
 
     return () => {
       unsubscribes.forEach((unsub) => unsub())
-      quoteFromSelectionRemover?.()
+      quoteFromAnywhereRemover?.()
     }
   }, [addNewTopic, onQuote])
 

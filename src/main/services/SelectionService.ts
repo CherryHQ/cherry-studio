@@ -14,7 +14,6 @@ import type {
 
 import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
-import { windowService } from './WindowService'
 
 let SelectionHook: SelectionHookConstructor | null = null
 try {
@@ -1133,22 +1132,6 @@ export class SelectionService {
   }
 
   /**
-   * Send the quoted text to the inputbar of the main window
-   */
-  public quoteToMainWindow(quotedText: string): void {
-    try {
-      windowService.showMainWindow()
-
-      const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('quote-text-from-selection', quotedText)
-      }
-    } catch (error) {
-      this.logError('Failed to quote to main window:', error as Error)
-    }
-  }
-
-  /**
    * Register IPC handlers for communication with renderer process
    * Handles toolbar, action window, and selection-related commands
    */
@@ -1214,10 +1197,6 @@ export class SelectionService {
       if (actionWindow) {
         selectionService?.pinActionWindow(actionWindow, isPinned)
       }
-    })
-
-    ipcMain.handle(IpcChannel.Selection_QuoteToMainWindow, (_, quotedText: string) => {
-      selectionService?.quoteToMainWindow(quotedText)
     })
 
     this.isIpcHandlerRegistered = true

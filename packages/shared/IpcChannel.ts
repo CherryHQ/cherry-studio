@@ -20,6 +20,8 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  App_QuoteToMain = 'app:quote-to-main',
+
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
 
@@ -194,6 +196,5 @@ export enum IpcChannel {
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data',
-  Selection_QuoteToMainWindow = 'selection:quote-to-main-window'
+  Selection_UpdateActionData = 'selection:update-action-data'
 }
