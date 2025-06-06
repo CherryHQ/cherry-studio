@@ -559,6 +559,7 @@
       "error.enter.api.key": "Insira sua chave API",
       "error.enter.model": "Selecione um modelo",
       "error.enter.name": "Insira o nome da base de conhecimento",
+      "error.fetchTopicName": "Falha ao nomear o tópico",
       "error.get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
       "error.invalid.api.host": "Endereço API inválido",
       "error.invalid.api.key": "Chave API inválida",
@@ -850,7 +851,7 @@
       "doubao": "Volcano Engine",
       "fireworks": "Fogos de Artifício",
       "gemini": "Gêmeos",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
       "grok": "Compreender",
@@ -882,7 +883,7 @@
       "zhinao": "360 Inteligência Artificial",
       "zhipu": "ZhiPu IA",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Tem certeza de que deseja restaurar os dados?",
@@ -1142,6 +1143,7 @@
       "display.sidebar.translate.icon": "Mostrar ícone de tradução",
       "display.sidebar.visible": "Ícones visíveis",
       "display.title": "Configurações de exibição",
+      "display.zoom.title": "Configurações de zoom",
       "display.topic.title": "Configurações de tópico",
       "font_size.title": "Tamanho da fonte da mensagem",
       "general": "Configurações gerais",
@@ -1479,7 +1481,7 @@
         "zoom_out": "Diminuir interface",
         "zoom_reset": "Redefinir zoom"
       },
-      "theme.auto": "Automático",
+      "theme.system": "Sistema",
       "theme.dark": "Escuro",
       "theme.light": "Claro",
       "theme.title": "Tema",
@@ -1658,6 +1660,13 @@
       "quit": "Sair",
       "show_window": "Exibir Janela",
       "visualization": "Visualização"
+    },
+    "update": {
+      "title": "Atualização",
+      "message": "Nova versão {{version}} disponível, deseja instalar agora?",
+      "later": "Mais tarde",
+      "install": "Instalar",
+      "noReleaseNotes": "Sem notas de versão"
     }
   }
 }

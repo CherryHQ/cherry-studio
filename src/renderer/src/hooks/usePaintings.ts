@@ -9,15 +9,20 @@ export function usePaintings() {
   const remix = useAppSelector((state) => state.paintings.remix)
   const edit = useAppSelector((state) => state.paintings.edit)
   const upscale = useAppSelector((state) => state.paintings.upscale)
+  const DMXAPIPaintings = useAppSelector((state) => state.paintings.DMXAPIPaintings)
+  const tokenFluxPaintings = useAppSelector((state) => state.paintings.tokenFluxPaintings)
   const dispatch = useAppDispatch()
 
   return {
     paintings,
+    DMXAPIPaintings,
+    tokenFluxPaintings,
     persistentData: {
       generate,
       remix,
       edit,
-      upscale
+      upscale,
+      tokenFluxPaintings
     },
     addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(addPainting({ namespace, painting }))

@@ -15,10 +15,6 @@ interface Props {
 const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEnableGenerateImage }) => {
   const { t } = useTranslation()
 
-  if (!isGenerateImageModel(model)) {
-    return null
-  }
-
   return (
     <Tooltip
       placement="top"

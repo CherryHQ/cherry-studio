@@ -1,11 +1,13 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
+  AssistantsSortType,
   CodeStyleVarious,
   LanguageVarious,
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
+  PaintingProvider,
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
@@ -30,9 +32,14 @@ export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
+export type UserTheme = {
+  colorPrimary: string
+}
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
+  assistantsTabSortType: AssistantsSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
   targetLanguage: TranslateLanguageVarious
@@ -40,6 +47,7 @@ export interface SettingsState {
   proxyUrl?: string
   userName: string
   showPrompt: boolean
+  showTokens: boolean
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
@@ -48,6 +56,7 @@ export interface SettingsState {
   trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
+  userTheme: UserTheme
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
   topicPosition: 'left' | 'right'
@@ -121,14 +130,16 @@ export interface SettingsState {
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
   useTopicNamingForMessageTitle: boolean
+  showModelNameInMarkdown: boolean
+  showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
-  notionAutoSplit: boolean
-  notionSplitSize: number
+  notionExportReasoning: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
   joplinToken: string | null
   joplinUrl: string | null
+  joplinExportReasoning: boolean
   defaultObsidianVault: string | null
   defaultAgent: string | null
   // 思源笔记配置
@@ -168,6 +179,7 @@ export interface SettingsState {
     backup: boolean
     knowledgeEmbed: boolean
   }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -175,6 +187,7 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
+  assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
   targetLanguage: 'english' as TranslateLanguageVarious,
@@ -182,6 +195,7 @@ export const initialState: SettingsState = {
   proxyUrl: undefined,
   userName: '',
   showPrompt: true,
+  showTokens: true,
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
@@ -189,7 +203,10 @@ export const initialState: SettingsState = {
   launchToTray: false,
   trayOnClose: true,
   tray: true,
-  theme: ThemeMode.auto,
+  theme: ThemeMode.system,
+  userTheme: {
+    colorPrimary: '#00b96b'
+  },
   windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',
@@ -258,14 +275,16 @@ export const initialState: SettingsState = {
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
   useTopicNamingForMessageTitle: false,
+  showModelNameInMarkdown: false,
+  showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
-  notionAutoSplit: false,
-  notionSplitSize: 90,
+  notionExportReasoning: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
   joplinToken: '',
   joplinUrl: '',
+  joplinExportReasoning: false,
   defaultObsidianVault: null,
   defaultAgent: null,
   siyuanApiUrl: null,
@@ -300,7 +319,8 @@ export const initialState: SettingsState = {
     assistant: false,
     backup: false,
     knowledgeEmbed: false
-  }
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -318,6 +338,9 @@ const settingsSlice = createSlice({
     },
     toggleShowTopics: (state) => {
       state.showTopics = !state.showTopics
+    },
+    setAssistantsTabSortType: (state, action: PayloadAction<AssistantsSortType>) => {
+      state.assistantsTabSortType = action.payload
     },
     setSendMessageShortcut: (state, action: PayloadAction<SendMessageShortcut>) => {
       state.sendMessageShortcut = action.payload
@@ -339,6 +362,9 @@ const settingsSlice = createSlice({
     },
     setShowPrompt: (state, action: PayloadAction<boolean>) => {
       state.showPrompt = action.payload
+    },
+    setShowTokens: (state, action: PayloadAction<boolean>) => {
+      state.showTokens = action.payload
     },
     setShowMessageDivider: (state, action: PayloadAction<boolean>) => {
       state.showMessageDivider = action.payload
@@ -366,6 +392,9 @@ const settingsSlice = createSlice({
     },
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
+    },
+    setUserTheme: (state, action: PayloadAction<UserTheme>) => {
+      state.userTheme = action.payload
     },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
@@ -560,14 +589,17 @@ const settingsSlice = createSlice({
     setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
       state.useTopicNamingForMessageTitle = action.payload
     },
+    setShowModelNameInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelNameInMarkdown = action.payload
+    },
+    setShowModelProviderInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelProviderInMarkdown = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
-    setNotionAutoSplit: (state, action: PayloadAction<boolean>) => {
-      state.notionAutoSplit = action.payload
-    },
-    setNotionSplitSize: (state, action: PayloadAction<number>) => {
-      state.notionSplitSize = action.payload
+    setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.notionExportReasoning = action.payload
     },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
@@ -583,6 +615,9 @@ const settingsSlice = createSlice({
     },
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
+    },
+    setJoplinExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.joplinExportReasoning = action.payload
     },
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
@@ -637,15 +672,21 @@ const settingsSlice = createSlice({
     },
     setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
       state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
 
 export const {
+  setShowModelNameInMarkdown,
+  setShowModelProviderInMarkdown,
   setShowAssistants,
   toggleShowAssistants,
   setShowTopics,
   toggleShowTopics,
+  setAssistantsTabSortType,
   setSendMessageShortcut,
   setLanguage,
   setTargetLanguage,
@@ -653,6 +694,7 @@ export const {
   setProxyUrl,
   setUserName,
   setShowPrompt,
+  setShowTokens,
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
@@ -661,6 +703,7 @@ export const {
   setTrayOnClose,
   setTray,
   setTheme,
+  setUserTheme,
   setFontSize,
   setWindowStyle,
   setTopicPosition,
@@ -712,13 +755,13 @@ export const {
   setForceDollarMathInMarkdown,
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
-  setNotionAutoSplit,
-  setNotionSplitSize,
+  setNotionExportReasoning,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
   setJoplinToken,
   setJoplinUrl,
+  setJoplinExportReasoning,
   setMessageNavigation,
   setDefaultObsidianVault,
   setDefaultAgent,
@@ -736,7 +779,8 @@ export const {
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
   setOpenAIServiceTier,
-  setNotificationSettings
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

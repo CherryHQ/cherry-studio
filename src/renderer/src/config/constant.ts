@@ -17,3 +17,18 @@ export const INITIAL_MESSAGES_COUNT = 20
 export const LOAD_MORE_COUNT = 20
 export const PRODUCTION_FEED_URL = 'https://releases.cherry-ai.com'
 export const EARLY_ACCESS_FEED_URL = 'https://early-access.cherry-ai.com'
+
+export const DEFAULT_COLOR_PRIMARY = '#00b96b'
+export const THEME_COLOR_PRESETS = [
+  DEFAULT_COLOR_PRIMARY,
+  '#FF5470', // Coral Pink
+  '#14B8A6', // Teal
+  '#6366F1', // Indigo
+  '#8B5CF6', // Purple
+  '#EC4899', // Pink
+  '#3B82F6', // Blue
+  '#F59E0B', // Amber
+  '#6D28D9', // Violet
+  '#0EA5E9', // Sky Blue
+  '#0284C7' // Light Blue
+]

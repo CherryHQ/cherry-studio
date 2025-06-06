@@ -103,6 +103,7 @@ export function getProviderLogo(providerId: string) {
 
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
 export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama']
+export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini']
 
 export const PROVIDER_CONFIG = {
   openai: {
@@ -123,8 +124,8 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://o3.fan',
       apiKey: 'https://o3.fan/token',
-      docs: 'https://docs.o3.fan',
-      models: 'https://docs.o3.fan/models'
+      docs: '',
+      models: 'https://o3.fan/info/models/'
     }
   },
   burncloud: {
@@ -143,11 +144,10 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.ppinfra.com/v3/openai'
     },
     websites: {
-      official: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      apiKey: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      official: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      apiKey: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
       docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      models:
-        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
+      models: 'https://ppio.cn/model-api/product/llm-api?invited_by=JYT9GD&utm_source=github_cherry-studio'
     }
   },
   gemini: {
@@ -394,7 +394,7 @@ export const PROVIDER_CONFIG = {
       official: 'https://openrouter.ai/',
       apiKey: 'https://openrouter.ai/settings/keys',
       docs: 'https://openrouter.ai/docs/quick-start',
-      models: 'https://openrouter.ai/docs/models'
+      models: 'https://openrouter.ai/models'
     }
   },
   groq: {
@@ -446,7 +446,7 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://x.ai/',
       docs: 'https://docs.x.ai/',
-      models: 'https://docs.x.ai/docs#getting-started'
+      models: 'https://docs.x.ai/docs/models'
     }
   },
   hyperbolic: {

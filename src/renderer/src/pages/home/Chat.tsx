@@ -38,7 +38,7 @@ const Chat: FC<Props> = (props) => {
     const showRightTopics = showTopics && topicPosition === 'right'
     const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
     const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth} - 5px)`
+    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
   }, [showAssistants, showTopics, topicPosition])
 
   useHotkeys('esc', () => {
@@ -115,16 +115,14 @@ const Chat: FC<Props> = (props) => {
           includeUser={filterIncludeUser}
           onIncludeUserChange={userOutlinedItemClickHandler}
         />
-        <MessagesContainer>
-          <Messages
-            key={props.activeTopic.id}
-            assistant={assistant}
-            topic={props.activeTopic}
-            setActiveTopic={props.setActiveTopic}
-            onComponentUpdate={messagesComponentUpdateHandler}
-            onFirstUpdate={messagesComponentFirstUpdateHandler}
-          />
-        </MessagesContainer>
+        <Messages
+          key={props.activeTopic.id}
+          assistant={assistant}
+          topic={props.activeTopic}
+          setActiveTopic={props.setActiveTopic}
+          onComponentUpdate={messagesComponentUpdateHandler}
+          onFirstUpdate={messagesComponentFirstUpdateHandler}
+        />
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
           {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
@@ -142,13 +140,6 @@ const Chat: FC<Props> = (props) => {
     </Container>
   )
 }
-
-const MessagesContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  flex: 1;
-`
 
 const Container = styled.div`
   display: flex;

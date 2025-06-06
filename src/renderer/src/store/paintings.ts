@@ -6,7 +6,9 @@ const initialState: PaintingsState = {
   generate: [],
   remix: [],
   edit: [],
-  upscale: []
+  upscale: [],
+  DMXAPIPaintings: [],
+  tokenFluxPaintings: []
 }
 
 const paintingsSlice = createSlice({
@@ -37,7 +39,13 @@ const paintingsSlice = createSlice({
       action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
     ) => {
       const { namespace = 'paintings', painting } = action.payload
-      state[namespace] = state[namespace].map((c) => (c.id === painting.id ? painting : c))
+
+      const existingIndex = state[namespace].findIndex((c) => c.id === painting.id)
+      if (existingIndex !== -1) {
+        state[namespace] = state[namespace].map((c) => (c.id === painting.id ? painting : c))
+      } else {
+        console.error(`Painting with id ${painting.id} not found in ${namespace}`)
+      }
     },
     updatePaintings: (
       state: PaintingsState,

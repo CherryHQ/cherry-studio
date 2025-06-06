@@ -199,7 +199,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
   const { userName } = useSettings()
-  const { theme } = useTheme()
+  const { settedTheme } = useTheme()
 
   const topicId = conversationId
 
@@ -491,7 +491,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
               }}
               proOptions={{ hideAttribution: true }}
               className="react-flow-container"
-              colorMode={theme === 'auto' ? 'system' : theme}>
+              colorMode={settedTheme}>
               <Controls showInteractive={false} />
               <MiniMap
                 nodeStrokeWidth={3}

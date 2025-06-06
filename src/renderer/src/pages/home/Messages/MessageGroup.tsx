@@ -190,16 +190,6 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
         </MessageWrapper>
       )
 
-      const wrappedMessage = (
-        <SelectableMessage
-          key={`selectable-${message.id}`}
-          messageId={message.id}
-          topic={topic}
-          isClearMessage={message.type === 'clear'}>
-          {messageContent}
-        </SelectableMessage>
-      )
-
       if (isGridGroupMessage) {
         return (
           <Popover
@@ -214,14 +204,21 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
-            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
-            getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}>
-            {wrappedMessage}
+            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}>
+            <div style={{ cursor: 'pointer' }}>{messageContent}</div>
           </Popover>
         )
       }
 
-      return wrappedMessage
+      return (
+        <SelectableMessage
+          key={`selectable-${message.id}`}
+          messageId={message.id}
+          topic={topic}
+          isClearMessage={message.type === 'clear'}>
+          {messageContent}
+        </SelectableMessage>
+      )
     },
     [
       isGrid,
@@ -290,7 +287,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
-    minmax(550px, 1fr)
+    minmax(480px, 1fr)
   );
   @media (max-width: 800px) {
     grid-template-columns: repeat(

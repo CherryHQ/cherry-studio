@@ -15,6 +15,7 @@ import {
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
+  isWebSearchModel,
   isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -83,6 +84,7 @@ export type OpenAIStreamChunk =
   | { type: 'reasoning' | 'text-delta'; textDelta: string }
   | { type: 'tool-calls'; delta: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
+  | { type: 'unknown'; chunk: any }
 
 export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
@@ -279,18 +281,10 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // OpenRouter models
     if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
-            effort: assistant?.settings?.reasoning_effort
-          }
-        }
-      }
-
-      if (isSupportedThinkingTokenModel(model)) {
-        return {
-          reasoning: {
-            max_tokens: budgetTokens
+            effort: assistant?.settings?.reasoning_effort === 'auto' ? 'medium' : assistant?.settings?.reasoning_effort
           }
         }
       }
@@ -371,7 +365,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const model = assistant.model || defaultModel
 
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBultinWebSearch = assistant.enableWebSearch
+    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
     messages = addImageFileToContents(messages)
     const enableReasoning =
       ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
@@ -397,7 +391,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     })
 
     if (this.useSystemPromptForTools) {
-      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+      systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools)
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
@@ -630,21 +624,26 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             break
           }
 
-          const delta = chunk.choices[0]?.delta
-          if (delta?.reasoning_content || delta?.reasoning) {
-            yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-          }
-          if (delta?.content) {
-            yield { type: 'text-delta', textDelta: delta.content }
-          }
-          if (delta?.tool_calls) {
-            yield { type: 'tool-calls', delta: delta }
-          }
+          if (chunk.choices && chunk.choices.length > 0) {
+            const delta = chunk.choices[0]?.delta
+            if (
+              (delta?.reasoning_content && delta?.reasoning_content !== '\n') ||
+              (delta?.reasoning && delta?.reasoning !== '\n')
+            ) {
+              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+            }
+            if (delta?.content) {
+              yield { type: 'text-delta', textDelta: delta.content }
+            }
+            if (delta?.tool_calls && delta?.tool_calls.length > 0) {
+              yield { type: 'tool-calls', delta: delta }
+            }
 
-          const finishReason = chunk.choices[0]?.finish_reason
-          if (!isEmpty(finishReason)) {
-            yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
-            break
+            const finishReason = chunk?.choices[0]?.finish_reason
+            if (!isEmpty(finishReason)) {
+              yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+              break
+            }
           }
         }
       }
@@ -665,7 +664,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       for await (const chunk of readableStreamAsyncIterable(processedStream)) {
         const delta = chunk.type === 'finish' ? chunk.delta : chunk
         const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
-
         switch (chunk.type) {
           case 'reasoning': {
             if (time_first_token_millsec === 0) {
@@ -830,6 +828,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               }
             }
             break
+          }
+          case 'unknown': {
+            onChunk({
+              type: ChunkType.ERROR,
+              error: chunk.chunk
+            })
           }
         }
       }
@@ -1015,14 +1019,20 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     await this.checkIsCopilot()
 
-    // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
+    const params = {
       model: model.id,
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
       stream: false,
       keep_alive: this.keepAliveTime,
       max_tokens: 1000
-    })
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      params['enable_thinking'] = false
+    }
+
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create(params as ChatCompletionCreateParamsNonStreaming)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''

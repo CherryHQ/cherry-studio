@@ -1,3 +1,4 @@
+import { GenerateImagesParameters } from '@google/genai'
 import BaseProvider from '@renderer/providers/AiProvider/BaseProvider'
 import ProviderFactory from '@renderer/providers/AiProvider/ProviderFactory'
 import type { Assistant, GenerateImageParams, MCPTool, Model, Provider, Suggestion } from '@renderer/types'
@@ -70,8 +71,8 @@ export default class AiProvider {
     return this.sdk.getApiKey()
   }
 
-  public async generateImage(params: GenerateImageParams): Promise<string[]> {
-    return this.sdk.generateImage(params)
+  public async generateImage(params: GenerateImageParams | GenerateImagesParameters): Promise<string[]> {
+    return this.sdk.generateImage(params as GenerateImageParams)
   }
 
   public async generateImageByChat({

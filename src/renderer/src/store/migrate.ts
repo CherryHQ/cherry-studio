@@ -11,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -1441,6 +1442,44 @@ const migrateConfig = {
     try {
       addProvider(state, 'tokenflux')
       state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '109': (state: RootState) => {
+    try {
+      state.settings.userTheme = settingsInitialState.userTheme
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '110': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.tokenFluxPaintings) {
+        state.paintings.tokenFluxPaintings = []
+      }
+      state.settings.showTokens = true
       return state
     } catch (error) {
       return state

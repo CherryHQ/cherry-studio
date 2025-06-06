@@ -1,6 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeToolbarProvider } from '@renderer/components/CodeToolbar'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
@@ -95,7 +94,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
         description: serverToAdd!.description ?? '',
         baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
         command: serverToAdd!.command ?? '',
-        args: serverToAdd!.args || [],
+        args: Array.isArray(serverToAdd!.args) ? serverToAdd!.args : [],
         env: serverToAdd!.env || {},
         isActive: false,
         type: serverToAdd!.type,
@@ -157,25 +156,23 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({ visible, onClose, onSuc
           name="serverConfig"
           label={t('settings.mcp.addServer.importFrom.tooltip')}
           rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
-          <CodeToolbarProvider>
-            <CodeEditor
-              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
-              value={serverConfigValue}
-              placeholder={initialJsonExample}
-              language="json"
-              onChange={handleEditorChange}
-              maxHeight="300px"
-              options={{
-                lint: true,
-                collapsible: true,
-                wrappable: true,
-                lineNumbers: true,
-                foldGutter: true,
-                highlightActiveLine: true,
-                keymap: true
-              }}
-            />
-          </CodeToolbarProvider>
+          <CodeEditor
+            // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+            value={serverConfigValue}
+            placeholder={initialJsonExample}
+            language="json"
+            onChange={handleEditorChange}
+            maxHeight="300px"
+            options={{
+              lint: true,
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
         </Form.Item>
       </Form>
     </Modal>
@@ -236,7 +233,6 @@ const parseAndExtractServer = (
     }
   } else if (
     typeof parsedJson === 'object' &&
-    parsedJson !== null &&
     !Array.isArray(parsedJson) &&
     !parsedJson.mcpServers // 確保是直接的伺服器物件
   ) {

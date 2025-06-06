@@ -7,13 +7,14 @@ import {
   setEarlyAccess as _setEarlyAccess,
   setLaunchOnBoot,
   setLaunchToTray,
+  setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
+  setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
   setTheme,
   SettingsState,
   setTopicPosition,
-  setPinTopicsToTop,
   setTray as _setTray,
   setTrayOnClose,
   setWindowStyle
@@ -93,6 +94,9 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
+    },
+    setShowTokens(showTokens: boolean) {
+      dispatch(setShowTokens(showTokens))
     }
   }
 }

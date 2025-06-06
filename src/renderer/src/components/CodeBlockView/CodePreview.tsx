@@ -1,4 +1,4 @@
-import { TOOL_SPECS, useCodeToolbar } from '@renderer/components/CodeToolbar'
+import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
@@ -12,6 +12,7 @@ import styled from 'styled-components'
 interface CodePreviewProps {
   children: string
   language: string
+  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
 /**
@@ -20,7 +21,7 @@ interface CodePreviewProps {
  * - 通过 shiki tokenizer 处理流式响应
  * - 为了正确执行语法高亮，必须保证流式响应都依次到达 tokenizer，不能跳过
  */
-const CodePreview = ({ children, language }: CodePreviewProps) => {
+const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
   const { activeShikiTheme, highlightCodeChunk, cleanupTokenizers } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
@@ -35,7 +36,7 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
 
   const { t } = useTranslation()
 
-  const { registerTool, removeTool } = useCodeToolbar()
+  const { registerTool, removeTool } = useCodeTool(setTools)
 
   // 展开/折叠工具
   useEffect(() => {
@@ -133,26 +134,31 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
     return () => cleanupTokenizers(callerId)
   }, [callerId, cleanupTokenizers])
 
-  // 处理第二次开始的代码高亮
+  // 触发代码高亮
+  // - 进入视口后触发第一次高亮
+  // - 内容变化后触发之后的高亮
   useEffect(() => {
-    if (prevCodeLengthRef.current > 0) {
-      setTimeout(highlightCode, 0)
-    }
-  }, [highlightCode])
-
-  // 视口检测逻辑，只处理第一次代码高亮
-  useEffect(() => {
-    const codeElement = codeContentRef.current
-    if (!codeElement || prevCodeLengthRef.current > 0) return
-
     let isMounted = true
 
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && isMounted) {
-        setTimeout(highlightCode, 0)
-        observer.disconnect()
+    if (prevCodeLengthRef.current > 0) {
+      setTimeout(highlightCode, 0)
+      return
+    }
+
+    const codeElement = codeContentRef.current
+    if (!codeElement) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].intersectionRatio > 0 && isMounted) {
+          setTimeout(highlightCode, 0)
+          observer.disconnect()
+        }
+      },
+      {
+        rootMargin: '50px 0px 50px 0px'
       }
-    })
+    )
 
     observer.observe(codeElement)
 
@@ -171,14 +177,13 @@ const CodePreview = ({ children, language }: CodePreviewProps) => {
       ref={codeContentRef}
       $lineNumbers={codeShowLineNumbers}
       $wrap={codeWrappable && !isUnwrapped}
+      $fadeIn={hasHighlightedCode}
       style={{
         fontSize: fontSize - 1,
         maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
       }}>
       {hasHighlightedCode ? (
-        <div className="fade-in-effect">
-          <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
-        </div>
+        <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
       ) : (
         <CodePlaceholder>{children}</CodePlaceholder>
       )}
@@ -229,18 +234,13 @@ const ShikiTokensRenderer: React.FC<{ language: string; tokenLines: ThemedToken[
 const ContentContainer = styled.div<{
   $lineNumbers: boolean
   $wrap: boolean
+  $fadeIn: boolean
 }>`
   position: relative;
   overflow: auto;
-  display: flex;
-  flex-direction: column;
   border: 0.5px solid transparent;
   border-radius: 5px;
   margin-top: 0;
-
-  ::-webkit-scrollbar-thumb {
-    border-radius: 10px;
-  }
 
   .shiki {
     padding: 1em;
@@ -248,7 +248,6 @@ const ContentContainer = styled.div<{
     code {
       display: flex;
       flex-direction: column;
-      width: 100%;
 
       .line {
         display: block;
@@ -256,7 +255,7 @@ const ContentContainer = styled.div<{
         padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
 
         * {
-          word-wrap: ${(props) => (props.$wrap ? 'break-word' : undefined)};
+          overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
           white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         }
       }
@@ -292,18 +291,15 @@ const ContentContainer = styled.div<{
     }
   }
 
-  .fade-in-effect {
-    animation: contentFadeIn 0.3s ease-in-out forwards;
-  }
+  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.3s ease-in-out forwards' : 'none')};
 `
 
 const CodePlaceholder = styled.div`
+  display: block;
   opacity: 0.1;
-  flex-direction: column;
   white-space: pre-wrap;
   word-break: break-all;
   overflow-x: hidden;
-  display: block;
   min-height: 1.3rem;
 `
 
