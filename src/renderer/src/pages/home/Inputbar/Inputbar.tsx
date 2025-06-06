@@ -899,8 +899,6 @@ const InputBarContainer = styled.div`
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
-  display: flex;
-  flex-direction: column;
 
   &.file-dragging {
     border: 2px dashed #2ecc71;
@@ -929,7 +927,6 @@ const Textarea = styled(TextArea)`
   padding: 0;
   border-radius: 0;
   display: flex;
-  flex: 1;
   resize: none !important;
   overflow: auto;
   width: 100%;
