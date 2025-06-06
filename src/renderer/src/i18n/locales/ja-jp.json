@@ -511,6 +511,7 @@
       "add_note": "ノートを追加",
       "add_sitemap": "サイトマップを追加",
       "add_url": "URLを追加",
+      "download_resource": "すべてダウンロード",
       "cancel_index": "インデックスをキャンセル",
       "chunk_overlap": "チャンクの重なり",
       "chunk_overlap_placeholder": "デフォルト（変更しないでください）",

@@ -511,6 +511,7 @@
       "add_note": "新增筆記",
       "add_sitemap": "網站地圖",
       "add_url": "新增網址",
+      "download_resource": "下載所有",
       "cancel_index": "取消索引",
       "chunk_overlap": "重疊大小",
       "chunk_overlap_placeholder": "預設值（不建議修改）",
