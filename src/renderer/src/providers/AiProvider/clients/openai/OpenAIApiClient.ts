@@ -397,15 +397,9 @@ export class OpenAIAPIClient extends BaseApiClient<
   buildSdkMessages(
     currentReqMessages: OpenAISdkMessageParam[],
     toolResults: OpenAISdkMessageParam[],
-    assistantMessage: OpenAISdkMessageParam,
-    toolCalls?: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
+    assistantMessage: OpenAISdkMessageParam
   ): OpenAISdkMessageParam[] {
-    const newAssistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
-      role: 'assistant',
-      content: assistantMessage.content as string,
-      tool_calls: toolCalls
-    }
-    const newReqMessages = [...currentReqMessages, newAssistantMessage, ...(toolResults || [])]
+    const newReqMessages = [...currentReqMessages, assistantMessage, ...(toolResults || [])]
     return newReqMessages
   }
 
@@ -421,6 +415,7 @@ export class OpenAIAPIClient extends BaseApiClient<
         payload: OpenAISdkParams
         messages: OpenAISdkMessageParam[]
         processedMessages: Message[]
+        metadata: Record<string, any>
       }> => {
         const { messages, mcpTools, maxTokens, streamOutput, onFilterMessages } = coreRequest
 
@@ -505,7 +500,9 @@ export class OpenAIAPIClient extends BaseApiClient<
               stream: false
             }
 
-        return { payload: sdkParams, messages: reqMessages, processedMessages }
+        const timeout = this.getTimeout(model)
+
+        return { payload: sdkParams, messages: reqMessages, processedMessages, metadata: { timeout } }
       }
     }
   }

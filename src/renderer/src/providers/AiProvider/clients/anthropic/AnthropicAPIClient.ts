@@ -288,9 +288,7 @@ export class AnthropicAPIClient extends BaseApiClient<
   override buildSdkMessages(
     currentReqMessages: AnthropicSdkMessageParam[],
     toolResults: AnthropicSdkMessageParam[],
-    assistantMessage: AnthropicSdkMessageParam,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _toolCalls?: ToolUseBlock[]
+    assistantMessage: AnthropicSdkMessageParam
   ): AnthropicSdkMessageParam[] {
     const newMessages: AnthropicSdkMessageParam[] = [...currentReqMessages, assistantMessage]
     if (toolResults && toolResults.length > 0) {
@@ -376,6 +374,7 @@ export class AnthropicAPIClient extends BaseApiClient<
         payload: AnthropicSdkParams
         messages: AnthropicSdkMessageParam[]
         processedMessages: Message[]
+        metadata: Record<string, any>
       }> => {
         const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch, onFilterMessages } = coreRequest
 
@@ -437,7 +436,9 @@ export class AnthropicAPIClient extends BaseApiClient<
               ...commonParams,
               stream: false
             }
-        return { payload: finalParams, messages: sdkMessages, processedMessages: _messages }
+
+        const timeout = this.getTimeout(model)
+        return { payload: finalParams, messages: sdkMessages, processedMessages: _messages, metadata: { timeout } }
       }
     }
   }

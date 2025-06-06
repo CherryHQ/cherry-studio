@@ -37,6 +37,7 @@ import {
 import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { defaultTimeout } from '@shared/config/constant'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
@@ -107,8 +108,7 @@ export abstract class BaseApiClient<
   abstract buildSdkMessages(
     currentReqMessages: TMessageParam[],
     toolResults: TMessageParam[],
-    assistantMessage: TMessageParam,
-    toolCalls?: TToolCall[]
+    assistantMessage: TMessageParam
   ): TMessageParam[]
 
   abstract convertMcpToolResponseToSdkMessageParam(
@@ -182,6 +182,13 @@ export abstract class BaseApiClient<
     }
 
     return serviceTier
+  }
+
+  protected getTimeout(model: Model) {
+    if (isSupportedFlexServiceTier(model)) {
+      return 15 * 1000 * 60
+    }
+    return defaultTimeout
   }
 
   public async getMessageContent(message: Message): Promise<string> {

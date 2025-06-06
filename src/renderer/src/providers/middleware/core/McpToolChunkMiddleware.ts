@@ -90,7 +90,7 @@ function createToolHandlingTransform(
   const toolUseResponses: MCPToolResponse[] = []
   const allToolResponses: MCPToolResponse[] = [] // 统一的工具响应状态管理数组
   let assistantMessage: SdkMessageParam | null = null
-  let assistantMessageContent: string | null = null
+  let assistantMessageContent = ''
   let hasToolCalls = false
   let hasToolUseResponses = false
   let streamEnded = false
@@ -194,14 +194,15 @@ function createToolHandlingTransform(
             // anthropic 的 assistantMessage 在 RawStreamListenerMiddleware 中设置
             if (ctx._internal.toolProcessingState?.assistantMessage) {
               assistantMessage = ctx._internal.toolProcessingState.assistantMessage
-            } else if (assistantMessageContent) {
+            } else {
               assistantMessage = {
                 role: 'assistant',
-                content: assistantMessageContent
+                content: assistantMessageContent || '',
+                tool_calls: toolCalls
               } as SdkMessageParam
             }
 
-            const newParams = buildParamsWithToolResults(ctx, currentParams, toolResult, assistantMessage!, toolCalls)
+            const newParams = buildParamsWithToolResults(ctx, currentParams, toolResult, assistantMessage!)
             Logger.debug(
               `🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting recursive tool call from depth ${depth} to ${depth + 1}`
             )
@@ -333,8 +334,7 @@ function buildParamsWithToolResults(
   ctx: CompletionsContext,
   currentParams: CompletionsParams,
   toolResults: SdkMessageParam[],
-  assistantMessage: SdkMessageParam,
-  toolCalls: SdkToolCall[]
+  assistantMessage: SdkMessageParam
 ): CompletionsParams {
   // 获取当前已经转换好的reqMessages，如果没有则使用原始messages
   const currentReqMessages = ctx._internal.sdkPayload?.messages || []
@@ -343,7 +343,7 @@ function buildParamsWithToolResults(
   const apiClient = ctx.apiClientInstance
 
   // 从回复中构建助手消息
-  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, toolResults, assistantMessage, toolCalls)
+  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, toolResults, assistantMessage)
 
   Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
   Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Message roles:`, newReqMessages.map((m) => m.role).join(' -> '))

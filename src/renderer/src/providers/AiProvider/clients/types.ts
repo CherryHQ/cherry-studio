@@ -121,7 +121,6 @@ export interface ApiClient<
   buildSdkMessages(
     currentReqMessages: TMessageParam[],
     toolResults: TMessageParam[],
-    assistantMessage: TMessageParam,
-    toolCalls?: TToolCall[]
+    assistantMessage: TMessageParam
   ): TMessageParam[]
 }
