@@ -310,7 +310,7 @@ const ActionButton = styled.div`
   cursor: pointer;
   border-radius: 4px;
   padding: 4px 6px;
-  transition: all 0.15s ease-in-out;
+  transition: all 0.1s ease-in-out;
   will-change: color, background-color;
 
   .btn-icon {
@@ -318,13 +318,13 @@ const ActionButton = styled.div`
     height: 16px;
     color: var(--color-selection-toolbar-text);
     background-color: transparent;
-    transition: color 0.15s ease-in-out;
+    transition: color 0.1s ease-in-out;
     will-change: color;
   }
   .btn-title {
     color: var(--color-selection-toolbar-text);
     --font-size: 14px;
-    transition: color 0.15s ease-in-out;
+    transition: color 0.1s ease-in-out;
     will-change: color;
   }
   &:hover {
