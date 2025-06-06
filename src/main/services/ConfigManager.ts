@@ -151,7 +151,7 @@ export class ConfigManager {
 
   // Selection Assistant: is enabled the selection assistant
   getSelectionAssistantEnabled(): boolean {
-    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, true)
+    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, false)
   }
 
   setSelectionAssistantEnabled(value: boolean) {

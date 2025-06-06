@@ -18,7 +18,7 @@ export const defaultActionItems: ActionItem[] = [
 ]
 
 export const initialState: SelectionState = {
-  selectionEnabled: true,
+  selectionEnabled: false,
   triggerMode: 'selected',
   isCompact: false,
   isAutoClose: false,
