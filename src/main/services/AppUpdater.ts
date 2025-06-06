@@ -1,6 +1,7 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
+import { FeedUrl } from '@shared/config/constant'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
@@ -20,6 +21,7 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.setFeedURL(configManager.getFeedUrl())
 
     // 检测下载错误
     autoUpdater.on('error', (error) => {
@@ -60,6 +62,11 @@ export default class AppUpdater {
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
     autoUpdater.autoInstallOnAppQuit = isActive
+  }
+
+  public setFeedUrl(feedUrl: FeedUrl) {
+    autoUpdater.setFeedURL(feedUrl)
+    configManager.setFeedUrl(feedUrl)
   }
 
   public async checkForUpdates() {

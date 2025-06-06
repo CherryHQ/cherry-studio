@@ -1,13 +1,10 @@
-import { CopyOutlined, DownloadOutlined } from '@ant-design/icons'
+import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
 import { Painting } from '@renderer/types'
-import { download } from '@renderer/utils/download'
-import { Button, Dropdown, Spin } from 'antd'
+import { Button, Spin } from 'antd'
 import React, { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import ImagePreview from '../../home/Markdown/ImagePreview'
 
 interface ArtboardProps {
   painting: Painting
@@ -37,29 +34,6 @@ const Artboard: FC<ArtboardProps> = ({
     return currentFile ? FileManager.getFileUrl(currentFile) : ''
   }
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-  }
-
-  const getContextMenuItems = () => {
-    return [
-      {
-        key: 'copy',
-        label: t('common.copy'),
-        icon: <CopyOutlined />,
-        onClick: () => {
-          navigator.clipboard.writeText(painting.urls[currentImageIndex])
-        }
-      },
-      {
-        key: 'download',
-        label: t('common.download'),
-        icon: <DownloadOutlined />,
-        onClick: () => download(getCurrentImageUrl())
-      }
-    ]
-  }
-
   return (
     <Container>
       <LoadingContainer spinning={isLoading}>
@@ -70,20 +44,17 @@ const Artboard: FC<ArtboardProps> = ({
                 ←
               </NavigationButton>
             )}
-            <Dropdown menu={{ items: getContextMenuItems() }} trigger={['contextMenu']}>
-              <ImagePreview
-                src={getCurrentImageUrl()}
-                preview={{ mask: false }}
-                onContextMenu={handleContextMenu}
-                style={{
-                  maxWidth: '70vh',
-                  maxHeight: '70vh',
-                  objectFit: 'contain',
-                  backgroundColor: 'var(--color-background-soft)',
-                  cursor: 'pointer'
-                }}
-              />
-            </Dropdown>
+            <ImageViewer
+              src={getCurrentImageUrl()}
+              preview={{ mask: false }}
+              style={{
+                maxWidth: '70vh',
+                maxHeight: '70vh',
+                objectFit: 'contain',
+                backgroundColor: 'var(--color-background-soft)',
+                cursor: 'pointer'
+              }}
+            />
             {painting.files.length > 1 && (
               <NavigationButton onClick={onNextImage} style={{ right: 10 }}>
                 →

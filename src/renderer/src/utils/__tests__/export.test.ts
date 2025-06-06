@@ -102,7 +102,6 @@ function createMessage(
     modelId: partialMsg.modelId,
     model: partialMsg.model,
     type: partialMsg.type,
-    isPreset: partialMsg.isPreset,
     useful: partialMsg.useful,
     askId: partialMsg.askId,
     mentions: partialMsg.mentions,
