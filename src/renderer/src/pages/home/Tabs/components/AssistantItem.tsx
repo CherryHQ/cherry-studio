@@ -30,6 +30,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
+import { useTabContext } from '../TabsProvider'
+import Topics from '../TopicsTab'
 import AssistantTagsPopup from './AssistantTagsPopup'
 
 interface AssistantItemProps {
@@ -58,7 +60,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
+  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType, topicLayoutType } =
+    useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
@@ -139,33 +142,40 @@ const AssistantItem: FC<AssistantItemProps> = ({
     [assistant.emoji, assistantName]
   )
 
+  const { assistant: activeAssistant, activeTopic, setActiveTopic } = useTabContext()
+
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
-        <AssistantNameRow className="name" title={fullAssistantName}>
-          {assistantIconType === 'model' ? (
-            <ModelAvatar
-              model={assistant.model || defaultModel}
-              size={24}
-              className={isPending && !isActive ? 'animation-pulse' : ''}
-            />
-          ) : (
-            assistantIconType === 'emoji' && (
-              <EmojiIcon
-                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
+    <AssistantGroup className={isActive ? 'active' : ''}>
+      <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
+        <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
+          <AssistantNameRow className="name" title={fullAssistantName}>
+            {assistantIconType === 'model' ? (
+              <ModelAvatar
+                model={assistant.model || defaultModel}
+                size={24}
                 className={isPending && !isActive ? 'animation-pulse' : ''}
               />
-            )
+            ) : (
+              assistantIconType === 'emoji' && (
+                <EmojiIcon
+                  emoji={assistant.emoji || getLeadingEmoji(assistantName)}
+                  className={isPending && !isActive ? 'animation-pulse' : ''}
+                />
+              )
+            )}
+            <AssistantName className="text-nowrap">{assistantName}</AssistantName>
+          </AssistantNameRow>
+          {(isActive || topicLayoutType === 'accordion') && (
+            <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
+              <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
+            </MenuButton>
           )}
-          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
-        </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          </MenuButton>
-        )}
-      </Container>
-    </Dropdown>
+        </Container>
+      </Dropdown>
+      {topicLayoutType === 'accordion' && isActive && (
+        <Topics assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
+      )}
+    </AssistantGroup>
   )
 }
 
@@ -378,6 +388,13 @@ function getMenuItems({
   ]
 }
 
+const AssistantGroup = styled.div`
+  &.active {
+    background-color: var(--color-background);
+    border-radius: var(--list-item-border-radius);
+  }
+`
+
 const Container = styled.div`
   display: flex;
   flex-direction: row;
@@ -387,7 +404,6 @@ const Container = styled.div`
   position: relative;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
-  width: calc(var(--assistants-width) - 20px);
   cursor: pointer;
   &:hover {
     background-color: var(--color-list-item-hover);

@@ -6,12 +6,13 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Segmented as AntSegmented, SegmentedProps } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import Assistants from './AssistantsTab'
 import Settings from './SettingsTab'
+import TabsProvider from './TabsProvider'
 import Topics from './TopicsTab'
 
 interface Props {
@@ -38,8 +39,22 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   const { addAssistant } = useAssistants()
-  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
-  const { topicPosition } = useSettings()
+
+  const { topicPosition, topicLayoutType } = useSettings()
+  const [tab, setTab] = useState<Tab>(() => {
+    if (position === 'left') {
+      return _tab || 'assistants'
+    }
+    return topicLayoutType === 'tabs' ? 'topic' : 'assistants'
+    // position === 'left' ? _tab || 'assistants' : topicLayoutType === 'tabs' ? 'topic' : 'assistants'
+  })
+
+  useEffect(() => {
+    if (topicLayoutType === 'accordion' && tab === 'topic') {
+      setTab('assistants')
+    }
+  }, [topicLayoutType, tab])
+
   const { defaultAssistant } = useDefaultAssistant()
   const { showTopics, toggleShowTopics } = useShowTopics()
 
@@ -54,12 +69,6 @@ const HomeTabs: FC<Props> = ({
   }
 
   const showTab = !(position === 'left' && topicPosition === 'right')
-
-  const assistantTab = {
-    label: t('assistants.abbr'),
-    value: 'assistants'
-    // icon: <BotIcon size={16} />
-  }
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
@@ -78,55 +87,70 @@ const HomeTabs: FC<Props> = ({
         showTab && setTab('assistants')
       }),
       EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, (): any => {
-        showTab && setTab('topic')
+        showTab && (topicLayoutType === 'tabs' ? setTab('topic') : setTab('assistants'))
       }),
       EventEmitter.on(EVENT_NAMES.SHOW_CHAT_SETTINGS, (): any => {
         showTab && setTab('settings')
       }),
       EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
-        showTab && setTab('topic')
+        showTab && (topicLayoutType === 'tabs' ? setTab('topic') : setTab('assistants'))
         if (position === 'left' && topicPosition === 'right') {
           toggleShowTopics()
         }
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
+  }, [position, showTab, tab, toggleShowTopics, topicPosition, topicLayoutType])
 
   useEffect(() => {
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
-      setTab('topic')
+      topicLayoutType === 'tabs' ? setTab('topic') : setTab('assistants')
     }
     if (position === 'left' && topicPosition === 'right' && forceToSeeAllTab != true && tab !== 'assistants') {
       setTab('assistants')
     }
-  }, [position, tab, topicPosition, forceToSeeAllTab])
+  }, [position, tab, topicPosition, forceToSeeAllTab, topicLayoutType])
 
+  const assistantTabOptions = useMemo(() => {
+    const assistantTab = {
+      label: t('assistants.abbr'),
+      value: 'assistants'
+    }
+    const topicTab = {
+      label: t('common.topics'),
+      value: 'topic'
+    }
+    const settingsTab = {
+      label: t('settings.title'),
+      value: 'settings'
+    }
+    if (topicLayoutType === 'accordion') {
+      return [assistantTab, settingsTab].filter(Boolean) as SegmentedProps['options']
+    }
+    return [
+      (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
+        ? assistantTab
+        : undefined,
+      topicTab,
+      settingsTab
+    ].filter(Boolean) as SegmentedProps['options']
+  }, [position, topicPosition, forceToSeeAllTab, topicLayoutType, t])
+
+  // 如果是手风琴模式
+  if (topicLayoutType === 'accordion' && position != topicPosition) {
+    return <Container style={{ ...border, ...style }} className="home-tabs"></Container>
+  }
   return (
-    <Container style={{ ...border, ...style }} className="home-tabs">
+    <Container
+      style={{ ...border, ...style }}
+      className={`${topicLayoutType === 'accordion' ? 'accordion-tabs' : ''} home-tabs`}>
       {(showTab || (forceToSeeAllTab == true && !showTopics)) && (
         <>
           <Segmented
             value={tab}
             style={{ borderRadius: 50 }}
             shape="round"
-            options={
-              [
-                (position === 'left' && topicPosition === 'left') || (forceToSeeAllTab == true && position === 'left')
-                  ? assistantTab
-                  : undefined,
-                {
-                  label: t('common.topics'),
-                  value: 'topic'
-                  // icon: <MessageSquareQuote size={16} />
-                },
-                {
-                  label: t('settings.title'),
-                  value: 'settings'
-                  // icon: <SettingsIcon size={16} />
-                }
-              ].filter(Boolean) as SegmentedProps['options']
-            }
+            options={assistantTabOptions}
             onChange={(value) => setTab(value as 'topic' | 'settings')}
             block
           />
@@ -135,18 +159,20 @@ const HomeTabs: FC<Props> = ({
       )}
 
       <TabContent className="home-tabs-content">
-        {tab === 'assistants' && (
-          <Assistants
-            activeAssistant={activeAssistant}
-            setActiveAssistant={setActiveAssistant}
-            onCreateAssistant={onCreateAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-          />
-        )}
-        {tab === 'topic' && (
-          <Topics assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
-        )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        <TabsProvider assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic}>
+          {tab === 'assistants' && (
+            <Assistants
+              activeAssistant={activeAssistant}
+              setActiveAssistant={setActiveAssistant}
+              onCreateAssistant={onCreateAssistant}
+              onCreateDefaultAssistant={onCreateDefaultAssistant}
+            />
+          )}
+          {tab === 'topic' && (
+            <Topics assistant={activeAssistant} activeTopic={activeTopic} setActiveTopic={setActiveTopic} />
+          )}
+          {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        </TabsProvider>
       </TabContent>
     </Container>
   )
@@ -162,6 +188,9 @@ const Container = styled.div`
   .collapsed {
     width: 0;
     border-left: none;
+  }
+  &.accordion-tabs {
+    background-color: var(--color-background-soft);
   }
 `
 
