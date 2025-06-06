@@ -215,6 +215,7 @@ const TranslatePage: FC = () => {
   const [bidirectionalPair, setBidirectionalPair] = useState<[string, string]>(['english', 'chinese'])
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
+  const [sourceLanguage, setSourceLanguage] = useState<string>('auto') // 添加用户选择的源语言状态
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -288,10 +289,17 @@ const TranslatePage: FC = () => {
 
     setLoading(true)
     try {
-      const sourceLanguage = await detectLanguage(text)
-      console.log('检测到的语言:', sourceLanguage)
-      setDetectedLanguage(sourceLanguage)
-      const result = determineTargetLanguage(sourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
+      // 确定源语言：如果用户选择了特定语言，使用用户选择的；如果选择'auto'，则自动检测
+      let actualSourceLanguage: string
+      if (sourceLanguage === 'auto') {
+        actualSourceLanguage = await detectLanguage(text)
+        console.log('检测到的语言:', actualSourceLanguage)
+        setDetectedLanguage(actualSourceLanguage) // 更新检测到的语言
+      } else {
+        actualSourceLanguage = sourceLanguage
+      }
+
+      const result = determineTargetLanguage(actualSourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)
       if (!result.success) {
         let errorMessage = ''
         if (result.errorType === 'same_language') {
@@ -324,7 +332,7 @@ const TranslatePage: FC = () => {
         }
       })
 
-      await saveTranslateHistory(text, translatedText, sourceLanguage, actualTargetLanguage)
+      await saveTranslateHistory(text, translatedText, actualSourceLanguage, actualTargetLanguage)
       setLoading(false)
     } catch (error) {
       console.error('Translation error:', error)
@@ -498,15 +506,30 @@ const TranslatePage: FC = () => {
             <Flex align="center" gap={20}>
               <Select
                 showSearch
-                value="auto"
+                value={sourceLanguage}
                 style={{ width: 180 }}
                 optionFilterProp="label"
-                disabled
+                onChange={(value) => setSourceLanguage(value)}
                 options={[
                   {
-                    label: detectedLanguage ? t(`languages.${detectedLanguage}`) : t('translate.detected.language'),
+                    // 如果选择了"auto"并且已检测到语言，显示检测到的语言；否则显示"任意语言"
+                    label:
+                      sourceLanguage === 'auto' && detectedLanguage
+                        ? t(`languages.${detectedLanguage}`)
+                        : t('translate.any.language'),
                     value: 'auto'
-                  }
+                  },
+                  ...translateLanguageOptions().map((lang) => ({
+                    value: lang.value,
+                    label: (
+                      <Space.Compact direction="horizontal" block>
+                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
+                          {lang.emoji}
+                        </span>
+                        <Space.Compact block>{lang.label}</Space.Compact>
+                      </Space.Compact>
+                    )
+                  }))
                 ]}
               />
               <Button
