@@ -1948,8 +1948,7 @@
           "summary": "總結",
           "search": "搜尋",
           "refine": "優化",
-          "copy": "複製",
-          "speak": "朗讀"
+          "copy": "複製"
         },
         "window": {
           "pin": "置頂",
@@ -2093,12 +2092,6 @@
               "missing_placeholder": "URL 必須包含 {{queryString}} 佔位符"
             },
             "test": "測試"
-          }
-        },
-        "tts_modal": {
-          "title": "設置朗讀供應商",
-          "provider": {
-            "label": "朗讀供應商"
           }
         },
         "filter_modal": {

@@ -49,7 +49,8 @@ export class AzureTTSProvider extends BaseTTSProvider {
       if (useStreaming) {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
-        await this.audioPlayer.playStream(audioStream, 'audio/mp3', volume)
+        const mimeType = this.getMimeType('mp3') // Azure 默认返回 MP3 格式
+        await this.audioPlayer.playStream(audioStream, mimeType, volume)
       } else {
         // 非流式合成
         const audioBlob = await this.synthesizeSpeech(options)
@@ -229,5 +230,26 @@ export class AzureTTSProvider extends BaseTTSProvider {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;')
+  }
+
+  /**
+   * 获取 MIME 类型
+   */
+  private getMimeType(format: string): string {
+    switch (format.toLowerCase()) {
+      case 'mp3':
+        return 'audio/mpeg' // 正确的 MP3 MIME 类型
+      case 'wav':
+      case 'pcm':
+        return 'audio/wav'
+      case 'opus':
+        return 'audio/ogg; codecs=opus'
+      case 'ogg':
+        return 'audio/ogg'
+      case 'webm':
+        return 'audio/webm'
+      default:
+        return 'audio/mpeg' // 默认使用 MP3
+    }
   }
 }

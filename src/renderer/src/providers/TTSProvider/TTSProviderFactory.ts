@@ -138,7 +138,8 @@ export class TTSProviderFactory {
         model: 'FunAudioLLM/CosyVoice2-0.5B',
         format: 'mp3',
         sample_rate: 44100,
-        autoPlay: false
+        autoPlay: false,
+        streaming: false // 支持流式合成
       },
       tencentcloud: {
         rate: 1.0,

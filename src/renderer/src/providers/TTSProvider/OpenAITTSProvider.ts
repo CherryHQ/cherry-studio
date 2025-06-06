@@ -30,7 +30,8 @@ export class OpenAITTSProvider extends BaseTTSProvider {
       if (useStreaming) {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
-        await this.audioPlayer.playStream(audioStream, 'audio/mp3', volume)
+        const mimeType = this.getMimeType(this.provider.settings.format || 'mp3')
+        await this.audioPlayer.playStream(audioStream, mimeType, volume)
       } else {
         // 非流式合成
         const audioBlob = await this.synthesizeSpeech(options)
@@ -144,5 +145,28 @@ export class OpenAITTSProvider extends BaseTTSProvider {
     }
 
     return response.body
+  }
+
+  /**
+   * 获取 MIME 类型（根据 OpenAI TTS API 官方文档）
+   * OpenAI 支持的格式：mp3, opus, aac, flac, wav, pcm
+   */
+  private getMimeType(format: string): string {
+    switch (format.toLowerCase()) {
+      case 'mp3':
+        return 'audio/mpeg' // MP3 格式
+      case 'opus':
+        return 'audio/ogg; codecs=opus' // Opus 编码，适合流式传输
+      case 'aac':
+        return 'audio/aac' // AAC 格式，适合移动设备
+      case 'flac':
+        return 'audio/flac' // FLAC 无损压缩格式
+      case 'wav':
+        return 'audio/wav' // WAV 无压缩格式
+      case 'pcm':
+        return 'audio/wav' // PCM 原始 24kHz 采样，使用 WAV 容器
+      default:
+        return 'audio/mpeg' // 默认使用 MP3
+    }
   }
 }

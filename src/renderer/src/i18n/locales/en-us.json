@@ -1874,10 +1874,6 @@
           "title": "Confirm Enable TTS Provider",
           "content": "Enabling {{current}} will automatically disable other enabled providers: {{others}}.\n\nDo you want to continue?"
         },
-        "provider": {
-          "default": "Default",
-          "disabled": "Disabled"
-        },
         "error": {
           "not_supported": "Your browser does not support speech synthesis",
           "playback_failed": "Speech playback failed"
@@ -1954,8 +1950,7 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy",
-          "speak": "Speak"
+          "copy": "Copy"
         },
         "window": {
           "pin": "Pin",
@@ -2099,12 +2094,6 @@
               "missing_placeholder": "URL must contain {{queryString}} placeholder"
             },
             "test": "Test"
-          }
-        },
-        "tts_modal": {
-          "title": "Set TTS Provider",
-          "provider": {
-            "label": "TTS Provider"
           }
         },
         "filter_modal": {

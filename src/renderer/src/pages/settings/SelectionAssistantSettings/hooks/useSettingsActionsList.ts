@@ -16,7 +16,6 @@ export const useActionItems = (
   const { t } = useTranslation()
   const [isUserModalOpen, setIsUserModalOpen] = useState(false)
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false)
-  const [isTTSModalOpen, setIsTTSModalOpen] = useState(false)
   const [userEditingAction, setUserEditingAction] = useState<ActionItem | null>(null)
 
   const enabledItems = useMemo(() => initialItems?.filter((item) => item.enabled) ?? [], [initialItems])
@@ -27,10 +26,6 @@ export const useActionItems = (
     if (item.isBuiltIn) {
       if (item.id === 'search') {
         setIsSearchModalOpen(true)
-        return
-      }
-      if (item.id === 'speak') {
-        setIsTTSModalOpen(true)
         return
       }
       return
@@ -65,13 +60,6 @@ export const useActionItems = (
     const updatedItems = initialItems.map((item) => (item.id === 'search' ? { ...item, searchEngine } : item))
     setActionItems(updatedItems)
     setIsSearchModalOpen(false)
-  }
-
-  const handleTTSModalOk = (ttsProvider: string) => {
-    if (!initialItems) return
-    const updatedItems = initialItems.map((item) => (item.id === 'speak' ? { ...item, ttsProvider } : item))
-    setActionItems(updatedItems)
-    setIsTTSModalOpen(false)
   }
 
   const handleDeleteActionItem = (id: string) => {
@@ -166,38 +154,24 @@ export const useActionItems = (
     return { icon: customEngine?.icon, name: engine }
   }
 
-  const getTTSProviderInfo = (ttsProvider: string) => {
-    if (!ttsProvider) return null
-
-    const [providerName] = ttsProvider.split('|')
-    return {
-      name: providerName || t('settings.tts.provider.default'),
-      icon: 'volume-2'
-    }
-  }
-
   return {
     enabledItems,
     disabledItems,
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
-    isTTSModalOpen,
     userEditingAction,
     setIsUserModalOpen,
     setIsSearchModalOpen,
-    setIsTTSModalOpen,
     setUserEditingAction,
     handleEditActionItem,
     handleAddNewAction,
     handleUserModalOk,
     handleSearchModalOk,
-    handleTTSModalOk,
     handleDeleteActionItem,
     handleReset,
     onDragEnd,
     getSearchEngineInfo,
-    getTTSProviderInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS
   }

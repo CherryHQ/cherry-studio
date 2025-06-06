@@ -1629,6 +1629,188 @@ const migrateConfig = {
       console.error('[Migration 114] Google Cloud provider migration failed:', error)
       return state
     }
+  },
+  '115': (state: RootState) => {
+    try {
+      // 确保所有 TTS Provider 都存在（修复迁移问题）
+      if (!state.tts) {
+        // 如果 TTS 状态不存在，初始化它
+        state.tts = {
+          providers: [],
+          currentProvider: 'web-speech',
+          globalSettings: {
+            enabled: true,
+            autoPlay: false
+          }
+        }
+      }
+
+      // 定义所有应该存在的 TTS Provider
+      const requiredProviders = [
+        {
+          id: 'web-speech',
+          type: 'web-speech',
+          name: 'Web Speech API',
+          enabled: true,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            autoPlay: false
+          },
+          voices: []
+        },
+        {
+          id: 'openai',
+          type: 'openai',
+          name: 'OpenAI TTS',
+          enabled: false,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            voice: 'alloy',
+            autoPlay: false,
+            model: 'tts-1',
+            format: 'mp3',
+            streaming: false
+          },
+          voices: [
+            { id: 'alloy', name: 'Alloy', lang: 'en-US', gender: 'neutral' },
+            { id: 'echo', name: 'Echo', lang: 'en-US', gender: 'male' },
+            { id: 'fable', name: 'Fable', lang: 'en-US', gender: 'neutral' },
+            { id: 'onyx', name: 'Onyx', lang: 'en-US', gender: 'male' },
+            { id: 'nova', name: 'Nova', lang: 'en-US', gender: 'female' },
+            { id: 'shimmer', name: 'Shimmer', lang: 'en-US', gender: 'female' }
+          ]
+        },
+        {
+          id: 'azure',
+          type: 'azure',
+          name: 'Azure Speech',
+          enabled: false,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            autoPlay: false,
+            region: 'eastus',
+            speaking_style: 'general',
+            role: 'default',
+            streaming: false
+          },
+          voices: []
+        },
+        {
+          id: 'elevenlabs',
+          type: 'elevenlabs',
+          name: 'ElevenLabs',
+          enabled: false,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            autoPlay: false,
+            model: 'eleven_multilingual_v2',
+            stability: 0.5,
+            similarity_boost: 0.5,
+            style: 0.0,
+            use_speaker_boost: true,
+            streaming: false
+          },
+          voices: []
+        },
+        {
+          id: 'siliconflow',
+          type: 'siliconflow',
+          name: '硅基流动 (SiliconFlow)',
+          enabled: false,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            autoPlay: false,
+            model: 'FunAudioLLM/CosyVoice2-0.5B',
+            format: 'mp3',
+            sample_rate: 44100,
+            voice: 'alex',
+            streaming: false
+          },
+          voices: []
+        },
+        {
+          id: 'tencentcloud',
+          type: 'tencentcloud',
+          name: '腾讯云语音合成 (Tencent Cloud)',
+          enabled: false,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            autoPlay: false,
+            voice: '101001',
+            region: 'ap-beijing',
+            sampleRate: 16000,
+            codec: 'wav',
+            streaming: false
+          },
+          voices: []
+        },
+        {
+          id: 'googlecloud',
+          type: 'googlecloud',
+          name: 'Google Cloud Text-to-Speech',
+          enabled: false,
+          isSystem: true,
+          settings: {
+            rate: 1.0,
+            pitch: 1.0,
+            volume: 1.0,
+            voice: 'en-US-Wavenet-D',
+            format: 'mp3',
+            sampleRate: 24000,
+            autoPlay: false,
+            streaming: false
+          },
+          voices: []
+        }
+      ]
+
+      // 检查并添加缺失的 Provider
+      requiredProviders.forEach((requiredProvider) => {
+        const existingProvider = state.tts.providers.find((p) => p.id === requiredProvider.id)
+        if (!existingProvider) {
+          console.log(`[Migration 115] Adding missing TTS provider: ${requiredProvider.id}`)
+          state.tts.providers.push(requiredProvider as any)
+        } else {
+          // 更新现有 Provider 的设置，确保包含流式合成设置
+          if (requiredProvider.settings.streaming !== undefined && existingProvider.settings.streaming === undefined) {
+            existingProvider.settings.streaming = requiredProvider.settings.streaming
+            console.log(`[Migration 115] Added streaming setting to ${requiredProvider.id}`)
+          }
+        }
+      })
+
+      // 确保全局设置存在
+      if (!state.tts.globalSettings) {
+        state.tts.globalSettings = {
+          enabled: true,
+          autoPlay: false
+        }
+      }
+
+      console.log(`[Migration 115] TTS providers count: ${state.tts.providers.length}`)
+      return state
+    } catch (error) {
+      console.error('[Migration 115] Complete TTS provider migration failed:', error)
+      return state
+    }
   }
 }
 

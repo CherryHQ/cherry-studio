@@ -30,10 +30,19 @@ export class SiliconFlowProvider extends BaseTTSProvider {
     this.stop()
 
     try {
-      const audioBlob = await this.synthesizeSpeech(options)
       const volume = options.volume ?? this.provider.settings.volume ?? 1.0
+      const useStreaming = options.streaming ?? this.provider.settings.streaming ?? false
 
-      await this.audioPlayer.playBlob(audioBlob, volume)
+      if (useStreaming) {
+        // 流式合成
+        const audioStream = await this.synthesizeSpeechStream(options)
+        const mimeType = this.getMimeType(this.provider.settings.format || 'mp3')
+        await this.audioPlayer.playStream(audioStream, mimeType, volume)
+      } else {
+        // 非流式合成
+        const audioBlob = await this.synthesizeSpeech(options)
+        await this.audioPlayer.playBlob(audioBlob, volume)
+      }
     } catch (error) {
       throw this.handleError(error)
     }
@@ -144,5 +153,93 @@ export class SiliconFlowProvider extends BaseTTSProvider {
     }
 
     return await response.blob()
+  }
+
+  /**
+   * 调用硅基流动 API 流式合成语音
+   */
+  private async synthesizeSpeechStream(options: TTSSpeakOptions): Promise<ReadableStream<Uint8Array>> {
+    const model = this.provider.settings.model || 'FunAudioLLM/CosyVoice2-0.5B'
+
+    // 构建语音参数
+    let voice = options.voice || this.provider.settings.voice
+    if (voice && !voice.includes(':')) {
+      // 如果语音不包含模型前缀，自动添加
+      voice = `${model}:${voice}`
+    }
+
+    const requestBody: any = {
+      model,
+      input: options.text,
+      voice: voice || `${model}:alex`, // 默认使用 alex 音色
+      response_format: this.provider.settings.format || 'mp3',
+      speed: options.rate ?? this.provider.settings.rate ?? 1.0,
+      stream: true // 启用流式输出
+    }
+
+    // 添加音量控制（转换为 gain）
+    if (options.volume !== undefined || this.provider.settings.volume !== undefined) {
+      const volume = options.volume ?? this.provider.settings.volume ?? 1.0
+      // 将 0-1 的音量转换为 -10 到 +10 的 gain
+      const gain = (volume - 1.0) * 10
+      requestBody.gain = Math.max(-10, Math.min(10, gain))
+    }
+
+    // 添加采样率控制
+    if (this.provider.settings.sample_rate) {
+      requestBody.sample_rate = this.provider.settings.sample_rate
+    }
+
+    console.log('[SiliconFlowProvider] Streaming speech synthesis:', {
+      model,
+      voice: requestBody.voice,
+      textLength: options.text.length,
+      speed: requestBody.speed,
+      gain: requestBody.gain,
+      streaming: true
+    })
+
+    const response = await fetch(`${this.getApiHost()}/audio/speech`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.provider.apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`SiliconFlow streaming API error: ${response.status} ${errorText}`)
+    }
+
+    if (!response.body) {
+      throw new Error('No response body received from SiliconFlow streaming API')
+    }
+
+    console.log('[SiliconFlowProvider] Streaming speech synthesis successful')
+    return response.body
+  }
+
+  /**
+   * 获取 MIME 类型
+   */
+  private getMimeType(format: string): string {
+    switch (format.toLowerCase()) {
+      case 'mp3':
+        return 'audio/mpeg' // 正确的 MP3 MIME 类型
+      case 'wav':
+        return 'audio/wav'
+      case 'opus':
+        return 'audio/ogg; codecs=opus'
+      case 'ogg':
+        return 'audio/ogg'
+      case 'flac':
+        return 'audio/flac'
+      case 'aac':
+        return 'audio/aac'
+      default:
+        return 'audio/mpeg' // 默认使用 MP3
+    }
   }
 }

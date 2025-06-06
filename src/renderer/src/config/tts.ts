@@ -28,7 +28,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       voice: 'alloy',
       autoPlay: false,
       model: 'tts-1',
-      format: 'mp3'
+      format: 'mp3',
+      streaming: false
     },
     voices: [
       { id: 'alloy', name: 'Alloy', lang: 'en-US', gender: 'neutral' },
@@ -52,7 +53,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       autoPlay: false,
       region: 'eastus',
       speaking_style: 'general',
-      role: 'default'
+      role: 'default',
+      streaming: false
     },
     voices: []
   },
@@ -71,7 +73,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       stability: 0.5,
       similarity_boost: 0.5,
       style: 0.0,
-      use_speaker_boost: true
+      use_speaker_boost: true,
+      streaming: false
     },
     voices: []
   },
@@ -89,7 +92,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       model: 'FunAudioLLM/CosyVoice2-0.5B',
       format: 'mp3',
       sample_rate: 44100,
-      voice: 'alex'
+      voice: 'alex',
+      streaming: false
     },
     voices: []
   },
@@ -107,7 +111,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       voice: '101001',
       region: 'ap-beijing',
       sampleRate: 16000,
-      codec: 'wav'
+      codec: 'wav',
+      streaming: false
     },
     voices: []
   },
@@ -124,7 +129,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       voice: 'en-US-Wavenet-D',
       format: 'mp3',
       sampleRate: 24000,
-      autoPlay: false
+      autoPlay: false,
+      streaming: false
     },
     voices: []
   }
@@ -160,9 +166,10 @@ export const TTS_PROVIDER_CONFIG = {
   },
   siliconflow: {
     name: '硅基流动 (SiliconFlow)',
-    description: '硅基流动高质量语音合成服务，支持多语言和情感控制，兼容 OpenAI API',
+    description: '硅基流动高质量语音合成服务，支持多语言和情感控制，兼容 OpenAI API，支持流式合成',
     requiresApiKey: true,
-    supportedFeatures: ['rate', 'voice', 'model', 'format', 'sample_rate']
+    supportedFeatures: ['rate', 'voice', 'model', 'format', 'sample_rate', 'streaming'],
+    supportsStreaming: true
   },
   tencentcloud: {
     name: '腾讯云语音合成 (Tencent Cloud)',

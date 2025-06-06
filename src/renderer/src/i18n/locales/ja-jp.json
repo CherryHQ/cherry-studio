@@ -1948,8 +1948,7 @@
           "summary": "要約",
           "search": "検索",
           "refine": "最適化",
-          "copy": "コピー",
-          "speak": "音声読み上げ"
+          "copy": "コピー"
         },
         "window": {
           "pin": "最前面に固定",
@@ -2093,12 +2092,6 @@
               "missing_placeholder": "{{queryString}}を含めてください"
             },
             "test": "テスト"
-          }
-        },
-        "tts_modal": {
-          "title": "TTSプロバイダー設定",
-          "provider": {
-            "label": "TTSプロバイダー"
           }
         },
         "filter_modal": {

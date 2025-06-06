@@ -49,7 +49,8 @@ export class ElevenLabsProvider extends BaseTTSProvider {
       if (useStreaming) {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
-        await this.audioPlayer.playStream(audioStream, 'audio/mpeg', volume)
+        const mimeType = this.getMimeType('mp3') // ElevenLabs 默认返回 MP3 格式
+        await this.audioPlayer.playStream(audioStream, mimeType, volume)
       } else {
         // 非流式合成
         const audioBlob = await this.synthesizeSpeech(options)
@@ -187,5 +188,28 @@ export class ElevenLabsProvider extends BaseTTSProvider {
     }
 
     return response.body
+  }
+
+  /**
+   * 获取 MIME 类型
+   */
+  private getMimeType(format: string): string {
+    switch (format.toLowerCase()) {
+      case 'mp3':
+        return 'audio/mpeg' // 正确的 MP3 MIME 类型
+      case 'wav':
+      case 'pcm':
+        return 'audio/wav'
+      case 'opus':
+        return 'audio/ogg; codecs=opus'
+      case 'ogg':
+        return 'audio/ogg'
+      case 'flac':
+        return 'audio/flac'
+      case 'aac':
+        return 'audio/aac'
+      default:
+        return 'audio/mpeg' // 默认使用 MP3
+    }
   }
 }

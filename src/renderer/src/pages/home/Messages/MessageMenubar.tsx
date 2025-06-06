@@ -24,7 +24,7 @@ import {
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
-import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import { markdownToTTSText, removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -376,7 +376,9 @@ const MessageMenubar: FC<Props> = (props) => {
           // 停止其他正在播放的 TTS
           tts.stopAll()
 
-          await tts.speak(mainTextContent)
+          // 将 Markdown 转换为适合 TTS 播放的纯文本
+          const ttsText = markdownToTTSText(mainTextContent)
+          await tts.speak(ttsText)
 
           // 播放完成
           setIsCurrentMessagePlaying(false)
@@ -448,9 +450,9 @@ const MessageMenubar: FC<Props> = (props) => {
             mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={handleTTSPlay}>
               {isCurrentMessagePlaying ? (
-                <Square size={16} fill="var(--color-primary)" />
+                <Square size={16} />
               ) : isCurrentMessagePaused ? (
-                <Play size={16} fill="var(--color-primary)" />
+                <Play size={16} />
               ) : (
                 <Volume2 size={16} />
               )}

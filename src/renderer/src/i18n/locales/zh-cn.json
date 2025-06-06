@@ -1874,10 +1874,6 @@
           "title": "确认启用 TTS 供应商",
           "content": "启用 {{current}} 将会自动禁用其他已启用的供应商：{{others}}。\n\n是否继续？"
         },
-        "provider": {
-          "default": "默认",
-          "disabled": "已禁用"
-        },
         "error": {
           "not_supported": "您的浏览器不支持语音合成功能",
           "playback_failed": "语音播放失败"
@@ -1954,8 +1950,7 @@
           "summary": "总结",
           "search": "搜索",
           "refine": "优化",
-          "copy": "复制",
-          "speak": "朗读"
+          "copy": "复制"
         },
         "window": {
           "pin": "置顶",
@@ -2099,12 +2094,6 @@
               "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
             },
             "test": "测试"
-          }
-        },
-        "tts_modal": {
-          "title": "设置朗读供应商",
-          "provider": {
-            "label": "朗读供应商"
           }
         },
         "filter_modal": {

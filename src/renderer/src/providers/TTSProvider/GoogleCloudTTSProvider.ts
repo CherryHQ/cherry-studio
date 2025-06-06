@@ -438,26 +438,29 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
   }
 
   /**
-   * 获取 MIME 类型
+   * 获取 MIME 类型（根据 Google Cloud TTS API 官方文档）
+   * Google Cloud 支持的格式：LINEAR16, MP3, OGG_OPUS, MULAW, ALAW
+   * 流式支持：PCM, ALAW, MULAW, OGG_OPUS
    */
   private getMimeType(format: string): string {
     switch (format.toLowerCase()) {
       case 'mp3':
-        return 'audio/mp3'
+        return 'audio/mpeg' // MP3 格式，32kbps
       case 'wav':
       case 'linear16':
-        return 'audio/wav'
+        return 'audio/wav' // LINEAR16 非压缩 16 位符号小端序采样
       case 'ogg':
       case 'opus':
       case 'ogg_opus':
-        return 'audio/ogg'
+        return 'audio/ogg; codecs=opus' // Opus 编码音频，支持流式
       case 'mulaw':
+        return 'audio/wav' // MULAW 8 位 编码，在 WAV 容器中
       case 'alaw':
-        return 'audio/wav' // MULAW/ALAW 通常在 WAV 容器中
+        return 'audio/wav' // ALAW 8 位 编码，在 WAV 容器中
       case 'pcm':
-        return 'audio/wav' // PCM 使用 WAV 容器
+        return 'audio/wav' // PCM 原始音频数据，使用 WAV 容器
       default:
-        return 'audio/mp3'
+        return 'audio/mpeg' // 默认使用 MP3
     }
   }
 

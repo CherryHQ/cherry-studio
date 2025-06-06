@@ -34,7 +34,8 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       if (useStreaming) {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
-        await this.audioPlayer.playStream(audioStream, 'audio/wav', volume)
+        const mimeType = this.getMimeType(this.provider.settings.codec || 'wav')
+        await this.audioPlayer.playStream(audioStream, mimeType, volume)
       } else {
         // 非流式合成
         const audioData = await this.synthesizeSpeech(options)
@@ -260,5 +261,25 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
     // volume 范围通常是 0.0 - 1.0
     // 转换为腾讯云的 -10 到 10 范围
     return Math.round((volume - 0.5) * 20)
+  }
+
+  /**
+   * 获取 MIME 类型
+   */
+  private getMimeType(format: string): string {
+    switch (format.toLowerCase()) {
+      case 'wav':
+        return 'audio/wav'
+      case 'mp3':
+        return 'audio/mpeg'
+      case 'pcm':
+        return 'audio/wav' // PCM 通常在 WAV 容器中
+      case 'opus':
+        return 'audio/ogg; codecs=opus'
+      case 'ogg':
+        return 'audio/ogg'
+      default:
+        return 'audio/wav' // 默认使用 WAV
+    }
   }
 }

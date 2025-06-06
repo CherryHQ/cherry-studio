@@ -193,9 +193,15 @@ export class AudioPlayerManager {
    */
   async playStream(
     audioStream: ReadableStream<Uint8Array>,
-    mimeType: string = 'audio/mp3',
+    mimeType: string = 'audio/mpeg',
     volume?: number
   ): Promise<void> {
+    // 检查 MediaSource 是否支持该 MIME 类型
+    if (!MediaSource.isTypeSupported(mimeType)) {
+      console.warn(`[AudioPlayerManager] MediaSource does not support ${mimeType}, falling back to Blob playback`)
+      return this.playStreamAsBlob(audioStream, mimeType, volume)
+    }
+
     return new Promise((resolve, reject) => {
       try {
         // 创建 MediaSource 对象
@@ -242,6 +248,10 @@ export class AudioPlayerManager {
         // MediaSource 事件处理
         mediaSource.addEventListener('sourceopen', async () => {
           try {
+            // 检查 MediaSource 是否支持该 MIME 类型
+            if (!MediaSource.isTypeSupported(mimeType)) {
+              throw new Error(`MediaSource does not support MIME type: ${mimeType}`)
+            }
             const sourceBuffer = mediaSource.addSourceBuffer(mimeType)
             const reader = audioStream.getReader()
 
@@ -279,5 +289,41 @@ export class AudioPlayerManager {
         reject(error)
       }
     })
+  }
+
+  /**
+   * 作为回退方案，将流转换为 Blob 后播放
+   */
+  private async playStreamAsBlob(
+    audioStream: ReadableStream<Uint8Array>,
+    mimeType: string,
+    volume?: number
+  ): Promise<void> {
+    try {
+      // 读取所有流数据
+      const reader = audioStream.getReader()
+      const chunks: Uint8Array[] = []
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+      }
+
+      // 合并所有数据块
+      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+      const audioData = new Uint8Array(totalLength)
+      let offset = 0
+      for (const chunk of chunks) {
+        audioData.set(chunk, offset)
+        offset += chunk.length
+      }
+
+      // 创建 Blob 并播放
+      const audioBlob = new Blob([audioData], { type: mimeType })
+      return this.playBlob(audioBlob, volume)
+    } catch (error) {
+      throw new Error(`Failed to play stream as blob: ${error}`)
+    }
   }
 }

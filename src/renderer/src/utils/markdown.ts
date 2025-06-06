@@ -100,3 +100,126 @@ export function isValidPlantUML(code: string | null): boolean {
 
   return diagramType !== undefined && code.search(`@end${diagramType}`) !== -1
 }
+
+/**
+ * 将 Markdown 文本转换为纯文本，用于 TTS 播放
+ * @param markdown Markdown 格式的文本
+ * @returns 纯文本
+ */
+export function markdownToPlainText(markdown: string): string {
+  if (!markdown || typeof markdown !== 'string') {
+    return ''
+  }
+
+  let text = markdown
+
+  // 移除代码块（三个反引号包围的内容）
+  text = text.replace(/```[\s\S]*?```/g, '[代码块]')
+
+  // 移除行内代码（单个反引号包围的内容）
+  text = text.replace(/`([^`]+)`/g, '$1')
+
+  // 移除图片链接 ![alt](url)
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '图片: $1')
+
+  // 移除链接，保留链接文本 [text](url)
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+
+  // 移除粗体和斜体标记
+  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '$1') // 粗斜体
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1')     // 粗体
+  text = text.replace(/\*([^*]+)\*/g, '$1')         // 斜体
+  text = text.replace(/___([^_]+)___/g, '$1')       // 粗斜体
+  text = text.replace(/__([^_]+)__/g, '$1')         // 粗体
+  text = text.replace(/_([^_]+)_/g, '$1')           // 斜体
+
+  // 移除删除线
+  text = text.replace(/~~([^~]+)~~/g, '$1')
+
+  // 移除标题标记
+  text = text.replace(/^#{1,6}\s+/gm, '')
+
+  // 移除引用标记
+  text = text.replace(/^>\s*/gm, '')
+
+  // 移除列表标记
+  text = text.replace(/^[\s]*[-*+]\s+/gm, '') // 无序列表
+  text = text.replace(/^[\s]*\d+\.\s+/gm, '') // 有序列表
+
+  // 移除水平分割线
+  text = text.replace(/^[-*_]{3,}$/gm, '')
+
+  // 移除表格分隔符
+  text = text.replace(/^\|.*\|$/gm, (match) => {
+    // 如果是表格分隔符行（包含 - 和 |），则移除
+    if (match.includes('-')) {
+      return ''
+    }
+    // 否则移除表格边框，保留内容
+    return match.replace(/^\||\|$/g, '').replace(/\|/g, ' ')
+  })
+
+  // 移除 HTML 标签
+  text = text.replace(/<[^>]*>/g, '')
+
+  // 移除多余的空行，保留单个换行
+  text = text.replace(/\n{3,}/g, '\n\n')
+
+  // 移除行首行尾的空白字符
+  text = text.replace(/^[ \t]+|[ \t]+$/gm, '')
+
+  // 移除多余的空格
+  text = text.replace(/[ \t]{2,}/g, ' ')
+
+  return text.trim()
+}
+
+/**
+ * 清理文本中的特殊字符，使其更适合 TTS 播放
+ * @param text 输入文本
+ * @returns 清理后的文本
+ */
+export function cleanTextForTTS(text: string): string {
+  if (!text || typeof text !== 'string') {
+    return ''
+  }
+
+  let cleanText = text
+
+  // 替换常见的 Markdown 符号为更自然的语音
+  cleanText = cleanText.replace(/\*\*/g, '') // 移除粗体标记
+  cleanText = cleanText.replace(/\*/g, '')   // 移除斜体标记
+  cleanText = cleanText.replace(/_/g, '')    // 移除下划线
+  cleanText = cleanText.replace(/~/g, '')    // 移除波浪号
+  cleanText = cleanText.replace(/`/g, '')    // 移除反引号
+  cleanText = cleanText.replace(/#/g, '')    // 移除井号
+  cleanText = cleanText.replace(/>/g, '')    // 移除大于号
+  cleanText = cleanText.replace(/\|/g, ' ')  // 表格分隔符替换为空格
+
+  // 替换特殊符号为更自然的表达
+  cleanText = cleanText.replace(/&amp;/g, '和')
+  cleanText = cleanText.replace(/&lt;/g, '小于')
+  cleanText = cleanText.replace(/&gt;/g, '大于')
+  cleanText = cleanText.replace(/&nbsp;/g, ' ')
+
+  // 移除多余的标点符号
+  cleanText = cleanText.replace(/[\[\](){}]/g, '') // 移除括号
+  cleanText = cleanText.replace(/[""'']/g, '"')   // 统一引号
+
+  // 清理多余的空白字符
+  cleanText = cleanText.replace(/\s+/g, ' ')
+  cleanText = cleanText.replace(/\n+/g, '\n')
+
+  return cleanText.trim()
+}
+
+/**
+ * 将 Markdown 转换为适合 TTS 播放的纯文本
+ * 这是一个组合函数，先转换 Markdown，再清理特殊字符
+ * @param markdown Markdown 格式的文本
+ * @returns 适合 TTS 播放的纯文本
+ */
+export function markdownToTTSText(markdown: string): string {
+  const plainText = markdownToPlainText(markdown)
+  return cleanTextForTTS(plainText)
+}

@@ -1,4 +1,5 @@
 import { HStack } from '@renderer/components/Layout'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { TTS_PROVIDER_CONFIG } from '@renderer/config/tts'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { TTSProvider } from '@renderer/types/tts'
@@ -903,8 +904,7 @@ const TTSSettings: FC = () => {
   }
 
   return (
-    <Container>
-      {/* 左侧供应商列表 */}
+    <Container className="selectable">
       <ProviderListContainer>
         <SearchContainer>
           <Input
@@ -918,23 +918,24 @@ const TTSSettings: FC = () => {
             allowClear
           />
         </SearchContainer>
-
-        <ProviderList>
-          {filteredProviders.map((provider) => (
-            <ProviderListItem
-              key={provider.id}
-              className={provider.id === selectedProvider?.id ? 'active' : ''}
-              onClick={() => handleProviderSelect(provider)}>
-              {providerAvatar}
-              <ProviderItemName className="text-nowrap">{provider.name}</ProviderItemName>
-              {provider.enabled && (
-                <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                  ON
-                </Tag>
-              )}
-            </ProviderListItem>
-          ))}
-        </ProviderList>
+        <Scrollbar>
+          <ProviderList>
+            {filteredProviders.map((provider) => (
+              <ProviderListItem
+                key={provider.id}
+                className={provider.id === selectedProvider?.id ? 'active' : ''}
+                onClick={() => handleProviderSelect(provider)}>
+                {providerAvatar}
+                <ProviderItemName className="text-nowrap">{provider.name}</ProviderItemName>
+                {provider.enabled && (
+                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                    ON
+                  </Tag>
+                )}
+              </ProviderListItem>
+            ))}
+          </ProviderList>
+        </Scrollbar>
       </ProviderListContainer>
 
       {/* 右侧供应商设置 */}
@@ -954,14 +955,17 @@ const Container = styled.div`
 const ProviderListContainer = styled.div`
   display: flex;
   flex-direction: column;
-  min-width: calc(var(--settings-width) + 10px);
+  min-width: calc(var(--settings-width) + 80px);
   height: calc(100vh - var(--navbar-height));
   border-right: 0.5px solid var(--color-border);
 `
 
 const SearchContainer = styled.div`
-  padding: 8px;
-  border-bottom: 0.5px solid var(--color-border);
+  height: 50px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 8px;
 `
 
 const ProviderList = styled.div`
@@ -970,21 +974,20 @@ const ProviderList = styled.div`
   flex-direction: column;
   padding: 8px;
   padding-right: 5px;
-  overflow-y: auto;
 `
 
 const ProviderListItem = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 8px 12px;
+  padding: 5px 10px;
   width: 100%;
   cursor: pointer;
   border-radius: var(--list-item-border-radius);
   font-size: 14px;
   transition: all 0.2s ease-in-out;
   border: 0.5px solid transparent;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 
   &:hover {
     background: var(--color-background-soft);
@@ -1004,12 +1007,10 @@ const ProviderLogo = styled(Avatar)`
 const ProviderItemName = styled.div`
   margin-left: 10px;
   font-weight: 500;
-  flex: 1;
 `
 
 const ProviderSettingsContainer = styled(SettingContainer)`
   flex: 1;
-  margin-left: 20px;
 `
 
 const SliderContainer = styled.div`

@@ -1948,8 +1948,7 @@
           "summary": "Суммаризировать",
           "search": "Поиск",
           "refine": "Уточнить",
-          "copy": "Копировать",
-          "speak": "Озвучить"
+          "copy": "Копировать"
         },
         "window": {
           "pin": "Закрепить",
@@ -2093,12 +2092,6 @@
               "missing_placeholder": "Должен содержать {{queryString}}"
             },
             "test": "Тест"
-          }
-        },
-        "tts_modal": {
-          "title": "Настройка TTS провайдера",
-          "provider": {
-            "label": "TTS провайдер"
           }
         },
         "filter_modal": {
