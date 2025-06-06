@@ -15,6 +15,7 @@ interface ArtboardProps {
   onCancel: () => void
   retry?: (painting: Painting) => void
   imageCover?: React.ReactNode
+  loadText?: React.ReactNode
 }
 
 const Artboard: FC<ArtboardProps> = ({
@@ -25,7 +26,8 @@ const Artboard: FC<ArtboardProps> = ({
   onNextImage,
   onCancel,
   retry,
-  imageCover
+  imageCover,
+  loadText
 }) => {
   const { t } = useTranslation()
 
@@ -82,6 +84,8 @@ const Artboard: FC<ArtboardProps> = ({
               </div>
             ) : imageCover ? (
               imageCover
+            ) : loadText && isLoading ? (
+              ''
             ) : (
               <div>{t('paintings.image_placeholder')}</div>
             )}
@@ -90,6 +94,7 @@ const Artboard: FC<ArtboardProps> = ({
         {isLoading && (
           <LoadingOverlay>
             <Spin size="large" />
+            {loadText ? loadText : ''}
             <CancelButton onClick={onCancel}>{t('common.cancel')}</CancelButton>
           </LoadingOverlay>
         )}

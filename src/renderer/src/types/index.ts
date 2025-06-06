@@ -256,6 +256,12 @@ export interface ScalePainting extends PaintingParams {
   renderingSpeed?: string
 }
 
+export enum generationModeType {
+  GENERATION = 'generation',
+  EDIT = 'edit',
+  MERGE = 'merge'
+}
+
 export interface DmxapiPainting extends PaintingParams {
   model?: string
   prompt?: string
@@ -265,6 +271,7 @@ export interface DmxapiPainting extends PaintingParams {
   seed?: string
   style_type?: string
   autoCreate?: boolean
+  generationMode?: generationModeType
 }
 
 export interface TokenFluxPainting extends PaintingParams {
