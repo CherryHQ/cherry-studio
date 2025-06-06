@@ -1484,6 +1484,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '111': (state: RootState) => {
+    try {
+      addProvider(state, 'huaweicloudmaas')
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
