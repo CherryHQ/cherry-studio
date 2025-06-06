@@ -101,6 +101,10 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
+
+    // 初始化设置
+    setEarlyAccess(earlyAccess)
+    setAutoCheckUpdate(autoCheckUpdate)
   }, [])
 
   return (
