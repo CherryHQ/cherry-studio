@@ -12,6 +12,7 @@ import inputToolsReducer from './inputTools'
 import knowledge from './knowledge'
 import llm from './llm'
 import mcp from './mcp'
+import memory from './memory'
 import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
@@ -38,6 +39,7 @@ const rootReducer = combineReducers({
   minapps,
   websearch,
   mcp,
+  memory,
   copilot,
   selectionStore,
   // messages: messagesReducer,
