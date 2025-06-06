@@ -127,11 +127,11 @@ export function markdownToPlainText(markdown: string): string {
 
   // 移除粗体和斜体标记
   text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '$1') // 粗斜体
-  text = text.replace(/\*\*([^*]+)\*\*/g, '$1')     // 粗体
-  text = text.replace(/\*([^*]+)\*/g, '$1')         // 斜体
-  text = text.replace(/___([^_]+)___/g, '$1')       // 粗斜体
-  text = text.replace(/__([^_]+)__/g, '$1')         // 粗体
-  text = text.replace(/_([^_]+)_/g, '$1')           // 斜体
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1') // 粗体
+  text = text.replace(/\*([^*]+)\*/g, '$1') // 斜体
+  text = text.replace(/___([^_]+)___/g, '$1') // 粗斜体
+  text = text.replace(/__([^_]+)__/g, '$1') // 粗体
+  text = text.replace(/_([^_]+)_/g, '$1') // 斜体
 
   // 移除删除线
   text = text.replace(/~~([^~]+)~~/g, '$1')
@@ -188,13 +188,13 @@ export function cleanTextForTTS(text: string): string {
 
   // 替换常见的 Markdown 符号为更自然的语音
   cleanText = cleanText.replace(/\*\*/g, '') // 移除粗体标记
-  cleanText = cleanText.replace(/\*/g, '')   // 移除斜体标记
-  cleanText = cleanText.replace(/_/g, '')    // 移除下划线
-  cleanText = cleanText.replace(/~/g, '')    // 移除波浪号
-  cleanText = cleanText.replace(/`/g, '')    // 移除反引号
-  cleanText = cleanText.replace(/#/g, '')    // 移除井号
-  cleanText = cleanText.replace(/>/g, '')    // 移除大于号
-  cleanText = cleanText.replace(/\|/g, ' ')  // 表格分隔符替换为空格
+  cleanText = cleanText.replace(/\*/g, '') // 移除斜体标记
+  cleanText = cleanText.replace(/_/g, '') // 移除下划线
+  cleanText = cleanText.replace(/~/g, '') // 移除波浪号
+  cleanText = cleanText.replace(/`/g, '') // 移除反引号
+  cleanText = cleanText.replace(/#/g, '') // 移除井号
+  cleanText = cleanText.replace(/>/g, '') // 移除大于号
+  cleanText = cleanText.replace(/\|/g, ' ') // 表格分隔符替换为空格
 
   // 替换特殊符号为更自然的表达
   cleanText = cleanText.replace(/&amp;/g, '和')
@@ -203,8 +203,8 @@ export function cleanTextForTTS(text: string): string {
   cleanText = cleanText.replace(/&nbsp;/g, ' ')
 
   // 移除多余的标点符号
-  cleanText = cleanText.replace(/[\[\](){}]/g, '') // 移除括号
-  cleanText = cleanText.replace(/[""'']/g, '"')   // 统一引号
+  cleanText = cleanText.replace(/[()[\]{}]/g, '') // 移除括号
+  cleanText = cleanText.replace(/[""'']/g, '"') // 统一引号
 
   // 清理多余的空白字符
   cleanText = cleanText.replace(/\s+/g, ' ')
