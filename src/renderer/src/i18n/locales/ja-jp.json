@@ -1875,7 +1875,9 @@
         "error": {
           "not_supported": "お使いのブラウザは音声合成機能をサポートしていません",
           "playback_failed": "音声再生に失敗しました"
-        }
+        },
+        "streaming": "[to be translated]:Streaming Synthesis",
+        "streaming.description": "[to be translated]:Enable real-time streaming speech synthesis for faster playback with reduced waiting time"
       }
     },
     "translate": {

@@ -1875,7 +1875,9 @@
         "error": {
           "not_supported": "Ваш браузер не поддерживает функцию синтеза речи",
           "playback_failed": "Ошибка воспроизведения речи"
-        }
+        },
+        "streaming": "[to be translated]:Streaming Synthesis",
+        "streaming.description": "[to be translated]:Enable real-time streaming speech synthesis for faster playback with reduced waiting time"
       }
     },
     "translate": {
