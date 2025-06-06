@@ -1,7 +1,8 @@
 import { WebDavConfig } from '@types'
 import Logger from 'electron-log'
-import Stream from 'stream'
 import https from 'https'
+import path from 'path'
+import Stream from 'stream'
 import {
   BufferLike,
   createClient,
@@ -15,7 +16,7 @@ export default class WebDav {
   private webdavPath: string
 
   constructor(params: WebDavConfig) {
-    this.webdavPath = params.webdavPath
+    this.webdavPath = params.webdavPath || '/'
 
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
@@ -51,7 +52,7 @@ export default class WebDav {
       throw error
     }
 
-    const remoteFilePath = `${this.webdavPath}/${filename}`
+    const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
       return await this.instance.putFileContents(remoteFilePath, data, options)
@@ -66,7 +67,7 @@ export default class WebDav {
       throw new Error('WebDAV client not initialized')
     }
 
-    const remoteFilePath = `${this.webdavPath}/${filename}`
+    const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
       return await this.instance.getFileContents(remoteFilePath, options)
@@ -120,7 +121,7 @@ export default class WebDav {
       throw new Error('WebDAV client not initialized')
     }
 
-    const remoteFilePath = `${this.webdavPath}/${filename}`
+    const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
       return await this.instance.deleteFile(remoteFilePath)
