@@ -3,7 +3,7 @@ import * as fs from 'node:fs'
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
-import { mapImageAreas } from '@main/utils/markdown'
+import { findImageDescriptionArea } from '@main/utils/markdown'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'
 import Logger from 'electron-log'
@@ -94,7 +94,8 @@ export async function addFileLoader(
 
     case 'markdown': {
       const markdownContent = fs.readFileSync(file.path, 'utf-8')
-      const imageAreas = await mapImageAreas(markdownContent, file.id)
+      const imageAreas = await findImageDescriptionArea(markdownContent, file.id)
+      // const images = await findImages(markdownContent)
 
       loaderReturn = await ragApplication.addLoader(
         new MarkdownLoader({

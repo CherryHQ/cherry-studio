@@ -177,21 +177,7 @@ export const processKnowledgeSearch = async (
     // 转换为引用格式
     return await Promise.all(
       uniqueResults.map(async (item, index) => {
-        const images: FileMetadata[] = []
-        if (item.metadata.images && item.metadata.images.length > 0) {
-          const resolvedImages = await Promise.all(
-            item.metadata.images.map(async (image) => {
-              const file = await window.api.file.get(image)
-              console.log('Resolved image:', image, 'File:', file)
-              if (!file) {
-                return null
-              }
-              return file
-            })
-          )
-          images.push(...resolvedImages.filter((img): img is FileMetadata => img !== null))
-          console.log('Resolved images:', images)
-        }
+        const images = await getImagesFromResults([item])
         return {
           id: index + 1,
           content: item.pageContent,
@@ -213,17 +199,48 @@ export const processKnowledgeSearch = async (
     id: index + 1
   }))
 }
+/**
+ * Extracts image metadata from search results.
+ * @param results The search results containing image metadata.
+ * @returns An array of resolved image metadata.
+ */
+export const getImagesFromResults = async (results: Array<ExtractChunkData & { file: FileMetadata | null }>) => {
+  const imagePromises = results.flatMap((item) => item.metadata.images || [])
+  const resolvedImages = await Promise.all(
+    imagePromises.map(async (image) => {
+      const file = await window.api.file.get(image)
+      return file
+    })
+  )
+  return resolvedImages.filter((img): img is FileMetadata => img !== null)
+}
 
 const ipcRenderer = window.electron.ipcRenderer
 
-ipcRenderer.on('knowledge-image-summary', async (_, { imagePath, imageId }) => {
-  console.log('[Enhance Knowledge processFile]: knowledge-image-summary', imagePath, imageId)
-  const { data } = await window.api.file.base64Image(imagePath)
-  const response = await fetchImageSummary(data)
-  console.log('[Enhance Knowledge processFile]: knowledge-image-summary', response)
+ipcRenderer.on(
+  'knowledge-image-summary-batch',
+  async (
+    _event,
+    { batchId, requests }: { batchId: string; requests: Array<{ imagePath: string; imageId: string }> }
+  ) => {
+    const results: Array<{ imageId: string; summary: string; error?: string }> = []
 
-  ipcRenderer.send('knowledge-image-summary-reply', {
-    response,
-    imageId
-  })
-})
+    await Promise.all(
+      requests.map(async (req) => {
+        try {
+          const { data } = await window.api.file.base64Image(req.imagePath)
+          const summary = await fetchImageSummary(data)
+          results.push({ imageId: req.imageId, summary })
+        } catch (error: any) {
+          console.error(`[KnowledgeService Renderer]: Error fetching summary for ${req.imageId}:`, error)
+          results.push({ imageId: req.imageId, summary: 'Error during summary', error: error.message })
+        }
+      })
+    )
+
+    ipcRenderer.send(`knowledge-image-summary-batch-reply-${batchId}`, {
+      batchId,
+      results
+    })
+  }
+)
