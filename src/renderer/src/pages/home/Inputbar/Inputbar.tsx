@@ -33,6 +33,7 @@ import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -422,7 +423,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [addTopic, assistant, setActiveTopic, setModel])
 
   const onQuote = useCallback(
-    (quotedText: string) => {
+    (text: string) => {
+      const quotedText = formatQuotedText(text)
       setText((prevText) => {
         const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
         setTimeout(() => resizeTextArea(), 0)
