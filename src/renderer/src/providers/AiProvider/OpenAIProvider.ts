@@ -1,4 +1,5 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
+import Logger from '@renderer/config/logger'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
@@ -81,14 +82,16 @@ import { BaseOpenAIProvider } from './OpenAIResponseProvider'
 
 // 1. 定义联合类型
 export type OpenAIStreamChunk =
-  | { type: 'reasoning' | 'text-delta'; textDelta: string }
-  | { type: 'tool-calls'; delta: any }
+  | { type: 'reasoning' | 'text-delta'; textDelta: string; chunk?: any }
+  | { type: 'tool-calls'; delta: any; chunk?: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
+  | { type: 'citation'; chunk: any }
   | { type: 'unknown'; chunk: any }
 
 export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
     super(provider)
+    Logger.debug('OpenAIProvider initialized for provider:', provider.id)
 
     if (provider.id === 'azure-openai' || provider.type === 'azure-openai') {
       this.sdk = new AzureOpenAI({
@@ -567,6 +570,32 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             choice.message.tool_calls.forEach((t) => toolCalls.push(t))
           }
 
+          // ===== OpenAI Annotation Processing (Highest Priority) =====
+          // Process OpenAI annotations regardless of any settings or conditions
+
+          // Check for standard OpenAI annotations first (highest priority)
+          if (choice.message.annotations && choice.message.annotations.length > 0) {
+            Logger.debug('Found OpenAI annotations!', choice.message.annotations)
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: choice.message.annotations,
+                source: WebSearchSource.OPENAI
+              }
+            } as LLMWebSearchCompleteChunk)
+          }
+          // Only check for OpenRouter/Perplexity citations if no OpenAI annotations were found
+          else if (stream.citations && stream.citations.length > 0) {
+            Logger.debug('Found OpenRouter citations in non-streaming response!', stream.citations)
+            onChunk({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: {
+                results: stream.citations,
+                source: WebSearchSource.OPENAI
+              }
+            } as LLMWebSearchCompleteChunk)
+          }
+
           reqMessages.push({
             role: choice.message.role,
             content: choice.message.content,
@@ -630,13 +659,18 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               (delta?.reasoning_content && delta?.reasoning_content !== '\n') ||
               (delta?.reasoning && delta?.reasoning !== '\n')
             ) {
-              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning, chunk }
             }
             if (delta?.content) {
-              yield { type: 'text-delta', textDelta: delta.content }
+              yield { type: 'text-delta', textDelta: delta.content, chunk }
             }
+
             if (delta?.tool_calls && delta?.tool_calls.length > 0) {
               yield { type: 'tool-calls', delta: delta }
+            }
+             // 检查 citations 信息，无论是否有 content
+            if (chunk.citations || delta?.annotations) {
+              yield { type: 'citation', chunk }
             }
 
             const finishReason = chunk?.choices[0]?.finish_reason
@@ -679,9 +713,37 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
           }
           case 'text-delta': {
             let textDelta = chunk.textDelta
-            if (assistant.enableWebSearch && delta) {
-              const originalDelta = rawChunk?.choices?.[0]?.delta
+            const originalChunk = chunk.chunk
+            const originalDelta = originalChunk?.choices?.[0]?.delta
 
+            // ===== OpenAI Annotation Processing (Highest Priority) =====
+            // Process OpenAI annotations regardless of any settings or conditions
+
+            // Check for standard OpenAI annotations first (highest priority)
+            if (originalDelta?.annotations && originalDelta.annotations.length > 0) {
+              Logger.debug('Found OpenAI annotations in stream!', { count: originalDelta.annotations.length })
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  results: originalDelta.annotations,
+                  source: WebSearchSource.OPENAI
+                }
+              } as LLMWebSearchCompleteChunk)
+            }
+            // Only check for OpenRouter/Perplexity citations if no OpenAI annotations were found
+            else if (originalChunk?.citations && originalChunk.citations.length > 0) {
+              Logger.debug('Found OpenRouter citations in stream!', originalChunk.citations)
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  results: originalChunk.citations,
+                  source: WebSearchSource.OPENAI
+                }
+              } as LLMWebSearchCompleteChunk)
+            }
+
+            // Text processing and link conversion
+            if (assistant.enableWebSearch && originalChunk) {
               if (originalDelta?.annotations) {
                 textDelta = convertLinks(textDelta, isFirstChunk)
               } else if (assistant.model?.provider === 'openrouter') {
@@ -689,7 +751,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               } else if (isZhipuModel(assistant.model)) {
                 textDelta = convertLinksToZhipu(textDelta, isFirstChunk)
               } else if (isHunyuanSearchModel(assistant.model)) {
-                const searchResults = rawChunk?.search_info?.search_results || []
+                const searchResults = originalChunk?.search_info?.search_results || []
                 textDelta = convertLinksToHunyuan(textDelta, searchResults, isFirstChunk)
               }
             }
@@ -740,6 +802,38 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             })
             break
           }
+          case 'citation': {
+            // 处理独立的 citation chunk
+            const originalChunk = chunk.chunk
+            const originalDelta = originalChunk?.choices?.[0]?.delta
+
+            // Check for standard OpenAI annotations first (highest priority)
+            if (originalDelta?.annotations && originalDelta.annotations.length > 0) {
+              Logger.debug('Found OpenAI annotations in citation chunk!', { count: originalDelta.annotations.length })
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  results: originalDelta.annotations,
+                  source: WebSearchSource.OPENAI
+                }
+              } as LLMWebSearchCompleteChunk)
+            }
+            // Only check for OpenRouter/Perplexity citations if no OpenAI annotations were found
+            else if (originalChunk?.citations && originalChunk.citations.length > 0) {
+              Logger.debug('Found OpenRouter/Perplexity citations in citation chunk!', originalChunk.citations)
+              // 根据模型提供者设置正确的 source
+              const source =
+                assistant.model?.provider === 'perplexity' ? WebSearchSource.PERPLEXITY : WebSearchSource.OPENAI
+              onChunk({
+                type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                llm_web_search: {
+                  results: originalChunk.citations,
+                  source: source
+                }
+              } as LLMWebSearchCompleteChunk)
+            }
+            break
+          }
           case 'finish': {
             const finishReason = chunk.finishReason
             const usage = chunk.usage
@@ -764,16 +858,38 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
               }
               finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
               finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
-              if (originalFinishDelta?.annotations) {
-                if (assistant.model?.provider === 'copilot') return
 
+              // ===== OpenAI Annotation Processing (Highest Priority) =====
+              // Process OpenAI annotations regardless of any settings or conditions
+              // This takes precedence over all provider-specific handling
+
+              // Check for standard OpenAI annotations first (highest priority)
+              if (originalFinishDelta?.annotations && originalFinishDelta.annotations.length > 0) {
+                Logger.debug('Found OpenAI annotations in finish!', originalFinishDelta.annotations)
                 onChunk({
                   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
                   llm_web_search: {
                     results: originalFinishDelta.annotations,
-                    source: WebSearchSource.OPENAI_RESPONSE
+                    source: WebSearchSource.OPENAI
                   }
                 } as LLMWebSearchCompleteChunk)
+
+                // Early return to skip all provider-specific handling when annotations are present
+                break
+              }
+              // Only check for OpenRouter/Perplexity citations if no OpenAI annotations were found
+              else if (originalFinishRawChunk?.citations && originalFinishRawChunk.citations.length > 0) {
+                Logger.debug('Found OpenRouter citations in finish!', originalFinishRawChunk.citations)
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: originalFinishRawChunk.citations,
+                    source: WebSearchSource.OPENAI
+                  }
+                } as LLMWebSearchCompleteChunk)
+
+                // Early return to skip all provider-specific handling when citations are present
+                break
               }
               if (assistant.model?.provider === 'grok') {
                 const citations = originalFinishRawChunk.citations
