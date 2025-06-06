@@ -73,7 +73,10 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
   const preprocessOptions = {
     label: t('settings.tool.preprocess.provider'),
     title: t('settings.tool.preprocess.provider'),
-    options: preprocessProviders.filter((p) => p.apiKey !== '').map((p) => ({ value: p.id, label: p.name }))
+    options: preprocessProviders
+      // todo: 免费期结束后删除
+      .filter((p) => p.apiKey !== '' || p.id === 'mineru')
+      .map((p) => ({ value: p.id, label: p.name }))
   }
   const ocrOptions = {
     label: t('settings.tool.ocr.provider'),
@@ -119,7 +122,7 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
           <SettingsItem>
             <div className="settings-label">
-              {t('settings.tool.preprocess.title')}
+              {t('settings.tool.preprocess.title')} / {t('settings.tool.ocr.title')}
               <Tooltip title={t('settings.tool.preprocessOrOcr.tooltip')} placement="right">
                 <InfoCircleOutlined style={{ marginLeft: 8 }} />
               </Tooltip>

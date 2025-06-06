@@ -39,9 +39,13 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
   const [expandAll, setExpandAll] = useState(false)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
-
+  const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
   useEffect(() => {
     const handlers = [
+      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId }) => {
+        setPreprocessMap((prev) => new Map(prev).set(itemId, true))
+      }),
+
       window.electron.ipcRenderer.on('file-preprocess-progress', (_, { itemId, progress }) => {
         setProgressMap((prev) => new Map(prev).set(itemId, progress))
       }),
@@ -78,6 +82,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
+  console.log(fileItems)
 
   if (!base) {
     return null
@@ -252,6 +257,16 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
   }
 
+  const showPreprocessIcon = (item: KnowledgeItem) => {
+    if (base.preprocessOrOcrProvider && item.isPreprocessed !== false) {
+      return true
+    }
+    if (!base.preprocessOrOcrProvider && item.isPreprocessed === true) {
+      return true
+    }
+    return false
+  }
+
   return (
     <MainContainer>
       <HeaderContainer>
@@ -369,13 +384,24 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                               {item.uniqueId && (
                                 <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
                               )}
+                              {showPreprocessIcon(item) && (
+                                <StatusIconWrapper>
+                                  <StatusIcon
+                                    sourceId={item.id}
+                                    base={base}
+                                    getProcessingStatus={getProcessingStatus}
+                                    type="file"
+                                    isPreprocessed={preprocessMap.get(item.id) || item.isPreprocessed || false}
+                                    progress={progressMap.get(item.id)}
+                                  />
+                                </StatusIconWrapper>
+                              )}
                               <StatusIconWrapper>
                                 <StatusIcon
                                   sourceId={item.id}
                                   base={base}
                                   getProcessingStatus={getProcessingStatus}
                                   type="file"
-                                  progress={progressMap.get(item.id)}
                                 />
                               </StatusIconWrapper>
                               <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
@@ -718,12 +744,11 @@ const ClickableSpan = styled.span`
 `
 
 const StatusIconWrapper = styled.div`
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: 2px;
 `
 
 const RefreshIcon = styled(RedoOutlined)`

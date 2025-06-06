@@ -58,12 +58,14 @@ const Assistants: FC<AssistantsTabProps> = ({
         <div style={{ marginBottom: '8px' }}>
           {getGroupedAssistants.map((group) => (
             <TagsContainer key={group.tag}>
-              <GroupTitle>
-                <Tooltip title={group.tag}>
-                  <GroupTitleName>{group.tag}</GroupTitleName>
-                </Tooltip>
-                <Divider style={{ margin: '12px 0' }}></Divider>
-              </GroupTitle>
+              {group.tag !== t('assistants.tags.untagged') && (
+                <GroupTitle>
+                  <Tooltip title={group.tag}>
+                    <GroupTitleName>{group.tag}</GroupTitleName>
+                  </Tooltip>
+                  <Divider style={{ margin: '12px 0' }}></Divider>
+                </GroupTitle>
+              )}
               {group.assistants.map((assistant) => (
                 <AssistantItem
                   key={assistant.id}

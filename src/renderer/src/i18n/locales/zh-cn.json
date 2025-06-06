@@ -325,6 +325,7 @@
       "topics.export.obsidian_no_vault_selected": "请先选择一个保管库",
       "topics.export.obsidian_select_vault_first": "请先选择保管库",
       "topics.export.obsidian_root_directory": "根目录",
+      "topics.export.obsidian_reasoning": "导出思维链",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.export.yuque": "导出到语雀",
@@ -576,7 +577,11 @@
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址"
+      "urls": "网址",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "预处理完成",
+      "status_embedding_failed": "嵌入失败",
+      "status_preprocess_failed": "预处理失败"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -658,7 +663,7 @@
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
-      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
+      "info.notion.block_reach_limit": "对话过长，正在分段导出到Notion",
       "loading.notion.exporting_progress": "正在导出到Notion ({{current}}/{{total}})...",
       "loading.notion.preparing": "正在准备导出到Notion...",
       "mention.title": "切换模型回答",
@@ -819,7 +824,7 @@
     "notification": {
       "assistant": "助手响应",
       "knowledge.success": "成功添加 {{type}} 到知识库",
-      "knowledge.error": "添加 {{type}} 到知识库失败: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -955,7 +960,17 @@
       "text_desc_required": "请先输入图片描述",
       "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
       "auto_create_paint": "自动新建图片",
-      "auto_create_paint_tip": "在图片生成后，会自动新建图片"
+      "auto_create_paint_tip": "在图片生成后，会自动新建图片",
+      "select_model": "选择模型",
+      "input_parameters": "输入参数",
+      "input_image": "输入图片",
+      "generated_image": "生成图片",
+      "pricing": "定价",
+      "model_and_pricing": "模型与定价",
+      "per_image": "每张图片",
+      "per_images": "每张图片",
+      "required_field": "必填项",
+      "uploaded_input": "已上传输入"
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",
@@ -1108,7 +1123,9 @@
           "token": "Joplin 授权令牌",
           "token_placeholder": "请输入 Joplin 授权令牌",
           "url": "Joplin 剪裁服务监听 URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "导出时包含思维链",
+          "export_reasoning.help": "开启后，导出到Joplin时会包含思维链内容。"
         },
         "markdown_export.force_dollar_math.help": "开启后，导出Markdown时会将强制使用$$来标记LaTeX公式。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等",
         "markdown_export.force_dollar_math.title": "强制使用$$来标记LaTeX公式",
@@ -1117,14 +1134,16 @@
         "markdown_export.path_placeholder": "导出路径",
         "markdown_export.select": "选择",
         "markdown_export.title": "Markdown 导出",
+        "markdown_export.show_model_name.title": "导出时使用模型名称",
+        "markdown_export.show_model_name.help": "开启后，使用话题命名模型为导出的消息创建标题。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
+        "markdown_export.show_model_provider.title": "显示模型供应商",
+        "markdown_export.show_model_provider.help": "在导出Markdown时显示模型供应商，如OpenAI、Gemini等",
         "message_title.use_topic_naming.title": "使用话题命名模型为导出的消息创建标题",
         "message_title.use_topic_naming.help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过Markdown导出的方式",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
-        "notion.auto_split": "导出对话时自动分页",
-        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.check": {
           "button": "检测",
           "empty_api_key": "未配置 API key",
@@ -1138,10 +1157,9 @@
         "notion.help": "Notion 配置文档",
         "notion.page_name_key": "页面标题字段名",
         "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
-        "notion.split_size": "自动分页大小",
-        "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
-        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
-        "notion.title": "Notion 配置",
+        "notion.title": "Notion 设置",
+        "notion.export_reasoning.title": "导出时包含思维链",
+        "notion.export_reasoning.help": "开启后，导出到Notion时会包含思维链内容。",
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -1502,6 +1520,7 @@
         "advancedSettings": "高级设置"
       },
       "messages.prompt": "显示提示词",
+      "messages.tokens": "显示Token用量",
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
@@ -1582,7 +1601,7 @@
         "title": "通知设置",
         "assistant": "助手消息",
         "backup": "备份",
-        "knowledge_embed": "知识嵌入"
+        "knowledge_embed": "知识库"
       },
       "provider": {
         "add.name": "提供商名称",
@@ -1770,11 +1789,11 @@
         "title": "工具设置",
         "preprocess": {
           "title": "文档预处理",
-          "provider": "文档预处理",
+          "provider": "文档预处理服务商",
           "provider_placeholder": "选择一个文档预处理服务商"
         },
         "ocr": {
-          "title": "OCR 设置",
+          "title": "OCR",
           "provider": "OCR 服务商",
           "provider_placeholder": "选择一个 OCR 服务商",
           "mac_system_ocr_options": {

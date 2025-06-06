@@ -6,7 +6,7 @@ import { PreprocessProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Avatar, Divider, Flex, Input, InputNumber, Segmented } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -31,8 +31,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   const [apiKey, setApiKey] = useState(preprocessProvider.apiKey || '')
   const [apiHost, setApiHost] = useState(preprocessProvider.apiHost || '')
   const [options, setOptions] = useState(preprocessProvider.options || {})
-  // todo: remove this after the next release
-  const hasSetDefaultApiKey = useRef(false)
 
   const preprocessProviderConfig = PREPROCESS_PROVIDER_CONFIG[preprocessProvider.id]
   const apiKeyWebsite = preprocessProviderConfig?.websites?.apiKey
@@ -40,12 +38,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
 
   useEffect(() => {
     setApiKey(preprocessProvider.apiKey ?? '')
-    // todo: remove this after the next release
-    if (preprocessProvider.id === 'mineru' && !preprocessProvider.apiKey && !hasSetDefaultApiKey.current) {
-      setApiKey(import.meta.env.RENDERER_VITE_MINERU_KEY)
-      console.log('Using default Mineru API key from environment variable.')
-      hasSetDefaultApiKey.current = true
-    }
     setApiHost(preprocessProvider.apiHost ?? '')
     setOptions(preprocessProvider.options ?? {})
   }, [preprocessProvider.apiKey, preprocessProvider.apiHost, preprocessProvider.options])

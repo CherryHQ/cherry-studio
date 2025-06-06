@@ -271,7 +271,18 @@ export interface DmxapiPainting extends PaintingParams {
   autoCreate?: boolean
 }
 
-export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
+export interface TokenFluxPainting extends PaintingParams {
+  generationId?: string
+  model?: string
+  prompt?: string
+  inputParams?: Record<string, any>
+  status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
+}
+
+export type PaintingAction = Partial<
+  GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting
+> &
+  PaintingParams
 
 export interface PaintingsState {
   paintings: Painting[]
@@ -280,6 +291,7 @@ export interface PaintingsState {
   edit: Partial<EditPainting> & PaintingParams[]
   upscale: Partial<ScalePainting> & PaintingParams[]
   DMXAPIPaintings: DmxapiPainting[]
+  tokenFluxPaintings: TokenFluxPainting[]
 }
 
 export type MinAppType = {
@@ -363,6 +375,7 @@ export type KnowledgeItem = {
   processingProgress?: number
   processingError?: string
   retryCount?: number
+  isPreprocessed?: boolean
 }
 
 export interface KnowledgeBase {

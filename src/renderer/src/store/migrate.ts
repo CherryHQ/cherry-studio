@@ -1475,6 +1475,22 @@ const migrateConfig = {
   },
   '110': (state: RootState) => {
     try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'mistral') {
+          provider.type = 'mistral'
+        }
+      })
+      if (state.paintings && !state.paintings.tokenFluxPaintings) {
+        state.paintings.tokenFluxPaintings = []
+      }
+      state.settings.showTokens = true
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '111': (state: RootState) => {
+    try {
       if (!state.preprocess) {
         state.preprocess = {
           defaultProvider: '',
@@ -1515,14 +1531,9 @@ const migrateConfig = {
           }
         })
       }
-
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === 'mistral') {
-          provider.type = 'mistral'
-        }
-      })
       return state
     } catch (error) {
+      console.error(error)
       return state
     }
   }

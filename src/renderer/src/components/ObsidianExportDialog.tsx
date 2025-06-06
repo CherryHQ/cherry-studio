@@ -1,24 +1,34 @@
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
-import { exportMarkdownToObsidian } from '@renderer/utils/export'
-import { Alert, Empty, Form, Input, Modal, Select, Spin, TreeSelect } from 'antd'
+import type { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import {
+  exportMarkdownToObsidian,
+  messagesToMarkdown,
+  messageToMarkdown,
+  messageToMarkdownWithReasoning,
+  topicToMarkdown
+} from '@renderer/utils/export'
+import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
 
 const { Option } = Select
-
-interface ObsidianExportDialogProps {
-  title: string
-  markdown: string
-  open: boolean
-  onClose: (success: boolean) => void
-  obsidianTags: string | null
-  processingMethod: string | '3' //默认新增（存在就覆盖）
-}
 
 interface FileInfo {
   path: string
   type: 'folder' | 'markdown'
   name: string
+}
+
+interface PopupContainerProps {
+  title: string
+  obsidianTags: string | null
+  processingMethod: string | '3'
+  open: boolean
+  resolve: (success: boolean) => void
+  message?: Message
+  messages?: Message[]
+  topic?: Topic
 }
 
 // 转换文件信息数组为树形结构
@@ -113,13 +123,15 @@ const convertToTreeData = (files: FileInfo[]) => {
   return treeData
 }
 
-const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
+const PopupContainer: React.FC<PopupContainerProps> = ({
   title,
-  markdown,
-  open,
-  onClose,
   obsidianTags,
-  processingMethod
+  processingMethod,
+  open,
+  resolve,
+  message,
+  messages,
+  topic
 }) => {
   const defaultObsidianVault = store.getState().settings.defaultObsidianVault
   const [state, setState] = useState({
@@ -130,8 +142,6 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
     processingMethod: processingMethod,
     folder: ''
   })
-
-  // 是否手动编辑过标题
   const [hasTitleBeenManuallyEdited, setHasTitleBeenManuallyEdited] = useState(false)
   const [vaults, setVaults] = useState<Array<{ path: string; name: string }>>([])
   const [files, setFiles] = useState<FileInfo[]>([])
@@ -139,8 +149,8 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
   const [selectedVault, setSelectedVault] = useState<string>('')
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
+  const [exportReasoning, setExportReasoning] = useState(false)
 
-  // 处理文件数据转为树形结构
   useEffect(() => {
     if (files.length > 0) {
       const treeData = convertToTreeData(files)
@@ -157,28 +167,21 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
     }
   }, [files])
 
-  // 组件加载时获取Vault列表
   useEffect(() => {
     const fetchVaults = async () => {
       try {
         setLoading(true)
         setError(null)
         const vaultsData = await window.obsidian.getVaults()
-
         if (vaultsData.length === 0) {
           setError(i18n.t('chat.topics.export.obsidian_no_vaults'))
           setLoading(false)
           return
         }
-
         setVaults(vaultsData)
-
-        // 如果没有选择的vault，使用默认值或第一个
         const vaultToUse = defaultObsidianVault || vaultsData[0]?.name
         if (vaultToUse) {
           setSelectedVault(vaultToUse)
-
-          // 获取选中vault的文件和文件夹
           const filesData = await window.obsidian.getFiles(vaultToUse)
           setFiles(filesData)
         }
@@ -189,11 +192,9 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
         setLoading(false)
       }
     }
-
     fetchVaults()
   }, [defaultObsidianVault])
 
-  // 当选择的vault变化时，获取其文件和文件夹
   useEffect(() => {
     if (selectedVault) {
       const fetchFiles = async () => {
@@ -209,7 +210,6 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
           setLoading(false)
         }
       }
-
       fetchFiles()
     }
   }, [selectedVault])
@@ -219,82 +219,71 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
       setError(i18n.t('chat.topics.export.obsidian_no_vault_selected'))
       return
     }
-
-    //构建content 并复制到粘贴板
+    let markdown = ''
+    if (topic) {
+      markdown = await topicToMarkdown(topic, exportReasoning)
+    } else if (messages && messages.length > 0) {
+      markdown = messagesToMarkdown(messages, exportReasoning)
+    } else if (message) {
+      markdown = exportReasoning ? messageToMarkdownWithReasoning(message) : messageToMarkdown(message)
+    } else {
+      markdown = ''
+    }
     let content = ''
     if (state.processingMethod !== '3') {
       content = `\n---\n${markdown}`
     } else {
-      content = `---
-      \ntitle: ${state.title}
-      \ncreated: ${state.createdAt}
-      \nsource: ${state.source}
-      \ntags: ${state.tags}
-      \n---\n${markdown}`
+      content = `---\n\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
     }
     if (content === '') {
       window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
       return
     }
-
     await navigator.clipboard.writeText(content)
-
-    // 导出到Obsidian
     exportMarkdownToObsidian({
       ...state,
       folder: state.folder,
       vault: selectedVault
     })
-
-    onClose(true)
+    setOpen(false)
+    resolve(true)
   }
 
+  const [openState, setOpen] = useState(open)
+  useEffect(() => {
+    setOpen(open)
+  }, [open])
+
   const handleCancel = () => {
-    onClose(false)
+    setOpen(false)
+    resolve(false)
   }
 
   const handleChange = (key: string, value: any) => {
     setState((prevState) => ({ ...prevState, [key]: value }))
   }
-
-  // 处理title输入变化
   const handleTitleInputChange = (newTitle: string) => {
     handleChange('title', newTitle)
     setHasTitleBeenManuallyEdited(true)
   }
-
   const handleVaultChange = (value: string) => {
     setSelectedVault(value)
-    // 文件夹会通过useEffect自动获取
-    setState((prevState) => ({
-      ...prevState,
-      folder: ''
-    }))
+    setState((prevState) => ({ ...prevState, folder: '' }))
   }
-
-  // 处理文件选择
   const handleFileSelect = (value: string) => {
-    // 更新folder值
     handleChange('folder', value)
-
-    // 检查是否选中md文件
     if (value) {
       const selectedFile = files.find((file) => file.path === value)
       if (selectedFile) {
         if (selectedFile.type === 'markdown') {
-          // 如果是md文件，自动设置标题为文件名并设置处理方式为1(追加)
           const fileName = selectedFile.name
           const titleWithoutExt = fileName.endsWith('.md') ? fileName.substring(0, fileName.length - 3) : fileName
           handleChange('title', titleWithoutExt)
-          // 重置手动编辑标记，因为这是非用户设置的title
           setHasTitleBeenManuallyEdited(false)
           handleChange('processingMethod', '1')
         } else {
-          // 如果是文件夹，自动设置标题为话题名并设置处理方式为3(新建)
           handleChange('processingMethod', '3')
-          // 仅当用户未手动编辑过 title 时，才将其重置为 props.title
           if (!hasTitleBeenManuallyEdited) {
-            // title 是 props.title
             handleChange('title', title)
           }
         }
@@ -305,7 +294,7 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
   return (
     <Modal
       title={i18n.t('chat.topics.export.obsidian_atributes')}
-      open={open}
+      open={openState}
       onOk={handleOk}
       onCancel={handleCancel}
       width={600}
@@ -317,9 +306,9 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
         type: 'primary',
         disabled: vaults.length === 0 || loading || !!error
       }}
-      okText={i18n.t('chat.topics.export.obsidian_btn')}>
+      okText={i18n.t('chat.topics.export.obsidian_btn')}
+      afterClose={() => setOpen(open)}>
       {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
-
       <Form layout="horizontal" labelCol={{ span: 6 }} wrapperCol={{ span: 18 }} labelAlign="left">
         <Form.Item label={i18n.t('chat.topics.export.obsidian_title')}>
           <Input
@@ -328,7 +317,6 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
             placeholder={i18n.t('chat.topics.export.obsidian_title_placeholder')}
           />
         </Form.Item>
-
         <Form.Item label={i18n.t('chat.topics.export.obsidian_vault')}>
           {vaults.length > 0 ? (
             <Select
@@ -354,7 +342,6 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
             />
           )}
         </Form.Item>
-
         <Form.Item label={i18n.t('chat.topics.export.obsidian_path')}>
           <Spin spinning={loading}>
             {selectedVault ? (
@@ -376,7 +363,6 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
             )}
           </Spin>
         </Form.Item>
-
         <Form.Item label={i18n.t('chat.topics.export.obsidian_tags')}>
           <Input
             value={state.tags}
@@ -398,7 +384,6 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
             placeholder={i18n.t('chat.topics.export.obsidian_source_placeholder')}
           />
         </Form.Item>
-
         <Form.Item label={i18n.t('chat.topics.export.obsidian_operate')}>
           <Select
             value={state.processingMethod}
@@ -410,9 +395,12 @@ const ObsidianExportDialog: React.FC<ObsidianExportDialogProps> = ({
             <Option value="3">{i18n.t('chat.topics.export.obsidian_operate_new_or_overwrite')}</Option>
           </Select>
         </Form.Item>
+        <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
+          <Switch checked={exportReasoning} onChange={setExportReasoning} />
+        </Form.Item>
       </Form>
     </Modal>
   )
 }
 
-export default ObsidianExportDialog
+export { PopupContainer }
