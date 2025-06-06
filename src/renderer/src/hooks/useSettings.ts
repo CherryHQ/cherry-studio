@@ -62,10 +62,7 @@ export function useSettings() {
 
     setEarlyAccess(isEarlyAccess: boolean) {
       dispatch(_setEarlyAccess(isEarlyAccess))
-      if (window.api.setFeedUrl) {
-        const feedUrl = isEarlyAccess ? EARLY_ACCESS_FEED_URL : PRODUCTION_FEED_URL
-        window.api.setFeedUrl(feedUrl)
-      }
+      window.api.setFeedUrl(isEarlyAccess ? EARLY_ACCESS_FEED_URL : PRODUCTION_FEED_URL)
     },
 
     setTheme(theme: ThemeMode) {

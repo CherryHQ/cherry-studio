@@ -10,7 +10,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
+import { Avatar, Button, Progress, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -164,7 +164,9 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
-              <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
+              <Tooltip title={t('settings.general.early_access.tooltip')} trigger={['hover', 'focus']}>
+                <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
+              </Tooltip>
             </SettingRow>
           </>
         )}

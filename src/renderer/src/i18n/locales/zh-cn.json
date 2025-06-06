@@ -1346,6 +1346,7 @@
       "general.image_upload": "图片上传",
       "general.auto_check_update.title": "自动更新",
       "general.early_access.title": "抢先体验",
+      "general.early_access.tooltip": "开启后，将使用 GitHub 的最新版本, 下载速度可能较慢,还有一定要提前备份数据",
       "general.reset.button": "重置",
       "general.reset.title": "重置数据",
       "general.restore.button": "恢复",
