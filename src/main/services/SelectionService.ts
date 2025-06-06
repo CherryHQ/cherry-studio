@@ -812,8 +812,8 @@ export class SelectionService {
     if (this.triggerMode === TriggerMode.Ctrlkey && this.isCtrlkey(data.vkCode)) {
       return
     }
-    //dont hide toolbar when shiftkey is pressed, because it's used for selection
-    if (this.isShiftkey(data.vkCode)) {
+    //dont hide toolbar when shiftkey or altkey is pressed, because it's used for selection
+    if (this.isShiftkey(data.vkCode) || this.isAltkey(data.vkCode)) {
       return
     }
 
@@ -899,6 +899,11 @@ export class SelectionService {
   //check if the key is shift key
   private isShiftkey(vkCode: number) {
     return vkCode === 160 || vkCode === 161
+  }
+
+  //check if the key is alt key
+  private isAltkey(vkCode: number) {
+    return vkCode === 164 || vkCode === 165
   }
 
   /**

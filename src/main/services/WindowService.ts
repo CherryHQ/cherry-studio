@@ -544,6 +544,25 @@ export class WindowService {
   public setPinMiniWindow(isPinned) {
     this.isPinnedMiniWindow = isPinned
   }
+
+  /**
+   * 引用文本到主窗口
+   * @param text 原始文本（未格式化）
+   */
+  public quoteToMainWindow(text: string): void {
+    try {
+      this.showMainWindow()
+
+      const mainWindow = this.getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        setTimeout(() => {
+          mainWindow.webContents.send(IpcChannel.App_QuoteToMain, text)
+        }, 100)
+      }
+    } catch (error) {
+      Logger.error('Failed to quote to main window:', error as Error)
+    }
+  }
 }
 
 export const windowService = WindowService.getInstance()
