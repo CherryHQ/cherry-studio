@@ -3,12 +3,13 @@ import '@renderer/assets/styles/selection-toolbar.scss'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTTS } from '@renderer/hooks/useTTS'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
-import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
+import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart, Volume2, Pause } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +35,8 @@ const ActionIcons: FC<{
   handleAction: (action: ActionItem) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
-}> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
+  isSpeaking: boolean
+}> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation, isSpeaking }) => {
   const { t } = useTranslation()
 
   const renderCopyIcon = useCallback(() => {
@@ -63,6 +65,14 @@ const ActionIcons: FC<{
     )
   }, [copyIconStatus, copyIconAnimation])
 
+  const renderSpeakIcon = useCallback(() => {
+    if (isSpeaking) {
+      return <Pause className="btn-icon" />
+    } else {
+      return <Volume2 className="btn-icon" />
+    }
+  }, [isSpeaking])
+
   const renderActionButton = useCallback(
     (action: ActionItem) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
@@ -72,6 +82,8 @@ const ActionIcons: FC<{
           <ActionIcon>
             {action.id === 'copy' ? (
               renderCopyIcon()
+            ) : action.id === 'speak' ? (
+              renderSpeakIcon()
             ) : (
               <DynamicIcon
                 key={action.id}
@@ -85,7 +97,7 @@ const ActionIcons: FC<{
         </ActionButton>
       )
     },
-    [handleAction, isCompact, t, renderCopyIcon]
+    [handleAction, isCompact, t, renderCopyIcon, renderSpeakIcon]
   )
 
   return <>{actionItems?.map(renderActionButton)}</>
@@ -97,9 +109,11 @@ const ActionIcons: FC<{
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const { language, customCss } = useSettings()
   const { isCompact, actionItems } = useSelectionAssistant()
+  const tts = useTTS()
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const copyIconTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   const realActionItems = useMemo(() => {
@@ -188,12 +202,15 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         case 'search':
           handleSearch(newAction)
           break
+        case 'speak':
+          handleSpeak(action)
+          break
         default:
           handleDefaultAction(newAction)
           break
       }
     },
-    [demo]
+    [demo, isSpeaking, tts]
   )
 
   // copy selected text to clipboard
@@ -220,6 +237,36 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     window.api?.selection.hideToolbar()
   }
 
+  const handleSpeak = async (action?: ActionItem) => {
+    if (!selectedText.current) return
+
+    try {
+      if (isSpeaking) {
+        // 如果正在播放，则停止
+        tts.stop()
+        setIsSpeaking(false)
+      } else {
+        // 开始朗读
+        setIsSpeaking(true)
+
+        // 获取指定的 TTS 供应商
+        if (action?.ttsProvider) {
+          const [, providerValue] = action.ttsProvider.split('|')
+          if (providerValue && providerValue !== 'default') {
+            // 切换到指定的供应商
+            tts.ttsService.setCurrentProvider(providerValue)
+          }
+        }
+
+        await tts.speak(selectedText.current)
+        setIsSpeaking(false)
+      }
+    } catch (error) {
+      console.error('TTS Error:', error)
+      setIsSpeaking(false)
+    }
+  }
+
   const handleDefaultAction = (action: ActionItem) => {
     window.api?.selection.processAction(action)
     window.api?.selection.hideToolbar()
@@ -237,6 +284,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           handleAction={handleAction}
           copyIconStatus={copyIconStatus}
           copyIconAnimation={copyIconAnimation}
+          isSpeaking={isSpeaking}
         />
       </ActionWrapper>
     </Container>

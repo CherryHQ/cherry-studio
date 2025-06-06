@@ -1812,6 +1812,70 @@
         "assistant": "アシスタントメッセージ",
         "backup": "バックアップメッセージ",
         "knowledge_embed": "ナレッジベースメッセージ"
+      },
+      "tts": {
+        "title": "音声合成",
+        "description": "テキスト読み上げ機能を設定して、AIアシスタントにメッセージ内容を音声で読み上げさせます",
+        "enabled": "TTS を有効にする",
+        "auto_play": "自動再生",
+        "auto_play.description": "AI が返信した後、自動的に音声再生を開始します",
+        "voice": "音声",
+        "voice.placeholder": "音声を選択",
+        "voice.default": "デフォルト",
+        "rate": "読み上げ速度",
+        "rate.description": "音声再生速度を調整します（0.1 - 2.0）",
+        "pitch": "ピッチ",
+        "pitch.description": "音声のピッチの高低を調整します（0.0 - 2.0）",
+        "volume": "音量",
+        "volume.description": "音声再生音量を調整します（0% - 100%）",
+        "test": "音声テスト",
+        "test.description": "テスト音声を再生して現在の設定効果をプレビューします",
+        "test.text": "これは現在の音声合成設定効果をプレビューするためのテスト音声です。",
+        "test.play": "テスト再生",
+        "test.stop": "再生停止",
+        "test.pause": "一時停止",
+        "test.resume": "再生再開",
+        "model": "モデル",
+        "model.description": "音声合成モデルを選択",
+        "format": "音声フォーマット",
+        "format.description": "出力音声フォーマットを選択",
+        "region": "リージョン",
+        "region.description": "Azure サービスリージョンを選択",
+        "region.tencent.description": "Tencent Cloud サービスリージョンを選択",
+        "stability": "安定性",
+        "stability.description": "音声の安定性を調整します（0.0 - 1.0）",
+        "similarity_boost": "類似度向上",
+        "similarity_boost.description": "音声の類似度を向上させます（0.0 - 1.0）",
+        "style": "スタイル",
+        "style.description": "音声スタイルを調整します（0.0 - 1.0）",
+        "use_speaker_boost": "スピーカー強化を有効にする",
+        "use_speaker_boost.description": "音声の明瞭度を向上させます",
+        "speaking_style": "話し方スタイル",
+        "speaking_style.description": "音声の感情スタイルとトーンを選択",
+        "role": "音声ロール",
+        "role.description": "音声の年齢と性別ロールを選択",
+        "play": "音声再生",
+        "pause": "再生一時停止",
+        "resume": "再生再開",
+        "stop": "再生停止",
+        "not.available": "TTS 機能が利用できません。設定で有効にしてください",
+        "play.failed": "TTS 再生に失敗しました",
+        "sample_rate": "サンプルレート",
+        "sample_rate.description": "音声出力のサンプルレートを設定し、音質に影響します",
+        "secretKey": "SecretKey",
+        "secretKey.description": "Tencent Cloud SecretKey、API 認証に使用",
+        "sampleRate": "サンプルレート",
+        "sampleRate.description": "音声出力のサンプルレートを設定し、音質に影響します",
+        "codec": "音声エンコーディング",
+        "codec.description": "音声出力のエンコーディング形式を選択",
+        "confirm": {
+          "title": "TTS プロバイダーの有効化を確認",
+          "content": "{{current}} を有効にすると、他の有効なプロバイダーが自動的に無効になります：{{others}}。\n\n続行しますか？"
+        },
+        "error": {
+          "not_supported": "お使いのブラウザは音声合成機能をサポートしていません",
+          "playback_failed": "音声再生に失敗しました"
+        }
       }
     },
     "translate": {
@@ -1884,7 +1948,8 @@
           "summary": "要約",
           "search": "検索",
           "refine": "最適化",
-          "copy": "コピー"
+          "copy": "コピー",
+          "speak": "音声読み上げ"
         },
         "window": {
           "pin": "最前面に固定",
@@ -2028,6 +2093,12 @@
               "missing_placeholder": "{{queryString}}を含めてください"
             },
             "test": "テスト"
+          }
+        },
+        "tts_modal": {
+          "title": "TTSプロバイダー設定",
+          "provider": {
+            "label": "TTSプロバイダー"
           }
         },
         "filter_modal": {

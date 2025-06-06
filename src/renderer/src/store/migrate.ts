@@ -1484,6 +1484,151 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '111': (state: RootState) => {
+    try {
+      // 初始化 TTS 设置
+      if (!state.tts) {
+        state.tts = {
+          providers: [],
+          currentProvider: 'web-speech',
+          globalSettings: {
+            enabled: true,
+            autoPlay: false
+          }
+        }
+      } else {
+        // 修复已存在的 TTS 设置
+        if (!state.tts.globalSettings) {
+          state.tts.globalSettings = {
+            enabled: true,
+            autoPlay: false
+          }
+        } else {
+          // 确保 TTS 默认启用
+          state.tts.globalSettings.enabled = true
+        }
+
+        // 确保 Web Speech API 默认启用
+        if (state.tts.providers && state.tts.providers.length > 0) {
+          const webSpeechProvider = state.tts.providers.find(p => p.id === 'web-speech')
+          if (webSpeechProvider) {
+            webSpeechProvider.enabled = true
+          }
+        }
+      }
+      return state
+    } catch (error) {
+      console.error('[Migration 111] TTS settings migration failed:', error)
+      return state
+    }
+  },
+  '112': (state: RootState) => {
+    try {
+      // 添加硅基流动 TTS 供应商
+      if (state.tts && state.tts.providers) {
+        // 检查是否已经存在硅基流动供应商
+        const hasSiliconFlow = state.tts.providers.some(p => p.id === 'siliconflow')
+
+        if (!hasSiliconFlow) {
+          console.log('[Migration 112] Adding SiliconFlow TTS provider')
+          // 添加硅基流动供应商
+          state.tts.providers.push({
+            id: 'siliconflow',
+            type: 'siliconflow',
+            name: '硅基流动 (SiliconFlow)',
+            enabled: false,
+            isSystem: true,
+            settings: {
+              rate: 1.0,
+              pitch: 1.0,
+              volume: 1.0,
+              autoPlay: false,
+              model: 'FunAudioLLM/CosyVoice2-0.5B',
+              format: 'mp3',
+              sample_rate: 44100,
+              voice: 'alex'
+            },
+            voices: []
+          })
+        }
+      }
+      return state
+    } catch (error) {
+      console.error('[Migration 112] SiliconFlow provider migration failed:', error)
+      return state
+    }
+  },
+  '113': (state: RootState) => {
+    try {
+      // 添加腾讯云 TTS 供应商
+      if (state.tts && state.tts.providers) {
+        // 检查是否已经存在腾讯云供应商
+        const hasTencentCloud = state.tts.providers.some(p => p.id === 'tencentcloud')
+
+        if (!hasTencentCloud) {
+          console.log('[Migration 113] Adding TencentCloud TTS provider')
+          // 添加腾讯云供应商
+          state.tts.providers.push({
+            id: 'tencentcloud',
+            type: 'tencentcloud',
+            name: '腾讯云语音合成 (Tencent Cloud)',
+            enabled: false,
+            isSystem: true,
+            settings: {
+              rate: 1.0,
+              pitch: 1.0,
+              volume: 1.0,
+              autoPlay: false,
+              voice: '101001',
+              region: 'ap-beijing',
+              sampleRate: 16000,
+              codec: 'wav'
+            },
+            voices: []
+          })
+        }
+      }
+      return state
+    } catch (error) {
+      console.error('[Migration 113] TencentCloud provider migration failed:', error)
+      return state
+    }
+  },
+  '114': (state: RootState) => {
+    try {
+      // 添加 Google Cloud TTS 供应商
+      if (state.tts && state.tts.providers) {
+        // 检查是否已经存在 Google Cloud 供应商
+        const hasGoogleCloud = state.tts.providers.some(p => p.id === 'googlecloud')
+
+        if (!hasGoogleCloud) {
+          console.log('[Migration 114] Adding Google Cloud TTS provider')
+          // 添加 Google Cloud 供应商
+          state.tts.providers.push({
+            id: 'googlecloud',
+            type: 'googlecloud',
+            name: 'Google Cloud Text-to-Speech',
+            enabled: false,
+            isSystem: true,
+            settings: {
+              rate: 1.0,
+              pitch: 1.0,
+              volume: 1.0,
+              voice: 'en-US-Wavenet-D',
+              format: 'mp3',
+              sampleRate: 24000,
+              autoPlay: false
+            },
+            voices: []
+          })
+        }
+      }
+      return state
+    } catch (error) {
+      console.error('[Migration 114] Google Cloud provider migration failed:', error)
+      return state
+    }
   }
 }
 

@@ -1812,6 +1812,76 @@
         "service_tier.auto": "自动",
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
+      },
+      "tts": {
+        "title": "语音合成",
+        "description": "配置文本转语音功能，让 AI 助手为您朗读消息内容",
+        "enabled": "启用 TTS",
+        "auto_play": "自动播放",
+        "auto_play.description": "AI 回复消息后自动开始语音播放",
+        "streaming": "流式合成",
+        "streaming.description": "启用实时流式语音合成，边生成边播放，减少等待时间",
+        "voice": "语音",
+        "voice.placeholder": "选择语音",
+        "voice.default": "默认",
+        "rate": "语速",
+        "rate.description": "调整语音播放速度（0.1 - 2.0）",
+        "pitch": "音调",
+        "pitch.description": "调整语音音调高低（0.0 - 2.0）",
+        "volume": "音量",
+        "volume.description": "调整语音播放音量（0% - 100%）",
+        "test": "测试语音",
+        "test.description": "播放测试语音以预览当前设置效果",
+        "test.text": "这是一段测试语音，用于预览当前的语音合成设置效果。",
+        "test.play": "播放测试",
+        "test.stop": "停止播放",
+        "test.pause": "暂停",
+        "test.resume": "继续",
+        "model": "模型",
+        "model.description": "选择语音合成模型",
+        "format": "音频格式",
+        "format.description": "选择输出音频格式",
+        "region": "区域",
+        "region.description": "选择 Azure 服务区域",
+        "region.tencent.description": "选择腾讯云服务区域",
+        "stability": "稳定性",
+        "stability.description": "调整语音稳定性（0.0 - 1.0）",
+        "similarity_boost": "相似度增强",
+        "similarity_boost.description": "增强语音相似度（0.0 - 1.0）",
+        "style": "风格",
+        "style.description": "调整语音风格（0.0 - 1.0）",
+        "use_speaker_boost": "启用扬声器增强",
+        "use_speaker_boost.description": "增强语音清晰度",
+        "speaking_style": "语音样式",
+        "speaking_style.description": "选择语音的情感样式和语调",
+        "role": "语音角色",
+        "role.description": "选择语音的年龄和性别角色",
+        "play": "播放语音",
+        "pause": "暂停播放",
+        "resume": "继续播放",
+        "stop": "停止播放",
+        "not.available": "TTS 功能不可用，请在设置中启用",
+        "play.failed": "TTS 播放失败",
+        "sample_rate": "采样率",
+        "sample_rate.description": "设置音频输出的采样率，影响音频质量",
+        "secretKey": "SecretKey",
+        "secretKey.description": "腾讯云 SecretKey，用于 API 认证",
+        "sampleRate": "采样率",
+        "sampleRate.description": "设置音频输出的采样率，影响音频质量",
+        "codec": "音频编码",
+        "codec.description": "选择音频输出的编码格式",
+        "confirm": {
+          "title": "确认启用 TTS 供应商",
+          "content": "启用 {{current}} 将会自动禁用其他已启用的供应商：{{others}}。\n\n是否继续？"
+        },
+        "provider": {
+          "default": "默认",
+          "disabled": "已禁用"
+        },
+        "error": {
+          "not_supported": "您的浏览器不支持语音合成功能",
+          "playback_failed": "语音播放失败"
+        }
       }
     },
     "translate": {
@@ -1884,7 +1954,8 @@
           "summary": "总结",
           "search": "搜索",
           "refine": "优化",
-          "copy": "复制"
+          "copy": "复制",
+          "speak": "朗读"
         },
         "window": {
           "pin": "置顶",
@@ -2028,6 +2099,12 @@
               "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
             },
             "test": "测试"
+          }
+        },
+        "tts_modal": {
+          "title": "设置朗读供应商",
+          "provider": {
+            "label": "朗读供应商"
           }
         },
         "filter_modal": {

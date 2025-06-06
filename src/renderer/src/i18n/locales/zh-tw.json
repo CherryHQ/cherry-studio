@@ -1812,6 +1812,70 @@
         "assistant": "助手訊息",
         "backup": "備份訊息",
         "knowledge_embed": "知識庫訊息"
+      },
+      "tts": {
+        "title": "語音合成",
+        "description": "配置文字轉語音功能，讓 AI 助手為您朗讀訊息內容",
+        "enabled": "啟用 TTS",
+        "auto_play": "自動播放",
+        "auto_play.description": "AI 回覆訊息後自動開始語音播放",
+        "voice": "語音",
+        "voice.placeholder": "選擇語音",
+        "voice.default": "預設",
+        "rate": "語速",
+        "rate.description": "調整語音播放速度（0.1 - 2.0）",
+        "pitch": "音調",
+        "pitch.description": "調整語音音調高低（0.0 - 2.0）",
+        "volume": "音量",
+        "volume.description": "調整語音播放音量（0% - 100%）",
+        "test": "測試語音",
+        "test.description": "播放測試語音以預覽目前設定效果",
+        "test.text": "這是一段測試語音，用於預覽目前的語音合成設定效果。",
+        "test.play": "播放測試",
+        "test.stop": "停止播放",
+        "test.pause": "暫停",
+        "test.resume": "繼續",
+        "model": "模型",
+        "model.description": "選擇語音合成模型",
+        "format": "音頻格式",
+        "format.description": "選擇輸出音頻格式",
+        "region": "區域",
+        "region.description": "選擇 Azure 服務區域",
+        "region.tencent.description": "選擇騰訊雲服務區域",
+        "stability": "穩定性",
+        "stability.description": "調整語音穩定性（0.0 - 1.0）",
+        "similarity_boost": "相似度增強",
+        "similarity_boost.description": "增強語音相似度（0.0 - 1.0）",
+        "style": "風格",
+        "style.description": "調整語音風格（0.0 - 1.0）",
+        "use_speaker_boost": "啟用揚聲器增強",
+        "use_speaker_boost.description": "增強語音清晰度",
+        "speaking_style": "語音樣式",
+        "speaking_style.description": "選擇語音的情感樣式和語調",
+        "role": "語音角色",
+        "role.description": "選擇語音的年齡和性別角色",
+        "play": "播放語音",
+        "pause": "暫停播放",
+        "resume": "繼續播放",
+        "stop": "停止播放",
+        "not.available": "TTS 功能不可用，請在設定中啟用",
+        "play.failed": "TTS 播放失敗",
+        "sample_rate": "採樣率",
+        "sample_rate.description": "設定音頻輸出的採樣率，影響音頻品質",
+        "secretKey": "SecretKey",
+        "secretKey.description": "騰訊雲 SecretKey，用於 API 認證",
+        "sampleRate": "採樣率",
+        "sampleRate.description": "設定音頻輸出的採樣率，影響音頻品質",
+        "codec": "音頻編碼",
+        "codec.description": "選擇音頻輸出的編碼格式",
+        "confirm": {
+          "title": "確認啟用 TTS 供應商",
+          "content": "啟用 {{current}} 將會自動禁用其他已啟用的供應商：{{others}}。\n\n是否繼續？"
+        },
+        "error": {
+          "not_supported": "您的瀏覽器不支援語音合成功能",
+          "playback_failed": "語音播放失敗"
+        }
       }
     },
     "translate": {
@@ -1884,7 +1948,8 @@
           "summary": "總結",
           "search": "搜尋",
           "refine": "優化",
-          "copy": "複製"
+          "copy": "複製",
+          "speak": "朗讀"
         },
         "window": {
           "pin": "置頂",
@@ -2028,6 +2093,12 @@
               "missing_placeholder": "URL 必須包含 {{queryString}} 佔位符"
             },
             "test": "測試"
+          }
+        },
+        "tts_modal": {
+          "title": "設置朗讀供應商",
+          "provider": {
+            "label": "朗讀供應商"
           }
         },
         "filter_modal": {

@@ -178,6 +178,12 @@ export enum IpcChannel {
   // Provider
   Provider_AddKey = 'provider:add-key',
 
+  // Tencent Cloud TTS
+  TencentTTS_SynthesizeSpeech = 'tencent-tts:synthesize-speech',
+  TencentTTS_TestConnection = 'tencent-tts:test-connection',
+  TencentTTS_GetVoices = 'tencent-tts:get-voices',
+  TencentTTS_GetRegions = 'tencent-tts:get-regions',
+
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
   Selection_ToolbarHide = 'selection:toolbar-hide',

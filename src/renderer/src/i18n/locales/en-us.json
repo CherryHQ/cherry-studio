@@ -1812,6 +1812,76 @@
         "service_tier.auto": "auto",
         "service_tier.default": "default",
         "service_tier.flex": "flex"
+      },
+      "tts": {
+        "title": "Text-to-Speech",
+        "description": "Configure text-to-speech functionality to have AI assistant read message content aloud",
+        "enabled": "Enable TTS",
+        "auto_play": "Auto Play",
+        "auto_play.description": "Automatically start speech playback after AI responds",
+        "streaming": "Streaming Synthesis",
+        "streaming.description": "Enable real-time streaming speech synthesis for faster playback with reduced waiting time",
+        "voice": "Voice",
+        "voice.placeholder": "Select Voice",
+        "voice.default": "Default",
+        "rate": "Speech Rate",
+        "rate.description": "Adjust speech playback speed (0.1 - 2.0)",
+        "pitch": "Pitch",
+        "pitch.description": "Adjust speech pitch (0.0 - 2.0)",
+        "volume": "Volume",
+        "volume.description": "Adjust speech playback volume (0% - 100%)",
+        "test": "Test Speech",
+        "test.description": "Play test speech to preview current settings",
+        "test.text": "This is a test speech to preview the current text-to-speech settings.",
+        "test.play": "Play Test",
+        "test.stop": "Stop Playback",
+        "test.pause": "Pause",
+        "test.resume": "Resume",
+        "model": "Model",
+        "model.description": "Select text-to-speech model",
+        "format": "Audio Format",
+        "format.description": "Select output audio format",
+        "region": "Region",
+        "region.description": "Select Azure service region",
+        "region.tencent.description": "Select Tencent Cloud service region",
+        "stability": "Stability",
+        "stability.description": "Adjust voice stability (0.0 - 1.0)",
+        "similarity_boost": "Similarity Boost",
+        "similarity_boost.description": "Enhance voice similarity (0.0 - 1.0)",
+        "style": "Style",
+        "style.description": "Adjust voice style (0.0 - 1.0)",
+        "use_speaker_boost": "Enable Speaker Boost",
+        "use_speaker_boost.description": "Enhance voice clarity",
+        "speaking_style": "Speaking Style",
+        "speaking_style.description": "Select voice emotional style and tone",
+        "role": "Voice Role",
+        "role.description": "Select voice age and gender role",
+        "play": "Play Speech",
+        "pause": "Pause Playback",
+        "resume": "Resume Playback",
+        "stop": "Stop Playback",
+        "not.available": "TTS is not available, please enable it in settings",
+        "play.failed": "TTS playback failed",
+        "sample_rate": "Sample Rate",
+        "sample_rate.description": "Set audio output sample rate, affects audio quality",
+        "secretKey": "SecretKey",
+        "secretKey.description": "Tencent Cloud SecretKey for API authentication",
+        "sampleRate": "Sample Rate",
+        "sampleRate.description": "Set audio output sample rate, affects audio quality",
+        "codec": "Audio Codec",
+        "codec.description": "Select audio output encoding format",
+        "confirm": {
+          "title": "Confirm Enable TTS Provider",
+          "content": "Enabling {{current}} will automatically disable other enabled providers: {{others}}.\n\nDo you want to continue?"
+        },
+        "provider": {
+          "default": "Default",
+          "disabled": "Disabled"
+        },
+        "error": {
+          "not_supported": "Your browser does not support speech synthesis",
+          "playback_failed": "Speech playback failed"
+        }
       }
     },
     "translate": {
@@ -1884,7 +1954,8 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy"
+          "copy": "Copy",
+          "speak": "Speak"
         },
         "window": {
           "pin": "Pin",
@@ -2028,6 +2099,12 @@
               "missing_placeholder": "URL must contain {{queryString}} placeholder"
             },
             "test": "Test"
+          }
+        },
+        "tts_modal": {
+          "title": "Set TTS Provider",
+          "provider": {
+            "label": "TTS Provider"
           }
         },
         "filter_modal": {

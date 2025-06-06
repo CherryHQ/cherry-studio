@@ -10,6 +10,7 @@ export interface ActionItem {
   assistantId?: string
   selectedText?: string
   searchEngine?: string
+  ttsProvider?: string
 }
 
 export interface SelectionState {

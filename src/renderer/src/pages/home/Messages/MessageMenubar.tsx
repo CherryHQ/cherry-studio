@@ -5,6 +5,7 @@ import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useTTS } from '@renderer/hooks/useTTS'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -27,7 +28,7 @@ import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
+import { AtSign, Copy, Languages, Menu, Pause, Play, RefreshCw, Save, Share, Split, Square, ThumbsUp, Trash, Volume2 } from 'lucide-react'
 import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,6 +57,11 @@ const MessageMenubar: FC<Props> = (props) => {
   const [isTranslating, setIsTranslating] = useState(false)
   const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+
+  // TTS 相关状态
+  const tts = useTTS()
+  const [isCurrentMessagePlaying, setIsCurrentMessagePlaying] = useState(false)
+  const [isCurrentMessagePaused, setIsCurrentMessagePaused] = useState(false)
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -326,6 +332,65 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, editMessage]
   )
 
+  // TTS 播放处理
+  const handleTTSPlay = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      if (!tts.isTTSAvailable) {
+        window.message.warning({ content: t('settings.tts.not.available'), key: 'tts-not-available' })
+        return
+      }
+
+      try {
+        if (isCurrentMessagePlaying) {
+          // 如果正在播放，则停止
+          tts.stop()
+          setIsCurrentMessagePlaying(false)
+          setIsCurrentMessagePaused(false)
+        } else if (isCurrentMessagePaused) {
+          // 如果暂停，则恢复
+          tts.resume()
+          setIsCurrentMessagePlaying(true)
+          setIsCurrentMessagePaused(false)
+        } else {
+          // 开始播放
+          setIsCurrentMessagePlaying(true)
+          setIsCurrentMessagePaused(false)
+
+          // 停止其他正在播放的 TTS
+          tts.stopAll()
+
+          await tts.speak(mainTextContent)
+
+          // 播放完成
+          setIsCurrentMessagePlaying(false)
+          setIsCurrentMessagePaused(false)
+        }
+      } catch (error) {
+        console.error('[MessageMenubar] TTS play failed:', error)
+        setIsCurrentMessagePlaying(false)
+        setIsCurrentMessagePaused(false)
+        window.message.error({ content: t('settings.tts.play.failed'), key: 'tts-play-failed' })
+      }
+    },
+    [tts, isCurrentMessagePlaying, isCurrentMessagePaused, mainTextContent, t]
+  )
+
+  // TTS 暂停处理
+  const handleTTSPause = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      if (isCurrentMessagePlaying) {
+        tts.pause()
+        setIsCurrentMessagePlaying(false)
+        setIsCurrentMessagePaused(true)
+      }
+    },
+    [tts, isCurrentMessagePlaying]
+  )
+
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
   const hasTranslationBlocks = useMemo(() => {
     const translationBlocks = findTranslationBlocks(message)
@@ -354,6 +419,38 @@ const MessageMenubar: FC<Props> = (props) => {
           {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
         </ActionButton>
       </Tooltip>
+      {/* TTS 播放按钮（仅对助手消息显示） */}
+      {isAssistantMessage && tts.isTTSAvailable && (
+        <>
+          <Tooltip
+            title={
+              isCurrentMessagePlaying
+                ? t('settings.tts.stop')
+                : isCurrentMessagePaused
+                  ? t('settings.tts.resume')
+                  : t('settings.tts.play')
+            }
+            mouseEnterDelay={0.8}
+          >
+            <ActionButton className="message-action-button" onClick={handleTTSPlay}>
+              {isCurrentMessagePlaying ? (
+                <Square size={16} fill="var(--color-primary)" />
+              ) : isCurrentMessagePaused ? (
+                <Play size={16} fill="var(--color-primary)" />
+              ) : (
+                <Volume2 size={16} />
+              )}
+            </ActionButton>
+          </Tooltip>
+          {isCurrentMessagePlaying && (
+            <Tooltip title={t('settings.tts.pause')} mouseEnterDelay={0.8}>
+              <ActionButton className="message-action-button" onClick={handleTTSPause}>
+                <Pause size={16} />
+              </ActionButton>
+            </Tooltip>
+          )}
+        </>
+      )}
       {isAssistantMessage && (
         <Popconfirm
           title={t('message.regenerate.confirm')}

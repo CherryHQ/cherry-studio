@@ -12,6 +12,7 @@ import ActionsListDivider from './components/ActionsListDivider'
 import SettingsActionsListHeader from './components/SettingsActionsListHeader'
 import { useActionItems } from './hooks/useSettingsActionsList'
 import SelectionActionSearchModal from './SelectionActionSearchModal'
+import SelectionActionTTSModal from './SelectionActionTTSModal'
 import SelectionActionUserModal from './SelectionActionUserModal'
 
 // Component for managing selection actions in settings
@@ -30,17 +31,21 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
     customItemsCount,
     isUserModalOpen,
     isSearchModalOpen,
+    isTTSModalOpen,
     userEditingAction,
     setIsUserModalOpen,
     setIsSearchModalOpen,
+    setIsTTSModalOpen,
     handleEditActionItem,
     handleAddNewAction,
     handleUserModalOk,
     handleSearchModalOk,
+    handleTTSModalOk,
     handleDeleteActionItem,
     handleReset,
     onDragEnd,
     getSearchEngineInfo,
+    getTTSProviderInfo,
     MAX_CUSTOM_ITEMS,
     MAX_ENABLED_ITEMS
   } = useActionItems(actionItems, setActionItems)
@@ -74,6 +79,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
               onEdit={handleEditActionItem}
               onDelete={handleDeleteActionItem}
               getSearchEngineInfo={getSearchEngineInfo}
+              getTTSProviderInfo={getTTSProviderInfo}
             />
 
             <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
@@ -85,6 +91,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
               onEdit={handleEditActionItem}
               onDelete={handleDeleteActionItem}
               getSearchEngineInfo={getSearchEngineInfo}
+              getTTSProviderInfo={getTTSProviderInfo}
             />
           </ActionColumn>
         </ActionsListSection>
@@ -102,6 +109,13 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         onOk={handleSearchModalOk}
         onCancel={() => setIsSearchModalOpen(false)}
         currentAction={actionItems?.find((item) => item.id === 'search')}
+      />
+
+      <SelectionActionTTSModal
+        isModalOpen={isTTSModalOpen}
+        onOk={handleTTSModalOk}
+        onCancel={() => setIsTTSModalOpen(false)}
+        currentAction={actionItems?.find((item) => item.id === 'speak')}
       />
     </SettingGroup>
   )

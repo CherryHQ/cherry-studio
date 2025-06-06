@@ -15,10 +15,11 @@ interface ActionItemProps {
   onEdit: (item: ActionItemType) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
+  getTTSProviderInfo: (ttsProvider: string) => { icon: string; name: string } | null
 }
 
 const ActionsListItem = memo(
-  ({ item, provided, listType, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo }: ActionItemProps) => {
+  ({ item, provided, listType, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo, getTTSProviderInfo }: ActionItemProps) => {
     const { t } = useTranslation()
     const isEnabled = listType === 'enabled'
 
@@ -38,6 +39,12 @@ const ActionsListItem = memo(
             <ItemDescription>
               {getSearchEngineInfo(item.searchEngine)?.icon}
               <span>{getSearchEngineInfo(item.searchEngine)?.name}</span>
+            </ItemDescription>
+          )}
+          {item.id === 'speak' && item.ttsProvider && (
+            <ItemDescription>
+              <DynamicIcon name={getTTSProviderInfo(item.ttsProvider)?.icon as any} size={14} />
+              <span>{getTTSProviderInfo(item.ttsProvider)?.name}</span>
             </ItemDescription>
           )}
         </ItemLeft>
@@ -68,7 +75,7 @@ const ActionOperations = memo(({ item, onEdit, onDelete }: ActionOperationsProps
     )
   }
 
-  if (item.isBuiltIn && item.id === 'search') {
+  if (item.isBuiltIn && (item.id === 'search' || item.id === 'speak')) {
     return (
       <UserActionOpSection>
         <Button type="link" size="small" onClick={() => onEdit(item)}>
