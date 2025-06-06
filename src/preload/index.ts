@@ -36,6 +36,14 @@ const api = {
     selectFolder: () => ipcRenderer.invoke('file:selectFolder'),
     saveImage: (name: string, data: string) => ipcRenderer.invoke('file:saveImage', name, data),
     base64Image: (fileId: string) => ipcRenderer.invoke('file:base64Image', fileId)
+  },
+  agentMultiplexer: {
+    addAgent: (agentId: string, name: string, persona: string, model: string, objective: string | null = null) =>
+      ipcRenderer.invoke('agentMultiplexer:addAgent', agentId, name, persona, model, objective),
+    removeAgent: (agentId: string) =>
+      ipcRenderer.invoke('agentMultiplexer:removeAgent', agentId),
+    sendMessage: (agentId: string, message: string, images?: string[]) =>
+      ipcRenderer.invoke('agentMultiplexer:sendMessage', agentId, message, images)
   }
 }
 

@@ -25,14 +25,14 @@ export function createMainWindow() {
     height: mainWindowState.height,
     minWidth: 1080,
     minHeight: 600,
-    show: true,
+    show: false, // Changed to false, will rely on ready-to-show
     autoHideMenuBar: true,
-    transparent: isMac,
-    vibrancy: 'fullscreen-ui',
-    visualEffectState: 'active',
-    titleBarStyle: 'hidden',
-    titleBarOverlay: theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight,
-    backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
+    transparent: true, // Changed to true for all platforms
+    ...(process.platform === 'darwin' ? { vibrancy: 'under-window' } : {}), // Changed vibrancy for macOS
+    // visualEffectState: 'active', // This can be kept or removed, often linked with vibrancy
+    titleBarStyle: 'hidden', // Keep for custom title bar look, works with transparency
+    titleBarOverlay: process.platform === 'darwin' ? false : (theme === 'dark' ? titleBarOverlayDark : titleBarOverlayLight), // Disable for macOS if using vibrancy, keep for Win/Linux
+    backgroundColor: '#121212', // Consistent dark fallback
     trafficLightPosition: { x: 8, y: 12 },
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {

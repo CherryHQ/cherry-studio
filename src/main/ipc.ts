@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 
 import { appConfig, titleBarOverlayDark, titleBarOverlayLight } from './config'
+import { AgentMultiplexerService } from './services/AgentMultiplexerService';
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import FileManager from './services/FileManager'
@@ -10,7 +11,7 @@ import { createMinappWindow } from './window'
 const fileManager = new FileManager()
 const backupManager = new BackupManager()
 
-export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
+export function registerIpc(mainWindow: BrowserWindow, app: Electron.App, agentMultiplexerService: AgentMultiplexerService) {
   const { autoUpdater } = new AppUpdater(mainWindow)
 
   // IPC
@@ -75,4 +76,35 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       update: await autoUpdater.checkForUpdates()
     }
   })
+
+  // Agent Multiplexer Service IPC Handlers
+  ipcMain.handle('agentMultiplexer:addAgent', async (_, agentId: string, name: string, persona: string, model: string, objective: string | null) => {
+    try {
+      const success = agentMultiplexerService.addAgent(agentId, name, persona, model, objective);
+      return { success };
+    } catch (error: any) {
+      console.error('IPC Error agentMultiplexer:addAgent:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('agentMultiplexer:removeAgent', async (_, agentId: string) => {
+    try {
+      const success = agentMultiplexerService.removeAgent(agentId);
+      return { success };
+    } catch (error: any) {
+      console.error('IPC Error agentMultiplexer:removeAgent:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('agentMultiplexer:sendMessage', async (_, agentId: string, message: string, images?: string[]) => {
+    try {
+      const response = await agentMultiplexerService.sendMessageToAgent(agentId, message, images);
+      return { response }; // response can be string (AI message) or null (error/busy)
+    } catch (error: any) {
+      console.error('IPC Error agentMultiplexer:sendMessage:', error);
+      return { response: null, error: error.message };
+    }
+  });
 }

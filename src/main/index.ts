@@ -3,6 +3,7 @@ import { app, BrowserWindow } from 'electron'
 import installExtension, { REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { registerIpc } from './ipc'
+import { AgentMultiplexerService } from './services/AgentMultiplexerService';
 import { updateUserDataPath } from './utils/upgrade'
 import { createMainWindow } from './window'
 
@@ -30,7 +31,11 @@ app.whenReady().then(async () => {
 
   const mainWindow = createMainWindow()
 
-  registerIpc(mainWindow, app)
+  // Initialize the Agent Multiplexer Service
+  const agentMultiplexerService = new AgentMultiplexerService(); // Add your Ollama base URL if not default, e.g., 'http://host.docker.internal:11434'
+  agentMultiplexerService.startProcessingLoop(); // Start its processing loop
+
+  registerIpc(mainWindow, app, agentMultiplexerService)
 
   if (process.env.NODE_ENV === 'development') {
     installExtension(REDUX_DEVTOOLS)
