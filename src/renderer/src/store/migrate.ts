@@ -1480,6 +1480,7 @@ const migrateConfig = {
         state.paintings.tokenFluxPaintings = []
       }
       state.settings.showTokens = true
+      state.settings.earlyAccess = false
       return state
     } catch (error) {
       return state
