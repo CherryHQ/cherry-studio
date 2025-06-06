@@ -840,6 +840,7 @@ const migrateConfig = {
   },
   '66': (state: RootState) => {
     try {
+      addProvider(state, 'burncloud')
       addProvider(state, 'gitee-ai')
       addProvider(state, 'ppio')
       addMiniApp(state, 'aistudio')
@@ -1026,6 +1027,7 @@ const migrateConfig = {
   },
   '78': (state: RootState) => {
     try {
+      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 8)
       state.llm.providers = moveProvider(state.llm.providers, 'ppio', 9)
       state.llm.providers = moveProvider(state.llm.providers, 'infini', 10)
       removeMiniAppIconsFromState(state)
