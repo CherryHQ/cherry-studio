@@ -22,6 +22,7 @@ export interface LlmState {
   topicNamingModel: Model
   translateModel: Model
   quickAssistantModel: Model
+  visionModel?: Model
   settings: LlmSettings
 }
 
@@ -604,6 +605,9 @@ const llmSlice = createSlice({
     setQuickAssistantModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.quickAssistantModel = action.payload.model
     },
+    setVisionModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.visionModel = action.payload.model
+    },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
     },
@@ -642,6 +646,7 @@ export const {
   setTopicNamingModel,
   setTranslateModel,
   setQuickAssistantModel,
+  setVisionModel,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,

@@ -499,6 +499,23 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
           dispatch(updateOneBlock({ id: citationBlockId, changes }))
           saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
+          // 判断知识库metadata是否返回images
+          if (externalToolResult.knowledge) {
+            const images = externalToolResult.knowledge.flatMap((item) => item.metadata?.images || []) as FileMetadata[]
+            if (images.length > 0) {
+              const imageBlocks = images.map((image) => {
+                return createImageBlock(assistantMsgId, {
+                  url: image.id,
+                  status: MessageBlockStatus.SUCCESS,
+                  file: image
+                })
+              })
+
+              for (const imageBlock of imageBlocks) {
+                handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+              }
+            }
+          }
         } else {
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }

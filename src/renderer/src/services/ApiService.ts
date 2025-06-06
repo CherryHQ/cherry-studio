@@ -30,7 +30,8 @@ import {
   getDefaultModel,
   getProviderByModel,
   getTopNamingModel,
-  getTranslateModel
+  getTranslateModel,
+  getVisionModel
 } from './AssistantService'
 import { getDefaultAssistant } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
@@ -221,6 +222,7 @@ async function fetchExternalTool(
         window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
       }
       if (knowledgeReferencesFromSearch) {
+        console.log('knowledgeReferencesFromSearch:', knowledgeReferencesFromSearch)
         window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
       }
     }
@@ -489,4 +491,24 @@ export async function checkApi(provider: Provider, model: Model) {
   }
 
   return ai.check(model, false)
+}
+
+export async function fetchImageSummary(data: string) {
+  const model = getVisionModel()
+  if (!model) {
+    throw new Error(i18n.t('error.provider_disabled'))
+  }
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    throw new Error(i18n.t('error.no_api_key'))
+  }
+
+  const AI = new AiProvider(provider)
+
+  try {
+    return await AI.summaryForImage(data, model)
+  } catch (error: any) {
+    return ''
+  }
 }

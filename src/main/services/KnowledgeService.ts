@@ -28,6 +28,7 @@ import PreprocessProvider from '@main/preprocess/PreprocessProvider'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
 import { getAllFiles } from '@main/utils/file'
+import { formatOcrFile } from '@main/utils/markdown'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -517,7 +518,20 @@ class KnowledgeService {
         // 执行预处理
         Logger.info(`Starting preprocess processing for scanned PDF: ${file.path}`)
         const { processedFile } = await provider.parseFile(item.id, file)
-        fileToProcess = processedFile
+        // fileToProcess = processedFile
+        console.log('[Enhance Knowledge processFile]', processedFile)
+        // const mockFile: FileMetadata = {
+        //   id: 'd508db72-2cd6-49fb-8070-c5be95046104',
+        //   name: 'ViT.md',
+        //   path: '/Users/eeee/Library/Application Support/CherryStudioDev/Data/Files/d508db72-2cd6-49fb-8070-c5be95046104/ViT.md',
+        //   size: 443,
+        //   ext: '.md',
+        //   count: 1,
+        //   origin_name: 'ViT.pdf',
+        //   type: FileTypes.DOCUMENT,
+        //   created_at: '2025-06-06T03:00:44.547Z'
+        // }
+        fileToProcess = await formatOcrFile(processedFile)
       } catch (err) {
         Logger.error(`Preprocess processing failed: ${err}`)
         // 如果预处理失败，使用原始文件

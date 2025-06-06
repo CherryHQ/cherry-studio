@@ -520,6 +520,9 @@ export type KnowledgeReference = {
   sourceUrl: string
   type: KnowledgeItemType
   file?: FileMetadata
+  metadata?: {
+    images: FileMetadata[]
+  }
 }
 
 export type MCPArgType = 'string' | 'list' | 'number'

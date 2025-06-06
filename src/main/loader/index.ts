@@ -3,12 +3,14 @@ import * as fs from 'node:fs'
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
+import { mapImageAreas } from '@main/utils/markdown'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, KnowledgeBaseParams } from '@types'
 import Logger from 'electron-log'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'
+import { MarkdownLoader } from './markdownLoader'
 import { OdLoader, OdType } from './odLoader'
 
 // 文件扩展名到加载器类型的映射
@@ -19,7 +21,6 @@ const FILE_LOADER_MAP: Record<string, string> = {
   '.docx': 'common',
   '.pptx': 'common',
   '.xlsx': 'common',
-  '.md': 'common',
   // OD类型
   '.odt': 'od',
   '.ods': 'od',
@@ -32,7 +33,9 @@ const FILE_LOADER_MAP: Record<string, string> = {
   '.html': 'html',
   '.htm': 'html',
   // JSON类型
-  '.json': 'json'
+  '.json': 'json',
+  // markdown类型
+  '.md': 'markdown'
   // 其他类型默认为文本类型
 }
 
@@ -89,6 +92,24 @@ export async function addFileLoader(
       )
       break
 
+    case 'markdown': {
+      const markdownContent = fs.readFileSync(file.path, 'utf-8')
+      const imageAreas = await mapImageAreas(markdownContent, file.id)
+
+      loaderReturn = await ragApplication.addLoader(
+        new MarkdownLoader({
+          path: file.path,
+          text: markdownContent,
+          chunkSize: base.chunkSize,
+          chunkOverlap: base.chunkOverlap,
+          imageAreas: imageAreas
+        }) as any,
+        forceReload
+      )
+      console.log('markdown loader return', loaderReturn)
+      break
+    }
+
     case 'od':
       // OD类型处理
       loaderReturn = await addOdLoader(ragApplication, file, base, forceReload)
@@ -134,6 +155,7 @@ export async function addFileLoader(
         loaderReturn = await ragApplication.addLoader(new JsonLoader({ object: jsonObject }), forceReload)
         break
       }
+
     // fallthrough - JSON 解析失败时作为文本处理
     default:
       // 文本类型处理（默认）

@@ -144,9 +144,9 @@ export const useKnowledge = (baseId: string) => {
         })
       }
     }
-    if (item.type === 'file' && typeof item.content === 'object') {
-      await window.api.file.deleteDir(item.content.id)
-    }
+    // if (item.type === 'file' && typeof item.content === 'object') {
+    //   await window.api.file.deleteDir(item.content.id)
+    // }
   }
   // 刷新项目
   const refreshItem = async (item: KnowledgeItem) => {

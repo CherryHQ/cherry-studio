@@ -9,6 +9,7 @@ import { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } 
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
+import { fetchImageSummary } from './ApiService'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 
@@ -175,15 +176,30 @@ export const processKnowledgeSearch = async (
 
     // 转换为引用格式
     return await Promise.all(
-      uniqueResults.map(
-        async (item, index) =>
-          ({
-            id: index + 1,
-            content: item.pageContent,
-            sourceUrl: await getKnowledgeSourceUrl(item),
-            type: 'file'
-          }) as KnowledgeReference
-      )
+      uniqueResults.map(async (item, index) => {
+        const images: FileMetadata[] = []
+        if (item.metadata.images && item.metadata.images.length > 0) {
+          const resolvedImages = await Promise.all(
+            item.metadata.images.map(async (image) => {
+              const file = await window.api.file.get(image)
+              console.log('Resolved image:', image, 'File:', file)
+              if (!file) {
+                return null
+              }
+              return file
+            })
+          )
+          images.push(...resolvedImages.filter((img): img is FileMetadata => img !== null))
+          console.log('Resolved images:', images)
+        }
+        return {
+          id: index + 1,
+          content: item.pageContent,
+          sourceUrl: await getKnowledgeSourceUrl(item),
+          type: 'file',
+          metadata: { images }
+        } as KnowledgeReference
+      })
     )
   })
 
@@ -197,3 +213,17 @@ export const processKnowledgeSearch = async (
     id: index + 1
   }))
 }
+
+const ipcRenderer = window.electron.ipcRenderer
+
+ipcRenderer.on('knowledge-image-summary', async (_, { imagePath, imageId }) => {
+  console.log('[Enhance Knowledge processFile]: knowledge-image-summary', imagePath, imageId)
+  const { data } = await window.api.file.base64Image(imagePath)
+  const response = await fetchImageSummary(data)
+  console.log('[Enhance Knowledge processFile]: knowledge-image-summary', response)
+
+  ipcRenderer.send('knowledge-image-summary-reply', {
+    response,
+    imageId
+  })
+})

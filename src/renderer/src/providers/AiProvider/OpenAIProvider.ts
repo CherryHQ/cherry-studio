@@ -18,6 +18,7 @@ import {
   isWebSearchModel,
   isZhipuModel
 } from '@renderer/config/models'
+import { VISION_SUMMARY_PROMPT } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { extractReasoningMiddleware } from '@renderer/middlewares/extractReasoningMiddleware'
@@ -1277,5 +1278,23 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)
     this.sdk.apiKey = token
+  }
+
+  public async summaryForImage(data: string, model: Model): Promise<string> {
+    await this.checkIsCopilot()
+
+    const response = await this.sdk.chat.completions.create({
+      model: model.id,
+      stream: false,
+      messages: [
+        { role: 'system', content: VISION_SUMMARY_PROMPT },
+        {
+          role: 'user',
+          content: [{ type: 'image_url', image_url: { url: data } }]
+        }
+      ]
+    })
+
+    return response.choices[0].message?.content || ''
   }
 }

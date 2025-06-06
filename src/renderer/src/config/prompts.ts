@@ -455,3 +455,5 @@ Example: [nytimes.com](https://nytimes.com/some-page).
 If have multiple citations, please directly list them like this:
 [www.nytimes.com](https://nytimes.com/some-page)[www.bbc.com](https://bbc.com/some-page)
 `
+
+export const VISION_SUMMARY_PROMPT = `You are an assistant tasked with summarizing images for retrieval. These summaries will be embedded and used to retrieve the raw image. Give a concise summary of the image that is well optimized for retrieval.`

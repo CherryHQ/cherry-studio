@@ -1,7 +1,7 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { isEmbeddingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isVisionModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -26,10 +26,12 @@ const ModelSettings: FC = () => {
     defaultModel,
     topicNamingModel,
     translateModel,
+    visionModel,
     quickAssistantModel,
     setDefaultModel,
     setTopicNamingModel,
     setTranslateModel,
+    setVisionModel,
     setQuickAssistantModel
   } = useDefaultModel()
   const { providers } = useProviders()
@@ -47,6 +49,19 @@ const ModelSettings: FC = () => {
       title: p.name,
       options: sortBy(p.models, 'name')
         .filter((m) => !isEmbeddingModel(m))
+        .map((m) => ({
+          label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
+          value: getModelUniqId(m)
+        }))
+    }))
+
+  const visionSelections = providers
+    .filter((p) => p.models.length > 0)
+    .map((p) => ({
+      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+      title: p.name,
+      options: sortBy(p.models, 'name')
+        .filter((m) => isVisionModel(m))
         .map((m) => ({
           label: `${m.name} | ${p.isSystem ? t(`provider.${p.id}`) : p.name}`,
           value: getModelUniqId(m)
@@ -71,6 +86,11 @@ const ModelSettings: FC = () => {
   const defaultQuickAssistantModel = useMemo(
     () => (hasModel(quickAssistantModel) ? getModelUniqId(quickAssistantModel) : undefined),
     [quickAssistantModel]
+  )
+
+  const defaultVisionModel = useMemo(
+    () => (hasModel(visionModel) ? getModelUniqId(visionModel) : undefined),
+    [visionModel]
   )
 
   const onUpdateTranslateModel = async () => {
@@ -181,6 +201,26 @@ const ModelSettings: FC = () => {
           />
         </HStack>
         <SettingDescription>{t('settings.models.quick_assistant_model_description')}</SettingDescription>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ marginBottom: 12 }}>
+          <HStack alignItems="center" gap={10}>
+            <Rocket size={18} color="var(--color-text)" />
+            {t('settings.models.vision_model')}
+          </HStack>
+        </SettingTitle>
+        <HStack alignItems="center">
+          <Select
+            value={defaultVisionModel}
+            defaultValue={defaultVisionModel}
+            style={{ width: 360 }}
+            onChange={(value) => setVisionModel(find(allModels, JSON.parse(value)) as Model)}
+            options={visionSelections}
+            showSearch
+            placeholder={t('settings.models.empty')}
+          />
+        </HStack>
+        <SettingDescription>{t('settings.models.vision_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )

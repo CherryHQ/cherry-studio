@@ -15,7 +15,13 @@ import {
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
-import { setDefaultModel, setQuickAssistantModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
+import {
+  setDefaultModel,
+  setQuickAssistantModel,
+  setTopicNamingModel,
+  setTranslateModel,
+  setVisionModel
+} from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 
@@ -103,7 +109,9 @@ export function useDefaultAssistant() {
 }
 
 export function useDefaultModel() {
-  const { defaultModel, topicNamingModel, translateModel, quickAssistantModel } = useAppSelector((state) => state.llm)
+  const { defaultModel, topicNamingModel, translateModel, quickAssistantModel, visionModel } = useAppSelector(
+    (state) => state.llm
+  )
   const dispatch = useAppDispatch()
 
   return {
@@ -111,9 +119,11 @@ export function useDefaultModel() {
     topicNamingModel,
     translateModel,
     quickAssistantModel,
+    visionModel,
     setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
     setTopicNamingModel: (model: Model) => dispatch(setTopicNamingModel({ model })),
     setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model })),
-    setQuickAssistantModel: (model: Model) => dispatch(setQuickAssistantModel({ model }))
+    setQuickAssistantModel: (model: Model) => dispatch(setQuickAssistantModel({ model })),
+    setVisionModel: (model: Model) => dispatch(setVisionModel({ model }))
   }
 }

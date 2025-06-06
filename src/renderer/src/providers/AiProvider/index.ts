@@ -91,4 +91,8 @@ export default class AiProvider {
   public getBaseURL(): string {
     return this.sdk.getBaseURL()
   }
+
+  public summaryForImage(data: string, model: Model): Promise<string> {
+    return this.sdk.summaryForImage(data, model)
+  }
 }

@@ -70,6 +70,10 @@ export function getTranslateModel() {
   return store.getState().llm.translateModel
 }
 
+export function getVisionModel() {
+  return store.getState().llm.visionModel
+}
+
 export function getAssistantProvider(assistant: Assistant): Provider {
   const providers = store.getState().llm.providers
   const provider = providers.find((p) => p.id === assistant.model?.provider)
