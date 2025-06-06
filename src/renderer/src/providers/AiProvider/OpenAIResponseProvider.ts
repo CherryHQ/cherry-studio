@@ -55,7 +55,7 @@ import mime from 'mime'
 import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
-import { FileLike, toFile } from 'openai/uploads'
+import { toFile, Uploadable } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
@@ -571,6 +571,16 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
             if (time_first_token_millsec === 0) {
               time_first_token_millsec = new Date().getTime()
             }
+            // Insert separation between summary parts
+            if (thinkContent.length > 0) {
+              const separator = '\n\n'
+              onChunk({
+                type: ChunkType.THINKING_DELTA,
+                text: separator,
+                thinking_millsec: new Date().getTime() - time_first_token_millsec
+              })
+              thinkContent += separator
+            }
             break
           case 'response.reasoning_summary_text.delta':
             onChunk({
@@ -811,12 +821,10 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      content: getMainTextContent(message)
+    }))
     const userMessageContent = userMessages.reduce((prev, curr) => {
       const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
       return prev + (prev ? '\n' : '') + content
@@ -944,28 +952,32 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-    if (stream) {
-      const response = await this.sdk.responses.create({
-        model: model.id,
-        input: [{ role: 'user', content: 'hi' }],
-        stream: true
-      })
-      for await (const chunk of response) {
-        if (chunk.type === 'response.output_text.delta') {
-          return { valid: true, error: null }
+    try {
+      if (stream) {
+        const response = await this.sdk.responses.create({
+          model: model.id,
+          input: [{ role: 'user', content: 'hi' }],
+          stream: true
+        })
+        for await (const chunk of response) {
+          if (chunk.type === 'response.output_text.delta') {
+            return { valid: true, error: null }
+          }
         }
+        return { valid: false, error: new Error('No streaming response') }
+      } else {
+        const response = await this.sdk.responses.create({
+          model: model.id,
+          input: [{ role: 'user', content: 'hi' }],
+          stream: false
+        })
+        if (!response.output_text) {
+          return { valid: false, error: new Error('No response') }
+        }
+        return { valid: true, error: null }
       }
-      throw new Error('Empty streaming response')
-    } else {
-      const response = await this.sdk.responses.create({
-        model: model.id,
-        input: [{ role: 'user', content: 'hi' }],
-        stream: false
-      })
-      if (!response.output_text) {
-        throw new Error('Empty response')
-      }
-      return { valid: true, error: null }
+    } catch (error: any) {
+      return { valid: false, error: error }
     }
   }
 
@@ -1038,7 +1050,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const { signal } = abortController
     const content = getMainTextContent(lastUserMessage!)
     let response: OpenAI.Images.ImagesResponse | null = null
-    let images: FileLike[] = []
+    let images: Uploadable[] = []
 
     try {
       if (lastUserMessage) {
@@ -1070,7 +1082,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
             return await toFile(bytes, fileName, { type: mimeType })
           })
         )
-        images = images.concat(assistantImages.filter(Boolean) as FileLike[])
+        images = images.concat(assistantImages.filter(Boolean) as Uploadable[])
       }
 
       onChunk({

@@ -34,6 +34,15 @@ export const NavbarRight: FC<Props> = ({ children, ...props }) => {
   )
 }
 
+export const NavbarMain: FC<Props> = ({ children, ...props }) => {
+  const isFullscreen = useFullscreen()
+  return (
+    <NavbarMainContainer {...props} $isFullscreen={isFullscreen}>
+      {children}
+    </NavbarMainContainer>
+  )
+}
+
 const NavbarContainer = styled.div`
   min-width: 100%;
   display: flex;
@@ -71,4 +80,16 @@ const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
   padding: 0 12px;
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '140px' : isLinux ? '120px' : '12px')};
   justify-content: flex-end;
+`
+
+const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 ${isMac ? '20px' : 0};
+  font-weight: bold;
+  color: var(--color-text-1);
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '140px' : isLinux ? '120px' : '12px')};
 `

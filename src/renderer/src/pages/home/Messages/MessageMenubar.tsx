@@ -16,10 +16,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
-  exportMarkdownToNotion,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -250,7 +250,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToNotion(title, markdown)
+              exportMessageToNotion(title, markdown, message)
             }
           },
           exportMenuOptions.yuque && {
@@ -266,9 +266,8 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = messageToMarkdown(message)
               const title = topic.name?.replace(/\//g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
+              await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
             }
           },
           exportMenuOptions.joplin && {
@@ -276,8 +275,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'joplin',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMarkdownToJoplin(title, markdown)
+              exportMarkdownToJoplin(title, message)
             }
           },
           exportMenuOptions.siyuan && {

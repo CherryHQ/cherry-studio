@@ -34,6 +34,7 @@ import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
+import { FeedUrl } from '@shared/config/constant'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
@@ -110,6 +111,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
     appUpdater.setAutoUpdate(isActive)
     configManager.setAutoUpdate(isActive)
+  })
+
+  ipcMain.handle(IpcChannel.App_SetFeedUrl, (_, feedUrl: FeedUrl) => {
+    appUpdater.setFeedUrl(feedUrl)
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
