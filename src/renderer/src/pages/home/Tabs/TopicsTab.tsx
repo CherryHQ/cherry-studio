@@ -26,7 +26,7 @@ import { RootState } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { removeSpecialCharactersForFileName } from '@renderer/utils'
-import { copyTopicAsMarkdown } from '@renderer/utils/copy'
+import { copyTopicAsMarkdown, copyTopicAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -280,6 +280,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.copy.md'),
             key: 'md',
             onClick: () => copyTopicAsMarkdown(topic)
+          },
+          {
+            label: t('chat.topics.copy.plain_text'),
+            key: 'plain_text',
+            onClick: () => copyTopicAsPlainText(topic)
           }
         ]
       },

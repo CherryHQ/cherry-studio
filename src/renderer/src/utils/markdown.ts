@@ -2,6 +2,7 @@ import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
+import removeMarkdown from 'remove-markdown'
 
 /**
  * 更彻底的查找方法，递归搜索所有子元素
@@ -99,4 +100,17 @@ export function isValidPlantUML(code: string | null): boolean {
   const diagramType = code.match(/@start(\w+)/)?.[1]
 
   return diagramType !== undefined && code.search(`@end${diagramType}`) !== -1
+}
+
+/**
+ * 将 Markdown 字符串转换为纯文本。
+ * @param markdown Markdown 字符串。
+ * @returns 纯文本字符串。
+ */
+export const markdownToPlainText = (markdown: string): string => {
+  if (!markdown) {
+    return ''
+  }
+  // 直接用 remove-markdown 库，使用默认的 removeMarkdown 参数
+  return removeMarkdown(markdown)
 }
