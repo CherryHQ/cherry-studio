@@ -5,6 +5,29 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
+// Add this before the test suites
+vi.mock('@renderer/config/minapps', () => {
+  return {
+    ORIGIN_DEFAULT_MIN_APPS: [],
+    DEFAULT_MIN_APPS: [],
+    loadCustomMiniApp: async () => [],
+    updateDefaultMinApps: vi.fn()
+  }
+})
+
+// Mock window.api
+beforeEach(() => {
+  Object.defineProperty(window, 'api', {
+    value: {
+      file: {
+        read: vi.fn().mockResolvedValue('[]'),
+        writeWithId: vi.fn()
+      }
+    },
+    configurable: true
+  })
+})
+
 // Mock i18n at the top level using vi.mock
 vi.mock('@renderer/i18n', () => ({
   default: {

@@ -13,7 +13,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType, PaintingsState } from '@renderer/types'
+import type { FileMetadata, PaintingsState } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { DmxapiPainting, PaintingAction } from '@types'
 import { Avatar, Button, Input, Radio, Select, Switch, Tooltip } from 'antd'
@@ -289,7 +289,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       // 下载图像
       if (urls.length > 0) {
         const downloadedFiles = await downloadImages(urls)
-        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
 
         if (validFiles?.length > 0) {
           if (painting.autoCreate && painting.files.length > 0) {

@@ -1,5 +1,5 @@
 import Logger from '@renderer/config/logger'
-import { FileType } from '@renderer/types'
+import { FileMetadata } from '@renderer/types'
 import { getFileExtension } from '@renderer/utils'
 
 // Track last focused component
@@ -27,7 +27,7 @@ export const handlePaste = async (
   isVisionModel: boolean,
   isGenerateImageModel: boolean,
   supportExts: string[],
-  setFiles: (updater: (prevFiles: FileType[]) => FileType[]) => void,
+  setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void,
   setText?: (text: string) => void,
   pasteLongTextAsFile?: boolean,
   pasteLongTextThreshold?: number,
@@ -44,7 +44,7 @@ export const handlePaste = async (
         // 长文本直接转文件，阻止默认粘贴
         event.preventDefault()
 
-        const tempFilePath = await window.api.file.create('pasted_text.txt')
+        const tempFilePath = await window.api.file.createTempFile('pasted_text.txt')
         await window.api.file.write(tempFilePath, clipboardText)
         const selectedFile = await window.api.file.get(tempFilePath)
         if (selectedFile) {
@@ -70,7 +70,7 @@ export const handlePaste = async (
           if (!filePath) {
             // 图像生成也支持图像编辑
             if (file.type.startsWith('image/') && (isVisionModel || isGenerateImageModel)) {
-              const tempFilePath = await window.api.file.create(file.name)
+              const tempFilePath = await window.api.file.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
               await window.api.file.write(tempFilePath, uint8Array)

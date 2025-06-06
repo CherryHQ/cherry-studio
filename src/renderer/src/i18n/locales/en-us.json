@@ -197,7 +197,7 @@
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
-      "input.web_search": "Web search",
+      "input.web_search": "Web Search",
       "input.web_search.settings": "Web Search Settings",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
@@ -548,13 +548,21 @@
       "rename": "Rename",
       "search": "Search knowledge base",
       "search_placeholder": "Enter text to search",
-      "settings": "Knowledge Base Settings",
+      "settings": {
+        "title": "Knowledge Base Settings",
+        "preprocessing": "Preprocessing",
+        "preprocessing_tooltip": "Preprocess uploaded files with OCR"
+      },
       "sitemap_placeholder": "Enter Website Map URL",
       "sitemaps": "Websites",
       "source": "Source",
       "status": "Status",
       "status_completed": "Completed",
+      "status_embedding_completed": "Embedding Completed",
+      "status_preprocess_completed": "Preprocessing Completed",
       "status_failed": "Failed",
+      "status_embedding_failed": "Embedding Failed",
+      "status_preprocess_failed": "Preprocessing Failed",
       "status_new": "Added",
       "status_pending": "Pending",
       "status_processing": "Processing",
@@ -816,7 +824,7 @@
     "notification": {
       "assistant": "Assistant Response",
       "knowledge.success": "Successfully added {{type}} to the knowledge base",
-      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -1731,41 +1739,63 @@
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",
-      "websearch": {
-        "blacklist": "Blacklist",
-        "blacklist_description": "Results from the following websites will not appear in search results",
-        "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
-        "check": "Check",
-        "check_failed": "Verification failed",
-        "check_success": "Verification successful",
-        "get_api_key": "Get API Key",
-        "no_provider_selected": "Please select a search service provider before checking.",
-        "search_max_result": "Number of search results",
-        "search_provider": "Search service provider",
-        "search_provider_placeholder": "Choose a search service provider.",
-        "search_result_default": "Default",
-        "search_with_time": "Search with dates included",
-        "tavily": {
-          "api_key": "Tavily API Key",
-          "api_key.placeholder": "Enter Tavily API Key",
-          "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
-          "title": "Tavily"
+      "tool": {
+        "title": "Tools Settings",
+        "preprocessOrOcr.tooltip": "In Settings -> Tools, set a document preprocessing service provider or OCR. Document preprocessing can effectively improve the retrieval performance of complex format documents and scanned documents. OCR can only recognize text within images in documents or scanned PDF text.",
+        "preprocess": {
+          "title": "Pre Process",
+          "provider": "Pre Process Provider",
+          "provider_placeholder": "Choose a Pre Process provider"
         },
-        "title": "Web Search",
-        "subscribe": "Blacklist Subscription",
-        "subscribe_update": "Update",
-        "subscribe_add": "Add Subscription",
-        "subscribe_url": "Subscription Url",
-        "subscribe_name": "Alternative name",
-        "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
-        "subscribe_add_success": "Subscription feed added successfully!",
-        "subscribe_delete": "Delete",
-        "overwrite": "Override search service",
-        "overwrite_tooltip": "Force use search service instead of LLM",
-        "apikey": "API key",
-        "free": "Free",
-        "content_limit": "Content length limit",
-        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR Provider",
+          "provider_placeholder": "Choose an OCR provider",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "Recognition Mode",
+              "accurate": "Accurate",
+              "fast": "Fast"
+            },
+            "min_confidence": "Minimum Confidence"
+          }
+        },
+        "websearch": {
+          "blacklist": "Blacklist",
+          "blacklist_description": "Results from the following websites will not appear in search results",
+          "blacklist_tooltip": "Please use the following format (separated by newlines)\nPattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
+          "check": "Check",
+          "check_failed": "Verification failed",
+          "check_success": "Verification successful",
+          "get_api_key": "Get API Key",
+          "no_provider_selected": "Please select a search service provider before checking.",
+          "search_max_result": "Number of search results",
+          "search_provider": "Search service provider",
+          "search_provider_placeholder": "Choose a search service provider.",
+          "search_result_default": "Default",
+          "search_with_time": "Search with dates included",
+          "tavily": {
+            "api_key": "Tavily API Key",
+            "api_key.placeholder": "Enter Tavily API Key",
+            "description": "Tavily is a search engine tailored for AI agents, delivering real-time, accurate results, intelligent query suggestions, and in-depth research capabilities.",
+            "title": "Tavily"
+          },
+          "title": "Web Search",
+          "subscribe": "Blacklist Subscription",
+          "subscribe_update": "Update",
+          "subscribe_add": "Add Subscription",
+          "subscribe_url": "Subscription Url",
+          "subscribe_name": "Alternative name",
+          "subscribe_name.placeholder": "Alternative name used when the downloaded subscription feed has no name.",
+          "subscribe_add_success": "Subscription feed added successfully!",
+          "subscribe_delete": "Delete",
+          "overwrite": "Override search service",
+          "overwrite_tooltip": "Force use search service instead of LLM",
+          "apikey": "API key",
+          "free": "Free",
+          "content_limit": "Content length limit",
+          "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
+        }
       },
       "quickPhrase": {
         "title": "Quick Phrases",

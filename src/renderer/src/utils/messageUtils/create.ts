@@ -1,5 +1,5 @@
 import Logger from '@renderer/config/logger'
-import type { Assistant, FileType, Topic } from '@renderer/types'
+import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type {
   BaseMessageBlock,
@@ -174,7 +174,7 @@ export function createTranslationBlock(
  */
 export function createFileBlock(
   messageId: string,
-  file: FileType,
+  file: FileMetadata,
   overrides: Partial<Omit<FileMessageBlock, 'id' | 'messageId' | 'type' | 'file'>> = {}
 ): FileMessageBlock {
   if (file.type === FileTypes.IMAGE) {

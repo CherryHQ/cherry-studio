@@ -5,7 +5,7 @@ import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Shortcut, ThemeMode } from '@types'
+import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
@@ -15,14 +15,15 @@ import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
 import CopilotService from './services/CopilotService'
 import { ExportService } from './services/ExportService'
-import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
+import FileService from './services/FileSystemService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
+import { FileServiceManager } from './services/remotefile/FileServiceManager'
 import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
@@ -212,9 +213,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Clear, fileManager.clear)
   ipcMain.handle(IpcChannel.File_Read, fileManager.readFile)
   ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile)
+  ipcMain.handle('file:deleteDir', fileManager.deleteDir)
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile)
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
-  ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
+  ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
   ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
@@ -224,6 +226,27 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
+
+  // file service
+  ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
+    const service = FileServiceManager.getInstance().getService(provider)
+    return await service.uploadFile(file)
+  })
+
+  ipcMain.handle(IpcChannel.FileService_List, async (_, provider: Provider) => {
+    const service = FileServiceManager.getInstance().getService(provider)
+    return await service.listFiles()
+  })
+
+  ipcMain.handle(IpcChannel.FileService_Delete, async (_, provider: Provider, fileId: string) => {
+    const service = FileServiceManager.getInstance().getService(provider)
+    return await service.deleteFile(fileId)
+  })
+
+  ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, provider: Provider, fileId: string) => {
+    const service = FileServiceManager.getInstance().getService(provider)
+    return await service.retrieveFile(fileId)
+  })
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)

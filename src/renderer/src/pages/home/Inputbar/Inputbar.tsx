@@ -30,7 +30,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { Assistant, FileMetadata, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -59,7 +59,7 @@ interface Props {
 }
 
 let _text = ''
-let _files: FileType[] = []
+let _files: FileMetadata[] = []
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
@@ -80,7 +80,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const textareaRef = useRef<TextAreaRef>(null)
-  const [files, setFiles] = useState<FileType[]>(_files)
+  const [files, setFiles] = useState<FileMetadata[]>(_files)
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
@@ -246,7 +246,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         list: base.items
           .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
           .map((file) => {
-            const fileContent = file.content as FileType
+            const fileContent = file.content as FileMetadata
             return {
               label: fileContent.origin_name || fileContent.name,
               description:

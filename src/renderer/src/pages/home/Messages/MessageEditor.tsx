@@ -5,7 +5,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
-import { FileType, FileTypes } from '@renderer/types'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames, getFileExtension } from '@renderer/utils'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
@@ -33,7 +33,7 @@ interface Props {
 const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
   const allBlocks = findAllBlocks(message)
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
-  const [files, setFiles] = useState<FileType[]>([])
+  const [files, setFiles] = useState<FileMetadata[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)

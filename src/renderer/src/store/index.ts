@@ -17,7 +17,9 @@ import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
 import nutstore from './nutstore'
+import ocr from './ocr'
 import paintings from './paintings'
+import preprocess from './preprocess'
 import runtime from './runtime'
 import selectionStore from './selectionStore'
 import settings from './settings'
@@ -33,6 +35,7 @@ const rootReducer = combineReducers({
   llm,
   settings,
   runtime,
+  ocr,
   shortcuts,
   knowledge,
   minapps,
@@ -41,6 +44,7 @@ const rootReducer = combineReducers({
   copilot,
   selectionStore,
   // messages: messagesReducer,
+  preprocess,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer
