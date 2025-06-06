@@ -202,7 +202,8 @@ const api = {
   },
   tencentTTS: {
     synthesizeSpeech: (options: any) => ipcRenderer.invoke(IpcChannel.TencentTTS_SynthesizeSpeech, options),
-    testConnection: (secretId: string, secretKey: string, region: string) => ipcRenderer.invoke(IpcChannel.TencentTTS_TestConnection, secretId, secretKey, region),
+    testConnection: (secretId: string, secretKey: string, region: string) =>
+      ipcRenderer.invoke(IpcChannel.TencentTTS_TestConnection, secretId, secretKey, region),
     getVoices: () => ipcRenderer.invoke(IpcChannel.TencentTTS_GetVoices),
     getRegions: () => ipcRenderer.invoke(IpcChannel.TencentTTS_GetRegions)
   },

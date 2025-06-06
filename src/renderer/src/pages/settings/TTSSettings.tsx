@@ -3,7 +3,7 @@ import { TTS_PROVIDER_CONFIG } from '@renderer/config/tts'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { TTSProvider } from '@renderer/types/tts'
 import { Avatar, Button, Input, Select, Slider, Switch, Tag } from 'antd'
-import { Play, Pause, Square, Search, Volume2 } from 'lucide-react'
+import { Pause, Play, Search, Square, Volume2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -32,9 +32,7 @@ const TTSSettings: FC = () => {
   const filteredProviders = useMemo(() => {
     if (!searchText.trim()) return tts.providers
     const lowerSearchText = searchText.toLowerCase()
-    return tts.providers.filter(provider =>
-      provider.name.toLowerCase().includes(lowerSearchText)
-    )
+    return tts.providers.filter((provider) => provider.name.toLowerCase().includes(lowerSearchText))
   }, [tts.providers, searchText])
 
   // 初始化选中的供应商（优化：只在真正需要时初始化）
@@ -42,24 +40,30 @@ const TTSSettings: FC = () => {
     if (tts.providers.length > 0 && !selectedProvider) {
       setSelectedProvider(tts.providers[0])
     }
-  }, [tts.providers.length, selectedProvider])
+  }, [tts.providers, selectedProvider])
 
   // 同步 selectedProvider 与 Redux 状态（优化：使用 useMemo 和更精确的比较）
   const currentProviderFromRedux = useMemo(() => {
-    return selectedProvider ? tts.providers.find(p => p.id === selectedProvider.id) : null
-  }, [tts.providers, selectedProvider?.id])
+    return selectedProvider ? tts.providers.find((p) => p.id === selectedProvider.id) : null
+  }, [tts.providers, selectedProvider])
 
   useEffect(() => {
-    if (currentProviderFromRedux && selectedProvider &&
-        JSON.stringify(currentProviderFromRedux) !== JSON.stringify(selectedProvider)) {
+    if (
+      currentProviderFromRedux &&
+      selectedProvider &&
+      JSON.stringify(currentProviderFromRedux) !== JSON.stringify(selectedProvider)
+    ) {
       setSelectedProvider(currentProviderFromRedux)
     }
   }, [currentProviderFromRedux, selectedProvider])
 
   // 更新供应商设置（优化：移除日志）
-  const updateProvider = useCallback((updatedProvider: TTSProvider) => {
-    tts.updateProvider(updatedProvider)
-  }, [tts])
+  const updateProvider = useCallback(
+    (updatedProvider: TTSProvider) => {
+      tts.updateProvider(updatedProvider)
+    },
+    [tts]
+  )
 
   // 获取可用语音（修复：支持所有 TTS Provider）
   const voicesLoadedRef = useRef<Set<string>>(new Set())
@@ -89,7 +93,7 @@ const TTSSettings: FC = () => {
     } catch (error) {
       console.error(`Failed to load voices for ${selectedProvider.type}:`, error)
     }
-  }, [selectedProvider?.type, selectedProvider?.id, tts])
+  }, [selectedProvider, tts])
 
   useEffect(() => {
     if (selectedProvider) {
@@ -110,7 +114,7 @@ const TTSSettings: FC = () => {
       }
     }
     return undefined
-  }, [selectedProvider?.type, selectedProvider?.id, loadProviderVoices])
+  }, [selectedProvider, loadProviderVoices])
 
   // 测试语音
   const handleTestSpeech = useCallback(async () => {
@@ -158,12 +162,15 @@ const TTSSettings: FC = () => {
   }, [isPaused, tts])
 
   // 优化的事件处理函数
-  const handleProviderEnabledChange = useCallback((enabled: boolean) => {
-    if (!selectedProvider) return
-    const updatedProvider = { ...selectedProvider, enabled } as TTSProvider
-    updateProvider(updatedProvider)
-    tts.setProviderEnabled(selectedProvider.id, enabled)
-  }, [selectedProvider, tts, updateProvider])
+  const handleProviderEnabledChange = useCallback(
+    (enabled: boolean) => {
+      if (!selectedProvider) return
+      const updatedProvider = { ...selectedProvider, enabled } as TTSProvider
+      updateProvider(updatedProvider)
+      tts.setProviderEnabled(selectedProvider.id, enabled)
+    },
+    [selectedProvider, tts, updateProvider]
+  )
 
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(e.target.value)
@@ -179,18 +186,15 @@ const TTSSettings: FC = () => {
     setSelectedProvider(provider)
   }, [])
 
-
-
   // 获取供应商头像（优化：使用 useMemo 避免重复创建）
-  const providerAvatar = useMemo(() => (
-    <ProviderLogo
-      size={25}
-      shape="square"
-      style={{ backgroundColor: '#1890ff', minWidth: 25 }}
-    >
-      <Volume2 size={14} color="white" />
-    </ProviderLogo>
-  ), [])
+  const providerAvatar = useMemo(
+    () => (
+      <ProviderLogo size={25} shape="square" style={{ backgroundColor: '#1890ff', minWidth: 25 }}>
+        <Volume2 size={14} color="white" />
+      </ProviderLogo>
+    ),
+    []
+  )
 
   // 渲染供应商设置
   const renderProviderSettings = () => {
@@ -213,10 +217,7 @@ const TTSSettings: FC = () => {
         <SettingGroup>
           <SettingRow>
             <SettingRowTitle>{t('settings.tts.enabled')}</SettingRowTitle>
-            <Switch
-              checked={selectedProvider.enabled}
-              onChange={handleProviderEnabledChange}
-            />
+            <Switch checked={selectedProvider.enabled} onChange={handleProviderEnabledChange} />
           </SettingRow>
 
           <SettingDivider />
@@ -294,13 +295,15 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.voice}
-                  onChange={(voice) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, voice }
-                  } as TTSProvider)}
+                  onChange={(voice) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, voice }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   placeholder={t('settings.tts.voice.placeholder')}
-                  options={selectedProvider.voices.map(voice => ({
+                  options={selectedProvider.voices.map((voice) => ({
                     label: `${voice.name} (${voice.lang})${voice.default ? ' - ' + t('settings.tts.voice.default') : ''}`,
                     value: voice.id
                   }))}
@@ -321,10 +324,12 @@ const TTSSettings: FC = () => {
                     max={selectedProvider.type === 'openai' ? 4.0 : 2.0}
                     step={0.1}
                     value={selectedProvider.settings.rate}
-                    onChange={(rate) => updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, rate }
-                    } as TTSProvider)}
+                    onChange={(rate) =>
+                      updateProvider({
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, rate }
+                      } as TTSProvider)
+                    }
                     disabled={!selectedProvider.enabled}
                     style={{ width: 200 }}
                   />
@@ -334,8 +339,7 @@ const TTSSettings: FC = () => {
               <SettingHelpText>
                 {selectedProvider.type === 'openai'
                   ? t('settings.tts.rate.description') + ' (0.25 - 4.0)'
-                  : t('settings.tts.rate.description')
-                }
+                  : t('settings.tts.rate.description')}
               </SettingHelpText>
             </>
           )}
@@ -352,10 +356,12 @@ const TTSSettings: FC = () => {
                     max={2.0}
                     step={0.1}
                     value={selectedProvider.settings.pitch}
-                    onChange={(pitch) => updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, pitch }
-                    } as TTSProvider)}
+                    onChange={(pitch) =>
+                      updateProvider({
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, pitch }
+                      } as TTSProvider)
+                    }
                     disabled={!selectedProvider.enabled}
                     style={{ width: 200 }}
                   />
@@ -378,10 +384,12 @@ const TTSSettings: FC = () => {
                     max={1.0}
                     step={0.1}
                     value={selectedProvider.settings.volume}
-                    onChange={(volume) => updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, volume }
-                    } as TTSProvider)}
+                    onChange={(volume) =>
+                      updateProvider({
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, volume }
+                      } as TTSProvider)
+                    }
                     disabled={!selectedProvider.enabled}
                     style={{ width: 200 }}
                   />
@@ -402,10 +410,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.model || 'tts-1'}
-                  onChange={(model) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, model }
-                  } as TTSProvider)}
+                  onChange={(model) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, model }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'TTS-1 (Standard)', value: 'tts-1' },
@@ -422,10 +432,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.format || 'mp3'}
-                  onChange={(format) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, format }
-                  } as TTSProvider)}
+                  onChange={(format) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, format }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'MP3', value: 'mp3' },
@@ -451,10 +463,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.region || 'eastus'}
-                  onChange={(region) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, region }
-                  } as TTSProvider)}
+                  onChange={(region) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, region }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'East US', value: 'eastus' },
@@ -498,10 +512,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.speaking_style || 'general'}
-                  onChange={(speaking_style) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, speaking_style }
-                  } as TTSProvider)}
+                  onChange={(speaking_style) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, speaking_style }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'General', value: 'general' },
@@ -532,10 +548,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.role || 'default'}
-                  onChange={(role) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, role }
-                  } as TTSProvider)}
+                  onChange={(role) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, role }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'Default', value: 'default' },
@@ -564,10 +582,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.model || 'eleven_multilingual_v2'}
-                  onChange={(model) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, model }
-                  } as TTSProvider)}
+                  onChange={(model) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, model }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'Eleven Multilingual v2', value: 'eleven_multilingual_v2' },
@@ -590,10 +610,12 @@ const TTSSettings: FC = () => {
                     max={1.0}
                     step={0.1}
                     value={selectedProvider.settings.stability ?? 0.5}
-                    onChange={(stability) => updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, stability }
-                    } as TTSProvider)}
+                    onChange={(stability) =>
+                      updateProvider({
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, stability }
+                      } as TTSProvider)
+                    }
                     disabled={!selectedProvider.enabled}
                     style={{ width: 200 }}
                   />
@@ -612,10 +634,12 @@ const TTSSettings: FC = () => {
                     max={1.0}
                     step={0.1}
                     value={selectedProvider.settings.similarity_boost ?? 0.5}
-                    onChange={(similarity_boost) => updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, similarity_boost }
-                    } as TTSProvider)}
+                    onChange={(similarity_boost) =>
+                      updateProvider({
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, similarity_boost }
+                      } as TTSProvider)
+                    }
                     disabled={!selectedProvider.enabled}
                     style={{ width: 200 }}
                   />
@@ -634,10 +658,12 @@ const TTSSettings: FC = () => {
                     max={1.0}
                     step={0.1}
                     value={selectedProvider.settings.style ?? 0.0}
-                    onChange={(style) => updateProvider({
-                      ...selectedProvider,
-                      settings: { ...selectedProvider.settings, style }
-                    } as TTSProvider)}
+                    onChange={(style) =>
+                      updateProvider({
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, style }
+                      } as TTSProvider)
+                    }
                     disabled={!selectedProvider.enabled}
                     style={{ width: 200 }}
                   />
@@ -652,10 +678,12 @@ const TTSSettings: FC = () => {
                 <SettingRowTitle>{t('settings.tts.use_speaker_boost')}</SettingRowTitle>
                 <Switch
                   checked={selectedProvider.settings.use_speaker_boost ?? true}
-                  onChange={(use_speaker_boost) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, use_speaker_boost }
-                  } as TTSProvider)}
+                  onChange={(use_speaker_boost) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, use_speaker_boost }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                 />
               </SettingRow>
@@ -673,14 +701,14 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.model || 'FunAudioLLM/CosyVoice2-0.5B'}
-                  onChange={(model) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, model }
-                  } as TTSProvider)}
+                  onChange={(model) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, model }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
-                  options={[
-                    { label: 'CosyVoice2-0.5B', value: 'FunAudioLLM/CosyVoice2-0.5B' }
-                  ]}
+                  options={[{ label: 'CosyVoice2-0.5B', value: 'FunAudioLLM/CosyVoice2-0.5B' }]}
                 />
               </SettingRow>
               <SettingHelpText>{t('settings.tts.model.description')}</SettingHelpText>
@@ -692,10 +720,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.format || 'mp3'}
-                  onChange={(format) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, format }
-                  } as TTSProvider)}
+                  onChange={(format) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, format }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'MP3', value: 'mp3' },
@@ -714,10 +744,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.sample_rate || 44100}
-                  onChange={(sample_rate) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, sample_rate }
-                  } as TTSProvider)}
+                  onChange={(sample_rate) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, sample_rate }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: '8000 Hz', value: 8000 },
@@ -744,10 +776,12 @@ const TTSSettings: FC = () => {
                   style={{ width: 300 }}
                   type="password"
                   value={selectedProvider.settings.secretKey || ''}
-                  onChange={(e) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, secretKey: e.target.value }
-                  } as TTSProvider)}
+                  onChange={(e) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, secretKey: e.target.value }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   placeholder="请输入腾讯云 SecretKey"
                 />
@@ -761,10 +795,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.region || 'ap-beijing'}
-                  onChange={(region) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, region }
-                  } as TTSProvider)}
+                  onChange={(region) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, region }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: '北京 (ap-beijing)', value: 'ap-beijing' },
@@ -797,10 +833,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.sampleRate || 16000}
-                  onChange={(sampleRate) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, sampleRate }
-                  } as TTSProvider)}
+                  onChange={(sampleRate) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, sampleRate }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: '8000 Hz', value: 8000 },
@@ -818,10 +856,12 @@ const TTSSettings: FC = () => {
                 <Select
                   style={{ width: 300 }}
                   value={selectedProvider.settings.codec || 'wav'}
-                  onChange={(codec) => updateProvider({
-                    ...selectedProvider,
-                    settings: { ...selectedProvider.settings, codec }
-                  } as TTSProvider)}
+                  onChange={(codec) =>
+                    updateProvider({
+                      ...selectedProvider,
+                      settings: { ...selectedProvider.settings, codec }
+                    } as TTSProvider)
+                  }
                   disabled={!selectedProvider.enabled}
                   options={[
                     { label: 'WAV', value: 'wav' },
@@ -844,15 +884,11 @@ const TTSSettings: FC = () => {
                     type="primary"
                     icon={isPlaying ? <Square size={16} /> : <Play size={16} />}
                     onClick={handleTestSpeech}
-                    disabled={!selectedProvider.enabled}
-                  >
+                    disabled={!selectedProvider.enabled}>
                     {isPlaying ? t('settings.tts.test.stop') : t('settings.tts.test.play')}
                   </Button>
                   {isPlaying && (
-                    <Button
-                      icon={isPaused ? <Play size={16} /> : <Pause size={16} />}
-                      onClick={handlePauseResume}
-                    >
+                    <Button icon={isPaused ? <Play size={16} /> : <Pause size={16} />} onClick={handlePauseResume}>
                       {isPaused ? t('settings.tts.test.resume') : t('settings.tts.test.pause')}
                     </Button>
                   )}
@@ -888,12 +924,9 @@ const TTSSettings: FC = () => {
             <ProviderListItem
               key={provider.id}
               className={provider.id === selectedProvider?.id ? 'active' : ''}
-              onClick={() => handleProviderSelect(provider)}
-            >
+              onClick={() => handleProviderSelect(provider)}>
               {providerAvatar}
-              <ProviderItemName className="text-nowrap">
-                {provider.name}
-              </ProviderItemName>
+              <ProviderItemName className="text-nowrap">{provider.name}</ProviderItemName>
               {provider.enabled && (
                 <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
                   ON

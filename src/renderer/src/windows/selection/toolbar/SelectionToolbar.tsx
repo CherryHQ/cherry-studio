@@ -9,7 +9,7 @@ import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
-import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart, Volume2, Pause } from 'lucide-react'
+import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart, Pause, Volume2 } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -188,6 +188,39 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     clearTimeout(copyIconTimeoutRef.current)
   }
 
+  const handleSpeak = useCallback(
+    async (action?: ActionItem) => {
+      if (!selectedText.current) return
+
+      try {
+        if (isSpeaking) {
+          // 如果正在播放，则停止
+          tts.stop()
+          setIsSpeaking(false)
+        } else {
+          // 开始朗读
+          setIsSpeaking(true)
+
+          // 获取指定的 TTS 供应商
+          if (action?.ttsProvider) {
+            const [, providerValue] = action.ttsProvider.split('|')
+            if (providerValue && providerValue !== 'default') {
+              // 切换到指定的供应商
+              tts.ttsService.setCurrentProvider(providerValue)
+            }
+          }
+
+          await tts.speak(selectedText.current)
+          setIsSpeaking(false)
+        }
+      } catch (error) {
+        console.error('TTS Error:', error)
+        setIsSpeaking(false)
+      }
+    },
+    [isSpeaking, tts]
+  )
+
   const handleAction = useCallback(
     (action: ActionItem) => {
       if (demo) return
@@ -210,7 +243,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
       }
     },
-    [demo, isSpeaking, tts]
+    [demo, handleSpeak]
   )
 
   // copy selected text to clipboard
@@ -235,36 +268,6 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     const searchUrl = customUrl.replace('{{queryString}}', encodeURIComponent(action.selectedText || ''))
     window.api?.openWebsite(searchUrl)
     window.api?.selection.hideToolbar()
-  }
-
-  const handleSpeak = async (action?: ActionItem) => {
-    if (!selectedText.current) return
-
-    try {
-      if (isSpeaking) {
-        // 如果正在播放，则停止
-        tts.stop()
-        setIsSpeaking(false)
-      } else {
-        // 开始朗读
-        setIsSpeaking(true)
-
-        // 获取指定的 TTS 供应商
-        if (action?.ttsProvider) {
-          const [, providerValue] = action.ttsProvider.split('|')
-          if (providerValue && providerValue !== 'default') {
-            // 切换到指定的供应商
-            tts.ttsService.setCurrentProvider(providerValue)
-          }
-        }
-
-        await tts.speak(selectedText.current)
-        setIsSpeaking(false)
-      }
-    } catch (error) {
-      console.error('TTS Error:', error)
-      setIsSpeaking(false)
-    }
   }
 
   const handleDefaultAction = (action: ActionItem) => {

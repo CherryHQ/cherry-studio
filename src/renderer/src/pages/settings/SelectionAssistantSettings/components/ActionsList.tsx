@@ -17,7 +17,15 @@ interface ActionListProps {
 }
 
 const ActionsList = memo(
-  ({ droppableId, items, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo, getTTSProviderInfo }: ActionListProps) => {
+  ({
+    droppableId,
+    items,
+    isLastEnabledItem,
+    onEdit,
+    onDelete,
+    getSearchEngineInfo,
+    getTTSProviderInfo
+  }: ActionListProps) => {
     return (
       <Droppable droppableId={droppableId}>
         {(provided: DroppableProvided) => (

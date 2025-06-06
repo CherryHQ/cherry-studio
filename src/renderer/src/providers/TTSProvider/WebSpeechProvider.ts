@@ -16,7 +16,7 @@ export class WebSpeechProvider extends BaseTTSProvider {
 
       const loadVoices = () => {
         const voices = speechSynthesis.getVoices()
-        const voiceList: TTSVoice[] = voices.map(voice => ({
+        const voiceList: TTSVoice[] = voices.map((voice) => ({
           id: voice.name,
           name: voice.name,
           lang: voice.lang,
@@ -65,7 +65,7 @@ export class WebSpeechProvider extends BaseTTSProvider {
       // 设置语音
       if (options.voice || this.provider.settings.voice) {
         const voiceName = options.voice || this.provider.settings.voice
-        const voice = speechSynthesis.getVoices().find(v => v.name === voiceName)
+        const voice = speechSynthesis.getVoices().find((v) => v.name === voiceName)
         if (voice) {
           utterance.voice = voice
         }

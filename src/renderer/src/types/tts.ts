@@ -1,4 +1,11 @@
-export type TTSProviderType = 'web-speech' | 'openai' | 'azure' | 'elevenlabs' | 'siliconflow' | 'tencentcloud' | 'googlecloud'
+export type TTSProviderType =
+  | 'web-speech'
+  | 'openai'
+  | 'azure'
+  | 'elevenlabs'
+  | 'siliconflow'
+  | 'tencentcloud'
+  | 'googlecloud'
 
 export interface TTSVoice {
   id: string

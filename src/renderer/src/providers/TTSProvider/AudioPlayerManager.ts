@@ -191,7 +191,11 @@ export class AudioPlayerManager {
   /**
    * 流式播放音频（支持实时流式数据）
    */
-  async playStream(audioStream: ReadableStream<Uint8Array>, mimeType: string = 'audio/mp3', volume?: number): Promise<void> {
+  async playStream(
+    audioStream: ReadableStream<Uint8Array>,
+    mimeType: string = 'audio/mp3',
+    volume?: number
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
         // 创建 MediaSource 对象
@@ -254,7 +258,7 @@ export class AudioPlayerManager {
 
               // 等待 SourceBuffer 准备好
               if (sourceBuffer.updating) {
-                await new Promise(resolve => {
+                await new Promise((resolve) => {
                   sourceBuffer.addEventListener('updateend', resolve, { once: true })
                 })
               }

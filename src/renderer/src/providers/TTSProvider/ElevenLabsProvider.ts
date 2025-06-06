@@ -3,7 +3,6 @@ import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class ElevenLabsProvider extends BaseTTSProvider {
-
   async getVoices(): Promise<TTSVoice[]> {
     if (!this.validateApiKey()) {
       return this.getDefaultVoices()
@@ -61,8 +60,6 @@ export class ElevenLabsProvider extends BaseTTSProvider {
     }
   }
 
-
-
   async check(): Promise<TTSCheckResult> {
     try {
       if (!this.validateApiKey()) {
@@ -98,8 +95,6 @@ export class ElevenLabsProvider extends BaseTTSProvider {
       }
     }
   }
-
-
 
   protected getDefaultApiHost(): string {
     return 'https://api.elevenlabs.io'
@@ -139,7 +134,7 @@ export class ElevenLabsProvider extends BaseTTSProvider {
     const response = await fetch(`${this.getApiHost()}/v1/text-to-speech/${voiceId}`, {
       method: 'POST',
       headers: {
-        'Accept': 'audio/mpeg',
+        Accept: 'audio/mpeg',
         'Content-Type': 'application/json',
         'xi-api-key': this.provider.apiKey!
       },
@@ -175,7 +170,7 @@ export class ElevenLabsProvider extends BaseTTSProvider {
     const response = await fetch(`${this.getApiHost()}/v1/text-to-speech/${voiceId}/stream`, {
       method: 'POST',
       headers: {
-        'Accept': 'audio/mpeg',
+        Accept: 'audio/mpeg',
         'Content-Type': 'application/json',
         'xi-api-key': this.provider.apiKey!
       },

@@ -28,7 +28,22 @@ import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Copy, Languages, Menu, Pause, Play, RefreshCw, Save, Share, Split, Square, ThumbsUp, Trash, Volume2 } from 'lucide-react'
+import {
+  AtSign,
+  Copy,
+  Languages,
+  Menu,
+  Pause,
+  Play,
+  RefreshCw,
+  Save,
+  Share,
+  Split,
+  Square,
+  ThumbsUp,
+  Trash,
+  Volume2
+} from 'lucide-react'
 import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -430,8 +445,7 @@ const MessageMenubar: FC<Props> = (props) => {
                   ? t('settings.tts.resume')
                   : t('settings.tts.play')
             }
-            mouseEnterDelay={0.8}
-          >
+            mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={handleTTSPlay}>
               {isCurrentMessagePlaying ? (
                 <Square size={16} fill="var(--color-primary)" />

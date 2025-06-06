@@ -14,7 +14,14 @@ export const defaultActionItems: ActionItem[] = [
     searchEngine: 'Google|https://www.google.com/search?q={{queryString}}'
   },
   { id: 'copy', name: 'selection.action.builtin.copy', enabled: true, isBuiltIn: true, icon: 'clipboard-copy' },
-  { id: 'speak', name: 'selection.action.builtin.speak', enabled: true, isBuiltIn: true, icon: 'volume-2', ttsProvider: 'Default|default' },
+  {
+    id: 'speak',
+    name: 'selection.action.builtin.speak',
+    enabled: true,
+    isBuiltIn: true,
+    icon: 'volume-2',
+    ttsProvider: 'Default|default'
+  },
   { id: 'refine', name: 'selection.action.builtin.refine', enabled: false, isBuiltIn: true, icon: 'wand-sparkles' }
 ]
 

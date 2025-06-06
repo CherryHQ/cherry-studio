@@ -1,4 +1,5 @@
 import { TTSProvider, TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+
 import { AudioPlayerManager } from './AudioPlayerManager'
 
 export interface TTSCheckResult {
@@ -82,8 +83,10 @@ export abstract class BaseTTSProvider {
   /**
    * 检查是否支持某个功能
    */
-  protected supportsFeature(_feature: string): boolean {
+  protected supportsFeature(feature: string): boolean {
     // 这里可以根据供应商类型返回支持的功能
+    // 目前所有功能都支持，未来可以根据 feature 参数进行判断
+    console.debug('Checking feature support:', feature)
     return true
   }
 

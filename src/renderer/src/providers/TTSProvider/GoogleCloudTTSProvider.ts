@@ -3,7 +3,6 @@ import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class GoogleCloudTTSProvider extends BaseTTSProvider {
-
   async getVoices(): Promise<TTSVoice[]> {
     try {
       const apiKey = this.provider.apiKey
@@ -42,30 +41,138 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
   private getDefaultVoices(): TTSVoice[] {
     return [
       // 英文语音
-      { id: 'en-US-Wavenet-D', name: 'en-US-Wavenet-D (English US, Male)', lang: 'en-US', gender: 'male', default: true },
-      { id: 'en-US-Wavenet-C', name: 'en-US-Wavenet-C (English US, Female)', lang: 'en-US', gender: 'female', default: false },
-      { id: 'en-US-Wavenet-A', name: 'en-US-Wavenet-A (English US, Male)', lang: 'en-US', gender: 'male', default: false },
-      { id: 'en-US-Wavenet-B', name: 'en-US-Wavenet-B (English US, Male)', lang: 'en-US', gender: 'male', default: false },
-      { id: 'en-US-Wavenet-E', name: 'en-US-Wavenet-E (English US, Female)', lang: 'en-US', gender: 'female', default: false },
-      { id: 'en-US-Wavenet-F', name: 'en-US-Wavenet-F (English US, Female)', lang: 'en-US', gender: 'female', default: false },
+      {
+        id: 'en-US-Wavenet-D',
+        name: 'en-US-Wavenet-D (English US, Male)',
+        lang: 'en-US',
+        gender: 'male',
+        default: true
+      },
+      {
+        id: 'en-US-Wavenet-C',
+        name: 'en-US-Wavenet-C (English US, Female)',
+        lang: 'en-US',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'en-US-Wavenet-A',
+        name: 'en-US-Wavenet-A (English US, Male)',
+        lang: 'en-US',
+        gender: 'male',
+        default: false
+      },
+      {
+        id: 'en-US-Wavenet-B',
+        name: 'en-US-Wavenet-B (English US, Male)',
+        lang: 'en-US',
+        gender: 'male',
+        default: false
+      },
+      {
+        id: 'en-US-Wavenet-E',
+        name: 'en-US-Wavenet-E (English US, Female)',
+        lang: 'en-US',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'en-US-Wavenet-F',
+        name: 'en-US-Wavenet-F (English US, Female)',
+        lang: 'en-US',
+        gender: 'female',
+        default: false
+      },
 
       // 中文语音
-      { id: 'cmn-CN-Wavenet-A', name: 'cmn-CN-Wavenet-A (Chinese, Female)', lang: 'cmn-CN', gender: 'female', default: false },
-      { id: 'cmn-CN-Wavenet-B', name: 'cmn-CN-Wavenet-B (Chinese, Male)', lang: 'cmn-CN', gender: 'male', default: false },
-      { id: 'cmn-CN-Wavenet-C', name: 'cmn-CN-Wavenet-C (Chinese, Male)', lang: 'cmn-CN', gender: 'male', default: false },
-      { id: 'cmn-CN-Wavenet-D', name: 'cmn-CN-Wavenet-D (Chinese, Female)', lang: 'cmn-CN', gender: 'female', default: false },
+      {
+        id: 'cmn-CN-Wavenet-A',
+        name: 'cmn-CN-Wavenet-A (Chinese, Female)',
+        lang: 'cmn-CN',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'cmn-CN-Wavenet-B',
+        name: 'cmn-CN-Wavenet-B (Chinese, Male)',
+        lang: 'cmn-CN',
+        gender: 'male',
+        default: false
+      },
+      {
+        id: 'cmn-CN-Wavenet-C',
+        name: 'cmn-CN-Wavenet-C (Chinese, Male)',
+        lang: 'cmn-CN',
+        gender: 'male',
+        default: false
+      },
+      {
+        id: 'cmn-CN-Wavenet-D',
+        name: 'cmn-CN-Wavenet-D (Chinese, Female)',
+        lang: 'cmn-CN',
+        gender: 'female',
+        default: false
+      },
 
       // 日文语音
-      { id: 'ja-JP-Wavenet-A', name: 'ja-JP-Wavenet-A (Japanese, Female)', lang: 'ja-JP', gender: 'female', default: false },
-      { id: 'ja-JP-Wavenet-B', name: 'ja-JP-Wavenet-B (Japanese, Female)', lang: 'ja-JP', gender: 'female', default: false },
-      { id: 'ja-JP-Wavenet-C', name: 'ja-JP-Wavenet-C (Japanese, Male)', lang: 'ja-JP', gender: 'male', default: false },
-      { id: 'ja-JP-Wavenet-D', name: 'ja-JP-Wavenet-D (Japanese, Male)', lang: 'ja-JP', gender: 'male', default: false },
+      {
+        id: 'ja-JP-Wavenet-A',
+        name: 'ja-JP-Wavenet-A (Japanese, Female)',
+        lang: 'ja-JP',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'ja-JP-Wavenet-B',
+        name: 'ja-JP-Wavenet-B (Japanese, Female)',
+        lang: 'ja-JP',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'ja-JP-Wavenet-C',
+        name: 'ja-JP-Wavenet-C (Japanese, Male)',
+        lang: 'ja-JP',
+        gender: 'male',
+        default: false
+      },
+      {
+        id: 'ja-JP-Wavenet-D',
+        name: 'ja-JP-Wavenet-D (Japanese, Male)',
+        lang: 'ja-JP',
+        gender: 'male',
+        default: false
+      },
 
       // 其他语言
-      { id: 'fr-FR-Wavenet-A', name: 'fr-FR-Wavenet-A (French, Female)', lang: 'fr-FR', gender: 'female', default: false },
-      { id: 'de-DE-Wavenet-A', name: 'de-DE-Wavenet-A (German, Female)', lang: 'de-DE', gender: 'female', default: false },
-      { id: 'es-ES-Wavenet-A', name: 'es-ES-Wavenet-A (Spanish, Female)', lang: 'es-ES', gender: 'female', default: false },
-      { id: 'it-IT-Wavenet-A', name: 'it-IT-Wavenet-A (Italian, Female)', lang: 'it-IT', gender: 'female', default: false }
+      {
+        id: 'fr-FR-Wavenet-A',
+        name: 'fr-FR-Wavenet-A (French, Female)',
+        lang: 'fr-FR',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'de-DE-Wavenet-A',
+        name: 'de-DE-Wavenet-A (German, Female)',
+        lang: 'de-DE',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'es-ES-Wavenet-A',
+        name: 'es-ES-Wavenet-A (Spanish, Female)',
+        lang: 'es-ES',
+        gender: 'female',
+        default: false
+      },
+      {
+        id: 'it-IT-Wavenet-A',
+        name: 'it-IT-Wavenet-A (Italian, Female)',
+        lang: 'it-IT',
+        gender: 'female',
+        default: false
+      }
     ]
   }
 
@@ -171,14 +278,16 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(`Google Cloud TTS API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`)
+        throw new Error(
+          `Google Cloud TTS API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`
+        )
       }
 
       const data = await response.json()
@@ -233,14 +342,16 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(`Google Cloud TTS streaming API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`)
+        throw new Error(
+          `Google Cloud TTS streaming API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`
+        )
       }
 
       const data = await response.json()

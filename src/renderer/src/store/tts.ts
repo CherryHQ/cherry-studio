@@ -1,5 +1,4 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-
 import { INITIAL_TTS_PROVIDERS } from '@renderer/config/tts'
 import { TTSProvider, TTSState } from '@renderer/types/tts'
 
@@ -21,7 +20,7 @@ const ttsSlice = createSlice({
     // 更新 TTS 供应商
     updateTTSProvider: (state, action: PayloadAction<TTSProvider>) => {
       console.log('[TTS Store] updateTTSProvider:', action.payload.id)
-      const index = state.providers.findIndex(p => p.id === action.payload.id)
+      const index = state.providers.findIndex((p) => p.id === action.payload.id)
       if (index !== -1) {
         state.providers[index] = action.payload
       }
@@ -34,7 +33,7 @@ const ttsSlice = createSlice({
 
     // 设置当前 TTS 供应商
     setCurrentTTSProvider: (state, action: PayloadAction<string>) => {
-      const provider = state.providers.find(p => p.id === action.payload)
+      const provider = state.providers.find((p) => p.id === action.payload)
       if (provider) {
         state.currentProvider = action.payload
       }
@@ -43,12 +42,12 @@ const ttsSlice = createSlice({
     // 启用/禁用 TTS 供应商
     setTTSProviderEnabled: (state, action: PayloadAction<{ id: string; enabled: boolean }>) => {
       console.log('[TTS Store] setTTSProviderEnabled:', action.payload)
-      const provider = state.providers.find(p => p.id === action.payload.id)
+      const provider = state.providers.find((p) => p.id === action.payload.id)
       if (provider) {
         if (action.payload.enabled) {
           // 启用新供应商时，先禁用所有其他供应商
           console.log('[TTS Store] Enabling provider, disabling others')
-          state.providers.forEach(p => {
+          state.providers.forEach((p) => {
             if (p.id !== action.payload.id) {
               p.enabled = false
             }
@@ -67,7 +66,7 @@ const ttsSlice = createSlice({
           if (state.currentProvider === action.payload.id) {
             state.currentProvider = 'web-speech' // 默认回到 web-speech
             // 检查 web-speech 是否可用，如果可用则启用它
-            const webSpeechProvider = state.providers.find(p => p.id === 'web-speech')
+            const webSpeechProvider = state.providers.find((p) => p.id === 'web-speech')
             if (webSpeechProvider) {
               webSpeechProvider.enabled = true
               console.log('[TTS Store] Fallback to web-speech provider')
@@ -78,8 +77,11 @@ const ttsSlice = createSlice({
     },
 
     // 更新 TTS 供应商设置
-    updateTTSProviderSettings: (state, action: PayloadAction<{ id: string; settings: Partial<TTSProvider['settings']> }>) => {
-      const provider = state.providers.find(p => p.id === action.payload.id)
+    updateTTSProviderSettings: (
+      state,
+      action: PayloadAction<{ id: string; settings: Partial<TTSProvider['settings']> }>
+    ) => {
+      const provider = state.providers.find((p) => p.id === action.payload.id)
       if (provider) {
         provider.settings = { ...provider.settings, ...action.payload.settings }
       }
@@ -87,7 +89,7 @@ const ttsSlice = createSlice({
 
     // 更新 TTS 供应商 API Key
     setTTSProviderApiKey: (state, action: PayloadAction<{ id: string; apiKey: string }>) => {
-      const provider = state.providers.find(p => p.id === action.payload.id)
+      const provider = state.providers.find((p) => p.id === action.payload.id)
       if (provider) {
         provider.apiKey = action.payload.apiKey
       }
@@ -95,7 +97,7 @@ const ttsSlice = createSlice({
 
     // 更新 TTS 供应商 API Host
     setTTSProviderApiHost: (state, action: PayloadAction<{ id: string; apiHost: string }>) => {
-      const provider = state.providers.find(p => p.id === action.payload.id)
+      const provider = state.providers.find((p) => p.id === action.payload.id)
       if (provider) {
         provider.apiHost = action.payload.apiHost
       }
@@ -103,7 +105,7 @@ const ttsSlice = createSlice({
 
     // 更新 TTS 供应商语音列表
     updateTTSProviderVoices: (state, action: PayloadAction<{ id: string; voices: TTSProvider['voices'] }>) => {
-      const provider = state.providers.find(p => p.id === action.payload.id)
+      const provider = state.providers.find((p) => p.id === action.payload.id)
       if (provider) {
         provider.voices = action.payload.voices
       }
@@ -136,7 +138,7 @@ const ttsSlice = createSlice({
 
     // 添加新的 TTS 供应商（用于自定义供应商）
     addTTSProvider: (state, action: PayloadAction<TTSProvider>) => {
-      const exists = state.providers.find(p => p.id === action.payload.id)
+      const exists = state.providers.find((p) => p.id === action.payload.id)
       if (!exists) {
         state.providers.push(action.payload)
       }
@@ -144,13 +146,13 @@ const ttsSlice = createSlice({
 
     // 删除 TTS 供应商（仅限非系统供应商）
     removeTTSProvider: (state, action: PayloadAction<string>) => {
-      const provider = state.providers.find(p => p.id === action.payload)
+      const provider = state.providers.find((p) => p.id === action.payload)
       if (provider && !provider.isSystem) {
-        state.providers = state.providers.filter(p => p.id !== action.payload)
+        state.providers = state.providers.filter((p) => p.id !== action.payload)
 
         // 如果删除的是当前供应商，切换到第一个启用的供应商
         if (state.currentProvider === action.payload) {
-          const enabledProvider = state.providers.find(p => p.enabled)
+          const enabledProvider = state.providers.find((p) => p.enabled)
           state.currentProvider = enabledProvider?.id || 'web-speech'
         }
       }

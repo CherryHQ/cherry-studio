@@ -25,13 +25,13 @@ export class TTSService {
    * 初始化所有供应商
    */
   private initializeProviders(): void {
-    this.ttsProviders.forEach(provider => {
+    this.ttsProviders.forEach((provider) => {
       const providerInstance = TTSProviderFactory.create(provider)
       this.providers.set(provider.id, providerInstance)
     })
 
     // 设置默认供应商（第一个启用的供应商）
-    const enabledProvider = this.ttsProviders.find(p => p.enabled)
+    const enabledProvider = this.ttsProviders.find((p) => p.enabled)
     if (enabledProvider) {
       this.currentProvider = this.providers.get(enabledProvider.id) || null
     }
@@ -68,7 +68,7 @@ export class TTSService {
    */
   updateProvider(updatedProvider: TTSProvider): void {
     // 更新配置
-    const index = this.ttsProviders.findIndex(p => p.id === updatedProvider.id)
+    const index = this.ttsProviders.findIndex((p) => p.id === updatedProvider.id)
     if (index !== -1) {
       this.ttsProviders[index] = updatedProvider
     }
@@ -89,7 +89,6 @@ export class TTSService {
    * 语音合成
    */
   async speak(text: string, options?: Partial<TTSSpeakOptions>): Promise<void> {
-
     if (!this.currentProvider) {
       throw new Error('No TTS provider available')
     }
@@ -182,9 +181,7 @@ export class TTSService {
    * 获取指定供应商的语音列表
    */
   async getVoices(providerId?: string): Promise<any[]> {
-    const provider = providerId
-      ? this.providers.get(providerId)
-      : this.currentProvider
+    const provider = providerId ? this.providers.get(providerId) : this.currentProvider
 
     if (!provider) {
       return []
@@ -198,7 +195,7 @@ export class TTSService {
    */
   updateProviderVoices(providerId: string, voices: any[]): void {
     // 更新配置中的语音列表
-    const providerConfig = this.ttsProviders.find(p => p.id === providerId)
+    const providerConfig = this.ttsProviders.find((p) => p.id === providerId)
     if (providerConfig) {
       providerConfig.voices = voices
     }
@@ -214,7 +211,7 @@ export class TTSService {
    * 设置供应商启用状态
    */
   setProviderEnabled(providerId: string, enabled: boolean): void {
-    const providerConfig = this.ttsProviders.find(p => p.id === providerId)
+    const providerConfig = this.ttsProviders.find((p) => p.id === providerId)
     if (providerConfig) {
       providerConfig.enabled = enabled
 
@@ -230,7 +227,7 @@ export class TTSService {
    * 设置供应商 API Key
    */
   setProviderApiKey(providerId: string, apiKey: string): void {
-    const providerConfig = this.ttsProviders.find(p => p.id === providerId)
+    const providerConfig = this.ttsProviders.find((p) => p.id === providerId)
     if (providerConfig) {
       providerConfig.apiKey = apiKey
 
@@ -246,7 +243,7 @@ export class TTSService {
    * 更新供应商设置
    */
   updateProviderSettings(providerId: string, settings: Partial<any>): void {
-    const providerConfig = this.ttsProviders.find(p => p.id === providerId)
+    const providerConfig = this.ttsProviders.find((p) => p.id === providerId)
     if (providerConfig) {
       providerConfig.settings = { ...providerConfig.settings, ...settings }
 
@@ -277,7 +274,7 @@ export class TTSService {
    * 获取启用的供应商
    */
   getEnabledProviders(): TTSProvider[] {
-    return this.ttsProviders.filter(p => p.enabled)
+    return this.ttsProviders.filter((p) => p.enabled)
   }
 
   /**

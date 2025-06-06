@@ -3,7 +3,6 @@ import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class SiliconFlowProvider extends BaseTTSProvider {
-
   async getVoices(): Promise<TTSVoice[]> {
     // 硅基流动的系统预置音色
     const systemVoices: TTSVoice[] = [
@@ -40,8 +39,6 @@ export class SiliconFlowProvider extends BaseTTSProvider {
     }
   }
 
-
-
   async check(): Promise<TTSCheckResult> {
     try {
       if (!this.validateApiKey()) {
@@ -55,7 +52,7 @@ export class SiliconFlowProvider extends BaseTTSProvider {
       const testResponse = await fetch(`${this.getApiHost()}/audio/speech`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.provider.apiKey}`,
+          Authorization: `Bearer ${this.provider.apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -85,8 +82,6 @@ export class SiliconFlowProvider extends BaseTTSProvider {
       }
     }
   }
-
-
 
   protected getDefaultApiHost(): string {
     return 'https://api.siliconflow.cn/v1'
@@ -137,7 +132,7 @@ export class SiliconFlowProvider extends BaseTTSProvider {
     const response = await fetch(`${this.getApiHost()}/audio/speech`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.provider.apiKey}`,
+        Authorization: `Bearer ${this.provider.apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(requestBody)

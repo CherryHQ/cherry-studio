@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
 import { TTSService } from '@renderer/services/TTSService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -14,11 +12,12 @@ import {
   setTTSProviderEnabled,
   updateTTSGlobalSettings,
   updateTTSProvider,
+  updateTTSProviders,
   updateTTSProviderSettings,
-  updateTTSProviderVoices,
-  updateTTSProviders
+  updateTTSProviderVoices
 } from '@renderer/store/tts'
 import { TTSProvider, TTSSpeakOptions } from '@renderer/types/tts'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const useTTS = () => {
   const dispatch = useAppDispatch()
@@ -29,12 +28,12 @@ export const useTTS = () => {
 
   // 获取当前供应商
   const currentProvider = useMemo(() => {
-    return ttsState.providers.find(p => p.id === ttsState.currentProvider)
+    return ttsState.providers.find((p) => p.id === ttsState.currentProvider)
   }, [ttsState.providers, ttsState.currentProvider])
 
   // 获取启用的供应商
   const enabledProviders = useMemo(() => {
-    return ttsState.providers.filter(p => p.enabled)
+    return ttsState.providers.filter((p) => p.enabled)
   }, [ttsState.providers])
 
   // 检查是否有可用的供应商
@@ -56,10 +55,11 @@ export const useTTS = () => {
     // 检查 providers 是否真正变化（深度比较）
     const providersChanged =
       lastProvidersRef.current.length !== ttsState.providers.length ||
-      lastProvidersRef.current.some((p, i) =>
-        p.id !== ttsState.providers[i]?.id ||
-        p.enabled !== ttsState.providers[i]?.enabled ||
-        JSON.stringify(p.settings) !== JSON.stringify(ttsState.providers[i]?.settings)
+      lastProvidersRef.current.some(
+        (p, i) =>
+          p.id !== ttsState.providers[i]?.id ||
+          p.enabled !== ttsState.providers[i]?.enabled ||
+          JSON.stringify(p.settings) !== JSON.stringify(ttsState.providers[i]?.settings)
       )
 
     if (providersChanged) {
@@ -79,59 +79,92 @@ export const useTTS = () => {
   // Actions
   const actions = {
     // 更新供应商
-    updateProvider: useCallback((provider: TTSProvider) => {
-      dispatch(updateTTSProvider(provider))
-    }, [dispatch]),
+    updateProvider: useCallback(
+      (provider: TTSProvider) => {
+        dispatch(updateTTSProvider(provider))
+      },
+      [dispatch]
+    ),
 
     // 批量更新供应商
-    updateProviders: useCallback((providers: TTSProvider[]) => {
-      dispatch(updateTTSProviders(providers))
-    }, [dispatch]),
+    updateProviders: useCallback(
+      (providers: TTSProvider[]) => {
+        dispatch(updateTTSProviders(providers))
+      },
+      [dispatch]
+    ),
 
     // 设置当前供应商
-    setCurrentProvider: useCallback((providerId: string) => {
-      dispatch(setCurrentTTSProvider(providerId))
-    }, [dispatch]),
+    setCurrentProvider: useCallback(
+      (providerId: string) => {
+        dispatch(setCurrentTTSProvider(providerId))
+      },
+      [dispatch]
+    ),
 
     // 启用/禁用供应商
-    setProviderEnabled: useCallback((id: string, enabled: boolean) => {
-      dispatch(setTTSProviderEnabled({ id, enabled }))
-    }, [dispatch]),
+    setProviderEnabled: useCallback(
+      (id: string, enabled: boolean) => {
+        dispatch(setTTSProviderEnabled({ id, enabled }))
+      },
+      [dispatch]
+    ),
 
     // 更新供应商设置
-    updateProviderSettings: useCallback((id: string, settings: Partial<TTSProvider['settings']>) => {
-      dispatch(updateTTSProviderSettings({ id, settings }))
-    }, [dispatch]),
+    updateProviderSettings: useCallback(
+      (id: string, settings: Partial<TTSProvider['settings']>) => {
+        dispatch(updateTTSProviderSettings({ id, settings }))
+      },
+      [dispatch]
+    ),
 
     // 设置 API Key
-    setProviderApiKey: useCallback((id: string, apiKey: string) => {
-      dispatch(setTTSProviderApiKey({ id, apiKey }))
-    }, [dispatch]),
+    setProviderApiKey: useCallback(
+      (id: string, apiKey: string) => {
+        dispatch(setTTSProviderApiKey({ id, apiKey }))
+      },
+      [dispatch]
+    ),
 
     // 设置 API Host
-    setProviderApiHost: useCallback((id: string, apiHost: string) => {
-      dispatch(setTTSProviderApiHost({ id, apiHost }))
-    }, [dispatch]),
+    setProviderApiHost: useCallback(
+      (id: string, apiHost: string) => {
+        dispatch(setTTSProviderApiHost({ id, apiHost }))
+      },
+      [dispatch]
+    ),
 
     // 更新语音列表
-    updateProviderVoices: useCallback((id: string, voices: TTSProvider['voices']) => {
-      dispatch(updateTTSProviderVoices({ id, voices }))
-    }, [dispatch]),
+    updateProviderVoices: useCallback(
+      (id: string, voices: TTSProvider['voices']) => {
+        dispatch(updateTTSProviderVoices({ id, voices }))
+      },
+      [dispatch]
+    ),
 
     // 设置全局启用状态
-    setEnabled: useCallback((enabled: boolean) => {
-      dispatch(setTTSEnabled(enabled))
-    }, [dispatch]),
+    setEnabled: useCallback(
+      (enabled: boolean) => {
+        dispatch(setTTSEnabled(enabled))
+      },
+      [dispatch]
+    ),
 
     // 设置自动播放
-    setAutoPlay: useCallback((autoPlay: boolean) => {
-      dispatch(setTTSAutoPlay(autoPlay))
-    }, [dispatch]),
+    setAutoPlay: useCallback(
+      (autoPlay: boolean) => {
+        dispatch(setTTSAutoPlay(autoPlay))
+      },
+      [dispatch]
+    ),
 
     // 更新全局设置
-    updateGlobalSettings: useCallback((settings: Partial<typeof ttsState.globalSettings>) => {
-      dispatch(updateTTSGlobalSettings(settings))
-    }, [dispatch]),
+    updateGlobalSettings: useCallback(
+      (settings: Partial<typeof ttsState.globalSettings>) => {
+        dispatch(updateTTSGlobalSettings(settings))
+      },
+      [dispatch, ttsState]
+    ),
 
     // 重置设置
     resetSettings: useCallback(() => {
@@ -139,25 +172,34 @@ export const useTTS = () => {
     }, [dispatch]),
 
     // 添加供应商
-    addProvider: useCallback((provider: TTSProvider) => {
-      dispatch(addTTSProvider(provider))
-    }, [dispatch]),
+    addProvider: useCallback(
+      (provider: TTSProvider) => {
+        dispatch(addTTSProvider(provider))
+      },
+      [dispatch]
+    ),
 
     // 删除供应商
-    removeProvider: useCallback((id: string) => {
-      dispatch(removeTTSProvider(id))
-    }, [dispatch])
+    removeProvider: useCallback(
+      (id: string) => {
+        dispatch(removeTTSProvider(id))
+      },
+      [dispatch]
+    )
   }
 
   // TTS 操作
   const ttsOperations = {
     // 语音合成
-    speak: useCallback(async (text: string, options?: Partial<TTSSpeakOptions>) => {
-      if (!isTTSAvailable) {
-        throw new Error('TTS is not available')
-      }
-      return ttsService.speak(text, options)
-    }, [ttsService, isTTSAvailable]),
+    speak: useCallback(
+      async (text: string, options?: Partial<TTSSpeakOptions>) => {
+        if (!isTTSAvailable) {
+          throw new Error('TTS is not available')
+        }
+        return ttsService.speak(text, options)
+      },
+      [ttsService, isTTSAvailable]
+    ),
 
     // 暂停
     pause: useCallback(() => {
@@ -190,14 +232,20 @@ export const useTTS = () => {
     }, [ttsService]),
 
     // 获取语音列表
-    getVoices: useCallback(async (providerId?: string) => {
-      return ttsService.getVoices(providerId)
-    }, [ttsService]),
+    getVoices: useCallback(
+      async (providerId?: string) => {
+        return ttsService.getVoices(providerId)
+      },
+      [ttsService]
+    ),
 
     // 检查供应商
-    checkProvider: useCallback(async (providerId: string) => {
-      return ttsService.checkProvider(providerId)
-    }, [ttsService]),
+    checkProvider: useCallback(
+      async (providerId: string) => {
+        return ttsService.checkProvider(providerId)
+      },
+      [ttsService]
+    ),
 
     // 自动选择最佳供应商
     selectBestProvider: useCallback(async () => {

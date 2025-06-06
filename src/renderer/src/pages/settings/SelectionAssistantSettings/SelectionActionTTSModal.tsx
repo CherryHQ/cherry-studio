@@ -1,8 +1,8 @@
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import { useTTS } from '@renderer/hooks/useTTS'
+import type { ActionItem } from '@renderer/types/selectionTypes'
 import { Form, Modal, Select } from 'antd'
 import { Volume2, VolumeX } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import { FC, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface TTSProviderOption {
@@ -20,35 +20,35 @@ interface SelectionActionTTSModalProps {
   currentAction?: ActionItem
 }
 
-const SelectionActionTTSModal: FC<SelectionActionTTSModalProps> = ({
-  isModalOpen,
-  onOk,
-  onCancel,
-  currentAction
-}) => {
+const SelectionActionTTSModal: FC<SelectionActionTTSModalProps> = ({ isModalOpen, onOk, onCancel, currentAction }) => {
   const { t } = useTranslation()
   const { providers } = useTTS()
   const [form] = Form.useForm()
 
   // 构建 TTS 供应商选项
-  const ttsProviderOptions: TTSProviderOption[] = [
-    {
-      label: t('settings.tts.provider.default'),
-      value: 'default',
-      ttsProvider: 'Default|default',
-      icon: <Volume2 size={14} color="var(--color-text-2)" />,
-      enabled: true
-    },
-    ...providers.map(provider => ({
-      label: provider.name,
-      value: provider.id,
-      ttsProvider: `${provider.name}|${provider.id}`,
-      icon: provider.enabled ?
-        <Volume2 size={14} color="var(--color-text-2)" /> :
-        <VolumeX size={14} color="var(--color-text-3)" />,
-      enabled: provider.enabled
-    }))
-  ]
+  const ttsProviderOptions: TTSProviderOption[] = useMemo(
+    () => [
+      {
+        label: t('settings.tts.provider.default'),
+        value: 'default',
+        ttsProvider: 'Default|default',
+        icon: <Volume2 size={14} color="var(--color-text-2)" />,
+        enabled: true
+      },
+      ...providers.map((provider) => ({
+        label: provider.name,
+        value: provider.id,
+        ttsProvider: `${provider.name}|${provider.id}`,
+        icon: provider.enabled ? (
+          <Volume2 size={14} color="var(--color-text-2)" />
+        ) : (
+          <VolumeX size={14} color="var(--color-text-3)" />
+        ),
+        enabled: provider.enabled
+      }))
+    ],
+    [providers, t]
+  )
 
   useEffect(() => {
     if (isModalOpen && currentAction?.ttsProvider) {
@@ -86,8 +86,6 @@ const SelectionActionTTSModal: FC<SelectionActionTTSModalProps> = ({
     onCancel()
   }
 
-
-
   return (
     <Modal
       title={t('selection.settings.tts_modal.title')}
@@ -106,12 +104,13 @@ const SelectionActionTTSModal: FC<SelectionActionTTSModalProps> = ({
           <Select
             options={ttsProviderOptions.map((provider) => ({
               label: (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  opacity: provider.enabled ? 1 : 0.5
-                }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    opacity: provider.enabled ? 1 : 0.5
+                  }}>
                   {provider.icon}
                   <span>{provider.label}</span>
                   {!provider.enabled && provider.value !== 'default' && (
@@ -126,8 +125,6 @@ const SelectionActionTTSModal: FC<SelectionActionTTSModalProps> = ({
             }))}
           />
         </Form.Item>
-
-
       </Form>
     </Modal>
   )

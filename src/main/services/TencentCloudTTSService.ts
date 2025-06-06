@@ -51,14 +51,14 @@ export class TencentCloudTTSService {
       const clientConfig = {
         credential: {
           secretId: secretId,
-          secretKey: secretKey,
+          secretKey: secretKey
         },
         region: region,
         profile: {
           httpProfile: {
-            endpoint: 'tts.tencentcloudapi.com',
-          },
-        },
+            endpoint: 'tts.tencentcloudapi.com'
+          }
+        }
       }
 
       // 实例化 TTS 客户端
@@ -111,7 +111,11 @@ export class TencentCloudTTSService {
   /**
    * 测试腾讯云 TTS API 连接
    */
-  async testConnection(secretId: string, secretKey: string, region: string = 'ap-beijing'): Promise<TencentCloudTTSResult> {
+  async testConnection(
+    secretId: string,
+    secretKey: string,
+    region: string = 'ap-beijing'
+  ): Promise<TencentCloudTTSResult> {
     return this.synthesizeSpeech({
       secretId,
       secretKey,

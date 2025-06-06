@@ -3,7 +3,6 @@ import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class TencentCloudTTSProvider extends BaseTTSProvider {
-
   async getVoices(): Promise<TTSVoice[]> {
     try {
       const voices = await window.api.tencentTTS.getVoices()
@@ -47,8 +46,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
     }
   }
 
-
-
   async check(): Promise<TTSCheckResult> {
     try {
       if (!this.validateApiKey()) {
@@ -83,8 +80,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       }
     }
   }
-
-
 
   protected getDefaultApiHost(): string {
     return 'tts.tencentcloudapi.com'
@@ -146,8 +141,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       throw new Error(`Tencent Cloud TTS API error: ${error.message || error}`)
     }
   }
-
-
 
   /**
    * 调用腾讯云 TTS API 流式合成语音
@@ -248,15 +241,15 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
   private convertRateToSpeed(rate: number): number {
     // rate 范围通常是 0.25 - 4.0
     // 转换为腾讯云的 -2 到 6 范围
-    if (rate <= 0.6) return -2      // 0.6倍速度
-    if (rate <= 0.8) return -1      // 0.8倍速度
-    if (rate <= 1.1) return 0       // 1.0倍速度
-    if (rate <= 1.3) return 1       // 1.2倍速度
-    if (rate <= 1.5) return 2       // 1.5倍速度
-    if (rate <= 1.8) return 3       // 1.8倍速度
-    if (rate <= 2.0) return 4       // 2.0倍速度
-    if (rate <= 2.2) return 5       // 2.2倍速度
-    return 6                        // 2.5倍速度
+    if (rate <= 0.6) return -2 // 0.6倍速度
+    if (rate <= 0.8) return -1 // 0.8倍速度
+    if (rate <= 1.1) return 0 // 1.0倍速度
+    if (rate <= 1.3) return 1 // 1.2倍速度
+    if (rate <= 1.5) return 2 // 1.5倍速度
+    if (rate <= 1.8) return 3 // 1.8倍速度
+    if (rate <= 2.0) return 4 // 2.0倍速度
+    if (rate <= 2.2) return 5 // 2.2倍速度
+    return 6 // 2.5倍速度
   }
 
   /**

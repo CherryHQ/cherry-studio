@@ -1511,7 +1511,7 @@ const migrateConfig = {
 
         // 确保 Web Speech API 默认启用
         if (state.tts.providers && state.tts.providers.length > 0) {
-          const webSpeechProvider = state.tts.providers.find(p => p.id === 'web-speech')
+          const webSpeechProvider = state.tts.providers.find((p) => p.id === 'web-speech')
           if (webSpeechProvider) {
             webSpeechProvider.enabled = true
           }
@@ -1528,7 +1528,7 @@ const migrateConfig = {
       // 添加硅基流动 TTS 供应商
       if (state.tts && state.tts.providers) {
         // 检查是否已经存在硅基流动供应商
-        const hasSiliconFlow = state.tts.providers.some(p => p.id === 'siliconflow')
+        const hasSiliconFlow = state.tts.providers.some((p) => p.id === 'siliconflow')
 
         if (!hasSiliconFlow) {
           console.log('[Migration 112] Adding SiliconFlow TTS provider')
@@ -1564,7 +1564,7 @@ const migrateConfig = {
       // 添加腾讯云 TTS 供应商
       if (state.tts && state.tts.providers) {
         // 检查是否已经存在腾讯云供应商
-        const hasTencentCloud = state.tts.providers.some(p => p.id === 'tencentcloud')
+        const hasTencentCloud = state.tts.providers.some((p) => p.id === 'tencentcloud')
 
         if (!hasTencentCloud) {
           console.log('[Migration 113] Adding TencentCloud TTS provider')
@@ -1600,7 +1600,7 @@ const migrateConfig = {
       // 添加 Google Cloud TTS 供应商
       if (state.tts && state.tts.providers) {
         // 检查是否已经存在 Google Cloud 供应商
-        const hasGoogleCloud = state.tts.providers.some(p => p.id === 'googlecloud')
+        const hasGoogleCloud = state.tts.providers.some((p) => p.id === 'googlecloud')
 
         if (!hasGoogleCloud) {
           console.log('[Migration 114] Adding Google Cloud TTS provider')

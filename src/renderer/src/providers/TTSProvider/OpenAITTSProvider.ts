@@ -3,7 +3,6 @@ import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class OpenAITTSProvider extends BaseTTSProvider {
-
   async getVoices(): Promise<TTSVoice[]> {
     // OpenAI TTS 的固定语音列表
     return [
@@ -42,8 +41,6 @@ export class OpenAITTSProvider extends BaseTTSProvider {
     }
   }
 
-
-
   async check(): Promise<TTSCheckResult> {
     try {
       if (!this.validateApiKey()) {
@@ -57,7 +54,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
       const response = await fetch(`${this.getApiHost()}/v1/models`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.provider.apiKey}`,
+          Authorization: `Bearer ${this.provider.apiKey}`,
           'Content-Type': 'application/json'
         }
       })
@@ -81,8 +78,6 @@ export class OpenAITTSProvider extends BaseTTSProvider {
     }
   }
 
-
-
   protected getDefaultApiHost(): string {
     return 'https://api.openai.com'
   }
@@ -97,7 +92,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
     const response = await fetch(`${this.getApiHost()}/v1/audio/speech`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.provider.apiKey}`,
+        Authorization: `Bearer ${this.provider.apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -127,7 +122,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
     const response = await fetch(`${this.getApiHost()}/v1/audio/speech`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.provider.apiKey}`,
+        Authorization: `Bearer ${this.provider.apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({

@@ -19,7 +19,16 @@ interface ActionItemProps {
 }
 
 const ActionsListItem = memo(
-  ({ item, provided, listType, isLastEnabledItem, onEdit, onDelete, getSearchEngineInfo, getTTSProviderInfo }: ActionItemProps) => {
+  ({
+    item,
+    provided,
+    listType,
+    isLastEnabledItem,
+    onEdit,
+    onDelete,
+    getSearchEngineInfo,
+    getTTSProviderInfo
+  }: ActionItemProps) => {
     const { t } = useTranslation()
     const isEnabled = listType === 'enabled'
 

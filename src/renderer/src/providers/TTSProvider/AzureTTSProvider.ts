@@ -3,7 +3,6 @@ import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class AzureTTSProvider extends BaseTTSProvider {
-
   async getVoices(): Promise<TTSVoice[]> {
     if (!this.validateApiKey()) {
       return []
@@ -61,8 +60,6 @@ export class AzureTTSProvider extends BaseTTSProvider {
     }
   }
 
-
-
   async check(): Promise<TTSCheckResult> {
     try {
       if (!this.validateApiKey()) {
@@ -98,8 +95,6 @@ export class AzureTTSProvider extends BaseTTSProvider {
       }
     }
   }
-
-
 
   protected getDefaultApiHost(): string {
     const region = this.provider.settings.region || 'eastus'

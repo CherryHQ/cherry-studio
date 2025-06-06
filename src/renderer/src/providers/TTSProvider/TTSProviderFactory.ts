@@ -62,12 +62,12 @@ export class TTSProviderFactory {
   static getProviderDisplayName(type: string): string {
     const names: Record<string, string> = {
       'web-speech': 'Web Speech API',
-      'openai': 'OpenAI TTS',
-      'azure': 'Azure Speech',
-      'elevenlabs': 'ElevenLabs',
-      'siliconflow': '硅基流动 (SiliconFlow)',
-      'tencentcloud': '腾讯云语音合成 (Tencent Cloud)',
-      'googlecloud': 'Google Cloud Text-to-Speech'
+      openai: 'OpenAI TTS',
+      azure: 'Azure Speech',
+      elevenlabs: 'ElevenLabs',
+      siliconflow: '硅基流动 (SiliconFlow)',
+      tencentcloud: '腾讯云语音合成 (Tencent Cloud)',
+      googlecloud: 'Google Cloud Text-to-Speech'
     }
     return names[type] || type
   }
@@ -85,12 +85,12 @@ export class TTSProviderFactory {
   static getSupportedFeatures(type: string): string[] {
     const features: Record<string, string[]> = {
       'web-speech': ['rate', 'pitch', 'volume', 'voice'],
-      'openai': ['voice', 'rate'],
-      'azure': ['rate', 'pitch', 'voice'],
-      'elevenlabs': ['voice'],
-      'siliconflow': ['rate', 'voice', 'model', 'format', 'sample_rate'],
-      'tencentcloud': ['rate', 'voice', 'region', 'sampleRate', 'codec'],
-      'googlecloud': ['rate', 'pitch', 'volume', 'voice', 'format', 'sampleRate']
+      openai: ['voice', 'rate'],
+      azure: ['rate', 'pitch', 'voice'],
+      elevenlabs: ['voice'],
+      siliconflow: ['rate', 'voice', 'model', 'format', 'sample_rate'],
+      tencentcloud: ['rate', 'voice', 'region', 'sampleRate', 'codec'],
+      googlecloud: ['rate', 'pitch', 'volume', 'voice', 'format', 'sampleRate']
     }
     return features[type] || []
   }
@@ -106,7 +106,7 @@ export class TTSProviderFactory {
         volume: 1.0,
         autoPlay: false
       },
-      'openai': {
+      openai: {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
@@ -114,7 +114,7 @@ export class TTSProviderFactory {
         autoPlay: false,
         streaming: false // 支持流式合成
       },
-      'azure': {
+      azure: {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
@@ -122,7 +122,7 @@ export class TTSProviderFactory {
         autoPlay: false,
         streaming: false // 支持流式合成
       },
-      'elevenlabs': {
+      elevenlabs: {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
@@ -130,7 +130,7 @@ export class TTSProviderFactory {
         autoPlay: false,
         streaming: false // 支持流式合成
       },
-      'siliconflow': {
+      siliconflow: {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
@@ -140,7 +140,7 @@ export class TTSProviderFactory {
         sample_rate: 44100,
         autoPlay: false
       },
-      'tencentcloud': {
+      tencentcloud: {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
@@ -150,7 +150,7 @@ export class TTSProviderFactory {
         codec: 'wav',
         autoPlay: false
       },
-      'googlecloud': {
+      googlecloud: {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,

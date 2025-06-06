@@ -137,41 +137,41 @@ export const TTS_PROVIDER_CONFIG = {
     requiresApiKey: false,
     supportedFeatures: ['rate', 'pitch', 'volume', 'voice']
   },
-  'openai': {
+  openai: {
     name: 'OpenAI TTS',
     description: 'OpenAI 的高质量语音合成服务，支持多种语音和格式，支持流式合成',
     requiresApiKey: true,
     supportedFeatures: ['voice', 'rate', 'model', 'format', 'streaming'],
     supportsStreaming: true
   },
-  'azure': {
+  azure: {
     name: 'Azure Speech',
     description: 'Microsoft Azure 语音服务，支持多种语言和语音样式，支持流式合成',
     requiresApiKey: true,
     supportedFeatures: ['rate', 'pitch', 'voice', 'region', 'speaking_style', 'role', 'streaming'],
     supportsStreaming: true
   },
-  'elevenlabs': {
+  elevenlabs: {
     name: 'ElevenLabs',
     description: '高质量的 AI 语音合成服务，支持语音克隆和情感调节，支持流式合成',
     requiresApiKey: true,
     supportedFeatures: ['voice', 'model', 'stability', 'similarity_boost', 'style', 'use_speaker_boost', 'streaming'],
     supportsStreaming: true
   },
-  'siliconflow': {
+  siliconflow: {
     name: '硅基流动 (SiliconFlow)',
     description: '硅基流动高质量语音合成服务，支持多语言和情感控制，兼容 OpenAI API',
     requiresApiKey: true,
     supportedFeatures: ['rate', 'voice', 'model', 'format', 'sample_rate']
   },
-  'tencentcloud': {
+  tencentcloud: {
     name: '腾讯云语音合成 (Tencent Cloud)',
     description: '腾讯云高质量语音合成服务，支持多种中英文音色，支持流式合成，企业级稳定性',
     requiresApiKey: true,
     supportedFeatures: ['rate', 'voice', 'region', 'sampleRate', 'codec', 'streaming'],
     supportsStreaming: true
   },
-  'googlecloud': {
+  googlecloud: {
     name: 'Google Cloud Text-to-Speech',
     description: 'Google Cloud 提供的高质量语音合成服务，支持多种语言和 WaveNet 语音',
     requiresApiKey: true,

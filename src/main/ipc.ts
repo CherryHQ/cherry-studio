@@ -350,9 +350,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.TencentTTS_SynthesizeSpeech, async (_, options) => {
     return await tencentCloudTTSService.synthesizeSpeech(options)
   })
-  ipcMain.handle(IpcChannel.TencentTTS_TestConnection, async (_, secretId: string, secretKey: string, region: string) => {
-    return await tencentCloudTTSService.testConnection(secretId, secretKey, region)
-  })
+  ipcMain.handle(
+    IpcChannel.TencentTTS_TestConnection,
+    async (_, secretId: string, secretKey: string, region: string) => {
+      return await tencentCloudTTSService.testConnection(secretId, secretKey, region)
+    }
+  )
   ipcMain.handle(IpcChannel.TencentTTS_GetVoices, () => {
     return tencentCloudTTSService.getSupportedVoices()
   })
