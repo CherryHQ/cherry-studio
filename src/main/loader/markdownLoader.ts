@@ -4,7 +4,6 @@ import { BaseLoader } from '@cherrystudio/embedjs-interfaces'
 import { cleanString, splitTextWithOffsets, truncateCenterString } from '@cherrystudio/embedjs-utils'
 import createDebugMessages from 'debug'
 import { app } from 'electron'
-import Logger from 'electron-log'
 import md5 from 'md5'
 
 export interface ImageArea {
@@ -44,7 +43,6 @@ export class MarkdownLoader extends BaseLoader<{ type: 'MarkdownLoader' }> {
   override async *getUnfilteredChunks() {
     const tuncatedObjectString = truncateCenterString(this.text, 50)
     this.debug('Starting chunk generation...')
-    Logger.info('###### MarkdownLoader getUnfilteredChunks ######')
     try {
       // 1. 使用辅助方法获取带偏移量的块
       const chunksWithOffsets = await splitTextWithOffsets(cleanString(this.text), this.chunkSize, this.chunkOverlap)
@@ -70,12 +68,6 @@ export class MarkdownLoader extends BaseLoader<{ type: 'MarkdownLoader' }> {
         // 如果有重叠，添加元数据
         if (overlappingImagePaths.length > 0) {
           chunkMetadata.images = overlappingImagePaths.map((image) => path.join(this.storageDir, image))
-
-          Logger.info({
-            message: `Chunk with images found`,
-            chunk: chunk.text,
-            metadata: chunkMetadata
-          })
           this.debug(
             `Chunk starting at offset ${chunk.startOffset} overlaps with images: ${overlappingImagePaths.join(', ')}`
           )
@@ -90,8 +82,7 @@ export class MarkdownLoader extends BaseLoader<{ type: 'MarkdownLoader' }> {
     } catch (e: any) {
       console.log('MarkdownLoader error', e)
       this.debug(`Error during chunk generation for source '${tuncatedObjectString}':`, e.message, e.stack)
-      // 可以选择抛出错误或继续处理（如果适用）
-      // throw e;
+      throw e
     }
   }
 }
