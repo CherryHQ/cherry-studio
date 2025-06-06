@@ -15,8 +15,6 @@ export const TOKENFLUX_HOST = 'https://tokenflux.ai'
 // Messages loading configuration
 export const INITIAL_MESSAGES_COUNT = 20
 export const LOAD_MORE_COUNT = 20
-export const PRODUCTION_FEED_URL = 'https://releases.cherry-ai.com'
-export const EARLY_ACCESS_FEED_URL = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 
 export const DEFAULT_COLOR_PRIMARY = '#00b96b'
 export const THEME_COLOR_PRESETS = [

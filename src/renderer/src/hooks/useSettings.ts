@@ -20,7 +20,7 @@ import {
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
-import { EARLY_ACCESS_FEED_URL, PRODUCTION_FEED_URL } from '@renderer/config/constant'
+import { FeedUrl } from '@shared/config/constant'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -62,7 +62,7 @@ export function useSettings() {
 
     setEarlyAccess(isEarlyAccess: boolean) {
       dispatch(_setEarlyAccess(isEarlyAccess))
-      window.api.setFeedUrl(isEarlyAccess ? EARLY_ACCESS_FEED_URL : PRODUCTION_FEED_URL)
+      window.api.setFeedUrl(isEarlyAccess ? FeedUrl.EARLY_ACCESS : FeedUrl.PRODUCTION)
     },
 
     setTheme(theme: ThemeMode) {
