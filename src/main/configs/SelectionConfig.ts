@@ -20,6 +20,7 @@ interface IFinetunedList {
  *************************************************************************/
 export const SELECTION_PREDEFINED_BLACKLIST: IFilterList = {
   WINDOWS: [
+    'explorer.exe',
     // Screenshot
     'snipaste.exe',
     'pixpin.exe',
