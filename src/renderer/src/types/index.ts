@@ -164,8 +164,6 @@ export type Provider = {
 
 export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
 
-export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
-
 export type Model = {
   id: string
   provider: string
@@ -173,7 +171,17 @@ export type Model = {
   group: string
   owned_by?: string
   description?: string
-  type?: ModelType[]
+  type?: ModelTypes
+}
+
+export type ModelType = boolean | undefined
+
+export type ModelTypes = {
+  function_calling?: ModelType
+  vision?: ModelType
+  web_search?: ModelType
+  embedding?: ModelType
+  reasoning?: ModelType
 }
 
 export type Suggestion = {
