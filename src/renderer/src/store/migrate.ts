@@ -1505,7 +1505,7 @@ const migrateConfig = {
       //if user has not set translate model(old default), set it to the new default model(deekseek v3)
       if (
         state.llm.translateModel.provider === SYSTEM_MODELS.silicon[3].provider &&
-        state.llm.translateModel.id === SYSTEM_MODELS.silicon[3].id
+        state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct'
       ) {
         state.llm.translateModel = SYSTEM_MODELS.silicon[1]
       }
