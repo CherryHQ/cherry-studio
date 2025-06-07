@@ -162,6 +162,7 @@ const FuturisticTUI: React.FC<FuturisticTUIProps> = ({ agentId, onCommandSubmit 
 
   // Add new state variables
   const [agentThinking, setAgentThinking] = useState<string>("Planning next actions...");
+  const [currentActionStatus, setCurrentActionStatus] = useState<string | null>(null); // New state
   const [currentSystemProcesses, setCurrentSystemProcesses] = useState<string[]>(["git", "python", "docker"]);
   const [taskProgress, setTaskProgress] = useState<number>(0);
   const [activeSquares, setActiveSquares] = useState<number>(0);
@@ -184,8 +185,9 @@ const FuturisticTUI: React.FC<FuturisticTUIProps> = ({ agentId, onCommandSubmit 
       }
     ]);
 
-    // Mock agent thinking updates
+    // Mock agent thinking updates (runs if no specific action status)
     const thinkingInterval = setInterval(() => {
+      if (currentActionStatus) return; // Don't overwrite specific action status
       const thoughts = [
         "Analyzing user query...",
         "Fetching relevant data...",
@@ -225,7 +227,34 @@ const FuturisticTUI: React.FC<FuturisticTUIProps> = ({ agentId, onCommandSubmit 
       clearInterval(progressInterval);
       clearInterval(processInterval);
     };
-  }, []);
+  }, [currentActionStatus]); // Rerun if currentActionStatus changes to manage thinkingInterval
+
+  // Subscribe to agent action status updates
+  useEffect(() => {
+    setCurrentActionStatus(null); // Clear action status when agentId changes
+
+    if (props.agentId && window.api?.agentEvents?.onActionStatusUpdate) {
+      const cleanup = window.api.agentEvents.onActionStatusUpdate((statusUpdate) => {
+        if (statusUpdate.agentId === props.agentId) {
+          if (statusUpdate.status === 'started') {
+            let paramsString = '';
+            try {
+              paramsString = JSON.stringify(statusUpdate.parameters);
+            } catch (e) {
+              paramsString = '[parameters not serializable]';
+            }
+            setCurrentActionStatus(
+              `PERFORMING: ${statusUpdate.actionName}(${paramsString.substring(0, 50)}${paramsString.length > 50 ? '...' : ''})`
+            );
+            setIsLoading(true); // Also set the main isLoading flag for the TUI input
+          }
+          // Future: Handle 'completed' or 'error' statuses from actions if main process sends them
+        }
+      });
+      return cleanup; // Cleanup listener on component unmount or agentId change
+    }
+  }, [props.agentId]); // Rerun if agentId changes
+
 
   const addMessage = (text: string, type: TUIMessage['type']) => {
     setMessages(prev => [...prev, { id: crypto.randomUUID(), text, type, timestamp: new Date() }]);
@@ -273,6 +302,7 @@ const FuturisticTUI: React.FC<FuturisticTUIProps> = ({ agentId, onCommandSubmit 
         }
       }
       setIsLoading(false);
+      setCurrentActionStatus(null); // Clear action status after command fully processed
     }
   };
 
@@ -286,7 +316,7 @@ const FuturisticTUI: React.FC<FuturisticTUIProps> = ({ agentId, onCommandSubmit 
   return (
     <TUIContainer>
       <InfoBar>
-        <AgentStatus>STATUS: <span>{agentThinking}</span></AgentStatus>
+        <AgentStatus>STATUS: <span>{currentActionStatus || agentThinking}</span></AgentStatus>
         <SystemProcesses>UTILIZING: <span>{currentSystemProcesses.join(', ')}</span></SystemProcesses>
       </InfoBar>
 

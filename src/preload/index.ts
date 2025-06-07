@@ -111,6 +111,19 @@ const api = {
       ipcRenderer.invoke('github:getFileContent', owner, repo, filePath, ref),
     listUserRepos: (username: string, type?: 'all' | 'owner' | 'member', sort?: 'created' | 'updated' | 'pushed' | 'full_name', direction?: 'asc' | 'desc', perPage?: number, page?: number) =>
       ipcRenderer.invoke('github:listUserRepos', username, type, sort, direction, perPage, page)
+  },
+  agentEvents: { // New section for agent related events from main to renderer
+    onActionStatusUpdate: (callback: (statusUpdate: { agentId: string; actionName: string; parameters: any; status: 'started' | 'completed' | 'error'; result?: any; error?: string; timestamp: string }) => void) => {
+      const channel = 'agent-action-statusUpdate';
+      const handler = (_event: Electron.IpcRendererEvent, statusUpdate: any) => {
+        callback(statusUpdate);
+      };
+      ipcRenderer.on(channel, handler);
+      // Return a cleanup function to remove the listener
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    }
   }
 }
 

@@ -1,4 +1,11 @@
-import { FileSearchOutlined, FolderOutlined, TranslationOutlined } from '@ant-design/icons'
+import {
+  FileSearchOutlined,
+  FolderOutlined,
+  TranslationOutlined,
+  CodeSandboxOutlined, // Added for Hugging Face
+  GithubOutlined,      // Added for GitHub
+  GoogleOutlined       // Added for Google Search
+} from '@ant-design/icons'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi, UserAvatar } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
@@ -78,6 +85,23 @@ const Sidebar: FC = () => {
               <FileSearchOutlined />
             </Icon>
           </StyledLink>
+          {/* External Service Links Start */}
+          <StyledLink onClick={() => to('/huggingface')}>
+            <Icon className={isRoutes('/huggingface')}>
+              <CodeSandboxOutlined />
+            </Icon>
+          </StyledLink>
+          <StyledLink onClick={() => to('/github')}>
+            <Icon className={isRoutes('/github')}>
+              <GithubOutlined />
+            </Icon>
+          </StyledLink>
+          <StyledLink onClick={() => to('/googlesearch')}>
+            <Icon className={isRoutes('/googlesearch')}>
+              <GoogleOutlined />
+            </Icon>
+          </StyledLink>
+          {/* External Service Links End */}
         </Menus>
       </MainMenus>
       <Menus onClick={MinApp.onClose}>

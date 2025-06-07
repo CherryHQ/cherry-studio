@@ -23,7 +23,8 @@ import HomePage from './pages/home/HomePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
 import HuggingFacePage from './pages/external/HuggingFacePage';
-import GitHubPage from './pages/external/GitHubPage'; // Added
+import GitHubPage from './pages/external/GitHubPage';
+import GoogleSearchPage from './pages/external/GoogleSearchPage'; // Added
 
 
 // Styled Components
@@ -174,7 +175,8 @@ function App(): JSX.Element {
                           <Route path="/messages/*" element={<HistoryPage />} />
                           <Route path="/settings/*" element={<SettingsPage />} />
                           <Route path="/huggingface" element={<HuggingFacePage />} />
-                          <Route path="/github" element={<GitHubPage />} /> {/* Added */}
+                          <Route path="/github" element={<GitHubPage />} />
+                          <Route path="/googlesearch" element={<GoogleSearchPage />} /> {/* Added */}
                         </Routes>
                       </HashRouter>
                     </TopViewContainer>
