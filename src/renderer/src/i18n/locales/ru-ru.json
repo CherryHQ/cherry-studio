@@ -1346,6 +1346,8 @@
       "input.target_language.english": "Английский",
       "input.target_language.japanese": "Японский",
       "input.target_language.russian": "Русский",
+      "input.user_native_language": "Язык пользователя",
+      "input.user_native_language.unspecified": "Не указано",
       "launch.onboot": "Автозапуск при включении",
       "launch.title": "Запуск",
       "launch.totray": "Свернуть в трей при запуске",

@@ -1347,6 +1347,8 @@
       "input.auto_translate_with_space": "Quickly translate with 3 spaces",
       "input.show_translate_confirm": "Show translation confirmation dialog",
       "input.target_language": "Target language",
+      "input.user_native_language": "User Language",
+      "input.user_native_language.unspecified": "Unspecified",
       "input.target_language.chinese": "Simplified Chinese",
       "input.target_language.chinese-traditional": "Traditional Chinese",
       "input.target_language.english": "English",

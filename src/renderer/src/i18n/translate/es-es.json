@@ -1154,6 +1154,8 @@
       "input.target_language.english": "Inglés",
       "input.target_language.japanese": "Japonés",
       "input.target_language.russian": "Ruso",
+      "input.user_native_language": "Idioma del usuario",
+      "input.user_native_language.unspecified": "No especificado",
       "launch.onboot": "Iniciar automáticamente al encender",
       "launch.title": "Inicio",
       "launch.totray": "Minimizar a la bandeja al iniciar",

@@ -11,6 +11,8 @@ import {
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { TranslateLanguageOption } from '@renderer/config/translate'
+
 
 import { WebDAVSyncState } from './backup'
 
@@ -43,6 +45,7 @@ export interface SettingsState {
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
   targetLanguage: TranslateLanguageVarious
+  userNativeLanguage?: TranslateLanguageOption
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
@@ -191,6 +194,7 @@ export const initialState: SettingsState = {
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
   targetLanguage: 'english' as TranslateLanguageVarious,
+  userNativeLanguage: undefined,
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
@@ -350,6 +354,9 @@ const settingsSlice = createSlice({
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload
+    },
+    setUserNativeLanguage: (state, action: PayloadAction<TranslateLanguageOption | undefined>) => {
+      state.userNativeLanguage = action.payload
     },
     setProxyMode: (state, action: PayloadAction<'system' | 'custom' | 'none'>) => {
       state.proxyMode = action.payload
@@ -690,6 +697,7 @@ export const {
   setSendMessageShortcut,
   setLanguage,
   setTargetLanguage,
+  setUserNativeLanguage,
   setProxyMode,
   setProxyUrl,
   setUserName,

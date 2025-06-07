@@ -1347,6 +1347,8 @@
       "input.auto_translate_with_space": "快速敲击3次空格翻译",
       "input.show_translate_confirm": "显示翻译确认对话框",
       "input.target_language": "目标语言",
+      "input.user_native_language": "用户默认语言",
+      "input.user_native_language.unspecified": "未指定",
       "input.target_language.chinese": "简体中文",
       "input.target_language.chinese-traditional": "繁体中文",
       "input.target_language.english": "英文",

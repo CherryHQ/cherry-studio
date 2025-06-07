@@ -1155,6 +1155,8 @@
       "input.target_language.english": "Anglais",
       "input.target_language.japanese": "Japonais",
       "input.target_language.russian": "Russe",
+      "input.user_native_language": "Langue de l’utilisateur",
+      "input.user_native_language.unspecified": "Non spécifié",
       "launch.onboot": "Démarrer automatiquement au démarrage",
       "launch.title": "Démarrage",
       "launch.totray": "Minimiser dans la barre d'état système au démarrage",

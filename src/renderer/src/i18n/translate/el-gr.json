@@ -1155,6 +1155,8 @@
       "input.target_language.english": "Αγγλικά",
       "input.target_language.japanese": "Ιαπωνικά",
       "input.target_language.russian": "Ρωσικά",
+      "input.user_native_language": "Γλώσσα χρήστη",
+      "input.user_native_language.unspecified": "Μη καθορισμένο",
       "launch.onboot": "Αυτόματη εκκίνηση κατά την εκκίνηση του συστήματος",
       "launch.title": "Εκκίνηση",
       "launch.totray": "Εισαγωγή στην συνδρομή κατά την εκκίνηση",

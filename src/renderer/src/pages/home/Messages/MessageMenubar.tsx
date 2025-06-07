@@ -71,6 +71,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const isUserMessage = message.role === 'user'
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const userNativeLanguage = useSelector((state: RootState) => state.settings.userNativeLanguage)
 
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
@@ -153,6 +154,12 @@ const MessageMenubar: FC<Props> = (props) => {
     [isTranslating, message, getTranslationUpdater, mainTextContent]
   )
 
+  const handleDirectTranslate = useCallback(async () => {
+    if (userNativeLanguage?.value) {
+      await handleTranslate(userNativeLanguage.value)
+    }
+  }, [userNativeLanguage, handleTranslate])
+
   const isEditable = useMemo(() => {
     return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
   }, [message])
@@ -170,13 +177,13 @@ const MessageMenubar: FC<Props> = (props) => {
       },
       ...(isEditable
         ? [
-            {
-              label: t('common.edit'),
-              key: 'edit',
-              icon: <FilePenLine size={16} />,
-              onClick: onEdit
-            }
-          ]
+          {
+            label: t('common.edit'),
+            key: 'edit',
+            icon: <FilePenLine size={16} />,
+            onClick: onEdit
+          }
+        ]
         : []),
       {
         label: t('chat.message.new.branch'),
@@ -380,16 +387,23 @@ const MessageMenubar: FC<Props> = (props) => {
         </Tooltip>
       )}
       {!isUserMessage && (
-        <Dropdown
-          menu={{
-            items: [
-              ...TranslateLanguageOptions.map((item) => ({
-                label: item.emoji + ' ' + item.label,
-                key: item.value,
-                onClick: () => handleTranslate(item.value)
-              })),
-              ...(hasTranslationBlocks
-                ? [
+        userNativeLanguage?.value && !hasTranslationBlocks ? (
+          <Tooltip title={`${t('chat.translate')} (${userNativeLanguage.emoji} ${userNativeLanguage.label})`} mouseEnterDelay={1.2}>
+            <ActionButton className="message-action-button" onClick={handleDirectTranslate}>
+              <Languages size={16} />
+            </ActionButton>
+          </Tooltip>
+        ) : (
+          <Dropdown
+            menu={{
+              items: [
+                ...translateLanguageOptions().map((item) => ({
+                  label: item.emoji + ' ' + item.label,
+                  key: item.value,
+                  onClick: () => handleTranslate(item.value)
+                })),
+                ...(hasTranslationBlocks
+                  ? [
                     { type: 'divider' as const },
                     {
                       label: '📋 ' + t('common.copy'),
@@ -432,19 +446,20 @@ const MessageMenubar: FC<Props> = (props) => {
                       }
                     }
                   ]
-                : [])
-            ],
-            onClick: (e) => e.domEvent.stopPropagation()
-          }}
-          trigger={['click']}
-          placement="topRight"
-          arrow>
-          <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
-            <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
-              <Languages size={16} />
-            </ActionButton>
-          </Tooltip>
-        </Dropdown>
+                  : [])
+              ],
+              onClick: (e) => e.domEvent.stopPropagation()
+            }}
+            trigger={['click']}
+            placement="topRight"
+            arrow>
+            <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
+              <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+                <Languages size={16} />
+              </ActionButton>
+            </Tooltip>
+          </Dropdown>
+        )
       )}
       {isAssistantMessage && isGrouped && (
         <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
