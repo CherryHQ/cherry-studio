@@ -115,3 +115,38 @@ jobs:
           tag: ${{ steps.get-tag.outputs.tag }}
           artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/*.blockmap'
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  dispatch-docs-update:
+    needs: release
+    if: success() && github.repository == 'CherryHQ/cherry-studio' # 确保所有构建成功且在主仓库中运行
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get release tag
+        id: get-tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if tag is pre-release
+        id: check-tag
+        shell: bash
+        run: |
+          TAG="${{ steps.get-tag.outputs.tag }}"
+          if [[ "$TAG" == *"rc"* || "$TAG" == *"pre-release"* ]]; then
+            echo "is_pre_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_pre_release=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Dispatch update-download-version workflow to cherry-studio-docs
+        if: steps.check-tag.outputs.is_pre_release == 'false'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.REPO_DISPATCH_TOKEN }}
+          repository: CherryHQ/cherry-studio-docs
+          event-type: update-download-version
+          client-payload: '{"version": "${{ steps.get-tag.outputs.tag }}"}'
