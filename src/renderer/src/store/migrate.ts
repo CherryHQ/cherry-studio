@@ -3,7 +3,6 @@ import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, WebSearchProvider } from '@renderer/types'
@@ -12,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { INITIAL_TTS_PROVIDERS } from '@renderer/config/tts'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
@@ -1535,135 +1535,8 @@ const migrateConfig = {
         state.tts.globalSettings.enabled = true
       }
 
-      // 定义所有 TTS 提供商
-      const allTTSProviders = [
-        {
-          id: 'web-speech',
-          type: 'web-speech',
-          name: 'Web Speech API',
-          enabled: true,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            autoPlay: false
-          },
-          voices: []
-        },
-        {
-          id: 'openai',
-          type: 'openai',
-          name: 'OpenAI TTS',
-          enabled: false,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            voice: 'alloy',
-            autoPlay: false,
-            model: 'tts-1',
-            format: 'mp3',
-            streaming: false
-          },
-          voices: OPENAI_TTS_VOICES
-        },
-        {
-          id: 'azure',
-          type: 'azure',
-          name: 'Azure Speech',
-          enabled: false,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            autoPlay: false,
-            region: 'eastus',
-            speaking_style: 'general',
-            role: 'default',
-            streaming: false
-          },
-          voices: []
-        },
-        {
-          id: 'elevenlabs',
-          type: 'elevenlabs',
-          name: 'ElevenLabs',
-          enabled: false,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            autoPlay: false,
-            model: 'eleven_multilingual_v2',
-            stability: 0.5,
-            similarity_boost: 0.5,
-            style: 0.0,
-            use_speaker_boost: true,
-            streaming: false
-          },
-          voices: []
-        },
-        {
-          id: 'siliconflow',
-          type: 'siliconflow',
-          name: '硅基流动',
-          enabled: false,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            autoPlay: false,
-            model: 'FunAudioLLM/CosyVoice2-0.5B',
-            format: 'mp3',
-            sample_rate: 44100,
-            voice: 'alex',
-            streaming: false
-          },
-          voices: []
-        },
-        {
-          id: 'tencentcloud',
-          type: 'tencentcloud',
-          name: '腾讯云语音合成',
-          enabled: false,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            autoPlay: false,
-            voice: '101001',
-            region: 'ap-beijing',
-            sampleRate: 16000,
-            codec: 'wav',
-            streaming: false
-          },
-          voices: []
-        },
-        {
-          id: 'googlecloud',
-          type: 'googlecloud',
-          name: 'Google Cloud Text-to-Speech',
-          enabled: false,
-          isSystem: true,
-          settings: {
-            rate: 1.0,
-            pitch: 1.0,
-            volume: 1.0,
-            voice: 'en-US-Wavenet-D',
-            format: 'mp3',
-            sampleRate: 24000,
-            autoPlay: false,
-            streaming: false
-          },
-          voices: []
-        }
-      ]
+      // 使用预定义的 TTS 提供商
+      const allTTSProviders = INITIAL_TTS_PROVIDERS
 
       // 检查并添加缺失的提供商
       allTTSProviders.forEach((provider) => {
