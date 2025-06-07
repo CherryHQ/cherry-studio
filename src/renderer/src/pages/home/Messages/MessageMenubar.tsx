@@ -386,12 +386,11 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       } catch (error) {
         // 检查是否是 MediaSource 相关的状态错误
-        const isMediaSourceError =
-          error instanceof Error &&
+        const isMediaSourceError = error instanceof Error &&
           error.name === 'InvalidStateError' &&
           (error.message.includes('endOfStream') ||
-            error.message.includes('appendBuffer') ||
-            error.message.includes('SourceBuffer'))
+           error.message.includes('appendBuffer') ||
+           error.message.includes('SourceBuffer'))
 
         if (isMediaSourceError) {
           // 这是一个 MediaSource 状态错误，通常是并发问题导致的

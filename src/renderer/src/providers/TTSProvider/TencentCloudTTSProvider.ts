@@ -1,4 +1,5 @@
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+import { TENCENT_TTS_VOICES } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
@@ -24,40 +25,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
    */
   private getDefaultVoices(): TTSVoice[] {
     console.log('[Tencent Cloud TTS] Using default voices')
-    return [
-      // 标准音色
-      { id: '101001', name: '智瑜 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101002', name: '智聆 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101003', name: '智美 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101004', name: '智云 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101005', name: '智莉 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101006', name: '智言 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101007', name: '智娜 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101008', name: '智琪 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101009', name: '智芸 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101010', name: '智华 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101011', name: '智燕 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101012', name: '智丹 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101013', name: '智辉 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101014', name: '智宁 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101015', name: '智萌 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101016', name: '智甜 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101017', name: '智蓉 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101018', name: '智靖 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101019', name: '智彤 (女声)', lang: 'zh-CN', gender: 'female' },
-
-      // 英文音色
-      { id: '101020', name: 'WeJack (男声)', lang: 'en-US', gender: 'male' },
-      { id: '101021', name: 'WeRose (女声)', lang: 'en-US', gender: 'female' },
-
-      // 精品音色
-      { id: '101050', name: '智逍遥 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101051', name: '智瑜 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101052', name: '智聆 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101053', name: '智美 (女声)', lang: 'zh-CN', gender: 'female' },
-      { id: '101054', name: '智云 (男声)', lang: 'zh-CN', gender: 'male' },
-      { id: '101055', name: '智莉 (女声)', lang: 'zh-CN', gender: 'female' }
-    ]
+    return TENCENT_TTS_VOICES
   }
 
   async speak(options: TTSSpeakOptions): Promise<void> {
@@ -81,7 +49,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
         // 使用基础语音合成
         const audioData = await this.synthesizeSpeech(options)
         const mimeType = this.getMimeType(this.provider.settings.codec || 'wav')
-        const audioBlob = new Blob([Buffer.from(audioData, 'base64')], { type: mimeType })
+        const audioBlob = this.createBlobFromBase64(audioData, mimeType)
         await this.audioPlayer.playBlob(audioBlob, volume)
       }
     } catch (error) {
@@ -483,5 +451,20 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       default:
         return 'audio/wav' // 默认使用 WAV
     }
+  }
+
+  /**
+   * 从 Base64 字符串创建 Blob（浏览器兼容方式）
+   */
+  private createBlobFromBase64(base64Data: string, mimeType: string): Blob {
+    // 使用浏览器原生的 atob 函数解码 base64
+    const binaryString = atob(base64Data)
+    const bytes = new Uint8Array(binaryString.length)
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+
+    return new Blob([bytes], { type: mimeType })
   }
 }

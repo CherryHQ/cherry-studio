@@ -3,6 +3,7 @@ import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, WebSearchProvider } from '@renderer/types'
@@ -1566,14 +1567,7 @@ const migrateConfig = {
             format: 'mp3',
             streaming: false
           },
-          voices: [
-            { id: 'alloy', name: 'Alloy', lang: 'en-US', gender: 'neutral' },
-            { id: 'echo', name: 'Echo', lang: 'en-US', gender: 'male' },
-            { id: 'fable', name: 'Fable', lang: 'en-US', gender: 'neutral' },
-            { id: 'onyx', name: 'Onyx', lang: 'en-US', gender: 'male' },
-            { id: 'nova', name: 'Nova', lang: 'en-US', gender: 'female' },
-            { id: 'shimmer', name: 'Shimmer', lang: 'en-US', gender: 'female' }
-          ]
+          voices: OPENAI_TTS_VOICES
         },
         {
           id: 'azure',

@@ -6,6 +6,7 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import { TTSProvider } from '@renderer/types/tts'
+import { OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 
 // TTS Provider Logo Map
 const TTS_PROVIDER_LOGO_MAP = {
@@ -53,14 +54,7 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       format: 'mp3',
       streaming: false
     },
-    voices: [
-      { id: 'alloy', name: 'Alloy', lang: 'en-US', gender: 'neutral' },
-      { id: 'echo', name: 'Echo', lang: 'en-US', gender: 'male' },
-      { id: 'fable', name: 'Fable', lang: 'en-US', gender: 'neutral' },
-      { id: 'onyx', name: 'Onyx', lang: 'en-US', gender: 'male' },
-      { id: 'nova', name: 'Nova', lang: 'en-US', gender: 'female' },
-      { id: 'shimmer', name: 'Shimmer', lang: 'en-US', gender: 'female' }
-    ]
+    voices: OPENAI_TTS_VOICES
   },
   {
     id: 'azure',

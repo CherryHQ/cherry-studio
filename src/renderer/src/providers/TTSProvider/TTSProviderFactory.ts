@@ -1,4 +1,5 @@
 import { TTSProvider } from '@renderer/types/tts'
+import { DEFAULT_VOICE_IDS, DEFAULT_MODEL_IDS, DEFAULT_AUDIO_FORMATS, DEFAULT_REGIONS, DEFAULT_SAMPLE_RATES } from '@renderer/constants/tts'
 
 import { AzureTTSProvider } from './AzureTTSProvider'
 import { BaseTTSProvider } from './BaseTTSProvider'
@@ -110,7 +111,7 @@ export class TTSProviderFactory {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
-        voice: 'alloy',
+        voice: DEFAULT_VOICE_IDS.openai,
         autoPlay: false,
         streaming: false // 支持流式合成
       },
@@ -118,7 +119,7 @@ export class TTSProviderFactory {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
-        voice: 'en-US-AriaNeural',
+        voice: DEFAULT_VOICE_IDS.azure,
         autoPlay: false,
         streaming: false // 支持流式合成
       },
@@ -126,7 +127,7 @@ export class TTSProviderFactory {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
-        voice: 'EXAVITQu4vr4xnSDxMaL',
+        voice: DEFAULT_VOICE_IDS.elevenlabs,
         autoPlay: false,
         streaming: false // 支持流式合成
       },
@@ -134,10 +135,10 @@ export class TTSProviderFactory {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
-        voice: 'alex',
-        model: 'FunAudioLLM/CosyVoice2-0.5B',
-        format: 'mp3',
-        sample_rate: 44100,
+        voice: DEFAULT_VOICE_IDS.siliconflow,
+        model: DEFAULT_MODEL_IDS.siliconflow,
+        format: DEFAULT_AUDIO_FORMATS.siliconflow,
+        sample_rate: DEFAULT_SAMPLE_RATES.siliconflow,
         autoPlay: false,
         streaming: false // 支持流式合成
       },
@@ -145,9 +146,9 @@ export class TTSProviderFactory {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
-        voice: '101001',
-        region: 'ap-beijing',
-        sampleRate: 16000,
+        voice: DEFAULT_VOICE_IDS.tencentcloud,
+        region: DEFAULT_REGIONS.tencentcloud,
+        sampleRate: DEFAULT_SAMPLE_RATES.tencentcloud,
         codec: 'wav',
         autoPlay: false
       },
@@ -155,9 +156,9 @@ export class TTSProviderFactory {
         rate: 1.0,
         pitch: 1.0,
         volume: 1.0,
-        voice: 'en-US-Wavenet-D',
-        format: 'mp3',
-        sampleRate: 24000,
+        voice: DEFAULT_VOICE_IDS.googlecloud,
+        format: DEFAULT_AUDIO_FORMATS.googlecloud,
+        sampleRate: DEFAULT_SAMPLE_RATES.googlecloud,
         autoPlay: false
       }
     }

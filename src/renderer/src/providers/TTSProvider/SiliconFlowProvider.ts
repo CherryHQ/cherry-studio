@@ -1,24 +1,12 @@
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+import { SILICONFLOW_TTS_VOICES } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class SiliconFlowProvider extends BaseTTSProvider {
   async getVoices(): Promise<TTSVoice[]> {
     // 硅基流动的系统预置音色
-    const systemVoices: TTSVoice[] = [
-      // 男声音色
-      { id: 'alex', name: '沉稳男声 (Alex)', lang: 'zh-CN', gender: 'male', default: true },
-      { id: 'benjamin', name: '低沉男声 (Benjamin)', lang: 'zh-CN', gender: 'male', default: false },
-      { id: 'charles', name: '磁性男声 (Charles)', lang: 'zh-CN', gender: 'male', default: false },
-      { id: 'david', name: '欢快男声 (David)', lang: 'zh-CN', gender: 'male', default: false },
-      // 女声音色
-      { id: 'anna', name: '沉稳女声 (Anna)', lang: 'zh-CN', gender: 'female', default: false },
-      { id: 'bella', name: '激情女声 (Bella)', lang: 'zh-CN', gender: 'female', default: false },
-      { id: 'claire', name: '温柔女声 (Claire)', lang: 'zh-CN', gender: 'female', default: false },
-      { id: 'diana', name: '欢快女声 (Diana)', lang: 'zh-CN', gender: 'female', default: false }
-    ]
-
-    return systemVoices
+    return SILICONFLOW_TTS_VOICES
   }
 
   async speak(options: TTSSpeakOptions): Promise<void> {

@@ -1,11 +1,39 @@
+import Logger from '@renderer/config/logger'
+
+/**
+ * 音频播放状态枚举
+ */
+enum AudioPlayerState {
+  IDLE = 'idle',
+  LOADING = 'loading',
+  PLAYING = 'playing',
+  PAUSED = 'paused',
+  STOPPED = 'stopped',
+  ERROR = 'error'
+}
+
 /**
  * 通用音频播放管理器
  * 用于消除 TTS Provider 中的重复代码
  */
 export class AudioPlayerManager {
   private audioElement: HTMLAudioElement | null = null
-  private _isPlaying = false
-  private _isPaused = false
+  private state: AudioPlayerState = AudioPlayerState.IDLE
+
+  /**
+   * 设置播放状态
+   */
+  private setState(newState: AudioPlayerState): void {
+    Logger.debug(`[AudioPlayerManager] State change: ${this.state} -> ${newState}`)
+    this.state = newState
+  }
+
+  /**
+   * 获取当前状态
+   */
+  private getState(): AudioPlayerState {
+    return this.state
+  }
 
   /**
    * 播放音频 Blob
@@ -23,29 +51,26 @@ export class AudioPlayerManager {
 
       // 设置事件监听器
       this.audioElement.onloadstart = () => {
-        this._isPlaying = true
-        this._isPaused = false
+        this.setState(AudioPlayerState.LOADING)
       }
 
       this.audioElement.onended = () => {
-        this._isPlaying = false
-        this._isPaused = false
+        this.setState(AudioPlayerState.IDLE)
         URL.revokeObjectURL(audioUrl)
         this.audioElement = null
         resolve()
       }
 
       this.audioElement.onpause = () => {
-        this._isPaused = true
+        this.setState(AudioPlayerState.PAUSED)
       }
 
       this.audioElement.onplay = () => {
-        this._isPaused = false
+        this.setState(AudioPlayerState.PLAYING)
       }
 
       this.audioElement.onerror = () => {
-        this._isPlaying = false
-        this._isPaused = false
+        this.setState(AudioPlayerState.ERROR)
         URL.revokeObjectURL(audioUrl)
         this.audioElement = null
         reject(new Error('Audio playback failed'))
@@ -73,28 +98,25 @@ export class AudioPlayerManager {
 
         // 设置事件监听器
         this.audioElement.onloadeddata = () => {
-          this._isPlaying = true
-          this._isPaused = false
+          this.setState(AudioPlayerState.LOADING)
         }
 
         this.audioElement.onended = () => {
-          this._isPlaying = false
-          this._isPaused = false
+          this.setState(AudioPlayerState.IDLE)
           this.audioElement = null
           resolve()
         }
 
         this.audioElement.onpause = () => {
-          this._isPaused = true
+          this.setState(AudioPlayerState.PAUSED)
         }
 
         this.audioElement.onplay = () => {
-          this._isPaused = false
+          this.setState(AudioPlayerState.PLAYING)
         }
 
         this.audioElement.onerror = () => {
-          this._isPlaying = false
-          this._isPaused = false
+          this.setState(AudioPlayerState.ERROR)
           this.audioElement = null
           reject(new Error('Audio playback failed'))
         }
@@ -111,10 +133,9 @@ export class AudioPlayerManager {
    * 暂停播放
    */
   pause(): void {
-    if (this.audioElement && this._isPlaying && !this._isPaused) {
+    if (this.audioElement && this.state === AudioPlayerState.PLAYING) {
       this.audioElement.pause()
-      this._isPaused = true
-      this._isPlaying = false
+      this.setState(AudioPlayerState.PAUSED)
     }
   }
 
@@ -122,10 +143,9 @@ export class AudioPlayerManager {
    * 恢复播放
    */
   resume(): void {
-    if (this.audioElement && this._isPaused) {
+    if (this.audioElement && this.state === AudioPlayerState.PAUSED) {
       this.audioElement.play()
-      this._isPaused = false
-      this._isPlaying = true
+      this.setState(AudioPlayerState.PLAYING)
     }
   }
 
@@ -138,22 +158,21 @@ export class AudioPlayerManager {
       this.audioElement.currentTime = 0
       this.audioElement = null
     }
-    this._isPlaying = false
-    this._isPaused = false
+    this.setState(AudioPlayerState.STOPPED)
   }
 
   /**
    * 检查是否正在播放
    */
   isPlaying(): boolean {
-    return this._isPlaying
+    return this.state === AudioPlayerState.PLAYING
   }
 
   /**
    * 检查是否已暂停
    */
   isPaused(): boolean {
-    return this._isPaused
+    return this.state === AudioPlayerState.PAUSED
   }
 
   /**
@@ -198,7 +217,7 @@ export class AudioPlayerManager {
   ): Promise<void> {
     // 检查 MediaSource 是否支持该 MIME 类型
     if (!MediaSource.isTypeSupported(mimeType)) {
-      console.warn(`[AudioPlayerManager] MediaSource does not support ${mimeType}, falling back to Blob playback`)
+      Logger.warn(`[AudioPlayerManager] MediaSource does not support ${mimeType}, falling back to Blob playback`)
       return this.playStreamAsBlob(audioStream, mimeType, volume)
     }
 
@@ -217,29 +236,26 @@ export class AudioPlayerManager {
 
         // 设置事件监听器
         this.audioElement.onloadstart = () => {
-          this._isPlaying = true
-          this._isPaused = false
+          this.setState(AudioPlayerState.LOADING)
         }
 
         this.audioElement.onended = () => {
-          this._isPlaying = false
-          this._isPaused = false
+          this.setState(AudioPlayerState.IDLE)
           URL.revokeObjectURL(audioUrl)
           this.audioElement = null
           resolve()
         }
 
         this.audioElement.onpause = () => {
-          this._isPaused = true
+          this.setState(AudioPlayerState.PAUSED)
         }
 
         this.audioElement.onplay = () => {
-          this._isPaused = false
+          this.setState(AudioPlayerState.PLAYING)
         }
 
         this.audioElement.onerror = () => {
-          this._isPlaying = false
-          this._isPaused = false
+          this.setState(AudioPlayerState.ERROR)
           URL.revokeObjectURL(audioUrl)
           this.audioElement = null
           reject(new Error('Audio playback failed'))
@@ -248,125 +264,7 @@ export class AudioPlayerManager {
         // MediaSource 事件处理
         mediaSource.addEventListener('sourceopen', async () => {
           try {
-            // 检查 MediaSource 是否支持该 MIME 类型
-            if (!MediaSource.isTypeSupported(mimeType)) {
-              throw new Error(`MediaSource does not support MIME type: ${mimeType}`)
-            }
-            const sourceBuffer = mediaSource.addSourceBuffer(mimeType)
-            const reader = audioStream.getReader()
-
-            // 读取流数据
-            const pump = async (): Promise<void> => {
-              try {
-                const { done, value } = await reader.read()
-
-                if (done) {
-                  console.log('[AudioPlayerManager] Stream reading completed')
-                  // 确保 SourceBuffer 完成所有更新后再结束流
-                  if (sourceBuffer.updating) {
-                    console.log('[AudioPlayerManager] Waiting for final SourceBuffer update to complete')
-                    await new Promise((resolve) => {
-                      sourceBuffer.addEventListener('updateend', resolve, { once: true })
-                    })
-                  }
-
-                  if (mediaSource.readyState === 'open') {
-                    try {
-                      console.log('[AudioPlayerManager] Ending MediaSource stream')
-                      mediaSource.endOfStream()
-                    } catch (error) {
-                      console.warn('[AudioPlayerManager] Failed to end stream:', error)
-                      // 忽略 endOfStream 错误，因为音频已经播放成功
-                    }
-                  }
-                  return
-                }
-
-                console.log(`[AudioPlayerManager] Processing audio chunk: ${value.length} bytes`)
-
-                // 检查 MediaSource 和 SourceBuffer 状态
-                if (mediaSource.readyState !== 'open') {
-                  console.warn('[AudioPlayerManager] MediaSource is not open, state:', mediaSource.readyState)
-                  return
-                }
-
-                // 等待 SourceBuffer 准备好
-                if (sourceBuffer.updating) {
-                  console.log('[AudioPlayerManager] SourceBuffer is updating, waiting...')
-                  await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                      reject(new Error('SourceBuffer update timeout'))
-                    }, 5000) // 5秒超时
-
-                    sourceBuffer.addEventListener(
-                      'updateend',
-                      () => {
-                        clearTimeout(timeout)
-                        resolve(undefined)
-                      },
-                      { once: true }
-                    )
-
-                    sourceBuffer.addEventListener(
-                      'error',
-                      () => {
-                        clearTimeout(timeout)
-                        reject(new Error('SourceBuffer update error'))
-                      },
-                      { once: true }
-                    )
-                  })
-                }
-
-                // 再次检查状态
-                if (sourceBuffer.updating) {
-                  console.error('[AudioPlayerManager] SourceBuffer still updating after wait')
-                  throw new Error('SourceBuffer is still updating')
-                }
-
-                // 添加数据到 SourceBuffer
-                console.log('[AudioPlayerManager] Appending buffer to SourceBuffer')
-                try {
-                  sourceBuffer.appendBuffer(value)
-                } catch (error) {
-                  console.error('[AudioPlayerManager] Failed to append buffer:', error)
-                  throw error
-                }
-
-                // 等待 appendBuffer 操作完成
-                await new Promise((resolve, reject) => {
-                  const timeout = setTimeout(() => {
-                    reject(new Error('SourceBuffer append timeout'))
-                  }, 5000) // 5秒超时
-
-                  sourceBuffer.addEventListener(
-                    'updateend',
-                    () => {
-                      clearTimeout(timeout)
-                      resolve(undefined)
-                    },
-                    { once: true }
-                  )
-
-                  sourceBuffer.addEventListener(
-                    'error',
-                    () => {
-                      clearTimeout(timeout)
-                      reject(new Error('SourceBuffer append error'))
-                    },
-                    { once: true }
-                  )
-                })
-                console.log('[AudioPlayerManager] Buffer append completed')
-
-                return pump()
-              } catch (error) {
-                console.error('[AudioPlayerManager] Error in pump function:', error)
-                throw error
-              }
-            }
-
-            await pump()
+            await this.handleMediaSourceOpen(mediaSource, audioStream, mimeType)
           } catch (error) {
             reject(error)
           }
@@ -414,5 +312,140 @@ export class AudioPlayerManager {
     } catch (error) {
       throw new Error(`Failed to play stream as blob: ${error}`)
     }
+  }
+
+  /**
+   * 处理 MediaSource 打开事件
+   */
+  private async handleMediaSourceOpen(
+    mediaSource: MediaSource,
+    audioStream: ReadableStream<Uint8Array>,
+    mimeType: string
+  ): Promise<void> {
+    // 检查 MediaSource 是否支持该 MIME 类型
+    if (!MediaSource.isTypeSupported(mimeType)) {
+      throw new Error(`MediaSource does not support MIME type: ${mimeType}`)
+    }
+
+    const sourceBuffer = mediaSource.addSourceBuffer(mimeType)
+    const reader = audioStream.getReader()
+
+    await this.pumpAudioData(reader, sourceBuffer, mediaSource)
+  }
+
+  /**
+   * 泵送音频数据到 SourceBuffer
+   */
+  private async pumpAudioData(
+    reader: ReadableStreamDefaultReader<Uint8Array>,
+    sourceBuffer: SourceBuffer,
+    mediaSource: MediaSource
+  ): Promise<void> {
+    try {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        await this.finalizeMediaSource(sourceBuffer, mediaSource)
+        return
+      }
+
+      Logger.info(`[AudioPlayerManager] Processing audio chunk: ${value.length} bytes`)
+
+      // 检查 MediaSource 和 SourceBuffer 状态
+      if (mediaSource.readyState !== 'open') {
+        Logger.warn('[AudioPlayerManager] MediaSource is not open, state:', mediaSource.readyState)
+        return
+      }
+
+      await this.appendBufferToSourceBuffer(sourceBuffer, value)
+
+      // 递归处理下一个数据块
+      return this.pumpAudioData(reader, sourceBuffer, mediaSource)
+    } catch (error) {
+      Logger.error('[AudioPlayerManager] Error in pump function:', error)
+      throw error
+    }
+  }
+
+  /**
+   * 完成 MediaSource 流
+   */
+  private async finalizeMediaSource(sourceBuffer: SourceBuffer, mediaSource: MediaSource): Promise<void> {
+    Logger.info('[AudioPlayerManager] Stream reading completed')
+
+    // 确保 SourceBuffer 完成所有更新后再结束流
+    if (sourceBuffer.updating) {
+      Logger.info('[AudioPlayerManager] Waiting for final SourceBuffer update to complete')
+      await this.waitForSourceBufferUpdate(sourceBuffer)
+    }
+
+    if (mediaSource.readyState === 'open') {
+      try {
+        Logger.info('[AudioPlayerManager] Ending MediaSource stream')
+        mediaSource.endOfStream()
+      } catch (error) {
+        Logger.warn('[AudioPlayerManager] Failed to end stream:', error)
+        // 忽略 endOfStream 错误，因为音频已经播放成功
+      }
+    }
+  }
+
+  /**
+   * 将数据添加到 SourceBuffer
+   */
+  private async appendBufferToSourceBuffer(sourceBuffer: SourceBuffer, value: Uint8Array): Promise<void> {
+    // 等待 SourceBuffer 准备好
+    if (sourceBuffer.updating) {
+      Logger.info('[AudioPlayerManager] SourceBuffer is updating, waiting...')
+      await this.waitForSourceBufferUpdate(sourceBuffer)
+    }
+
+    // 再次检查状态
+    if (sourceBuffer.updating) {
+      Logger.error('[AudioPlayerManager] SourceBuffer still updating after wait')
+      throw new Error('SourceBuffer is still updating')
+    }
+
+    // 添加数据到 SourceBuffer
+    Logger.info('[AudioPlayerManager] Appending buffer to SourceBuffer')
+    try {
+      sourceBuffer.appendBuffer(value)
+    } catch (error) {
+      Logger.error('[AudioPlayerManager] Failed to append buffer:', error)
+      throw error
+    }
+
+    // 等待 appendBuffer 操作完成
+    await this.waitForSourceBufferUpdate(sourceBuffer)
+    Logger.info('[AudioPlayerManager] Buffer append completed')
+  }
+
+  /**
+   * 等待 SourceBuffer 更新完成
+   */
+  private async waitForSourceBufferUpdate(sourceBuffer: SourceBuffer): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('SourceBuffer update timeout'))
+      }, 5000) // 5秒超时
+
+      sourceBuffer.addEventListener(
+        'updateend',
+        () => {
+          clearTimeout(timeout)
+          resolve(undefined)
+        },
+        { once: true }
+      )
+
+      sourceBuffer.addEventListener(
+        'error',
+        () => {
+          clearTimeout(timeout)
+          reject(new Error('SourceBuffer update error'))
+        },
+        { once: true }
+      )
+    })
   }
 }

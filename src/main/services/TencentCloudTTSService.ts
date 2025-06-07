@@ -92,12 +92,12 @@ export class TencentCloudTTSService {
           success: true,
           audioData: response.Audio
         }
-      } else {
-        Logger.error('[TencentCloudTTSService] No audio data returned')
-        return {
-          success: false,
-          error: 'No audio data returned from Tencent Cloud TTS API'
-        }
+      }
+
+      Logger.error('[TencentCloudTTSService] No audio data returned')
+      return {
+        success: false,
+        error: 'No audio data returned from Tencent Cloud TTS API'
       }
     } catch (error: any) {
       Logger.error('[TencentCloudTTSService] API Error:', error)

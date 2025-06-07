@@ -1,18 +1,57 @@
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+import { OPENAI_TTS_VOICES, OPENAI_TTS_MODELS, DEFAULT_VOICE_IDS, DEFAULT_MODEL_IDS } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class OpenAITTSProvider extends BaseTTSProvider {
   async getVoices(): Promise<TTSVoice[]> {
     // OpenAI TTS 的固定语音列表
-    return [
-      { id: 'alloy', name: 'Alloy', lang: 'en-US', gender: 'neutral' },
-      { id: 'echo', name: 'Echo', lang: 'en-US', gender: 'male' },
-      { id: 'fable', name: 'Fable', lang: 'en-US', gender: 'neutral' },
-      { id: 'onyx', name: 'Onyx', lang: 'en-US', gender: 'male' },
-      { id: 'nova', name: 'Nova', lang: 'en-US', gender: 'female' },
-      { id: 'shimmer', name: 'Shimmer', lang: 'en-US', gender: 'female' }
-    ]
+    return OPENAI_TTS_VOICES
+  }
+
+  /**
+   * 获取可用的 TTS 模型列表
+   */
+  async getAvailableModels(): Promise<Array<{ id: string; name: string; description: string }>> {
+    if (!this.provider.apiKey) {
+      console.warn('[OpenAI TTS] No API key provided, returning default models')
+      return OPENAI_TTS_MODELS
+    }
+
+    try {
+      console.log('[OpenAI TTS] Fetching available models from API')
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${this.provider.apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      // 过滤出 TTS 模型
+      const ttsModels = data.data
+        .filter((model: any) => model.id.startsWith('tts-'))
+        .map((model: any) => {
+          const defaultModel = OPENAI_TTS_MODELS.find(m => m.id === model.id)
+          return {
+            id: model.id,
+            name: defaultModel?.name || model.id,
+            description: defaultModel?.description || `OpenAI TTS model: ${model.id}`
+          }
+        })
+
+      console.log(`[OpenAI TTS] Found ${ttsModels.length} TTS models`)
+      return ttsModels.length > 0 ? ttsModels : OPENAI_TTS_MODELS
+    } catch (error) {
+      console.error('[OpenAI TTS] Failed to fetch models:', error)
+      // 返回默认模型列表作为后备
+      return OPENAI_TTS_MODELS
+    }
   }
 
   async speak(options: TTSSpeakOptions): Promise<void> {
@@ -87,7 +126,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
    * 调用 OpenAI TTS API 合成语音
    */
   private async synthesizeSpeech(options: TTSSpeakOptions): Promise<Blob> {
-    const voice = options.voice || this.provider.settings.voice || 'alloy'
+    const voice = options.voice || this.provider.settings.voice || DEFAULT_VOICE_IDS.openai
     const speed = options.rate ?? this.provider.settings.rate
 
     const response = await fetch(`${this.getApiHost()}/v1/audio/speech`, {
@@ -97,7 +136,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: this.provider.settings.model || 'tts-1', // 支持 tts-1 和 tts-1-hd
+        model: this.provider.settings.model || DEFAULT_MODEL_IDS.openai, // 支持 tts-1 和 tts-1-hd
         input: options.text,
         voice: voice,
         response_format: this.provider.settings.format || 'mp3', // 支持多种格式

@@ -1,4 +1,5 @@
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+import { AZURE_TTS_DEFAULT_VOICES, DEFAULT_VOICE_IDS } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
@@ -129,30 +130,7 @@ export class AzureTTSProvider extends BaseTTSProvider {
    */
   private getDefaultVoices(): TTSVoice[] {
     console.log('[Azure TTS] Using default voices (API call failed or no API key)')
-    return [
-      // 英语语音
-      { id: 'en-US-AriaNeural', name: 'Aria (English US)', lang: 'en-US', gender: 'female' },
-      { id: 'en-US-DavisNeural', name: 'Davis (English US)', lang: 'en-US', gender: 'male' },
-      { id: 'en-US-GuyNeural', name: 'Guy (English US)', lang: 'en-US', gender: 'male' },
-      { id: 'en-US-JaneNeural', name: 'Jane (English US)', lang: 'en-US', gender: 'female' },
-      { id: 'en-US-JennyNeural', name: 'Jenny (English US)', lang: 'en-US', gender: 'female' },
-      { id: 'en-US-NancyNeural', name: 'Nancy (English US)', lang: 'en-US', gender: 'female' },
-      { id: 'en-US-TonyNeural', name: 'Tony (English US)', lang: 'en-US', gender: 'male' },
-
-      // 中文语音
-      { id: 'zh-CN-XiaoxiaoNeural', name: 'Xiaoxiao (晓晓)', lang: 'zh-CN', gender: 'female' },
-      { id: 'zh-CN-YunxiNeural', name: 'Yunxi (云希)', lang: 'zh-CN', gender: 'male' },
-      { id: 'zh-CN-YunyangNeural', name: 'Yunyang (云扬)', lang: 'zh-CN', gender: 'male' },
-      { id: 'zh-CN-XiaoyiNeural', name: 'Xiaoyi (晓伊)', lang: 'zh-CN', gender: 'female' },
-      { id: 'zh-CN-YunfengNeural', name: 'Yunfeng (云枫)', lang: 'zh-CN', gender: 'male' },
-      { id: 'zh-CN-XiaomoNeural', name: 'Xiaomo (晓墨)', lang: 'zh-CN', gender: 'female' },
-
-      // 其他语言
-      { id: 'ja-JP-NanamiNeural', name: 'Nanami (Japanese)', lang: 'ja-JP', gender: 'female' },
-      { id: 'ko-KR-SunHiNeural', name: 'SunHi (Korean)', lang: 'ko-KR', gender: 'female' },
-      { id: 'fr-FR-DeniseNeural', name: 'Denise (French)', lang: 'fr-FR', gender: 'female' },
-      { id: 'de-DE-KatjaNeural', name: 'Katja (German)', lang: 'de-DE', gender: 'female' }
-    ]
+    return AZURE_TTS_DEFAULT_VOICES
   }
 
   /**
