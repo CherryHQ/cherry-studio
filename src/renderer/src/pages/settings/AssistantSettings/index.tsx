@@ -78,6 +78,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
 
   return (
     <StyledModal
+      className="assistant-settings"
       open={open}
       onOk={onOk}
       onClose={onCancel}
