@@ -4,6 +4,7 @@ import { arch } from 'node:os'
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
+import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
@@ -27,6 +28,7 @@ import { searchService } from './services/SearchService'
 import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
 import storeSyncService from './services/StoreSyncService'
+import { TencentCloudTTSService } from './services/TencentCloudTTSService'
 import { themeService } from './services/ThemeService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
@@ -34,12 +36,12 @@ import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
-import { FeedUrl } from '@shared/config/constant'
 
 const fileManager = new FileStorage()
 const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const obsidianVaultService = new ObsidianVaultService()
+const tencentCloudTTSService = new TencentCloudTTSService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -348,6 +350,23 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // store sync
   storeSyncService.registerIpcHandler()
+
+  // Tencent Cloud TTS
+  ipcMain.handle(IpcChannel.TencentTTS_SynthesizeSpeech, async (_, options) => {
+    return await tencentCloudTTSService.synthesizeSpeech(options)
+  })
+  ipcMain.handle(
+    IpcChannel.TencentTTS_TestConnection,
+    async (_, secretId: string, secretKey: string, region: string) => {
+      return await tencentCloudTTSService.testConnection(secretId, secretKey, region)
+    }
+  )
+  ipcMain.handle(IpcChannel.TencentTTS_GetVoices, () => {
+    return tencentCloudTTSService.getSupportedVoices()
+  })
+  ipcMain.handle(IpcChannel.TencentTTS_GetRegions, () => {
+    return tencentCloudTTSService.getSupportedRegions()
+  })
 
   // selection assistant
   SelectionService.registerIpcHandler()

@@ -12,6 +12,7 @@ import {
   Settings2,
   SquareTerminal,
   TextCursorInput,
+  Volume2,
   Zap
 } from 'lucide-react'
 // 导入useAppSelector
@@ -31,6 +32,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
+import TTSSettings from './TTSSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -63,6 +65,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/web-search')}>
               <Globe size={18} />
               {t('settings.websearch.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/tts">
+            <MenuItem className={isRoute('/settings/tts')}>
+              <Volume2 size={18} />
+              {t('settings.tts.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/mcp">
@@ -125,6 +133,7 @@ const SettingsPage: FC = () => {
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
+            <Route path="tts" element={<TTSSettings />} />
             <Route path="mcp/*" element={<MCPSettings />} />
             <Route path="general" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />

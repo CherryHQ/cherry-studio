@@ -1,7 +1,7 @@
 import { WebDavConfig } from '@types'
 import Logger from 'electron-log'
-import Stream from 'stream'
 import https from 'https'
+import Stream from 'stream'
 import {
   BufferLike,
   createClient,

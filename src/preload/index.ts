@@ -8,6 +8,7 @@ import { CreateDirectoryOptions } from 'webdav'
 import { FeedUrl } from '@shared/config/constant'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
+import type { TencentCloudTTSOptions } from '../main/services/TencentCloudTTSService'
 
 // Custom APIs for renderer
 const api = {
@@ -201,6 +202,13 @@ const api = {
     openSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Open, uid),
     closeSearchWindow: (uid: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_Close, uid),
     openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
+  },
+  tencentTTS: {
+    synthesizeSpeech: (options: TencentCloudTTSOptions) => ipcRenderer.invoke(IpcChannel.TencentTTS_SynthesizeSpeech, options),
+    testConnection: (secretId: string, secretKey: string, region: string) =>
+      ipcRenderer.invoke(IpcChannel.TencentTTS_TestConnection, secretId, secretKey, region),
+    getVoices: () => ipcRenderer.invoke(IpcChannel.TencentTTS_GetVoices),
+    getRegions: () => ipcRenderer.invoke(IpcChannel.TencentTTS_GetRegions)
   },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>

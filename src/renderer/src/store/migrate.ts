@@ -11,6 +11,7 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { INITIAL_TTS_PROVIDERS } from '@renderer/config/tts'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
@@ -1503,6 +1504,63 @@ const migrateConfig = {
       addSelectionAction(state, 'quote')
       return state
     } catch (error) {
+      return state
+    }
+  },
+  '112': (state: RootState) => {
+    try {
+      // 完整的 TTS 功能初始化和所有提供商添加
+      console.log('[Migration 112] Initializing complete TTS functionality')
+
+      // 初始化 TTS 状态（如果不存在）
+      if (!state.tts) {
+        state.tts = {
+          providers: [],
+          currentProvider: 'web-speech',
+          globalSettings: {
+            enabled: true,
+            autoPlay: false
+          }
+        }
+      }
+
+      // 确保全局设置存在
+      if (!state.tts.globalSettings) {
+        state.tts.globalSettings = {
+          enabled: true,
+          autoPlay: false
+        }
+      } else {
+        // 确保 TTS 默认启用
+        state.tts.globalSettings.enabled = true
+      }
+
+      // 使用预定义的 TTS 提供商
+      const allTTSProviders = INITIAL_TTS_PROVIDERS
+
+      // 检查并添加缺失的提供商
+      allTTSProviders.forEach((provider) => {
+        const existingProvider = state.tts.providers.find((p) => p.id === provider.id)
+        if (!existingProvider) {
+          console.log(`[Migration 112] Adding TTS provider: ${provider.id}`)
+          state.tts.providers.push(provider as any)
+        } else {
+          // 更新现有提供商的设置，确保包含流式合成设置
+          if (provider.settings.streaming !== undefined && existingProvider.settings.streaming === undefined) {
+            existingProvider.settings.streaming = provider.settings.streaming
+            console.log(`[Migration 112] Added streaming setting to ${provider.id}`)
+          }
+          // 确保 Web Speech API 默认启用
+          if (provider.id === 'web-speech') {
+            existingProvider.enabled = true
+          }
+        }
+      })
+
+      console.log(`[Migration 112] TTS providers initialized, count: ${state.tts.providers.length}`)
+      return state
+    } catch (error) {
+      console.error('[Migration 112] Complete TTS initialization failed:', error)
       return state
     }
   }
