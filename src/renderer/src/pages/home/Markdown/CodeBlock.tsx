@@ -1,4 +1,4 @@
-import CodeBlockView from '@renderer/components/CodeBlockView'
+import { CodeBlockView } from '@renderer/components/CodeBlockView'
 import React, { memo, useCallback } from 'react'
 
 interface Props {

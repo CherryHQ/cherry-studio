@@ -2670,7 +2670,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.0.2, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.2.1":
+"@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.0.2, @lezer/common@npm:^1.0.3, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.2.1":
   version: 1.2.3
   resolution: "@lezer/common@npm:1.2.3"
   checksum: 10c0/fe9f8e111080ef94037a34ca2af1221c8d01c1763ba5ecf708a286185c76119509a5d19d924c8842172716716ddce22d7834394670c4a9432f0ba9f3b7c0f50d
@@ -2836,7 +2836,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/xml@npm:^1.0.0":
+"@lezer/xml@npm:^1.0.0, @lezer/xml@npm:^1.0.2":
   version: 1.0.6
   resolution: "@lezer/xml@npm:1.0.6"
   dependencies:
@@ -5466,6 +5466,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@viz-js/lang-dot@npm:^1.0.4":
+  version: 1.0.4
+  resolution: "@viz-js/lang-dot@npm:1.0.4"
+  dependencies:
+    "@codemirror/language": "npm:^6.8.0"
+    "@lezer/common": "npm:^1.0.3"
+    "@lezer/highlight": "npm:^1.1.6"
+    "@lezer/xml": "npm:^1.0.2"
+  checksum: 10c0/8d7fb9a2d5c7e02da8e2122db5e4557231b9b353c9aa2db8ada137125a7175ae6df828c6449ba5b7bf48d68211e4b1b73ad42da2e8814da5d2723a0a6b200b49
+  languageName: node
+  linkType: hard
+
+"@viz-js/viz@npm:^3.12.0":
+  version: 3.12.0
+  resolution: "@viz-js/viz@npm:3.12.0"
+  checksum: 10c0/79b8a38b6923ff97e73005a5e9396f969d47d50dfeeeed12271910b07b213f40e40d1efe7f07ea824813f0d3f057ed00a3eb57ae5ae5ddfe38b85b25f0dfef59
+  languageName: node
+  linkType: hard
+
 "@xmldom/xmldom@npm:0.9.8":
   version: 0.9.8
   resolution: "@xmldom/xmldom@npm:0.9.8"
@@ -5591,6 +5610,8 @@ __metadata:
     "@vitest/coverage-v8": "npm:^3.1.4"
     "@vitest/ui": "npm:^3.1.4"
     "@vitest/web-worker": "npm:^3.1.4"
+    "@viz-js/lang-dot": "npm:^1.0.4"
+    "@viz-js/viz": "npm:^3.12.0"
     "@xyflow/react": "npm:^12.4.4"
     antd: "npm:^5.22.5"
     archiver: "npm:^7.0.1"
