@@ -9,6 +9,7 @@ import {
   setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
+  setInputBoxIconsConfig,
   setShowTopicTime,
   setSidebarIcons
 } from '@renderer/store/settings'
@@ -20,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import InputBoxPreview from './InputBoxPreview'
 import SidebarIconsManager from './SidebarIconsManager'
 
 const DisplaySettings: FC = () => {
@@ -34,7 +36,8 @@ const DisplaySettings: FC = () => {
     showTopicTime,
     customCss,
     sidebarIcons,
-    assistantIconType
+    assistantIconType,
+    inputBoxIconsConfig
   } = useSettings()
   const { theme: themeMode } = useTheme()
   const { t } = useTranslation()
@@ -43,6 +46,9 @@ const DisplaySettings: FC = () => {
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
+
+  // 输入框图标配置状态
+  const [inputBoxConfig, setInputBoxConfig] = useState(inputBoxIconsConfig || {})
 
   const handleWindowStyleChange = useCallback(
     (checked: boolean) => {
@@ -55,6 +61,11 @@ const DisplaySettings: FC = () => {
     setVisibleIcons([...DEFAULT_SIDEBAR_ICONS])
     setDisabledIcons([])
     dispatch(setSidebarIcons({ visible: DEFAULT_SIDEBAR_ICONS, disabled: [] }))
+  }, [dispatch])
+
+  const handleInputBoxReset = useCallback(() => {
+    setInputBoxConfig({})
+    dispatch(setInputBoxIconsConfig({}))
   }, [dispatch])
 
   const themeOptions = useMemo(
@@ -217,6 +228,20 @@ const DisplaySettings: FC = () => {
           disabledIcons={disabledIcons}
           setVisibleIcons={setVisibleIcons}
           setDisabledIcons={setDisabledIcons}
+        />
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle
+          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{t('settings.display.inputbox.title')}</span>
+          <ResetButtonWrapper>
+            <Button onClick={handleInputBoxReset}>{t('common.reset')}</Button>
+          </ResetButtonWrapper>
+        </SettingTitle>
+        <SettingDivider />
+        <InputBoxPreview
+          inputBoxConfig={inputBoxConfig}
+          setInputBoxConfig={setInputBoxConfig}
         />
       </SettingGroup>
       <SettingGroup theme={theme}>

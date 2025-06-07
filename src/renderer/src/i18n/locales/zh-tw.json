@@ -1163,6 +1163,13 @@
       "display.sidebar.visible": "顯示的圖示",
       "display.title": "顯示設定",
       "display.topic.title": "話題設定",
+      "display.inputbox.title": "輸入框設定",
+      "display.inputbox.preview": "輸入框預覽",
+      "display.inputbox.icons.title": "圖示管理",
+      "display.inputbox.position.left": "左側",
+      "display.inputbox.position.right": "右側",
+      "display.inputbox.empty.left": "左側暫無圖示",
+      "display.inputbox.empty.right": "右側暫無圖示",
       "miniapps": {
         "title": "小程式設置",
         "disabled": "隱藏的小程式",

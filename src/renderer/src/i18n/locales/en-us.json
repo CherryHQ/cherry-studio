@@ -1163,6 +1163,13 @@
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
       "display.topic.title": "Topic Settings",
+      "display.inputbox.title": "Input Box Settings",
+      "display.inputbox.preview": "Input Box Preview",
+      "display.inputbox.icons.title": "Icon Management",
+      "display.inputbox.position.left": "Left",
+      "display.inputbox.position.right": "Right",
+      "display.inputbox.empty.left": "No icons on the left",
+      "display.inputbox.empty.right": "No icons on the right",
       "miniapps": {
         "title": "Mini Apps Settings",
         "custom": {

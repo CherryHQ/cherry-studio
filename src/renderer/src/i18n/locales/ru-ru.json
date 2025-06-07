@@ -1161,6 +1161,13 @@
       "display.sidebar.visible": "Показывать иконки",
       "display.title": "Настройки отображения",
       "display.topic.title": "Настройки топиков",
+      "display.inputbox.title": "Настройки поля ввода",
+      "display.inputbox.preview": "Предварительный просмотр поля ввода",
+      "display.inputbox.icons.title": "Управление иконками",
+      "display.inputbox.position.left": "Слева",
+      "display.inputbox.position.right": "Справа",
+      "display.inputbox.empty.left": "Нет иконок слева",
+      "display.inputbox.empty.right": "Нет иконок справа",
       "miniapps": {
         "title": "Настройки мини-приложений",
         "disabled": "Скрытые мини-приложения",

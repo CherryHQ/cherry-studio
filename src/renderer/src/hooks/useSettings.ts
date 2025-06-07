@@ -4,6 +4,7 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setInputBoxIconsConfig,
   setLaunchOnBoot,
   setLaunchToTray,
   setSendMessageShortcut as _setSendMessageShortcut,
@@ -79,6 +80,9 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
+    },
+    setInputBoxIconsConfig(config: Record<string, { visible: boolean; position: 'left' | 'right'; order: number }>) {
+      dispatch(setInputBoxIconsConfig(config))
     }
   }
 }
