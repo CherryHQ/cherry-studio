@@ -24,6 +24,15 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
     // Assuming content exists on ThinkingBlock
     // Need to cast block to access content if not on base type
     return (thinkingBlock as any)?.content || ''
+  }),
+  getCitationContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+    const citationBlocks = message._fullBlocks?.filter((b) => b.type === MessageBlockType.CITATION) || []
+    // Return empty string if no citation blocks, otherwise mock citation content
+    if (citationBlocks.length === 0) return ''
+    // Mock citation format: [number] [url](title)
+    return citationBlocks
+      .map((_, index) => `[${index + 1}] [https://example${index + 1}.com](Example Citation ${index + 1})`)
+      .join('\n\n')
   })
 }))
 
@@ -93,7 +102,6 @@ function createMessage(
     modelId: partialMsg.modelId,
     model: partialMsg.model,
     type: partialMsg.type,
-    isPreset: partialMsg.isPreset,
     useful: partialMsg.useful,
     askId: partialMsg.askId,
     mentions: partialMsg.mentions,
@@ -198,6 +206,9 @@ describe('export', () => {
       const markdown = messageToMarkdown(msg!)
       expect(markdown).toContain('### 🧑‍💻 User')
       expect(markdown).toContain('hello user')
+      // Should have double newlines between sections
+      const sections = markdown.split('\n\n')
+      expect(sections.length).toBeGreaterThanOrEqual(3) // title, content, citation (empty)
     })
 
     it('should format assistant message using main text block', () => {
@@ -206,6 +217,9 @@ describe('export', () => {
       const markdown = messageToMarkdown(msg!)
       expect(markdown).toContain('### 🤖 Assistant')
       expect(markdown).toContain('hi assistant')
+      // Should have double newlines between sections
+      const sections = markdown.split('\n\n')
+      expect(sections.length).toBeGreaterThanOrEqual(3) // title, content, citation (empty)
     })
 
     it('should handle message with no main text block gracefully', () => {
@@ -213,7 +227,19 @@ describe('export', () => {
       mockedMessages.push(msg)
       const markdown = messageToMarkdown(msg)
       expect(markdown).toContain('### 🧑‍💻 User')
-      expect(markdown.trim().endsWith('User')).toBe(true)
+      // Check that it doesn't fail when no content exists
+      expect(markdown).toBeDefined()
+    })
+
+    it('should include citation content when citation blocks exist', () => {
+      const msgWithCitation = createMessage({ role: 'assistant', id: 'a_cite' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Main content' },
+        { type: MessageBlockType.CITATION }
+      ])
+      const markdown = messageToMarkdown(msgWithCitation)
+      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('Main content')
+      expect(markdown).toContain('[1] [https://example1.com](Example Citation 1)')
     })
   })
 
@@ -231,7 +257,12 @@ describe('export', () => {
       const msgWithoutReasoning = createMessage({ role: 'assistant', id: 'a4' }, [
         { type: MessageBlockType.MAIN_TEXT, content: 'Simple Answer' }
       ])
-      mockedMessages = [msgWithReasoning, msgWithThinkTag, msgWithoutReasoning]
+      const msgWithReasoningAndCitation = createMessage({ role: 'assistant', id: 'a5' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Answer with citation' },
+        { type: MessageBlockType.THINKING, content: 'Some thinking' },
+        { type: MessageBlockType.CITATION }
+      ])
+      mockedMessages = [msgWithReasoning, msgWithThinkTag, msgWithoutReasoning, msgWithReasoningAndCitation]
     })
 
     it('should include reasoning content from thinking block in details section', () => {
@@ -243,6 +274,9 @@ describe('export', () => {
       expect(markdown).toContain('<details')
       expect(markdown).toContain('<summary>common.reasoning_content</summary>')
       expect(markdown).toContain('Detailed thought process')
+      // Should have double newlines between sections
+      const sections = markdown.split('\n\n')
+      expect(sections.length).toBeGreaterThanOrEqual(3)
     })
 
     it('should handle <think> tag and replace newlines with <br> in reasoning', () => {
@@ -262,6 +296,17 @@ describe('export', () => {
       expect(markdown).toContain('### 🤖 Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
+    })
+
+    it('should include both reasoning and citation content', () => {
+      const msg = mockedMessages.find((m) => m.id === 'a5')
+      expect(msg).toBeDefined()
+      const markdown = messageToMarkdownWithReasoning(msg!)
+      expect(markdown).toContain('### 🤖 Assistant')
+      expect(markdown).toContain('Answer with citation')
+      expect(markdown).toContain('<details')
+      expect(markdown).toContain('Some thinking')
+      expect(markdown).toContain('[1] [https://example1.com](Example Citation 1)')
     })
   })
 

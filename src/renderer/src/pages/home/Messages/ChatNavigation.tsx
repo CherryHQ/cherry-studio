@@ -17,6 +17,19 @@ import styled from 'styled-components'
 
 import ChatFlowHistory from './ChatFlowHistory'
 
+// Exclude some areas from the navigation
+const EXCLUDED_SELECTORS = [
+  '.MessageFooter',
+  '.code-toolbar',
+  '.ant-collapse-header',
+  '.group-menu-bar',
+  '.code-block',
+  '.message-editor'
+]
+
+// Gap between the navigation bar and the right element
+const RIGHT_GAP = 16
+
 interface ChatNavigationProps {
   containerId: string
 }
@@ -233,6 +246,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   // Set up scroll event listener and mouse position tracking
   useEffect(() => {
     const container = document.getElementById(containerId)
+    const messagesContainer = container?.closest('.messages-container') as HTMLElement
+
     if (!container) return
 
     // Handle scroll events on the container
@@ -259,19 +274,23 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       const triggerWidth = 60 // Same as the width in styled component
 
       // Safe way to calculate position when using calc expressions
-      let rightOffset = 16 // Default right offset
+      let rightOffset = RIGHT_GAP // Default right offset
       if (showRightTopics) {
         // When topics are shown on right, we need to account for topic list width
-        rightOffset = 16 + 300 // Assuming topic list width is 300px, adjust if different
+        rightOffset += 275 // --topic-list-width
       }
 
       const rightPosition = window.innerWidth - rightOffset - triggerWidth
-      const topPosition = window.innerHeight * 0.3 // 30% from top
+      const topPosition = window.innerHeight * 0.35 // 35% from top
       const height = window.innerHeight * 0.3 // 30% of window height
 
+      const target = e.target as HTMLElement
+      const isInExcludedArea = EXCLUDED_SELECTORS.some((selector) => target.closest(selector))
+
       const isInTriggerArea =
+        !isInExcludedArea &&
         e.clientX > rightPosition &&
-        e.clientX < rightPosition + triggerWidth &&
+        e.clientX < rightPosition + triggerWidth + RIGHT_GAP &&
         e.clientY > topPosition &&
         e.clientY < topPosition + height
 
@@ -287,11 +306,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
     // Use passive: true for better scroll performance
     container.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('mousemove', handleMouseMove)
+
+    if (messagesContainer) {
+      // Listen to the messages container (but with global coordinates)
+      messagesContainer.addEventListener('mousemove', handleMouseMove)
+    } else {
+      window.addEventListener('mousemove', handleMouseMove)
+    }
 
     return () => {
       container.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('mousemove', handleMouseMove)
+      if (messagesContainer) {
+        messagesContainer.removeEventListener('mousemove', handleMouseMove)
+      } else {
+        window.removeEventListener('mousemove', handleMouseMove)
+      }
       if (hideTimer) {
         clearTimeout(hideTimer)
       }
@@ -311,7 +340,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.close')} placement="left">
+          <Tooltip title={t('chat.navigation.close')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
@@ -320,7 +349,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.top')} placement="left">
+          <Tooltip title={t('chat.navigation.top')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
@@ -329,7 +358,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.prev')} placement="left">
+          <Tooltip title={t('chat.navigation.prev')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<ArrowUpOutlined />}
@@ -338,7 +367,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left">
+          <Tooltip title={t('chat.navigation.next')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<ArrowDownOutlined />}
@@ -347,7 +376,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.bottom')} placement="left">
+          <Tooltip title={t('chat.navigation.bottom')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
@@ -356,7 +385,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left">
+          <Tooltip title={t('chat.navigation.history')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}
@@ -393,7 +422,7 @@ interface NavigationContainerProps {
 
 const NavigationContainer = styled.div<NavigationContainerProps>`
   position: fixed;
-  right: 16px;
+  right: ${RIGHT_GAP}px;
   top: 50%;
   transform: translateY(-50%) translateX(${(props) => (props.$isVisible ? 0 : '100%')});
   z-index: 999;

@@ -1,5 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
-import { QuickPanelListItem, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import Logger from '@renderer/config/logger'
 import {
@@ -18,7 +18,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -33,48 +33,26 @@ import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
-import {
-  AtSign,
-  CirclePause,
-  FileSearch,
-  FileText,
-  Globe,
-  Languages,
-  LucideSquareTerminal,
-  Maximize,
-  MessageSquareDiff,
-  Minimize,
-  PaintbrushVertical,
-  Paperclip,
-  Upload,
-  Zap
-} from 'lucide-react'
-// import { CompletionUsage } from 'openai/resources'
+import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
-import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import AttachmentPreview from './AttachmentPreview'
-import GenerateImageButton from './GenerateImageButton'
-import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
+import InputbarTools, { InputbarToolsRef } from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
-import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
-import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
 import MentionModelsInput from './MentionModelsInput'
-import NewContextButton from './NewContextButton'
-import QuickPhrasesButton, { QuickPhrasesButtonRef } from './QuickPhrasesButton'
 import SendMessageButton from './SendMessageButton'
-import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
 import TokenCount from './TokenCount'
-import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
 interface Props {
   assistant: Assistant
@@ -135,13 +113,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const [tokenCount, setTokenCount] = useState(0)
 
-  const quickPhrasesButtonRef = useRef<QuickPhrasesButtonRef>(null)
-  const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
-  const knowledgeBaseButtonRef = useRef<KnowledgeBaseButtonRef>(null)
-  const mcpToolsButtonRef = useRef<MCPToolsButtonRef>(null)
-  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
-  const webSearchButtonRef = useRef<WebSearchButtonRef | null>(null)
-  const thinkingButtonRef = useRef<ThinkingButtonRef | null>(null)
+  const inputbarToolsRef = useRef<InputbarToolsRef>(null)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -314,7 +286,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           description: '',
           icon: <Upload />,
           action: () => {
-            attachmentButtonRef.current?.openQuickPanel()
+            inputbarToolsRef.current?.openQuickPanel()
           }
         },
         ...knowledgeBases.map((base) => {
@@ -333,92 +305,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       ],
       symbol: 'file'
     })
-  }, [knowledgeBases, openKnowledgeFileList, quickPanel, t])
-
-  const quickPanelMenu = useMemo<QuickPanelListItem[]>(() => {
-    return [
-      {
-        label: t('settings.quickPhrase.title'),
-        description: '',
-        icon: <Zap />,
-        isMenu: true,
-        action: () => {
-          quickPhrasesButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('agents.edit.model.select.title'),
-        description: '',
-        icon: <AtSign />,
-        isMenu: true,
-        action: () => {
-          mentionModelsButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('chat.input.knowledge_base'),
-        description: '',
-        icon: <FileSearch />,
-        isMenu: true,
-        disabled: files.length > 0,
-        action: () => {
-          knowledgeBaseButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: t('settings.mcp.title'),
-        description: t('settings.mcp.not_support'),
-        icon: <LucideSquareTerminal />,
-        isMenu: true,
-        action: () => {
-          mcpToolsButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: `MCP ${t('settings.mcp.tabs.prompts')}`,
-        description: '',
-        icon: <LucideSquareTerminal />,
-        isMenu: true,
-        action: () => {
-          mcpToolsButtonRef.current?.openPromptList()
-        }
-      },
-      {
-        label: `MCP ${t('settings.mcp.tabs.resources')}`,
-        description: '',
-        icon: <LucideSquareTerminal />,
-        isMenu: true,
-        action: () => {
-          mcpToolsButtonRef.current?.openResourcesList()
-        }
-      },
-      {
-        label: t('chat.input.web_search'),
-        description: '',
-        icon: <Globe />,
-        isMenu: true,
-        action: () => {
-          webSearchButtonRef.current?.openQuickPanel()
-        }
-      },
-      {
-        label: isVisionModel(model) ? t('chat.input.upload') : t('chat.input.upload.document'),
-        description: '',
-        icon: <Paperclip />,
-        isMenu: true,
-        action: openSelectFileMenu
-      },
-      {
-        label: t('translate.title'),
-        description: t('translate.menu.description'),
-        icon: <Languages />,
-        action: () => {
-          if (!text) return
-          translate()
-        }
-      }
-    ]
-  }, [files.length, model, openSelectFileMenu, t, text, translate])
+  }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const isEnterPressed = event.keyCode == 13
@@ -523,7 +410,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const topic = getDefaultTopic(assistant.id)
 
     await db.topics.add({ id: topic.id, messages: [] })
-    await addAssistantMessagesToTopic({ assistant, topic })
 
     // Clear previous state
     // Reset to assistant default model
@@ -534,6 +420,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, setActiveTopic, setModel])
+
+  const onQuote = useCallback(
+    (text: string) => {
+      const quotedText = formatQuotedText(text)
+      setText((prevText) => {
+        const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+        setTimeout(() => resizeTextArea(), 0)
+        return newText
+      })
+      textareaRef.current?.focus()
+    },
+    [resizeTextArea]
+  )
 
   const onPause = async () => {
     await pauseMessages()
@@ -566,6 +465,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const lastSymbol = newText[cursorPosition - 1]
 
     if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
+      const quickPanelMenu =
+        inputbarToolsRef.current?.getQuickPanelMenu({
+          t,
+          files,
+          model,
+          text: newText,
+          openSelectFileMenu,
+          translate
+        }) || []
+
       quickPanel.open({
         title: t('settings.quickPanel.title'),
         list: quickPanelMenu,
@@ -574,7 +483,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
 
     if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-      mentionModelsButtonRef.current?.openQuickPanel()
+      inputbarToolsRef.current?.openMentionModelsPanel()
     }
   }
 
@@ -729,18 +638,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
-      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
-        setText((prevText) => {
-          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-          setTimeout(() => resizeTextArea(), 0)
-          return newText
-        })
-        textareaRef.current?.focus()
-      })
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
     ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+
+    // 监听引用事件
+    const quoteFromAnywhereRemover = window.electron?.ipcRenderer.on(
+      IpcChannel.App_QuoteToMain,
+      (_, selectedText: string) => onQuote(selectedText)
+    )
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub())
+      quoteFromAnywhereRemover?.()
+    }
+  }, [addNewTopic, onQuote])
 
   useEffect(() => {
     textareaRef.current?.focus()
@@ -828,48 +739,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [])
 
   const onToggleExpended = () => {
-    if (textareaHeight) {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        setTextareaHeight(undefined)
-        setTimeout(() => {
-          textArea.style.height = `${textArea.scrollHeight}px`
-        }, 200)
-        return
-      }
-    }
-
-    const isExpended = !expended
-    setExpend(isExpended)
+    const currentlyExpanded = expended || !!textareaHeight
+    const shouldExpand = !currentlyExpanded
+    setExpend(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
-
-    if (textArea) {
-      if (isExpended) {
-        textArea.style.height = '70vh'
-      } else {
-        resetHeight()
-      }
+    if (!textArea) return
+    if (shouldExpand) {
+      textArea.style.height = '70vh'
+      setTextareaHeight(window.innerHeight * 0.7)
+    } else {
+      textArea.style.height = 'auto'
+      setTextareaHeight(undefined)
+      requestAnimationFrame(() => {
+        if (textArea) {
+          const contentHeight = textArea.scrollHeight
+          textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+        }
+      })
     }
 
     textareaRef.current?.focus()
-  }
-
-  const resetHeight = () => {
-    if (expended) {
-      setExpend(false)
-    }
-
-    setTextareaHeight(undefined)
-
-    requestAnimationFrame(() => {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        const contentHeight = textArea.scrollHeight
-        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
-      }
-    })
   }
 
   const isExpended = expended || !!textareaHeight
@@ -936,75 +825,30 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             <HolderOutlined />
           </DragHandle>
           <Toolbar>
+            <InputbarTools
+              ref={inputbarToolsRef}
+              assistant={assistant}
+              model={model}
+              files={files}
+              setFiles={setFiles}
+              showThinkingButton={showThinkingButton}
+              showKnowledgeIcon={showKnowledgeIcon}
+              selectedKnowledgeBases={selectedKnowledgeBases}
+              handleKnowledgeBaseSelect={handleKnowledgeBaseSelect}
+              setText={setText}
+              resizeTextArea={resizeTextArea}
+              mentionModels={mentionModels}
+              onMentionModel={onMentionModel}
+              onEnableGenerateImage={onEnableGenerateImage}
+              isExpended={isExpended}
+              onToggleExpended={onToggleExpended}
+              addNewTopic={addNewTopic}
+              clearTopic={clearTopic}
+              onNewContext={onNewContext}
+              newTopicShortcut={newTopicShortcut}
+              cleanTopicShortcut={cleanTopicShortcut}
+            />
             <ToolbarMenu>
-              <Tooltip placement="top" title={t('chat.input.new_topic', { Command: newTopicShortcut })} arrow>
-                <ToolbarButton type="text" onClick={addNewTopic}>
-                  <MessageSquareDiff size={19} />
-                </ToolbarButton>
-              </Tooltip>
-              <AttachmentButton
-                ref={attachmentButtonRef}
-                model={model}
-                files={files}
-                setFiles={setFiles}
-                ToolbarButton={ToolbarButton}
-              />
-              {showThinkingButton && (
-                <ThinkingButton
-                  ref={thinkingButtonRef}
-                  model={model}
-                  assistant={assistant}
-                  ToolbarButton={ToolbarButton}
-                />
-              )}
-              <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
-              {showKnowledgeIcon && (
-                <KnowledgeBaseButton
-                  ref={knowledgeBaseButtonRef}
-                  selectedBases={selectedKnowledgeBases}
-                  onSelect={handleKnowledgeBaseSelect}
-                  ToolbarButton={ToolbarButton}
-                  disabled={files.length > 0}
-                />
-              )}
-              <MCPToolsButton
-                assistant={assistant}
-                ref={mcpToolsButtonRef}
-                ToolbarButton={ToolbarButton}
-                setInputValue={setText}
-                resizeTextArea={resizeTextArea}
-              />
-
-              <GenerateImageButton
-                model={model}
-                assistant={assistant}
-                onEnableGenerateImage={onEnableGenerateImage}
-                ToolbarButton={ToolbarButton}
-              />
-              <MentionModelsButton
-                ref={mentionModelsButtonRef}
-                mentionModels={mentionModels}
-                onMentionModel={onMentionModel}
-                ToolbarButton={ToolbarButton}
-              />
-              <QuickPhrasesButton
-                ref={quickPhrasesButtonRef}
-                setInputValue={setText}
-                resizeTextArea={resizeTextArea}
-                ToolbarButton={ToolbarButton}
-                assistantObj={assistant}
-              />
-              <Tooltip placement="top" title={t('chat.input.clear', { Command: cleanTopicShortcut })} arrow>
-                <ToolbarButton type="text" onClick={clearTopic}>
-                  <PaintbrushVertical size={18} />
-                </ToolbarButton>
-              </Tooltip>
-              <Tooltip placement="top" title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')} arrow>
-                <ToolbarButton type="text" onClick={onToggleExpended}>
-                  {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
-                </ToolbarButton>
-              </Tooltip>
-              <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
               <TokenCount
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
@@ -1012,8 +856,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
-            </ToolbarMenu>
-            <ToolbarMenu>
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
@@ -1101,11 +943,11 @@ const Textarea = styled(TextArea)`
   padding: 0;
   border-radius: 0;
   display: flex;
-  flex: 1;
   resize: none !important;
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
+  transition: height 0.2s ease;
   &.ant-input {
     line-height: 1.4;
   }
@@ -1118,7 +960,11 @@ const Toolbar = styled.div`
   padding: 0 8px;
   padding-bottom: 0;
   margin-bottom: 4px;
-  height: 36px;
+  height: 30px;
+  gap: 16px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
 `
 
 const ToolbarMenu = styled.div`

@@ -5,7 +5,6 @@ import React, { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { useCodeToolbar } from './context'
 import { CodeTool } from './types'
 
 interface CodeToolButtonProps {
@@ -13,22 +12,19 @@ interface CodeToolButtonProps {
 }
 
 const CodeToolButton: React.FC<CodeToolButtonProps> = memo(({ tool }) => {
-  const { context } = useCodeToolbar()
-
   return (
-    <Tooltip key={`${tool.id}-${tool.tooltip}`} title={tool.tooltip} mouseEnterDelay={0.5}>
-      <ToolWrapper onClick={() => tool.onClick(context)}>{tool.icon}</ToolWrapper>
+    <Tooltip key={tool.id} title={tool.tooltip} mouseEnterDelay={0.5}>
+      <ToolWrapper onClick={() => tool.onClick()}>{tool.icon}</ToolWrapper>
     </Tooltip>
   )
 })
 
-export const CodeToolbar: React.FC = memo(() => {
-  const { tools, context } = useCodeToolbar()
+export const CodeToolbar: React.FC<{ tools: CodeTool[] }> = memo(({ tools }) => {
   const [showQuickTools, setShowQuickTools] = useState(false)
   const { t } = useTranslation()
 
   // 根据条件显示工具
-  const visibleTools = tools.filter((tool) => !tool.visible || tool.visible(context))
+  const visibleTools = tools.filter((tool) => !tool.visible || tool.visible())
 
   // 按类型分组
   const coreTools = visibleTools.filter((tool) => tool.type === 'core')

@@ -67,16 +67,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'openrouter',
-    name: 'OpenRouter',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://openrouter.ai/api/v1/',
-    models: SYSTEM_MODELS.openrouter,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'ppio',
     name: 'PPIO',
     type: 'openai',
@@ -93,16 +83,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://deepseek.alayanew.com',
     models: SYSTEM_MODELS.alayanew,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'infini',
-    name: 'Infini',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://cloud.infini-ai.com/maas',
-    models: SYSTEM_MODELS.infini,
     isSystem: true,
     enabled: false
   },
@@ -137,12 +117,32 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'tokenflux',
+    name: 'TokenFlux',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://tokenflux.ai',
+    models: SYSTEM_MODELS.tokenflux,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'o3',
     name: 'O3',
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.o3.fan',
     models: SYSTEM_MODELS.o3,
+    isSystem: true,
+    enabled: false
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://openrouter.ai/api/v1/',
+    models: SYSTEM_MODELS.openrouter,
     isSystem: true,
     enabled: false
   },
@@ -299,6 +299,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'infini',
+    name: 'Infini',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://cloud.infini-ai.com/maas',
+    models: SYSTEM_MODELS.infini,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'minimax',
     name: 'MiniMax',
     type: 'openai',
@@ -409,16 +419,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'gitee-ai',
-    name: 'gitee ai',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://ai.gitee.com',
-    models: SYSTEM_MODELS['gitee-ai'],
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'perplexity',
     name: 'Perplexity',
     type: 'openai',
@@ -485,16 +485,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiKey: '',
     apiHost: 'https://api.voyageai.com',
     models: SYSTEM_MODELS.voyageai,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'tokenflux',
-    name: 'TokenFlux',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://tokenflux.ai',
-    models: SYSTEM_MODELS.tokenflux,
     isSystem: true,
     enabled: false
   }

@@ -39,6 +39,22 @@ class FileManager {
     return fileData.data
   }
 
+  static async addBase64File(file: FileType): Promise<FileType> {
+    Logger.log(`[FileManager] Adding base64 file: ${JSON.stringify(file)}`)
+
+    const base64File = await window.api.file.base64File(file.id + file.ext)
+    const fileRecord = await db.files.get(base64File.id)
+
+    if (fileRecord) {
+      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      return fileRecord
+    }
+
+    await db.files.add(base64File)
+
+    return base64File
+  }
+
   static async uploadFile(file: FileType): Promise<FileType> {
     Logger.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
 

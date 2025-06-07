@@ -11,8 +11,10 @@ import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
+import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { defaultWebSearchProviders } from './websearch'
 
@@ -71,6 +73,17 @@ function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchPr
       state.websearch.providers[index] = {
         ...state.websearch.providers[index],
         ...provider
+      }
+    }
+  }
+}
+
+function addSelectionAction(state: RootState, id: string) {
+  if (state.selectionStore && state.selectionStore.actionItems) {
+    if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
+      const action = defaultActionItems.find((item) => item.id === id)
+      if (action) {
+        state.selectionStore.actionItems.push(action)
       }
     }
   }
@@ -1441,6 +1454,53 @@ const migrateConfig = {
     try {
       addProvider(state, 'tokenflux')
       state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '109': (state: RootState) => {
+    try {
+      state.settings.userTheme = settingsInitialState.userTheme
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '110': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.tokenFluxPaintings) {
+        state.paintings.tokenFluxPaintings = []
+      }
+      state.settings.showTokens = true
+      state.settings.earlyAccess = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '111': (state: RootState) => {
+    try {
+      addSelectionAction(state, 'quote')
       return state
     } catch (error) {
       return state

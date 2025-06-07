@@ -81,7 +81,7 @@ const selectBlockEntityById = (state: RootState, blockId: string | undefined) =>
   blockId ? messageBlocksSelectors.selectById(state, blockId) : undefined // Use adapter selector
 
 // --- Centralized Citation Formatting Logic ---
-const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Citation[] => {
+export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined): Citation[] => {
   if (!block) return []
 
   let formattedCitations: Citation[] = []

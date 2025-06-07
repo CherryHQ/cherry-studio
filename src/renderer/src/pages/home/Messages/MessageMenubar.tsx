@@ -8,7 +8,7 @@ import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessag
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import { RootState } from '@renderer/store'
+import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
@@ -16,10 +16,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
-  exportMarkdownToNotion,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
@@ -90,13 +90,24 @@ const MessageMenubar: FC<Props> = (props) => {
   const onCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      navigator.clipboard.writeText(removeTrailingDoubleSpaces(mainTextContent.trimStart()))
+
+      const currentMessageId = message.id // from props
+      const latestMessageEntity = store.getState().messages.entities[currentMessageId]
+
+      let contentToCopy = ''
+      if (latestMessageEntity) {
+        contentToCopy = getMainTextContent(latestMessageEntity as Message)
+      } else {
+        contentToCopy = getMainTextContent(message)
+      }
+
+      navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
 
       window.message.success({ content: t('message.copied'), key: 'copy-message' })
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     },
-    [mainTextContent, t]
+    [message, t] // message is needed for message.id and as a fallback. t is for translation.
   )
 
   const onNewBranch = useCallback(async () => {
@@ -143,7 +154,7 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const isEditable = useMemo(() => {
-    return findMainTextBlocks(message).length === 1
+    return findMainTextBlocks(message).length > 0 // 使用 MCP Server 后会有大于一段 MatinTextBlock
   }, [message])
 
   const dropdownItems = useMemo(
@@ -233,7 +244,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToNotion(title, markdown)
+              exportMessageToNotion(title, markdown, message)
             }
           },
           exportMenuOptions.yuque && {
@@ -249,9 +260,8 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = messageToMarkdown(message)
               const title = topic.name?.replace(/\//g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
+              await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
             }
           },
           exportMenuOptions.joplin && {
@@ -259,8 +269,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'joplin',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMarkdownToJoplin(title, markdown)
+              exportMarkdownToJoplin(title, message)
             }
           },
           exportMenuOptions.siyuan && {
@@ -373,6 +382,10 @@ const MessageMenubar: FC<Props> = (props) => {
       {!isUserMessage && (
         <Dropdown
           menu={{
+            style: {
+              maxHeight: 250,
+              overflowY: 'auto'
+            },
             items: [
               ...TranslateLanguageOptions.map((item) => ({
                 label: item.emoji + ' ' + item.label,
@@ -428,7 +441,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: (e) => e.domEvent.stopPropagation()
           }}
           trigger={['click']}
-          placement="topRight"
+          placement="top"
           arrow>
           <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
             <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>

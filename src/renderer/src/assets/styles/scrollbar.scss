@@ -1,15 +1,11 @@
 :root {
   --color-scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --color-scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
-  --color-scrollbar-thumb-right: rgba(255, 255, 255, 0.18);
-  --color-scrollbar-thumb-right-hover: rgba(255, 255, 255, 0.25);
 }
 
 body[theme-mode='light'] {
   --color-scrollbar-thumb: rgba(0, 0, 0, 0.15);
   --color-scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
-  --color-scrollbar-thumb-right: rgba(0, 0, 0, 0.18);
-  --color-scrollbar-thumb-right-hover: rgba(0, 0, 0, 0.25);
 }
 
 /* 全局初始化滚动条样式 */
@@ -18,7 +14,8 @@ body[theme-mode='light'] {
   height: 6px;
 }
 
-::-webkit-scrollbar-track {
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -30,7 +27,7 @@ body[theme-mode='light'] {
   }
 }
 
-pre::-webkit-scrollbar-thumb {
+pre:not(.shiki)::-webkit-scrollbar-thumb {
   border-radius: 0;
   background: rgba(0, 0, 0, 0.08);
   &:hover {

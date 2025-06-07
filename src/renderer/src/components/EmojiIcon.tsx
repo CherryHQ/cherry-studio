@@ -1,4 +1,3 @@
-import { getLeadingEmoji } from '@renderer/utils'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -8,12 +7,10 @@ interface EmojiIconProps {
 }
 
 const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
-  const _emoji = getLeadingEmoji(emoji || '⭐️') || '⭐️'
-
   return (
     <Container className={className}>
-      <EmojiBackground>{_emoji}</EmojiBackground>
-      {_emoji}
+      <EmojiBackground>{emoji || '⭐️'}</EmojiBackground>
+      {emoji}
     </Container>
   )
 }

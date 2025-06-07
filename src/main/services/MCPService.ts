@@ -91,7 +91,7 @@ class McpService {
     return JSON.stringify({
       baseUrl: server.baseUrl,
       command: server.command,
-      args: server.args,
+      args: Array.isArray(server.args) ? server.args : [],
       registryUrl: server.registryUrl,
       env: server.env,
       id: server.id
@@ -245,7 +245,7 @@ class McpService {
             const loginShellEnv = await this.getLoginShellEnv()
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
-            if (cmd.endsWith('bun')) {
+            if (cmd.includes('bun')) {
               this.removeProxyEnv(loginShellEnv)
             }
 
@@ -567,12 +567,11 @@ class McpService {
     try {
       const result = await client.listResources()
       const resources = result.resources || []
-      const serverResources = (Array.isArray(resources) ? resources : []).map((resource: any) => ({
+      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
         ...resource,
         serverId: server.id,
         serverName: server.name
       }))
-      return serverResources
     } catch (error: any) {
       // -32601 is the code for the method not found
       if (error?.code !== -32601) {
