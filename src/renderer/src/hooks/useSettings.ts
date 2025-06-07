@@ -4,6 +4,7 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setEarlyAccess as _setEarlyAccess,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -19,6 +20,7 @@ import {
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { FeedUrl } from '@shared/config/constant'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -56,6 +58,11 @@ export function useSettings() {
     setAutoCheckUpdate(isAutoUpdate: boolean) {
       dispatch(_setAutoCheckUpdate(isAutoUpdate))
       window.api.setAutoUpdate(isAutoUpdate)
+    },
+
+    setEarlyAccess(isEarlyAccess: boolean) {
+      dispatch(_setEarlyAccess(isEarlyAccess))
+      window.api.setFeedUrl(isEarlyAccess ? FeedUrl.EARLY_ACCESS : FeedUrl.PRODUCTION)
     },
 
     setTheme(theme: ThemeMode) {

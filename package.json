@@ -93,7 +93,7 @@
     "officeparser": "^4.1.1",
     "os-proxy-config": "^1.1.2",
     "proxy-agent": "^6.5.0",
-    "selection-hook": "^0.9.21",
+    "selection-hook": "^0.9.22",
     "tar": "^7.4.3",
     "tencentcloud-sdk-nodejs-tts": "^4.1.45",
     "turndown": "^7.2.0",

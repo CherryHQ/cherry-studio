@@ -1,4 +1,4 @@
-import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import { defaultLanguage, FeedUrl, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
@@ -16,6 +16,7 @@ export enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
+  FeedUrl = 'feedUrl',
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
@@ -141,6 +142,14 @@ export class ConfigManager {
     this.set(ConfigKeys.AutoUpdate, value)
   }
 
+  getFeedUrl(): string {
+    return this.get<string>(ConfigKeys.FeedUrl, FeedUrl.PRODUCTION)
+  }
+
+  setFeedUrl(value: FeedUrl) {
+    this.set(ConfigKeys.FeedUrl, value)
+  }
+
   getEnableDataCollection(): boolean {
     return this.get<boolean>(ConfigKeys.EnableDataCollection, true)
   }
@@ -151,7 +160,7 @@ export class ConfigManager {
 
   // Selection Assistant: is enabled the selection assistant
   getSelectionAssistantEnabled(): boolean {
-    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, true)
+    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, false)
   }
 
   setSelectionAssistantEnabled(value: boolean) {
