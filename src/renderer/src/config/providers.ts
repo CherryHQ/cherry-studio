@@ -44,6 +44,8 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import HuaweiCloudMaaSProviderLogo from '@renderer/assets/images/providers/huawei_cloud_maas.svg'
+
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -66,6 +68,7 @@ const PROVIDER_LOGO_MAP = {
   anthropic: AnthropicProviderLogo,
   aihubmix: AiHubMixProviderLogo,
   burncloud: BurnCloudProviderLogo,
+  huaweicloudmaas: HuaweiCloudMaaSProviderLogo,
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
@@ -181,6 +184,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://ai.gitee.com/dashboard/settings/tokens',
       docs: 'https://ai.gitee.com/docs/openapi/v1#tag/%E6%96%87%E6%9C%AC%E7%94%9F%E6%88%90/POST/chat/completions',
       models: 'https://ai.gitee.com/serverless-api'
+    }
+  },
+  huaweicloudmaas: {
+    api: {
+      url: 'https://api.modelarts-maas.com'
+    },
+    websites: {
+      official: 'https://console.huaweicloud.com/modelarts/?locale=zh-cn&region=cn-southwest-2#/model-studio/deployment',
+      apiKey: 'https://console.huaweicloud.com/modelarts/?locale=zh-cn&region=cn-southwest-2#/model-studio/authmanage',
+      docs: 'https://support.huaweicloud.com/usermanual-maas-modelarts/maas-modelarts-0086.html',
+      models: 'https://console.huaweicloud.com/modelarts/?locale=zh-cn&region=cn-southwest-2#/model-studio/deployment'
     }
   },
   deepseek: {

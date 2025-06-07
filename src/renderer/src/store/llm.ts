@@ -487,6 +487,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.voyageai,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'huaweicloudmaas',
+    name: 'Huawei Cloud MaaS',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.modelarts-maas.com',
+    models: SYSTEM_MODELS.huaweicloudmaas,
+    isSystem: true,
+    enabled: false
   }
 ]
 
