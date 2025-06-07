@@ -1,4 +1,5 @@
 import { isMac } from '@renderer/config/constant'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
@@ -9,6 +10,7 @@ import store from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { ThemeMode } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
@@ -40,8 +42,11 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
-  const { defaultModel: model } = useDefaultModel()
-  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
+  const { defaultModel, quickAssistantModel } = useDefaultModel()
+  // 如果 quickAssistantModel 未設定，則使用 defaultModel
+  const model = quickAssistantModel || defaultModel
+  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
@@ -90,6 +95,9 @@ const HomeWindow: FC = () => {
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
     // 输入法可以`Esc`终止候选词过程
     // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
+    if (e.nativeEvent.isComposing) {
+      return
+    }
     if (e.key === 'Process') {
       return
     }
@@ -179,7 +187,7 @@ const HomeWindow: FC = () => {
 
       fetchChatCompletion({
         messages: [userMessage],
-        assistant: { ...assistant, model: getDefaultModel() },
+        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
         onChunkReceived: (chunk: Chunk) => {
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
@@ -216,7 +224,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant, topic]
+    [content, defaultAssistant, topic, quickAssistantModel]
   )
 
   const clearClipboard = () => {
@@ -253,12 +261,7 @@ const HomeWindow: FC = () => {
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
     // because the dark style under mac's vibrancy effect has not been implemented
-    if (
-      isMac &&
-      windowStyle === 'transparent' &&
-      theme === 'light' &&
-      !window.matchMedia('(prefers-color-scheme: dark)').matches
-    ) {
+    if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
 

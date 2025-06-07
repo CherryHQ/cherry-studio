@@ -1,4 +1,6 @@
 import Scrollbar from '@renderer/components/Scrollbar'
+import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -7,21 +9,23 @@ import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { Popover } from 'antd'
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled, { css } from 'styled-components'
 
 import MessageItem from './Message'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import SelectableMessage from './MessageSelect'
 
 interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
-  hidePresetMessages?: boolean
+  registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
-const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
+const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const { isMultiSelectMode } = useChatContext(topic)
 
   const [multiModelMessageStyle, setMultiModelMessageStyle] = useState<MultiModelMessageStyle>(
     messages[0].multiModelMessageStyle || multiModelMessageStyleSetting
@@ -31,7 +35,8 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
   const prevMessageLengthRef = useRef(messageLength)
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
 
-  const getSelectedMessageId = useCallback(() => {
+  const selectedMessageId = useMemo(() => {
+    if (messages.length === 1) return messages[0]?.id
     const selectedMessage = messages.find((message) => message.foldSelected)
     if (selectedMessage) {
       return selectedMessage.id
@@ -41,9 +46,10 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
 
   const setSelectedMessage = useCallback(
     (message: Message) => {
-      messages.forEach(async (m) => {
-        await editMessage(m.id, { foldSelected: m.id === message.id })
-      })
+      // 前一个
+      editMessage(selectedMessageId, { foldSelected: false })
+      // 当前选中的消息
+      editMessage(message.id, { foldSelected: true })
 
       setTimeout(() => {
         const messageElement = document.getElementById(`message-${message.id}`)
@@ -52,10 +58,10 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
         }
       }, 200)
     },
-    [editMessage, messages]
+    [editMessage, selectedMessageId]
   )
 
-  const isGrouped = messageLength > 1 && messages.every((m) => m.role === 'assistant')
+  const isGrouped = isMultiSelectMode ? false : messageLength > 1 && messages.every((m) => m.role === 'assistant')
   const isHorizontal = multiModelMessageStyle === 'horizontal'
   const isGrid = multiModelMessageStyle === 'grid'
 
@@ -67,8 +73,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
         setSelectedMessage(lastMessage)
       }
     } else {
-      const selectedId = getSelectedMessageId()
-      const newIndex = messages.findIndex((msg) => msg.id === selectedId)
+      const newIndex = messages.findIndex((msg) => msg.id === selectedMessageId)
       if (newIndex !== -1) {
         setSelectedIndex(newIndex)
       }
@@ -146,31 +151,38 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
     }
   }, [messages, setSelectedMessage])
 
+  useEffect(() => {
+    messages.forEach((message) => {
+      const element = document.getElementById(`message-${message.id}`)
+      element && registerMessageElement?.(message.id, element)
+    })
+    return () => messages.forEach((message) => registerMessageElement?.(message.id, null))
+  }, [messages, registerMessageElement])
+
   const renderMessage = useCallback(
-    (message: Message & { index: number }, index: number) => {
+    (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
         message,
         topic,
         index: message.index,
-        hidePresetMessages,
         style: {
           paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
         }
       }
 
-      const messageWrapper = (
+      const messageContent = (
         <MessageWrapper
           id={`message-${message.id}`}
           $layout={multiModelMessageStyle}
-          $selected={index === selectedIndex}
+          // $selected={index === selectedIndex}
           $isGrouped={isGrouped}
           key={message.id}
           className={classNames({
             'group-message-wrapper': message.role === 'assistant' && isHorizontal && isGrouped,
             [multiModelMessageStyle]: isGrouped,
-            selected: message.id === getSelectedMessageId()
+            selected: message.id === selectedMessageId
           })}>
           <MessageItem {...messageProps} />
         </MessageWrapper>
@@ -183,64 +195,63 @@ const MessageGroup = ({ messages, topic, hidePresetMessages }: Props) => {
             content={
               <MessageWrapper
                 $layout={multiModelMessageStyle}
-                $selected={index === selectedIndex}
+                // $selected={index === selectedIndex}
                 $isGrouped={isGrouped}
                 $isInPopover={true}>
                 <MessageItem {...messageProps} />
               </MessageWrapper>
             }
             trigger={gridPopoverTrigger}
-            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}
-            getPopupContainer={(triggerNode) => triggerNode.parentNode as HTMLElement}>
-            {messageWrapper}
+            styles={{ root: { maxWidth: '60vw', minWidth: '550px', overflowY: 'auto', zIndex: 1000 } }}>
+            <div style={{ cursor: 'pointer' }}>{messageContent}</div>
           </Popover>
         )
       }
 
-      return messageWrapper
+      return (
+        <SelectableMessage
+          key={`selectable-${message.id}`}
+          messageId={message.id}
+          topic={topic}
+          isClearMessage={message.type === 'clear'}>
+          {messageContent}
+        </SelectableMessage>
+      )
     },
-    [
-      isGrid,
-      isGrouped,
-      isHorizontal,
-      multiModelMessageStyle,
-      selectedIndex,
-      topic,
-      hidePresetMessages,
-      gridPopoverTrigger,
-      getSelectedMessageId
-    ]
+    [isGrid, isGrouped, topic, multiModelMessageStyle, isHorizontal, selectedMessageId, gridPopoverTrigger]
   )
 
   return (
-    <GroupContainer
-      id={`message-group-${messages[0].askId}`}
-      $isGrouped={isGrouped}
-      $layout={multiModelMessageStyle}
-      className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
-      <GridContainer
-        $count={messageLength}
+    <MessageEditingProvider>
+      <GroupContainer
+        id={`message-group-${messages[0].askId}`}
+        $isGrouped={isGrouped}
         $layout={multiModelMessageStyle}
-        $gridColumns={gridColumns}
-        className={classNames([isGrouped && 'group-grid-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
-        {messages.map(renderMessage)}
-      </GridContainer>
-      {isGrouped && (
-        <MessageGroupMenuBar
-          multiModelMessageStyle={multiModelMessageStyle}
-          setMultiModelMessageStyle={(style) => {
-            setMultiModelMessageStyle(style)
-            messages.forEach((message) => {
-              editMessage(message.id, { multiModelMessageStyle: style })
-            })
-          }}
-          messages={messages}
-          selectMessageId={getSelectedMessageId()}
-          setSelectedMessage={setSelectedMessage}
-          topic={topic}
-        />
-      )}
-    </GroupContainer>
+        className={classNames([isGrouped && 'group-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
+        <GridContainer
+          $count={messageLength}
+          $layout={multiModelMessageStyle}
+          $gridColumns={gridColumns}
+          className={classNames([isGrouped && 'group-grid-container', isHorizontal && 'horizontal', isGrid && 'grid'])}>
+          {messages.map(renderMessage)}
+        </GridContainer>
+        {isGrouped && (
+          <MessageGroupMenuBar
+            multiModelMessageStyle={multiModelMessageStyle}
+            setMultiModelMessageStyle={(style) => {
+              setMultiModelMessageStyle(style)
+              messages.forEach((message) => {
+                editMessage(message.id, { multiModelMessageStyle: style })
+              })
+            }}
+            messages={messages}
+            selectMessageId={selectedMessageId}
+            setSelectedMessage={setSelectedMessage}
+            topic={topic}
+          />
+        )}
+      </GroupContainer>
+    </MessageEditingProvider>
   )
 }
 
@@ -265,7 +276,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
-    minmax(550px, 1fr)
+    minmax(480px, 1fr)
   );
   @media (max-width: 800px) {
     grid-template-columns: repeat(
@@ -297,13 +308,14 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
 
 interface MessageWrapperProps {
   $layout: 'fold' | 'horizontal' | 'vertical' | 'grid'
-  $selected: boolean
+  // $selected: boolean
   $isGrouped: boolean
   $isInPopover?: boolean
 }
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
+
   &.horizontal {
     display: inline-block;
   }

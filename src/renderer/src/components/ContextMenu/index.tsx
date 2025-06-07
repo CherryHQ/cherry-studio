@@ -1,7 +1,7 @@
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Dropdown } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 interface ContextMenuProps {
   children: React.ReactNode
@@ -11,7 +11,6 @@ interface ContextMenuProps {
 const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) => {
   const { t } = useTranslation()
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number } | null>(null)
-  const [selectedQuoteText, setSelectedQuoteText] = useState<string>('')
   const [selectedText, setSelectedText] = useState<string>('')
 
   const handleContextMenu = useCallback(
@@ -19,12 +18,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
       e.preventDefault()
       const _selectedText = window.getSelection()?.toString()
       if (_selectedText) {
-        const quotedText =
-          _selectedText
-            .split('\n')
-            .map((line) => `> ${line}`)
-            .join('\n') + '\n-------------'
-        setSelectedQuoteText(quotedText)
         setContextMenuPosition({ x: e.clientX, y: e.clientY })
         setSelectedText(_selectedText)
       }
@@ -44,7 +37,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
   }, [])
 
   // 获取右键菜单项
-  const getContextMenuItems = (t: (key: string) => string, selectedQuoteText: string, selectedText: string) => [
+  const getContextMenuItems = (t: (key: string) => string, selectedText: string) => [
     {
       key: 'copy',
       label: t('common.copy'),
@@ -65,27 +58,29 @@ const ContextMenu: React.FC<ContextMenuProps> = ({ children, onContextMenu }) =>
       key: 'quote',
       label: t('chat.message.quote'),
       onClick: () => {
-        if (selectedQuoteText) {
-          EventEmitter.emit(EVENT_NAMES.QUOTE_TEXT, selectedQuoteText)
+        if (selectedText) {
+          window.api?.quoteToMainWindow(selectedText)
         }
       }
     }
   ]
 
   return (
-    <div onContextMenu={handleContextMenu} style={{ width: '100%' }}>
+    <ContextContainer onContextMenu={handleContextMenu} className="context-menu-container">
       {contextMenuPosition && (
         <Dropdown
           overlayStyle={{ position: 'fixed', left: contextMenuPosition.x, top: contextMenuPosition.y, zIndex: 1000 }}
-          menu={{ items: getContextMenuItems(t, selectedQuoteText, selectedText) }}
+          menu={{ items: getContextMenuItems(t, selectedText) }}
           open={true}
           trigger={['contextMenu']}>
           <div />
         </Dropdown>
       )}
       {children}
-    </div>
+    </ContextContainer>
   )
 }
+
+const ContextContainer = styled.div``
 
 export default ContextMenu

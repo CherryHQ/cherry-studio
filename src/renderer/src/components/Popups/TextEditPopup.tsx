@@ -18,6 +18,7 @@ interface ShowParams {
   text: string
   textareaProps?: TextAreaProps
   modalProps?: ModalProps
+  showTranslate?: boolean
   children?: (props: { onOk?: () => void; onCancel?: () => void }) => React.ReactNode
 }
 
@@ -25,7 +26,14 @@ interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, resolve, children }) => {
+const PopupContainer: React.FC<Props> = ({
+  text,
+  textareaProps,
+  modalProps,
+  resolve,
+  children,
+  showTranslate = true
+}) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const [textValue, setTextValue] = useState(text)
@@ -148,12 +156,14 @@ const PopupContainer: React.FC<Props> = ({ text, textareaProps, modalProps, reso
           onInput={resizeTextArea}
           onChange={(e) => setTextValue(e.target.value)}
         />
-        <TranslateButton
-          onClick={handleTranslate}
-          aria-label="Translate text"
-          disabled={isTranslating || !textValue.trim()}>
-          {isTranslating ? <LoadingOutlined spin /> : <Languages size={16} />}
-        </TranslateButton>
+        {showTranslate && (
+          <TranslateButton
+            onClick={handleTranslate}
+            aria-label="Translate text"
+            disabled={isTranslating || !textValue.trim()}>
+            {isTranslating ? <LoadingOutlined spin /> : <Languages size={16} />}
+          </TranslateButton>
+        )}
       </TextAreaContainer>
       <ChildrenContainer>{children && children({ onOk, onCancel })}</ChildrenContainer>
     </Modal>

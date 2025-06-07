@@ -1,6 +1,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import {
+  AssistantsSortType,
+  CodeStyleVarious,
+  LanguageVarious,
+  MathEngine,
+  OpenAIServiceTier,
+  OpenAISummaryText,
+  PaintingProvider,
+  ThemeMode,
+  TranslateLanguageVarious
+} from '@renderer/types'
 
 import { WebDAVSyncState } from './backup'
 
@@ -22,9 +32,14 @@ export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
+export type UserTheme = {
+  colorPrimary: string
+}
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
+  assistantsTabSortType: AssistantsSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
   targetLanguage: TranslateLanguageVarious
@@ -32,6 +47,7 @@ export interface SettingsState {
   proxyUrl?: string
   userName: string
   showPrompt: boolean
+  showTokens: boolean
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
@@ -40,15 +56,18 @@ export interface SettingsState {
   trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
+  userTheme: UserTheme
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
+  earlyAccess: boolean
   renderInputMessageAsMarkdown: boolean
   // 代码执行
   codeExecution: {
@@ -77,6 +96,8 @@ export interface SettingsState {
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
+  // 数据目录设置
+  skipBackupFile: boolean
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -85,6 +106,7 @@ export interface SettingsState {
   webdavAutoSync: boolean
   webdavSyncInterval: number
   webdavMaxBackups: number
+  webdavSkipBackupFile: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -113,14 +135,16 @@ export interface SettingsState {
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
   useTopicNamingForMessageTitle: boolean
+  showModelNameInMarkdown: boolean
+  showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
-  notionAutoSplit: boolean
-  notionSplitSize: number
+  notionExportReasoning: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
   joplinToken: string | null
   joplinUrl: string | null
+  joplinExportReasoning: boolean
   defaultObsidianVault: string | null
   defaultAgent: string | null
   // 思源笔记配置
@@ -149,6 +173,18 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
   }
+  // OpenAI
+  openAI: {
+    summaryText: OpenAISummaryText
+    serviceTier: OpenAIServiceTier
+  }
+  // Notification
+  notification: {
+    assistant: boolean
+    backup: boolean
+    knowledgeEmbed: boolean
+  }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -156,6 +192,7 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
+  assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
   targetLanguage: 'english' as TranslateLanguageVarious,
@@ -163,6 +200,7 @@ export const initialState: SettingsState = {
   proxyUrl: undefined,
   userName: '',
   showPrompt: true,
+  showTokens: true,
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
@@ -170,16 +208,21 @@ export const initialState: SettingsState = {
   launchToTray: false,
   trayOnClose: true,
   tray: true,
-  theme: ThemeMode.auto,
+  theme: ThemeMode.system,
+  userTheme: {
+    colorPrimary: '#00b96b'
+  },
   windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
+  earlyAccess: false,
   renderInputMessageAsMarkdown: false,
   codeExecution: {
     enabled: false,
@@ -207,6 +250,7 @@ export const initialState: SettingsState = {
   gridColumns: 2,
   gridPopoverTrigger: 'click',
   messageNavigation: 'none',
+  skipBackupFile: false,
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -214,6 +258,7 @@ export const initialState: SettingsState = {
   webdavAutoSync: false,
   webdavSyncInterval: 0,
   webdavMaxBackups: 0,
+  webdavSkipBackupFile: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -236,14 +281,16 @@ export const initialState: SettingsState = {
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
   useTopicNamingForMessageTitle: false,
+  showModelNameInMarkdown: false,
+  showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
-  notionAutoSplit: false,
-  notionSplitSize: 90,
+  notionExportReasoning: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
   joplinToken: '',
   joplinUrl: '',
+  joplinExportReasoning: false,
   defaultObsidianVault: null,
   defaultAgent: null,
   siyuanApiUrl: null,
@@ -268,7 +315,18 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
-  }
+  },
+  // OpenAI
+  openAI: {
+    summaryText: 'off',
+    serviceTier: 'auto'
+  },
+  notification: {
+    assistant: false,
+    backup: false,
+    knowledgeEmbed: false
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -286,6 +344,9 @@ const settingsSlice = createSlice({
     },
     toggleShowTopics: (state) => {
       state.showTopics = !state.showTopics
+    },
+    setAssistantsTabSortType: (state, action: PayloadAction<AssistantsSortType>) => {
+      state.assistantsTabSortType = action.payload
     },
     setSendMessageShortcut: (state, action: PayloadAction<SendMessageShortcut>) => {
       state.sendMessageShortcut = action.payload
@@ -307,6 +368,9 @@ const settingsSlice = createSlice({
     },
     setShowPrompt: (state, action: PayloadAction<boolean>) => {
       state.showPrompt = action.payload
+    },
+    setShowTokens: (state, action: PayloadAction<boolean>) => {
+      state.showTokens = action.payload
     },
     setShowMessageDivider: (state, action: PayloadAction<boolean>) => {
       state.showMessageDivider = action.payload
@@ -335,6 +399,9 @@ const settingsSlice = createSlice({
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
     },
+    setUserTheme: (state, action: PayloadAction<UserTheme>) => {
+      state.userTheme = action.payload
+    },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
     },
@@ -347,6 +414,9 @@ const settingsSlice = createSlice({
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
     },
+    setPinTopicsToTop: (state, action: PayloadAction<boolean>) => {
+      state.pinTopicsToTop = action.payload
+    },
     setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
       state.assistantIconType = action.payload
     },
@@ -356,11 +426,17 @@ const settingsSlice = createSlice({
     setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
       state.autoCheckUpdate = action.payload
     },
+    setEarlyAccess: (state, action: PayloadAction<boolean>) => {
+      state.earlyAccess = action.payload
+    },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
     },
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
+    },
+    setSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.skipBackupFile = action.payload
     },
     setWebdavHost: (state, action: PayloadAction<string>) => {
       state.webdavHost = action.payload
@@ -382,6 +458,9 @@ const settingsSlice = createSlice({
     },
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
+    },
+    setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.webdavSkipBackupFile = action.payload
     },
     setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
       if (action.payload.enabled !== undefined) {
@@ -519,14 +598,17 @@ const settingsSlice = createSlice({
     setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
       state.useTopicNamingForMessageTitle = action.payload
     },
+    setShowModelNameInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelNameInMarkdown = action.payload
+    },
+    setShowModelProviderInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelProviderInMarkdown = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
-    setNotionAutoSplit: (state, action: PayloadAction<boolean>) => {
-      state.notionAutoSplit = action.payload
-    },
-    setNotionSplitSize: (state, action: PayloadAction<number>) => {
-      state.notionSplitSize = action.payload
+    setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.notionExportReasoning = action.payload
     },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
@@ -542,6 +624,9 @@ const settingsSlice = createSlice({
     },
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
+    },
+    setJoplinExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.joplinExportReasoning = action.payload
     },
     setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
       state.messageNavigation = action.payload
@@ -587,15 +672,30 @@ const settingsSlice = createSlice({
     },
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
+    },
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+      state.openAI.summaryText = action.payload
+    },
+    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
+      state.openAI.serviceTier = action.payload
+    },
+    setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
+      state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
 
 export const {
+  setShowModelNameInMarkdown,
+  setShowModelProviderInMarkdown,
   setShowAssistants,
   toggleShowAssistants,
   setShowTopics,
   toggleShowTopics,
+  setAssistantsTabSortType,
   setSendMessageShortcut,
   setLanguage,
   setTargetLanguage,
@@ -603,6 +703,7 @@ export const {
   setProxyUrl,
   setUserName,
   setShowPrompt,
+  setShowTokens,
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
@@ -611,15 +712,19 @@ export const {
   setTrayOnClose,
   setTray,
   setTheme,
+  setUserTheme,
   setFontSize,
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setPinTopicsToTop,
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
+  setEarlyAccess,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
+  setSkipBackupFile,
   setWebdavHost,
   setWebdavUser,
   setWebdavPass,
@@ -627,6 +732,7 @@ export const {
   setWebdavAutoSync,
   setWebdavSyncInterval,
   setWebdavMaxBackups,
+  setWebdavSkipBackupFile,
   setCodeExecution,
   setCodeEditor,
   setCodePreview,
@@ -659,13 +765,13 @@ export const {
   setForceDollarMathInMarkdown,
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
-  setNotionAutoSplit,
-  setNotionSplitSize,
+  setNotionExportReasoning,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
   setJoplinToken,
   setJoplinUrl,
+  setJoplinExportReasoning,
   setMessageNavigation,
   setDefaultObsidianVault,
   setDefaultAgent,
@@ -680,7 +786,11 @@ export const {
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
-  setEnableBackspaceDeleteModel
+  setEnableBackspaceDeleteModel,
+  setOpenAISummaryText,
+  setOpenAIServiceTier,
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

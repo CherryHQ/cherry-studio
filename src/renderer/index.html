@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="initial-scale=1, width=device-width" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
+    content="default-src 'self'; connect-src blob: *; script-src 'self' 'unsafe-eval' 'unsafe-inline' *; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' *; font-src 'self' data: *; img-src 'self' data: file: * blob:; frame-src * file:" />
   <title>Cherry Studio</title>
 
   <style>
@@ -21,7 +21,7 @@
       flex-direction: row;
       justify-content: center;
       align-items: center;
-      display: none;
+      display: flex;
     }
 
     #spinner img {
@@ -36,6 +36,9 @@
   <div id="spinner">
     <img src="/src/assets/images/logo.png" />
   </div>
+  <script>
+    console.time('init')
+  </script>
   <script type="module" src="/src/init.ts"></script>
   <script type="module" src="/src/entryPoint.tsx"></script>
 </body>

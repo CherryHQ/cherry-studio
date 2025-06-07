@@ -3,14 +3,27 @@ import { FileType } from '@renderer/types'
 
 export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>): Promise<FileType[]> => {
   if (e.dataTransfer.files.length > 0) {
-    const results = await Promise.allSettled([...e.dataTransfer.files].map((file) => window.api.file.get(file.path)))
+    // 使用新的API获取文件路径
+    const filePromises = [...e.dataTransfer.files].map(async (file) => {
+      try {
+        // 使用新的webUtils.getPathForFile API获取文件路径
+        const filePath = window.api.file.getPathForFile(file)
+        if (filePath) {
+          return window.api.file.get(filePath)
+        }
+        return null
+      } catch (error) {
+        Logger.error('[src/renderer/src/utils/input.ts] getFilesFromDropEvent - getPathForFile error:', error)
+        return null
+      }
+    })
+
+    const results = await Promise.allSettled(filePromises)
     const list: FileType[] = []
     for (const result of results) {
-      if (result.status === 'fulfilled') {
-        if (result.value !== null) {
-          list.push(result.value)
-        }
-      } else {
+      if (result.status === 'fulfilled' && result.value !== null) {
+        list.push(result.value)
+      } else if (result.status === 'rejected') {
         Logger.error('[src/renderer/src/utils/input.ts] getFilesFromDropEvent:', result.reason)
       }
     }

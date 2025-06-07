@@ -47,7 +47,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       commandArgs = ['-ilc', shellCommandToGetEnv] // -i for interactive, -l for login, -c to execute command
     }
 
-    Logger.log(`Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
+    Logger.log(`[ShellEnv] Spawning shell: ${shellPath} with args: ${commandArgs.join(' ')} in ${homeDirectory}`)
 
     const child = spawn(shellPath, commandArgs, {
       cwd: homeDirectory, // Run the command in the user's home directory
@@ -85,7 +85,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         Logger.warn(`Shell process stderr output (even with exit code 0):\n${errorOutput.trim()}`)
       }
 
-      const env = {}
+      const env: Record<string, string> = {}
       const lines = output.split('\n')
 
       lines.forEach((line) => {
@@ -109,6 +109,8 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
         )
         Logger.warn('Raw output from shell:\n', output)
       }
+
+      env.PATH = env.Path || env.PATH || ''
 
       resolve(env)
     })

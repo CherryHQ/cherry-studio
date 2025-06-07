@@ -13,7 +13,6 @@ interface Props {
 
 const Artifacts: FC<Props> = ({ html }) => {
   const { t } = useTranslation()
-  const title = extractTitle(html) || 'Artifacts ' + t('chat.artifacts.button.preview')
   const { openMinapp } = useMinappPopup()
 
   /**
@@ -23,6 +22,7 @@ const Artifacts: FC<Props> = ({ html }) => {
     const path = await window.api.file.create('artifacts-preview.html')
     await window.api.file.write(path, html)
     const filePath = `file://${path}`
+    const title = extractTitle(html) || 'Artifacts ' + t('chat.artifacts.button.preview')
     openMinapp({
       id: 'artifacts-preview',
       name: title,

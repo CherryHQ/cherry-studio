@@ -1,11 +1,12 @@
+import '@main/config'
+
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
-import { isDev, isMac, isWin } from './constant'
+import { isDev, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -15,12 +16,23 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
+import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
+
+/**
+ * Disable chromium's window animations
+ * main purpose for this is to avoid the transparent window flashing when it is shown
+ * (especially on Windows for SelectionAssistant Toolbar)
+ * Know Issue: https://github.com/electron/electron/issues/12130#issuecomment-627198990
+ */
+if (isWin) {
+  app.commandLine.appendSwitch('wm-window-animations-disabled')
+}
 
 // in production mode, handle uncaught exception and unhandled rejection globally
 if (!isDev) {
@@ -42,7 +54,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   // Portable dir must be setup before app ready
   setUserDataDir()
-  
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
@@ -83,18 +95,9 @@ if (!app.requestSingleInstanceLock()) {
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
-    ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
-      return isMac ? 'mac' : isWin ? 'windows' : 'linux'
-    })
 
-    ipcMain.handle(IpcChannel.System_GetHostname, () => {
-      return require('os').hostname()
-    })
-
-    ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
-      const win = BrowserWindow.fromWebContents(e.sender)
-      win && win.webContents.toggleDevTools()
-    })
+    //start selection assistant service
+    initSelectionService()
   })
 
   registerProtocolClient(app)
@@ -121,6 +124,11 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuitting = true
+
+    // quit selection service
+    if (selectionService) {
+      selectionService.quit()
+    }
   })
 
   app.on('will-quit', async () => {

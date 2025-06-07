@@ -1,3 +1,4 @@
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
@@ -10,9 +11,11 @@ import {
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
+  isWebSearchModel,
   isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
@@ -81,6 +84,7 @@ export type OpenAIStreamChunk =
   | { type: 'reasoning' | 'text-delta'; textDelta: string }
   | { type: 'tool-calls'; delta: any }
   | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
+  | { type: 'unknown'; chunk: any }
 
 export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
@@ -258,24 +262,29 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         return { thinking: { type: 'disabled' } }
       }
 
-      return {}
-    }
-    const effortRatio = EFFORT_RATIO[reasoningEffort]
-    const budgetTokens = Math.floor((findTokenLimit(model.id)?.max || 0) * effortRatio)
-    // OpenRouter models
-    if (model.provider === 'openrouter') {
-      if (isSupportedReasoningEffortModel(model)) {
+      if (isSupportedThinkingTokenGeminiModel(model)) {
+        // openrouter没有提供一个不推理的选项，先隐藏
+        if (this.provider.id === 'openrouter') {
+          return { reasoning: { maxTokens: 0, exclude: true } }
+        }
         return {
-          reasoning: {
-            effort: assistant?.settings?.reasoning_effort
-          }
+          reasoning_effort: 'none'
         }
       }
 
-      if (isSupportedThinkingTokenModel(model)) {
+      return {}
+    }
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+    const budgetTokens = Math.floor(
+      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
+    )
+
+    // OpenRouter models
+    if (model.provider === 'openrouter') {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
-            max_tokens: budgetTokens
+            effort: assistant?.settings?.reasoning_effort === 'auto' ? 'medium' : assistant?.settings?.reasoning_effort
           }
         }
       }
@@ -297,7 +306,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     }
 
     // OpenAI models
-    if (isSupportedReasoningEffortOpenAIModel(model)) {
+    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
       return {
         reasoning_effort: assistant?.settings?.reasoning_effort
       }
@@ -305,10 +314,13 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     // Claude models
     if (isSupportedThinkingTokenClaudeModel(model)) {
+      const maxTokens = assistant.settings?.maxTokens
       return {
         thinking: {
           type: 'enabled',
-          budget_tokens: budgetTokens
+          budget_tokens: Math.floor(
+            Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          )
         }
       }
     }
@@ -353,7 +365,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     const model = assistant.model || defaultModel
 
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
-    const isEnabledBultinWebSearch = assistant.enableWebSearch
+    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
     messages = addImageFileToContents(messages)
     const enableReasoning =
       ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
@@ -366,6 +378,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }
+    if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+      systemMessage = {
+        role: 'assistant',
+        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+      }
+    }
     const { tools } = this.setupToolsConfig<ChatCompletionTool>({
       mcpTools,
       model,
@@ -373,7 +391,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     })
 
     if (this.useSystemPromptForTools) {
-      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+      systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools)
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
@@ -454,6 +472,7 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             keep_alive: this.keepAliveTime,
             stream: isSupportStreamOutput(),
             tools: !isEmpty(tools) ? tools : undefined,
+            service_tier: this.getServiceTier(model),
             ...getOpenAIWebSearchParams(assistant, model),
             ...this.getReasoningEffort(assistant, model),
             ...this.getProviderSpecificParameters(assistant, model),
@@ -525,12 +544,16 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
         // Separate onChunk calls for text and usage/metrics
         let content = ''
         stream.choices.forEach((choice) => {
+          const reasoning = choice.message.reasoning || choice.message.reasoning_content
           // reasoning
-          if (choice.message.reasoning) {
-            onChunk({ type: ChunkType.THINKING_DELTA, text: choice.message.reasoning })
+          if (reasoning) {
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: reasoning
+            })
             onChunk({
               type: ChunkType.THINKING_COMPLETE,
-              text: choice.message.reasoning,
+              text: reasoning,
               thinking_millsec: new Date().getTime() - start_time_millsec
             })
           }
@@ -596,27 +619,36 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       }
       const reasoningTag = getAppropriateTag(model)
       async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
-        for await (const chunk of stream) {
-          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-            break
-          }
+        try {
+          for await (const chunk of stream) {
+            if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+              break
+            }
 
-          const delta = chunk.choices[0]?.delta
-          if (delta?.reasoning_content || delta?.reasoning) {
-            yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
-          }
-          if (delta?.content) {
-            yield { type: 'text-delta', textDelta: delta.content }
-          }
-          if (delta?.tool_calls) {
-            yield { type: 'tool-calls', delta: delta }
-          }
+            if (chunk.choices && chunk.choices.length > 0) {
+              const delta = chunk.choices[0]?.delta
+              if (
+                (delta?.reasoning_content && delta?.reasoning_content !== '\n') ||
+                (delta?.reasoning && delta?.reasoning !== '\n')
+              ) {
+                yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+              }
+              if (delta?.content) {
+                yield { type: 'text-delta', textDelta: delta.content }
+              }
+              if (delta?.tool_calls && delta?.tool_calls.length > 0) {
+                yield { type: 'tool-calls', delta: delta }
+              }
 
-          const finishReason = chunk.choices[0]?.finish_reason
-          if (!isEmpty(finishReason)) {
-            yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
-            break
+              const finishReason = chunk?.choices[0]?.finish_reason
+              if (!isEmpty(finishReason)) {
+                yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+              }
+            }
           }
+        } catch (error) {
+          console.error('[openAIChunkToTextDelta] error', error)
+          throw error
         }
       }
 
@@ -633,10 +665,9 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       })
 
       // 3. 消费 processedStream，分发 onChunk
-      for await (const chunk of readableStreamAsyncIterable(processedStream)) {
+      for await (const chunk of readableStreamAsyncIterable<OpenAIStreamChunk>(processedStream)) {
         const delta = chunk.type === 'finish' ? chunk.delta : chunk
         const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
-
         switch (chunk.type) {
           case 'reasoning': {
             if (time_first_token_millsec === 0) {
@@ -718,9 +749,17 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             const usage = chunk.usage
             const originalFinishDelta = chunk.delta
             const originalFinishRawChunk = chunk.chunk
-
             if (!isEmpty(finishReason)) {
-              onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              if (content) {
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              }
+              if (thinkingContent) {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
               if (usage) {
                 finalUsage.completion_tokens += usage.completion_tokens || 0
                 finalUsage.prompt_tokens += usage.prompt_tokens || 0
@@ -739,6 +778,18 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
                     source: WebSearchSource.OPENAI_RESPONSE
                   }
                 } as LLMWebSearchCompleteChunk)
+              }
+              if (assistant.model?.provider === 'grok') {
+                const citations = originalFinishRawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.GROK
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
               }
               if (assistant.model?.provider === 'perplexity') {
                 const citations = originalFinishRawChunk.citations
@@ -782,6 +833,12 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
             }
             break
           }
+          case 'unknown': {
+            onChunk({
+              type: ChunkType.ERROR,
+              error: chunk.chunk
+            })
+          }
         }
       }
 
@@ -812,7 +869,6 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       if (toolResults.length) {
         await processToolResults(toolResults, idx)
       }
-
       onChunk({
         type: ChunkType.BLOCK_COMPLETE,
         response: {
@@ -943,12 +999,10 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      content: getMainTextContent(message)
+    }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
       const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
@@ -967,14 +1021,20 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
 
     await this.checkIsCopilot()
 
-    // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
+    const params = {
       model: model.id,
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
       stream: false,
       keep_alive: this.keepAliveTime,
       max_tokens: 1000
-    })
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      params['enable_thinking'] = false
+    }
+
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create(params as ChatCompletionCreateParamsNonStreaming)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
@@ -1105,11 +1165,14 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
       return { valid: false, error: new Error('No model found') }
     }
 
-    const body = {
+    const body: any = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      enable_thinking: false, // qwen3
       stream
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      body.enable_thinking = false // qwen3
     }
 
     try {
@@ -1198,7 +1261,9 @@ export default class OpenAIProvider extends BaseOpenAIProvider {
     try {
       const data = await this.sdk.embeddings.create({
         model: model.id,
-        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+        // @ts-ignore voyage api need null
+        encoding_format: model?.provider === 'voyageai' ? null : 'float'
       })
       return data.data[0].embedding.length
     } catch (e) {

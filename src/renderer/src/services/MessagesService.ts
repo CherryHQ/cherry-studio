@@ -129,7 +129,8 @@ export function getUserMessage({
   const blocks: MessageBlock[] = []
   const blockIds: string[] = []
 
-  if (content?.trim()) {
+  // 内容为空也应该创建空文本块
+  if (content !== undefined) {
     // Pass messageId when creating blocks
     const textBlock = createMainTextBlock(messageId, content, {
       status: MessageBlockStatus.SUCCESS,
@@ -215,10 +216,9 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
     try {
       window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
 
-      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
-        blocks: [tempTextBlock.id]
+        blocks: message.blocks
       })
 
       const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
@@ -230,6 +230,8 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title
+      } else {
+        window.message?.error(t('message.error.fetchTopicName'))
       }
     } catch (e) {
       window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })

@@ -1,4 +1,4 @@
-import { CompletionUsage } from 'openai/resources'
+import type { CompletionUsage } from 'openai/resources'
 
 import type {
   Assistant,
@@ -170,7 +170,6 @@ export type Message = {
   modelId?: string
   model?: Model
   type?: 'clear'
-  isPreset?: boolean
   useful?: boolean
   askId?: string // 关联的问题消息ID
   mentions?: Model[]

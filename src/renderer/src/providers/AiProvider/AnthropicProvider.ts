@@ -13,7 +13,7 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
-import { isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
+import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -189,7 +189,16 @@ export default class AnthropicProvider extends BaseProvider {
 
     const effortRatio = EFFORT_RATIO[reasoningEffort]
 
-    const budgetTokens = Math.floor((maxTokens || DEFAULT_MAX_TOKENS) * effortRatio * 0.8)
+    const budgetTokens = Math.max(
+      1024,
+      Math.floor(
+        Math.min(
+          (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
+            findTokenLimit(model.id)?.min!,
+          (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
+        )
+      )
+    )
 
     return {
       type: 'enabled',
@@ -234,7 +243,7 @@ export default class AnthropicProvider extends BaseProvider {
     })
 
     if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
-      systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
+      systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools)
     }
 
     let systemMessage: TextBlockParam | undefined = undefined
@@ -245,7 +254,7 @@ export default class AnthropicProvider extends BaseProvider {
       }
     }
 
-    const isEnabledBuiltinWebSearch = assistant.enableWebSearch
+    const isEnabledBuiltinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
 
     if (isEnabledBuiltinWebSearch) {
       const webSearchTool = await this.getWebSearchParams(model)
@@ -313,7 +322,7 @@ export default class AnthropicProvider extends BaseProvider {
             reasoning_content,
             usage: message.usage as any,
             metrics: {
-              completion_tokens: message.usage.output_tokens,
+              completion_tokens: message.usage?.output_tokens || 0,
               time_completion_millsec,
               time_first_token_millsec: 0
             }
@@ -436,6 +445,14 @@ export default class AnthropicProvider extends BaseProvider {
               )
             }
 
+            if (thinking_content) {
+              onChunk({
+                type: ChunkType.THINKING_COMPLETE,
+                text: thinking_content,
+                thinking_millsec: new Date().getTime() - time_first_token_millsec
+              })
+            }
+
             userMessages.push({
               role: message.role,
               content: message.content
@@ -455,18 +472,31 @@ export default class AnthropicProvider extends BaseProvider {
               }
             }
 
-            finalUsage.prompt_tokens += message.usage.input_tokens
-            finalUsage.completion_tokens += message.usage.output_tokens
-            finalUsage.total_tokens += finalUsage.prompt_tokens + finalUsage.completion_tokens
-            finalMetrics.completion_tokens = finalUsage.completion_tokens
-            finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
-            finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
+            // 直接修改finalUsage对象会报错，TypeError: Cannot assign to read only property 'prompt_tokens' of object '#<Object>'
+            // 暂未找到原因
+            const updatedUsage: Usage = {
+              ...finalUsage,
+              prompt_tokens: finalUsage.prompt_tokens + (message.usage?.input_tokens || 0),
+              completion_tokens: finalUsage.completion_tokens + (message.usage?.output_tokens || 0)
+            }
+            updatedUsage.total_tokens = updatedUsage.prompt_tokens + updatedUsage.completion_tokens
+
+            const updatedMetrics: Metrics = {
+              ...finalMetrics,
+              completion_tokens: updatedUsage.completion_tokens,
+              time_completion_millsec:
+                finalMetrics.time_completion_millsec + (new Date().getTime() - start_time_millsec),
+              time_first_token_millsec: time_first_token_millsec - start_time_millsec
+            }
+
+            Object.assign(finalUsage, updatedUsage)
+            Object.assign(finalMetrics, updatedMetrics)
 
             onChunk({
               type: ChunkType.BLOCK_COMPLETE,
               response: {
-                usage: finalUsage,
-                metrics: finalMetrics
+                usage: updatedUsage,
+                metrics: updatedMetrics
               }
             })
             resolve()
@@ -479,7 +509,9 @@ export default class AnthropicProvider extends BaseProvider {
     }
     onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     const start_time_millsec = new Date().getTime()
-    await processStream(body, 0).finally(cleanup)
+    await processStream(body, 0).finally(() => {
+      cleanup()
+    })
   }
 
   /**
@@ -540,12 +572,10 @@ export default class AnthropicProvider extends BaseProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      content: getMainTextContent(message)
+    }))
 
     if (first(userMessages)?.role === 'assistant') {
       userMessages.shift()

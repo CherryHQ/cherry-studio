@@ -1,14 +1,17 @@
 import {
   Content,
   File,
+  FileState,
   FinishReason,
   FunctionCall,
   GenerateContentConfig,
   GenerateContentResponse,
+  GenerateImagesParameters,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   Modality,
+  Pager,
   Part,
   PartUnion,
   SafetySetting,
@@ -27,6 +30,7 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
+import { CacheService } from '@renderer/services/CacheService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import {
   filterContextMessages,
@@ -91,7 +95,7 @@ export default class GeminiProvider extends BaseProvider {
     const isSmallFile = file.size < smallFileSize
 
     if (isSmallFile) {
-      const { data, mimeType } = await window.api.gemini.base64File(file)
+      const { data, mimeType } = await this.base64File(file)
       return {
         inlineData: {
           data,
@@ -101,7 +105,7 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     // Retrieve file from Gemini uploaded files
-    const fileMetadata: File | undefined = await window.api.gemini.retrieveFile(file, this.apiKey)
+    const fileMetadata: File | undefined = await this.retrieveFile(file)
 
     if (fileMetadata) {
       return {
@@ -113,7 +117,7 @@ export default class GeminiProvider extends BaseProvider {
     }
 
     // If file is not found, upload it to Gemini
-    const result = await window.api.gemini.uploadFile(file, this.apiKey)
+    const result = await this.uploadFile(file)
 
     return {
       fileData: {
@@ -282,12 +286,14 @@ export default class GeminiProvider extends BaseProvider {
   private getBudgetToken(assistant: Assistant, model: Model) {
     if (isGeminiReasoningModel(model)) {
       const reasoningEffort = assistant?.settings?.reasoning_effort
+      const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')
 
       // 如果thinking_budget是undefined，不思考
       if (reasoningEffort === undefined) {
         return {
           thinkingConfig: {
-            includeThoughts: false
+            includeThoughts: false,
+            ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
           } as ThinkingConfig
         }
       }
@@ -295,15 +301,19 @@ export default class GeminiProvider extends BaseProvider {
       const effortRatio = EFFORT_RATIO[reasoningEffort]
 
       if (effortRatio > 1) {
-        return {}
+        return {
+          thinkingConfig: {
+            includeThoughts: true
+          }
+        }
       }
 
       const { max } = findTokenLimit(model.id) || { max: 0 }
+      const budget = Math.floor(max * effortRatio)
 
-      // 如果thinking_budget是明确设置的值（包括0），使用该值
       return {
         thinkingConfig: {
-          thinkingBudget: Math.floor(max * effortRatio),
+          ...(budget > 0 ? { thinkingBudget: budget } : {}),
           includeThoughts: true
         } as ThinkingConfig
       }
@@ -365,7 +375,7 @@ export default class GeminiProvider extends BaseProvider {
     })
 
     if (this.useSystemPromptForTools) {
-      systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
+      systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools)
     }
 
     const toolResponses: MCPToolResponse[] = []
@@ -504,7 +514,6 @@ export default class GeminiProvider extends BaseProvider {
       let time_first_token_millsec = 0
 
       if (stream instanceof GenerateContentResponse) {
-        let content = ''
         const time_completion_millsec = new Date().getTime() - start_time_millsec
 
         const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
@@ -519,16 +528,18 @@ export default class GeminiProvider extends BaseProvider {
               if (part.functionCall) {
                 functionCalls.push(part.functionCall)
               }
-              if (part.text) {
-                content += part.text
-                onChunk({ type: ChunkType.TEXT_DELTA, text: part.text })
+              const text = part.text || ''
+              if (part.thought) {
+                onChunk({ type: ChunkType.THINKING_DELTA, text })
+                onChunk({ type: ChunkType.THINKING_COMPLETE, text })
+              } else if (part.text) {
+                onChunk({ type: ChunkType.TEXT_DELTA, text })
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text })
               }
             })
           }
         })
-        if (content.length) {
-          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
-        }
+
         if (functionCalls.length) {
           toolResults.push(...(await processToolCalls(functionCalls)))
         }
@@ -561,16 +572,35 @@ export default class GeminiProvider extends BaseProvider {
         } as BlockCompleteChunk)
       } else {
         let content = ''
+        let thinkingContent = ''
         for await (const chunk of stream) {
           if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) break
 
-          if (time_first_token_millsec == 0) {
-            time_first_token_millsec = new Date().getTime()
-          }
-
-          if (chunk.text !== undefined) {
-            content += chunk.text
-            onChunk({ type: ChunkType.TEXT_DELTA, text: chunk.text })
+          if (chunk.candidates?.[0]?.content?.parts && chunk.candidates[0].content.parts.length > 0) {
+            const parts = chunk.candidates[0].content.parts
+            for (const part of parts) {
+              if (!part.text) {
+                continue
+              } else if (part.thought) {
+                if (time_first_token_millsec === 0) {
+                  time_first_token_millsec = new Date().getTime()
+                }
+                thinkingContent += part.text
+                onChunk({ type: ChunkType.THINKING_DELTA, text: part.text || '' })
+              } else {
+                if (time_first_token_millsec == 0) {
+                  time_first_token_millsec = new Date().getTime()
+                } else {
+                  onChunk({
+                    type: ChunkType.THINKING_COMPLETE,
+                    text: thinkingContent,
+                    thinking_millsec: new Date().getTime() - time_first_token_millsec
+                  })
+                }
+                content += part.text
+                onChunk({ type: ChunkType.TEXT_DELTA, text: part.text })
+              }
+            }
           }
 
           if (chunk.candidates?.[0]?.finishReason) {
@@ -639,6 +669,7 @@ export default class GeminiProvider extends BaseProvider {
     const start_time_millsec = new Date().getTime()
 
     if (!streamOutput) {
+      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
       const response = await chat.sendMessage({
         message: messageContents as PartUnion,
         config: {
@@ -646,7 +677,6 @@ export default class GeminiProvider extends BaseProvider {
           abortSignal: abortController.signal
         }
       })
-      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
       return await processStream(response, 0).then(cleanup)
     }
 
@@ -735,13 +765,11 @@ export default class GeminiProvider extends BaseProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        // Get content using helper
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      // Get content using helper
+      content: getMainTextContent(message)
+    }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
       const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
@@ -863,10 +891,30 @@ export default class GeminiProvider extends BaseProvider {
 
   /**
    * Generate an image
-   * @returns The generated image
+   * @param params - The parameters for image generation
+   * @returns The generated image URLs
    */
-  public async generateImage(): Promise<string[]> {
-    return []
+  public async generateImage(params: GenerateImagesParameters): Promise<string[]> {
+    try {
+      console.log('[GeminiProvider] generateImage params:', params)
+      const response = await this.sdk.models.generateImages(params)
+
+      if (!response.generatedImages || response.generatedImages.length === 0) {
+        return []
+      }
+
+      const images = response.generatedImages
+        .filter((image) => image.image?.imageBytes)
+        .map((image) => {
+          const dataPrefix = `data:${image.image?.mimeType || 'image/png'};base64,`
+          return dataPrefix + image.image?.imageBytes
+        })
+      //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
+      return images
+    } catch (error) {
+      console.error('[generateImage] error:', error)
+      throw error
+    }
   }
 
   /**
@@ -921,7 +969,8 @@ export default class GeminiProvider extends BaseProvider {
       config = {
         ...config,
         thinkingConfig: {
-          includeThoughts: false
+          includeThoughts: false,
+          thinkingBudget: 0
         } as ThinkingConfig
       }
     }
@@ -1127,5 +1176,63 @@ export default class GeminiProvider extends BaseProvider {
       } satisfies Content
     }
     return
+  }
+
+  private async uploadFile(file: FileType): Promise<File> {
+    return await this.sdk.files.upload({
+      file: file.path,
+      config: {
+        mimeType: 'application/pdf',
+        name: file.id,
+        displayName: file.origin_name
+      }
+    })
+  }
+
+  private async base64File(file: FileType) {
+    const { data } = await window.api.file.base64File(file.id + file.ext)
+    return {
+      data,
+      mimeType: 'application/pdf'
+    }
+  }
+
+  private async retrieveFile(file: FileType): Promise<File | undefined> {
+    const cachedResponse = CacheService.get<any>('gemini_file_list')
+
+    if (cachedResponse) {
+      return this.processResponse(cachedResponse, file)
+    }
+
+    const response = await this.sdk.files.list()
+    CacheService.set('gemini_file_list', response, 3000)
+
+    return this.processResponse(response, file)
+  }
+
+  private async processResponse(response: Pager<File>, file: FileType) {
+    for await (const f of response) {
+      if (f.state === FileState.ACTIVE) {
+        if (f.displayName === file.origin_name && Number(f.sizeBytes) === file.size) {
+          return f
+        }
+      }
+    }
+
+    return undefined
+  }
+
+  // @ts-ignore unused
+  private async listFiles(): Promise<File[]> {
+    const files: File[] = []
+    for await (const f of await this.sdk.files.list()) {
+      files.push(f)
+    }
+    return files
+  }
+
+  // @ts-ignore unused
+  private async deleteFile(fileId: string) {
+    await this.sdk.files.delete({ name: fileId })
   }
 }

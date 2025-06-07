@@ -4,6 +4,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   FolderOutlined,
+  MenuOutlined,
   PushpinOutlined,
   QuestionCircleOutlined,
   UploadOutlined
@@ -54,7 +55,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, topicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -174,7 +175,11 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           if (messages.length >= 2) {
             const summaryText = await fetchMessagesSummary({ messages, assistant })
             if (summaryText) {
-              updateTopic({ ...topic, name: summaryText, isNameManuallyEdited: false })
+              const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
+              updateTopic(updatedTopic)
+              topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+            } else {
+              window.message?.error(t('message.error.fetchTopicName'))
             }
           }
         }
@@ -190,7 +195,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             defaultValue: topic?.name || ''
           })
           if (name && topic?.name !== name) {
-            updateTopic({ ...topic, name, isNameManuallyEdited: true })
+            const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+            updateTopic(updatedTopic)
+            topic.id === activeTopic.id && setActiveTopic(updatedTopic)
           }
         }
       },
@@ -241,6 +248,23 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             onOk: () => onClearMessages(topic)
           })
         }
+      },
+      {
+        label: t('settings.topic.position'),
+        key: 'topic-position',
+        icon: <MenuOutlined />,
+        children: [
+          {
+            label: t('settings.topic.position.left'),
+            key: 'left',
+            onClick: () => setTopicPosition('left')
+          },
+          {
+            label: t('settings.topic.position.right'),
+            key: 'right',
+            onClick: () => setTopicPosition('right')
+          }
+        ]
       },
       {
         label: t('chat.topics.copy.title'),
@@ -306,16 +330,15 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = await topicToMarkdown(topic)
-              await ObsidianExportPopup.show({ title: topic.name, markdown, processingMethod: '3' })
+              await ObsidianExportPopup.show({ title: topic.name, topic, processingMethod: '3' })
             }
           },
           exportMenuOptions.joplin && {
             label: t('chat.topics.export.joplin'),
             key: 'joplin',
             onClick: async () => {
-              const markdown = await topicToMarkdown(topic)
-              exportMarkdownToJoplin(topic.name, markdown)
+              const topicMessages = await TopicManager.getTopicMessages(topic.id)
+              exportMarkdownToJoplin(topic.name, topicMessages)
             }
           },
           exportMenuOptions.siyuan && {
@@ -358,32 +381,45 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
 
     return menus
   }, [
-    activeTopic.id,
-    assistant,
-    assistants,
-    exportMenuOptions.docx,
+    targetTopic,
+    t,
     exportMenuOptions.image,
-    exportMenuOptions.joplin,
     exportMenuOptions.markdown,
     exportMenuOptions.markdown_reason,
+    exportMenuOptions.docx,
     exportMenuOptions.notion,
-    exportMenuOptions.obsidian,
-    exportMenuOptions.siyuan,
     exportMenuOptions.yuque,
-    onClearMessages,
-    onDeleteTopic,
-    onMoveTopic,
-    onPinTopic,
-    setActiveTopic,
-    t,
+    exportMenuOptions.obsidian,
+    exportMenuOptions.joplin,
+    exportMenuOptions.siyuan,
+    assistants,
+    assistant,
     updateTopic,
-    targetTopic
+    activeTopic.id,
+    setActiveTopic,
+    onPinTopic,
+    onClearMessages,
+    setTopicPosition,
+    onMoveTopic,
+    onDeleteTopic
   ])
+
+  // Sort topics based on pinned status if pinTopicsToTop is enabled
+  const sortedTopics = useMemo(() => {
+    if (pinTopicsToTop) {
+      return [...assistant.topics].sort((a, b) => {
+        if (a.pinned && !b.pinned) return -1
+        if (!a.pinned && b.pinned) return 1
+        return 0
+      })
+    }
+    return assistant.topics
+  }, [assistant.topics, pinTopicsToTop])
 
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
-      <Container right={topicPosition === 'right'} className="topics-tab">
-        <DragableList list={assistant.topics} onUpdate={updateTopics}>
+      <Container className="topics-tab">
+        <DragableList list={sortedTopics} onUpdate={updateTopics}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id
             const topicName = topic.name.replace('`', '')
@@ -396,9 +432,46 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
-                <TopicName className="name" title={topicName}>
-                  {topicName}
-                </TopicName>
+                <TopicNameContainer>
+                  <TopicName className="name" title={topicName}>
+                    {topicName}
+                  </TopicName>
+                  {isActive && !topic.pinned && (
+                    <Tooltip
+                      placement="bottom"
+                      mouseEnterDelay={0.7}
+                      title={
+                        <div>
+                          <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
+                            {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+                          </div>
+                        </div>
+                      }>
+                      <MenuButton
+                        className="menu"
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey) {
+                            handleConfirmDelete(topic, e)
+                          } else if (deletingTopicId === topic.id) {
+                            handleConfirmDelete(topic, e)
+                          } else {
+                            handleDeleteClick(topic.id, e)
+                          }
+                        }}>
+                        {deletingTopicId === topic.id ? (
+                          <DeleteOutlined style={{ color: 'var(--color-error)' }} />
+                        ) : (
+                          <CloseOutlined />
+                        )}
+                      </MenuButton>
+                    </Tooltip>
+                  )}
+                  {topic.pinned && (
+                    <MenuButton className="pin">
+                      <PushpinOutlined />
+                    </MenuButton>
+                  )}
+                </TopicNameContainer>
                 {topicPrompt && (
                   <TopicPromptText className="prompt" title={fullTopicPrompt}>
                     {fullTopicPrompt}
@@ -406,37 +479,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                 )}
                 {showTopicTime && (
                   <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
-                )}
-                <MenuButton className="pin">{topic.pinned && <PushpinOutlined />}</MenuButton>
-                {isActive && !topic.pinned && (
-                  <Tooltip
-                    placement="bottom"
-                    mouseEnterDelay={0.7}
-                    title={
-                      <div>
-                        <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
-                          {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                        </div>
-                      </div>
-                    }>
-                    <MenuButton
-                      className="menu"
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey) {
-                          handleConfirmDelete(topic, e)
-                        } else if (deletingTopicId === topic.id) {
-                          handleConfirmDelete(topic, e)
-                        } else {
-                          handleDeleteClick(topic.id, e)
-                        }
-                      }}>
-                      {deletingTopicId === topic.id ? (
-                        <DeleteOutlined style={{ color: 'var(--color-error)' }} />
-                      ) : (
-                        <CloseOutlined />
-                      )}
-                    </MenuButton>
-                  </Tooltip>
                 )}
               </TopicListItem>
             )
@@ -457,15 +499,12 @@ const Container = styled(Scrollbar)`
 const TopicListItem = styled.div`
   padding: 7px 12px;
   border-radius: var(--list-item-border-radius);
-  font-family: Ubuntu;
   font-size: 13px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  font-family: Ubuntu;
   cursor: pointer;
-  border: 0.5px solid transparent;
   position: relative;
   width: calc(var(--assistants-width) - 20px);
   .menu {
@@ -473,15 +512,10 @@ const TopicListItem = styled.div`
     color: var(--color-text-3);
   }
   &:hover {
-    background-color: var(--color-background-soft);
-    .name {
-    }
+    background-color: var(--color-list-item-hover);
   }
   &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    .name {
-    }
+    background-color: var(--color-list-item);
     .menu {
       opacity: 1;
       &:hover {
@@ -489,6 +523,14 @@ const TopicListItem = styled.div`
       }
     }
   }
+`
+
+const TopicNameContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
 `
 
 const TopicName = styled.div`
@@ -534,11 +576,8 @@ const MenuButton = styled.div`
   flex-direction: row;
   justify-content: center;
   align-items: center;
-  min-width: 22px;
-  min-height: 22px;
-  position: absolute;
-  right: 8px;
-  top: 6px;
+  min-width: 20px;
+  min-height: 20px;
   .anticon {
     font-size: 12px;
   }
