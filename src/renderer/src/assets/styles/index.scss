@@ -136,15 +136,16 @@ ul {
   }
   .message-user {
     color: var(--chat-text-user);
-    .markdown,
-    .anticon,
-    .iconfont,
-    .lucide,
-    .message-tokens {
+    .message-content-container-user .anticon {
       color: var(--chat-text-user) !important;
     }
-    .message-action-button:hover {
-      background-color: var(--color-white-soft);
+
+    .markdown {
+      color: var(--chat-text-user);
+    }
+
+    .message-tokens {
+      color: var(--color-text-2);
     }
   }
   .group-grid-container.horizontal,

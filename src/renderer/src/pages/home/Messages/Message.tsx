@@ -99,7 +99,7 @@ const MessageItem: FC<Props> = ({
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
-  const messageBorder = showMessageDivider ? undefined : 'none'
+  const messageBorder = !isBubbleStyle && showMessageDivider ? '1px dotted var(--color-border)' : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
 
   const messageHighlightHandler = useCallback((highlight: boolean = true) => {
@@ -176,12 +176,12 @@ const MessageItem: FC<Props> = ({
           <MessageErrorBoundary>
             <MessageContent message={message} />
           </MessageErrorBoundary>
-          {showMenubar && (
+          {showMenubar && (!isBubbleStyle || isLastMessage) && (
             <MessageFooter
               className="MessageFooter"
               style={{
-                border: messageBorder,
-                flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
+                borderTop: messageBorder,
+                flexDirection: isLastMessage ? 'row-reverse' : undefined
               }}>
               <MessageTokens message={message} isLastMessage={isLastMessage} />
               <MessageMenubar
@@ -199,6 +199,28 @@ const MessageItem: FC<Props> = ({
             </MessageFooter>
           )}
         </MessageContentContainer>
+        {showMenubar && isBubbleStyle && !isLastMessage && (
+          <MessageFooter
+            className="MessageFooter"
+            style={{
+              borderTop: messageBorder,
+              flexDirection: isLastMessage || !isAssistantMessage ? 'row-reverse' : undefined
+            }}>
+            <MessageTokens message={message} isLastMessage={isLastMessage} />
+            <MessageMenubar
+              message={message}
+              assistant={assistant}
+              model={model}
+              index={index}
+              topic={topic}
+              isLastMessage={isLastMessage}
+              isAssistantMessage={isAssistantMessage}
+              isGrouped={isGrouped}
+              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+              setModel={setModel}
+            />
+          </MessageFooter>
+        )}
       </ContextMenu>
     </MessageContainer>
   )
@@ -257,7 +279,6 @@ const MessageFooter = styled.div`
   align-items: center;
   padding: 2px 0;
   margin-top: 2px;
-  border-top: 1px dotted var(--color-border);
   gap: 20px;
 `
 
