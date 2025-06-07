@@ -5,8 +5,8 @@ import GoogleProviderLogo from '@renderer/assets/images/providers/google.png'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
-import { OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 import { TTSProvider } from '@renderer/types/tts'
+import { OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 
 // TTS Provider Logo Map
 const TTS_PROVIDER_LOGO_MAP = {

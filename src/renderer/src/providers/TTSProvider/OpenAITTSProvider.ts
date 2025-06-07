@@ -1,5 +1,5 @@
-import { DEFAULT_MODEL_IDS, DEFAULT_VOICE_IDS, OPENAI_TTS_MODELS, OPENAI_TTS_VOICES } from '@renderer/constants/tts'
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+import { OPENAI_TTS_VOICES, OPENAI_TTS_MODELS, DEFAULT_VOICE_IDS, DEFAULT_MODEL_IDS } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
@@ -22,7 +22,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
       console.log('[OpenAI TTS] Fetching available models from API')
       const response = await fetch('https://api.openai.com/v1/models', {
         headers: {
-          Authorization: `Bearer ${this.provider.apiKey}`,
+          'Authorization': `Bearer ${this.provider.apiKey}`,
           'Content-Type': 'application/json'
         }
       })
@@ -37,7 +37,7 @@ export class OpenAITTSProvider extends BaseTTSProvider {
       const ttsModels = data.data
         .filter((model: any) => model.id.startsWith('tts-'))
         .map((model: any) => {
-          const defaultModel = OPENAI_TTS_MODELS.find((m) => m.id === model.id)
+          const defaultModel = OPENAI_TTS_MODELS.find(m => m.id === model.id)
           return {
             id: model.id,
             name: defaultModel?.name || model.id,

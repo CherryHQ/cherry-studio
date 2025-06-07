@@ -1,5 +1,5 @@
-import { SILICONFLOW_TTS_VOICES } from '@renderer/constants/tts'
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
+import { SILICONFLOW_TTS_VOICES } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
