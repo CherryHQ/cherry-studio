@@ -41,6 +41,12 @@ export class TTSService {
    * 设置当前供应商
    */
   setCurrentProvider(providerId: string): boolean {
+    if (!providerId) {
+      // 如果 providerId 为空，清除当前供应商
+      this.currentProvider = null
+      return true
+    }
+
     const provider = this.providers.get(providerId)
     if (provider) {
       this.currentProvider = provider

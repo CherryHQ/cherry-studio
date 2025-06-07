@@ -58,7 +58,7 @@ export interface TTSProviderSettings {
 
 export interface TTSState {
   providers: TTSProvider[]
-  currentProvider: string
+  currentProvider: string | null
   globalSettings: {
     enabled: boolean
     autoPlay: boolean

@@ -64,12 +64,15 @@ const ttsSlice = createSlice({
 
           // 如果禁用的是当前供应商，清除当前供应商
           if (state.currentProvider === action.payload.id) {
-            state.currentProvider = 'web-speech' // 默认回到 web-speech
-            // 检查 web-speech 是否可用，如果可用则启用它
-            const webSpeechProvider = state.providers.find((p) => p.id === 'web-speech')
-            if (webSpeechProvider) {
-              webSpeechProvider.enabled = true
-              console.log('[TTS Store] Fallback to web-speech provider')
+            // 查找其他启用的供应商
+            const enabledProvider = state.providers.find((p) => p.id !== action.payload.id && p.enabled)
+            if (enabledProvider) {
+              state.currentProvider = enabledProvider.id
+              console.log('[TTS Store] Switched to enabled provider:', enabledProvider.id)
+            } else {
+              // 如果没有其他启用的供应商，清除当前供应商
+              state.currentProvider = null
+              console.log('[TTS Store] No enabled providers, cleared current provider')
             }
           }
         }
@@ -153,7 +156,7 @@ const ttsSlice = createSlice({
         // 如果删除的是当前供应商，切换到第一个启用的供应商
         if (state.currentProvider === action.payload) {
           const enabledProvider = state.providers.find((p) => p.enabled)
-          state.currentProvider = enabledProvider?.id || 'web-speech'
+          state.currentProvider = enabledProvider?.id || null
         }
       }
     }

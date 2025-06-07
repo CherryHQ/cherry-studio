@@ -70,8 +70,13 @@ export const useTTS = () => {
 
   // 单独处理当前供应商变化
   useEffect(() => {
-    if (ttsState.currentProvider && ttsState.currentProvider !== lastCurrentProviderRef.current) {
-      ttsService.setCurrentProvider(ttsState.currentProvider)
+    if (ttsState.currentProvider !== lastCurrentProviderRef.current) {
+      if (ttsState.currentProvider) {
+        ttsService.setCurrentProvider(ttsState.currentProvider)
+      } else {
+        // 当 currentProvider 为 null 时，清除 TTSService 中的当前供应商
+        ttsService.setCurrentProvider('')
+      }
       lastCurrentProviderRef.current = ttsState.currentProvider
     }
   }, [ttsService, ttsState.currentProvider])

@@ -229,15 +229,11 @@ const TTSSettings: FC = () => {
               </a>
             )}
           </Flex>
+          <Switch checked={selectedProvider.enabled} onChange={handleProviderEnabledChange} />
         </SettingTitle>
         <SettingHelpText>{config.description}</SettingHelpText>
 
-        <SettingRow style={{ marginTop: 20 }}>
-          <SettingRowTitle>{t('settings.tts.enabled')}</SettingRowTitle>
-          <Switch checked={selectedProvider.enabled} onChange={handleProviderEnabledChange} />
-        </SettingRow>
-
-        <SettingDivider />
+        <SettingDivider style={{ margin: '10px 0' }} />
 
         <SettingRow>
           <SettingRowTitle>{t('settings.tts.auto_play')}</SettingRowTitle>
