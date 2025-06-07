@@ -1704,24 +1704,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: '免费模型'
     },
     {
-      id: 'THUDM/glm-4-9b-chat',
-      provider: 'dmxapi',
-      name: 'THUDM/glm-4-9b-chat',
-      group: '免费模型'
-    },
-    {
-      id: 'glm-4-flash',
-      provider: 'dmxapi',
-      name: 'glm-4-flash',
-      group: '免费模型'
-    },
-    {
-      id: 'hunyuan-lite',
-      provider: 'dmxapi',
-      name: 'hunyuan-lite',
-      group: '免费模型'
-    },
-    {
       id: 'gpt-4o',
       provider: 'dmxapi',
       name: 'gpt-4o',

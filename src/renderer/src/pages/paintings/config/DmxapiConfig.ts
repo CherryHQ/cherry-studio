@@ -7,6 +7,8 @@ import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg
 import { uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
 
+import { generationModeType } from '../../../types'
+
 export const STYLE_TYPE_OPTIONS = [
   { label: '吉卜力', value: '吉卜力' },
   { label: '皮克斯', value: '皮克斯' },
@@ -42,6 +44,22 @@ export const TEXT_TO_IMAGES_MODELS = [
     id: 'seedream-3.0',
     provider: 'DMXAPI',
     name: ' 即梦 seedream-3.0'
+  }
+]
+
+export const IMAGE_EDIT_MODELS = [
+  {
+    id: 'gpt-image-1',
+    provider: 'DMXAPI',
+    name: 'OpenAI：gpt-image-1'
+  }
+]
+
+export const IMAGE_MERGE_MODELS = [
+  {
+    id: 'gpt-image-1',
+    provider: 'DMXAPI',
+    name: 'OpenAI：gpt-image-1'
   }
 ]
 
@@ -91,5 +109,12 @@ export const DEFAULT_PAINTING: DmxapiPainting = {
   seed: '',
   style_type: '',
   model: TEXT_TO_IMAGES_MODELS[0].id,
-  autoCreate: false
+  autoCreate: false,
+  generationMode: generationModeType.GENERATION
 }
+
+export const MODEOPTIONS = [
+  { label: 'paintings.mode.generate', value: generationModeType.GENERATION },
+  { label: '改图', value: generationModeType.EDIT },
+  { label: '合并图', value: generationModeType.MERGE }
+]
