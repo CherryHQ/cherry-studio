@@ -99,7 +99,7 @@ const MessageItem: FC<Props> = ({
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
-  const messageBorder = showMessageDivider ? undefined : 'none'
+  const messageBorder = showMessageDivider ? '1px dotted var(--color-border)' : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
 
   const messageHighlightHandler = useCallback((highlight: boolean = true) => {
@@ -156,7 +156,7 @@ const MessageItem: FC<Props> = ({
       })}
       ref={messageContainerRef}
       style={{ ...style, alignItems: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined }}>
-      <ContextMenu>
+      <ContextMenu style={{ display: 'flex', flexDirection: 'column' }}>
         <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
         <MessageContentContainer
           className={
@@ -171,19 +171,20 @@ const MessageItem: FC<Props> = ({
             fontSize,
             background: messageBackground,
             overflowY: 'visible',
-            maxWidth: narrowMode ? 760 : undefined
+            maxWidth: narrowMode ? 760 : undefined,
+            alignSelf: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined
           }}>
           <MessageErrorBoundary>
             <MessageContent message={message} />
           </MessageErrorBoundary>
-          {showMenubar && (
+          {/* 内部菜单 */}
+          {showMenubar && (!isBubbleStyle || isLastMessage) && (
             <MessageFooter
               className="MessageFooter"
               style={{
-                border: messageBorder,
-                flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
+                borderTop: messageBorder,
+                flexDirection: !isLastMessage ? 'row-reverse' : undefined
               }}>
-              <MessageTokens message={message} isLastMessage={isLastMessage} />
               <MessageMenubar
                 message={message}
                 assistant={assistant}
@@ -196,9 +197,31 @@ const MessageItem: FC<Props> = ({
                 messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
                 setModel={setModel}
               />
+              {(!isBubbleStyle || isLastMessage) && <MessageTokens message={message} isLastMessage={isLastMessage} />}
             </MessageFooter>
           )}
         </MessageContentContainer>
+        {/* 外部菜单 */}
+        {showMenubar && isBubbleStyle && !isLastMessage && (
+          <MessageFooter
+            className="MessageFooter"
+            style={{
+              flexDirection: isLastMessage || !isAssistantMessage ? 'row-reverse' : undefined
+            }}>
+            <MessageMenubar
+              message={message}
+              assistant={assistant}
+              model={model}
+              index={index}
+              topic={topic}
+              isLastMessage={isLastMessage}
+              isAssistantMessage={isAssistantMessage}
+              isGrouped={isGrouped}
+              messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+              setModel={setModel}
+            />
+          </MessageFooter>
+        )}
       </ContextMenu>
     </MessageContainer>
   )
@@ -257,7 +280,6 @@ const MessageFooter = styled.div`
   align-items: center;
   padding: 2px 0;
   margin-top: 2px;
-  border-top: 1px dotted var(--color-border);
   gap: 20px;
 `
 
