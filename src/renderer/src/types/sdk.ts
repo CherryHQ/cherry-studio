@@ -8,18 +8,26 @@ import {
   ToolUseBlock
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import { GoogleGenAI } from '@google/genai'
+import {
+  Content,
+  CreateChatParameters,
+  FunctionCall,
+  GenerateContentResponse,
+  GoogleGenAI,
+  SendMessageParameters,
+  Tool
+} from '@google/genai'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { Stream } from 'openai/streaming'
 
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
-export type SdkParams = OpenAISdkParams | AnthropicSdkParams
-export type SdkRawChunk = OpenAISdkRawChunk | AnthropicSdkRawChunk
-export type SdkRawOutput = OpenAISdkRawOutput | AnthropicSdkRawOutput
-export type SdkMessageParam = OpenAISdkMessageParam | AnthropicSdkMessageParam
+export type SdkParams = OpenAISdkParams | AnthropicSdkParams | GeminiSdkParams
+export type SdkRawChunk = OpenAISdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
+export type SdkRawOutput = OpenAISdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput
+export type SdkMessageParam = OpenAISdkMessageParam | AnthropicSdkMessageParam | GeminiSdkMessageParam
 export type SdkMessage = OpenAISdkMessage | AnthropicSdkMessage
-export type SdkToolCall = OpenAI.Chat.Completions.ChatCompletionMessageToolCall | ToolUseBlock
-export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion
+export type SdkToolCall = OpenAI.Chat.Completions.ChatCompletionMessageToolCall | ToolUseBlock | FunctionCall
+export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool
 
 /**
  * OpenAI
@@ -58,4 +66,16 @@ export type AnthropicSdkRawChunk = RawMessageStreamEvent
 export type AnthropicSdkMessageParam = MessageParam
 export type AnthropicSdkMessage = Message
 
-export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions
+export type GeminiSdkParams = SendMessageParameters & CreateChatParameters
+export type GeminiSdkRawOutput = AsyncGenerator<GenerateContentResponse> | GenerateContentResponse
+export type GeminiSdkRawChunk = GenerateContentResponse
+export type GeminiSdkMessageParam = Content
+export type GeminiSdkToolCall = FunctionCall
+
+export type GeminiOptions = {
+  streamOutput: boolean
+  abortSignal?: AbortSignal
+  timeout?: number
+}
+
+export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions

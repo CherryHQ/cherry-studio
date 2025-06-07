@@ -127,7 +127,7 @@ export function applyMethodMiddlewares<
       return originalMethod.apply(originalApiClientInstance, currentArgs)
     }
 
-    const chain = middlewares.map((middleware) => middleware(api as MiddlewareAPI<any, any>)) // Cast API if TContext/TArgs mismatch general ProviderMethodMiddleware / 如果TContext/TArgs与通用的ProviderMethodMiddleware不匹配，则转换API
+    const chain = middlewares.map((middleware) => middleware(api)) // Cast API if TContext/TArgs mismatch general ProviderMethodMiddleware / 如果TContext/TArgs与通用的ProviderMethodMiddleware不匹配，则转换API
     const composedMiddlewareLogic = compose(...chain)
     const enhancedDispatch = composedMiddlewareLogic(finalDispatch)
 
@@ -173,7 +173,7 @@ export function applyCompletionsMiddlewares<
     TRawChunk,
     TSdkSpecificTool
   >[]
-): (params: CompletionsParams) => Promise<CompletionsResult> {
+): (params: CompletionsParams, options?: RequestOptions) => Promise<CompletionsResult> {
   // Returns a function matching the original method signature. /
   // 返回一个与原始方法签名匹配的函数。
 
@@ -207,7 +207,10 @@ export function applyCompletionsMiddlewares<
     }
   }
 
-  return async function enhancedCompletionsMethod(params: CompletionsParams): Promise<CompletionsResult> {
+  return async function enhancedCompletionsMethod(
+    params: CompletionsParams,
+    options?: RequestOptions
+  ): Promise<CompletionsResult> {
     // `originalCallArgs` for context creation is `[params]`. /
     // 用于上下文创建的 `originalCallArgs` 是 `[params]`。
     const originalCallArgs: [CompletionsParams] = [params]
@@ -270,6 +273,7 @@ export function applyCompletionsMiddlewares<
       // Call the original SDK method with transformed parameters
       // 使用转换后的参数调用原始 SDK 方法
       const rawOutput = await originalCompletionsMethod.call(originalApiClientInstance, sdkPayload, {
+        ...options,
         signal: abortSignal,
         timeout
       })

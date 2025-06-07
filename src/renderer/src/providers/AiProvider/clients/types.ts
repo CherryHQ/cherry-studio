@@ -67,7 +67,7 @@ export interface RequestTransformer<
 /**
  * 响应块转换器接口
  */
-export type ResponseChunkTransformer<TRawChunk = any, TContext = any> = (
+export type ResponseChunkTransformer<TRawChunk extends SdkRawChunk = SdkRawChunk, TContext = any> = (
   context?: TContext
 ) => Transformer<TRawChunk, GenericChunk>
 
@@ -120,7 +120,11 @@ export interface ApiClient<
   // 构建SDK特定的消息列表，用于工具调用后的递归调用
   buildSdkMessages(
     currentReqMessages: TMessageParam[],
+    output: TRawOutput | string,
     toolResults: TMessageParam[],
-    assistantMessage: TMessageParam
+    toolCalls?: TToolCall[]
   ): TMessageParam[]
+
+  // 从SDK载荷中提取消息数组（用于中间件中的类型安全访问）
+  extractMessagesFromSdkPayload(sdkPayload: TSdkParams): TMessageParam[]
 }

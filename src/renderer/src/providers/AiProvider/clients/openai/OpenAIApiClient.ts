@@ -97,7 +97,7 @@ export class OpenAIAPIClient extends BaseApiClient<
     return sdk.chat.completions.create(payload, options)
   }
 
-  async getSdkInstance() {
+  override async getSdkInstance() {
     if (this.sdkInstance) {
       return this.sdkInstance
     }
@@ -349,14 +349,14 @@ export class OpenAIAPIClient extends BaseApiClient<
     return mcpToolsToOpenAIChatTools(mcpTools)
   }
 
-  convertSdkToolCallToMcp(
+  public convertSdkToolCallToMcp(
     toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
     mcpTools: MCPTool[]
   ): MCPTool | undefined {
     return openAIToolsToMcpTool(mcpTools, toolCall)
   }
 
-  convertSdkToolCallToMcpToolResponse(
+  public convertSdkToolCallToMcpToolResponse(
     toolCall: OpenAI.Chat.Completions.ChatCompletionMessageToolCall,
     mcpTool: MCPTool
   ): ToolCallResponse {
@@ -375,7 +375,7 @@ export class OpenAIAPIClient extends BaseApiClient<
     } as ToolCallResponse
   }
 
-  convertMcpToolResponseToSdkMessageParam(
+  public convertMcpToolResponseToSdkMessageParam(
     mcpToolResponse: MCPToolResponse,
     resp: MCPCallToolResponse,
     model: Model
@@ -394,13 +394,23 @@ export class OpenAIAPIClient extends BaseApiClient<
     return undefined
   }
 
-  buildSdkMessages(
+  public buildSdkMessages(
     currentReqMessages: OpenAISdkMessageParam[],
+    output: string,
     toolResults: OpenAISdkMessageParam[],
-    assistantMessage: OpenAISdkMessageParam
+    toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
   ): OpenAISdkMessageParam[] {
+    const assistantMessage: OpenAISdkMessageParam = {
+      role: 'assistant',
+      content: output,
+      tool_calls: toolCalls
+    }
     const newReqMessages = [...currentReqMessages, assistantMessage, ...(toolResults || [])]
     return newReqMessages
+  }
+
+  public extractMessagesFromSdkPayload(sdkPayload: OpenAISdkParams): OpenAISdkMessageParam[] {
+    return sdkPayload.messages || []
   }
 
   getRequestTransformer(): RequestTransformer<OpenAISdkParams, OpenAISdkMessageParam> {
@@ -654,6 +664,9 @@ export class OpenAIAPIClient extends BaseApiClient<
                 llm_web_search: webSearchData
               })
             }
+            controller.enqueue({
+              type: ChunkType.LLM_RESPONSE_COMPLETE
+            })
           }
         }
       }

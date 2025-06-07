@@ -1,5 +1,5 @@
 import Logger from '@renderer/config/logger'
-import { ChunkType, LLMWebSearchCompleteChunk, TextCompleteChunk, TextDeltaChunk } from '@renderer/types/chunk'
+import { ChunkType, LLMWebSearchCompleteChunk, TextDeltaChunk } from '@renderer/types/chunk'
 import { completeLinks, smartLinkConverter } from '@renderer/utils/linkConverter'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
@@ -43,7 +43,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
         // 用于跨chunk的状态管理
         let accumulatedTextContent = ''
         let isFirstChunk = true
-        let pendingWebSearchResults: any[] = [] // 暂存Web搜索结果，用于最终链接完善
+        const pendingWebSearchResults: any[] = [] // 暂存Web搜索结果，用于最终链接完善
 
         const enhancedTextStream = resultFromUpstream.pipeThrough(
           new TransformStream<GenericChunk, GenericChunk>({
@@ -89,29 +89,18 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                 // 将Web搜索完成事件继续传递下去
                 controller.enqueue(chunk)
               } else if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
-                // 流结束信号，生成TEXT_COMPLETE事件
                 let finalText = accumulatedTextContent
-
                 // 如果有待处理的Web搜索结果，尝试完善链接
                 if (assistant.enableWebSearch && pendingWebSearchResults.length > 0) {
                   finalText = completeLinks(finalText, pendingWebSearchResults)
                 }
-
-                const textCompleteChunk: TextCompleteChunk = {
+                if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
+                  ctx._internal.toolProcessingState.output = finalText
+                }
+                controller.enqueue({
                   type: ChunkType.TEXT_COMPLETE,
                   text: finalText
-                }
-                controller.enqueue(textCompleteChunk)
-
-                console.log(`[${MIDDLEWARE_NAME}] Generated TEXT_COMPLETE with ${finalText.length} characters`)
-
-                // 继续传递LLM_RESPONSE_COMPLETE事件
-                controller.enqueue(chunk)
-
-                // 重置状态
-                accumulatedTextContent = ''
-                isFirstChunk = true
-                pendingWebSearchResults = []
+                })
               } else {
                 // 其他类型的chunk直接传递
                 controller.enqueue(chunk)

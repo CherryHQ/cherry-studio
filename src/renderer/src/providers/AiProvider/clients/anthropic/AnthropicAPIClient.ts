@@ -9,11 +9,18 @@ import {
   WebSearchTool20250305
 } from '@anthropic-ai/sdk/resources'
 import {
+  ContentBlock,
+  ContentBlockParam,
   MessageCreateParams,
   MessageCreateParamsBase,
+  RedactedThinkingBlockParam,
+  ServerToolUseBlockParam,
+  ThinkingBlockParam,
   ThinkingConfigParam,
   ToolUnion,
+  ToolUseBlockParam,
   WebSearchResultBlock,
+  WebSearchToolResultBlockParam,
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
@@ -287,14 +294,31 @@ export class AnthropicAPIClient extends BaseApiClient<
 
   override buildSdkMessages(
     currentReqMessages: AnthropicSdkMessageParam[],
-    toolResults: AnthropicSdkMessageParam[],
-    assistantMessage: AnthropicSdkMessageParam
+    output: Anthropic.Message,
+    toolResults: AnthropicSdkMessageParam[]
   ): AnthropicSdkMessageParam[] {
+    const assistantMessage: AnthropicSdkMessageParam = {
+      role: output.role,
+      content: convertContentBlocksToParams(output.content)
+    }
+
     const newMessages: AnthropicSdkMessageParam[] = [...currentReqMessages, assistantMessage]
     if (toolResults && toolResults.length > 0) {
       newMessages.push(...toolResults)
     }
     return newMessages
+  }
+
+  public buildAssistantMessage(message: Anthropic.Message): AnthropicSdkMessageParam {
+    const messageParam: AnthropicSdkMessageParam = {
+      role: message.role,
+      content: convertContentBlocksToParams(message.content)
+    }
+    return messageParam
+  }
+
+  public extractMessagesFromSdkPayload(sdkPayload: AnthropicSdkParams): AnthropicSdkMessageParam[] {
+    return sdkPayload.messages || []
   }
 
   /**
@@ -536,10 +560,72 @@ export class AnthropicAPIClient extends BaseApiClient<
                   Logger.error(`Error parsing tool call input: ${error}`)
                 }
               }
+              break
+            }
+            case 'message_stop': {
+              controller.enqueue({
+                type: ChunkType.LLM_RESPONSE_COMPLETE
+              })
+              break
             }
           }
         }
       }
     }
   }
+}
+
+/**
+ * 将 ContentBlock 数组转换为 ContentBlockParam 数组
+ * 去除服务器生成的额外字段，只保留发送给API所需的字段
+ */
+function convertContentBlocksToParams(contentBlocks: ContentBlock[]): ContentBlockParam[] {
+  return contentBlocks.map((block): ContentBlockParam => {
+    switch (block.type) {
+      case 'text':
+        // TextBlock -> TextBlockParam，去除 citations 等服务器字段
+        return {
+          type: 'text',
+          text: block.text
+        } satisfies TextBlockParam
+      case 'tool_use':
+        // ToolUseBlock -> ToolUseBlockParam
+        return {
+          type: 'tool_use',
+          id: block.id,
+          name: block.name,
+          input: block.input
+        } satisfies ToolUseBlockParam
+      case 'thinking':
+        // ThinkingBlock -> ThinkingBlockParam
+        return {
+          type: 'thinking',
+          thinking: block.thinking,
+          signature: block.signature
+        } satisfies ThinkingBlockParam
+      case 'redacted_thinking':
+        // RedactedThinkingBlock -> RedactedThinkingBlockParam
+        return {
+          type: 'redacted_thinking',
+          data: block.data
+        } satisfies RedactedThinkingBlockParam
+      case 'server_tool_use':
+        // ServerToolUseBlock -> ServerToolUseBlockParam
+        return {
+          type: 'server_tool_use',
+          id: block.id,
+          name: block.name,
+          input: block.input
+        } satisfies ServerToolUseBlockParam
+      case 'web_search_tool_result':
+        // WebSearchToolResultBlock -> WebSearchToolResultBlockParam
+        return {
+          type: 'web_search_tool_result',
+          tool_use_id: block.tool_use_id,
+          content: block.content
+        } satisfies WebSearchToolResultBlockParam
+      default:
+        return block as ContentBlockParam
+    }
+  })
 }

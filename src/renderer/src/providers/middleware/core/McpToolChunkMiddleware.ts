@@ -1,7 +1,7 @@
 import Logger from '@renderer/config/logger'
 import { MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk } from '@renderer/types/chunk'
-import { SdkMessageParam, SdkToolCall } from '@renderer/types/sdk'
+import { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
 import { parseAndCallTools } from '@renderer/utils/mcp-tools'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
@@ -89,8 +89,6 @@ function createToolHandlingTransform(
   const toolCalls: SdkToolCall[] = []
   const toolUseResponses: MCPToolResponse[] = []
   const allToolResponses: MCPToolResponse[] = [] // 统一的工具响应状态管理数组
-  let assistantMessage: SdkMessageParam | null = null
-  let assistantMessageContent = ''
   let hasToolCalls = false
   let hasToolUseResponses = false
   let streamEnded = false
@@ -123,10 +121,6 @@ function createToolHandlingTransform(
           // 不转发MCP工具进展chunks，避免重复处理
           Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Intercepting MCP tool progress chunk to prevent duplicate processing`)
           return
-        }
-        // 处理 OpenAI 的 assistantMessageContent
-        if (chunk.type === ChunkType.TEXT_DELTA) {
-          assistantMessageContent += chunk.text
         }
 
         // 转发其他所有chunk
@@ -186,23 +180,9 @@ function createToolHandlingTransform(
             Logger.debug(
               `🔧 [${MIDDLEWARE_NAME}][DEBUG] Building params for recursive call with ${toolResult.length} tool results`
             )
-            console.log('assistantMessageContent', assistantMessageContent)
-            console.log(
-              'ctx._internal.toolProcessingState?.assistantMessage',
-              ctx._internal.toolProcessingState?.assistantMessage
-            )
-            // anthropic 的 assistantMessage 在 RawStreamListenerMiddleware 中设置
-            if (ctx._internal.toolProcessingState?.assistantMessage) {
-              assistantMessage = ctx._internal.toolProcessingState.assistantMessage
-            } else {
-              assistantMessage = {
-                role: 'assistant',
-                content: assistantMessageContent || '',
-                tool_calls: toolCalls
-              } as SdkMessageParam
-            }
+            const output = ctx._internal.toolProcessingState?.output
 
-            const newParams = buildParamsWithToolResults(ctx, currentParams, toolResult, assistantMessage!)
+            const newParams = buildParamsWithToolResults(ctx, currentParams, output!, toolResult, toolCalls)
             Logger.debug(
               `🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting recursive tool call from depth ${depth} to ${depth + 1}`
             )
@@ -214,7 +194,6 @@ function createToolHandlingTransform(
           console.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
           controller.error(error)
         } finally {
-          assistantMessage = null
           hasToolCalls = false
           hasToolUseResponses = false
         }
@@ -333,17 +312,18 @@ async function executeToolUseResponses(
 function buildParamsWithToolResults(
   ctx: CompletionsContext,
   currentParams: CompletionsParams,
+  output: SdkRawOutput | string,
   toolResults: SdkMessageParam[],
-  assistantMessage: SdkMessageParam
+  toolCalls: SdkToolCall[]
 ): CompletionsParams {
   // 获取当前已经转换好的reqMessages，如果没有则使用原始messages
-  const currentReqMessages = ctx._internal.sdkPayload?.messages || []
+  const currentReqMessages = getCurrentReqMessages(ctx)
   Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current messages count: ${currentReqMessages.length}`)
 
   const apiClient = ctx.apiClientInstance
 
   // 从回复中构建助手消息
-  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, toolResults, assistantMessage)
+  const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, output, toolResults, toolCalls)
 
   Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
   Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Message roles:`, newReqMessages.map((m) => m.role).join(' -> '))
@@ -367,6 +347,20 @@ function buildParamsWithToolResults(
       newReqMessages: newReqMessages
     }
   }
+}
+
+/**
+ * 类型安全地获取当前请求消息
+ * 使用API客户端提供的抽象方法，保持中间件的provider无关性
+ */
+function getCurrentReqMessages(ctx: CompletionsContext): SdkMessageParam[] {
+  const sdkPayload = ctx._internal.sdkPayload
+  if (!sdkPayload) {
+    return []
+  }
+
+  // 使用API客户端的抽象方法来提取消息，保持provider无关性
+  return ctx.apiClientInstance.extractMessagesFromSdkPayload(sdkPayload)
 }
 
 export default McpToolChunkMiddleware

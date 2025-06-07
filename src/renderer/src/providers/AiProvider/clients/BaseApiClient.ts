@@ -90,14 +90,6 @@ export abstract class BaseApiClient<
   // 在RawSdkChunkToGenericChunkMiddleware中使用
   abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
 
-  /**
-   * 附加原始流监听器
-   */
-  abstract attachRawStreamListener<TListener extends RawStreamListener<TRawChunk>>(
-    rawOutput: TRawOutput,
-    listener: TListener
-  ): TRawOutput
-
   // Optional tool conversion methods - implement if needed by the specific provider
   abstract convertMcpToolsToSdkTools(mcpTools: MCPTool[]): TSdkSpecificTool[]
 
@@ -107,8 +99,9 @@ export abstract class BaseApiClient<
 
   abstract buildSdkMessages(
     currentReqMessages: TMessageParam[],
+    output: TRawOutput | string,
     toolResults: TMessageParam[],
-    assistantMessage: TMessageParam
+    toolCalls?: TToolCall[]
   ): TMessageParam[]
 
   abstract convertMcpToolResponseToSdkMessageParam(
@@ -116,6 +109,23 @@ export abstract class BaseApiClient<
     resp: MCPCallToolResponse,
     model: Model
   ): TMessageParam | undefined
+
+  /**
+   * 从SDK载荷中提取消息数组（用于中间件中的类型安全访问）
+   * 不同的提供商可能使用不同的字段名（如messages、history等）
+   */
+  abstract extractMessagesFromSdkPayload(sdkPayload: TSdkParams): TMessageParam[]
+
+  /**
+   * 附加原始流监听器
+   */
+  public attachRawStreamListener<TListener extends RawStreamListener<TRawChunk>>(
+    rawOutput: TRawOutput,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _listener: TListener
+  ): TRawOutput {
+    return rawOutput
+  }
 
   protected getBaseURL(): string {
     return this.provider.apiHost

@@ -2,6 +2,7 @@ import { ApiClientFactory } from '@renderer/providers/AiProvider/clients/ApiClie
 import { BaseApiClient } from '@renderer/providers/AiProvider/clients/BaseApiClient'
 import type { Assistant, GenerateImageParams, Model, Provider, Suggestion } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { RequestOptions } from '@renderer/types/sdk'
 import OpenAI from 'openai'
 
 import { CompletionsMiddlewareBuilder } from '../middleware/builder'
@@ -20,7 +21,7 @@ export default class AiProvider {
     this.apiClient = ApiClientFactory.create(provider)
   }
 
-  public async completions(params: CompletionsParams): Promise<CompletionsResult> {
+  public async completions(params: CompletionsParams, options?: RequestOptions): Promise<CompletionsResult> {
     // 1. Build the middleware chain
     const builder = CompletionsMiddlewareBuilder.withDefaults()
     if (!params.enableReasoning) {
@@ -43,7 +44,7 @@ export default class AiProvider {
     )
 
     // 3. Execute the wrapped method with the original params
-    return wrappedCompletionMethod(params)
+    return wrappedCompletionMethod(params, options)
   }
 
   public async translate(

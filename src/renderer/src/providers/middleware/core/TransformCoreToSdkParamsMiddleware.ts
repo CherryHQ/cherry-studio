@@ -49,7 +49,7 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
 
     try {
       // 调用transformer进行转换
-      console.log(
+      Logger.debug(
         `🔄 [${MIDDLEWARE_NAME}] Transforming ${params.messages?.length || 0} application messages to SDK format`
       )
       const transformResult = await requestTransformer.transform(
@@ -72,8 +72,7 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
         }
       }
 
-      Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Successfully transformed CoreCompletionsRequest to SDK params`)
-      Logger.debug(`🔄 [${MIDDLEWARE_NAME}] SDK payload messages count: ${sdkPayload?.messages?.length || 0}`)
+      Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Successfully transformed CoreCompletionsRequest to SDK params:`, sdkPayload)
       Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Has metadata:`, !!metadata)
 
       return next(ctx, params)

@@ -322,18 +322,23 @@ export async function fetchChatCompletion({
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   // --- Call AI Completions ---
-  await AI.completions({
-    messages: filteredMessages,
-    model,
-    assistant,
-    onFilterMessages: () => {},
-    onChunk: onChunkReceived,
-    mcpTools: mcpTools,
-    maxTokens,
-    streamOutput: assistant.settings?.streamOutput || false,
-    enableReasoning: enableReasoning,
-    enableWebSearch: (assistant.enableWebSearch && isWebSearchModel(model)) || false
-  })
+  await AI.completions(
+    {
+      messages: filteredMessages,
+      model,
+      assistant,
+      onFilterMessages: () => {},
+      onChunk: onChunkReceived,
+      mcpTools: mcpTools,
+      maxTokens,
+      streamOutput: assistant.settings?.streamOutput || false,
+      enableReasoning: enableReasoning,
+      enableWebSearch: (assistant.enableWebSearch && isWebSearchModel(model)) || false
+    },
+    {
+      streamOutput: assistant.settings?.streamOutput || false
+    }
+  )
 }
 
 interface FetchTranslateProps {

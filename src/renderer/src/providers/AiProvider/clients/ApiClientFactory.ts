@@ -2,6 +2,7 @@ import { Provider } from '@renderer/types'
 
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
+import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 
 /**
@@ -28,7 +29,8 @@ export class ApiClientFactory {
         instance = new OpenAIAPIClient(provider) as BaseApiClient
         break
       case 'gemini':
-        throw new Error(`GeminiApiClient not implemented yet for provider: ${provider.id}`)
+        instance = new GeminiAPIClient(provider) as BaseApiClient
+        break
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient
         break

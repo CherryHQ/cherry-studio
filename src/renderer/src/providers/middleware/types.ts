@@ -71,7 +71,7 @@ export interface ProcessingState<
       sdkToolCall: TToolCall
       mcpToolResponse: MCPToolResponse
     }>
-    assistantMessage?: TMessageParam
+    output?: SdkRawOutput | string
     isRecursiveCall?: boolean
     recursionDepth?: number
   }
