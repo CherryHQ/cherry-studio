@@ -12,6 +12,7 @@ import {
   updateAssistants,
   updateAssistantSettings,
   updateDefaultAssistant,
+  updateQuickAssistant,
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
@@ -115,5 +116,19 @@ export function useDefaultModel() {
     setTopicNamingModel: (model: Model) => dispatch(setTopicNamingModel({ model })),
     setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model })),
     setQuickAssistantModel: (model: Model) => dispatch(setQuickAssistantModel({ model }))
+  }
+}
+
+export function useQuickAssistant() {
+  const quickAssistant = useAppSelector((state) => state.assistants.quickAssistant)
+  const dispatch = useAppDispatch()
+  const { quickAssistantModel } = useDefaultModel()
+
+  return {
+    quickAssistant: {
+      ...quickAssistant,
+      model: quickAssistantModel
+    },
+    updateQuickAssistant: (assistant: Partial<Assistant>) => dispatch(updateQuickAssistant(assistant as Assistant))
   }
 }

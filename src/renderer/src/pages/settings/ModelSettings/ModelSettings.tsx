@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
+import QuickAssistantSettings from './QuickAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
 const ModelSettings: FC = () => {
@@ -179,6 +180,7 @@ const ModelSettings: FC = () => {
             showSearch
             placeholder={t('settings.models.empty')}
           />
+          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={QuickAssistantSettings.show} />
         </HStack>
         <SettingDescription>{t('settings.models.quick_assistant_model_description')}</SettingDescription>
       </SettingGroup>
