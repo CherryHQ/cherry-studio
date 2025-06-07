@@ -261,6 +261,10 @@ export function isFunctionCallingModel(model: Model): boolean {
   if (model.provider === 'qiniu') {
     return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
   }
+  
+  if (model.provider === 'huaweicloudmaas') {
+	return ['DeepSeek-R1', 'DeepSeek-V3'].includes(model.id)
+  }
 
   if (['deepseek', 'anthropic'].includes(model.provider)) {
     return true
@@ -455,6 +459,14 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
 
     { id: 'deepseek-r1', name: 'DeepSeek-R1', provider: 'burncloud', group: 'deepseek-ai' },
     { id: 'deepseek-v3', name: 'DeepSeek-V3', provider: 'burncloud', group: 'deepseek-ai' }
+  ],
+  
+  huaweicloudmaas: [
+	{ id: 'DeepSeek-R1', name: 'DeepSeek-R1', provider: 'huaweicloudmaas', group: 'deepseek' },
+	{ id: 'DeepSeek-V3', name: 'DeepSeek-V3', provider: 'huaweicloudmaas', group: 'deepseek' },
+	{ id: 'deepseek-r1-250528', name: 'DeepSeek-R1-250528', provider: 'huaweicloudmaas', group: 'deepseek' },
+	{ id: 'qwen3-32b', name: 'Qwen3-32B', provider: 'huaweicloudmaas', group: 'qwen' },
+	{ id: 'qwen3-235b-a22b', name: 'Qwen3-235B-A22B', provider: 'huaweicloudmaas', group: 'qwen' },
   ],
 
   o3: [
