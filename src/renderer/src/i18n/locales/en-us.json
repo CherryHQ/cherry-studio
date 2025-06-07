@@ -30,16 +30,7 @@
         "agent": "Export Agent"
       },
       "delete.popup.content": "Are you sure you want to delete this agent?",
-      "edit.message.add.title": "Add",
-      "edit.message.assistant.placeholder": "Enter assistant message",
-      "edit.message.assistant.title": "Assistant",
-      "edit.message.empty.content": "Conversation input content cannot be empty",
-      "edit.message.group.title": "Message Group",
-      "edit.message.title": "Preset messages",
-      "edit.message.user.placeholder": "Enter user message",
-      "edit.message.user.title": "User",
       "edit.model.select.title": "Select Model",
-      "edit.settings.hide_preset_messages": "Hide Preset Message",
       "edit.title": "Edit Agent",
       "manage.title": "Manage Agents",
       "my_agents": "My Agents",
@@ -76,7 +67,6 @@
       "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
       "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
-      "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
       "settings.reasoning_effort.off": "Off",
@@ -1346,6 +1336,8 @@
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
       "general.auto_check_update.title": "Auto Update",
+      "general.early_access.title": "Early Access",
+      "general.early_access.tooltip": "Enable to use the latest version from GitHub, which may be slower. Please backup your data in advance.",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1885,7 +1877,8 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy"
+          "copy": "Copy",
+          "quote": "Quote"
         },
         "window": {
           "pin": "Pin",

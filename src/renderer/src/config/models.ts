@@ -613,12 +613,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     },
     {
-      id: 'meta-llama/Llama-3.3-70B-Instruct',
-      name: 'meta-llama/Llama-3.3-70B-Instruct',
-      provider: 'silicon',
-      group: 'meta-llama'
-    },
-    {
       id: 'BAAI/bge-m3',
       name: 'BAAI/bge-m3',
       provider: 'silicon',
@@ -2643,7 +2637,8 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
-  'gemini-.*$': { min: 0, max: 24576 },
+  'gemini-.*-flash.*$': { min: 0, max: 24576 },
+  'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
   // Qwen models
   'qwen-plus-.*$': { min: 0, max: 38912 },

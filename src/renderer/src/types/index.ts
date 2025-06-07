@@ -58,7 +58,6 @@ export type AssistantSettings = {
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
-  hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
@@ -88,7 +87,6 @@ export type LegacyMessage = {
   metrics?: Metrics
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
-  isPreset?: boolean
   mentions?: Model[]
   askId?: string
   useful?: boolean

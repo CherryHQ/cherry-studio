@@ -11,16 +11,7 @@
       "add.prompt.variables.tip": "Доступные переменные: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
-      "edit.message.add.title": "Добавить",
-      "edit.message.assistant.placeholder": "Введите сообщение ассистента",
-      "edit.message.assistant.title": "Ассистент",
-      "edit.message.empty.content": "Содержание вводимого сообщения не может быть пустым",
-      "edit.message.group.title": "Группа сообщений",
-      "edit.message.title": "Предустановленные сообщения",
-      "edit.message.user.placeholder": "Введите сообщение пользователя",
-      "edit.message.user.title": "Пользователь",
       "edit.model.select.title": "Выбрать модель",
-      "edit.settings.hide_preset_messages": "Скрыть предустановленные сообщения",
       "edit.title": "Редактировать агента",
       "manage.title": "Редактировать агентов",
       "my_agents": "Мои агенты",
@@ -76,7 +67,6 @@
       "settings.default_model": "Модель по умолчанию",
       "settings.knowledge_base": "Настройки базы знаний",
       "settings.model": "Настройки модели",
-      "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
       "settings.reasoning_effort.off": "Выключить",
       "settings.reasoning_effort.high": "Стараюсь думать",
@@ -1758,7 +1748,9 @@
         "content_limit": "Ограничение длины текста",
         "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автообновление",
+      "general.auto_check_update.title": "Автоматическое обновление",
+      "general.early_access.title": "Ранний доступ",
+      "general.early_access.tooltip": "Включить для использования последней версии из GitHub, что может быть медленнее и нестабильно. Пожалуйста, сделайте резервную копию данных заранее.",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
@@ -1885,7 +1877,8 @@
           "summary": "Суммаризировать",
           "search": "Поиск",
           "refine": "Уточнить",
-          "copy": "Копировать"
+          "copy": "Копировать",
+          "quote": "Цитировать"
         },
         "window": {
           "pin": "Закрепить",
