@@ -61,7 +61,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
         {t('common.name')}
       </Box>
       <HStack gap={8} alignItems="center">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
             {emoji && (
