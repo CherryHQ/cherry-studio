@@ -1508,7 +1508,7 @@ const migrateConfig = {
         (state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct' ||
           state.llm.translateModel.id === SYSTEM_MODELS.silicon[3].id)
       ) {
-        state.llm.translateModel = SYSTEM_MODELS.silicon[1]
+        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
       }
 
       return state
