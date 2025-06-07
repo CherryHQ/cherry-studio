@@ -4,19 +4,60 @@ import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
 export class TencentCloudTTSProvider extends BaseTTSProvider {
   async getVoices(): Promise<TTSVoice[]> {
-    try {
-      const voices = await window.api.tencentTTS.getVoices()
-      return voices.map((voice: any) => ({
-        id: voice.id,
-        name: voice.name,
-        lang: voice.lang,
-        gender: voice.gender,
-        default: voice.default
-      }))
-    } catch (error) {
-      console.error('[TencentCloudTTSProvider] Failed to get voices:', error)
-      return []
+    if (!this.validateApiKey()) {
+      console.warn('[Tencent Cloud TTS] No SecretId or SecretKey configured, using default voices')
+      return this.getDefaultVoices()
     }
+
+    try {
+      // 腾讯云语音合成不提供获取语音列表的 API，使用预定义的语音列表
+      console.log('[Tencent Cloud TTS] Using predefined voice list')
+      return this.getDefaultVoices()
+    } catch (error) {
+      console.error('[Tencent Cloud TTS] Error:', error)
+      return this.getDefaultVoices()
+    }
+  }
+
+  /**
+   * 获取默认语音列表（基于腾讯云官方音色列表）
+   */
+  private getDefaultVoices(): TTSVoice[] {
+    console.log('[Tencent Cloud TTS] Using default voices')
+    return [
+      // 标准音色
+      { id: '101001', name: '智瑜 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101002', name: '智聆 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101003', name: '智美 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101004', name: '智云 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101005', name: '智莉 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101006', name: '智言 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101007', name: '智娜 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101008', name: '智琪 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101009', name: '智芸 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101010', name: '智华 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101011', name: '智燕 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101012', name: '智丹 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101013', name: '智辉 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101014', name: '智宁 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101015', name: '智萌 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101016', name: '智甜 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101017', name: '智蓉 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101018', name: '智靖 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101019', name: '智彤 (女声)', lang: 'zh-CN', gender: 'female' },
+
+      // 英文音色
+      { id: '101020', name: 'WeJack (男声)', lang: 'en-US', gender: 'male' },
+      { id: '101021', name: 'WeRose (女声)', lang: 'en-US', gender: 'female' },
+
+      // 精品音色
+      { id: '101050', name: '智逍遥 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101051', name: '智瑜 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101052', name: '智聆 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101053', name: '智美 (女声)', lang: 'zh-CN', gender: 'female' },
+      { id: '101054', name: '智云 (男声)', lang: 'zh-CN', gender: 'male' },
+      { id: '101055', name: '智莉 (女声)', lang: 'zh-CN', gender: 'female' }
+    ]
   }
 
   async speak(options: TTSSpeakOptions): Promise<void> {
@@ -32,14 +73,15 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       const useStreaming = options.streaming ?? this.provider.settings.streaming ?? false
 
       if (useStreaming) {
-        // 流式合成
+        // 使用真正的流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
-        const mimeType = this.getMimeType(this.provider.settings.codec || 'wav')
+        const mimeType = this.getMimeType(this.provider.settings.codec || 'pcm')
         await this.audioPlayer.playStream(audioStream, mimeType, volume)
       } else {
-        // 非流式合成
+        // 使用基础语音合成
         const audioData = await this.synthesizeSpeech(options)
-        const audioBlob = new Blob([Buffer.from(audioData, 'base64')], { type: 'audio/wav' })
+        const mimeType = this.getMimeType(this.provider.settings.codec || 'wav')
+        const audioBlob = new Blob([Buffer.from(audioData, 'base64')], { type: mimeType })
         await this.audioPlayer.playBlob(audioBlob, volume)
       }
     } catch (error) {
@@ -144,97 +186,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
   }
 
   /**
-   * 调用腾讯云 TTS API 流式合成语音
-   */
-  private async synthesizeSpeechStream(options: TTSSpeakOptions): Promise<ReadableStream<Uint8Array>> {
-    const secretId = this.provider.apiKey
-    const secretKey = this.provider.settings.secretKey
-    const region = this.provider.settings.region || 'ap-beijing'
-
-    if (!secretId || !secretKey) {
-      throw new Error('Tencent Cloud SecretId and SecretKey are required')
-    }
-
-    const ttsOptions = {
-      secretId,
-      secretKey,
-      region,
-      text: options.text,
-      voice: options.voice || this.provider.settings.voice || '101001',
-      speed: this.convertRateToSpeed(options.rate ?? this.provider.settings.rate ?? 1.0),
-      volume: this.convertVolumeToGain(options.volume ?? this.provider.settings.volume ?? 1.0),
-      sampleRate: this.provider.settings.sampleRate || 16000,
-      codec: this.provider.settings.codec || 'wav',
-      streaming: true
-    }
-
-    console.log('[TencentCloudTTSProvider] Streaming speech synthesis:', {
-      voiceType: ttsOptions.voice,
-      textLength: options.text.length,
-      speed: ttsOptions.speed,
-      volume: ttsOptions.volume,
-      sampleRate: ttsOptions.sampleRate,
-      codec: ttsOptions.codec
-    })
-
-    try {
-      // 暂时回退到非流式模式，然后转换为流式
-      // TODO: 实现真正的腾讯云 WebSocket 流式 TTS
-      const result = await window.api.tencentTTS.synthesizeSpeech({
-        secretId: ttsOptions.secretId,
-        secretKey: ttsOptions.secretKey,
-        region: ttsOptions.region,
-        text: ttsOptions.text,
-        voice: ttsOptions.voice,
-        speed: ttsOptions.speed,
-        volume: ttsOptions.volume,
-        sampleRate: ttsOptions.sampleRate,
-        codec: ttsOptions.codec
-      })
-
-      if (result.success && result.audioData) {
-        console.log('[TencentCloudTTSProvider] Streaming speech synthesis successful (fallback to non-streaming)')
-        // 将 Base64 数据转换为 ReadableStream
-        return this.createStreamFromBase64(result.audioData)
-      } else {
-        throw new Error(result.error || 'No audio data returned from Tencent Cloud TTS API')
-      }
-    } catch (error: any) {
-      console.error('[TencentCloudTTSProvider] Streaming API Error:', error)
-      throw new Error(`Tencent Cloud TTS streaming API error: ${error.message || error}`)
-    }
-  }
-
-  /**
-   * 将 Base64 数据流转换为 ReadableStream
-   */
-  private createStreamFromBase64(base64Data: string): ReadableStream<Uint8Array> {
-    const binaryData = Buffer.from(base64Data, 'base64')
-
-    return new ReadableStream({
-      start(controller) {
-        // 将数据分块发送
-        const chunkSize = 1024 * 4 // 4KB 块
-        let offset = 0
-
-        const sendChunk = () => {
-          if (offset < binaryData.length) {
-            const chunk = binaryData.subarray(offset, offset + chunkSize)
-            controller.enqueue(chunk)
-            offset += chunkSize
-            // 模拟流式传输的延迟
-            setTimeout(sendChunk, 50)
-          } else {
-            controller.close()
-          }
-        }
-
-        sendChunk()
-      }
-    })
-  }
-
-  /**
    * 将语速比率转换为腾讯云的速度值
    * 腾讯云速度范围：-2 到 6，0 为正常速度（根据官方文档更新）
    * -2: 0.6倍速度, -1: 0.8倍速度, 0: 1.0倍速度, 1: 1.2倍速度, ..., 6: 2.5倍速度
@@ -261,6 +212,257 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
     // volume 范围通常是 0.0 - 1.0
     // 转换为腾讯云的 -10 到 10 范围
     return Math.round((volume - 0.5) * 20)
+  }
+
+  /**
+   * 腾讯云流式语音合成 (WebSocket)
+   */
+  private async synthesizeSpeechStream(options: TTSSpeakOptions): Promise<ReadableStream<Uint8Array>> {
+    const secretId = this.provider.apiKey!
+    const secretKey = this.provider.settings.secretKey!
+    const region = this.provider.settings.region || 'ap-beijing'
+
+    console.log('[Tencent Cloud TTS] Starting streaming synthesis')
+
+    return new ReadableStream({
+      start: async (controller) => {
+        try {
+          const ws = await this.createStreamingConnection(secretId, secretKey, region, options)
+
+          ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+              // 音频数据
+              controller.enqueue(new Uint8Array(event.data))
+            } else {
+              // 文本消息
+              try {
+                const message = JSON.parse(event.data)
+                console.log('[Tencent Cloud TTS] Message:', message)
+
+                if (message.final === 1) {
+                  // 合成完成
+                  console.log('[Tencent Cloud TTS] Streaming synthesis completed')
+                  ws.close()
+                  controller.close()
+                } else if (message.code !== 0) {
+                  // 错误
+                  console.error('[Tencent Cloud TTS] Streaming error:', message)
+                  ws.close()
+                  controller.error(new Error(message.message || 'Streaming synthesis failed'))
+                }
+              } catch (e) {
+                console.warn('[Tencent Cloud TTS] Failed to parse message:', event.data)
+              }
+            }
+          }
+
+          ws.onerror = (error) => {
+            console.error('[Tencent Cloud TTS] WebSocket error:', error)
+            controller.error(new Error('WebSocket connection failed'))
+          }
+
+          ws.onclose = () => {
+            console.log('[Tencent Cloud TTS] WebSocket connection closed')
+            controller.close()
+          }
+
+          // 等待 READY 事件后发送文本
+          ws.onopen = () => {
+            console.log('[Tencent Cloud TTS] WebSocket connection opened')
+          }
+        } catch (error) {
+          console.error('[Tencent Cloud TTS] Failed to create streaming connection:', error)
+          controller.error(error)
+        }
+      }
+    })
+  }
+
+  /**
+   * 创建流式合成 WebSocket 连接
+   */
+  private async createStreamingConnection(
+    secretId: string,
+    secretKey: string,
+    _region: string,
+    options: TTSSpeakOptions
+  ): Promise<WebSocket> {
+    // 生成会话 ID
+    const sessionId = this.generateSessionId()
+    const timestamp = Math.floor(Date.now() / 1000)
+    const expired = timestamp + 3600 // 1小时后过期
+
+    // 构建请求参数
+    const params: Record<string, any> = {
+      Action: 'TextToStreamAudioWSv2',
+      AppId: await this.getAppId(),
+      SecretId: secretId,
+      Timestamp: timestamp,
+      Expired: expired,
+      SessionId: sessionId,
+      VoiceType: parseInt(options.voice || this.provider.settings.voice || '101001'),
+      Volume: this.convertVolumeToGain(options.volume ?? this.provider.settings.volume ?? 1.0),
+      Speed: this.convertRateToSpeed(options.rate ?? this.provider.settings.rate ?? 1.0),
+      SampleRate: this.provider.settings.sampleRate || 16000,
+      Codec: this.provider.settings.codec || 'pcm',
+      EnableSubtitle: 'true' // 注意：文档示例中 Boolean 值使用字符串
+    }
+
+    // 添加可选参数
+    const emotionCategory = (this.provider.settings as any).emotionCategory
+    if (emotionCategory) {
+      params.EmotionCategory = emotionCategory
+      params.EmotionIntensity = (this.provider.settings as any).emotionIntensity || 100
+    }
+
+    const segmentRate = (this.provider.settings as any).segmentRate
+    if (segmentRate !== undefined) {
+      params.SegmentRate = segmentRate
+    }
+
+    // 生成签名
+    const signature = await this.generateSignature(params, secretKey)
+    params['Signature'] = signature
+
+    // 构建 WebSocket URL (注意：签名后的参数需要 URL 编码)
+    const queryString = Object.entries(params)
+      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+      .join('&')
+
+    const wsUrl = `wss://tts.cloud.tencent.com/stream_wsv2?${queryString}`
+    console.log(
+      '[Tencent Cloud TTS] Connecting to:',
+      wsUrl.replace(/SecretId=[^&]*/, 'SecretId=***').replace(/Signature=[^&]*/, 'Signature=***')
+    )
+
+    const ws = new WebSocket(wsUrl)
+
+    return new Promise((resolve, reject) => {
+      let isReady = false
+
+      ws.onopen = () => {
+        console.log('[Tencent Cloud TTS] WebSocket opened, waiting for READY event')
+      }
+
+      ws.onmessage = (event) => {
+        if (typeof event.data === 'string') {
+          try {
+            const message = JSON.parse(event.data)
+
+            if (message.code !== 0) {
+              reject(new Error(message.message || 'Connection failed'))
+              return
+            }
+
+            if (message.ready === 1 && !isReady) {
+              isReady = true
+              console.log('[Tencent Cloud TTS] Received READY event, sending text')
+
+              // 发送合成文本 (需要进行 Unicode 转义)
+              const synthesisMessage = {
+                session_id: sessionId,
+                message_id: this.generateMessageId(),
+                action: 'ACTION_SYNTHESIS',
+                data: this.escapeUnicode(options.text)
+              }
+              ws.send(JSON.stringify(synthesisMessage))
+
+              // 发送结束指令
+              setTimeout(() => {
+                const completeMessage = {
+                  session_id: sessionId,
+                  message_id: this.generateMessageId(),
+                  action: 'ACTION_COMPLETE',
+                  data: ''
+                }
+                ws.send(JSON.stringify(completeMessage))
+              }, 100)
+
+              resolve(ws)
+            }
+          } catch (e) {
+            console.warn('[Tencent Cloud TTS] Failed to parse handshake message:', event.data)
+          }
+        }
+      }
+
+      ws.onerror = () => {
+        reject(new Error('WebSocket connection failed'))
+      }
+
+      // 超时处理
+      setTimeout(() => {
+        if (!isReady) {
+          ws.close()
+          reject(new Error('Connection timeout'))
+        }
+      }, 10000)
+    })
+  }
+
+  /**
+   * 生成腾讯云 API 签名
+   */
+  private async generateSignature(params: Record<string, any>, secretKey: string): Promise<string> {
+    // 排序参数 (按字典序排序，不包含 Signature)
+    const sortedParams = Object.keys(params)
+      .filter((key) => key !== 'Signature')
+      .sort()
+      .map((key) => `${key}=${params[key]}`) // 注意：这里不进行 URL 编码
+      .join('&')
+
+    // 构建签名原文 (注意格式：GET + 域名 + 路径 + ? + 参数)
+    const stringToSign = `GETtts.cloud.tencent.com/stream_wsv2?${sortedParams}`
+
+    console.log('[Tencent Cloud TTS] String to sign:', stringToSign.replace(/SecretId=[^&]*/, 'SecretId=***'))
+
+    // 使用 HMAC-SHA1 生成签名
+    const encoder = new TextEncoder()
+    const keyData = encoder.encode(secretKey)
+    const messageData = encoder.encode(stringToSign)
+
+    const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign'])
+
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageData)
+    const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+
+    return signatureBase64
+  }
+
+  /**
+   * 获取 AppId (需要从腾讯云控制台获取)
+   */
+  private async getAppId(): Promise<number> {
+    // 这里需要用户配置 AppId，暂时使用一个占位符
+    // 在实际使用中，需要在设置页面添加 AppId 配置
+    return (this.provider.settings as any).appId || 1300000000
+  }
+
+  /**
+   * 生成会话 ID
+   */
+  private generateSessionId(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0
+      const v = c === 'x' ? r : (r & 0x3) | 0x8
+      return v.toString(16)
+    })
+  }
+
+  /**
+   * 生成消息 ID
+   */
+  private generateMessageId(): string {
+    return 'msg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 11)
+  }
+
+  /**
+   * 将文本转换为 Unicode 转义格式
+   */
+  private escapeUnicode(text: string): string {
+    return text.replace(/[\u0080-\uFFFF]/g, function (match) {
+      return '\\u' + ('0000' + match.charCodeAt(0).toString(16)).substring(-4)
+    })
   }
 
   /**

@@ -257,24 +257,113 @@ export class AudioPlayerManager {
 
             // 读取流数据
             const pump = async (): Promise<void> => {
-              const { done, value } = await reader.read()
+              try {
+                const { done, value } = await reader.read()
 
-              if (done) {
-                if (mediaSource.readyState === 'open') {
-                  mediaSource.endOfStream()
+                if (done) {
+                  console.log('[AudioPlayerManager] Stream reading completed')
+                  // 确保 SourceBuffer 完成所有更新后再结束流
+                  if (sourceBuffer.updating) {
+                    console.log('[AudioPlayerManager] Waiting for final SourceBuffer update to complete')
+                    await new Promise((resolve) => {
+                      sourceBuffer.addEventListener('updateend', resolve, { once: true })
+                    })
+                  }
+
+                  if (mediaSource.readyState === 'open') {
+                    try {
+                      console.log('[AudioPlayerManager] Ending MediaSource stream')
+                      mediaSource.endOfStream()
+                    } catch (error) {
+                      console.warn('[AudioPlayerManager] Failed to end stream:', error)
+                      // 忽略 endOfStream 错误，因为音频已经播放成功
+                    }
+                  }
+                  return
                 }
-                return
-              }
 
-              // 等待 SourceBuffer 准备好
-              if (sourceBuffer.updating) {
-                await new Promise((resolve) => {
-                  sourceBuffer.addEventListener('updateend', resolve, { once: true })
+                console.log(`[AudioPlayerManager] Processing audio chunk: ${value.length} bytes`)
+
+                // 检查 MediaSource 和 SourceBuffer 状态
+                if (mediaSource.readyState !== 'open') {
+                  console.warn('[AudioPlayerManager] MediaSource is not open, state:', mediaSource.readyState)
+                  return
+                }
+
+                // 等待 SourceBuffer 准备好
+                if (sourceBuffer.updating) {
+                  console.log('[AudioPlayerManager] SourceBuffer is updating, waiting...')
+                  await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                      reject(new Error('SourceBuffer update timeout'))
+                    }, 5000) // 5秒超时
+
+                    sourceBuffer.addEventListener(
+                      'updateend',
+                      () => {
+                        clearTimeout(timeout)
+                        resolve(undefined)
+                      },
+                      { once: true }
+                    )
+
+                    sourceBuffer.addEventListener(
+                      'error',
+                      () => {
+                        clearTimeout(timeout)
+                        reject(new Error('SourceBuffer update error'))
+                      },
+                      { once: true }
+                    )
+                  })
+                }
+
+                // 再次检查状态
+                if (sourceBuffer.updating) {
+                  console.error('[AudioPlayerManager] SourceBuffer still updating after wait')
+                  throw new Error('SourceBuffer is still updating')
+                }
+
+                // 添加数据到 SourceBuffer
+                console.log('[AudioPlayerManager] Appending buffer to SourceBuffer')
+                try {
+                  sourceBuffer.appendBuffer(value)
+                } catch (error) {
+                  console.error('[AudioPlayerManager] Failed to append buffer:', error)
+                  throw error
+                }
+
+                // 等待 appendBuffer 操作完成
+                await new Promise((resolve, reject) => {
+                  const timeout = setTimeout(() => {
+                    reject(new Error('SourceBuffer append timeout'))
+                  }, 5000) // 5秒超时
+
+                  sourceBuffer.addEventListener(
+                    'updateend',
+                    () => {
+                      clearTimeout(timeout)
+                      resolve(undefined)
+                    },
+                    { once: true }
+                  )
+
+                  sourceBuffer.addEventListener(
+                    'error',
+                    () => {
+                      clearTimeout(timeout)
+                      reject(new Error('SourceBuffer append error'))
+                    },
+                    { once: true }
+                  )
                 })
-              }
+                console.log('[AudioPlayerManager] Buffer append completed')
 
-              sourceBuffer.appendBuffer(value)
-              return pump()
+                return pump()
+              } catch (error) {
+                console.error('[AudioPlayerManager] Error in pump function:', error)
+                throw error
+              }
             }
 
             await pump()

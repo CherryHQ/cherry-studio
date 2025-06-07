@@ -385,10 +385,27 @@ const MessageMenubar: FC<Props> = (props) => {
           setIsCurrentMessagePaused(false)
         }
       } catch (error) {
-        console.error('[MessageMenubar] TTS play failed:', error)
-        setIsCurrentMessagePlaying(false)
-        setIsCurrentMessagePaused(false)
-        window.message.error({ content: t('settings.tts.play.failed'), key: 'tts-play-failed' })
+        // 检查是否是 MediaSource 相关的状态错误
+        const isMediaSourceError =
+          error instanceof Error &&
+          error.name === 'InvalidStateError' &&
+          (error.message.includes('endOfStream') ||
+            error.message.includes('appendBuffer') ||
+            error.message.includes('SourceBuffer'))
+
+        if (isMediaSourceError) {
+          // 这是一个 MediaSource 状态错误，通常是并发问题导致的
+          console.warn('[MessageMenubar] TTS MediaSource state warning (may have played successfully):', error.message)
+          setIsCurrentMessagePlaying(false)
+          setIsCurrentMessagePaused(false)
+          // 对于 MediaSource 状态错误，不显示错误消息，因为音频可能已经播放成功
+        } else {
+          // 真正的播放错误
+          console.error('[MessageMenubar] TTS play failed:', error)
+          setIsCurrentMessagePlaying(false)
+          setIsCurrentMessagePaused(false)
+          window.message.error({ content: t('settings.tts.play.failed'), key: 'tts-play-failed' })
+        }
       }
     },
     [tts, isCurrentMessagePlaying, isCurrentMessagePaused, mainTextContent, t]
