@@ -8,7 +8,7 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
-      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": "可用的变量：{{variable_list}}",
       "add.title": "创建智能体",
       "import": {
         "title": "从外部导入",
@@ -1804,6 +1804,12 @@
         "service_tier.auto": "自动",
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
+      },
+      "prompt": {
+        "title": "提示词设置",
+        "show_replacement": "展示变量替换",
+        "auto_refresh": "自动刷新变量",
+        "refresh_interval": "刷新间隔"
       }
     },
     "translate": {

@@ -147,63 +147,89 @@ ${availableTools}
 </tools>`
 }
 
+export const promptVariableReplacer = async (userSystemPrompt: string, modelName?: string): Promise<string> => {
+  const now = new Date()
+  if (userSystemPrompt.includes('{{date}}')) {
+    const date = now.toLocaleDateString()
+    userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
+  }
+
+  if (userSystemPrompt.includes('{{time}}')) {
+    const time = now.toLocaleTimeString()
+    userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
+  }
+
+  if (userSystemPrompt.includes('{{datetime}}')) {
+    const datetime = now.toLocaleString()
+    userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
+  }
+
+  if (userSystemPrompt.includes('{{username}}')) {
+    const userName = store.getState().settings.userName || 'User'
+    userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
+  }
+
+  if (userSystemPrompt.includes('{{system}}')) {
+    try {
+      const systemType = await window.api.system.getDeviceType()
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
+    } catch (error) {
+      console.error('Failed to get system type:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{language}}')) {
+    try {
+      const language = store.getState().settings.language
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
+    } catch (error) {
+      console.error('Failed to get language:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{arch}}')) {
+    try {
+      const appInfo = await window.api.getAppInfo()
+      userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
+    } catch (error) {
+      console.error('Failed to get architecture:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
+    }
+  }
+
+  if (userSystemPrompt.includes('{{model_name}}')) {
+    try {
+      const name = modelName || store.getState().llm.defaultModel.name
+      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, name)
+    } catch (error) {
+      console.error('Failed to get model name:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
+    }
+  }
+
+  return userSystemPrompt
+}
+
+export const supportedVariables = [
+  '{{username}}',
+  '{{date}}',
+  '{{time}}',
+  '{{datetime}}',
+  '{{system}}',
+  '{{language}}',
+  '{{arch}}',
+  '{{model_name}}'
+]
+
+export const containsSupportedVariables = (userSystemPrompt: string): boolean => {
+  return supportedVariables.some((variable) => userSystemPrompt.includes(variable))
+}
+
 export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPTool[]): Promise<string> => {
   if (typeof userSystemPrompt === 'string') {
-    const now = new Date()
-    if (userSystemPrompt.includes('{{date}}')) {
-      const date = now.toLocaleDateString()
-      userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
-    }
-
-    if (userSystemPrompt.includes('{{time}}')) {
-      const time = now.toLocaleTimeString()
-      userSystemPrompt = userSystemPrompt.replace(/{{time}}/g, time)
-    }
-
-    if (userSystemPrompt.includes('{{datetime}}')) {
-      const datetime = now.toLocaleString()
-      userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
-    }
-
-    if (userSystemPrompt.includes('{{system}}')) {
-      try {
-        const systemType = await window.api.system.getDeviceType()
-        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
-      } catch (error) {
-        console.error('Failed to get system type:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, 'Unknown System')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{language}}')) {
-      try {
-        const language = store.getState().settings.language
-        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
-      } catch (error) {
-        console.error('Failed to get language:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, 'Unknown System Language')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{arch}}')) {
-      try {
-        const appInfo = await window.api.getAppInfo()
-        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
-      } catch (error) {
-        console.error('Failed to get architecture:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, 'Unknown Architecture')
-      }
-    }
-
-    if (userSystemPrompt.includes('{{model_name}}')) {
-      try {
-        const modelName = store.getState().llm.defaultModel.name
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName)
-      } catch (error) {
-        console.error('Failed to get model name:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
-      }
-    }
+    userSystemPrompt = await promptVariableReplacer(userSystemPrompt)
   }
 
   if (tools && tools.length > 0) {
