@@ -1501,6 +1501,15 @@ const migrateConfig = {
   '111': (state: RootState) => {
     try {
       addSelectionAction(state, 'quote')
+
+      //if user has not set translate model(old default), set it to the new default model(deekseek v3)
+      if (
+        state.llm.translateModel.provider === SYSTEM_MODELS.silicon[3].provider &&
+        state.llm.translateModel.id === SYSTEM_MODELS.silicon[3].id
+      ) {
+        state.llm.translateModel = SYSTEM_MODELS.silicon[1]
+      }
+
       return state
     } catch (error) {
       return state
