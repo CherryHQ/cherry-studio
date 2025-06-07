@@ -129,7 +129,7 @@ ul {
   .message-content-container {
     margin: 5px 0;
     border-radius: 8px;
-    padding: 10px 15px 0 15px;
+    padding: 10px 15px 5px 15px;
   }
   .message-thought-container {
     margin-top: 8px;
@@ -140,8 +140,8 @@ ul {
     .anticon,
     .iconfont,
     .lucide,
-    .message-tokens {
-      color: var(--chat-text-user) !important;
+    .message-metrics-button {
+      background-color: transparent;
     }
     .message-action-button:hover {
       background-color: var(--color-white-soft);

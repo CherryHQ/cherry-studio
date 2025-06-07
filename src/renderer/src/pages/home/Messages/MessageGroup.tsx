@@ -168,7 +168,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         topic,
         index: message.index,
         style: {
-          paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
+          paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 5
         }
       }
 

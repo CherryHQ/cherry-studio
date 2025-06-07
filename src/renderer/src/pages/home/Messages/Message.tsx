@@ -12,7 +12,7 @@ import { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { Divider } from 'antd'
-import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useRef } from 'react'
+import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,7 +21,6 @@ import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
-import MessageTokens from './MessageTokens'
 
 interface Props {
   message: Message
@@ -99,7 +98,12 @@ const MessageItem: FC<Props> = ({
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
-  const messageBorder = showMessageDivider ? undefined : 'none'
+  const isFooterInside = useMemo(
+    () => !isBubbleStyle || (isBubbleStyle && isLastMessage && isAssistantMessage),
+    [isBubbleStyle, isLastMessage, isAssistantMessage]
+  )
+
+  const messageBorder = showMessageDivider && isFooterInside ? undefined : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
 
   const messageHighlightHandler = useCallback((highlight: boolean = true) => {
@@ -119,6 +123,32 @@ const MessageItem: FC<Props> = ({
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, messageHighlightHandler)]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
+
+  const messageFooter = () => {
+    return (
+      showMenubar && (
+        <MessageFooter
+          className="MessageFooter"
+          style={{
+            border: messageBorder,
+            justifyContent: isBubbleStyle ? 'flex-end' : 'flex-start'
+          }}>
+          <MessageMenubar
+            message={message}
+            assistant={assistant}
+            model={model}
+            index={index}
+            topic={topic}
+            alwaysShow={isLastMessage}
+            isAssistantMessage={isAssistantMessage}
+            isGrouped={isGrouped}
+            messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+            setModel={setModel}
+          />
+        </MessageFooter>
+      )
+    )
+  }
 
   if (message.type === 'clear') {
     return (
@@ -176,29 +206,9 @@ const MessageItem: FC<Props> = ({
           <MessageErrorBoundary>
             <MessageContent message={message} />
           </MessageErrorBoundary>
-          {showMenubar && (
-            <MessageFooter
-              className="MessageFooter"
-              style={{
-                border: messageBorder,
-                flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
-              }}>
-              <MessageTokens message={message} isLastMessage={isLastMessage} />
-              <MessageMenubar
-                message={message}
-                assistant={assistant}
-                model={model}
-                index={index}
-                topic={topic}
-                isLastMessage={isLastMessage}
-                isAssistantMessage={isAssistantMessage}
-                isGrouped={isGrouped}
-                messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-                setModel={setModel}
-              />
-            </MessageFooter>
-          )}
+          {isFooterInside && messageFooter()}
         </MessageContentContainer>
+        {!isFooterInside && messageFooter()}
       </ContextMenu>
     </MessageContainer>
   )
@@ -253,12 +263,9 @@ const MessageContentContainer = styled.div`
 const MessageFooter = styled.div`
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
   align-items: center;
-  padding: 2px 0;
-  margin-top: 2px;
+  padding: 2px 0 0 0;
   border-top: 1px dotted var(--color-border);
-  gap: 20px;
 `
 
 const NewContextMessage = styled.div`
