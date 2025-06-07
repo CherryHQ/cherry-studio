@@ -29,13 +29,6 @@ export class AudioPlayerManager {
   }
 
   /**
-   * 获取当前状态
-   */
-  private getState(): AudioPlayerState {
-    return this.state
-  }
-
-  /**
    * 播放音频 Blob
    */
   async playBlob(audioBlob: Blob, volume?: number): Promise<void> {

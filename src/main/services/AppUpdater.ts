@@ -1,7 +1,7 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
-import { IpcChannel } from '@shared/IpcChannel'
 import { FeedUrl } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'

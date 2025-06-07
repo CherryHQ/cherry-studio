@@ -1,5 +1,5 @@
+import { AZURE_TTS_DEFAULT_VOICES } from '@renderer/constants/tts'
 import { TTSSpeakOptions, TTSVoice } from '@renderer/types/tts'
-import { AZURE_TTS_DEFAULT_VOICES, DEFAULT_VOICE_IDS } from '@renderer/constants/tts'
 
 import { BaseTTSProvider, TTSCheckResult } from './BaseTTSProvider'
 
