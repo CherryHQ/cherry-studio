@@ -1,3 +1,4 @@
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistants } from '@renderer/hooks/useAssistant'
@@ -19,9 +20,10 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
-  const { allTags, getAssistantsByTag } = useTags()
+  const { allTags, getAssistantsByTag, updateTagsOrder } = useTags()
   const { assistants, updateAssistants } = useAssistants()
   const { t } = useTranslation()
+  const [tags, setTags] = useState(allTags)
 
   const onOk = () => {
     setOpen(false)
@@ -49,8 +51,22 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             })
           )
         }
+        const newTags = tags.filter((tag) => tag !== removedTag)
+        setTags(newTags)
+        updateTagsOrder(newTags)
       }
     })
+  }
+
+  const handleDragEnd = (result) => {
+    if (!result.destination) return
+
+    const items = Array.from(tags)
+    const [reorderedItem] = items.splice(result.source.index, 1)
+    items.splice(result.destination.index, 0, reorderedItem)
+
+    setTags(items)
+    updateTagsOrder(items)
   }
 
   AssistantTagsPopup.hide = onCancel
@@ -66,13 +82,37 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       transitionName="animation-move-down"
       centered>
       <Container>
-        {allTags.map((tag) => (
-          <TagItem key={tag}>
-            <Box mr={8}>{tag}</Box>
-            <Button type="text" icon={<Trash size={16} />} danger onClick={() => onDelete(tag)} />
-          </TagItem>
-        ))}
-        {allTags.length === 0 && <Empty description="" />}
+        {tags.length > 0 ? (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="tags">
+              {(provided) => (
+                <div {...provided.droppableProps} ref={provided.innerRef}>
+                  {tags.map((tag, index) => (
+                    <Draggable key={tag} draggableId={tag} index={index}>
+                      {(provided) => (
+                        <TagItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                          <Box mr={8}>{tag}</Box>
+                          <Button
+                            type="text"
+                            icon={<Trash size={16} />}
+                            danger
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDelete(tag)
+                            }}
+                          />
+                        </TagItem>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        ) : (
+          <Empty description="" />
+        )}
       </Container>
     </Modal>
   )

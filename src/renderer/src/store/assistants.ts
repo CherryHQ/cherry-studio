@@ -8,11 +8,13 @@ import { isEmpty, uniqBy } from 'lodash'
 export interface AssistantsState {
   defaultAssistant: Assistant
   assistants: Assistant[]
+  tagsOrder: string[]
 }
 
 const initialState: AssistantsState = {
   defaultAssistant: getDefaultAssistant(),
-  assistants: [getDefaultAssistant()]
+  assistants: [getDefaultAssistant()],
+  tagsOrder: []
 }
 
 const assistantsSlice = createSlice({
@@ -128,6 +130,9 @@ const assistantsSlice = createSlice({
             }
           : assistant
       )
+    },
+    setTagsOrder: (state, action: PayloadAction<string[]>) => {
+      state.tagsOrder = action.payload
     }
   }
 })
@@ -144,6 +149,7 @@ export const {
   updateTopics,
   removeAllTopics,
   setModel,
+  setTagsOrder,
   updateAssistantSettings
 } = assistantsSlice.actions
 
