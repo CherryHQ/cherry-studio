@@ -601,12 +601,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     },
     {
-      id: 'meta-llama/Llama-3.3-70B-Instruct',
-      name: 'meta-llama/Llama-3.3-70B-Instruct',
-      provider: 'silicon',
-      group: 'meta-llama'
-    },
-    {
       id: 'BAAI/bge-m3',
       name: 'BAAI/bge-m3',
       provider: 'silicon',
