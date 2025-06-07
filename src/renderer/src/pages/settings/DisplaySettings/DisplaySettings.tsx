@@ -13,7 +13,9 @@ import {
   setCustomCss,
   setPinTopicsToTop,
   setShowTopicTime,
-  setSidebarIcons
+  setSidebarIcons,
+  setTopicLayoutType,
+  TopicLayoutType
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
 import { Button, ColorPicker, Input, Segmented, Switch } from 'antd'
@@ -56,6 +58,7 @@ const DisplaySettings: FC = () => {
   const {
     windowStyle,
     setWindowStyle,
+    topicLayoutType,
     topicPosition,
     setTopicPosition,
     clickAssistantToShowTopic,
@@ -166,6 +169,14 @@ const DisplaySettings: FC = () => {
     [t]
   )
 
+  const topicLayoutTypeOptions = useMemo(
+    () => [
+      { value: 'tabs', label: t('settings.topic.layout.type.tabs') },
+      { value: 'accordion', label: t('settings.topic.layout.type.accordion') }
+    ],
+    [t]
+  )
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -272,6 +283,16 @@ const DisplaySettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.topic.layout')}</SettingRowTitle>
+          <Segmented
+            value={topicLayoutType}
+            shape="round"
+            onChange={(value) => dispatch(setTopicLayoutType(value as TopicLayoutType))}
+            options={topicLayoutTypeOptions}
+          />
+        </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>

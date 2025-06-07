@@ -30,6 +30,8 @@ export const DEFAULT_SIDEBAR_ICONS: SidebarIcon[] = [
 
 export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
+export type TopicLayoutType = 'tabs' | 'accordion'
+
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
 export type UserTheme = {
@@ -59,6 +61,7 @@ export interface SettingsState {
   userTheme: UserTheme
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
+  topicLayoutType: TopicLayoutType
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
   pinTopicsToTop: boolean
@@ -209,6 +212,7 @@ export const initialState: SettingsState = {
   },
   windowStyle: 'opaque',
   fontSize: 14,
+  topicLayoutType: 'tabs',
   topicPosition: 'left',
   showTopicTime: false,
   pinTopicsToTop: false,
@@ -401,6 +405,9 @@ const settingsSlice = createSlice({
     },
     setWindowStyle: (state, action: PayloadAction<'transparent' | 'opaque'>) => {
       state.windowStyle = action.payload
+    },
+    setTopicLayoutType: (state, action: PayloadAction<TopicLayoutType>) => {
+      state.topicLayoutType = action.payload
     },
     setTopicPosition: (state, action: PayloadAction<'left' | 'right'>) => {
       state.topicPosition = action.payload
@@ -706,6 +713,7 @@ export const {
   setUserTheme,
   setFontSize,
   setWindowStyle,
+  setTopicLayoutType,
   setTopicPosition,
   setShowTopicTime,
   setPinTopicsToTop,
