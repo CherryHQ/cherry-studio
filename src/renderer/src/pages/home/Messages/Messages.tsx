@@ -104,22 +104,22 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     async (data: Topic) => {
       const defaultTopic = getDefaultTopic(assistant.id)
 
-      async function deleteTopicRelatedFiles(topicId: string) {
+      async function handleTopicRelatedFiles(topicId: string) {
         const topicFiles = await db.files.where({ topicId }).toArray()
         if (topicFiles.length > 0) {
-          await FileManager.deleteFiles(topicFiles)
+          await Promise.all(topicFiles.map((file) => FileManager.deleteFile(file.id, false)))
         }
       }
 
       if (data && data.id !== topic.id) {
         await clearTopicMessages(data.id)
-        await deleteTopicRelatedFiles(data.id)
+        await handleTopicRelatedFiles(data.id)
         updateTopic({ ...data, name: defaultTopic.name } as Topic)
         return
       }
 
       await clearTopicMessages()
-      await deleteTopicRelatedFiles(topic.id)
+      await handleTopicRelatedFiles(topic.id)
       setDisplayMessages([])
 
       const _topic = getTopic(assistant, topic.id)
