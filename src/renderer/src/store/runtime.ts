@@ -35,6 +35,8 @@ export interface RuntimeState {
   update: UpdateState
   export: ExportState
   chat: ChatState
+  /** topic ids that are currently being renamed */
+  renamingTopicIds: string[]
 }
 
 export interface ExportState {
@@ -66,7 +68,8 @@ const initialState: RuntimeState = {
     isMultiSelectMode: false,
     selectedMessageIds: [],
     activeTopic: null
-  }
+  },
+  renamingTopicIds: []
 }
 
 const runtimeSlice = createSlice({
@@ -118,6 +121,9 @@ const runtimeSlice = createSlice({
     },
     setActiveTopic: (state, action: PayloadAction<Topic>) => {
       state.chat.activeTopic = action.payload
+    },
+    setRenamingTopicIds: (state, action: PayloadAction<string[]>) => {
+      state.renamingTopicIds = action.payload
     }
   }
 })
@@ -137,7 +143,8 @@ export const {
   // Chat related actions
   toggleMultiSelectMode,
   setSelectedMessageIds,
-  setActiveTopic
+  setActiveTopic,
+  setRenamingTopicIds
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

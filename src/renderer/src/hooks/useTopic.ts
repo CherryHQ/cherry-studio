@@ -4,6 +4,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
+import { setRenamingTopicIds } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
@@ -12,8 +13,6 @@ import { useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
-
-const renamingTopics = new Set<string>()
 
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
@@ -58,13 +57,38 @@ export async function getTopicById(topicId: string) {
   return { ...topic, messages } as Topic
 }
 
+/**
+ * 开始重命名指定话题
+ */
+export const startTopicRenaming = (topicId: string) => {
+  const currentIds = store.getState().runtime.renamingTopicIds
+  if (!currentIds.includes(topicId)) {
+    store.dispatch(setRenamingTopicIds([...currentIds, topicId]))
+  }
+}
+
+/**
+ * 完成重命名指定话题
+ */
+export const finishTopicRenaming = (topicId: string) => {
+  const currentIds = store.getState().runtime.renamingTopicIds
+  store.dispatch(setRenamingTopicIds(currentIds.filter((id) => id !== topicId)))
+}
+
+/**
+ * 判断指定话题是否正在重命名
+ */
+export const isTopicRenaming = (topicId: string) => {
+  return store.getState().runtime.renamingTopicIds.includes(topicId)
+}
+
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
-  if (renamingTopics.has(topicId)) {
+  if (isTopicRenaming(topicId)) {
     return
   }
 
   try {
-    renamingTopics.add(topicId)
+    startTopicRenaming(topicId)
 
     const topic = await getTopicById(topicId)
     const enableTopicNaming = getStoreSetting('enableTopicNaming')
@@ -104,7 +128,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       }
     }
   } finally {
-    renamingTopics.delete(topicId)
+    finishTopicRenaming(topicId)
   }
 }
 
@@ -119,9 +143,18 @@ export const TopicManager = {
     return await db.topics.toArray()
   },
 
+  /**
+   * 加载并返回指定话题的消息
+   */
   async getTopicMessages(id: string) {
     const topic = await TopicManager.getTopic(id)
-    return topic ? topic.messages : []
+    if (!topic) return []
+
+    await store.dispatch(loadTopicMessagesThunk(id))
+
+    // 获取更新后的话题
+    const updatedTopic = await TopicManager.getTopic(id)
+    return updatedTopic?.messages || []
   },
 
   async removeTopic(id: string) {
