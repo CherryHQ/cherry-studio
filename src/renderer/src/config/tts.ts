@@ -103,7 +103,7 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
   {
     id: 'siliconflow',
     type: 'siliconflow',
-    name: '硅基流动 (SiliconFlow)',
+    name: '硅基流动',
     enabled: false,
     isSystem: true,
     settings: {
@@ -122,7 +122,7 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
   {
     id: 'tencentcloud',
     type: 'tencentcloud',
-    name: '腾讯云语音合成 (Tencent Cloud)',
+    name: '腾讯云语音合成',
     enabled: false,
     isSystem: true,
     settings: {
@@ -209,7 +209,7 @@ export const TTS_PROVIDER_CONFIG = {
     }
   },
   siliconflow: {
-    name: '硅基流动 (SiliconFlow)',
+    name: '硅基流动',
     description: '硅基流动高质量语音合成服务，支持多语言和情感控制，兼容 OpenAI API，支持流式合成',
     requiresApiKey: true,
     supportedFeatures: ['rate', 'voice', 'model', 'format', 'sample_rate', 'streaming'],
@@ -222,7 +222,7 @@ export const TTS_PROVIDER_CONFIG = {
     }
   },
   tencentcloud: {
-    name: '腾讯云语音合成 (Tencent Cloud)',
+    name: '腾讯云语音合成',
     description: '腾讯云高质量语音合成服务，支持多种中英文音色，支持真正的流式合成，企业级稳定性',
     requiresApiKey: true,
     supportedFeatures: ['rate', 'voice', 'region', 'sampleRate', 'codec', 'streaming'],

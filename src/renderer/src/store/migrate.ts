@@ -1616,7 +1616,7 @@ const migrateConfig = {
         {
           id: 'siliconflow',
           type: 'siliconflow',
-          name: '硅基流动 (SiliconFlow)',
+          name: '硅基流动',
           enabled: false,
           isSystem: true,
           settings: {
@@ -1635,7 +1635,7 @@ const migrateConfig = {
         {
           id: 'tencentcloud',
           type: 'tencentcloud',
-          name: '腾讯云语音合成 (Tencent Cloud)',
+          name: '腾讯云语音合成',
           enabled: false,
           isSystem: true,
           settings: {

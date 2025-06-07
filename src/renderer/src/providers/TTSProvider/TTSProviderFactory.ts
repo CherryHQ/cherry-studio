@@ -65,8 +65,8 @@ export class TTSProviderFactory {
       openai: 'OpenAI TTS',
       azure: 'Azure Speech',
       elevenlabs: 'ElevenLabs',
-      siliconflow: '硅基流动 (SiliconFlow)',
-      tencentcloud: '腾讯云语音合成 (Tencent Cloud)',
+      siliconflow: '硅基流动',
+      tencentcloud: '腾讯云语音合成',
       googlecloud: 'Google Cloud Text-to-Speech'
     }
     return names[type] || type
