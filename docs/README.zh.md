@@ -224,4 +224,4 @@ https://docs.cherry-ai.com
 [commercial-shield]: https://img.shields.io/badge/商用授权-联系-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
 [commercial-link]: mailto:license@cherry-ai.com?subject=商业授权咨询
 [sponsor-shield]: https://img.shields.io/badge/赞助支持-FF6699.svg?style=plastic&logo=githubsponsors&logoColor=white
-[sponsor-link]: https://github.com/sponsors/cherry-ai
+[sponsor-link]: https://github.com/CherryHQ/cherry-studio/blob/main/docs/sponsor.md

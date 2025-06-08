@@ -212,4 +212,4 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 [commercial-shield]: https://img.shields.io/badge/商用ライセンス-お問い合わせ-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
 [commercial-link]: mailto:license@cherry-ai.com?subject=商業ライセンスについて
 [sponsor-shield]: https://img.shields.io/badge/スポンサー-FF6699.svg?style=plastic&logo=githubsponsors&logoColor=white
-[sponsor-link]: https://github.com/sponsors/cherry-ai
+[sponsor-link]: https://github.com/CherryHQ/cherry-studio/blob/main/docs/sponsor.md

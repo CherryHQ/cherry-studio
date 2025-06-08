@@ -210,4 +210,4 @@ Thank you for your support and contributions!
 [commercial-shield]: https://img.shields.io/badge/License-Contact-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
 [commercial-link]: mailto:license@cherry-ai.com?subject=Commercial%20License%20Inquiry
 [sponsor-shield]: https://img.shields.io/badge/Sponsor-FF6699.svg?style=plastic&logo=githubsponsors&logoColor=white
-[sponsor-link]: https://github.com/sponsors/cherry-ai
+[sponsor-link]: https://github.com/CherryHQ/cherry-studio/blob/main/docs/sponsor.md
