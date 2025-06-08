@@ -1,14 +1,14 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
+import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, ThemeMode, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
-import { FeedUrl } from '@shared/config/constant'
 
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
 import type { TencentCloudTTSOptions } from '../main/services/TencentCloudTTSService'
+import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 // Custom APIs for renderer
 const api = {
@@ -204,7 +204,8 @@ const api = {
     openUrlInSearchWindow: (uid: string, url: string) => ipcRenderer.invoke(IpcChannel.SearchWindow_OpenUrl, uid, url)
   },
   tencentTTS: {
-    synthesizeSpeech: (options: TencentCloudTTSOptions) => ipcRenderer.invoke(IpcChannel.TencentTTS_SynthesizeSpeech, options),
+    synthesizeSpeech: (options: TencentCloudTTSOptions) =>
+      ipcRenderer.invoke(IpcChannel.TencentTTS_SynthesizeSpeech, options),
     testConnection: (secretId: string, secretKey: string, region: string) =>
       ipcRenderer.invoke(IpcChannel.TencentTTS_TestConnection, secretId, secretKey, region),
     getVoices: () => ipcRenderer.invoke(IpcChannel.TencentTTS_GetVoices),

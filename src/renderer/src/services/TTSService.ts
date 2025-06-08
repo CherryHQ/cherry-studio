@@ -107,6 +107,9 @@ export class TTSService {
     // 停止所有正在播放的 TTS
     this.stopAll()
 
+    // 等待一小段时间确保停止操作完成
+    await new Promise(resolve => setTimeout(resolve, 50))
+
     const speakOptions: TTSSpeakOptions = {
       text,
       voice: options?.voice || provider.settings.voice,
@@ -158,14 +161,27 @@ export class TTSService {
    * 停止所有正在播放的 TTS
    */
   stopAll(): void {
-    // 停止当前活跃的供应商
-    if (this.activeProvider) {
-      this.activeProvider.stop()
-      this.activeProvider = null
-    }
-    // 也停止当前供应商（以防万一）
-    if (this.currentProvider) {
-      this.currentProvider.stop()
+    try {
+      // 停止当前活跃的供应商
+      if (this.activeProvider) {
+        this.activeProvider.stop()
+        this.activeProvider = null
+      }
+      // 也停止当前供应商（以防万一）
+      if (this.currentProvider) {
+        this.currentProvider.stop()
+      }
+      // 停止所有供应商实例（确保彻底清理）
+      this.providers.forEach(provider => {
+        try {
+          provider.stop()
+        } catch (error) {
+          // 忽略单个供应商停止时的错误
+          console.warn('[TTSService] Error stopping provider:', error)
+        }
+      })
+    } catch (error) {
+      console.warn('[TTSService] Error in stopAll:', error)
     }
   }
 

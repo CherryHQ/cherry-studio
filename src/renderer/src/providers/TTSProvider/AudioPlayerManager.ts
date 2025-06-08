@@ -147,9 +147,30 @@ export class AudioPlayerManager {
    */
   stop(): void {
     if (this.audioElement) {
-      this.audioElement.pause()
-      this.audioElement.currentTime = 0
-      this.audioElement = null
+      try {
+        // 移除所有事件监听器，防止回调触发
+        this.audioElement.onended = null
+        this.audioElement.onerror = null
+        this.audioElement.onpause = null
+        this.audioElement.onplay = null
+        this.audioElement.onloadstart = null
+        this.audioElement.onloadeddata = null
+
+        // 停止播放
+        this.audioElement.pause()
+        this.audioElement.currentTime = 0
+
+        // 清理音频源
+        if (this.audioElement.src && this.audioElement.src.startsWith('blob:')) {
+          URL.revokeObjectURL(this.audioElement.src)
+        }
+
+        this.audioElement = null
+      } catch (error) {
+        // 忽略停止过程中的错误，确保清理完成
+        Logger.warn('[AudioPlayerManager] Error during stop:', error)
+        this.audioElement = null
+      }
     }
     this.setState(AudioPlayerState.STOPPED)
   }
@@ -214,59 +235,84 @@ export class AudioPlayerManager {
       return this.playStreamAsBlob(audioStream, mimeType, volume)
     }
 
+    return this.playStreamWithMediaSource(audioStream, mimeType, volume)
+  }
+
+  /**
+   * 使用 MediaSource 播放流式音频
+   */
+  private playStreamWithMediaSource(
+    audioStream: ReadableStream<Uint8Array>,
+    mimeType: string,
+    volume?: number
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        // 创建 MediaSource 对象
         const mediaSource = new MediaSource()
         const audioUrl = URL.createObjectURL(mediaSource)
 
         this.audioElement = new Audio(audioUrl)
-
-        // 设置音量
-        if (volume !== undefined) {
-          this.audioElement.volume = Math.max(0, Math.min(1, volume))
-        }
-
-        // 设置事件监听器
-        this.audioElement.onloadstart = () => {
-          this.setState(AudioPlayerState.LOADING)
-        }
-
-        this.audioElement.onended = () => {
-          this.setState(AudioPlayerState.IDLE)
-          URL.revokeObjectURL(audioUrl)
-          this.audioElement = null
-          resolve()
-        }
-
-        this.audioElement.onpause = () => {
-          this.setState(AudioPlayerState.PAUSED)
-        }
-
-        this.audioElement.onplay = () => {
-          this.setState(AudioPlayerState.PLAYING)
-        }
-
-        this.audioElement.onerror = () => {
-          this.setState(AudioPlayerState.ERROR)
-          URL.revokeObjectURL(audioUrl)
-          this.audioElement = null
-          reject(new Error('Audio playback failed'))
-        }
-
-        // MediaSource 事件处理
-        mediaSource.addEventListener('sourceopen', async () => {
-          try {
-            await this.handleMediaSourceOpen(mediaSource, audioStream, mimeType)
-          } catch (error) {
-            reject(error)
-          }
-        })
+        this.setupAudioElement(audioUrl, volume, resolve, reject)
+        this.setupMediaSourceEvents(mediaSource, audioStream, mimeType, reject)
 
         // 开始播放
         this.audioElement.play().catch(reject)
       } catch (error) {
         reject(error)
+      }
+    })
+  }
+
+  /**
+   * 设置音频元素的事件监听器
+   */
+  private setupAudioElement(
+    audioUrl: string,
+    volume: number | undefined,
+    resolve: () => void,
+    reject: (error: Error) => void
+  ): void {
+    if (!this.audioElement) return
+
+    // 设置音量
+    if (volume !== undefined) {
+      this.audioElement.volume = Math.max(0, Math.min(1, volume))
+    }
+
+    // 设置事件监听器
+    this.audioElement.onloadstart = () => this.setState(AudioPlayerState.LOADING)
+    this.audioElement.onpause = () => this.setState(AudioPlayerState.PAUSED)
+    this.audioElement.onplay = () => this.setState(AudioPlayerState.PLAYING)
+
+    this.audioElement.onended = () => {
+      this.setState(AudioPlayerState.IDLE)
+      URL.revokeObjectURL(audioUrl)
+      this.audioElement = null
+      resolve()
+    }
+
+    this.audioElement.onerror = () => {
+      this.setState(AudioPlayerState.ERROR)
+      URL.revokeObjectURL(audioUrl)
+      this.audioElement = null
+      reject(new Error('Audio playback failed'))
+    }
+  }
+
+  /**
+   * 设置 MediaSource 事件监听器
+   */
+  private setupMediaSourceEvents(
+    mediaSource: MediaSource,
+    audioStream: ReadableStream<Uint8Array>,
+    mimeType: string,
+    reject: (error: Error) => void
+  ): void {
+    mediaSource.addEventListener('sourceopen', async () => {
+      try {
+        await this.handleMediaSourceOpen(mediaSource, audioStream, mimeType)
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error(String(error)))
       }
     })
   }
@@ -342,7 +388,7 @@ export class AudioPlayerManager {
         return
       }
 
-      Logger.info(`[AudioPlayerManager] Processing audio chunk: ${value.length} bytes`)
+      Logger.debug(`[AudioPlayerManager] Processing audio chunk: ${value.length} bytes`)
 
       // 检查 MediaSource 和 SourceBuffer 状态
       if (mediaSource.readyState !== 'open') {
@@ -364,17 +410,17 @@ export class AudioPlayerManager {
    * 完成 MediaSource 流
    */
   private async finalizeMediaSource(sourceBuffer: SourceBuffer, mediaSource: MediaSource): Promise<void> {
-    Logger.info('[AudioPlayerManager] Stream reading completed')
+    Logger.debug('[AudioPlayerManager] Stream reading completed')
 
     // 确保 SourceBuffer 完成所有更新后再结束流
     if (sourceBuffer.updating) {
-      Logger.info('[AudioPlayerManager] Waiting for final SourceBuffer update to complete')
+      Logger.debug('[AudioPlayerManager] Waiting for final SourceBuffer update to complete')
       await this.waitForSourceBufferUpdate(sourceBuffer)
     }
 
     if (mediaSource.readyState === 'open') {
       try {
-        Logger.info('[AudioPlayerManager] Ending MediaSource stream')
+        Logger.debug('[AudioPlayerManager] Ending MediaSource stream')
         mediaSource.endOfStream()
       } catch (error) {
         Logger.warn('[AudioPlayerManager] Failed to end stream:', error)
@@ -389,7 +435,7 @@ export class AudioPlayerManager {
   private async appendBufferToSourceBuffer(sourceBuffer: SourceBuffer, value: Uint8Array): Promise<void> {
     // 等待 SourceBuffer 准备好
     if (sourceBuffer.updating) {
-      Logger.info('[AudioPlayerManager] SourceBuffer is updating, waiting...')
+      Logger.debug('[AudioPlayerManager] SourceBuffer is updating, waiting...')
       await this.waitForSourceBufferUpdate(sourceBuffer)
     }
 
@@ -400,7 +446,7 @@ export class AudioPlayerManager {
     }
 
     // 添加数据到 SourceBuffer
-    Logger.info('[AudioPlayerManager] Appending buffer to SourceBuffer')
+    Logger.debug('[AudioPlayerManager] Appending buffer to SourceBuffer')
     try {
       sourceBuffer.appendBuffer(value)
     } catch (error) {
@@ -410,7 +456,7 @@ export class AudioPlayerManager {
 
     // 等待 appendBuffer 操作完成
     await this.waitForSourceBufferUpdate(sourceBuffer)
-    Logger.info('[AudioPlayerManager] Buffer append completed')
+    Logger.debug('[AudioPlayerManager] Buffer append completed')
   }
 
   /**

@@ -1,5 +1,11 @@
+import {
+  DEFAULT_AUDIO_FORMATS,
+  DEFAULT_MODEL_IDS,
+  DEFAULT_REGIONS,
+  DEFAULT_SAMPLE_RATES,
+  DEFAULT_VOICE_IDS
+} from '@renderer/constants/tts'
 import { TTSProvider } from '@renderer/types/tts'
-import { DEFAULT_VOICE_IDS, DEFAULT_MODEL_IDS, DEFAULT_AUDIO_FORMATS, DEFAULT_REGIONS, DEFAULT_SAMPLE_RATES } from '@renderer/constants/tts'
 
 import { AzureTTSProvider } from './AzureTTSProvider'
 import { BaseTTSProvider } from './BaseTTSProvider'
