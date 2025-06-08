@@ -7,7 +7,6 @@ import {
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
-import { ProcessingState } from '@renderer/providers/middleware/types'
 import { SettingsState } from '@renderer/store/settings'
 import {
   Assistant,
@@ -41,7 +40,6 @@ import { defaultTimeout } from '@shared/config/constant'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
-import { CompletionsParams, CompletionsResult } from '../../middleware/schemas'
 import { ApiClient, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from './types'
 
 /**
@@ -71,16 +69,8 @@ export abstract class BaseApiClient<
     this.apiKey = this.getApiKey()
   }
 
-  // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
-  // 实际的SDK调用由SdkCallMiddleware处理
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async completions(_params: CompletionsParams, _internal?: ProcessingState): Promise<CompletionsResult> {
-    // 在中间件架构中，这个方法只是一个占位符
-    // 实际的SDK调用和流处理由中间件完成
-    return {
-      controller: new AbortController()
-    }
-  }
+  // // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
+  // abstract completions(params: CompletionsParams, internal?: ProcessingState): Promise<CompletionsResult>
 
   abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
 

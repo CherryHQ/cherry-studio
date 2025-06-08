@@ -40,7 +40,7 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
 
     // 确保assistant和model可用，它们是transformer所需的
     const assistant = params.assistant
-    const model = assistant?.model
+    const model = params.assistant.model
 
     if (!assistant || !model) {
       console.error(`🔄 [${MIDDLEWARE_NAME}] Assistant or Model not found for transformation.`)
@@ -60,11 +60,11 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
         newSdkMessages
       )
 
-      const { payload: sdkPayload, metadata, processedMessages } = transformResult
+      const { payload: sdkPayload, metadata } = transformResult
 
       // 将SDK特定的payload和metadata存储在状态中，供下游中间件使用
       ctx._internal.sdkPayload = sdkPayload
-      ctx._internal.processedMessages = processedMessages
+
       if (metadata) {
         ctx._internal.customState = {
           ...ctx._internal.customState,

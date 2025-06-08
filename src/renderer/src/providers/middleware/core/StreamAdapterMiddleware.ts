@@ -1,7 +1,6 @@
 import Logger from '@renderer/config/logger'
-import { ChunkType } from '@renderer/types/chunk'
 import { SdkRawChunk } from '@renderer/types/sdk'
-import { asyncGeneratorToReadableStream } from '@renderer/utils/stream'
+import { asyncGeneratorToReadableStream, createSingleChunkReadableStream } from '@renderer/utils/stream'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
@@ -25,7 +24,6 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
   async (ctx: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
     // TODO:调用开始，因为这个是最靠近接口请求的地方，next执行代表着开始接口请求了
     // 但是这个中间件的职责是流适配，是否在这调用优待商榷
-    params.onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
     // 调用下游中间件
     const result = await next(ctx, params)
 
@@ -46,6 +44,16 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
       return {
         ...result,
         stream: result.rawOutput
+      }
+    } else if (result.rawOutput) {
+      // 非流式输出，强行变为可读流
+      Logger.debug(`[${MIDDLEWARE_NAME}] Converting non-stream output to ReadableStream`)
+      const whatwgReadableStream: ReadableStream<SdkRawChunk> = createSingleChunkReadableStream<SdkRawChunk>(
+        result.rawOutput
+      )
+      return {
+        ...result,
+        stream: whatwgReadableStream
       }
     }
     return result

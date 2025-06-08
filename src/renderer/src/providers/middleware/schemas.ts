@@ -1,4 +1,4 @@
-import { Assistant, MCPTool, Model } from '@renderer/types'
+import { Assistant, MCPTool } from '@renderer/types'
 import { Chunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkRawChunk, SdkRawOutput } from '@renderer/types/sdk'
@@ -9,20 +9,19 @@ import { ProcessingState } from './types'
 // Core Request Types - 核心请求结构
 // ============================================================================
 
-export type OnFilterMessagesFunction = (messages: Message[]) => void
-
 /**
  * 标准化的内部核心请求结构，用于所有AI Provider的统一处理
  * 这是应用层参数转换后的标准格式，不包含回调函数和控制逻辑
  */
 export interface CompletionsParams {
   // 基础对话数据
-  messages: Message[]
-  assistant: Assistant
-  model: Model
+  messages: Message[] | string // 联合类型方便判断是否为空
 
-  onChunk: (chunk: Chunk) => void
-  onFilterMessages: OnFilterMessagesFunction
+  assistant: Assistant // 助手为基本单位
+  // model: Model
+
+  onChunk?: (chunk: Chunk) => void
+  onResponse?: (text: string, isComplete: boolean) => void
 
   // 工具相关
   mcpTools?: MCPTool[]
@@ -47,6 +46,8 @@ export interface CompletionsResult {
   rawOutput?: SdkRawOutput
   stream?: ReadableStream<SdkRawChunk> | ReadableStream<Chunk> | AsyncIterable<Chunk>
   controller?: AbortController
+
+  getText: () => string
 }
 
 // ============================================================================

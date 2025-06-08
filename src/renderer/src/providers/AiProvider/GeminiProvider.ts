@@ -34,7 +34,6 @@ import axios from 'axios'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
-import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import BaseProvider from './BaseProvider'
 
 export default class GeminiProvider extends BaseProvider {
@@ -54,22 +53,22 @@ export default class GeminiProvider extends BaseProvider {
    * @param onChunk - The onChunk callback
    * @param onFilterMessages - The onFilterMessages callback
    */
-  public async completions(params: CompletionsParams): Promise<CompletionsResult> {
-    console.log('[GeminiProvider] completions called with params:', {
-      messagesCount: params.messages?.length || 0,
-      streamOutput: params.streamOutput,
-      assistantId: params.assistant?.id,
-      modelId: params.assistant?.model?.id
-    })
+  // public async completions(params: CompletionsParams): Promise<CompletionsResult> {
+  //   console.log('[GeminiProvider] completions called with params:', {
+  //     messagesCount: params.messages?.length || 0,
+  //     streamOutput: params.streamOutput,
+  //     assistantId: params.assistant?.id,
+  //     modelId: params.assistant?.model?.id
+  //   })
 
-    try {
-      const result = await this.apiClient.completions(params)
-      return result
-    } catch (error) {
-      console.error('[GeminiProvider] completions failed:', error)
-      throw error
-    }
-  }
+  //   try {
+  //     const result = await this.apiClient.completions(params)
+  //     return result
+  //   } catch (error) {
+  //     console.error('[GeminiProvider] completions failed:', error)
+  //     throw error
+  //   }
+  // }
 
   /**
    * Translate a message

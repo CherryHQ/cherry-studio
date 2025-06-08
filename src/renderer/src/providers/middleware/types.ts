@@ -1,6 +1,5 @@
 import { MCPToolResponse, Metrics, Usage, WebSearchResponse } from '@renderer/types'
 import { Chunk, ErrorChunk } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
 import {
   SdkInstance,
   SdkMessageParam,
@@ -60,7 +59,6 @@ export interface ProcessingState<
 > {
   sdkPayload?: TParams
   newReqMessages?: TMessageParam[]
-  processedMessages?: Message[]
   observer?: {
     usage?: Usage
     metrics?: Metrics

@@ -1,4 +1,5 @@
 import { type Chunk, ChunkType, type ErrorChunk } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import type { CompletionsContext, CompletionsMiddleware } from '../types'
@@ -32,7 +33,7 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
 
     // 获取当前消息的ID用于abort管理
     // 优先使用处理过的消息，如果没有则使用原始消息
-    const processedMessages = ctx._internal?.processedMessages || params.messages
+    const processedMessages = params.messages as Message[]
     const lastUserMessage = processedMessages.findLast((m) => m.role === 'user')
     const messageId = lastUserMessage?.id
 

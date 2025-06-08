@@ -31,11 +31,6 @@ import { GenericChunk } from '@renderer/providers/middleware/schemas'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import {
-  filterContextMessages,
-  filterEmptyMessages,
-  filterUserRoleStartMessages
-} from '@renderer/services/MessagesService'
-import {
   Assistant,
   EFFORT_RATIO,
   FileTypes,
@@ -63,6 +58,7 @@ import {
   AnthropicSdkRawChunk,
   AnthropicSdkRawOutput
 } from '@renderer/types/sdk'
+import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   anthropicToolUseToMcpTool,
   isEnabledToolUse,
@@ -71,7 +67,6 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { takeRight } from 'lodash'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -109,7 +104,10 @@ export class AnthropicAPIClient extends BaseApiClient<
     options?: Anthropic.RequestOptions
   ): Promise<AnthropicSdkRawOutput> {
     const sdk = await this.getSdkInstance()
-    return sdk.messages.stream(payload, options)
+    if (payload.stream) {
+      return sdk.messages.stream(payload, options)
+    }
+    return await sdk.messages.create(payload, options)
   }
 
   override getTemperature(assistant: Assistant, model: Model): number | undefined {
@@ -397,37 +395,38 @@ export class AnthropicAPIClient extends BaseApiClient<
       ): Promise<{
         payload: AnthropicSdkParams
         messages: AnthropicSdkMessageParam[]
-        processedMessages: Message[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch, onFilterMessages } = coreRequest
-
-        const { contextCount } = getAssistantSettings(assistant)
-
-        const _messages = filterUserRoleStartMessages(
-          filterContextMessages(filterEmptyMessages(takeRight(messages, contextCount + 2)))
-        )
-        onFilterMessages(_messages)
-
-        const sdkMessages: AnthropicSdkMessageParam[] = []
-        for (const message of _messages) {
-          sdkMessages.push(await this.convertMessageToSdkParam(message))
-        }
-
+        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
+        // 1. 处理系统消息
         let systemPrompt = assistant.prompt
-
-        const { tools } = this.setupToolsConfig({
-          mcpTools: mcpTools,
-          model,
-          enableToolUse: isEnabledToolUse(assistant)
-        })
-
+        if (this.useSystemPromptForTools) {
+          systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
+        }
         if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
           systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
         }
         const systemMessage: TextBlockParam | undefined = systemPrompt
           ? { type: 'text', text: systemPrompt }
           : undefined
+
+        // 2. 处理用户消息
+        const sdkMessages: AnthropicSdkMessageParam[] = []
+        if (typeof messages === 'string') {
+          sdkMessages.push({ role: 'user', content: messages })
+        } else {
+          const processedMessages = addImageFileToContents(messages)
+          for (const message of processedMessages) {
+            sdkMessages.push(await this.convertMessageToSdkParam(message))
+          }
+        }
+
+        // 3. 设置工具
+        const { tools } = this.setupToolsConfig({
+          mcpTools: mcpTools,
+          model,
+          enableToolUse: isEnabledToolUse(assistant)
+        })
 
         if (enableWebSearch) {
           const webSearchTool = await this.getWebSearchParams(model)
@@ -462,7 +461,7 @@ export class AnthropicAPIClient extends BaseApiClient<
             }
 
         const timeout = this.getTimeout(model)
-        return { payload: finalParams, messages: sdkMessages, processedMessages: _messages, metadata: { timeout } }
+        return { payload: finalParams, messages: sdkMessages, metadata: { timeout } }
       }
     }
   }
@@ -475,6 +474,41 @@ export class AnthropicAPIClient extends BaseApiClient<
       return {
         async transform(rawChunk: AnthropicSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
           switch (rawChunk.type) {
+            case 'message': {
+              for (const content of rawChunk.content) {
+                switch (content.type) {
+                  case 'text': {
+                    controller.enqueue({
+                      type: ChunkType.TEXT_DELTA,
+                      text: content.text
+                    } as TextDeltaChunk)
+                    break
+                  }
+                  case 'tool_use': {
+                    toolCalls[0] = content
+                    break
+                  }
+                  case 'thinking': {
+                    controller.enqueue({
+                      type: ChunkType.THINKING_DELTA,
+                      text: content.thinking
+                    } as ThinkingDeltaChunk)
+                    break
+                  }
+                  case 'web_search_tool_result': {
+                    controller.enqueue({
+                      type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                      llm_web_search: {
+                        results: content.content,
+                        source: WebSearchSource.ANTHROPIC
+                      }
+                    } as LLMWebSearchCompleteChunk)
+                    break
+                  }
+                }
+              }
+              break
+            }
             case 'content_block_start': {
               const contentBlock = rawChunk.content_block
               switch (contentBlock.type) {

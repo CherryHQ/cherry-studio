@@ -61,8 +61,8 @@ export type OpenAISdkMessageParam = OpenAI.Chat.Completions.ChatCompletionMessag
 export type OpenAISdkMessage = OpenAI.Chat.Completions.ChatCompletionMessage
 
 export type AnthropicSdkParams = MessageCreateParams
-export type AnthropicSdkRawOutput = MessageStream | Message | { _request_id?: string | null | undefined }
-export type AnthropicSdkRawChunk = RawMessageStreamEvent
+export type AnthropicSdkRawOutput = MessageStream | Message
+export type AnthropicSdkRawChunk = RawMessageStreamEvent | Message
 export type AnthropicSdkMessageParam = MessageParam
 export type AnthropicSdkMessage = Message
 

@@ -1,10 +1,6 @@
 import { isOpenAILLMModel } from '@renderer/config/models'
-import { getDefaultModel } from '@renderer/services/AssistantService'
-import { Assistant, MCPCallToolResponse, MCPTool, MCPToolResponse, Model, Provider, Suggestion } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
-import OpenAI from 'openai'
+import { Model, Provider } from '@renderer/types'
 
-import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import AnthropicProvider from './AnthropicProvider'
 import BaseProvider from './BaseProvider'
 import GeminiProvider from './GeminiProvider'

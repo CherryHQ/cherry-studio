@@ -5,11 +5,8 @@ import {
   MessageCreateParamsNonStreaming,
   MessageParam,
   TextBlockParam,
-  ToolResultBlockParam,
-  WebSearchTool20250305
+  ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources'
-import Logger from '@renderer/config/logger'
-import { isWebSearchModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
@@ -31,7 +28,6 @@ import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/u
 import { first, takeRight } from 'lodash'
 import OpenAI from 'openai'
 
-import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import BaseProvider from './BaseProvider'
 
 export default class AnthropicProvider extends BaseProvider {
@@ -103,45 +99,6 @@ export default class AnthropicProvider extends BaseProvider {
     return {
       role: message.role === 'system' ? 'user' : message.role,
       content: parts
-    }
-  }
-
-  private async getWebSearchParams(model: Model): Promise<WebSearchTool20250305 | undefined> {
-    if (!isWebSearchModel(model)) {
-      return undefined
-    }
-
-    return {
-      type: 'web_search_20250305',
-      name: 'web_search',
-      max_uses: 5
-    } as WebSearchTool20250305
-  }
-
-  /**
-   * Generate completions
-   * @param messages - The messages
-   * @param assistant - The assistant
-   * @param mcpTools - The MCP tools
-   * @param onChunk - The onChunk callback
-   * @param onFilterMessages - The onFilterMessages callback
-   */
-  async completions(params: CompletionsParams): Promise<CompletionsResult> {
-    Logger.debug('[AnthropicProvider] completions called with params:', {
-      messagesCount: params.messages?.length || 0,
-      streamOutput: params.streamOutput,
-      assistantId: params.assistant?.id,
-      modelId: params.assistant?.model?.id
-    })
-
-    try {
-      Logger.debug('[AnthropicProvider] calling apiClient.completions...')
-      const result = await this.apiClient.completions(params)
-      Logger.debug('[AnthropicProvider] apiClient.completions completed successfully')
-      return result
-    } catch (error) {
-      Logger.error('[AnthropicProvider] apiClient.completions failed:', error)
-      throw error
     }
   }
 

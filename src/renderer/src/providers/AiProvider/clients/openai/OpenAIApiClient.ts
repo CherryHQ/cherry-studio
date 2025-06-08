@@ -15,11 +15,6 @@ import {
   isVisionModel
 } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
-import {
-  filterContextMessages,
-  filterEmptyMessages,
-  filterUserRoleStartMessages
-} from '@renderer/services/MessagesService'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store' // For Copilot token
 import {
@@ -55,7 +50,6 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
-import { takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionTool } from 'openai/resources'
 import { Stream } from 'openai/streaming'
@@ -94,7 +88,7 @@ export class OpenAIAPIClient extends BaseApiClient<
   ): Promise<OpenAISdkRawOutput> {
     const sdk = await this.getSdkInstance()
     // @ts-ignore - SDK参数可能有额外的字段
-    return sdk.chat.completions.create(payload, options)
+    return await sdk.chat.completions.create(payload, options)
   }
 
   override async getSdkInstance() {
@@ -424,15 +418,10 @@ export class OpenAIAPIClient extends BaseApiClient<
       ): Promise<{
         payload: OpenAISdkParams
         messages: OpenAISdkMessageParam[]
-        processedMessages: Message[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput, onFilterMessages } = coreRequest
-
-        const { contextCount } = getAssistantSettings(assistant)
-
-        const processedMessages = addImageFileToContents(messages)
-
+        const { messages, mcpTools, maxTokens, streamOutput } = coreRequest
+        // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
         if (isSupportedReasoningEffortOpenAIModel(model)) {
@@ -442,25 +431,19 @@ export class OpenAIAPIClient extends BaseApiClient<
           }
         }
 
-        const { tools } = this.setupToolsConfig({
-          mcpTools: mcpTools,
-          model,
-          enableToolUse: isEnabledToolUse(assistant)
-        })
-
         if (this.useSystemPromptForTools) {
           systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
         }
 
+        // 2. 处理用户消息
         const userMessages: OpenAISdkMessageParam[] = []
-
-        const _messages = filterUserRoleStartMessages(
-          filterEmptyMessages(filterContextMessages(takeRight(processedMessages, contextCount + 1)))
-        )
-
-        onFilterMessages(_messages)
-        for (const message of messages) {
-          userMessages.push(await this.convertMessageToSdkParam(message, model))
+        if (typeof messages === 'string') {
+          userMessages.push({ role: 'user', content: messages })
+        } else {
+          const processedMessages = addImageFileToContents(messages)
+          for (const message of processedMessages) {
+            userMessages.push(await this.convertMessageToSdkParam(message, model))
+          }
         }
 
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
@@ -472,6 +455,7 @@ export class OpenAIAPIClient extends BaseApiClient<
           lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
         }
 
+        // 3. 最终请求消息
         let reqMessages: OpenAISdkMessageParam[]
         if (!systemMessage.content) {
           reqMessages = [...userMessages]
@@ -481,7 +465,14 @@ export class OpenAIAPIClient extends BaseApiClient<
 
         reqMessages = processReqMessages(model, reqMessages)
 
-        // Create common parameters that will be used in both streaming and non-streaming cases
+        // 4. 设置工具
+        const { tools } = this.setupToolsConfig({
+          mcpTools: mcpTools,
+          model,
+          enableToolUse: isEnabledToolUse(assistant)
+        })
+
+        // 5. 创建通用参数
         const commonParams = {
           model: model.id,
           messages:
@@ -491,12 +482,12 @@ export class OpenAIAPIClient extends BaseApiClient<
           temperature: this.getTemperature(assistant, model),
           top_p: this.getTopP(assistant, model),
           max_tokens: maxTokens,
-          tools: tools,
+          tools: tools.length > 0 ? tools : undefined,
           service_tier: this.getServiceTier(model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
-          ...this.getCustomParameters(assistant),
-          ...getOpenAIWebSearchParams(assistant, model)
+          ...getOpenAIWebSearchParams(assistant, model),
+          ...this.getCustomParameters(assistant)
         }
 
         // Create the appropriate parameters object based on whether streaming is enabled
@@ -512,7 +503,7 @@ export class OpenAIAPIClient extends BaseApiClient<
 
         const timeout = this.getTimeout(model)
 
-        return { payload: sdkParams, messages: reqMessages, processedMessages, metadata: { timeout } }
+        return { payload: sdkParams, messages: reqMessages, metadata: { timeout } }
       }
     }
   }
@@ -583,17 +574,6 @@ export class OpenAIAPIClient extends BaseApiClient<
           source: WebSearchSource.HUNYUAN
         }
       }
-
-      // TODO: 放到GeminiApiClient中
-      // Gemini grounding metadata
-      // @ts-ignore - groundingMetadata may not be in standard type definitions
-      // const groundingMetadata = contentSource.groundingMetadata || chunk.groundingMetadata
-      // if (context.provider?.id === 'gemini' && groundingMetadata) {
-      //   return {
-      //     results: groundingMetadata,
-      //     source: 'gemini' as const
-      //   }
-      // }
 
       // TODO: 放到AnthropicApiClient中
       // // Other providers...

@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
 import { Provider } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
 import {
   AnthropicSdkRawChunk,
   OpenAISdkRawChunk,
@@ -14,7 +13,7 @@ import {
 } from '@renderer/types/sdk'
 import OpenAI from 'openai'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../../middleware/schemas'
+import { CompletionsParams, GenericChunk } from '../../middleware/schemas'
 
 /**
  * 原始流监听器接口
@@ -59,7 +58,6 @@ export interface RequestTransformer<
   ): Promise<{
     payload: TSdkParams
     messages: TMessageParam[]
-    processedMessages: Message[]
     metadata?: Record<string, any>
   }>
 }
@@ -95,7 +93,7 @@ export interface ApiClient<
 
   // 核心方法 - 在中间件架构中，这个方法可能只是一个占位符
   // 实际的SDK调用由SdkCallMiddleware处理
-  completions(params: CompletionsParams): Promise<CompletionsResult>
+  // completions(params: CompletionsParams): Promise<CompletionsResult>
 
   createCompletions(payload: TSdkParams): Promise<TRawOutput>
 

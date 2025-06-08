@@ -8,6 +8,7 @@ import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
+import { ChunkType } from '@renderer/types/chunk'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -700,7 +701,8 @@ const fetchAndProcessAssistantResponseImpl = async (
     }
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
-
+    // TODO: 在这里能否加快上屏速度？
+    streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
     await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,

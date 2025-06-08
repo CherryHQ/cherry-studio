@@ -109,11 +109,11 @@ const Artboard: FC<ArtboardProps> = ({
                   </Button>
                 </div>
               </div>
+            ) : imageCover ? (
+              imageCover
             ) : (
-                imageCover ?
-                  imageCover:
-                  (<div>{t('paintings.image_placeholder')}</div>)
-              )}
+              <div>{t('paintings.image_placeholder')}</div>
+            )}
           </ImagePlaceholder>
         )}
         {isLoading && (

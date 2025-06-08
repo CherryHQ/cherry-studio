@@ -17,13 +17,7 @@ import {
 import { nanoid } from '@reduxjs/toolkit'
 import { findTokenLimit, isGeminiReasoningModel, isGemmaModel, isVisionModel } from '@renderer/config/models'
 import { GenericChunk } from '@renderer/providers/middleware/schemas'
-import { getAssistantSettings } from '@renderer/services/AssistantService'
 import { CacheService } from '@renderer/services/CacheService'
-import {
-  filterContextMessages,
-  filterEmptyMessages,
-  filterUserRoleStartMessages
-} from '@renderer/services/MessagesService'
 import {
   Assistant,
   EFFORT_RATIO,
@@ -56,7 +50,6 @@ import {
 import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import { MB } from '@shared/config/constant'
-import { takeRight } from 'lodash'
 
 import { BaseApiClient } from '../BaseApiClient'
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
@@ -363,56 +356,43 @@ export class GeminiAPIClient extends BaseApiClient<
       ): Promise<{
         payload: GeminiSdkParams
         messages: GeminiSdkMessageParam[]
-        processedMessages: Message[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch, onFilterMessages } = coreRequest
-
-        const { contextCount } = getAssistantSettings(assistant)
-
-        const userMessages = filterUserRoleStartMessages(
-          filterEmptyMessages(filterContextMessages(takeRight(messages, contextCount + 2)))
-        )
-        onFilterMessages(userMessages)
-
-        const userLastMessage = userMessages.pop()
-
-        const history: Content[] = []
-
-        for (const message of userMessages) {
-          history.push(await this.convertMessageToSdkParam(message))
+        const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
+        // 1. 处理系统消息
+        let systemInstruction = assistant.prompt
+        if (this.useSystemPromptForTools) {
+          systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
         }
 
-        let systemInstruction = assistant.prompt
+        let messageContents: Content
+        const history: Content[] = []
+        // 2. 处理用户消息
+        if (typeof messages === 'string') {
+          messageContents = {
+            role: 'user',
+            parts: [{ text: messages }]
+          }
+        } else {
+          const userLastMessage = messages.pop()!
+          messageContents = await this.convertMessageToSdkParam(userLastMessage)
+          for (const message of messages) {
+            history.push(await this.convertMessageToSdkParam(message))
+          }
+        }
 
+        // 3. 设置工具
         const { tools } = this.setupToolsConfig({
           mcpTools,
           model,
           enableToolUse: isEnabledToolUse(assistant)
         })
 
-        if (this.useSystemPromptForTools) {
-          systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
-        }
-
         if (enableWebSearch) {
           tools.push({
             googleSearch: {}
           })
         }
-
-        const generateContentConfig: GenerateContentConfig = {
-          safetySettings: this.getSafetySettings(),
-          systemInstruction: isGemmaModel(model) ? undefined : systemInstruction,
-          temperature: this.getTemperature(assistant, model),
-          topP: this.getTopP(assistant, model),
-          maxOutputTokens: maxTokens,
-          tools: tools,
-          ...this.getBudgetToken(assistant, model),
-          ...this.getCustomParameters(assistant)
-        }
-
-        const messageContents: Content = await this.convertMessageToSdkParam(userLastMessage!)
 
         if (isGemmaModel(model) && assistant.prompt) {
           const isFirstMessage = history.length === 0
@@ -450,6 +430,17 @@ export class GeminiAPIClient extends BaseApiClient<
               }
             : messageContents
 
+        const generateContentConfig: GenerateContentConfig = {
+          safetySettings: this.getSafetySettings(),
+          systemInstruction: isGemmaModel(model) ? undefined : systemInstruction,
+          temperature: this.getTemperature(assistant, model),
+          topP: this.getTopP(assistant, model),
+          maxOutputTokens: maxTokens,
+          tools: tools,
+          ...this.getBudgetToken(assistant, model),
+          ...this.getCustomParameters(assistant)
+        }
+
         const param: GeminiSdkParams = {
           model: model.id,
           config: generateContentConfig,
@@ -460,7 +451,6 @@ export class GeminiAPIClient extends BaseApiClient<
         return {
           payload: param,
           messages: [messageContents],
-          processedMessages: userMessages,
           metadata: {}
         }
       }

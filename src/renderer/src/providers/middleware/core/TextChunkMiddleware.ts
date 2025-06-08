@@ -90,6 +90,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                 controller.enqueue(chunk)
               } else if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
                 let finalText = accumulatedTextContent
+                ctx._internal.customState!.accumulatedText = finalText
                 // 如果有待处理的Web搜索结果，尝试完善链接
                 if (assistant.enableWebSearch && pendingWebSearchResults.length > 0) {
                   finalText = completeLinks(finalText, pendingWebSearchResults)

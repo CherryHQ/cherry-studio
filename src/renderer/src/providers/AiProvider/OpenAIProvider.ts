@@ -3,7 +3,7 @@ import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { Assistant, Model, Provider, Suggestion } from '@renderer/types'
+import { Assistant, Model, Provider } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -11,7 +11,6 @@ import { takeRight } from 'lodash'
 import OpenAI from 'openai'
 import { ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources'
 
-import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import BaseProvider from './BaseProvider'
 
 export default class OpenAIProvider extends BaseProvider {
@@ -19,29 +18,29 @@ export default class OpenAIProvider extends BaseProvider {
     super(provider)
   }
 
-  /**
-   * Generate completions for the assistant
-   * @param params - The completion parameters
-   * @returns The completions
-   */
-  async completions(params: CompletionsParams): Promise<CompletionsResult> {
-    console.log('[OpenAIProvider] completions called with params:', {
-      messagesCount: params.messages?.length || 0,
-      streamOutput: params.streamOutput,
-      assistantId: params.assistant?.id,
-      modelId: params.assistant?.model?.id
-    })
+  // /**
+  //  * Generate completions for the assistant
+  //  * @param params - The completion parameters
+  //  * @returns The completions
+  //  */
+  // async completions(params: CompletionsParams): Promise<CompletionsResult> {
+  //   console.log('[OpenAIProvider] completions called with params:', {
+  //     messagesCount: params.messages?.length || 0,
+  //     streamOutput: params.streamOutput,
+  //     assistantId: params.assistant?.id,
+  //     modelId: params.assistant?.model?.id
+  //   })
 
-    try {
-      console.log('[OpenAIProvider] calling apiClient.completions...')
-      const result = await this.apiClient.completions(params)
-      console.log('[OpenAIProvider] apiClient.completions completed successfully')
-      return result
-    } catch (error) {
-      console.error('[OpenAIProvider] apiClient.completions failed:', error)
-      throw error
-    }
-  }
+  //   try {
+  //     console.log('[OpenAIProvider] calling apiClient.completions...')
+  //     const result = await this.apiClient.completions(params)
+  //     console.log('[OpenAIProvider] apiClient.completions completed successfully')
+  //     return result
+  //   } catch (error) {
+  //     console.error('[OpenAIProvider] apiClient.completions failed:', error)
+  //     throw error
+  //   }
+  // }
 
   /**
    * Translate a message
@@ -273,48 +272,48 @@ export default class OpenAIProvider extends BaseProvider {
     return response.choices[0].message?.content || ''
   }
 
-  /**
-   * Generate suggestions
-   * @param messages - The messages
-   * @param assistant - The assistant
-   * @returns The suggestions
-   */
-  async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
-    const { model } = assistant
+  // /**
+  //  * Generate suggestions
+  //  * @param messages - The messages
+  //  * @param assistant - The assistant
+  //  * @returns The suggestions
+  //  */
+  // async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
+  //   const { model } = assistant
 
-    if (!model) {
-      return []
-    }
+  //   if (!model) {
+  //     return []
+  //   }
 
-    const sdk = await (this.apiClient as any).getSdkInstance()
+  //   const sdk = await (this.apiClient as any).getSdkInstance()
 
-    if (this.provider.id === 'copilot') {
-      const defaultHeaders = store.getState().copilot.defaultHeaders
-      const { token } = await window.api.copilot.getToken(defaultHeaders)
-      sdk.apiKey = token
-    }
+  //   if (this.provider.id === 'copilot') {
+  //     const defaultHeaders = store.getState().copilot.defaultHeaders
+  //     const { token } = await window.api.copilot.getToken(defaultHeaders)
+  //     sdk.apiKey = token
+  //   }
 
-    const userMessagesForApi = messages
-      .filter((m) => m.role === 'user')
-      .map((m) => ({
-        role: m.role,
-        content: getMainTextContent(m)
-      }))
+  //   const userMessagesForApi = messages
+  //     .filter((m) => m.role === 'user')
+  //     .map((m) => ({
+  //       role: m.role,
+  //       content: getMainTextContent(m)
+  //     }))
 
-    const response: any = await sdk.request({
-      method: 'post',
-      path: '/advice_questions',
-      body: {
-        messages: userMessagesForApi,
-        model: model.id,
-        max_tokens: 0,
-        temperature: 0,
-        n: 0
-      }
-    })
+  //   const response: any = await sdk.request({
+  //     method: 'post',
+  //     path: '/advice_questions',
+  //     body: {
+  //       messages: userMessagesForApi,
+  //       model: model.id,
+  //       max_tokens: 0,
+  //       temperature: 0,
+  //       n: 0
+  //     }
+  //   })
 
-    return response?.questions?.filter(Boolean)?.map((q: any) => ({ content: q })) || []
-  }
+  //   return response?.questions?.filter(Boolean)?.map((q: any) => ({ content: q })) || []
+  // }
 
   /**
    * Check if the model is valid

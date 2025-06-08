@@ -12,7 +12,9 @@ import {
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
 } from '@renderer/config/prompts'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { CompletionsParams } from '@renderer/providers/middleware/schemas'
 import {
   Assistant,
   ExternalToolResult,
@@ -29,7 +31,7 @@ import { Message } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { findLast, isEmpty } from 'lodash'
+import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
 import {
@@ -42,7 +44,13 @@ import {
 } from './AssistantService'
 import { getDefaultAssistant } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
-import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterMessages,
+  filterUsefulMessages,
+  filterUserRoleStartMessages
+} from './MessagesService'
 import WebSearchService from './WebSearchService'
 
 // TODO：考虑拆开
@@ -91,14 +99,14 @@ async function fetchExternalTool(
     summaryAssistant.prompt = prompt
 
     try {
-      const keywords = await fetchSearchSummary({
+      const result = await fetchSearchSummary({
         messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
         assistant: summaryAssistant
       })
 
-      if (!keywords) return getFallbackResult()
+      if (!result) return getFallbackResult()
 
-      const extracted = extractInfoFromXML(keywords)
+      const extracted = extractInfoFromXML(result.getText())
       // 根据需求过滤结果
       return {
         websearch: needWebExtract ? extracted?.websearch : undefined,
@@ -309,31 +317,34 @@ export async function fetchChatCompletion({
   // NOTE: The search results are NOT added to the messages sent to the AI here.
   // They will be retrieved and used by the messageThunk later to create CitationBlocks.
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
+  const model = assistant.model || getDefaultModel()
+
+  const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
   const filteredMessages = filterUsefulMessages(messages)
 
-  const model = assistant.model || getDefaultModel()
-
-  const { maxTokens } = getAssistantSettings(assistant)
+  const _messages = filterUserRoleStartMessages(
+    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+  )
 
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  const enableWebSearch = (assistant.enableWebSearch && isWebSearchModel(model)) || false
+
   // --- Call AI Completions ---
   await AI.completions(
     {
-      messages: filteredMessages,
-      model,
+      messages: _messages,
       assistant,
-      onFilterMessages: () => {},
       onChunk: onChunkReceived,
       mcpTools: mcpTools,
       maxTokens,
       streamOutput: assistant.settings?.streamOutput || false,
       enableReasoning: enableReasoning,
-      enableWebSearch: (assistant.enableWebSearch && isWebSearchModel(model)) || false
+      enableWebSearch
     },
     {
       streamOutput: assistant.settings?.streamOutput || false
@@ -348,7 +359,7 @@ interface FetchTranslateProps {
 }
 
 export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel()
+  const model = getTranslateModel() || assistant.model || getDefaultModel()
 
   if (!model) {
     throw new Error(i18n.t('error.provider_disabled'))
@@ -360,17 +371,35 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
     throw new Error(i18n.t('error.no_api_key'))
   }
 
+  const isSupportedStreamOutput = () => {
+    if (!onResponse) {
+      return false
+    }
+    return true
+  }
+
+  const stream = isSupportedStreamOutput()
+
+  const params: CompletionsParams = {
+    messages: content,
+    assistant,
+    streamOutput: stream,
+    onResponse
+  }
+
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.translate(content, assistant, onResponse)
+    return await AI.completions(params)
   } catch (error: any) {
     return ''
   }
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+  const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
+
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -379,8 +408,15 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  const params: CompletionsParams = {
+    messages: filterMessages(messages),
+    assistant: { ...assistant, prompt, model },
+    streamOutput: false
+  }
+
   try {
-    const text = await AI.summaries(filterMessages(messages), assistant)
+    const { getText } = await AI.completions(params)
+    const text = getText()
     return text?.replace(/["']/g, '') || null
   } catch (error: any) {
     return null
@@ -397,7 +433,13 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
 
   const AI = new AiProvider(provider)
 
-  return await AI.summaryForSearch(messages, assistant)
+  const params: CompletionsParams = {
+    messages: messages,
+    assistant,
+    streamOutput: false
+  }
+
+  return await AI.completions(params)
 }
 
 export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {
@@ -410,8 +452,19 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
 
   const AI = new AiProvider(provider)
 
+  const assistant = getDefaultAssistant()
+  assistant.model = model
+  assistant.prompt = prompt
+
+  const params: CompletionsParams = {
+    messages: content,
+    assistant,
+    streamOutput: false
+  }
+
   try {
-    return await AI.generateText({ prompt, content })
+    const result = await AI.completions(params)
+    return result.getText() || ''
   } catch (error: any) {
     return ''
   }
@@ -430,10 +483,18 @@ export async function fetchSuggestions({
   }
 
   const provider = getAssistantProvider(assistant)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const AI = new AiProvider(provider)
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const params: CompletionsParams = {
+    messages: filterMessages(messages),
+    assistant,
+    streamOutput: false
+  }
+
   try {
-    return await AI.suggestions(filterMessages(messages), assistant)
+    return []
   } catch (error: any) {
     return []
   }
@@ -509,11 +570,20 @@ export async function checkApi(provider: Provider, model: Model) {
 
   const ai = new AiProvider(provider)
 
-  // Try streaming check first
-  const result = await ai.check(model, true)
-  if (result.valid && !result.error) {
-    return result
+  const assistant = getDefaultAssistant()
+  assistant.model = model
+
+  const params: CompletionsParams = {
+    messages: 'hi',
+    assistant,
+    streamOutput: true
   }
 
-  return ai.check(model, false)
+  // Try streaming check first
+  const result = await ai.completions(params)
+  if (result.getText()) {
+    return true
+  }
+
+  return false
 }

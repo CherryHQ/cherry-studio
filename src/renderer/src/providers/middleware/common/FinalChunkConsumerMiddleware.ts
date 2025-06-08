@@ -47,6 +47,8 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
         time_first_token_millsec: 0,
         time_thinking_millsec: 0
       }
+      // 初始化文本累积器
+      ctx._internal.customState.accumulatedText = ''
       Logger.debug(`[${MIDDLEWARE_NAME}] Initialized accumulation data for top-level call`)
     } else {
       Logger.debug(`[${MIDDLEWARE_NAME}] Recursive call, will use existing accumulation data`)
@@ -129,14 +131,20 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
           }
         }
 
-        return {
+        // 为流式输出添加getText方法
+        const modifiedResult = {
           ...result,
           stream: new ReadableStream<GenericChunk>({
             start(controller) {
               controller.close()
             }
-          })
+          }),
+          getText: () => {
+            return ctx._internal.customState?.accumulatedText || ''
+          }
         }
+
+        return modifiedResult
       } else {
         Logger.debug(`[${MIDDLEWARE_NAME}] No GenericChunk stream to process.`)
       }

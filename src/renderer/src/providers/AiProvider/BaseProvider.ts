@@ -1,8 +1,5 @@
-import type { Assistant, GenerateImageParams, Model, Provider, Suggestion } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
-import type OpenAI from 'openai'
+import type { Provider } from '@renderer/types'
 
-import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import { ApiClient, ApiClientFactory } from './clients'
 
 export default abstract class BaseProvider {
@@ -15,20 +12,20 @@ export default abstract class BaseProvider {
     this.apiClient = ApiClientFactory.create(provider)
   }
 
-  abstract completions(params: CompletionsParams): Promise<CompletionsResult>
-  abstract translate(
-    content: string,
-    assistant: Assistant,
-    onResponse?: (text: string, isComplete: boolean) => void
-  ): Promise<string>
-  abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
-  abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
-  abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
-  abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
-  abstract check(model: Model, stream: boolean): Promise<{ valid: boolean; error: Error | null }>
-  abstract models(): Promise<OpenAI.Models.Model[]>
-  abstract generateImage(params: GenerateImageParams): Promise<string[]>
-  abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
-  abstract getEmbeddingDimensions(model: Model): Promise<number>
+  // abstract completions(params: CompletionsParams): Promise<CompletionsResult>
+  // abstract translate(
+  //   content: string,
+  //   assistant: Assistant,
+  //   onResponse?: (text: string, isComplete: boolean) => void
+  // ): Promise<string>
+  // abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
+  // abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
+  // abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
+  // abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
+  // abstract check(model: Model, stream: boolean): Promise<{ valid: boolean; error: Error | null }>
+  // abstract models(): Promise<OpenAI.Models.Model[]>
+  // abstract generateImage(params: GenerateImageParams): Promise<string[]>
+  // abstract generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void>
+  // abstract getEmbeddingDimensions(model: Model): Promise<number>
   // abstract getMessageParam(message: Message, model?: Model): Promise<any>
 }
