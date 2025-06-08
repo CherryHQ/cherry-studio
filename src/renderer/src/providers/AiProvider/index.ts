@@ -1,8 +1,7 @@
 import { ApiClientFactory } from '@renderer/providers/AiProvider/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/providers/AiProvider/clients/BaseApiClient'
 import type { Model, Provider } from '@renderer/types'
-import { RequestOptions } from '@renderer/types/sdk'
-import OpenAI from 'openai'
+import { RequestOptions, SdkModel } from '@renderer/types/sdk'
 
 import { CompletionsMiddlewareBuilder } from '../middleware/builder'
 import { applyCompletionsMiddlewares } from '../middleware/composer'
@@ -49,11 +48,8 @@ export default class AiProvider {
     return wrappedCompletionMethod(params, options)
   }
 
-  public async models(): Promise<OpenAI.Models.Model[]> {
-    // TODO: This method might need to be on ApiClient or handled differently
-    console.warn('models method needs review for new architecture')
-    return Promise.reject('Not implemented')
-    // return this.apiClient.models()
+  public async models(): Promise<SdkModel[]> {
+    return this.apiClient.listModels()
   }
 
   public async getEmbeddingDimensions(model: Model): Promise<number> {

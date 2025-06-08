@@ -110,6 +110,12 @@ export class AnthropicAPIClient extends BaseApiClient<
     return await sdk.messages.create(payload, options)
   }
 
+  override async listModels(): Promise<Anthropic.ModelInfo[]> {
+    const sdk = await this.getSdkInstance()
+    const response = await sdk.models.list()
+    return response.data
+  }
+
   // @ts-ignore sdk未提供
   override async getEmbeddingDimensions(): Promise<number> {
     return 0

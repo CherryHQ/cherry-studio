@@ -5,6 +5,7 @@ import {
   isClaudeReasoningModel,
   isOpenAIReasoningModel,
   isReasoningModel,
+  isSupportedModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -102,6 +103,42 @@ export class OpenAIAPIClient extends BaseApiClient<
       return data.data[0].embedding.length
     } catch (e) {
       return 0
+    }
+  }
+
+  override async listModels(): Promise<OpenAI.Models.Model[]> {
+    try {
+      const sdk = await this.getSdkInstance()
+      const response = await sdk.models.list()
+      if (this.provider.id === 'github') {
+        // @ts-ignore key is not typed
+        return response?.body
+          .map((model) => ({
+            id: model.name,
+            description: model.summary,
+            object: 'model',
+            owned_by: model.publisher
+          }))
+          .filter(isSupportedModel)
+      }
+      if (this.provider.id === 'together') {
+        // @ts-ignore key is not typed
+        return response?.body.map((model) => ({
+          id: model.id,
+          description: model.display_name,
+          object: 'model',
+          owned_by: model.organization
+        }))
+      }
+      const models = response.data || []
+      models.forEach((model) => {
+        model.id = model.id.trim()
+      })
+
+      return models.filter(isSupportedModel)
+    } catch (error) {
+      console.error('Error listing models:', error)
+      return []
     }
   }
 

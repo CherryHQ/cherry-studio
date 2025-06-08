@@ -14,6 +14,7 @@ import {
   FunctionCall,
   GenerateContentResponse,
   GoogleGenAI,
+  Model as GeminiModel,
   SendMessageParameters,
   Tool
 } from '@google/genai'
@@ -28,6 +29,7 @@ export type SdkMessageParam = OpenAISdkMessageParam | AnthropicSdkMessageParam |
 export type SdkMessage = OpenAISdkMessage | AnthropicSdkMessage
 export type SdkToolCall = OpenAI.Chat.Completions.ChatCompletionMessageToolCall | ToolUseBlock | FunctionCall
 export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool
+export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel
 
 /**
  * OpenAI

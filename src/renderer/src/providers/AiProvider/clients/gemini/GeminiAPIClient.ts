@@ -7,6 +7,7 @@ import {
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
+  Model as GeminiModel,
   Pager,
   Part,
   SafetySetting,
@@ -109,6 +110,16 @@ export class GeminiAPIClient extends BaseApiClient<
     } catch (e) {
       return 0
     }
+  }
+
+  override async listModels(): Promise<GeminiModel[]> {
+    const sdk = await this.getSdkInstance()
+    const response = await sdk.models.list()
+    const models: GeminiModel[] = []
+    for await (const model of response) {
+      models.push(model)
+    }
+    return models
   }
 
   override async getSdkInstance() {

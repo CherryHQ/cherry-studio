@@ -29,6 +29,7 @@ import {
 } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
+import { SdkModel } from '@renderer/types/sdk'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -512,7 +513,7 @@ function hasApiKey(provider: Provider) {
   return !isEmpty(provider.apiKey)
 }
 
-export async function fetchModels(provider: Provider) {
+export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
   const AI = new AiProvider(provider)
 
   try {

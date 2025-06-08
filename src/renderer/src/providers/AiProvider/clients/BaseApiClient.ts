@@ -27,6 +27,7 @@ import {
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
+  SdkModel,
   SdkParams,
   SdkRawChunk,
   SdkRawOutput,
@@ -75,6 +76,8 @@ export abstract class BaseApiClient<
   abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
 
   abstract getEmbeddingDimensions(model?: Model): Promise<number>
+
+  abstract listModels(): Promise<SdkModel[]>
 
   abstract getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
   // 在 CoreRequestToSdkParamsMiddleware中使用
