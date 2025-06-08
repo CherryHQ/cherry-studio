@@ -207,7 +207,7 @@ Thank you for your support and contributions!
 <!-- Links & Images -->
 [license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?style=plastic&logo=gnu
 [license-link]: https://www.gnu.org/licenses/agpl-3.0
-[commercial-shield]: https://img.shields.io/badge/商用授权-联系-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
-[commercial-link]: mailto:license@cherry-ai.com?subject=商业授权咨询
-[sponsor-shield]: https://img.shields.io/badge/赞助支持-FF6699.svg?style=plastic&logo=githubsponsors&logoColor=white
+[commercial-shield]: https://img.shields.io/badge/License-Contact-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
+[commercial-link]: mailto:license@cherry-ai.com?subject=Commercial%20License%20Inquiry
+[sponsor-shield]: https://img.shields.io/badge/Sponsor-FF6699.svg?style=plastic&logo=githubsponsors&logoColor=white
 [sponsor-link]: https://github.com/sponsors/cherry-ai
