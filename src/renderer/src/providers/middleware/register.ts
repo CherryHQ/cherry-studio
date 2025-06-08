@@ -4,7 +4,7 @@ import * as LoggingModule from './common/LoggingMiddleware'
 import * as McpToolChunkModule from './core/McpToolChunkMiddleware'
 import * as RawStreamListenerModule from './core/RawStreamListenerMiddleware'
 import * as ResponseTransformModule from './core/ResponseTransformMiddleware'
-import * as SdkCallModule from './core/SdkCallMiddleware'
+// import * as SdkCallModule from './core/SdkCallMiddleware'
 import * as StreamAdapterModule from './core/StreamAdapterMiddleware'
 import * as TextChunkModule from './core/TextChunkMiddleware'
 import * as ThinkChunkModule from './core/ThinkChunkMiddleware'
@@ -33,10 +33,10 @@ export const MiddlewareRegistry = {
     name: TransformCoreToSdkParamsModule.MIDDLEWARE_NAME,
     middleware: TransformCoreToSdkParamsModule.TransformCoreToSdkParamsMiddleware
   },
-  [SdkCallModule.MIDDLEWARE_NAME]: {
-    name: SdkCallModule.MIDDLEWARE_NAME,
-    middleware: SdkCallModule.SdkCallMiddleware
-  },
+  // [SdkCallModule.MIDDLEWARE_NAME]: {
+  //   name: SdkCallModule.MIDDLEWARE_NAME,
+  //   middleware: SdkCallModule.SdkCallMiddleware
+  // },
   [StreamAdapterModule.MIDDLEWARE_NAME]: {
     name: StreamAdapterModule.MIDDLEWARE_NAME,
     middleware: StreamAdapterModule.StreamAdapterMiddleware
@@ -129,7 +129,6 @@ export {
   LoggingModule,
   McpToolChunkModule,
   ResponseTransformModule,
-  SdkCallModule,
   StreamAdapterModule,
   TextChunkModule,
   ThinkChunkModule,

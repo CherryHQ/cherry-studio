@@ -379,18 +379,23 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
   }
 
   const stream = isSupportedStreamOutput()
+  const enableReasoning =
+    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+      assistant.settings?.reasoning_effort !== undefined) ||
+    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   const params: CompletionsParams = {
     messages: content,
-    assistant,
+    assistant: { ...assistant, model },
     streamOutput: stream,
+    enableReasoning,
     onResponse
   }
 
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.completions(params)
+    return (await AI.completions(params)).getText() || ''
   } catch (error: any) {
     return ''
   }

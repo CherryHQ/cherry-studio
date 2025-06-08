@@ -158,7 +158,7 @@ function createToolHandlingTransform(
               mcpTools,
               allToolResponses,
               currentParams.onChunk,
-              currentParams.model
+              currentParams.assistant.model!
             )
             Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Function calls completed, got ${toolResult.length} results`)
           } else if (shouldExecuteToolUseResponses) {
@@ -169,7 +169,7 @@ function createToolHandlingTransform(
               mcpTools,
               allToolResponses,
               currentParams.onChunk,
-              currentParams.model
+              currentParams.assistant.model!
             )
             Logger.debug(
               `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool use responses completed, got ${toolResult.length} results`

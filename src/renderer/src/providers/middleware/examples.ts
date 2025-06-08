@@ -4,7 +4,7 @@ import * as AbortHandlerModule from './common/AbortHandlerMiddleware'
 // 导入现有的中间件实例
 import { createGenericLoggingMiddleware } from './common/LoggingMiddleware'
 import * as McpToolChunkModule from './core/McpToolChunkMiddleware'
-import * as SdkCallModule from './core/SdkCallMiddleware'
+// import * as SdkCallModule from './core/SdkCallMiddleware'
 import * as TextChunkModule from './core/TextChunkMiddleware'
 import * as TransformCoreToSdkParamsModule from './core/TransformCoreToSdkParamsMiddleware'
 import * as ThinkingTagExtractionModule from './feat/ThinkingTagExtractionMiddleware'
@@ -102,10 +102,10 @@ export function complexMiddlewareOperationsExample(): CompletionsMiddleware[] {
   )
 
   // 进行多个操作 - 直接构造中间件对象
-  builder.insertBefore(SdkCallModule.MIDDLEWARE_NAME, {
-    name: AbortHandlerModule.MIDDLEWARE_NAME,
-    middleware: AbortHandlerModule.AbortHandlerMiddleware
-  })
+  // builder.insertBefore(SdkCallModule.MIDDLEWARE_NAME, {
+  //   name: AbortHandlerModule.MIDDLEWARE_NAME,
+  //   middleware: AbortHandlerModule.AbortHandlerMiddleware
+  // })
 
   console.log(`操作后中间件数量: ${builder.length}`)
 
@@ -178,7 +178,7 @@ export function usingGetMiddlewareExample(): CompletionsMiddleware[] {
   builder
     .add(getMiddleware(AbortHandlerModule.MIDDLEWARE_NAME))
     .add(getMiddleware(TransformCoreToSdkParamsModule.MIDDLEWARE_NAME))
-    .add(getMiddleware(SdkCallModule.MIDDLEWARE_NAME))
+  // .add(getMiddleware(SdkCallModule.MIDDLEWARE_NAME))
 
   return builder.build()
 }

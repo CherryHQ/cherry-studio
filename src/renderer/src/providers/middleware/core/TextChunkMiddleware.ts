@@ -15,6 +15,7 @@ export const MIDDLEWARE_NAME = 'TextChunkMiddleware'
  * 2. 对文本内容进行智能链接转换
  * 3. 监听流结束信号（LLM_RESPONSE_COMPLETE），生成TEXT_COMPLETE事件
  * 4. 暂存Web搜索结果，用于最终链接完善
+ * 5. 处理 onResponse 回调，实时发送文本更新和最终完整文本
  */
 export const TextChunkMiddleware: CompletionsMiddleware =
   () =>
@@ -61,6 +62,12 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                   processedText = smartLinkConverter(processedText, pendingWebSearchResults, providerType, isFirstChunk)
                   isFirstChunk = false
                 }
+
+                // 处理 onResponse 回调 - 发送增量文本更新
+                if (params.onResponse) {
+                  params.onResponse(accumulatedTextContent, false)
+                }
+
                 // 创建新的chunk，包含处理后的文本
                 controller.enqueue({
                   ...textChunk,
@@ -98,6 +105,12 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                 if (ctx._internal.toolProcessingState && !ctx._internal.toolProcessingState?.output) {
                   ctx._internal.toolProcessingState.output = finalText
                 }
+
+                // 处理 onResponse 回调 - 发送最终完整文本
+                if (params.onResponse) {
+                  params.onResponse(finalText, true)
+                }
+
                 controller.enqueue({
                   type: ChunkType.TEXT_COMPLETE,
                   text: finalText

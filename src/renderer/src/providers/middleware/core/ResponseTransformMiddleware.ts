@@ -53,10 +53,10 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
         }
 
         const transformerContext: ResponseChunkTransformerContext = {
-          isStreaming: true,
-          isEnabledToolCalling: assistant.settings?.toolUseMode === 'function' || false,
-          isEnabledWebSearch: assistant.enableWebSearch || false,
-          isEnabledReasoning: assistant.settings?.reasoning_effort !== undefined || false,
+          isStreaming: params.streamOutput || false,
+          isEnabledToolCalling: (params.mcpTools && params.mcpTools.length > 0) || false,
+          isEnabledWebSearch: params.enableWebSearch || false,
+          isEnabledReasoning: params.enableReasoning || false,
           mcpTools: params.mcpTools || []
         }
 
