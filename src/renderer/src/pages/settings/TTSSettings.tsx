@@ -247,7 +247,6 @@ const TTSSettings: FC = () => {
               updateProvider(updatedProvider)
               tts.updateProviderSettings(selectedProvider.id, { autoPlay })
             }}
-            disabled={!selectedProvider.enabled}
           />
         </SettingRow>
         <SettingHelpText>{t('settings.tts.auto_play.description')}</SettingHelpText>
@@ -268,7 +267,6 @@ const TTSSettings: FC = () => {
                   updateProvider(updatedProvider)
                   tts.updateProviderSettings(selectedProvider.id, { streaming })
                 }}
-                disabled={!selectedProvider.enabled}
               />
             </SettingRow>
             <SettingHelpText>{t('settings.tts.streaming.description')}</SettingHelpText>
@@ -297,7 +295,6 @@ const TTSSettings: FC = () => {
                   updateProvider(updatedProvider)
                   tts.setProviderApiKey(selectedProvider.id, e.target.value)
                 }}
-                disabled={!selectedProvider.enabled}
               />
             </SettingRow>
             {(config.websites as any)?.apiKey && (
@@ -332,7 +329,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, voice }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 placeholder={t('settings.tts.voice.placeholder')}
                 options={selectedProvider.voices.map((voice) => ({
                   label: `${voice.name} (${voice.lang})${voice.default ? ' - ' + t('settings.tts.voice.default') : ''}`,
@@ -361,7 +357,6 @@ const TTSSettings: FC = () => {
                       settings: { ...selectedProvider.settings, rate }
                     } as TTSProvider)
                   }
-                  disabled={!selectedProvider.enabled}
                   style={{ width: 200 }}
                 />
                 <SliderValue>{selectedProvider.settings.rate.toFixed(1)}</SliderValue>
@@ -393,7 +388,6 @@ const TTSSettings: FC = () => {
                       settings: { ...selectedProvider.settings, pitch }
                     } as TTSProvider)
                   }
-                  disabled={!selectedProvider.enabled}
                   style={{ width: 200 }}
                 />
                 <SliderValue>{selectedProvider.settings.pitch.toFixed(1)}</SliderValue>
@@ -421,7 +415,6 @@ const TTSSettings: FC = () => {
                       settings: { ...selectedProvider.settings, volume }
                     } as TTSProvider)
                   }
-                  disabled={!selectedProvider.enabled}
                   style={{ width: 200 }}
                 />
                 <SliderValue>{Math.round(selectedProvider.settings.volume * 100)}%</SliderValue>
@@ -447,7 +440,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, model }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'TTS-1 (Standard)', value: 'tts-1' },
                   { label: 'TTS-1-HD (High Quality)', value: 'tts-1-hd' }
@@ -469,7 +461,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, format }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'MP3', value: 'mp3' },
                   { label: 'Opus', value: 'opus' },
@@ -503,7 +494,6 @@ const TTSSettings: FC = () => {
                   // 当区域改变时，自动更新 API Host
                   tts.setProviderApiHost(selectedProvider.id, `https://${region}.tts.speech.microsoft.com`)
                 }}
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'Australia East', value: 'australiaeast' },
                   { label: 'Brazil South', value: 'brazilsouth' },
@@ -559,7 +549,6 @@ const TTSSettings: FC = () => {
                   updateProvider(updatedProvider)
                   tts.setProviderApiHost(selectedProvider.id, e.target.value)
                 }}
-                disabled={!selectedProvider.enabled}
               />
             </SettingRow>
             <SettingHelpText>
@@ -581,7 +570,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, speaking_style }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'General', value: 'general' },
                   { label: 'Newscast', value: 'newscast' },
@@ -617,7 +605,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, role }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'Default', value: 'default' },
                   { label: 'Girl', value: 'Girl' },
@@ -651,7 +638,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, model }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'Eleven Multilingual v2', value: 'eleven_multilingual_v2' },
                   { label: 'Eleven Multilingual v1', value: 'eleven_multilingual_v1' },
@@ -679,7 +665,6 @@ const TTSSettings: FC = () => {
                       settings: { ...selectedProvider.settings, stability }
                     } as TTSProvider)
                   }
-                  disabled={!selectedProvider.enabled}
                   style={{ width: 200 }}
                 />
                 <SliderValue>{(selectedProvider.settings.stability ?? 0.5).toFixed(1)}</SliderValue>
@@ -703,7 +688,6 @@ const TTSSettings: FC = () => {
                       settings: { ...selectedProvider.settings, similarity_boost }
                     } as TTSProvider)
                   }
-                  disabled={!selectedProvider.enabled}
                   style={{ width: 200 }}
                 />
                 <SliderValue>{(selectedProvider.settings.similarity_boost ?? 0.5).toFixed(1)}</SliderValue>
@@ -727,7 +711,6 @@ const TTSSettings: FC = () => {
                       settings: { ...selectedProvider.settings, style }
                     } as TTSProvider)
                   }
-                  disabled={!selectedProvider.enabled}
                   style={{ width: 200 }}
                 />
                 <SliderValue>{(selectedProvider.settings.style ?? 0.0).toFixed(1)}</SliderValue>
@@ -747,7 +730,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, use_speaker_boost }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
               />
             </SettingRow>
             <SettingHelpText>{t('settings.tts.use_speaker_boost.description')}</SettingHelpText>
@@ -770,7 +752,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, model }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[{ label: 'CosyVoice2-0.5B', value: 'FunAudioLLM/CosyVoice2-0.5B' }]}
               />
             </SettingRow>
@@ -789,7 +770,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, format }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'MP3', value: 'mp3' },
                   { label: 'Opus', value: 'opus' },
@@ -813,7 +793,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, sample_rate }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: '8000 Hz', value: 8000 },
                   { label: '16000 Hz', value: 16000 },
@@ -845,7 +824,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, secretKey: e.target.value }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 placeholder="请输入腾讯云 SecretKey"
               />
             </SettingRow>
@@ -865,7 +843,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, appId: parseInt(e.target.value) || undefined }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 placeholder="请输入腾讯云 AppId"
               />
             </SettingRow>
@@ -884,7 +861,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, region }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: '北京 (ap-beijing)', value: 'ap-beijing' },
                   { label: '上海 (ap-shanghai)', value: 'ap-shanghai' },
@@ -922,7 +898,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, sampleRate }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: '8000 Hz', value: 8000 },
                   { label: '16000 Hz', value: 16000 },
@@ -945,7 +920,6 @@ const TTSSettings: FC = () => {
                     settings: { ...selectedProvider.settings, codec }
                   } as TTSProvider)
                 }
-                disabled={!selectedProvider.enabled}
                 options={[
                   { label: 'WAV', value: 'wav' },
                   { label: 'MP3', value: 'mp3' }
@@ -966,8 +940,7 @@ const TTSSettings: FC = () => {
                 <Button
                   type="primary"
                   icon={isPlaying ? <Square size={16} /> : <Play size={16} />}
-                  onClick={handleTestSpeech}
-                  disabled={!selectedProvider.enabled}>
+                  onClick={handleTestSpeech}>
                   {isPlaying ? t('settings.tts.test.stop') : t('settings.tts.test.play')}
                 </Button>
                 {isPlaying && (
