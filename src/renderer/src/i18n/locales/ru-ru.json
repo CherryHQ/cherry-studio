@@ -8,7 +8,7 @@
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
-      "add.prompt.variables.tip": "Доступные переменные: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": "Доступные переменные: {{variable_list}}",
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.model.select.title": "Выбрать модель",
@@ -1807,6 +1807,12 @@
         "assistant": "Сообщение ассистента",
         "backup": "Резервное сообщение",
         "knowledge_embed": "Сообщение базы знаний"
+      },
+      "prompt": {
+        "title": "Настройки промптов",
+        "show_replacement": "Показывать замену переменных",
+        "auto_refresh": "Автообновление переменных",
+        "refresh_interval": "Интервал обновления"
       }
     },
     "translate": {
