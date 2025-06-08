@@ -1281,6 +1281,13 @@
       "display.title": "显示设置",
       "display.zoom.title": "缩放设置",
       "display.topic.title": "话题设置",
+      "display.inputbox.title": "输入框设置",
+      "display.inputbox.preview": "输入框预览",
+      "display.inputbox.icons.title": "图标管理",
+      "display.inputbox.position.left": "左侧",
+      "display.inputbox.position.right": "右侧",
+      "display.inputbox.empty.left": "左侧暂无图标",
+      "display.inputbox.empty.right": "右侧暂无图标",
       "miniapps": {
         "title": "小程序设置",
         "disabled": "隐藏的小程序",

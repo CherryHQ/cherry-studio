@@ -1279,6 +1279,13 @@
       "display.title": "表示設定",
       "display.zoom.title": "ズーム設定",
       "display.topic.title": "トピック設定",
+      "display.inputbox.title": "入力ボックス設定",
+      "display.inputbox.preview": "入力ボックスプレビュー",
+      "display.inputbox.icons.title": "アイコン管理",
+      "display.inputbox.position.left": "左側",
+      "display.inputbox.position.right": "右側",
+      "display.inputbox.empty.left": "左側にアイコンがありません",
+      "display.inputbox.empty.right": "右側にアイコンがありません",
       "miniapps": {
         "title": "ミニアプリ設定",
         "disabled": "非表示のミニアプリ",

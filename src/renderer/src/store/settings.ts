@@ -118,6 +118,11 @@ export interface SettingsState {
     visible: SidebarIcon[]
     disabled: SidebarIcon[]
   }
+  inputBoxIconsConfig: Record<string, {
+    visible: boolean
+    position: 'left' | 'right'
+    order: number
+  }>
   narrowMode: boolean
   // QuickAssistant
   enableQuickAssistant: boolean
@@ -264,6 +269,7 @@ export const initialState: SettingsState = {
     visible: DEFAULT_SIDEBAR_ICONS,
     disabled: []
   },
+  inputBoxIconsConfig: {},
   narrowMode: false,
   enableQuickAssistant: false,
   clickTrayToShowQuickAssistant: false,
@@ -556,6 +562,9 @@ const settingsSlice = createSlice({
         state.sidebarIcons.disabled = action.payload.disabled
       }
     },
+    setInputBoxIconsConfig: (state, action: PayloadAction<Record<string, { visible: boolean; position: 'left' | 'right'; order: number }>>) => {
+      state.inputBoxIconsConfig = action.payload
+    },
     setNarrowMode: (state, action: PayloadAction<boolean>) => {
       state.narrowMode = action.payload
     },
@@ -743,6 +752,7 @@ export const {
   setCustomCss,
   setTopicNamingPrompt,
   setSidebarIcons,
+  setInputBoxIconsConfig,
   setNarrowMode,
   setClickTrayToShowQuickAssistant,
   setEnableQuickAssistant,
