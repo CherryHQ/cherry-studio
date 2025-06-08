@@ -9,7 +9,7 @@ import { windowService } from './WindowService'
 
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
-let toggleSelectionAssistantAccelerator: string | null = null
+let selectionAssistantToggleAccelerator: string | null = null
 
 //indicate if the shortcuts are registered on app boot time
 let isRegisterOnBoot = true
@@ -164,7 +164,7 @@ export function registerShortcuts(window: BrowserWindow) {
             break
 
           case 'selection_assistant_toggle':
-            toggleSelectionAssistantAccelerator = formatShortcutKey(shortcut.shortcut)
+            selectionAssistantToggleAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
           //the following ZOOMs will register shortcuts seperately, so will return
@@ -214,10 +214,10 @@ export function registerShortcuts(window: BrowserWindow) {
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
 
-      if (toggleSelectionAssistantAccelerator) {
+      if (selectionAssistantToggleAccelerator) {
         const handler = getShortcutHandler({ key: 'selection_assistant_toggle' } as Shortcut)
         const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
-          toggleSelectionAssistantAccelerator
+          selectionAssistantToggleAccelerator
         )
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
@@ -246,7 +246,7 @@ export function unregisterAllShortcuts() {
   try {
     showAppAccelerator = null
     showMiniWindowAccelerator = null
-    toggleSelectionAssistantAccelerator = null
+    selectionAssistantToggleAccelerator = null
     windowOnHandlers.forEach((handlers, window) => {
       window.off('focus', handlers.onFocusHandler)
       window.off('blur', handlers.onBlurHandler)
