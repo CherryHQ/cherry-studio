@@ -91,6 +91,20 @@ export class OpenAIAPIClient extends BaseApiClient<
     return await sdk.chat.completions.create(payload, options)
   }
 
+  override async getEmbeddingDimensions(model: Model): Promise<number> {
+    const sdk = await this.getSdkInstance()
+    try {
+      const data = await sdk.embeddings.create({
+        model: model.id,
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+        encoding_format: 'float'
+      })
+      return data.data[0].embedding.length
+    } catch (e) {
+      return 0
+    }
+  }
+
   override async getSdkInstance() {
     if (this.sdkInstance) {
       return this.sdkInstance

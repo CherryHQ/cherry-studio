@@ -110,6 +110,11 @@ export class AnthropicAPIClient extends BaseApiClient<
     return await sdk.messages.create(payload, options)
   }
 
+  // @ts-ignore sdk未提供
+  override async getEmbeddingDimensions(): Promise<number> {
+    return 0
+  }
+
   override getTemperature(assistant: Assistant, model: Model): number | undefined {
     if (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model)) {
       return undefined

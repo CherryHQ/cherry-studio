@@ -98,6 +98,19 @@ export class GeminiAPIClient extends BaseApiClient<
     }
   }
 
+  override async getEmbeddingDimensions(model: Model): Promise<number> {
+    const sdk = await this.getSdkInstance()
+    try {
+      const data = await sdk.models.embedContent({
+        model: model.id,
+        contents: [{ role: 'user', parts: [{ text: 'hi' }] }]
+      })
+      return data.embeddings?.[0]?.values?.length || 0
+    } catch (e) {
+      return 0
+    }
+  }
+
   override async getSdkInstance() {
     if (this.sdkInstance) {
       return this.sdkInstance

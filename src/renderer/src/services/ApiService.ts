@@ -1,6 +1,7 @@
 import Logger from '@renderer/config/logger'
 import {
   getOpenAIWebSearchParams,
+  isEmbeddingModel,
   isOpenAIWebSearch,
   isReasoningModel,
   isSupportedReasoningEffortModel,
@@ -525,70 +526,53 @@ export const formatApiKeys = (value: string) => {
   return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
 }
 
-export function checkApiProvider(provider: Provider): {
-  valid: boolean
-  error: Error | null
-} {
+export function checkApiProvider(provider: Provider): void {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
   if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      return {
-        valid: false,
-        error: new Error(i18n.t('message.error.enter.api.key'))
-      }
+      throw new Error(i18n.t('message.error.enter.api.key'))
     }
   }
 
   if (!provider.apiHost) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
-    return {
-      valid: false,
-      error: new Error(i18n.t('message.error.enter.api.host'))
-    }
+    throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
-    return {
-      valid: false,
-      error: new Error(i18n.t('message.error.enter.model'))
-    }
-  }
-
-  return {
-    valid: true,
-    error: null
+    throw new Error(i18n.t('message.error.enter.model'))
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
-  const validation = checkApiProvider(provider)
-  if (!validation.valid) {
-    return {
-      valid: validation.valid,
-      error: validation.error
-    }
-  }
+export async function checkApi(provider: Provider, model: Model): Promise<void> {
+  checkApiProvider(provider)
 
   const ai = new AiProvider(provider)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
 
-  const params: CompletionsParams = {
-    messages: 'hi',
-    assistant,
-    streamOutput: true
-  }
+  if (isEmbeddingModel(model)) {
+    const result = await ai.getEmbeddingDimensions(model)
+    if (result === 0) {
+      throw new Error(i18n.t('message.error.enter.model'))
+    }
+  } else {
+    const params: CompletionsParams = {
+      messages: 'hi',
+      assistant,
+      streamOutput: true
+    }
 
-  // Try streaming check first
-  const result = await ai.completions(params)
-  if (result.getText()) {
-    return true
+    // Try streaming check first
+    const result = await ai.completions(params)
+    console.log('checkApi: result', result.getText())
+    if (!result.getText()) {
+      throw new Error('No response received')
+    }
   }
-
-  return false
 }

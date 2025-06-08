@@ -74,6 +74,8 @@ export abstract class BaseApiClient<
 
   abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
 
+  abstract getEmbeddingDimensions(model?: Model): Promise<number>
+
   abstract getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
   // 在 CoreRequestToSdkParamsMiddleware中使用
   abstract getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>

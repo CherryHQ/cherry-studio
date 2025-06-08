@@ -1,6 +1,6 @@
 import { ApiClientFactory } from '@renderer/providers/AiProvider/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/providers/AiProvider/clients/BaseApiClient'
-import type { Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { RequestOptions } from '@renderer/types/sdk'
 import OpenAI from 'openai'
 
@@ -56,17 +56,21 @@ export default class AiProvider {
     // return this.apiClient.models()
   }
 
+  public async getEmbeddingDimensions(model: Model): Promise<number> {
+    try {
+      // Use the SDK instance to test embedding capabilities
+      const dimensions = await this.apiClient.getEmbeddingDimensions(model)
+      return dimensions
+    } catch (error) {
+      console.error('Error getting embedding dimensions:', error)
+      return 0
+    }
+  }
+
   // public async generateImage(params: GenerateImageParams): Promise<string[]> {
   //   // TODO: Refactor using this.apiClient (likely createCompletions with specific model/params) or a dedicated image generation method on ApiClient
   //   console.warn('generateImage method needs refactoring')
   //   return Promise.reject('Not implemented')
   //   // return this.apiClient.generateImage(params)
-  // }
-
-  // public async getEmbeddingDimensions(model: Model): Promise<number> {
-  //   // TODO: This method might need to be on ApiClient or handled differently
-  //   console.warn('getEmbeddingDimensions method needs review for new architecture')
-  //   return Promise.reject('Not implemented')
-  //   // return this.apiClient.getEmbeddingDimensions(model)
   // }
 }
