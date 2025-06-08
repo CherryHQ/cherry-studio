@@ -398,8 +398,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   defaultModel: [
     {
       // 默认助手模型
-      id: 'deepseek-ai/DeepSeek-R1',
-      name: 'deepseek-ai/DeepSeek-R1',
+      id: 'deepseek-ai/DeepSeek-V3',
+      name: 'deepseek-ai/DeepSeek-V3',
       provider: 'silicon',
       group: 'deepseek-ai'
     },
@@ -412,8 +412,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
     },
     {
       // 默认翻译模型
-      id: 'deepseek-ai/DeepSeek-R1',
-      name: 'deepseek-ai/DeepSeek-R1',
+      id: 'deepseek-ai/DeepSeek-V3',
+      name: 'deepseek-ai/DeepSeek-V3',
       provider: 'silicon',
       group: 'deepseek-ai'
     },
