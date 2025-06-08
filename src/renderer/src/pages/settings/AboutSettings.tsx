@@ -105,7 +105,7 @@ const AboutSettings: FC = () => {
     // 初始化设置
     setEarlyAccess(earlyAccess)
     setAutoCheckUpdate(autoCheckUpdate)
-  }, [earlyAccess, autoCheckUpdate, setEarlyAccess, setAutoCheckUpdate])
+  }, [autoCheckUpdate, earlyAccess, setAutoCheckUpdate, setEarlyAccess])
 
   return (
     <SettingContainer theme={theme}>
