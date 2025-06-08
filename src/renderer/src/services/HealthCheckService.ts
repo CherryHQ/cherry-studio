@@ -109,7 +109,7 @@ export async function checkModelWithMultipleKeys(
         return {
           key,
           isValid: false,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message.slice(0, 20) + '...' : String(error).slice(0, 20) + '...'
         } as ApiKeyCheckStatus
       }
     })
@@ -142,7 +142,7 @@ export async function checkModelWithMultipleKeys(
         keyResults.push({
           key,
           isValid: false,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message.slice(0, 20) + '...' : String(error).slice(0, 20) + '...'
         })
       }
     }

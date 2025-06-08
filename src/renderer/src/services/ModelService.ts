@@ -36,26 +36,17 @@ async function performModelCheck<T>(
   provider: Provider,
   model: Model,
   checkFn: (provider: Provider, model: Model) => Promise<T>
-): Promise<{ error: Error | null; latency?: number }> {
-  try {
-    const startTime = performance.now()
-    await checkFn(provider, model)
-    const latency = performance.now() - startTime
+): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkFn(provider, model)
+  const latency = performance.now() - startTime
 
-    return {
-      error: null,
-      latency
-    }
-  } catch (error: unknown) {
-    return {
-      error: error instanceof Error ? error : new Error(String(error))
-    }
-  }
+  return { latency }
 }
 
 // Unified model check function
 // Automatically selects appropriate check method based on model type
-export async function checkModel(provider: Provider, model: Model) {
+export async function checkModel(provider: Provider, model: Model): Promise<{ latency: number }> {
   return performModelCheck(provider, model, async (provider, model) => {
     await checkApi(provider, model)
   })
