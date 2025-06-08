@@ -32,6 +32,14 @@ const initialState: ShortcutsState = {
       system: true
     },
     {
+      //enable/disable selection assistant
+      key: 'toggle_selection_assistant',
+      shortcut: [],
+      editable: true,
+      enabled: false,
+      system: true
+    },
+    {
       key: 'new_topic',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'N'],
       editable: true,
@@ -45,6 +53,7 @@ const initialState: ShortcutsState = {
       enabled: true,
       system: false
     },
+
     {
       key: 'toggle_show_topics',
       shortcut: [isMac ? 'Command' : 'Ctrl', ']'],

@@ -1682,6 +1682,7 @@
         "copy_last_message": "複製上一則訊息",
         "key": "按鍵",
         "mini_window": "快捷助手",
+        "toggle_selection_assistant": "開關劃詞助手",
         "new_topic": "新增話題",
         "press_shortcut": "按下快捷鍵",
         "reset_defaults": "重設預設快捷鍵",
