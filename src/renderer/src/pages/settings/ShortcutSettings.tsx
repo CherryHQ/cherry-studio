@@ -26,7 +26,7 @@ const ShortcutSettings: FC = () => {
   let shortcuts = originalShortcuts
   if (!isWindows) {
     //Selection Assistant only available on Windows now
-    shortcuts = shortcuts.filter((s) => s.key !== 'toggle_selection_assistant')
+    shortcuts = shortcuts.filter((s) => s.key !== 'selection_assistant_toggle')
   }
 
   const handleClear = (record: Shortcut) => {

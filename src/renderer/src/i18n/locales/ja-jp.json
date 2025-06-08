@@ -1680,7 +1680,7 @@
         "exit_fullscreen": "フルスクリーンを終了",
         "key": "キー",
         "mini_window": "クイックアシスタント",
-        "toggle_selection_assistant": "選択アシスタントを切り替え",
+        "selection_assistant_toggle": "選択アシスタントを切り替え",
         "new_topic": "新しいトピック",
         "press_shortcut": "ショートカットを押す",
         "reset_defaults": "デフォルトのショートカットをリセット",

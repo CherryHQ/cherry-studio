@@ -33,7 +33,7 @@ const initialState: ShortcutsState = {
     },
     {
       //enable/disable selection assistant
-      key: 'toggle_selection_assistant',
+      key: 'selection_assistant_toggle',
       shortcut: [],
       editable: true,
       enabled: false,

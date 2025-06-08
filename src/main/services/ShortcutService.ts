@@ -33,7 +33,7 @@ function getShortcutHandler(shortcut: Shortcut) {
       return () => {
         windowService.toggleMiniWindow()
       }
-    case 'toggle_selection_assistant':
+    case 'selection_assistant_toggle':
       return () => {
         if (selectionService) {
           selectionService.toggleEnabled()
@@ -140,7 +140,7 @@ export function registerShortcuts(window: BrowserWindow) {
         // only register universal shortcuts when needed
         if (
           onlyUniversalShortcuts &&
-          !['show_app', 'mini_window', 'toggle_selection_assistant'].includes(shortcut.key)
+          !['show_app', 'mini_window', 'selection_assistant_toggle'].includes(shortcut.key)
         ) {
           return
         }
@@ -163,7 +163,7 @@ export function registerShortcuts(window: BrowserWindow) {
             showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
-          case 'toggle_selection_assistant':
+          case 'selection_assistant_toggle':
             toggleSelectionAssistantAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
@@ -215,7 +215,7 @@ export function registerShortcuts(window: BrowserWindow) {
       }
 
       if (toggleSelectionAssistantAccelerator) {
-        const handler = getShortcutHandler({ key: 'toggle_selection_assistant' } as Shortcut)
+        const handler = getShortcutHandler({ key: 'selection_assistant_toggle' } as Shortcut)
         const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
           toggleSelectionAssistantAccelerator
         )

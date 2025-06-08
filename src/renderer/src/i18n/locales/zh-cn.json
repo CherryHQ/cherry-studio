@@ -1692,7 +1692,7 @@
         "exit_fullscreen": "退出全屏",
         "key": "按键",
         "mini_window": "快捷助手",
-        "toggle_selection_assistant": "开关划词助手",
+        "selection_assistant_toggle": "开关划词助手",
         "new_topic": "新建话题",
         "press_shortcut": "按下快捷键",
         "reset_defaults": "重置默认快捷键",

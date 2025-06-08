@@ -1692,7 +1692,7 @@
         "exit_fullscreen": "Exit Fullscreen",
         "key": "Key",
         "mini_window": "Quick Assistant",
-        "toggle_selection_assistant": "Toggle Selection Assistant",
+        "selection_assistant_toggle": "Toggle Selection Assistant",
         "new_topic": "New Topic",
         "press_shortcut": "Press Shortcut",
         "reset_defaults": "Reset Defaults",
