@@ -556,6 +556,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
           if (!contentSource) return
 
+          // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
+          // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+          const reasoningText = contentSource.reasoning_content || contentSource.reasoning
+          if (reasoningText) {
+            controller.enqueue({
+              type: ChunkType.THINKING_DELTA,
+              text: reasoningText
+            })
+          }
+
           // 处理文本内容
           if (contentSource.content) {
             controller.enqueue({
@@ -569,16 +579,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             controller.enqueue({
               type: ChunkType.MCP_TOOL_CREATED,
               tool_calls: contentSource.tool_calls as SdkToolCall[]
-            })
-          }
-
-          // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
-          // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
-          const reasoningText = contentSource.reasoning_content || contentSource.reasoning
-          if (reasoningText) {
-            controller.enqueue({
-              type: ChunkType.THINKING_DELTA,
-              text: reasoningText
             })
           }
 

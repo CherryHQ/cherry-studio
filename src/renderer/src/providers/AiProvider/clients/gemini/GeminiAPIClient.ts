@@ -8,6 +8,7 @@ import {
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
+  Modality,
   Model as GeminiModel,
   Pager,
   Part,
@@ -413,6 +414,14 @@ export class GeminiAPIClient extends BaseApiClient<
     return {}
   }
 
+  private getGenerateImageParameter(): Partial<GenerateContentConfig> {
+    return {
+      systemInstruction: undefined,
+      responseModalities: [Modality.TEXT, Modality.IMAGE],
+      responseMimeType: 'text/plain'
+    }
+  }
+
   getRequestTransformer(): RequestTransformer<GeminiSdkParams, GeminiSdkMessageParam> {
     return {
       transform: async (
@@ -426,7 +435,7 @@ export class GeminiAPIClient extends BaseApiClient<
         messages: GeminiSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch, enableGenerateImage } = coreRequest
         // 1. 处理系统消息
         let systemInstruction = assistant.prompt
 
@@ -506,6 +515,7 @@ export class GeminiAPIClient extends BaseApiClient<
           topP: this.getTopP(assistant, model),
           maxOutputTokens: maxTokens,
           tools: tools,
+          ...(enableGenerateImage ? this.getGenerateImageParameter() : {}),
           ...this.getBudgetToken(assistant, model),
           ...this.getCustomParameters(assistant)
         }
@@ -544,6 +554,18 @@ export class GeminiAPIClient extends BaseApiClient<
                   controller.enqueue({
                     type: ChunkType.TEXT_DELTA,
                     text: text
+                  })
+                } else if (part.inlineData) {
+                  controller.enqueue({
+                    type: ChunkType.IMAGE_COMPLETE,
+                    image: {
+                      type: 'base64',
+                      images: [
+                        part.inlineData?.data?.startsWith('data:')
+                          ? part.inlineData?.data
+                          : `data:${part.inlineData?.mimeType || 'image/png'};base64,${part.inlineData?.data}`
+                      ]
+                    }
                   })
                 }
               })
