@@ -1,0 +1,116 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ThinkingBlock > basic rendering > should match snapshot 1`] = `
+.c0 {
+  margin-bottom: 15px;
+}
+
+.c1 {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  height: 22px;
+  gap: 4px;
+}
+
+.c2 {
+  color: var(--color-text-2);
+}
+
+.c3 {
+  background: none;
+  border: none;
+  color: var(--color-text-2);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  opacity: 0.6;
+  transition: all 0.3s;
+}
+
+.c3:hover {
+  opacity: 1;
+  color: var(--color-text);
+}
+
+.c3:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.c3 .iconfont {
+  font-size: 14px;
+}
+
+<div
+  class="c0 message-thought-container"
+  data-active-key="thought"
+  data-expand-icon-position="end"
+  data-size="small"
+  data-testid="collapse-container"
+>
+  <div
+    data-testid="collapse-item-thought"
+  >
+    <div
+      data-testid="collapse-header-thought"
+    >
+      <div
+        class="c1"
+      >
+        <span
+          data-animate="idle"
+          data-initial="idle"
+          data-testid="motion-span"
+          data-variants="{"active":{"rotate":10,"scale":1.1},"idle":{"rotate":0,"scale":1}}"
+          style="height: 18px;"
+        >
+          <span
+            data-size="18"
+            data-testid="lightbulb-icon"
+          >
+            💡
+          </span>
+        </span>
+        <span
+          class="c2"
+        >
+          Thought for 5.0s
+        </span>
+        <div
+          data-mouse-enter-delay="0.8"
+          data-testid="tooltip"
+          title="Copy"
+        >
+          <button
+            aria-label="Copy"
+            class="c3 message-action-button"
+          >
+            <i
+              class="iconfont icon-copy"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="collapse-content-thought"
+    >
+      <div
+        style="font-family: var(--font-family); font-size: 14px;"
+      >
+        <div
+          data-block-id="test-thinking-block-1"
+          data-testid="mock-markdown"
+        >
+          Markdown: 
+          I need to think about this carefully...
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

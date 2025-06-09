@@ -8,6 +8,10 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
+      "add.prompt.variables.tip": {
+        "title": "Available variables",
+        "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name"
+      },
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -29,16 +33,7 @@
         "agent": "Export Agent"
       },
       "delete.popup.content": "Are you sure you want to delete this agent?",
-      "edit.message.add.title": "Add",
-      "edit.message.assistant.placeholder": "Enter assistant message",
-      "edit.message.assistant.title": "Assistant",
-      "edit.message.empty.content": "Conversation input content cannot be empty",
-      "edit.message.group.title": "Message Group",
-      "edit.message.title": "Preset messages",
-      "edit.message.user.placeholder": "Enter user message",
-      "edit.message.user.title": "User",
       "edit.model.select.title": "Select Model",
-      "edit.settings.hide_preset_messages": "Hide Preset Message",
       "edit.title": "Edit Agent",
       "manage.title": "Manage Agents",
       "my_agents": "My Agents",
@@ -75,7 +70,6 @@
       "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
       "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
-      "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
       "settings.reasoning_effort.off": "Off",
@@ -101,6 +95,22 @@
         "titlePlaceholder": "Enter title",
         "contentLabel": "Content",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      },
+      "list": {
+        "showByList": "List View",
+        "showByTags": "Tag View"
+      },
+      "tags": {
+        "untagged": "Untagged",
+        "none": "No tags",
+        "manage": "Tag Management",
+        "modify": "Modify Tag",
+        "add": "Add Tag",
+        "delete": "Delete Tag",
+        "deleteConfirm": "Are you sure to delete this tag?",
+        "settings": {
+          "title": "Tag Settings"
+        }
       }
     },
     "auth": {
@@ -241,7 +251,7 @@
       "settings.show_line_numbers": "Show line numbers in code",
       "settings.temperature": "Temperature",
       "settings.temperature.tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise.",
-      "settings.thought_auto_collapse": "Automatically Collapse Thought Content",
+      "settings.thought_auto_collapse": "Collapse Thought Content",
       "settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
@@ -305,6 +315,7 @@
       "translate": "Translate",
       "topics.export.siyuan": "Export to Siyuan Note",
       "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.obsidian_reasoning": "Include Reasoning Chain",
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
@@ -569,7 +580,14 @@
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
+      "spanish": "Spanish",
+      "polish": "Polish",
+      "turkish": "Turkish",
+      "thai": "Thai",
+      "vietnamese": "Vietnamese",
+      "indonesian": "Indonesian",
+      "urdu": "Urdu",
+      "malay": "Malay"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -610,6 +628,7 @@
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
+      "error.fetchTopicName": "Failed to name the topic",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
       "error.invalid.api.host": "Invalid API Host",
       "error.invalid.api.key": "Invalid API Key",
@@ -636,7 +655,7 @@
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-      "message.multi_model_style": "Multi-model response style",
+      "message.multi_model_style": "Group style",
       "message.multi_model_style.fold": "Fold view",
       "message.multi_model_style.fold.compress": "Switch to compact layout",
       "message.multi_model_style.fold.expand": "Switch to expanded layout",
@@ -820,14 +839,15 @@
       "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
       "title": "Images",
       "magic_prompt_option": "Magic Prompt",
-      "model": "Model Version",
+      "model": "Model",
       "aspect_ratio": "Aspect Ratio",
       "style_type": "Style",
       "rendering_speed": "Rendering Speed",
       "learn_more": "Learn More",
-      "paint_course":"tutorial",
+      "paint_course": "tutorial",
       "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
-      "proxy_required": "Currently, you need to open a proxy to view the generated images, it will be supported in the future",
+      "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+      "proxy_required": "Open the proxy and enable “TUN mode” to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
       "image_file_required": "Please upload an image first",
       "image_file_retry": "Please re-upload an image first",
       "image_placeholder": "No image available",
@@ -846,6 +866,34 @@
         "turbo": "Turbo",
         "quality": "Quality"
       },
+      "quality_options": {
+        "auto": "Auto",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "moderation_options": {
+        "auto": "Auto",
+        "low": "Low"
+      },
+      "background_options": {
+        "auto": "Auto",
+        "transparent": "Transparent",
+        "opaque": "Opaque"
+      },
+      "aspect_ratios": {
+        "square": "Square",
+        "portrait": "Portrait",
+        "landscape": "Landscape"
+      },
+      "person_generation_options": {
+        "allow_all": "Allow all",
+        "allow_adult": "Allow adult",
+        "allow_none": "Not allowed"
+      },
+      "quality": "Quality",
+      "moderation": "Moderation",
+      "background": "Background",
       "mode": {
         "generate": "Draw",
         "edit": "Edit",
@@ -859,7 +907,9 @@
         "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
         "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
         "style_type_tip": "Image generation style for V_2 and above",
-        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+        "person_generation": "Generate person",
+        "person_generation_tip": "Allow model to generate person images"
       },
       "edit": {
         "image_file": "Edited Image",
@@ -892,7 +942,23 @@
         "seed_tip": "Controls upscaling randomness",
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       },
-      "text_desc_required": "Please enter image description first"
+      "text_desc_required": "Please enter image description first",
+      "image_handle_required": "Please upload an image first.",
+      "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "req_error_token": "Please check the validity of the token",
+      "req_error_no_balance": "Please check the validity of the token",
+      "auto_create_paint": "Auto-create image",
+      "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
+      "select_model": "Select Model",
+      "input_parameters": "Input Parameters",
+      "input_image": "Input Image",
+      "generated_image": "Generated Image",
+      "pricing": "Pricing",
+      "model_and_pricing": "Model & Pricing",
+      "per_image": "per image",
+      "per_images": "per images",
+      "required_field": "Required field",
+      "uploaded_input": "Uploaded input"
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -946,7 +1012,7 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu",
+      "qiniu": "Qiniu AI",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1045,7 +1111,9 @@
           "token": "Joplin Authorization Token",
           "token_placeholder": "Joplin Authorization Token",
           "url": "Joplin Web Clipper Service URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "Include Reasoning Chain in Export",
+          "export_reasoning.help": "When enabled, the exported content will include the reasoning chain (thought process) generated by the assistant."
         },
         "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
@@ -1054,12 +1122,14 @@
         "markdown_export.path_placeholder": "Export Path",
         "markdown_export.select": "Select",
         "markdown_export.title": "Markdown Export",
+        "markdown_export.show_model_name.title": "Use Model Name on Export",
+        "markdown_export.show_model_name.help": "When enabled, the topic-naming model will be used to create titles for exported messages. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
+        "markdown_export.show_model_provider.title": "Show Model Provider",
+        "markdown_export.show_model_provider.help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
-        "notion.auto_split": "Auto split when exporting",
-        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.check": {
           "button": "Check",
           "empty_api_key": "API key is not configured",
@@ -1073,10 +1143,9 @@
         "notion.help": "Notion Configuration Documentation",
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
-        "notion.split_size": "Split size",
-        "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
-        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
-        "notion.title": "Notion Configuration",
+        "notion.title": "Notion Settings",
+        "notion.export_reasoning.title": "Include Reasoning Chain in Export",
+        "notion.export_reasoning.help": "When enabled, exported content will include reasoning chain (thought process).",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -1213,6 +1282,7 @@
       "display.sidebar.translate.icon": "Show Translate icon",
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
+      "display.zoom.title": "Zoom Settings",
       "display.topic.title": "Topic Settings",
       "miniapps": {
         "title": "Mini Apps Settings",
@@ -1271,6 +1341,8 @@
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
       "general.auto_check_update.title": "Auto Update",
+      "general.early_access.title": "Early Access",
+      "general.early_access.tooltip": "Enable to use the latest version from GitHub, which may be slower. Please backup your data in advance.",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1438,6 +1510,7 @@
         "advancedSettings": "Advanced Settings"
       },
       "messages.prompt": "Show prompt",
+      "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
@@ -1448,14 +1521,14 @@
       "messages.input.send_shortcuts": "Send shortcuts",
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
-      "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
+      "messages.input.enable_quick_triggers": "Enable / and @ triggers",
       "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.math_engine.none": "None",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
-      "messages.navigation": "Message Navigation",
+      "messages.navigation": "Navigation bar",
       "messages.navigation.anchor": "Message Anchor",
       "messages.navigation.buttons": "Navigation Buttons",
       "messages.navigation.none": "None",
@@ -1491,6 +1564,7 @@
       "models.check.start": "Start",
       "models.check.title": "Model health check",
       "models.check.use_all_keys": "Key(s)",
+      "models.check.disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
       "models.default_assistant_model": "Default Assistant Model",
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",
@@ -1638,10 +1712,11 @@
         "zoom_out": "Zoom Out",
         "zoom_reset": "Reset Zoom"
       },
-      "theme.auto": "Auto",
+      "theme.system": "System",
       "theme.dark": "Dark",
       "theme.light": "Light",
       "theme.title": "Theme",
+      "theme.color_primary": "Primary Color",
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
@@ -1739,10 +1814,13 @@
     },
     "translate": {
       "any.language": "Any language",
+      "target_language": "Target Language",
+      "alter_language": "Alternative Language",
       "button.translate": "Translate",
       "close": "Close",
       "closed": "Translation closed",
       "copied": "Translation content copied",
+      "detected.language": "Detected Language",
       "empty": "Translation content is empty",
       "not.found": "Translation content not found",
       "confirm": {
@@ -1761,8 +1839,16 @@
       "input.placeholder": "Enter text to translate",
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
-      "scroll_sync.disable": "Disable synced scroll",
-      "scroll_sync.enable": "Enable synced scroll",
+      "language.same": "Source and target languages are the same",
+      "language.not_pair": "Source language is different from the set language",
+      "settings": {
+        "title": "Translation Settings",
+        "model": "Model Settings",
+        "model_desc": "Model used for translation service",
+        "bidirectional": "Bidirectional Translation Settings",
+        "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
+        "scroll_sync": "Scroll Sync Settings"
+      },
       "title": "Translation",
       "tooltip.newline": "Newline",
       "menu": {
@@ -1780,6 +1866,13 @@
       "show_window": "Show Window",
       "visualization": "Visualization"
     },
+    "update": {
+      "title": "Update",
+      "message": "New version {{version}} is ready, do you want to install it now?",
+      "later": "Later",
+      "install": "Install",
+      "noReleaseNotes": "No release notes"
+    },
     "selection": {
       "name": "Selection Assistant",
       "action": {
@@ -1789,7 +1882,8 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy"
+          "copy": "Copy",
+          "quote": "Quote"
         },
         "window": {
           "pin": "Pin",
@@ -1798,9 +1892,13 @@
           "original_show": "Show Original",
           "original_hide": "Hide Original",
           "original_copy": "Copy Original",
-          "esc_close": "Esc to Close",
-          "esc_stop": "Esc to Stop",
-          "c_copy": "C to Copy"
+          "esc_close": "Esc: Close",
+          "esc_stop": "Esc: Stop",
+          "c_copy": "C: Copy",
+          "r_regenerate": "R: Regenerate"
+        },
+        "translate": {
+          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
         }
       },
       "settings": {
@@ -1829,6 +1927,10 @@
             "title": "Follow Toolbar",
             "description": "Window position will follow the toolbar. When disabled, it will always be centered."
           },
+          "remember_size": {
+            "title": "Remember Size",
+            "description": "Window will display at the last adjusted size during the application running"
+          },
           "auto_close": {
             "title": "Auto Close",
             "description": "Automatically close the window when it's not pinned and loses focus"
@@ -1855,6 +1957,20 @@
           },
           "delete_confirm": "Are you sure you want to delete this custom action?",
           "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})"
+        },
+        "advanced": {
+          "title": "Advanced",
+          "filter_mode": {
+            "title": "Application Filter",
+            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
+            "default": "Off",
+            "whitelist": "Whitelist",
+            "blacklist": "Blacklist"
+          },
+          "filter_list": {
+            "title": "Filter List",
+            "description": "Advanced feature, recommended for users with experience"
+          }
         },
         "user_modal": {
           "title": {
@@ -1912,6 +2028,10 @@
             },
             "test": "Test"
           }
+        },
+        "filter_modal": {
+          "title": "Application Filter List",
+          "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       }
     }

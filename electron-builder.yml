@@ -13,11 +13,12 @@ directories:
   buildResources: build
 files:
   - '**/*'
-  - '!{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
+  - '!electron.vite.config.{js,ts,mjs,cjs}}'
+  - '!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}'
+  - '!**/{.editorconfig,.jekyll-metadata}'
   - '!src'
   - '!scripts'
   - '!local'
@@ -106,10 +107,8 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ⚠️ 注意：升级前请备份数据，否则将无法降级
-    文生图新增服务商 DMXAPI（限时免费）
-    输入框按钮支持拖拽排序
-    修复知识库搜索结果 100% 问题
-    修复拖拽多选消息相关问题
-    修复翻译回复内容导致内存异常问题
-    常规错误修复和优化
+    新增划词助手
+    助手支持分组
+    支持主题颜色切换
+    划词助手支持应用过滤
+    翻译模块功能改进

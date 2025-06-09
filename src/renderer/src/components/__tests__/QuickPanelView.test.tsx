@@ -1,9 +1,18 @@
+import { configureStore } from '@reduxjs/toolkit'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useEffect } from 'react'
+import { Provider } from 'react-redux'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { QuickPanelListItem, QuickPanelProvider, QuickPanelView, useQuickPanel } from '../QuickPanel'
+
+// Mock Redux store
+const mockStore = configureStore({
+  reducer: {
+    settings: (state = { userTheme: { colorPrimary: '#1677ff' } }) => state
+  }
+})
 
 function createList(length: number, prefix = 'Item', extra: Partial<QuickPanelListItem> = {}) {
   return Array.from({ length }, (_, i) => ({
@@ -37,6 +46,14 @@ function OpenPanelOnMount({ list }: { list: QuickPanelListItem[] }) {
   return null
 }
 
+function wrapWithProviders(children: React.ReactNode) {
+  return (
+    <Provider store={mockStore}>
+      <QuickPanelProvider>{children}</QuickPanelProvider>
+    </Provider>
+  )
+}
+
 describe('QuickPanelView', () => {
   beforeEach(() => {
     // 添加一个假的 .inputbar textarea 到 document.body
@@ -54,11 +71,7 @@ describe('QuickPanelView', () => {
 
   describe('rendering', () => {
     it('should render without crashing when wrapped in QuickPanelProvider', () => {
-      render(
-        <QuickPanelProvider>
-          <QuickPanelView setInputText={vi.fn()} />
-        </QuickPanelProvider>
-      )
+      render(wrapWithProviders(<QuickPanelView setInputText={vi.fn()} />))
 
       // 检查面板容器是否存在且初始不可见
       const panel = screen.getByTestId('quick-panel')
@@ -69,10 +82,12 @@ describe('QuickPanelView', () => {
       const list = createList(100)
 
       render(
-        <QuickPanelProvider>
-          <QuickPanelView setInputText={vi.fn()} />
-          <OpenPanelOnMount list={list} />
-        </QuickPanelProvider>
+        wrapWithProviders(
+          <>
+            <QuickPanelView setInputText={vi.fn()} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
       )
 
       // 检查面板可见
@@ -111,10 +126,12 @@ describe('QuickPanelView', () => {
       const list = createList(100)
 
       render(
-        <QuickPanelProvider>
-          <QuickPanelView setInputText={vi.fn()} />
-          <OpenPanelOnMount list={list} />
-        </QuickPanelProvider>
+        wrapWithProviders(
+          <>
+            <QuickPanelView setInputText={vi.fn()} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
       )
 
       // 检查第一个 item 是否有 focused
@@ -128,10 +145,12 @@ describe('QuickPanelView', () => {
       const list = createList(100, 'Item')
 
       render(
-        <QuickPanelProvider>
-          <QuickPanelView setInputText={vi.fn()} />
-          <OpenPanelOnMount list={list} />
-        </QuickPanelProvider>
+        wrapWithProviders(
+          <>
+            <QuickPanelView setInputText={vi.fn()} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
       )
 
       const keySequence = [
@@ -148,10 +167,12 @@ describe('QuickPanelView', () => {
       const list = createList(100, 'Item')
 
       render(
-        <QuickPanelProvider>
-          <QuickPanelView setInputText={vi.fn()} />
-          <OpenPanelOnMount list={list} />
-        </QuickPanelProvider>
+        wrapWithProviders(
+          <>
+            <QuickPanelView setInputText={vi.fn()} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
       )
 
       const keySequence = [
@@ -169,10 +190,12 @@ describe('QuickPanelView', () => {
       const list = createList(100, 'Item')
 
       render(
-        <QuickPanelProvider>
-          <QuickPanelView setInputText={vi.fn()} />
-          <OpenPanelOnMount list={list} />
-        </QuickPanelProvider>
+        wrapWithProviders(
+          <>
+            <QuickPanelView setInputText={vi.fn()} />
+            <OpenPanelOnMount list={list} />
+          </>
+        )
       )
 
       const keySequence = [

@@ -141,12 +141,10 @@ export default class OpenAIProvider extends BaseProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      content: getMainTextContent(message)
+    }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
       const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
@@ -178,7 +176,14 @@ export default class OpenAIProvider extends BaseProvider {
       stream: false,
       keep_alive: (this.apiClient as any).keepAliveTime,
       max_tokens: 1000
-    })
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      params['enable_thinking'] = false
+    }
+
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create(params as ChatCompletionCreateParamsNonStreaming)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
@@ -442,7 +447,8 @@ export default class OpenAIProvider extends BaseProvider {
       const data = await sdk.embeddings.create({
         model: model.id,
         input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-        encoding_format: 'float'
+        // @ts-ignore voyage api need null
+        encoding_format: model?.provider === 'voyageai' ? null : 'float'
       })
       return data.data[0].embedding.length
     } catch (e) {

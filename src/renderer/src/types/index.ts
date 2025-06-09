@@ -1,5 +1,5 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type { GroundingMetadata } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
@@ -25,7 +25,10 @@ export type Assistant = {
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
+  tags?: string[] // 助手标签
 }
+
+export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
   role: 'user' | 'assistant'
@@ -55,7 +58,6 @@ export type AssistantSettings = {
   maxTokens: number | undefined
   enableMaxTokens: boolean
   streamOutput: boolean
-  hideMessages: boolean
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOptions
@@ -85,7 +87,6 @@ export type LegacyMessage = {
   metrics?: Metrics
   knowledgeBaseIds?: string[]
   type: 'text' | '@' | 'clear'
-  isPreset?: boolean
   mentions?: Model[]
   askId?: string
   useful?: boolean
@@ -185,6 +186,8 @@ export type PaintingParams = {
   files: FileType[]
 }
 
+export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi'
+
 export interface Painting extends PaintingParams {
   model?: string
   prompt?: string
@@ -207,6 +210,13 @@ export interface GeneratePainting extends PaintingParams {
   negativePrompt?: string
   magicPromptOption?: boolean
   renderingSpeed?: string
+  quality?: string
+  moderation?: string
+  n?: number
+  size?: string
+  background?: string
+  personGeneration?: GenerateImagesConfig['personGeneration']
+  numberOfImages?: number
 }
 
 export interface EditPainting extends PaintingParams {
@@ -246,6 +256,12 @@ export interface ScalePainting extends PaintingParams {
   renderingSpeed?: string
 }
 
+export enum generationModeType {
+  GENERATION = 'generation',
+  EDIT = 'edit',
+  MERGE = 'merge'
+}
+
 export interface DmxapiPainting extends PaintingParams {
   model?: string
   prompt?: string
@@ -254,9 +270,22 @@ export interface DmxapiPainting extends PaintingParams {
   image_size?: string
   seed?: string
   style_type?: string
+  autoCreate?: boolean
+  generationMode?: generationModeType
 }
 
-export type PaintingAction = Partial<GeneratePainting & RemixPainting & EditPainting & ScalePainting> & PaintingParams
+export interface TokenFluxPainting extends PaintingParams {
+  generationId?: string
+  model?: string
+  prompt?: string
+  inputParams?: Record<string, any>
+  status?: 'starting' | 'processing' | 'succeeded' | 'failed' | 'cancelled'
+}
+
+export type PaintingAction = Partial<
+  GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting
+> &
+  PaintingParams
 
 export interface PaintingsState {
   paintings: Painting[]
@@ -265,6 +294,7 @@ export interface PaintingsState {
   edit: Partial<EditPainting> & PaintingParams[]
   upscale: Partial<ScalePainting> & PaintingParams[]
   DMXAPIPaintings: DmxapiPainting[]
+  tokenFluxPaintings: TokenFluxPainting[]
 }
 
 export type MinAppType = {
@@ -304,7 +334,7 @@ export enum FileTypes {
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
-  auto = 'auto'
+  system = 'system'
 }
 
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
@@ -324,9 +354,9 @@ export type CodeStyleVarious = 'auto' | string
 
 export type WebDavConfig = {
   webdavHost: string
-  webdavUser: string
-  webdavPass: string
-  webdavPath: string
+  webdavUser?: string
+  webdavPass?: string
+  webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
 }
@@ -393,6 +423,7 @@ export interface KnowledgeBase {
 export type KnowledgeBaseParams = {
   id: string
   model: string
+  provider: string
   dimensions?: number
   apiKey: string
   apiVersion?: string
@@ -587,6 +618,8 @@ export interface GetMCPPromptResponse {
 
 export interface MCPConfig {
   servers: MCPServer[]
+  isUvInstalled: boolean
+  isBunInstalled: boolean
 }
 
 interface BaseToolResponse {

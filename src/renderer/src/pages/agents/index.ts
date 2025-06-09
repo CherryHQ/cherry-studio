@@ -45,7 +45,7 @@ export function useSystemAgents() {
 
         // 如果没有远程配置或获取失败，加载本地代理
         if (resourcesPath && _agents.length === 0) {
-          const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json')
+          const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json', 'utf-8')
           _agents = JSON.parse(localAgentsData) as Agent[]
         }
 

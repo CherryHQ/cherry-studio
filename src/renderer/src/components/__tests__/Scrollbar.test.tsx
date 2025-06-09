@@ -130,8 +130,8 @@ describe('Scrollbar', () => {
 
       // 验证 throttle 被调用
       expect(throttle).toHaveBeenCalled()
-      // 验证 throttle 调用时使用了 200ms 延迟
-      expect(throttle).toHaveBeenCalledWith(expect.any(Function), 200)
+      // 验证 throttle 调用时使用了 100ms 延迟和正确的选项
+      expect(throttle).toHaveBeenCalledWith(expect.any(Function), 100, { leading: true, trailing: true })
     })
   })
 
@@ -160,21 +160,6 @@ describe('Scrollbar', () => {
   })
 
   describe('props handling', () => {
-    it('should handle right prop correctly', () => {
-      const { container } = render(
-        <Scrollbar data-testid="scrollbar" right>
-          内容
-        </Scrollbar>
-      )
-
-      const scrollbar = screen.getByTestId('scrollbar')
-
-      // 验证 right 属性被正确传递
-      expect(scrollbar).toBeDefined()
-      // snapshot 测试 styled-components 样式
-      expect(container.firstChild).toMatchSnapshot()
-    })
-
     it('should handle ref forwarding', () => {
       const ref = { current: null }
 

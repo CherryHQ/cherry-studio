@@ -1,4 +1,4 @@
-import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import { defaultLanguage, FeedUrl, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
@@ -16,10 +16,14 @@ export enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
+  FeedUrl = 'feedUrl',
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
-  SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar'
+  SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
+  SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
+  SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
+  SelectionAssistantFilterList = 'selectionAssistantFilterList'
 }
 
 export class ConfigManager {
@@ -35,12 +39,12 @@ export class ConfigManager {
     return this.get(ConfigKeys.Language, locale) as LanguageVarious
   }
 
-  setLanguage(theme: LanguageVarious) {
-    this.set(ConfigKeys.Language, theme)
+  setLanguage(lang: LanguageVarious) {
+    this.setAndNotify(ConfigKeys.Language, lang)
   }
 
   getTheme(): ThemeMode {
-    return this.get(ConfigKeys.Theme, ThemeMode.auto)
+    return this.get(ConfigKeys.Theme, ThemeMode.system)
   }
 
   setTheme(theme: ThemeMode) {
@@ -60,8 +64,7 @@ export class ConfigManager {
   }
 
   setTray(value: boolean) {
-    this.set(ConfigKeys.Tray, value)
-    this.notifySubscribers(ConfigKeys.Tray, value)
+    this.setAndNotify(ConfigKeys.Tray, value)
   }
 
   getTrayOnClose(): boolean {
@@ -77,8 +80,7 @@ export class ConfigManager {
   }
 
   setZoomFactor(factor: number) {
-    this.set(ConfigKeys.ZoomFactor, factor)
-    this.notifySubscribers(ConfigKeys.ZoomFactor, factor)
+    this.setAndNotify(ConfigKeys.ZoomFactor, factor)
   }
 
   subscribe<T>(key: string, callback: (newValue: T) => void) {
@@ -110,11 +112,10 @@ export class ConfigManager {
   }
 
   setShortcuts(shortcuts: Shortcut[]) {
-    this.set(
+    this.setAndNotify(
       ConfigKeys.Shortcuts,
       shortcuts.filter((shortcut) => shortcut.system)
     )
-    this.notifySubscribers(ConfigKeys.Shortcuts, shortcuts)
   }
 
   getClickTrayToShowQuickAssistant(): boolean {
@@ -130,7 +131,7 @@ export class ConfigManager {
   }
 
   setEnableQuickAssistant(value: boolean) {
-    this.set(ConfigKeys.EnableQuickAssistant, value)
+    this.setAndNotify(ConfigKeys.EnableQuickAssistant, value)
   }
 
   getAutoUpdate(): boolean {
@@ -139,6 +140,14 @@ export class ConfigManager {
 
   setAutoUpdate(value: boolean) {
     this.set(ConfigKeys.AutoUpdate, value)
+  }
+
+  getFeedUrl(): string {
+    return this.get<string>(ConfigKeys.FeedUrl, FeedUrl.PRODUCTION)
+  }
+
+  setFeedUrl(value: FeedUrl) {
+    this.set(ConfigKeys.FeedUrl, value)
   }
 
   getEnableDataCollection(): boolean {
@@ -151,12 +160,11 @@ export class ConfigManager {
 
   // Selection Assistant: is enabled the selection assistant
   getSelectionAssistantEnabled(): boolean {
-    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, true)
+    return this.get<boolean>(ConfigKeys.SelectionAssistantEnabled, false)
   }
 
   setSelectionAssistantEnabled(value: boolean) {
-    this.set(ConfigKeys.SelectionAssistantEnabled, value)
-    this.notifySubscribers(ConfigKeys.SelectionAssistantEnabled, value)
+    this.setAndNotify(ConfigKeys.SelectionAssistantEnabled, value)
   }
 
   // Selection Assistant: trigger mode (selected, ctrlkey)
@@ -165,8 +173,7 @@ export class ConfigManager {
   }
 
   setSelectionAssistantTriggerMode(value: string) {
-    this.set(ConfigKeys.SelectionAssistantTriggerMode, value)
-    this.notifySubscribers(ConfigKeys.SelectionAssistantTriggerMode, value)
+    this.setAndNotify(ConfigKeys.SelectionAssistantTriggerMode, value)
   }
 
   // Selection Assistant: if action window position follow toolbar
@@ -175,12 +182,40 @@ export class ConfigManager {
   }
 
   setSelectionAssistantFollowToolbar(value: boolean) {
-    this.set(ConfigKeys.SelectionAssistantFollowToolbar, value)
-    this.notifySubscribers(ConfigKeys.SelectionAssistantFollowToolbar, value)
+    this.setAndNotify(ConfigKeys.SelectionAssistantFollowToolbar, value)
   }
 
-  set(key: string, value: unknown) {
+  getSelectionAssistantRemeberWinSize(): boolean {
+    return this.get<boolean>(ConfigKeys.SelectionAssistantRemeberWinSize, false)
+  }
+
+  setSelectionAssistantRemeberWinSize(value: boolean) {
+    this.setAndNotify(ConfigKeys.SelectionAssistantRemeberWinSize, value)
+  }
+
+  getSelectionAssistantFilterMode(): string {
+    return this.get<string>(ConfigKeys.SelectionAssistantFilterMode, 'default')
+  }
+
+  setSelectionAssistantFilterMode(value: string) {
+    this.setAndNotify(ConfigKeys.SelectionAssistantFilterMode, value)
+  }
+
+  getSelectionAssistantFilterList(): string[] {
+    return this.get<string[]>(ConfigKeys.SelectionAssistantFilterList, [])
+  }
+
+  setSelectionAssistantFilterList(value: string[]) {
+    this.setAndNotify(ConfigKeys.SelectionAssistantFilterList, value)
+  }
+
+  setAndNotify(key: string, value: unknown) {
+    this.set(key, value, true)
+  }
+
+  set(key: string, value: unknown, isNotify: boolean = false) {
     this.store.set(key, value)
+    isNotify && this.notifySubscribers(key, value)
   }
 
   get<T>(key: string, defaultValue?: T) {

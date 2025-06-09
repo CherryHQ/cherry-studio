@@ -10,7 +10,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
+import { Avatar, Button, Progress, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -25,7 +25,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -101,7 +101,9 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-  }, [])
+    setEarlyAccess(earlyAccess)
+    setAutoCheckUpdate(autoCheckUpdate)
+  }, [autoCheckUpdate, earlyAccess, setAutoCheckUpdate, setEarlyAccess])
 
   return (
     <SettingContainer theme={theme}>
@@ -160,6 +162,13 @@ const AboutSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
+              <Tooltip title={t('settings.general.early_access.tooltip')} trigger={['hover', 'focus']}>
+                <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
+              </Tooltip>
             </SettingRow>
           </>
         )}

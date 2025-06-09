@@ -6,7 +6,7 @@ import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
-import { isDev } from './constant'
+import { isDev, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -23,6 +23,36 @@ import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
+
+/**
+ * Disable chromium's window animations
+ * main purpose for this is to avoid the transparent window flashing when it is shown
+ * (especially on Windows for SelectionAssistant Toolbar)
+ * Know Issue: https://github.com/electron/electron/issues/12130#issuecomment-627198990
+ */
+if (isWin) {
+  app.commandLine.appendSwitch('wm-window-animations-disabled')
+}
+
+// Enable features for unresponsive renderer js call stacks
+app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
+app.on('web-contents-created', (_, webContents) => {
+  webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Document-Policy': ['include-js-call-stacks-in-crash-reports']
+      }
+    })
+  })
+
+  webContents.on('unresponsive', async () => {
+    // Interrupt execution and collect call stack from unresponsive renderer
+    Logger.error('Renderer unresponsive start')
+    const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
+    Logger.error('Renderer unresponsive js call stack\n', callStack)
+  })
+})
 
 // in production mode, handle uncaught exception and unhandled rejection globally
 if (!isDev) {

@@ -8,18 +8,13 @@
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
+      "add.prompt.variables.tip": {
+        "title": "Доступные переменные",
+        "content": "{{date}}:\tДата\n{{time}}:\tВремя\n{{datetime}}:\tДата и время\n{{system}}:\tОперационная система\n{{arch}}:\tАрхитектура процессора\n{{language}}:\tЯзык\n{{model_name}}:\tНазвание модели"
+      },
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
-      "edit.message.add.title": "Добавить",
-      "edit.message.assistant.placeholder": "Введите сообщение ассистента",
-      "edit.message.assistant.title": "Ассистент",
-      "edit.message.empty.content": "Содержание вводимого сообщения не может быть пустым",
-      "edit.message.group.title": "Группа сообщений",
-      "edit.message.title": "Предустановленные сообщения",
-      "edit.message.user.placeholder": "Введите сообщение пользователя",
-      "edit.message.user.title": "Пользователь",
       "edit.model.select.title": "Выбрать модель",
-      "edit.settings.hide_preset_messages": "Скрыть предустановленные сообщения",
       "edit.title": "Редактировать агента",
       "manage.title": "Редактировать агентов",
       "my_agents": "Мои агенты",
@@ -75,7 +70,6 @@
       "settings.default_model": "Модель по умолчанию",
       "settings.knowledge_base": "Настройки базы знаний",
       "settings.model": "Настройки модели",
-      "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
       "settings.reasoning_effort.off": "Выключить",
       "settings.reasoning_effort.high": "Стараюсь думать",
@@ -101,6 +95,22 @@
         "titlePlaceholder": "Введите заголовок",
         "contentLabel": "Содержание",
         "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}."
+      },
+      "list": {
+        "showByList": "Список",
+        "showByTags": "По тегам"
+      },
+      "tags": {
+        "untagged": "Несгруппированные метки",
+        "none": "Нет тегов",
+        "manage": "Управление тегами",
+        "add": "Добавить тег",
+        "modify": "Изменить тег",
+        "delete": "Удалить тег",
+        "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+        "settings": {
+          "title": "Настройки тегов"
+        }
       }
     },
     "auth": {
@@ -305,6 +315,7 @@
       "translate": "Перевести",
       "topics.export.siyuan": "Экспорт в Siyuan Note",
       "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.obsidian_reasoning": "Включить цепочку рассуждений",
       "topics.export.title_naming_success": "Заголовок успешно создан",
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
       "input.translating": "Перевод...",
@@ -569,7 +580,14 @@
       "korean": "Корейский",
       "portuguese": "Португальский",
       "russian": "Русский",
-      "spanish": "Испанский"
+      "spanish": "Испанский",
+      "polish": "Польский",
+      "turkish": "Туркменский",
+      "thai": "Тайский",
+      "vietnamese": "Вьетнамский",
+      "indonesian": "Индонезийский",
+      "urdu": "Урду",
+      "malay": "Малайзийский"
     },
     "lmstudio": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -610,6 +628,7 @@
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
+      "error.fetchTopicName": "Не удалось назвать тему",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "error.invalid.api.host": "Неверный API адрес",
       "error.invalid.api.key": "Неверный API ключ",
@@ -820,14 +839,15 @@
       "seed_desc_tip": "Одинаковые сиды и промпты могут генерировать похожие изображения, установка -1 будет создавать разные результаты каждый раз",
       "title": "Изображения",
       "magic_prompt_option": "Улучшение промпта",
-      "model": "Версия",
+      "model": "Модель",
       "aspect_ratio": "Пропорции изображения",
       "style_type": "Стиль",
       "rendering_speed": "Скорость рендеринга",
       "learn_more": "Узнать больше",
       "prompt_placeholder_edit": "Введите ваше описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
-      "paint_course":"Руководство / Учебник",
-      "proxy_required": "Сейчас необходимо открыть прокси для просмотра сгенерированных изображений, в будущем будет поддерживаться прямое соединение",
+      "prompt_placeholder_en": "Введите” английский “описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
+      "paint_course": "Руководство / Учебник",
+      "proxy_required": "Открыть прокси и включить “TUN режим” для просмотра сгенерированных изображений или скопировать их в браузер для открытия. В будущем будет поддерживаться прямое соединение",
       "image_file_required": "Пожалуйста, сначала загрузите изображение",
       "image_file_retry": "Пожалуйста, сначала загрузите изображение",
       "image_placeholder": "Изображение недоступно",
@@ -841,11 +861,39 @@
         "3d": "3D",
         "anime": "Аниме"
       },
+      "quality_options": {
+        "auto": "Авто",
+        "low": "Низкое",
+        "medium": "Среднее",
+        "high": "Высокое"
+      },
+      "moderation_options": {
+        "auto": "Авто",
+        "low": "Низкое"
+      },
+      "background_options": {
+        "auto": "Авто",
+        "transparent": "Прозрачный",
+        "opaque": "Непрозрачный"
+      },
       "rendering_speeds": {
         "default": "По умолчанию",
         "turbo": "Быстро",
         "quality": "Качественно"
       },
+      "aspect_ratios": {
+        "square": "Квадрат",
+        "portrait": "Портрет",
+        "landscape": "Пейзаж"
+      },
+      "person_generation_options": {
+        "allow_all": "Разрешено все",
+        "allow_adult": "Разрешено взрослые",
+        "allow_none": "Не разрешено"
+      },
+      "quality": "Качество",
+      "moderation": "Сенсорность",
+      "background": "Фон",
       "mode": {
         "generate": "Рисование",
         "edit": "Редактирование",
@@ -859,7 +907,9 @@
         "negative_prompt_tip": "Описывает, что вы не хотите видеть в изображении",
         "magic_prompt_option_tip": "Интеллектуально оптимизирует подсказки для улучшения эффекта генерации",
         "style_type_tip": "Стиль генерации изображений, доступен только для версий V_2 и выше",
-        "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3"
+        "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3",
+        "person_generation": "Генерация персонажа",
+        "person_generation_tip": "Разрешить модель генерировать изображения людей"
       },
       "edit": {
         "image_file": "Изображение для редактирования",
@@ -892,8 +942,23 @@
         "seed_tip": "Контролирует случайный характер увеличения изображений для воспроизводимых результатов",
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
       },
-      "rendering_speed": "Скорость рендеринга",
-      "text_desc_required": "Пожалуйста, сначала введите описание изображения"
+      "text_desc_required": "Пожалуйста, сначала введите описание изображения",
+      "image_handle_required": "Пожалуйста, сначала загрузите изображение.",
+      "req_error_text": "Операция не удалась, повторите попытку. Пожалуйста, избегайте защищенных авторским правом терминов и конфиденциальных слов в запросах.",
+      "req_error_token": "Пожалуйста, проверьте действительность токена",
+      "req_error_no_balance": "Пожалуйста, проверьте действительность токена",
+      "auto_create_paint": "Автоматическое создание изображения",
+      "auto_create_paint_tip": "После генерации изображения будет автоматически создано новое.",
+      "select_model": "Выбрать модель",
+      "input_parameters": "Ввести параметры",
+      "input_image": "Входное изображение",
+      "generated_image": "Сгенерированное изображение",
+      "pricing": "Цены",
+      "model_and_pricing": "Модель и цены",
+      "per_image": "за изображение",
+      "per_images": "за изображения",
+      "required_field": "Обязательное поле",
+      "uploaded_input": "Загруженный ввод"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -947,7 +1012,7 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu",
+      "qiniu": "Qiniu AI",
       "tokenflux": "TokenFlux"
     },
     "restore": {
@@ -1044,7 +1109,9 @@
           "token": "Токен Joplin",
           "token_placeholder": "Введите токен Joplin",
           "url": "URL Joplin",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+          "export_reasoning.help": "Если включено, экспортируемый контент будет содержать цепочку рассуждений, сгенерированную ассистентом."
         },
         "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
@@ -1053,12 +1120,14 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.title": "Экспорт в Markdown",
+        "markdown_export.show_model_name.title": "Использовать имя модели при экспорте",
+        "markdown_export.show_model_name.help": "Если включено, для создания заголовков экспортируемых сообщений будет использоваться модель именования темы. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
+        "markdown_export.show_model_provider.title": "Показать поставщика модели",
+        "markdown_export.show_model_provider.help": "Показывать поставщика модели (например, OpenAI, Gemini) при экспорте в Markdown",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минут",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
-        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
-        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
         "notion.check": {
           "button": "Проверить",
           "empty_api_key": "Не настроен API key",
@@ -1072,10 +1141,9 @@
         "notion.help": "Документация по настройке Notion",
         "notion.page_name_key": "Название поля заголовка страницы",
         "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
-        "notion.split_size": "Размер автоматического разбиения",
-        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90",
-        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
         "notion.title": "Настройки Notion",
+        "notion.export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+        "notion.export_reasoning.help": "При включении, содержимое цепочки рассуждений будет включено при экспорте в Notion.",
         "title": "Настройки данных",
         "webdav": {
           "autoSync": "Автоматическое резервное копирование",
@@ -1212,6 +1280,7 @@
       "display.sidebar.translate.icon": "Показывать иконку перевода",
       "display.sidebar.visible": "Показывать иконки",
       "display.title": "Настройки отображения",
+      "display.zoom.title": "Настройки масштаба",
       "display.topic.title": "Настройки топиков",
       "miniapps": {
         "title": "Настройки мини-приложений",
@@ -1435,6 +1504,7 @@
         "advancedSettings": "Расширенные настройки"
       },
       "messages.prompt": "Показывать подсказки",
+      "messages.tokens": "Показать использование токенов",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
@@ -1445,7 +1515,7 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
-      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
+      "messages.input.enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
@@ -1488,6 +1558,7 @@
       "models.check.start": "Начать",
       "models.check.title": "Проверка состояния моделей",
       "models.check.use_all_keys": "Использовать все ключи",
+      "models.check.disclaimer": "Проверка состояния моделей требует отправки запросов, пожалуйста, используйте эту функцию с осторожностью. Модели, которые взимают плату за запросы, могут привести к дополнительным расходам, пожалуйста, самостоятельно несем ответственность за них.",
       "models.default_assistant_model": "Модель ассистента по умолчанию",
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
@@ -1629,10 +1700,11 @@
         "zoom_out": "Уменьшить",
         "zoom_reset": "Сбросить масштаб"
       },
-      "theme.auto": "Автоматически",
+      "theme.system": "Системная",
       "theme.dark": "Темная",
       "theme.light": "Светлая",
       "theme.title": "Тема",
+      "theme.color_primary": "Цвет темы",
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
@@ -1681,7 +1753,9 @@
         "content_limit": "Ограничение длины текста",
         "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автообновление",
+      "general.auto_check_update.title": "Автоматическое обновление",
+      "general.early_access.title": "Ранний доступ",
+      "general.early_access.tooltip": "Включить для использования последней версии из GitHub, что может быть медленнее и нестабильно. Пожалуйста, сделайте резервную копию данных заранее.",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
@@ -1740,6 +1814,8 @@
     },
     "translate": {
       "any.language": "Любой язык",
+      "target_language": "Целевой язык",
+      "alter_language": "Альтернативный язык",
       "button.translate": "Перевести",
       "close": "Закрыть",
       "closed": "Перевод закрыт",
@@ -1762,13 +1838,22 @@
       "input.placeholder": "Введите текст для перевода",
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
-      "scroll_sync.disable": "Отключить синхронизацию прокрутки",
-      "scroll_sync.enable": "Включить синхронизацию прокрутки",
+      "language.same": "Исходный и целевой языки совпадают",
+      "language.not_pair": "Исходный язык отличается от настроенного",
+      "settings": {
+        "title": "Настройки перевода",
+        "model": "Настройки модели",
+        "model_desc": "Модель, используемая для службы перевода",
+        "bidirectional": "Настройки двунаправленного перевода",
+        "scroll_sync": "Настройки синхронизации прокрутки",
+        "bidirectional_tip": "Если включено, перевод будет выполняться в обоих направлениях, исходный текст будет переведен на целевой язык и наоборот."
+      },
       "title": "Перевод",
       "tooltip.newline": "Перевести",
       "menu": {
         "description": "Перевести содержимое текущего ввода"
-      }
+      },
+      "detected.language": "Обнаруженный язык"
     },
     "tray": {
       "quit": "Выйти",
@@ -1781,6 +1866,13 @@
       "show_window": "Показать окно",
       "visualization": "Визуализация"
     },
+    "update": {
+      "title": "Обновление",
+      "message": "Новая версия {{version}} готова, установить сейчас?",
+      "later": "Позже",
+      "install": "Установить",
+      "noReleaseNotes": "Нет заметок об обновлении"
+    },
     "selection": {
       "name": "Помощник выбора",
       "action": {
@@ -1790,7 +1882,8 @@
           "summary": "Суммаризировать",
           "search": "Поиск",
           "refine": "Уточнить",
-          "copy": "Копировать"
+          "copy": "Копировать",
+          "quote": "Цитировать"
         },
         "window": {
           "pin": "Закрепить",
@@ -1801,7 +1894,11 @@
           "original_copy": "Копировать оригинал",
           "esc_close": "Esc - закрыть",
           "esc_stop": "Esc - остановить",
-          "c_copy": "C - копировать"
+          "c_copy": "C - копировать",
+          "r_regenerate": "R - перегенерировать"
+        },
+        "translate": {
+          "smart_translate_tips": "Смарт-перевод: содержимое будет переведено на целевой язык; содержимое уже на целевом языке будет переведено на альтернативный язык"
         }
       },
       "settings": {
@@ -1830,6 +1927,10 @@
             "title": "Следовать за панелью",
             "description": "Окно будет следовать за панелью. Иначе - по центру."
           },
+          "remember_size": {
+            "title": "Запомнить размер",
+            "description": "При отключенном режиме, окно будет восстанавливаться до последнего размера при запуске приложения"
+          },
           "auto_close": {
             "title": "Автозакрытие",
             "description": "Закрывать окно при потере фокуса (если не закреплено)"
@@ -1856,6 +1957,20 @@
           },
           "delete_confirm": "Удалить это действие?",
           "drag_hint": "Перетащите для сортировки. Включено: {{enabled}}/{{max}}"
+        },
+        "advanced": {
+          "title": "Расширенные",
+          "filter_mode": {
+            "title": "Режим фильтрации",
+            "description": "Можно ограничить выборку по определенным приложениям (белый список) или исключить их (черный список)",
+            "default": "Выключено",
+            "whitelist": "Белый список",
+            "blacklist": "Черный список"
+          },
+          "filter_list": {
+            "title": "Список фильтрации",
+            "description": "Расширенная функция, рекомендуется для пользователей с опытом"
+          }
         },
         "user_modal": {
           "title": {
@@ -1913,6 +2028,10 @@
             },
             "test": "Тест"
           }
+        },
+        "filter_modal": {
+          "title": "Список фильтрации",
+          "user_tips": "Введите имя исполняемого файла приложения, один на строку, не учитывая регистр, можно использовать подстановку *"
         }
       }
     }

@@ -1,6 +1,8 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types/newMessage'
+import { Popover } from 'antd'
 import { t } from 'i18next'
 import styled from 'styled-components'
 
@@ -10,6 +12,7 @@ interface MessageTokensProps {
 }
 
 const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
+  const { showTokens } = useSettings()
   // const { generating } = useRuntime()
   const locateMessage = () => {
     EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
@@ -22,7 +25,7 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
   if (message.role === 'user') {
     return (
       <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        Tokens: {message?.usage?.total_tokens}
+        {showTokens && `Tokens: ${message?.usage?.total_tokens}`}
       </MessageMetadata>
     )
   }
@@ -40,15 +43,24 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
       })
     }
 
+    const tokensInfo = (
+      <span className="tokens">
+        Tokens:
+        <span>{message?.usage?.total_tokens}</span>
+        <span>↑{message?.usage?.prompt_tokens}</span>
+        <span>↓{message?.usage?.completion_tokens}</span>
+      </span>
+    )
+
     return (
-      <MessageMetadata className={`message-tokens ${hasMetrics ? 'has-metrics' : ''}`} onClick={locateMessage}>
-        <span className="metrics">{metrixs}</span>
-        <span className="tokens">
-          Tokens:
-          <span>{message?.usage?.total_tokens}</span>
-          <span>↑{message?.usage?.prompt_tokens}</span>
-          <span>↓{message?.usage?.completion_tokens}</span>
-        </span>
+      <MessageMetadata className="message-tokens" onClick={locateMessage}>
+        {hasMetrics ? (
+          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+            {showTokens && tokensInfo}
+          </Popover>
+        ) : (
+          tokensInfo
+        )}
       </MessageMetadata>
     )
   }
@@ -64,25 +76,11 @@ const MessageMetadata = styled.div`
   cursor: pointer;
   text-align: right;
 
-  .metrics {
-    display: none;
-  }
-
   .tokens {
     display: block;
 
     span {
       padding: 0 2px;
-    }
-  }
-
-  &.has-metrics:hover {
-    .metrics {
-      display: block;
-    }
-
-    .tokens {
-      display: none;
     }
   }
 `

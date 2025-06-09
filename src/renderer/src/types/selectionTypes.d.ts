@@ -1,5 +1,5 @@
 export type TriggerMode = 'selected' | 'ctrlkey'
-
+export type FilterMode = 'default' | 'whitelist' | 'blacklist'
 export interface ActionItem {
   id: string
   name: string
@@ -19,6 +19,9 @@ export interface SelectionState {
   isAutoClose: boolean
   isAutoPin: boolean
   isFollowToolbar: boolean
+  isRemeberWinSize: boolean
+  filterMode: FilterMode
+  filterList: string[]
   actionWindowOpacity: number
   actionItems: ActionItem[]
 }
