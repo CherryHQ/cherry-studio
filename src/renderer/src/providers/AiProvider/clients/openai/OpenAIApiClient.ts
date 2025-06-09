@@ -22,6 +22,7 @@ import {
   Assistant,
   EFFORT_RATIO,
   FileTypes,
+  GenerateImageParams,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
@@ -90,6 +91,44 @@ export class OpenAIAPIClient extends BaseApiClient<
     const sdk = await this.getSdkInstance()
     // @ts-ignore - SDK参数可能有额外的字段
     return await sdk.chat.completions.create(payload, options)
+  }
+
+  /**
+   * Generate an image
+   * @param params - The parameters
+   * @returns The generated image
+   */
+  override async generateImage({
+    model,
+    prompt,
+    negativePrompt,
+    imageSize,
+    batchSize,
+    seed,
+    numInferenceSteps,
+    guidanceScale,
+    signal,
+    promptEnhancement
+  }: GenerateImageParams): Promise<string[]> {
+    const sdk = await this.getSdkInstance()
+    const response = (await sdk.request({
+      method: 'post',
+      path: '/images/generations',
+      signal,
+      body: {
+        model,
+        prompt,
+        negative_prompt: negativePrompt,
+        image_size: imageSize,
+        batch_size: batchSize,
+        seed: seed ? parseInt(seed) : undefined,
+        num_inference_steps: numInferenceSteps,
+        guidance_scale: guidanceScale,
+        prompt_enhancement: promptEnhancement
+      }
+    })) as { data: Array<{ url: string }> }
+
+    return response.data.map((item) => item.url)
   }
 
   override async getEmbeddingDimensions(model: Model): Promise<number> {

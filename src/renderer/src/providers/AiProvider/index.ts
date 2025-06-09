@@ -1,6 +1,6 @@
 import { ApiClientFactory } from '@renderer/providers/AiProvider/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/providers/AiProvider/clients/BaseApiClient'
-import type { Model, Provider } from '@renderer/types'
+import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import { RequestOptions, SdkModel } from '@renderer/types/sdk'
 
 import { CompletionsMiddlewareBuilder } from '../middleware/builder'
@@ -63,10 +63,7 @@ export default class AiProvider {
     }
   }
 
-  // public async generateImage(params: GenerateImageParams): Promise<string[]> {
-  //   // TODO: Refactor using this.apiClient (likely createCompletions with specific model/params) or a dedicated image generation method on ApiClient
-  //   console.warn('generateImage method needs refactoring')
-  //   return Promise.reject('Not implemented')
-  //   // return this.apiClient.generateImage(params)
-  // }
+  public async generateImage(params: GenerateImageParams): Promise<string[]> {
+    return this.apiClient.generateImage(params)
+  }
 }

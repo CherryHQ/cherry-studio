@@ -11,6 +11,7 @@ import { SettingsState } from '@renderer/store/settings'
 import {
   Assistant,
   FileTypes,
+  GenerateImageParams,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
@@ -73,17 +74,32 @@ export abstract class BaseApiClient<
   // // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
   // abstract completions(params: CompletionsParams, internal?: ProcessingState): Promise<CompletionsResult>
 
+  /**
+   * 核心API Endpoint
+   **/
+
   abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
+
+  abstract generateImage(generateImageParams: GenerateImageParams): Promise<string[]>
 
   abstract getEmbeddingDimensions(model?: Model): Promise<number>
 
   abstract listModels(): Promise<SdkModel[]>
 
   abstract getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
+
+  /**
+   * 中间件
+   **/
+
   // 在 CoreRequestToSdkParamsMiddleware中使用
   abstract getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>
   // 在RawSdkChunkToGenericChunkMiddleware中使用
   abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
+
+  /**
+   * 工具转换
+   **/
 
   // Optional tool conversion methods - implement if needed by the specific provider
   abstract convertMcpToolsToSdkTools(mcpTools: MCPTool[]): TSdkSpecificTool[]
@@ -121,6 +137,10 @@ export abstract class BaseApiClient<
   ): TRawOutput {
     return rawOutput
   }
+
+  /**
+   * 通用函数
+   **/
 
   protected getBaseURL(): string {
     return this.provider.apiHost

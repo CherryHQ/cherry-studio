@@ -110,6 +110,12 @@ export class AnthropicAPIClient extends BaseApiClient<
     return await sdk.messages.create(payload, options)
   }
 
+  // @ts-ignore sdk未提供
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
+    return []
+  }
+
   override async listModels(): Promise<Anthropic.ModelInfo[]> {
     const sdk = await this.getSdkInstance()
     const response = await sdk.models.list()

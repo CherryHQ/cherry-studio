@@ -4,6 +4,7 @@ import {
   FileState,
   FunctionCall,
   GenerateContentConfig,
+  GenerateImagesConfig,
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
@@ -24,6 +25,7 @@ import {
   EFFORT_RATIO,
   FileType,
   FileTypes,
+  GenerateImageParams,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
@@ -96,6 +98,42 @@ export class GeminiAPIClient extends BaseApiClient<
     } else {
       const response = await chat.sendMessage(realPayload)
       return response
+    }
+  }
+
+  override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
+    const sdk = await this.getSdkInstance()
+    try {
+      const { model, prompt, imageSize, batchSize, signal } = generateImageParams
+      const config: GenerateImagesConfig = {
+        numberOfImages: batchSize,
+        aspectRatio: imageSize,
+        abortSignal: signal,
+        httpOptions: {
+          timeout: 5 * 60 * 1000
+        }
+      }
+      const response = await sdk.models.generateImages({
+        model: model,
+        prompt,
+        config
+      })
+
+      if (!response.generatedImages || response.generatedImages.length === 0) {
+        return []
+      }
+
+      const images = response.generatedImages
+        .filter((image) => image.image?.imageBytes)
+        .map((image) => {
+          const dataPrefix = `data:${image.image?.mimeType || 'image/png'};base64,`
+          return dataPrefix + image.image?.imageBytes
+        })
+      //  console.log(response?.generatedImages?.[0]?.image?.imageBytes);
+      return images
+    } catch (error) {
+      console.error('[generateImage] error:', error)
+      throw error
     }
   }
 
