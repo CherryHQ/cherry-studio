@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -28,12 +29,34 @@ class FileManager {
     return Promise.all(files.map((file) => this.addFile(file)))
   }
 
-  static async readFile(file: FileType): Promise<Buffer> {
-    return (await window.api.file.binaryFile(file.id + file.ext)).data
+  static async readBinaryImage(file: FileType): Promise<Buffer> {
+    const fileData = await window.api.file.binaryImage(file.id + file.ext)
+    return fileData.data
+  }
+
+  static async readBase64File(file: FileType): Promise<string> {
+    const fileData = await window.api.file.base64File(file.id + file.ext)
+    return fileData.data
+  }
+
+  static async addBase64File(file: FileType): Promise<FileType> {
+    Logger.log(`[FileManager] Adding base64 file: ${JSON.stringify(file)}`)
+
+    const base64File = await window.api.file.base64File(file.id + file.ext)
+    const fileRecord = await db.files.get(base64File.id)
+
+    if (fileRecord) {
+      await db.files.update(fileRecord.id, { ...fileRecord, count: fileRecord.count + 1 })
+      return fileRecord
+    }
+
+    await db.files.add(base64File)
+
+    return base64File
   }
 
   static async uploadFile(file: FileType): Promise<FileType> {
-    console.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
+    Logger.log(`[FileManager] Uploading file: ${JSON.stringify(file)}`)
 
     const uploadFile = await window.api.file.upload(file)
     const fileRecord = await db.files.get(uploadFile.id)
@@ -63,10 +86,15 @@ class FileManager {
     return file
   }
 
+  static getFilePath(file: FileType) {
+    const filesPath = store.getState().runtime.filesPath
+    return filesPath + '/' + file.id + file.ext
+  }
+
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 
-    console.log('[FileManager] Deleting file:', file)
+    Logger.log('[FileManager] Deleting file:', file)
 
     if (!file) {
       return
@@ -84,7 +112,7 @@ class FileManager {
     try {
       await window.api.file.delete(id + file.ext)
     } catch (error) {
-      console.error('[FileManager] Failed to delete file:', error)
+      Logger.error('[FileManager] Failed to delete file:', error)
     }
   }
 

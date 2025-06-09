@@ -5,12 +5,13 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant } from '@renderer/types'
+import { Assistant, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
+import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -59,6 +60,18 @@ function addWebSearchProvider(state: RootState, id: string) {
       const provider = defaultWebSearchProviders.find((p) => p.id === id)
       if (provider) {
         state.websearch.providers.push(provider)
+      }
+    }
+  }
+}
+
+function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchProvider>) {
+  if (state.websearch && state.websearch.providers) {
+    const index = state.websearch.providers.findIndex((p) => p.id === provider.id)
+    if (index !== -1) {
+      state.websearch.providers[index] = {
+        ...state.websearch.providers[index],
+        ...provider
       }
     }
   }
@@ -530,6 +543,7 @@ const migrateConfig = {
   },
   '39': (state: RootState) => {
     try {
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeStyle = 'auto'
       return state
     } catch (error) {
@@ -1126,7 +1140,7 @@ const migrateConfig = {
   '88': (state: RootState) => {
     try {
       if (state?.mcp?.servers) {
-        const hasAutoInstall = state.mcp.servers.some((server) => server.name === 'mcp-auto-install')
+        const hasAutoInstall = state.mcp.servers.some((server) => server.name === '@cherry/mcp-auto-install')
         if (!hasAutoInstall) {
           const defaultServer = mcpSlice.getInitialState().servers[0]
           state.mcp.servers = [{ ...defaultServer, id: nanoid() }, ...state.mcp.servers]
@@ -1155,9 +1169,13 @@ const migrateConfig = {
   },
   '91': (state: RootState) => {
     try {
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheable = false
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheMaxSize = 1000
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheTTL = 15
+      // @ts-ignore eslint-disable-next-line
       state.settings.codeCacheThreshold = 2
       addProvider(state, 'qiniu')
       return state
@@ -1236,6 +1254,232 @@ const migrateConfig = {
           provider.basicAuthPassword = ''
         })
       }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '98': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.type === 'openai' && provider.id !== 'openai') {
+          // @ts-ignore eslint-disable-next-line
+          provider.type = 'openai-compatible'
+        }
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '99': (state: RootState) => {
+    try {
+      state.settings.showPrompt = true
+
+      addWebSearchProvider(state, 'bocha')
+
+      updateWebSearchProvider(state, {
+        id: 'exa',
+        apiHost: 'https://api.exa.ai'
+      })
+
+      updateWebSearchProvider(state, {
+        id: 'tavily',
+        apiHost: 'https://api.tavily.com'
+      })
+
+      // Remove basic auth fields from exa and tavily
+      if (state.websearch?.providers) {
+        state.websearch.providers = state.websearch.providers.map((provider) => {
+          if (provider.id === 'exa' || provider.id === 'tavily') {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { basicAuthUsername, basicAuthPassword, ...rest } = provider
+            return rest
+          }
+          return provider
+        })
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '100': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        // @ts-ignore eslint-disable-next-line
+        if (['openai-compatible', 'openai'].includes(provider.type)) {
+          provider.type = 'openai'
+        }
+        if (provider.id === 'openai') {
+          provider.type = 'openai-response'
+        }
+      })
+      state.assistants.assistants.forEach((assistant) => {
+        assistant.knowledgeRecognition = 'off'
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '101': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (assistant.settings) {
+          // @ts-ignore eslint-disable-next-line
+          if (assistant.settings.enableToolUse) {
+            // @ts-ignore eslint-disable-next-line
+            assistant.settings.toolUseMode = assistant.settings.enableToolUse ? 'function' : 'prompt'
+            // @ts-ignore eslint-disable-next-line
+            delete assistant.settings.enableToolUse
+          }
+        }
+      })
+      if (state.shortcuts) {
+        state.shortcuts.shortcuts.push({
+          key: 'exit_fullscreen',
+          shortcut: ['Escape'],
+          editable: false,
+          enabled: true,
+          system: true
+        })
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '102': (state: RootState) => {
+    try {
+      state.settings.openAI = {
+        summaryText: 'off',
+        serviceTier: 'auto'
+      }
+
+      state.settings.codeExecution = settingsInitialState.codeExecution
+      state.settings.codeEditor = settingsInitialState.codeEditor
+      state.settings.codePreview = settingsInitialState.codePreview
+
+      // @ts-ignore eslint-disable-next-line
+      if (state.settings.codeStyle) {
+        // @ts-ignore eslint-disable-next-line
+        state.settings.codePreview.themeLight = state.settings.codeStyle
+        // @ts-ignore eslint-disable-next-line
+        state.settings.codePreview.themeDark = state.settings.codeStyle
+      }
+
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeStyle
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheable
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheMaxSize
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheTTL
+      // @ts-ignore eslint-disable-next-line
+      delete state.settings.codeCacheThreshold
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '103': (state: RootState) => {
+    try {
+      if (state.shortcuts) {
+        if (!state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message_in_chat')) {
+          state.shortcuts.shortcuts.push({
+            key: 'search_message_in_chat',
+            shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+            editable: true,
+            enabled: true,
+            system: false
+          })
+        }
+        const searchMessageShortcut = state.shortcuts.shortcuts.find((shortcut) => shortcut.key === 'search_message')
+        const targetShortcut = [isMac ? 'Command' : 'Ctrl', 'F']
+        if (
+          searchMessageShortcut &&
+          Array.isArray(searchMessageShortcut.shortcut) &&
+          searchMessageShortcut.shortcut.length === targetShortcut.length &&
+          searchMessageShortcut.shortcut.every((v, i) => v === targetShortcut[i])
+        ) {
+          searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
+        }
+      }
+      // Quick assistant model
+      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '104': (state: RootState) => {
+    try {
+      addProvider(state, 'burncloud')
+      state.llm.providers = moveProvider(state.llm.providers, 'burncloud', 10)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '105': (state: RootState) => {
+    try {
+      state.settings.notification = settingsInitialState.notification
+      addMiniApp(state, 'google')
+      if (!state.settings.openAI) {
+        state.settings.openAI = {
+          summaryText: 'off',
+          serviceTier: 'auto'
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '106': (state: RootState) => {
+    try {
+      addProvider(state, 'tokenflux')
+      state.llm.providers = moveProvider(state.llm.providers, 'tokenflux', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '107': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.DMXAPIPaintings) {
+        state.paintings.DMXAPIPaintings = []
+      }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '108': (state: RootState) => {
+    try {
+      state.inputTools.toolOrder = DEFAULT_TOOL_ORDER
+      state.inputTools.isCollapsed = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '109': (state: RootState) => {
+    try {
+      state.settings.userTheme = settingsInitialState.userTheme
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '110': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.tokenFluxPaintings) {
+        state.paintings.tokenFluxPaintings = []
+      }
+      state.settings.showTokens = true
       return state
     } catch (error) {
       return state

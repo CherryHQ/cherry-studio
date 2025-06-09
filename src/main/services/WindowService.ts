@@ -1,17 +1,19 @@
+// just import the themeService to ensure the theme is initialized
+import './ThemeService'
+
 import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ThemeMode } from '@types'
-import { app, BrowserWindow, ipcMain, Menu, MenuItem, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
-import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
+import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
 
 export class WindowService {
@@ -22,9 +24,7 @@ export class WindowService {
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
-  private selectionMenuWindow: BrowserWindow | null = null
-  private lastSelectedText: string = ''
-  private contextMenu: Menu | null = null
+  private lastRendererProcessCrashTime: number = 0
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -47,13 +47,6 @@ export class WindowService {
       maximize: false
     })
 
-    const theme = configManager.getTheme()
-    if (theme === ThemeMode.auto) {
-      nativeTheme.themeSource = 'system'
-    } else {
-      nativeTheme.themeSource = theme
-    }
-
     this.mainWindow = new BrowserWindow({
       x: mainWindowState.x,
       y: mainWindowState.y,
@@ -66,7 +59,7 @@ export class WindowService {
       transparent: isMac,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      titleBarStyle: isLinux ? 'default' : 'hidden',
+      titleBarStyle: 'hidden',
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
@@ -77,7 +70,9 @@ export class WindowService {
         sandbox: false,
         webSecurity: false,
         webviewTag: true,
-        allowRunningInsecureContent: true
+        allowRunningInsecureContent: true,
+        zoomFactor: configManager.getZoomFactor(),
+        backgroundThrottling: false
       }
     })
 
@@ -103,7 +98,30 @@ export class WindowService {
     this.setupWindowEvents(mainWindow)
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
+    this.setupMainWindowMonitor(mainWindow)
     this.loadMainWindowContent(mainWindow)
+  }
+
+  private setupMainWindowMonitor(mainWindow: BrowserWindow) {
+    mainWindow.webContents.on('render-process-gone', (_, details) => {
+      Logger.error(`Renderer process crashed with: ${JSON.stringify(details)}`)
+      const currentTime = Date.now()
+      const lastCrashTime = this.lastRendererProcessCrashTime
+      this.lastRendererProcessCrashTime = currentTime
+      if (currentTime - lastCrashTime > 60 * 1000) {
+        // 如果大于1分钟，则重启渲染进程
+        mainWindow.webContents.reload()
+      } else {
+        // 如果小于1分钟，则退出应用, 可能是连续crash，需要退出应用
+        app.exit(1)
+      }
+    })
+
+    mainWindow.webContents.on('unresponsive', () => {
+      // 在升级到electron 34后，可以获取具体js stack trace,目前只打个日志监控下
+      // https://www.electronjs.org/blog/electron-34-0#unresponsive-renderer-javascript-call-stacks
+      Logger.error('Renderer process unresponsive')
+    })
   }
 
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {
@@ -118,18 +136,9 @@ export class WindowService {
   }
 
   private setupContextMenu(mainWindow: BrowserWindow) {
-    if (!this.contextMenu) {
-      const locale = locales[configManager.getLanguage()]
-      const { common } = locale.translation
-
-      this.contextMenu = new Menu()
-      this.contextMenu.append(new MenuItem({ label: common.copy, role: 'copy' }))
-      this.contextMenu.append(new MenuItem({ label: common.paste, role: 'paste' }))
-      this.contextMenu.append(new MenuItem({ label: common.cut, role: 'cut' }))
-    }
-
-    mainWindow.webContents.on('context-menu', () => {
-      this.contextMenu?.popup()
+    contextMenu.contextMenu(mainWindow)
+    app.on('browser-window-created', (_, win) => {
+      contextMenu.contextMenu(win)
     })
 
     // Dangerous API
@@ -138,13 +147,6 @@ export class WindowService {
         webPreferences.preload = join(__dirname, '../preload/index.js')
       })
     }
-
-    // Handle webview context menu
-    mainWindow.webContents.on('did-attach-webview', (_, webContents) => {
-      webContents.on('context-menu', () => {
-        this.contextMenu?.popup()
-      })
-    })
   }
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
@@ -179,6 +181,12 @@ export class WindowService {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
     })
 
+    // set the zoom factor again when the window is going to restore
+    // minimize and restore will cause zoom reset
+    mainWindow.on('restore', () => {
+      mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+    })
+
     // ARCH: as `will-resize` is only for Win & Mac,
     // linux has the same problem, use `resize` listener instead
     // but `resize` will fliker the ui
@@ -193,10 +201,21 @@ export class WindowService {
       // 当按下Escape键且窗口处于全屏状态时退出全屏
       if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
         if (mainWindow.isFullScreen()) {
-          event.preventDefault()
-          mainWindow.setFullScreen(false)
+          // 获取 shortcuts 配置
+          const shortcuts = configManager.getShortcuts()
+          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+          if (exitFullscreenShortcut == undefined) {
+            mainWindow.setFullScreen(false)
+            return
+          }
+          if (exitFullscreenShortcut?.enabled) {
+            event.preventDefault()
+            mainWindow.setFullScreen(false)
+            return
+          }
         }
       }
+      return
     })
   }
 
@@ -301,7 +320,7 @@ export class WindowService {
 
       /**
        * 上述逻辑以下:
-       * win/linux: 是“开启托盘+设置关闭时最小化到托盘”的情况
+       * win/linux: 是"开启托盘+设置关闭时最小化到托盘"的情况
        * mac: 任何情况都会到这里，因此需要单独处理mac
        */
 
@@ -424,7 +443,8 @@ export class WindowService {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
         webSecurity: false,
-        webviewTag: true
+        webviewTag: true,
+        backgroundThrottling: false
       }
     })
 
@@ -462,16 +482,10 @@ export class WindowService {
       this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
     })
 
-    ipcMain.on(IpcChannel.MiniWindowReload, () => {
-      this.miniWindow?.reload()
-    })
-
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '#/mini')
+      this.miniWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/miniWindow.html')
     } else {
-      this.miniWindow.loadFile(join(__dirname, '../renderer/index.html'), {
-        hash: '#/mini'
-      })
+      this.miniWindow.loadFile(join(__dirname, '../renderer/miniWindow.html'))
     }
 
     return this.miniWindow
@@ -482,10 +496,6 @@ export class WindowService {
 
     if (!enableQuickAssistant) {
       return
-    }
-
-    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
-      this.selectionMenuWindow.hide()
     }
 
     if (this.miniWindow && !this.miniWindow.isDestroyed()) {
@@ -533,74 +543,6 @@ export class WindowService {
 
   public setPinMiniWindow(isPinned) {
     this.isPinnedMiniWindow = isPinned
-  }
-
-  public showSelectionMenu(bounds: { x: number; y: number }) {
-    if (this.selectionMenuWindow && !this.selectionMenuWindow.isDestroyed()) {
-      this.selectionMenuWindow.setPosition(bounds.x, bounds.y)
-      this.selectionMenuWindow.show()
-      return
-    }
-
-    const theme = configManager.getTheme()
-
-    this.selectionMenuWindow = new BrowserWindow({
-      width: 280,
-      height: 40,
-      x: bounds.x,
-      y: bounds.y,
-      show: true,
-      autoHideMenuBar: true,
-      transparent: true,
-      frame: false,
-      alwaysOnTop: false,
-      skipTaskbar: true,
-      backgroundColor: isMac ? undefined : theme === 'dark' ? '#181818' : '#FFFFFF',
-      resizable: false,
-      vibrancy: 'popover',
-      webPreferences: {
-        preload: join(__dirname, '../preload/index.js'),
-        sandbox: false,
-        webSecurity: false
-      }
-    })
-
-    // 点击其他地方时隐藏窗口
-    this.selectionMenuWindow.on('blur', () => {
-      this.selectionMenuWindow?.hide()
-      this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
-        action: 'home',
-        selectedText: this.lastSelectedText
-      })
-    })
-
-    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      this.selectionMenuWindow.loadURL(process.env['ELECTRON_RENDERER_URL'] + '/src/windows/menu/menu.html')
-    } else {
-      this.selectionMenuWindow.loadFile(join(__dirname, '../renderer/src/windows/menu/menu.html'))
-    }
-
-    this.setupSelectionMenuEvents()
-  }
-
-  private setupSelectionMenuEvents() {
-    if (!this.selectionMenuWindow) return
-
-    ipcMain.removeHandler(IpcChannel.SelectionMenu_Action)
-    ipcMain.handle(IpcChannel.SelectionMenu_Action, (_, action) => {
-      this.selectionMenuWindow?.hide()
-      this.showMiniWindow()
-      setTimeout(() => {
-        this.miniWindow?.webContents.send(IpcChannel.SelectionAction, {
-          action,
-          selectedText: this.lastSelectedText
-        })
-      }, 100)
-    })
-  }
-
-  public setLastSelectedText(text: string) {
-    this.lastSelectedText = text
   }
 }
 

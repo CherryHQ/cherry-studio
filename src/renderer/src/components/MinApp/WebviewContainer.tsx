@@ -68,6 +68,11 @@ const WebviewContainer = memo(
         style={WebviewStyle}
         allowpopups={'true' as any}
         partition="persist:webview"
+        useragent={
+          appid === 'google'
+            ? 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
+            : undefined
+        }
       />
     )
   }

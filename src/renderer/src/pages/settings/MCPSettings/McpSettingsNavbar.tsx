@@ -1,6 +1,7 @@
 import { NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import { isWindows } from '@renderer/config/constant'
+import { isLinux, isWindows } from '@renderer/config/constant'
+import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { Button, Dropdown, Menu, type MenuProps } from 'antd'
 import { ChevronDown, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -64,17 +65,16 @@ export const McpSettingsNavbar = () => {
     key: name,
     label: (
       <Menu.Item
-        key={name}
         onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
-        style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-        <img src={logo} alt={name} style={{ width: 16, height: 16, borderRadius: 3, marginRight: 8 }} />
+        style={{ backgroundColor: 'transparent' }}
+        icon={<img src={logo} alt={name} style={{ width: 20, height: 20, borderRadius: 5, marginRight: 10 }} />}>
         {name}
       </Menu.Item>
     )
   }))
 
   return (
-    <NavbarRight style={{ paddingRight: isWindows ? 150 : 12 }}>
+    <NavbarRight style={{ paddingRight: useFullscreen() ? '12px' : isWindows ? 150 : isLinux ? 120 : 12 }}>
       <HStack alignItems="center" gap={5}>
         <Button
           size="small"
@@ -85,17 +85,14 @@ export const McpSettingsNavbar = () => {
           style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
           {t('settings.mcp.searchNpx')}
         </Button>
-        <Dropdown
-          menu={{ items: resourceMenuItems }}
-          trigger={['click']}
-          overlayStyle={{ maxHeight: '400px', overflow: 'auto' }}>
+        <Dropdown menu={{ items: resourceMenuItems }} trigger={['click']}>
           <Button
             size="small"
             type="text"
             className="nodrag"
             style={{ fontSize: 13, height: 28, borderRadius: 20, display: 'flex', alignItems: 'center' }}>
             {t('settings.mcp.findMore')}
-            <ChevronDown size={14} style={{ marginLeft: 5 }} />
+            <ChevronDown size={16} />
           </Button>
         </Dropdown>
         <InstallNpxUv mini />

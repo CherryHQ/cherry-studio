@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { app } from 'electron'
 import Logger from 'electron-log'
 
+import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
 import { handleMcpProtocolUrl } from './urlschema/mcp-install'
 import { windowService } from './WindowService'
 
@@ -25,7 +26,6 @@ export function handleProtocolUrl(url: string) {
   if (!url) return
   // Process the URL that was used to open the app
   // The url will be in the format: cherrystudio://data?param1=value1&param2=value2
-  console.log('Received URL:', url)
 
   // Parse the URL and extract parameters
   const urlObj = new URL(url)
@@ -34,6 +34,9 @@ export function handleProtocolUrl(url: string) {
   switch (urlObj.hostname.toLowerCase()) {
     case 'mcp':
       handleMcpProtocolUrl(urlObj)
+      return
+    case 'providers':
+      handleProvidersProtocolUrl(urlObj)
       return
   }
 

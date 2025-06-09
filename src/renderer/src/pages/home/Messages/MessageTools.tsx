@@ -1,31 +1,41 @@
 import { CheckOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { Message } from '@renderer/types'
+import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
-import { isEmpty } from 'lodash'
-import { FC, useMemo, useState } from 'react'
+import { FC, memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
-  message: Message
+  blocks: ToolMessageBlock
 }
 
-const MessageTools: FC<Props> = ({ message }) => {
+const MessageTools: FC<Props> = ({ blocks }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
-  const fontFamily = useMemo(() => {
-    return messageFont === 'serif'
-      ? 'serif'
-      : '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans","Helvetica Neue", sans-serif'
-  }, [messageFont])
 
-  const toolResponses = message.metadata?.mcpTools || []
+  const toolResponse = blocks.metadata?.rawMcpToolResponse
 
-  if (isEmpty(toolResponses)) {
+  const resultString = useMemo(() => {
+    try {
+      return JSON.stringify(
+        {
+          params: toolResponse?.arguments,
+          response: toolResponse?.response
+        },
+        null,
+        2
+      )
+    } catch (e) {
+      return 'Invalid Result'
+    }
+  }, [toolResponse])
+
+  if (!toolResponse) {
     return null
   }
 
@@ -43,75 +53,76 @@ const MessageTools: FC<Props> = ({ message }) => {
   // Format tool responses for collapse items
   const getCollapseItems = () => {
     const items: { key: string; label: React.ReactNode; children: React.ReactNode }[] = []
-    // Add tool responses
-    for (const toolResponse of toolResponses) {
-      const { id, tool, status, response } = toolResponse
-      const isInvoking = status === 'invoking'
-      const isDone = status === 'done'
-      const hasError = isDone && response?.isError === true
-      const result = {
-        params: tool.inputSchema,
-        response: toolResponse.response
-      }
-
-      items.push({
-        key: id,
-        label: (
-          <MessageTitleLabel>
-            <TitleContent>
-              <ToolName>{tool.name}</ToolName>
-              <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
-                {isInvoking
-                  ? t('message.tools.invoking')
-                  : hasError
-                    ? t('message.tools.error')
-                    : t('message.tools.completed')}
-                {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
-                {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
-                {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
-              </StatusIndicator>
-            </TitleContent>
-            <ActionButtonsContainer>
-              {isDone && response && (
-                <>
-                  <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
-                    <ActionButton
-                      className="message-action-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setExpandedResponse({
-                          content: JSON.stringify(response, null, 2),
-                          title: tool.name
-                        })
-                      }}
-                      aria-label={t('common.expand')}>
-                      <ExpandOutlined />
-                    </ActionButton>
-                  </Tooltip>
-                  <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
-                    <ActionButton
-                      className="message-action-button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        copyContent(JSON.stringify(result, null, 2), id)
-                      }}
-                      aria-label={t('common.copy')}>
-                      {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
-                      {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
-                    </ActionButton>
-                  </Tooltip>
-                </>
-              )}
-            </ActionButtonsContainer>
-          </MessageTitleLabel>
-        ),
-        children: isDone && result && (
-          <ToolResponseContainer style={{ fontFamily, fontSize: '12px' }}>
-            <CodeBlock>{JSON.stringify(result, null, 2)}</CodeBlock>
-          </ToolResponseContainer>
-        )
-      })
+    const { id, tool, status, response } = toolResponse
+    const isInvoking = status === 'invoking'
+    const isDone = status === 'done'
+    const hasError = isDone && response?.isError === true
+    const result = {
+      params: toolResponse.arguments,
+      response: toolResponse.response
     }
+
+    items.push({
+      key: id,
+      label: (
+        <MessageTitleLabel>
+          <TitleContent>
+            <ToolName>{tool.name}</ToolName>
+            <StatusIndicator $isInvoking={isInvoking} $hasError={hasError}>
+              {isInvoking
+                ? t('message.tools.invoking')
+                : hasError
+                  ? t('message.tools.error')
+                  : t('message.tools.completed')}
+              {isInvoking && <LoadingOutlined spin style={{ marginLeft: 6 }} />}
+              {isDone && !hasError && <CheckOutlined style={{ marginLeft: 6 }} />}
+              {hasError && <WarningOutlined style={{ marginLeft: 6 }} />}
+            </StatusIndicator>
+          </TitleContent>
+          <ActionButtonsContainer>
+            {isDone && response && (
+              <>
+                <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+                  <ActionButton
+                    className="message-action-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setExpandedResponse({
+                        content: JSON.stringify(response, null, 2),
+                        title: tool.name
+                      })
+                    }}
+                    aria-label={t('common.expand')}>
+                    <ExpandOutlined />
+                  </ActionButton>
+                </Tooltip>
+                <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+                  <ActionButton
+                    className="message-action-button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      copyContent(JSON.stringify(result, null, 2), id)
+                    }}
+                    aria-label={t('common.copy')}>
+                    {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
+                    {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                  </ActionButton>
+                </Tooltip>
+              </>
+            )}
+          </ActionButtonsContainer>
+        </MessageTitleLabel>
+      ),
+      children: isDone && result && (
+        <ToolResponseContainer
+          style={{
+            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+            fontSize: '12px'
+          }}>
+          <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
+        </ToolResponseContainer>
+      )
+    })
 
     return items
   }
@@ -124,7 +135,6 @@ const MessageTools: FC<Props> = ({ message }) => {
       switch (parsedResult.content[0]?.type) {
         case 'text':
           return <PreviewBlock>{parsedResult.content[0].text}</PreviewBlock>
-        // TODO: support other types
         default:
           return <PreviewBlock>{content}</PreviewBlock>
       }
@@ -154,10 +164,14 @@ const MessageTools: FC<Props> = ({ message }) => {
         footer={null}
         width="80%"
         centered
+        transitionName="animation-move-down"
         styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
         {expandedResponse && (
-          <ExpandedResponseContainer style={{ fontFamily, fontSize }}>
-            {/* mode swtich tabs */}
+          <ExpandedResponseContainer
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize
+            }}>
             <Tabs
               tabBarExtraContent={
                 <ActionButton
@@ -178,18 +192,12 @@ const MessageTools: FC<Props> = ({ message }) => {
                 {
                   key: 'preview',
                   label: t('message.tools.preview'),
-                  children: renderPreview(expandedResponse.content)
+                  children: <CollapsedContent isExpanded={true} resultString={resultString} />
                 },
                 {
                   key: 'raw',
                   label: t('message.tools.raw'),
-                  children: (
-                    <CodeBlock>
-                      {typeof expandedResponse.content === 'string'
-                        ? expandedResponse.content
-                        : JSON.stringify(expandedResponse.content, null, 2)}
-                    </CodeBlock>
-                  )
+                  children: renderPreview(expandedResponse.content)
                 }
               ]}
             />
@@ -200,8 +208,30 @@ const MessageTools: FC<Props> = ({ message }) => {
   )
 }
 
+// New component to handle collapsed content
+const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ isExpanded, resultString }) => {
+  const { highlightCode } = useCodeStyle()
+  const [styledResult, setStyledResult] = useState<string>('')
+
+  useEffect(() => {
+    const highlight = async () => {
+      const result = await highlightCode(isExpanded ? resultString : '', 'json')
+      setStyledResult(result)
+    }
+
+    setTimeout(highlight, 0)
+  }, [isExpanded, resultString, highlightCode])
+
+  if (!isExpanded) {
+    return null
+  }
+
+  return <MarkdownContainer className="markdown" dangerouslySetInnerHTML={{ __html: styledResult }} />
+}
+
 const CollapseContainer = styled(Collapse)`
-  margin-bottom: 15px;
+  margin-top: 10px;
+  margin-bottom: 12px;
   border-radius: 8px;
   overflow: hidden;
 
@@ -216,6 +246,15 @@ const CollapseContainer = styled(Collapse)`
 
   .ant-collapse-content-box {
     padding: 0 !important;
+  }
+`
+
+const MarkdownContainer = styled.div`
+  & pre {
+    background: transparent !important;
+    span {
+      white-space: pre-wrap;
+    }
   }
 `
 
@@ -300,9 +339,7 @@ const CollapsibleIcon = styled.i`
 `
 
 const ToolResponseContainer = styled.div`
-  background: var(--color-bg-1);
   border-radius: 0 0 4px 4px;
-  padding: 12px 16px;
   overflow: auto;
   max-height: 300px;
   border-top: none;
@@ -315,14 +352,6 @@ const PreviewBlock = styled.div`
   word-break: break-word;
   color: var(--color-text);
   user-select: text;
-`
-
-const CodeBlock = styled.pre`
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--color-text);
-  font-family: ubuntu;
 `
 
 const ExpandedResponseContainer = styled.div`
@@ -348,4 +377,4 @@ const ExpandedResponseContainer = styled.div`
   }
 `
 
-export default MessageTools
+export default memo(MessageTools)

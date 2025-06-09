@@ -1,6 +1,8 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
+import Logger from '@renderer/config/logger'
+import { ONLY_SUPPORTED_DIMENSION_PROVIDERS } from '@renderer/config/providers'
 import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
@@ -37,7 +39,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   return {
     id: base.id,
     model: base.model.id,
-    dimensions: base.dimensions,
+    dimensions: ONLY_SUPPORTED_DIMENSION_PROVIDERS.includes(base.model.provider) ? base.dimensions : undefined,
     apiKey: aiProvider.getApiKey() || 'secret',
     apiVersion: provider.apiVersion,
     baseURL: host,
@@ -46,8 +48,8 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankBaseURL: rerankHost,
     rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
-    rerankModelProvider: base.rerankModel?.provider,
-    topN: base.topN
+    rerankModelProvider: base.rerankModel?.provider
+    // topN: base.topN
   }
 }
 
@@ -87,6 +89,51 @@ export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: Fil
   return item.metadata.source
 }
 
+export const searchKnowledgeBase = async (
+  query: string,
+  base: KnowledgeBase,
+  rewrite?: string
+): Promise<Array<ExtractChunkData & { file: FileType | null }>> => {
+  try {
+    const baseParams = getKnowledgeBaseParams(base)
+    const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
+    const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
+
+    // 执行搜索
+    const searchResults = await window.api.knowledgeBase.search({
+      search: query,
+      base: baseParams
+    })
+
+    // 过滤阈值不达标的结果
+    const filteredResults = searchResults.filter((item) => item.score >= threshold)
+
+    // 如果有rerank模型，执行重排
+    let rerankResults = filteredResults
+    if (base.rerankModel && filteredResults.length > 0) {
+      rerankResults = await window.api.knowledgeBase.rerank({
+        search: rewrite || query,
+        base: baseParams,
+        results: filteredResults
+      })
+    }
+
+    // 限制文档数量
+    const limitedResults = rerankResults.slice(0, documentCount)
+
+    // 处理文件信息
+    return await Promise.all(
+      limitedResults.map(async (item) => {
+        const file = await getFileFromUrl(item.metadata.source)
+        return { ...item, file }
+      })
+    )
+  } catch (error) {
+    Logger.error(`Error searching knowledge base ${base.name}:`, error)
+    return []
+  }
+}
+
 export const processKnowledgeSearch = async (
   extractResults: ExtractResults,
   knowledgeBaseIds: string[] | undefined
@@ -96,90 +143,51 @@ export const processKnowledgeSearch = async (
     extractResults.knowledge.question.length === 0 ||
     isEmpty(knowledgeBaseIds)
   ) {
-    console.log('No valid question found in extractResults.knowledge')
+    Logger.log('No valid question found in extractResults.knowledge')
     return []
   }
+
   const questions = extractResults.knowledge.question
   const rewrite = extractResults.knowledge.rewrite
 
   const bases = store.getState().knowledge.bases.filter((kb) => knowledgeBaseIds?.includes(kb.id))
   if (!bases || bases.length === 0) {
-    console.log('Skipping knowledge search: No matching knowledge bases found.')
+    Logger.log('Skipping knowledge search: No matching knowledge bases found.')
     return []
   }
 
-  const referencesPromises = bases.map(async (base) => {
-    try {
-      const baseParams = getKnowledgeBaseParams(base)
-      const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
+  // 为每个知识库执行多问题搜索
+  const baseSearchPromises = bases.map(async (base) => {
+    // 为每个问题搜索并合并结果
+    const allResults = await Promise.all(questions.map((question) => searchKnowledgeBase(question, base, rewrite)))
 
-      const allSearchResultsPromises = questions.map((question) =>
-        window.api.knowledgeBase
-          .search({
-            search: question,
-            base: baseParams
-          })
-          .then((results) =>
-            results.filter((item) => {
-              const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
-              return item.score >= threshold
-            })
-          )
-      )
+    // 合并结果并去重
+    const flatResults = allResults.flat()
+    const uniqueResults = Array.from(
+      new Map(flatResults.map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
+    ).sort((a, b) => b.score - a.score)
 
-      const allSearchResults = await Promise.all(allSearchResultsPromises)
-
-      const searchResults = Array.from(
-        new Map(allSearchResults.flat().map((item) => [item.metadata.uniqueId || item.pageContent, item])).values()
-      ).sort((a, b) => b.score - a.score)
-
-      console.log(`Knowledge base ${base.name} search results:`, searchResults)
-
-      let rerankResults = searchResults
-      if (base.rerankModel && searchResults.length > 0) {
-        rerankResults = await window.api.knowledgeBase.rerank({
-          search: rewrite,
-          base: baseParams,
-          results: searchResults
-        })
-      }
-
-      if (rerankResults.length > 0) {
-        rerankResults = rerankResults.slice(0, documentCount)
-      }
-
-      const processdResults = await Promise.all(
-        rerankResults.map(async (item) => {
-          const file = await getFileFromUrl(item.metadata.source)
-          return { ...item, file }
-        })
-      )
-
-      const references = await Promise.all(
-        processdResults.map(async (item, index) => {
-          // const baseItem = base.items.find((i) => i.uniqueId === item.metadata.uniqueLoaderId)
-          return {
-            id: index + 1, // 搜索多个库会导致ID重复
+    // 转换为引用格式
+    return await Promise.all(
+      uniqueResults.map(
+        async (item, index) =>
+          ({
+            id: index + 1,
             content: item.pageContent,
             sourceUrl: await getKnowledgeSourceUrl(item),
-            type: 'file' // 需要映射 baseItem.type是'localPathLoader' -> 'file'
-          } as KnowledgeReference
-        })
+            type: 'file'
+          }) as KnowledgeReference
       )
-      return references
-    } catch (error) {
-      console.error(`Error searching knowledge base ${base.name}:`, error)
-      return []
-    }
+    )
   })
 
-  const resultsPerBase = await Promise.all(referencesPromises)
-
+  // 汇总所有知识库的结果
+  const resultsPerBase = await Promise.all(baseSearchPromises)
   const allReferencesRaw = resultsPerBase.flat().filter((ref): ref is KnowledgeReference => !!ref)
+
   // 重新为引用分配ID
-  const references = allReferencesRaw.map((ref, index) => ({
+  return allReferencesRaw.map((ref, index) => ({
     ...ref,
     id: index + 1
   }))
-  return references
 }

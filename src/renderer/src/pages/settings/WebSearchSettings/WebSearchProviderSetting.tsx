@@ -5,7 +5,7 @@ import { formatApiKeys } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Form, Input, Tooltip } from 'antd'
+import { Button, Divider, Flex, Form, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -141,7 +141,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     <>
       <SettingTitle>
         <Flex align="center" gap={8}>
-          <ProviderLogo shape="square" src={getWebSearchProviderLogo(provider.id)} size={16} />
+          <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
@@ -185,21 +185,18 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex>
+          <Flex gap={8}>
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}
               onChange={(e) => setApiHost(e.target.value)}
               onBlur={onUpdateApiHost}
             />
-            <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
-              {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.websearch.check')}
-            </Button>
           </Flex>
+        </>
+      )}
+      {hasObjectKey(provider, 'basicAuthUsername') && (
+        <>
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth')}
@@ -254,8 +251,10 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
 `
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
+const ProviderLogo = styled.img`
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 `
 
 export default WebSearchProviderSetting

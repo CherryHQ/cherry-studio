@@ -1,36 +1,28 @@
+import Logger from '@renderer/config/logger'
+import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
 import {
-  getOpenAIWebSearchParams,
-  isHunyuanSearchModel,
-  isOpenAIWebSearch,
-  isZhipuModel
-} from '@renderer/config/models'
-import { SEARCH_SUMMARY_PROMPT } from '@renderer/config/prompts'
+  SEARCH_SUMMARY_PROMPT,
+  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
+  SEARCH_SUMMARY_PROMPT_WEB_ONLY
+} from '@renderer/config/prompts'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import {
   Assistant,
+  ExternalToolResult,
   KnowledgeReference,
   MCPTool,
-  Message,
   Model,
   Provider,
   Suggestion,
-  WebSearchResponse
+  WebSearchResponse,
+  WebSearchSource
 } from '@renderer/types'
-import { formatMessageError, isAbortError } from '@renderer/utils/error'
+import { type Chunk, ChunkType } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
+import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
-import { withGenerateImage } from '@renderer/utils/formats'
-import {
-  cleanLinkCommas,
-  completeLinks,
-  convertLinks,
-  convertLinksToHunyuan,
-  convertLinksToOpenRouter,
-  convertLinksToZhipu,
-  extractUrlsFromMarkdown
-} from '@renderer/utils/linkConverter'
-import { cloneDeep, findLast, isEmpty } from 'lodash'
+import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
 import {
@@ -40,300 +32,295 @@ import {
   getTopNamingModel,
   getTranslateModel
 } from './AssistantService'
-import { EVENT_NAMES, EventEmitter } from './EventService'
+import { getDefaultAssistant } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
-import { estimateMessagesUsage } from './TokenService'
 import WebSearchService from './WebSearchService'
 
+// TODO：考虑拆开
+async function fetchExternalTool(
+  lastUserMessage: Message,
+  assistant: Assistant,
+  onChunkReceived: (chunk: Chunk) => void,
+  lastAnswer?: Message
+): Promise<ExternalToolResult> {
+  // 可能会有重复？
+  const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
+  const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+  const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
+
+  const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
+  const shouldKnowledgeSearch = hasKnowledgeBase
+
+  // 在工具链开始时发送进度通知
+  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
+  if (willUseTools) {
+    onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
+  }
+
+  // --- Keyword/Question Extraction Function ---
+  const extract = async (): Promise<ExtractResults | undefined> => {
+    if (!lastUserMessage) return undefined
+
+    // 根据配置决定是否需要提取
+    const needWebExtract = shouldWebSearch
+    const needKnowledgeExtract = hasKnowledgeBase && knowledgeRecognition === 'on'
+
+    if (!needWebExtract && !needKnowledgeExtract) return undefined
+
+    let prompt: string
+    if (needWebExtract && !needKnowledgeExtract) {
+      prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
+    } else if (!needWebExtract && needKnowledgeExtract) {
+      prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
+    } else {
+      prompt = SEARCH_SUMMARY_PROMPT
+    }
+
+    const summaryAssistant = getDefaultAssistant()
+    summaryAssistant.model = assistant.model || getDefaultModel()
+    summaryAssistant.prompt = prompt
+
+    try {
+      const keywords = await fetchSearchSummary({
+        messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
+        assistant: summaryAssistant
+      })
+
+      if (!keywords) return getFallbackResult()
+
+      const extracted = extractInfoFromXML(keywords)
+      // 根据需求过滤结果
+      return {
+        websearch: needWebExtract ? extracted?.websearch : undefined,
+        knowledge: needKnowledgeExtract ? extracted?.knowledge : undefined
+      }
+    } catch (e: any) {
+      console.error('extract error', e)
+      if (isAbortError(e)) throw e
+      return getFallbackResult()
+    }
+  }
+
+  const getFallbackResult = (): ExtractResults => {
+    const fallbackContent = getMainTextContent(lastUserMessage)
+    return {
+      websearch: shouldWebSearch ? { question: [fallbackContent || 'search'] } : undefined,
+      knowledge: shouldKnowledgeSearch
+        ? {
+            question: [fallbackContent || 'search'],
+            rewrite: fallbackContent
+          }
+        : undefined
+    }
+  }
+
+  // --- Web Search Function ---
+  const searchTheWeb = async (extractResults: ExtractResults | undefined): Promise<WebSearchResponse | undefined> => {
+    if (!shouldWebSearch) return
+
+    // Add check for extractResults existence early
+    if (!extractResults?.websearch) {
+      console.warn('searchTheWeb called without valid extractResults.websearch')
+      return
+    }
+
+    if (extractResults.websearch.question[0] === 'not_needed') return
+
+    // Add check for assistant.model before using it
+    if (!assistant.model) {
+      console.warn('searchTheWeb called without assistant.model')
+      return undefined
+    }
+
+    // Pass the guaranteed model to the check function
+    const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
+    if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model)) {
+      return
+    }
+
+    try {
+      // Use the consolidated processWebsearch function
+      WebSearchService.createAbortSignal(lastUserMessage.id)
+      return {
+        results: await WebSearchService.processWebsearch(webSearchProvider!, extractResults),
+        source: WebSearchSource.WEBSEARCH
+      }
+    } catch (error) {
+      if (isAbortError(error)) throw error
+      console.error('Web search failed:', error)
+      return
+    }
+  }
+
+  // --- Knowledge Base Search Function ---
+  const searchKnowledgeBase = async (
+    extractResults: ExtractResults | undefined
+  ): Promise<KnowledgeReference[] | undefined> => {
+    if (!hasKnowledgeBase) return
+
+    // 知识库搜索条件
+    let searchCriteria: { question: string[]; rewrite: string }
+    if (knowledgeRecognition === 'off') {
+      const directContent = getMainTextContent(lastUserMessage)
+      searchCriteria = { question: [directContent || 'search'], rewrite: directContent }
+    } else {
+      // auto mode
+      if (!extractResults?.knowledge) {
+        console.warn('searchKnowledgeBase: No valid search criteria in auto mode')
+        return
+      }
+      searchCriteria = extractResults.knowledge
+    }
+
+    if (searchCriteria.question[0] === 'not_needed') return
+
+    try {
+      const tempExtractResults: ExtractResults = {
+        websearch: undefined,
+        knowledge: searchCriteria
+      }
+      // Attempt to get knowledgeBaseIds from the main text block
+      // NOTE: This assumes knowledgeBaseIds are ONLY on the main text block
+      // NOTE: processKnowledgeSearch needs to handle undefined ids gracefully
+      // const mainTextBlock = mainTextBlocks
+      //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
+      //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
+      return await processKnowledgeSearch(tempExtractResults, knowledgeBaseIds)
+    } catch (error) {
+      console.error('Knowledge base search failed:', error)
+      return
+    }
+  }
+
+  // --- Execute Extraction and Searches ---
+  let extractResults: ExtractResults | undefined
+
+  try {
+    // 根据配置决定是否需要提取
+    if (shouldWebSearch || hasKnowledgeBase) {
+      extractResults = await extract()
+      Logger.log('[fetchExternalTool] Extraction results:', extractResults)
+    }
+
+    let webSearchResponseFromSearch: WebSearchResponse | undefined
+    let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
+
+    // 并行执行搜索
+    if (shouldWebSearch || shouldKnowledgeSearch) {
+      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch] = await Promise.all([
+        searchTheWeb(extractResults),
+        searchKnowledgeBase(extractResults)
+      ])
+    }
+
+    // 存储搜索结果
+    if (lastUserMessage) {
+      if (webSearchResponseFromSearch) {
+        window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
+      }
+      if (knowledgeReferencesFromSearch) {
+        window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
+      }
+    }
+
+    // 发送工具执行完成通知
+    if (willUseTools) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: webSearchResponseFromSearch,
+          knowledge: knowledgeReferencesFromSearch
+        }
+      })
+    }
+
+    // Get MCP tools (Fix duplicate declaration)
+    let mcpTools: MCPTool[] = [] // Initialize as empty array
+    const enabledMCPs = lastUserMessage?.enabledMCPs
+    if (enabledMCPs && enabledMCPs.length > 0) {
+      try {
+        const toolPromises = enabledMCPs.map(async (mcpServer) => {
+          const tools = await window.api.mcp.listTools(mcpServer)
+          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        })
+        const results = await Promise.all(toolPromises)
+        mcpTools = results.flat() // Flatten the array of arrays
+      } catch (toolError) {
+        console.error('Error fetching MCP tools:', toolError)
+      }
+    }
+
+    return { mcpTools }
+  } catch (error) {
+    if (isAbortError(error)) throw error
+    console.error('Tool execution failed:', error)
+
+    // 发送错误状态
+    if (willUseTools) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: undefined,
+          knowledge: undefined
+        }
+      })
+    }
+
+    return { mcpTools: [] }
+  }
+}
+
 export async function fetchChatCompletion({
-  message,
   messages,
   assistant,
-  onResponse
+  onChunkReceived
 }: {
-  message: Message
   messages: Message[]
   assistant: Assistant
-  onResponse: (message: Message) => void
+  onChunkReceived: (chunk: Chunk) => void
+  // TODO
+  // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
 }) {
+  console.log('fetchChatCompletion', messages, assistant)
+
   const provider = getAssistantProvider(assistant)
-  const webSearchProvider = WebSearchService.getWebSearchProvider()
   const AI = new AiProvider(provider)
+
+  // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
+  messages = filterContextMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
-  const hasKnowledgeBase = !isEmpty(lastUserMessage?.knowledgeBaseIds)
   if (!lastUserMessage) {
+    console.error('fetchChatCompletion returning early: Missing lastUserMessage or lastAnswer')
     return
   }
+  // try {
+  // NOTE: The search results are NOT added to the messages sent to the AI here.
+  // They will be retrieved and used by the messageThunk later to create CitationBlocks.
+  const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
 
-  // 网络搜索/知识库 关键词提取
-  const extract = async () => {
-    const tools: string[] = []
+  const filteredMessages = filterUsefulMessages(messages)
 
-    if (assistant.enableWebSearch) tools.push('websearch')
-    if (hasKnowledgeBase) tools.push('knowledge')
-
-    const summaryAssistant = {
-      ...assistant,
-      prompt: SEARCH_SUMMARY_PROMPT.replace('{tools}', tools.join(', '))
-    }
-
-    const keywords = await fetchSearchSummary({
-      messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-      assistant: summaryAssistant
-    })
-    try {
-      return extractInfoFromXML(keywords || '')
-    } catch (e: any) {
-      console.error('extract error', e)
-      return {
-        websearch: {
-          question: [lastUserMessage.content]
-        },
-        knowledge: {
-          question: [lastUserMessage.content]
-        }
-      } as ExtractResults
-    }
-  }
-  let extractResults: ExtractResults
-  if (assistant.enableWebSearch || hasKnowledgeBase) {
-    extractResults = await extract()
-  }
-
-  const searchTheWeb = async () => {
-    // 检查是否需要进行网络搜索
-    const shouldSearch =
-      extractResults?.websearch &&
-      WebSearchService.isWebSearchEnabled() &&
-      assistant.enableWebSearch &&
-      assistant.model &&
-      extractResults.websearch.question[0] !== 'not_needed'
-
-    if (!shouldSearch) return
-
-    onResponse({ ...message, status: 'searching' })
-    // 检查是否使用OpenAI的网络搜索
-    const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model!)
-    if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model!)) return
-
-    try {
-      const webSearchResponse: WebSearchResponse = await WebSearchService.processWebsearch(
-        webSearchProvider,
-        extractResults
-      )
-      // console.log('webSearchResponse', webSearchResponse)
-      // 处理搜索结果
-      message.metadata = {
-        ...message.metadata,
-        webSearch: webSearchResponse
-      }
-
-      window.keyv.set(`web-search-${lastUserMessage?.id}`, webSearchResponse)
-    } catch (error) {
-      console.error('Web search failed:', error)
-    }
-  }
-
-  // --- 知识库搜索 ---
-  const searchKnowledgeBase = async () => {
-    const shouldSearch =
-      hasKnowledgeBase && extractResults.knowledge && extractResults.knowledge.question[0] !== 'not_needed'
-
-    if (!shouldSearch) return
-
-    onResponse({ ...message, status: 'searching' })
-    try {
-      const knowledgeReferences: KnowledgeReference[] = await processKnowledgeSearch(
-        extractResults,
-        lastUserMessage.knowledgeBaseIds
-      )
-      console.log('knowledgeReferences', knowledgeReferences)
-      // 处理搜索结果
-      message.metadata = {
-        ...message.metadata,
-        knowledge: knowledgeReferences
-      }
-      window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, knowledgeReferences)
-    } catch (error) {
-      console.error('Knowledge base search failed:', error)
-      window.keyv.set(`knowledge-search-${lastUserMessage?.id}`, [])
-    }
-  }
-
-  try {
-    let _messages: Message[] = []
-    let isFirstChunk = true
-
-    await Promise.all([searchTheWeb(), searchKnowledgeBase()])
-
-    // Get MCP tools
-    const mcpTools: MCPTool[] = []
-    const enabledMCPs = lastUserMessage?.enabledMCPs
-
-    if (enabledMCPs && enabledMCPs.length > 0) {
-      for (const mcpServer of enabledMCPs) {
-        const tools = await window.api.mcp.listTools(mcpServer)
-        const availableTools = tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-        mcpTools.push(...availableTools)
-      }
-    }
-
-    await AI.completions({
-      messages: filterUsefulMessages(filterContextMessages(messages)),
-      assistant,
-      onFilterMessages: (messages) => (_messages = messages),
-      onChunk: ({
-        text,
-        reasoning_content,
-        usage,
-        metrics,
-        webSearch,
-        search,
-        annotations,
-        citations,
-        mcpToolResponse,
-        generateImage
-      }) => {
-        if (assistant.model) {
-          if (isOpenAIWebSearch(assistant.model)) {
-            text = convertLinks(text || '', isFirstChunk)
-          } else if (assistant.model.provider === 'openrouter' && assistant.enableWebSearch) {
-            text = convertLinksToOpenRouter(text || '', isFirstChunk)
-          } else if (assistant.enableWebSearch) {
-            if (isZhipuModel(assistant.model)) {
-              text = convertLinksToZhipu(text || '', isFirstChunk)
-            } else if (isHunyuanSearchModel(assistant.model)) {
-              text = convertLinksToHunyuan(text || '', webSearch || [], isFirstChunk)
-            }
-          }
-        }
-        if (isFirstChunk) {
-          isFirstChunk = false
-        }
-        message.content = message.content + text || ''
-        message.usage = usage
-        message.metrics = metrics
-
-        if (reasoning_content) {
-          message.reasoning_content = (message.reasoning_content || '') + reasoning_content
-        }
-
-        if (mcpToolResponse) {
-          message.metadata = { ...message.metadata, mcpTools: cloneDeep(mcpToolResponse) }
-        }
-
-        if (generateImage && generateImage.images.length > 0) {
-          const existingImages = message.metadata?.generateImage?.images || []
-          generateImage.images = [...existingImages, ...generateImage.images]
-          // console.log('generateImage', generateImage)
-          message.metadata = {
-            ...message.metadata,
-            generateImage: generateImage
-          }
-        }
-
-        // Handle citations from Perplexity API
-        if (citations) {
-          message.metadata = {
-            ...message.metadata,
-            citations
-          }
-        }
-
-        // Handle web search from Gemini
-        if (search) {
-          message.metadata = { ...message.metadata, groundingMetadata: search }
-        }
-
-        // Handle annotations from OpenAI
-        if (annotations) {
-          message.metadata = {
-            ...message.metadata,
-            annotations: annotations
-          }
-        }
-
-        // Handle web search from Zhipu or Hunyuan
-        if (webSearch) {
-          message.metadata = {
-            ...message.metadata,
-            webSearchInfo: webSearch
-          }
-        }
-
-        // Handle citations from Openrouter
-        if (assistant.model?.provider === 'openrouter' && assistant.enableWebSearch) {
-          const extractedUrls = extractUrlsFromMarkdown(message.content)
-          if (extractedUrls.length > 0) {
-            message.metadata = {
-              ...message.metadata,
-              citations: extractedUrls
-            }
-          }
-        }
-        if (assistant.enableWebSearch) {
-          message.content = cleanLinkCommas(message.content)
-          if (webSearch && isZhipuModel(assistant.model)) {
-            message.content = completeLinks(message.content, webSearch)
-          }
-        }
-
-        onResponse({ ...message, status: 'pending' })
-      },
-      mcpTools: mcpTools
-    })
-
-    message.status = 'success'
-    message = withGenerateImage(message)
-
-    if (!message.usage || !message?.usage?.completion_tokens) {
-      message.usage = await estimateMessagesUsage({
-        assistant,
-        messages: [..._messages, message]
-      })
-      // Set metrics.completion_tokens
-      if (message.metrics && message?.usage?.completion_tokens) {
-        if (!message.metrics?.completion_tokens) {
-          message = {
-            ...message,
-            metrics: {
-              ...message.metrics,
-              completion_tokens: message.usage.completion_tokens
-            }
-          }
-        }
-      }
-    }
-    // console.log('message', message)
-  } catch (error: any) {
-    if (isAbortError(error)) {
-      message.status = 'paused'
-    } else {
-      message.status = 'error'
-      message.error = formatMessageError(error)
-    }
-  }
-
-  // console.log('message', message)
-  // Emit chat completion event
-  EventEmitter.emit(EVENT_NAMES.RECEIVE_MESSAGE, message)
-  onResponse(message)
-
-  // Reset generating state
-  store.dispatch(setGenerating(false))
-  return message
+  // --- Call AI Completions ---
+  await AI.completions({
+    messages: filteredMessages,
+    assistant,
+    onFilterMessages: () => {},
+    onChunk: onChunkReceived,
+    mcpTools: mcpTools
+  })
 }
 
 interface FetchTranslateProps {
-  message: Message
+  content: string
   assistant: Assistant
-  onResponse?: (text: string) => void
+  onResponse?: (text: string, isComplete: boolean) => void
 }
 
-export async function fetchTranslate({ message, assistant, onResponse }: FetchTranslateProps) {
+export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
   const model = getTranslateModel()
 
   if (!model) {
@@ -349,7 +336,7 @@ export async function fetchTranslate({ message, assistant, onResponse }: FetchTr
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.translate(message, assistant, onResponse)
+    return await AI.translate(content, assistant, onResponse)
   } catch (error: any) {
     return ''
   }
@@ -367,7 +354,6 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   try {
     const text = await AI.summaries(filterMessages(messages), assistant)
-    // Remove all quotes from the text
     return text?.replace(/["']/g, '') || null
   } catch (error: any) {
     return null
@@ -384,11 +370,7 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
 
   const AI = new AiProvider(provider)
 
-  try {
-    return await AI.summaryForSearch(messages, assistant)
-  } catch (error: any) {
-    return null
-  }
+  return await AI.summaryForSearch(messages, assistant)
 }
 
 export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {
@@ -416,11 +398,7 @@ export async function fetchSuggestions({
   assistant: Assistant
 }): Promise<Suggestion[]> {
   const model = assistant.model
-  if (!model) {
-    return []
-  }
-
-  if (model.id.endsWith('global')) {
+  if (!model || model.id.endsWith('global')) {
     return []
   }
 
@@ -434,7 +412,26 @@ export async function fetchSuggestions({
   }
 }
 
-// Helper function to validate provider's basic settings such as API key, host, and model list
+function hasApiKey(provider: Provider) {
+  if (!provider) return false
+  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  return !isEmpty(provider.apiKey)
+}
+
+export async function fetchModels(provider: Provider) {
+  const AI = new AiProvider(provider)
+
+  try {
+    return await AI.models()
+  } catch (error) {
+    return []
+  }
+}
+
+export const formatApiKeys = (value: string) => {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+}
+
 export function checkApiProvider(provider: Provider): {
   valid: boolean
   error: Error | null
@@ -474,7 +471,7 @@ export function checkApiProvider(provider: Provider): {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model) {
+export async function checkApi(provider: Provider, model: Model): Promise<{ valid: boolean; error: Error | null }> {
   const validation = checkApiProvider(provider)
   if (!validation.valid) {
     return {
@@ -483,37 +480,20 @@ export async function checkApi(provider: Provider, model: Model) {
     }
   }
 
-  const AI = new AiProvider(provider)
+  const ai = new AiProvider(provider)
 
-  const { valid, error } = await AI.check(model)
+  // Try streaming check first
+  const result = await ai.check(model, true)
 
-  return {
-    valid,
-    error
+  if (result.valid && !result.error) {
+    return result
   }
-}
 
-function hasApiKey(provider: Provider) {
-  if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
-  return !isEmpty(provider.apiKey)
-}
-
-export async function fetchModels(provider: Provider) {
-  const AI = new AiProvider(provider)
-
-  try {
-    return await AI.models()
-  } catch (error) {
-    return []
+  // 不应该假设错误由流式引发。多次发起检测请求可能触发429，掩盖了真正的问题。
+  // 但这里错误类型做的很粗糙，暂时先这样
+  if (result.error && result.error.message.includes('stream')) {
+    return ai.check(model, false)
+  } else {
+    return result
   }
-}
-
-/**
- * Format API keys
- * @param value Raw key string
- * @returns Formatted key string
- */
-export const formatApiKeys = (value: string) => {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
 }

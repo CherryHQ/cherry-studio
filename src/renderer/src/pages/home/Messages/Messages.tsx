@@ -1,28 +1,37 @@
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
-import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessageOperations'
+import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
+import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getContextCount, getGroupedMessages, getUserMessage } from '@renderer/services/MessagesService'
 import { estimateHistoryTokens } from '@renderer/services/TokenService'
-import { useAppDispatch } from '@renderer/store'
-import type { Assistant, Message, Topic } from '@renderer/types'
+import store, { useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageBlock'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import { saveMessageAndBlocksToDB } from '@renderer/store/thunk/messageThunk'
+import type { Assistant, Topic } from '@renderer/types'
+import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
-import { flatten, last, take } from 'lodash'
+import { updateCodeBlock } from '@renderer/utils/markdown'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
+import { last } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 import ChatNavigation from './ChatNavigation'
@@ -35,25 +44,41 @@ interface MessagesProps {
   assistant: Assistant
   topic: Topic
   setActiveTopic: (topic: Topic) => void
+  onComponentUpdate?(): void
+  onFirstUpdate?(): void
 }
 
-const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic }) => {
+const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, onComponentUpdate, onFirstUpdate }) => {
+  const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
+    `topic-${topic.id}`
+  )
   const { t } = useTranslation()
-  const { showTopics, topicPosition, showAssistants, messageNavigation } = useSettings()
+  const { showPrompt, messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
-  const containerRef = useRef<HTMLDivElement>(null)
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
-  const messages = useTopicMessages(topic)
-  const { displayCount, updateMessages, clearTopicMessages, deleteMessage } = useMessageOperations(topic)
+
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const messages = useTopicMessages(topic.id)
+  const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const messagesRef = useRef<Message[]>(messages)
+
+  const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
 
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
+
+  const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
+    if (element) {
+      messageElements.current.set(id, element)
+    } else {
+      messageElements.current.delete(id)
+    }
+  }, [])
 
   useEffect(() => {
     const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
@@ -61,24 +86,17 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
     setHasMore(messages.length > displayCount)
   }, [messages, displayCount])
 
-  const maxWidth = useMemo(() => {
-    const showRightTopics = showTopics && topicPosition === 'right'
-    const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-    const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth} - 5px)`
-  }, [showAssistants, showTopics, topicPosition])
-
   const scrollToBottom = useCallback(() => {
-    if (containerRef.current) {
+    if (scrollContainerRef.current) {
       requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTo({
-            top: containerRef.current.scrollHeight
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTo({
+            top: scrollContainerRef.current.scrollHeight
           })
         }
       })
     }
-  }, [])
+  }, [scrollContainerRef])
 
   const clearTopic = useCallback(
     async (data: Topic) => {
@@ -112,14 +130,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         })
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
-        await captureScrollableDivAsBlob(containerRef, async (blob) => {
+        await captureScrollableDivAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           }
         })
       }),
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
-        const imageData = await captureScrollableDivAsDataURL(containerRef)
+        const imageData = await captureScrollableDivAsDataURL(scrollContainerRef)
         if (imageData) {
           window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
@@ -143,9 +161,9 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
             return
           }
 
-          const clearMessage = getUserMessage({ assistant, topic, type: 'clear' })
-          const newMessages = [...messages, clearMessage]
-          await updateMessages(newMessages)
+          const { message: clearMessage } = getUserMessage({ assistant, topic, type: 'clear' })
+          dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: clearMessage }))
+          await saveMessageAndBlocksToDB(clearMessage, [])
 
           scrollToBottom()
         } finally {
@@ -157,27 +175,55 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         newTopic.name = topic.name
         const currentMessages = messagesRef.current
 
-        // 复制消息并且更新 topicId
-        const branchMessages = take(currentMessages, currentMessages.length - index).map((msg) => ({
-          ...msg,
-          topicId: newTopic.id
-        }))
+        if (index < 0 || index > currentMessages.length) {
+          console.error(`[NEW_BRANCH] Invalid branch index: ${index}`)
+          return
+        }
 
-        // 将分支的消息放入数据库
-        await db.topics.add({ id: newTopic.id, messages: branchMessages })
+        // 1. Add the new topic to Redux store FIRST
         addTopic(newTopic)
-        setActiveTopic(newTopic)
-        autoRenameTopic(assistant, newTopic.id)
 
-        // 由于复制了消息，消息中附带的文件的总数变了，需要更新
-        const filesArr = branchMessages.map((m) => m.files)
-        const files = flatten(filesArr).filter(Boolean)
+        // 2. Call the thunk to clone messages and update DB
+        const success = await createTopicBranch(topic.id, currentMessages.length - index, newTopic)
 
-        files.map(async (f) => {
-          const file = await db.files.get({ id: f?.id })
-          file && db.files.update(file.id, { count: file.count + 1 })
-        })
-      })
+        if (success) {
+          // 3. Set the new topic as active
+          setActiveTopic(newTopic)
+          // 4. Trigger auto-rename for the new topic
+          autoRenameTopic(assistant, newTopic.id)
+        } else {
+          // Optional: Handle cloning failure (e.g., show an error message)
+          // You might want to remove the added topic if cloning fails
+          // removeTopic(newTopic.id); // Assuming you have a removeTopic function
+          console.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
+          window.message.error(t('message.branch.error')) // Example error message
+        }
+      }),
+      EventEmitter.on(
+        EVENT_NAMES.EDIT_CODE_BLOCK,
+        async (data: { msgBlockId: string; codeBlockId: string; newContent: string }) => {
+          const { msgBlockId, codeBlockId, newContent } = data
+
+          const msgBlock = messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+
+          // FIXME: 目前 error block 没有 content
+          if (msgBlock && isTextLikeBlock(msgBlock) && msgBlock.type !== MessageBlockType.ERROR) {
+            try {
+              const updatedRaw = updateCodeBlock(msgBlock.content, codeBlockId, newContent)
+              dispatch(updateOneBlock({ id: msgBlockId, changes: { content: updatedRaw } }))
+              window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
+            } catch (error) {
+              console.error(`Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`, error)
+              window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+            }
+          } else {
+            console.error(
+              `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
+            )
+            window.message.error({ content: t('code_block.edit.save.failed'), key: 'save-code-failed' })
+          }
+        }
+      )
     ]
 
     return () => unsubscribes.forEach((unsub) => unsub())
@@ -190,8 +236,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
         tokensCount: await estimateHistoryTokens(assistant, messages),
         contextCount: getContextCount(assistant, messages)
       })
-    })
-  }, [assistant, messages])
+    }).then(() => onFirstUpdate?.())
+  }, [assistant, messages, onFirstUpdate])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return
@@ -210,18 +256,24 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
-      navigator.clipboard.writeText(lastMessage.content)
+      navigator.clipboard.writeText(getMainTextContent(lastMessage))
       window.message.success(t('message.copy.success'))
     }
   })
 
+  useEffect(() => {
+    requestAnimationFrame(() => onComponentUpdate?.())
+  }, [onComponentUpdate])
+
+  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
   return (
-    <Container
+    <MessagesContainer
       id="messages"
-      style={{ maxWidth }}
+      className="messages-container"
+      ref={scrollContainerRef}
+      style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
-      ref={containerRef}
-      $right={topicPosition === 'left'}>
+      onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
@@ -232,24 +284,33 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic })
           inverse
           style={{ overflow: 'visible' }}>
           <ScrollContainer>
-            <LoaderContainer $loading={isLoadingMore}>
-              <BeatLoader size={8} color="var(--color-text-2)" />
-            </LoaderContainer>
-            {Object.entries(getGroupedMessages(displayMessages)).map(([key, groupMessages]) => (
+            {groupedMessages.map(([key, groupMessages]) => (
               <MessageGroup
                 key={key}
                 messages={groupMessages}
                 topic={topic}
                 hidePresetMessages={assistant.settings?.hideMessages}
+                registerMessageElement={registerMessageElement}
               />
             ))}
+            {isLoadingMore && (
+              <LoaderContainer>
+                <SvgSpinners180Ring color="var(--color-text-2)" />
+              </LoaderContainer>
+            )}
           </ScrollContainer>
         </InfiniteScroll>
-        <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />
+        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-    </Container>
+      <SelectionBox
+        isMultiSelectMode={isMultiSelectMode}
+        scrollContainerRef={scrollContainerRef}
+        messageElements={messageElements.current}
+        handleSelectMessage={handleSelectMessage}
+      />
+    </MessagesContainer>
   )
 }
 
@@ -289,34 +350,32 @@ const computeDisplayMessages = (messages: Message[], startIndex: number, display
   return displayMessages
 }
 
-const LoaderContainer = styled.div<{ $loading: boolean }>`
+const LoaderContainer = styled.div`
   display: flex;
   justify-content: center;
   padding: 10px;
   width: 100%;
   background: var(--color-background);
-  opacity: ${(props) => (props.$loading ? 1 : 0)};
-  transition: opacity 0.3s ease;
   pointer-events: none;
 `
 
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
-  margin-bottom: -20px; // 添加负的底部外边距来减少空间
 `
 
 interface ContainerProps {
   $right?: boolean
 }
 
-const Container = styled(Scrollbar)<ContainerProps>`
+const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0 10px;
+  padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
   z-index: 1;
+  margin-right: 2px;
 `
 
 export default Messages

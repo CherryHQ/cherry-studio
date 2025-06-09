@@ -1,13 +1,14 @@
 {
   "translation": {
     "agents": {
-      "add.button": "Добавить к ассистенту",
+      "add.button": "Добавить в ассистента",
       "add.knowledge_base": "База знаний",
       "add.knowledge_base.placeholder": "Выберите базу знаний",
       "add.name": "Имя",
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
+      "add.prompt.variables.tip": "Доступные переменные: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.message.add.title": "Добавить",
@@ -29,7 +30,29 @@
       "tag.default": "По умолчанию",
       "tag.new": "Новый",
       "tag.system": "Система",
-      "title": "Агенты"
+      "title": "Агенты",
+      "import": {
+        "title": "Импорт из внешнего источника",
+        "type": {
+          "url": "URL",
+          "file": "Файл"
+        },
+        "url_placeholder": "Введите URL JSON",
+        "select_file": "Выбрать файл",
+        "button": "Импорт",
+        "file_filter": "JSON файлы",
+        "error": {
+          "url_required": "Пожалуйста, введите URL",
+          "fetch_failed": "Не удалось получить данные по URL",
+          "invalid_format": "Неверный формат агента: отсутствуют обязательные поля"
+        }
+      },
+      "export": {
+        "agent": "Экспорт агента"
+      },
+      "settings": {
+        "title": "Настройки агента"
+      }
     },
     "assistants": {
       "title": "Ассистенты",
@@ -55,13 +78,47 @@
       "settings.model": "Настройки модели",
       "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
-      "settings.reasoning_effort": "Длина цепочки рассуждений",
-      "settings.reasoning_effort.high": "Длинная",
-      "settings.reasoning_effort.low": "Короткая",
-      "settings.reasoning_effort.medium": "Средняя",
-      "settings.reasoning_effort.off": "Выключено",
-      "settings.reasoning_effort.tip": "Поддерживается только моделями рассуждений OpenAI o-series, Anthropic и Grok",
-      "settings.more": "Настройки ассистента"
+      "settings.reasoning_effort.off": "Выключить",
+      "settings.reasoning_effort.high": "Стараюсь думать",
+      "settings.reasoning_effort.low": "Меньше думать",
+      "settings.reasoning_effort.medium": "Среднее",
+      "settings.reasoning_effort.default": "По умолчанию",
+      "settings.more": "Настройки ассистента",
+      "settings.reasoning_effort": "Настройки размышлений",
+      "settings.knowledge_base.recognition.tip": "Ассистент будет использовать возможности большой модели для распознавания намерений, чтобы определить, нужно ли обращаться к базе знаний для ответа. Эта функция будет зависеть от возможностей модели",
+      "settings.knowledge_base.recognition": "Использование базы знаний",
+      "settings.knowledge_base.recognition.off": "Принудительный поиск",
+      "settings.knowledge_base.recognition.on": "Распознавание намерений",
+      "settings.tool_use_mode": "Режим использования инструментов",
+      "settings.tool_use_mode.function": "Функция",
+      "settings.tool_use_mode.prompt": "Подсказка",
+      "settings.regular_phrases": {
+        "title": "Регулярные подсказки",
+        "add": "Добавить подсказку",
+        "edit": "Редактировать подсказку",
+        "delete": "Удалить подсказку",
+        "deleteConfirm": "Вы уверены, что хотите удалить эту подсказку?",
+        "titleLabel": "Заголовок",
+        "titlePlaceholder": "Введите заголовок",
+        "contentLabel": "Содержание",
+        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}."
+      },
+      "list": {
+        "showByList": "Список",
+        "showByTags": "По тегам"
+      },
+      "tags": {
+        "untagged": "Несгруппированные метки",
+        "none": "Нет тегов",
+        "manage": "Управление тегами",
+        "add": "Добавить тег",
+        "modify": "Изменить тег",
+        "delete": "Удалить тег",
+        "deleteConfirm": "Вы уверены, что хотите удалить этот тег?",
+        "settings": {
+          "title": "Настройки тегов"
+        }
+      }
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -91,7 +148,10 @@
       "manage": "Редактировать",
       "select_model": "Выбрать модель",
       "show.all": "Показать все",
-      "update_available": "Доступно обновление"
+      "update_available": "Доступно обновление",
+      "includes_user_questions": "Включает вопросы пользователей",
+      "case_sensitive": "Чувствительность к регистру",
+      "whole_word": "Полное слово"
     },
     "chat": {
       "add.assistant.title": "Добавить ассистента",
@@ -100,7 +160,7 @@
       "artifacts.button.preview": "Предпросмотр",
       "artifacts.preview.openExternal.error.content": "Внешний браузер открылся с ошибкой",
       "assistant.search.placeholder": "Поиск",
-      "deeply_thought": "Мыслим ({{secounds}} секунд)",
+      "deeply_thought": "Мыслим ({{seconds}} секунд)",
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
@@ -123,6 +183,7 @@
       "input.estimated_tokens.tip": "Затраты токенов",
       "input.expand": "Развернуть",
       "input.file_not_supported": "Модель не поддерживает этот тип файла",
+      "input.file_error": "Ошибка обработки файла",
       "input.generate_image": "Сгенерировать изображение",
       "input.generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "input.knowledge_base": "База знаний",
@@ -136,7 +197,8 @@
       "input.translate": "Перевести на {{target_language}}",
       "input.upload": "Загрузить изображение или документ",
       "input.upload.document": "Загрузить документ (модель не поддерживает изображения)",
-      "input.web_search": "Включить веб-поиск",
+      "input.web_search": "Веб-поиск",
+      "input.web_search.settings": "Настройки веб-поиска",
       "input.web_search.button.ok": "Перейти в Настройки",
       "input.web_search.enable": "Включить веб-поиск",
       "input.web_search.enable_content": "Необходимо предварительно проверить подключение к веб-поиску в настройках",
@@ -146,6 +208,8 @@
       "message.quote": "Цитата",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
+      "multiple.select": "Множественный выбор",
+      "multiple.select.empty": "Ничего не выбрано",
       "navigation": {
         "first": "Уже первое сообщение",
         "history": "История чата",
@@ -158,6 +222,20 @@
       },
       "resend": "Переотправить",
       "save": "Сохранить",
+      "settings.code.title": "Настройки кода",
+      "settings.code_editor": {
+        "title": "Редактор кода",
+        "highlight_active_line": "Выделить активную строку",
+        "fold_gutter": "Свернуть",
+        "autocompletion": "Автодополнение",
+        "keymap": "Клавиатурные сокращения"
+      },
+      "settings.code_execution": {
+        "title": "Выполнение кода",
+        "tip": "Выполнение кода в блоке кода возможно, но не рекомендуется выполнять опасный код!",
+        "timeout_minutes": "Время выполнения",
+        "timeout_minutes.tip": "Время выполнения кода (минуты)"
+      },
       "settings.code_collapsible": "Блок кода свернут",
       "settings.code_wrappable": "Блок кода можно переносить",
       "settings.code_cacheable": "Кэш блока кода",
@@ -171,9 +249,9 @@
       "settings.context_count": "Контекст",
       "settings.context_count.tip": "Количество предыдущих сообщений, которые нужно сохранить в контексте.",
       "settings.max": "Максимум",
-      "settings.max_tokens": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm": "Включить лимит максимальных токенов",
-      "settings.max_tokens.confirm_content": "Включить лимит максимальных токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
+      "settings.max_tokens": "Максимальное количество токенов",
+      "settings.max_tokens.confirm": "Максимальное количество токенов",
+      "settings.max_tokens.confirm_content": "Установить максимальное количество токенов, влияет на длину результата. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.max_tokens.tip": "Максимальное количество токенов, которые может сгенерировать модель. Нужно учитывать контекст модели, иначе будет ошибка",
       "settings.reset": "Сбросить",
       "settings.set_as_default": "Применить к ассистенту по умолчанию",
@@ -185,7 +263,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Значение по умолчанию 1, чем меньше значение, тем меньше вариативности в ответах, тем проще понять, чем больше значение, тем больше вариативности в ответах, тем больше разнообразие",
       "suggestions.title": "Предложенные вопросы",
-      "thinking": "Мыслим",
+      "thinking": "Мыслим ({{seconds}} секунд)",
       "topics.auto_rename": "Автопереименование",
       "topics.clear.title": "Очистить сообщения",
       "topics.copy.image": "Скопировать как изображение",
@@ -244,16 +322,56 @@
       "translate": "Перевести",
       "topics.export.siyuan": "Экспорт в Siyuan Note",
       "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.obsidian_reasoning": "Включить цепочку рассуждений",
       "topics.export.title_naming_success": "Заголовок успешно создан",
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
       "input.translating": "Перевод...",
-      "input.upload.upload_from_local": "Загрузить локальный файл..."
+      "input.upload.upload_from_local": "Загрузить локальный файл...",
+      "input.web_search.builtin": "Модель встроена",
+      "input.web_search.builtin.enabled_content": "Используйте встроенную функцию веб-поиска модели",
+      "input.web_search.builtin.disabled_content": "Текущая модель не поддерживает веб-поиск",
+      "input.web_search.no_web_search": "Отключить веб-поиск",
+      "input.web_search.no_web_search.description": "Отключить веб-поиск",
+      "input.tools.collapse": "Свернуть",
+      "input.tools.expand": "Развернуть",
+      "input.tools.collapse_in": "Свернуть",
+      "input.tools.collapse_out": "Развернуть",
+      "input.thinking": "Мыслим",
+      "input.thinking.mode.default": "По умолчанию",
+      "input.thinking.mode.default.tip": "Модель автоматически определяет количество токенов для размышления",
+      "input.thinking.mode.custom": "Пользовательский",
+      "input.thinking.mode.custom.tip": "Модель может максимально размышлять количество токенов. Необходимо учитывать ограничение контекста модели, иначе будет ошибка",
+      "input.thinking.mode.tokens.tip": "Установите количество токенов для размышления",
+      "input.thinking.budget_exceeds_max": "Бюджет размышления превышает максимальное количество токенов"
     },
     "code_block": {
       "collapse": "Свернуть",
-      "disable_wrap": "Отменить перенос строки",
-      "enable_wrap": "Перенос строки",
-      "expand": "Развернуть"
+      "copy.failed": "Не удалось скопировать",
+      "copy.source": "Копировать исходный код",
+      "copy.success": "Скопировано",
+      "copy": "Копировать",
+      "download.failed.network": "Не удалось скачать. Пожалуйста, проверьте ваше интернет-соединение",
+      "download.png": "Скачать PNG",
+      "download.source": "Скачать исходный код",
+      "download.svg": "Скачать SVG",
+      "download": "Скачать",
+      "edit.save.failed.message_not_found": "Не удалось сохранить изменения, не найдено сообщение",
+      "edit.save.failed": "Не удалось сохранить изменения",
+      "edit.save.success": "Изменения сохранены",
+      "edit.save": "Сохранить изменения",
+      "edit": "Редактировать",
+      "expand": "Развернуть",
+      "more": "Ещё",
+      "preview.copy.image": "Скопировать как изображение",
+      "preview.source": "Смотреть исходный код",
+      "preview.zoom_in": "Увеличить",
+      "preview.zoom_out": "Уменьшить",
+      "preview": "Предварительный просмотр",
+      "run": "Выполнить код",
+      "split.restore": "Вернуться к одному окну",
+      "split": "Разделить на два окна",
+      "wrap.off": "Отменить перенос строки",
+      "wrap.on": "Перенос строки"
     },
     "common": {
       "add": "Добавить",
@@ -269,6 +387,7 @@
       "confirm": "Подтверждение",
       "copied": "Скопировано",
       "copy": "Копировать",
+      "inspect": "Осмотреть",
       "cut": "Вырезать",
       "default": "По умолчанию",
       "delete": "Удалить",
@@ -284,6 +403,7 @@
       "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
       "knowledge_base": "База знаний",
       "language": "Язык",
+      "loading": "Загрузка...",
       "model": "Модель",
       "models": "Модели",
       "more": "Ещё",
@@ -297,6 +417,8 @@
       "save": "Сохранить",
       "search": "Поиск",
       "select": "Выбрать",
+      "selectedMessages": "Выбрано {{count}} сообщений",
+      "success": "Успешно",
       "topics": "Топики",
       "warning": "Предупреждение",
       "you": "Вы",
@@ -305,7 +427,8 @@
         "pinyin": "Сортировать по пиньинь",
         "pinyin.asc": "Сортировать по пиньинь (А-Я)",
         "pinyin.desc": "Сортировать по пиньинь (Я-А)"
-      }
+      },
+      "no_results": "Результатов не найдено"
     },
     "docs": {
       "title": "Документация"
@@ -332,7 +455,8 @@
         "title": "Ошибка рендеринга"
       },
       "user_message_not_found": "Не удалось найти исходное сообщение пользователя",
-      "unknown": "Неизвестная ошибка"
+      "unknown": "Неизвестная ошибка",
+      "pause_placeholder": "Получение ответа приостановлено"
     },
     "export": {
       "assistant": "Ассистент",
@@ -440,7 +564,7 @@
       "threshold_tooltip": "Используется для оценки соответствия между пользовательским вопросом и содержимым в базе знаний (0-1)",
       "title": "База знаний",
       "topN": "Количество возвращаемых результатов",
-      "topN__too_large_or_small": "Количество возвращаемых результатов не может быть больше 100 или меньше 1.",
+      "topN_too_large_or_small": "Количество возвращаемых результатов не может быть больше 30 или меньше 1.",
       "topN_placeholder": "Не установлено",
       "topN_tooltip": "Количество возвращаемых совпадений; чем больше значение, тем больше совпадений, но и потребление токенов тоже возрастает.",
       "url_added": "URL добавлен",
@@ -463,7 +587,14 @@
       "korean": "Корейский",
       "portuguese": "Португальский",
       "russian": "Русский",
-      "spanish": "Испанский"
+      "spanish": "Испанский",
+      "polish": "Польский",
+      "turkish": "Туркменский",
+      "thai": "Тайский",
+      "vietnamese": "Вьетнамский",
+      "indonesian": "Индонезийский",
+      "urdu": "Урду",
+      "malay": "Малайзийский"
     },
     "lmstudio": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -471,22 +602,11 @@
       "keep_alive_time.title": "Время жизни модели",
       "title": "LM Studio"
     },
-    "mermaid": {
-      "download": {
-        "png": "Скачать PNG",
-        "svg": "Скачать SVG"
-      },
-      "resize": {
-        "zoom-in": "Yвеличить",
-        "zoom-out": "Yменьшить масштаб"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "Диаграмма Mermaid"
-    },
     "message": {
+      "agents": {
+        "imported": "Импорт успешно выполнен",
+        "import.error": "Импорт не выполнен"
+      },
       "api.check.model.title": "Выберите модель для проверки",
       "api.connection.failed": "Соединение не удалось",
       "api.connection.success": "Соединение успешно",
@@ -499,16 +619,23 @@
       "backup.start.success": "Создание резервной копии начато",
       "backup.success": "Резервная копия успешно создана",
       "chat.completion.paused": "Завершение чата приостановлено",
-      "citations": "Источники",
+      "citation": "{{count}} цитат",
+      "citations": "Содержание цитат",
       "copied": "Скопировано!",
       "copy.failed": "Не удалось скопировать",
       "copy.success": "Скопировано!",
-      "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента.",
+      "delete.confirm.title": "Подтверждение удаления",
+      "delete.confirm.content": "Вы уверены, что хотите удалить выбранные {{count}} сообщения?",
+      "delete.failed": "Ошибка удаления",
+      "delete.success": "Удаление успешно",
+      "error.chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
+      "empty_url": "Не удалось загрузить изображение, возможно, запрос содержит конфиденциальный контент или запрещенные слова",
       "error.dimension_too_large": "Размер содержимого слишком велик",
       "error.enter.api.host": "Пожалуйста, введите ваш API хост",
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
+      "error.fetchTopicName": "Не удалось назвать тему",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "error.invalid.api.host": "Неверный API адрес",
       "error.invalid.api.key": "Неверный API ключ",
@@ -545,6 +672,7 @@
       "message.style": "Стиль сообщения",
       "message.style.bubble": "Пузырь",
       "message.style.plain": "Простой",
+      "processing": "Обрабатывается...",
       "regenerate.confirm": "Перегенерация заменит текущее сообщение",
       "reset.confirm.content": "Вы уверены, что хотите очистить все данные?",
       "reset.double.confirm.content": "Все данные будут утеряны, хотите продолжить?",
@@ -576,24 +704,43 @@
       "error.siyuan.no_config": "Не настроен API адрес или токен Siyuan",
       "success.siyuan.export": "Успешный экспорт в Siyuan",
       "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
-      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!"
+      "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!",
+      "download.success": "Скачано успешно",
+      "download.failed": "Скачивание не удалось"
     },
     "minapp": {
       "popup": {
         "refresh": "Обновить",
         "close": "Закрыть встроенное приложение",
         "minimize": "Свернуть встроенное приложение",
+        "goBack": "Назад",
+        "goForward": "Вперед",
         "devtools": "Инструменты разработчика",
         "openExternal": "Открыть в браузере",
         "rightclick_copyurl": "ПКМ → Копировать URL",
         "open_link_external_on": "Текущий: Открыть ссылки в браузере",
         "open_link_external_off": "Текущий: Открыть ссылки в окне по умолчанию"
       },
-      "sidebar.add.title": "Добавить в боковую панель",
-      "sidebar.remove.title": "Удалить из боковой панели",
-      "sidebar.close.title": "Закрыть",
-      "sidebar.closeall.title": "Закрыть все",
-      "sidebar.hide.title": "Скрыть приложение",
+      "sidebar": {
+        "add": {
+          "title": "Добавить в боковую панель"
+        },
+        "remove": {
+          "title": "Удалить из боковой панели"
+        },
+        "remove_custom": {
+          "title": "Удалить пользовательское приложение"
+        },
+        "hide": {
+          "title": "Скрыть"
+        },
+        "close": {
+          "title": "Закрыть"
+        },
+        "closeall": {
+          "title": "Закрыть все"
+        }
+      },
       "title": "Встроенные приложения"
     },
     "miniwindow": {
@@ -647,6 +794,7 @@
       "rerank_model_tooltip": "В настройках -> Служба модели нажмите кнопку \"Управление\", чтобы добавить.",
       "search": "Поиск моделей...",
       "stream_output": "Потоковый вывод",
+      "enable_tool_use": "Вызов инструмента",
       "type": {
         "embedding": "Встраиваемые",
         "free": "Бесплатные",
@@ -657,12 +805,18 @@
         "text": "Текст",
         "vision": "Визуальные",
         "websearch": "Веб-поисковые"
-      }
+      },
+      "rerank_model_not_support_provider": "В настоящее время модель переупорядочивания не поддерживает этого провайдера ({{provider}})"
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
       "hide_sidebar": "Скрыть боковую панель",
       "show_sidebar": "Показать боковую панель"
+    },
+    "notification": {
+      "assistant": "Ответ ассистента",
+      "knowledge.success": "Успешно добавлено {{type}} в базу знаний",
+      "knowledge.error": "Не удалось добавить {{type}} в базу знаний: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -689,19 +843,126 @@
       "regenerate.confirm": "Это заменит ваши существующие сгенерированные изображения. Хотите продолжить?",
       "seed": "Ключ генерации",
       "seed_tip": "Одинаковый ключ генерации и промпт могут производить похожие изображения",
-      "title": "Изображения"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
+      "seed_desc_tip": "Одинаковые сиды и промпты могут генерировать похожие изображения, установка -1 будет создавать разные результаты каждый раз",
+      "title": "Изображения",
+      "magic_prompt_option": "Улучшение промпта",
+      "model": "Модель",
+      "aspect_ratio": "Пропорции изображения",
+      "style_type": "Стиль",
+      "rendering_speed": "Скорость рендеринга",
+      "learn_more": "Узнать больше",
+      "prompt_placeholder_edit": "Введите ваше описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
+      "prompt_placeholder_en": "Введите” английский “описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
+      "paint_course": "Руководство / Учебник",
+      "proxy_required": "Открыть прокси и включить “TUN режим” для просмотра сгенерированных изображений или скопировать их в браузер для открытия. В будущем будет поддерживаться прямое соединение",
+      "image_file_required": "Пожалуйста, сначала загрузите изображение",
+      "image_file_retry": "Пожалуйста, сначала загрузите изображение",
+      "image_placeholder": "Изображение недоступно",
+      "image_retry": "Повторить",
+      "translating": "Перевод...",
+      "style_types": {
+        "auto": "Авто",
+        "general": "Общий",
+        "realistic": "Реалистичный",
+        "design": "Дизайн",
+        "3d": "3D",
+        "anime": "Аниме"
       },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
+      "quality_options": {
+        "auto": "Авто",
+        "low": "Низкое",
+        "medium": "Среднее",
+        "high": "Высокое"
       },
-      "title": "PlantUML 图表"
+      "moderation_options": {
+        "auto": "Авто",
+        "low": "Низкое"
+      },
+      "background_options": {
+        "auto": "Авто",
+        "transparent": "Прозрачный",
+        "opaque": "Непрозрачный"
+      },
+      "rendering_speeds": {
+        "default": "По умолчанию",
+        "turbo": "Быстро",
+        "quality": "Качественно"
+      },
+      "aspect_ratios": {
+        "square": "Квадрат",
+        "portrait": "Портрет",
+        "landscape": "Пейзаж"
+      },
+      "person_generation_options": {
+        "allow_all": "Разрешено все",
+        "allow_adult": "Разрешено взрослые",
+        "allow_none": "Не разрешено"
+      },
+      "quality": "Качество",
+      "moderation": "Сенсорность",
+      "background": "Фон",
+      "mode": {
+        "generate": "Рисование",
+        "edit": "Редактирование",
+        "remix": "Смешивание",
+        "upscale": "Увеличение"
+      },
+      "generate": {
+        "model_tip": "Версия модели: V2 - новейшая API модель, V2A - быстрая модель, V_1 - первое поколение, _TURBO - ускоренная версия",
+        "number_images_tip": "Количество изображений для одновременной генерации",
+        "seed_tip": "Контролирует случайность генерации изображений для воспроизведения одинаковых результатов",
+        "negative_prompt_tip": "Описывает, что вы не хотите видеть в изображении",
+        "magic_prompt_option_tip": "Интеллектуально оптимизирует подсказки для улучшения эффекта генерации",
+        "style_type_tip": "Стиль генерации изображений, доступен только для версий V_2 и выше",
+        "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3",
+        "person_generation": "Генерация персонажа",
+        "person_generation_tip": "Разрешить модель генерировать изображения людей"
+      },
+      "edit": {
+        "image_file": "Изображение для редактирования",
+        "model_tip": "Частичное редактирование поддерживается только версиями V_2 и V_2_TURBO",
+        "number_images_tip": "Количество результатов редактирования для генерации",
+        "style_type_tip": "Стиль изображения после редактирования, доступен только для версий V_2 и выше",
+        "seed_tip": "Контролирует случайность результатов редактирования",
+        "magic_prompt_option_tip": "Интеллектуально оптимизирует подсказки для улучшения эффекта редактирования",
+        "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3"
+      },
+      "remix": {
+        "model_tip": "Выберите версию AI модели для ремикса",
+        "image_file": "Референсное изображение",
+        "image_weight": "Вес референсного изображения",
+        "image_weight_tip": "Регулирует степень влияния референсного изображения",
+        "number_images_tip": "Количество результатов ремикса для генерации",
+        "seed_tip": "Контролирует случайность результатов ремикса",
+        "style_type_tip": "Стиль изображения после ремикса, доступен только для версий V_2 и выше",
+        "negative_prompt_tip": "Описывает, что вы не хотите видеть в результатах ремикса",
+        "magic_prompt_option_tip": "Интеллектуально оптимизирует подсказки для улучшения эффекта ремикса",
+        "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3"
+      },
+      "upscale": {
+        "image_file": "Изображение для увеличения",
+        "resemblance": "Сходство",
+        "resemblance_tip": "Насколько близко результат увеличения к исходному изображению",
+        "detail": "Детали",
+        "detail_tip": "Насколько детально увеличенное изображение",
+        "number_images_tip": "Количество увеличенных результатов для генерации",
+        "seed_tip": "Контролирует случайный характер увеличения изображений для воспроизводимых результатов",
+        "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
+      },
+      "text_desc_required": "Пожалуйста, сначала введите описание изображения",
+      "req_error_text": "Операция не удалась, повторите попытку. Пожалуйста, избегайте защищенных авторским правом терминов и конфиденциальных слов в запросах.",
+      "auto_create_paint": "Автоматическое создание изображения",
+      "auto_create_paint_tip": "После генерации изображения будет автоматически создано новое.",
+      "select_model": "Выбрать модель",
+      "input_parameters": "Ввести параметры",
+      "input_image": "Входное изображение",
+      "generated_image": "Сгенерированное изображение",
+      "pricing": "Цены",
+      "model_and_pricing": "Модель и цены",
+      "per_image": "за изображение",
+      "per_images": "за изображения",
+      "required_field": "Обязательное поле",
+      "uploaded_input": "Загруженный ввод"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -710,6 +971,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -754,7 +1016,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu AI",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -809,6 +1072,8 @@
         "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
         "app_knowledge.remove_all_success": "Файлы удалены успешно",
         "app_logs": "Логи приложения",
+        "backup.skip_file_data_title": "Упрощенная резервная копия",
+        "backup.skip_file_data_help": "Пропустить при резервном копировании такие данные, как изображения, базы знаний и другие файлы данных, и сделать резервную копию только переписки и настроек. Это уменьшает использование места на диске и ускоряет процесс резервного копирования.",
         "clear_cache": {
           "button": "Очистка кэша",
           "confirm": "Очистка кэша удалит данные приложения. Это действие необратимо, продолжить?",
@@ -848,7 +1113,9 @@
           "token": "Токен Joplin",
           "token_placeholder": "Введите токен Joplin",
           "url": "URL Joplin",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+          "export_reasoning.help": "Если включено, экспортируемый контент будет содержать цепочку рассуждений, сгенерированную ассистентом."
         },
         "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
@@ -857,12 +1124,14 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.title": "Экспорт в Markdown",
+        "markdown_export.show_model_name.title": "Использовать имя модели при экспорте",
+        "markdown_export.show_model_name.help": "Если включено, для создания заголовков экспортируемых сообщений будет использоваться модель именования темы. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
+        "markdown_export.show_model_provider.title": "Показать поставщика модели",
+        "markdown_export.show_model_provider.help": "Показывать поставщика модели (например, OpenAI, Gemini) при экспорте в Markdown",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минут",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
-        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
-        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
         "notion.check": {
           "button": "Проверить",
           "empty_api_key": "Не настроен API key",
@@ -876,10 +1145,9 @@
         "notion.help": "Документация по настройке Notion",
         "notion.page_name_key": "Название поля заголовка страницы",
         "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
-        "notion.split_size": "Размер автоматического разбиения",
-        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90",
-        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
         "notion.title": "Настройки Notion",
+        "notion.export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+        "notion.export_reasoning.help": "При включении, содержимое цепочки рассуждений будет включено при экспорте в Notion.",
         "title": "Настройки данных",
         "webdav": {
           "autoSync": "Автоматическое резервное копирование",
@@ -1016,6 +1284,7 @@
       "display.sidebar.translate.icon": "Показывать иконку перевода",
       "display.sidebar.visible": "Показывать иконки",
       "display.title": "Настройки отображения",
+      "display.zoom.title": "Настройки масштаба",
       "display.topic.title": "Настройки топиков",
       "miniapps": {
         "title": "Настройки мини-приложений",
@@ -1032,7 +1301,38 @@
         "display_title": "Настройки отображения мини-приложений",
         "sidebar_title": "Отображение активных мини-приложений в боковой панели",
         "sidebar_description": "Настройка отображения активных мини-приложений в боковой панели",
-        "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения"
+        "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
+        "custom": {
+          "save_success": "Пользовательское мини-приложение успешно сохранено.",
+          "save_error": "Не удалось сохранить пользовательское мини-приложение.",
+          "logo_upload_success": "Логотип успешно загружен.",
+          "logo_upload_error": "Не удалось загрузить логотип.",
+          "title": "Пользовательские мини-приложения",
+          "edit_title": "Редактировать пользовательское мини-приложение",
+          "id": "ID",
+          "remove_success": "Мини-приложение успешно удалено.",
+          "remove_error": "Не удалось удалить мини-приложение.",
+          "id_error": "ID обязателен.",
+          "id_placeholder": "Введите ID",
+          "name": "Имя",
+          "name_error": "Имя обязательно.",
+          "name_placeholder": "Введите имя",
+          "url": "URL",
+          "url_error": "URL обязателен.",
+          "url_placeholder": "Введите URL",
+          "logo": "Логотип",
+          "logo_url": "URL логотипа",
+          "logo_file": "Загрузить файл логотипа",
+          "logo_url_label": "URL логотипа",
+          "logo_url_placeholder": "Введите URL логотипа",
+          "logo_upload_label": "Загрузить логотип",
+          "logo_upload_button": "Загрузить",
+          "save": "Сохранить",
+          "edit_description": "Здесь вы можете редактировать конфигурации пользовательских мини-приложений. Каждое приложение должно содержать поля id, name, url и logo.",
+          "placeholder": "Введите конфигурацию мини-приложения (формат JSON)",
+          "duplicate_ids": "Найдены повторяющиеся ID: {{ids}}",
+          "conflicting_ids": "Конфликт ID с приложениями по умолчанию: {{ids}}"
+        }
       },
       "font_size.title": "Размер шрифта сообщений",
       "general": "Общие настройки",
@@ -1064,6 +1364,14 @@
         "active": "Активен",
         "addError": "Ошибка добавления сервера",
         "addServer": "Добавить сервер",
+        "addServer.create": "Быстрое создание",
+        "addServer.importFrom": "Импорт из JSON",
+        "addServer.importFrom.tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода.",
+        "addServer.importFrom.placeholder": "Вставьте JSON-конфигурацию сервера MCP",
+        "addServer.importFrom.invalid": "Неверный ввод, проверьте формат JSON",
+        "addServer.importFrom.nameExists": "Сервер уже существует: {{name}}",
+        "addServer.importFrom.oneServer": "Можно сохранить только один конфигурационный файл MCP",
+        "addServer.importFrom.connectionFailed": "Сбой подключения",
         "addSuccess": "Сервер успешно добавлен",
         "args": "Аргументы",
         "argsTooltip": "Каждый аргумент с новой строки",
@@ -1074,11 +1382,14 @@
         "stdio": "Стандартный ввод/вывод (stdio)",
         "inMemory": "Память",
         "config_description": "Настройка серверов протокола контекста модели",
+        "disable": "Отключить сервер MCP",
+        "disable.description": "Не включать функциональность сервера MCP",
         "deleteError": "Не удалось удалить сервер",
         "deleteSuccess": "Сервер успешно удален",
         "dependenciesInstall": "Установить зависимости",
         "dependenciesInstalling": "Установка зависимостей...",
         "description": "Описание",
+        "noDescriptionAvailable": "Описание отсутствует",
         "duplicateName": "Сервер с таким именем уже существует",
         "editJson": "Редактировать JSON",
         "editServer": "Редактировать сервер",
@@ -1196,6 +1507,8 @@
         "providerPlaceholder": "Имя провайдера",
         "advancedSettings": "Расширенные настройки"
       },
+      "messages.prompt": "Показывать подсказки",
+      "messages.tokens": "Показать использование токенов",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
@@ -1206,7 +1519,7 @@
       "messages.input.send_shortcuts": "Горячие клавиши для отправки",
       "messages.input.show_estimated_tokens": "Показывать затраты токенов",
       "messages.input.title": "Настройки ввода",
-      "messages.input.enable_quick_triggers": "Включите '/' и '@', чтобы вызвать быстрое меню.",
+      "messages.input.enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
       "messages.input.enable_delete_model": "Включите удаление модели/вложения с помощью клавиши Backspace",
       "messages.markdown_rendering_input_message": "Отображение ввода в формате Markdown",
       "messages.math_engine": "Математический движок",
@@ -1226,6 +1539,7 @@
       "models.add.group_name.tooltip": "Необязательно, например, ChatGPT",
       "models.add.model_id": "ID модели",
       "models.add.model_id.placeholder": "Обязательно, например, gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "Выберите модель",
       "models.add.model_id.tooltip": "Пример: gpt-3.5-turbo",
       "models.add.model_name": "Имя модели",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
@@ -1237,7 +1551,10 @@
       "models.check.enabled": "Включено",
       "models.check.failed": "Не прошло",
       "models.check.keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} моделей прошли проверку состояния (из них {{count_partial}} моделей недоступны с некоторыми ключами), {{count_failed}} моделей полностью недоступны.",
+      "models.check.model_status_failed": "{{count}} моделей полностью недоступны",
+      "models.check.model_status_partial": "{{count}} моделей недоступны с некоторыми ключами",
+      "models.check.model_status_passed": "{{count}} моделей прошли проверку состояния",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.passed": "Прошло",
       "models.check.select_api_key": "Выберите API ключ для использования:",
@@ -1245,10 +1562,13 @@
       "models.check.start": "Начать",
       "models.check.title": "Проверка состояния моделей",
       "models.check.use_all_keys": "Использовать все ключи",
+      "models.check.disclaimer": "Проверка состояния моделей требует отправки запросов, пожалуйста, используйте эту функцию с осторожностью. Модели, которые взимают плату за запросы, могут привести к дополнительным расходам, пожалуйста, самостоятельно несем ответственность за них.",
       "models.default_assistant_model": "Модель ассистента по умолчанию",
       "models.default_assistant_model_description": "Модель, используемая при создании нового ассистента, если ассистент не имеет настроенной модели, будет использоваться эта модель",
       "models.empty": "Модели не найдены",
       "models.enable_topic_naming": "Автоматическое переименование топика",
+      "models.manage.add_listed": "Добавить в список",
+      "models.manage.remove_listed": "Удалить из списка",
       "models.manage.add_whole_group": "Добавить всю группу",
       "models.manage.remove_whole_group": "Удалить всю группу",
       "models.topic_naming_model": "Модель именования топика",
@@ -1259,6 +1579,8 @@
       "models.translate_model_description": "Модель, используемая для сервиса перевода",
       "models.translate_model_prompt_message": "Введите модель перевода",
       "models.translate_model_prompt_title": "Модель перевода",
+      "models.quick_assistant_model": "Модель быстрого помощника",
+      "models.quick_assistant_model_description": "Модель по умолчанию, используемая быстрым помощником",
       "moresetting": "Дополнительные настройки",
       "moresetting.check.confirm": "Подтвердить выбор",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",
@@ -1315,6 +1637,9 @@
           "rate_limit": "Ограничение скорости",
           "tooltip": "Для использования Github Copilot необходимо сначала войти в Github."
         },
+        "dmxapi": {
+          "select_platform": "Выберите платформу"
+        },
         "delete.content": "Вы уверены, что хотите удалить этот провайдер?",
         "delete.title": "Удалить провайдер",
         "docs_check": "Проверить",
@@ -1332,6 +1657,9 @@
           "title": "Заметки модели",
           "placeholder": "Введите содержимое в формате Markdown...",
           "markdown_editor_default_value": "Область предварительного просмотра"
+        },
+        "openai": {
+          "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
         }
       },
       "proxy": {
@@ -1356,6 +1684,7 @@
         "clear_shortcut": "Очистить сочетание клавиш",
         "clear_topic": "Очистить все сообщения",
         "copy_last_message": "Копировать последнее сообщение",
+        "exit_fullscreen": "Выйти из полноэкранного режима",
         "key": "Клавиша",
         "mini_window": "Быстрый помощник",
         "new_topic": "Новый топик",
@@ -1364,6 +1693,7 @@
         "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
         "reset_to_default": "Сбросить настройки по умолчанию",
         "search_message": "Поиск сообщения",
+        "search_message_in_chat": "Поиск сообщения в текущем диалоге",
         "show_app": "Показать/скрыть приложение",
         "show_settings": "Открыть настройки",
         "title": "Горячие клавиши",
@@ -1374,10 +1704,11 @@
         "zoom_out": "Уменьшить",
         "zoom_reset": "Сбросить масштаб"
       },
-      "theme.auto": "Автоматически",
+      "theme.system": "Системная",
       "theme.dark": "Темная",
       "theme.light": "Светлая",
       "theme.title": "Тема",
+      "theme.color_primary": "Цвет темы",
       "theme.window.style.opaque": "Непрозрачное окно",
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
@@ -1386,6 +1717,7 @@
       "topic.position.left": "Слева",
       "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
+      "topic.pin_to_top": "Закрепленные топики сверху",
       "tray.onclose": "Свернуть в трей при закрытии",
       "tray.show": "Показать значок в трее",
       "tray.title": "Трей",
@@ -1435,7 +1767,10 @@
         "titlePlaceholder": "Введите заголовок фразы",
         "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, и нажмите Tab для быстрого перехода к переменной для изменения. Например: \nПомоги мне спланировать маршрут от ${from} до ${to} и отправить его на ${email}.",
         "delete": "Удалить фразу",
-        "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?"
+        "deleteConfirm": "После удаления фраза не может быть восстановлена, продолжить?",
+        "locationLabel": "Место добавления",
+        "global": "Глобальные быстрые фразы",
+        "assistant": "Подсказки ассистента"
       },
       "quickPanel": {
         "title": "Быстрое меню",
@@ -1448,15 +1783,47 @@
         "multiple": "Множественный выбор"
       },
       "privacy": {
-        "title": "Настройки приватности",
-        "enable_privacy_mode": "Анонимная отправка отчетов об ошибках и статистики"
+        "title": "Настройки конфиденциальности",
+        "enable_privacy_mode": "Анонимная отчетность об ошибках и статистике"
       },
-      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
+      "zoom": {
+        "title": "Масштаб страницы",
+        "reset": "Сбросить"
+      },
+      "input.show_translate_confirm": "Показать диалоговое окно подтверждения перевода",
+      "openai": {
+        "title": "Настройки OpenAI",
+        "summary_text_mode.title": "Режим резюме",
+        "summary_text_mode.tip": "Резюме рассуждений, выполненных моделью",
+        "summary_text_mode.auto": "Авто",
+        "summary_text_mode.concise": "Краткий",
+        "summary_text_mode.detailed": "Подробный",
+        "summary_text_mode.off": "Выключен",
+        "service_tier.title": "Уровень сервиса",
+        "service_tier.tip": "Указывает уровень задержки, который следует использовать для обработки запроса",
+        "service_tier.auto": "Авто",
+        "service_tier.default": "По умолчанию",
+        "service_tier.flex": "Гибкий"
+      },
+      "about.debug.title": "Отладка",
+      "about.debug.open": "Открыть",
+      "notification": {
+        "title": "Настройки уведомлений",
+        "assistant": "Сообщение ассистента",
+        "backup": "Резервное сообщение",
+        "knowledge_embed": "Сообщение базы знаний"
+      }
     },
     "translate": {
       "any.language": "Любой язык",
+      "target_language": "Целевой язык",
+      "alter_language": "Альтернативный язык",
       "button.translate": "Перевести",
       "close": "Закрыть",
+      "closed": "Перевод закрыт",
+      "copied": "Содержимое перевода скопировано",
+      "empty": "Содержимое перевода пусто",
+      "not.found": "Содержимое перевода не найдено",
       "confirm": {
         "content": "Перевод заменит исходный текст, продолжить?",
         "title": "Перевод подтверждение"
@@ -1473,13 +1840,22 @@
       "input.placeholder": "Введите текст для перевода",
       "output.placeholder": "Перевод",
       "processing": "Перевод в процессе...",
-      "scroll_sync.disable": "Отключить синхронизацию прокрутки",
-      "scroll_sync.enable": "Включить синхронизацию прокрутки",
+      "language.same": "Исходный и целевой языки совпадают",
+      "language.not_pair": "Исходный язык отличается от настроенного",
+      "settings": {
+        "title": "Настройки перевода",
+        "model": "Настройки модели",
+        "model_desc": "Модель, используемая для службы перевода",
+        "bidirectional": "Настройки двунаправленного перевода",
+        "scroll_sync": "Настройки синхронизации прокрутки",
+        "bidirectional_tip": "Если включено, перевод будет выполняться в обоих направлениях, исходный текст будет переведен на целевой язык и наоборот."
+      },
       "title": "Перевод",
       "tooltip.newline": "Перевести",
       "menu": {
         "description": "Перевести содержимое текущего ввода"
-      }
+      },
+      "detected.language": "Обнаруженный язык"
     },
     "tray": {
       "quit": "Выйти",
@@ -1491,6 +1867,174 @@
       "quit": "Выйти",
       "show_window": "Показать окно",
       "visualization": "Визуализация"
+    },
+    "update": {
+      "title": "Обновление",
+      "message": "Новая версия {{version}} готова, установить сейчас?",
+      "later": "Позже",
+      "install": "Установить",
+      "noReleaseNotes": "Нет заметок об обновлении"
+    },
+    "selection": {
+      "name": "Помощник выбора",
+      "action": {
+        "builtin": {
+          "translate": "Перевести",
+          "explain": "Объяснить",
+          "summary": "Суммаризировать",
+          "search": "Поиск",
+          "refine": "Уточнить",
+          "copy": "Копировать"
+        },
+        "window": {
+          "pin": "Закрепить",
+          "pinned": "Закреплено",
+          "opacity": "Прозрачность окна",
+          "original_show": "Показать оригинал",
+          "original_hide": "Скрыть оригинал",
+          "original_copy": "Копировать оригинал",
+          "esc_close": "Esc - закрыть",
+          "esc_stop": "Esc - остановить",
+          "c_copy": "C - копировать",
+          "r_regenerate": "R - перегенерировать"
+        },
+        "translate": {
+          "smart_translate_tips": "Смарт-перевод: содержимое будет переведено на целевой язык; содержимое уже на целевом языке будет переведено на альтернативный язык"
+        }
+      },
+      "settings": {
+        "experimental": "Экспериментальные функции",
+        "enable": {
+          "title": "Включить",
+          "description": "Поддерживается только в Windows"
+        },
+        "toolbar": {
+          "title": "Панель инструментов",
+          "trigger_mode": {
+            "title": "Режим активации",
+            "description": "Показывать панель сразу при выделении или только при удержании Ctrl.",
+            "description_note": "В некоторых приложениях Ctrl может не работать. Если вы используете AHK или другие инструменты для переназначения Ctrl, это может привести к тому, что некоторые приложения не смогут выделить текст.",
+            "selected": "При выделении",
+            "ctrlkey": "По Ctrl"
+          },
+          "compact_mode": {
+            "title": "Компактный режим",
+            "description": "Отображать только иконки без текста"
+          }
+        },
+        "window": {
+          "title": "Окно действий",
+          "follow_toolbar": {
+            "title": "Следовать за панелью",
+            "description": "Окно будет следовать за панелью. Иначе - по центру."
+          },
+          "remember_size": {
+            "title": "Запомнить размер",
+            "description": "При отключенном режиме, окно будет восстанавливаться до последнего размера при запуске приложения"
+          },
+          "auto_close": {
+            "title": "Автозакрытие",
+            "description": "Закрывать окно при потере фокуса (если не закреплено)"
+          },
+          "auto_pin": {
+            "title": "Автозакрепление",
+            "description": "Закреплять окно по умолчанию"
+          },
+          "opacity": {
+            "title": "Прозрачность",
+            "description": "Установить прозрачность окна по умолчанию"
+          }
+        },
+        "actions": {
+          "title": "Действия",
+          "reset": {
+            "button": "Сбросить",
+            "tooltip": "Сбросить стандартные действия. Пользовательские останутся.",
+            "confirm": "Сбросить стандартные действия? Пользовательские останутся."
+          },
+          "add_tooltip": {
+            "enabled": "Добавить действие",
+            "disabled": "Достигнут лимит ({{max}})"
+          },
+          "delete_confirm": "Удалить это действие?",
+          "drag_hint": "Перетащите для сортировки. Включено: {{enabled}}/{{max}}"
+        },
+        "advanced": {
+          "title": "Расширенные",
+          "filter_mode": {
+            "title": "Режим фильтрации",
+            "description": "Можно ограничить выборку по определенным приложениям (белый список) или исключить их (черный список)",
+            "default": "Выключено",
+            "whitelist": "Белый список",
+            "blacklist": "Черный список"
+          },
+          "filter_list": {
+            "title": "Список фильтрации",
+            "description": "Расширенная функция, рекомендуется для пользователей с опытом"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "Добавить действие",
+            "edit": "Редактировать действие"
+          },
+          "name": {
+            "label": "Название",
+            "hint": "Введите название"
+          },
+          "icon": {
+            "label": "Иконка",
+            "placeholder": "Название иконки Lucide",
+            "error": "Некорректное название",
+            "tooltip": "Названия в lowercase, например arrow-right",
+            "view_all": "Все иконки",
+            "random": "Случайная"
+          },
+          "model": {
+            "label": "Модель",
+            "tooltip": "Использовать ассистента: будут применены его системные настройки",
+            "default": "По умолчанию",
+            "assistant": "Ассистент"
+          },
+          "assistant": {
+            "label": "Ассистент",
+            "default": "По умолчанию"
+          },
+          "prompt": {
+            "label": "Промпт",
+            "tooltip": "Дополняет ввод пользователя, не заменяя системный промпт ассистента",
+            "placeholder": "Используйте {{text}} для выделенного текста. Если пусто - текст будет добавлен",
+            "placeholder_text": "Плейсхолдер",
+            "copy_placeholder": "Копировать плейсхолдер"
+          }
+        },
+        "search_modal": {
+          "title": "Поисковая система",
+          "engine": {
+            "label": "Поисковик",
+            "custom": "Свой"
+          },
+          "custom": {
+            "name": {
+              "label": "Название",
+              "hint": "Название поисковика",
+              "max_length": "Не более 16 символов"
+            },
+            "url": {
+              "label": "URL поиска",
+              "hint": "Используйте {{queryString}} для представления поискового запроса",
+              "required": "Введите URL",
+              "invalid_format": "URL должен начинаться с http:// или https://",
+              "missing_placeholder": "Должен содержать {{queryString}}"
+            },
+            "test": "Тест"
+          }
+        },
+        "filter_modal": {
+          "title": "Список фильтрации",
+          "user_tips": "Введите имя исполняемого файла приложения, один на строку, не учитывая регистр, можно использовать подстановку *"
+        }
+      }
     }
   }
 }

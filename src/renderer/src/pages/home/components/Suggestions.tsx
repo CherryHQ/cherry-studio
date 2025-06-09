@@ -1,11 +1,12 @@
+import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import { fetchSuggestions } from '@renderer/services/ApiService'
 import { getUserMessage } from '@renderer/services/MessagesService'
 import { useAppDispatch } from '@renderer/store'
-import { sendMessage } from '@renderer/store/messages'
-import { Assistant, Message, Suggestion } from '@renderer/types'
+import { sendMessage } from '@renderer/store/thunk/messageThunk'
+import { Assistant, Suggestion } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { last } from 'lodash'
 import { FC, memo, useEffect, useState } from 'react'
-import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
 
 interface Props {
@@ -24,9 +25,13 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false)
 
   const handleSuggestionClick = async (content: string) => {
-    const userMessage = getUserMessage({ assistant, topic: assistant.topics[0], type: 'text', content })
+    const { message: userMessage, blocks } = getUserMessage({
+      assistant,
+      topic: assistant.topics[0],
+      content
+    })
 
-    await dispatch(sendMessage(userMessage, assistant, assistant.topics[0]))
+    await dispatch(sendMessage(userMessage, blocks, assistant, assistant.topics[0].id))
   }
 
   const suggestionsHandle = async () => {
@@ -61,7 +66,7 @@ const Suggestions: FC<Props> = ({ assistant, messages }) => {
   if (loadingSuggestions) {
     return (
       <Container>
-        <BeatLoader color="var(--color-text-2)" size="10" />
+        <SvgSpinners180Ring color="var(--color-text-2)" />
       </Container>
     )
   }

@@ -1,14 +1,18 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
-import { selectTopicMessages } from '@renderer/store/messages'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { Model } from '@renderer/types'
+import { isEmoji } from '@renderer/utils'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
 import { Avatar, Spin, Tooltip } from 'antd'
@@ -62,7 +66,11 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
     // 用户头像
     if (data.userAvatar) {
-      avatar = <Avatar src={data.userAvatar} alt={title} />
+      if (isEmoji(data.userAvatar)) {
+        avatar = <EmojiAvatar size={32}>{data.userAvatar}</EmojiAvatar>
+      } else {
+        avatar = <Avatar src={data.userAvatar} alt={title} />
+      }
     } else {
       avatar = <Avatar icon={<UserOutlined />} style={{ backgroundColor: 'var(--color-info)' }} />
     }
@@ -166,7 +174,7 @@ interface ChatFlowHistoryProps {
 }
 
 // 定义节点和边的类型
-type FlowNode = Node<any, string>
+type FlowNode = Node<any>
 type FlowEdge = Edge<any>
 
 // 统一的边样式
@@ -191,13 +199,13 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
   const { userName } = useSettings()
-  const { theme } = useTheme()
+  const { settedTheme } = useTheme()
 
   const topicId = conversationId
 
   // 只在消息实际内容变化时更新，而不是属性变化（如foldSelected）
   const messages = useSelector(
-    (state: RootState) => selectTopicMessages(state, topicId || ''),
+    (state: RootState) => selectMessagesForTopic(state, topicId || ''),
     (prev, next) => {
       // 只比较消息的关键属性，忽略展示相关的属性（如foldSelected）
       if (prev.length !== next.length) return false
@@ -205,9 +213,11 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
       // 比较每条消息的内容和关键属性，忽略UI状态相关属性
       return prev.every((prevMsg, index) => {
         const nextMsg = next[index]
+        const prevMsgContent = getMainTextContent(prevMsg)
+        const nextMsgContent = getMainTextContent(nextMsg)
         return (
           prevMsg.id === nextMsg.id &&
-          prevMsg.content === nextMsg.content &&
+          prevMsgContent === nextMsgContent &&
           prevMsg.role === nextMsg.role &&
           prevMsg.createdAt === nextMsg.createdAt &&
           prevMsg.askId === nextMsg.askId &&
@@ -218,7 +228,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   )
 
   // 获取用户头像
-  const userAvatar = useSelector((state: RootState) => state.runtime.avatar)
+  const userAvatar = useAvatar()
 
   // 消息过滤
   const { userMessages, assistantMessages } = useMemo(() => {
@@ -260,7 +270,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
         type: 'custom',
         data: {
           userName: userNameValue,
-          content: message.content,
+          content: getMainTextContent(message),
           type: 'user',
           messageId: message.id,
           userAvatar: msgUserAvatar
@@ -317,7 +327,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
           type: 'custom',
           data: {
             model: modelName,
-            content: aMsg.content,
+            content: getMainTextContent(aMsg),
             type: 'assistant',
             messageId: aMsg.id,
             modelId: modelId,
@@ -407,7 +417,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
           type: 'custom',
           data: {
             model: modelName,
-            content: aMsg.content,
+            content: getMainTextContent(aMsg),
             type: 'assistant',
             messageId: aMsg.id,
             modelId: modelId,
@@ -481,7 +491,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
               }}
               proOptions={{ hideAttribution: true }}
               className="react-flow-container"
-              colorMode={theme === 'auto' ? 'system' : theme}>
+              colorMode={settedTheme}>
               <Controls showInteractive={false} />
               <MiniMap
                 nodeStrokeWidth={3}
@@ -613,6 +623,4 @@ const NodeContent = styled.div`
 `
 
 // 确保组件使用React.memo包装以减少不必要的重渲染
-export default memo(ChatFlowHistory, (prevProps, nextProps) => {
-  return prevProps.conversationId === nextProps.conversationId
-})
+export default memo(ChatFlowHistory)

@@ -29,7 +29,26 @@
       "tag.default": "Par défaut",
       "tag.new": "Nouveau",
       "tag.system": "Système",
-      "title": "Agent intelligent"
+      "title": "Agent intelligent",
+      "import": {
+        "type": {
+          "url": "URL",
+          "file": "Fichier"
+        },
+        "error": {
+          "url_required": "Veuillez entrer l'URL",
+          "fetch_failed": "Échec de la récupération des données depuis l'URL",
+          "invalid_format": "Format de proxy invalide : champs obligatoires manquants"
+        },
+        "title": "Импорт из внешнего источника",
+        "url_placeholder": "Введите URL JSON",
+        "select_file": "Выбрать файл",
+        "button": "Импортировать",
+        "file_filter": "Файлы JSON"
+      },
+      "export": {
+        "agent": "Экспортировать агента"
+      }
     },
     "assistants": {
       "abbr": "Aide",
@@ -52,8 +71,31 @@
       "settings.reasoning_effort.low": "Court",
       "settings.reasoning_effort.medium": "Moyen",
       "settings.reasoning_effort.off": "Off",
-      "settings.reasoning_effort.tip": "Prise en charge uniquement des modèles de raisonnement OpenAI o-series et Anthropic",
-      "title": "Aides"
+      "title": "Agent",
+      "settings.regular_phrases": {
+        "title": "Популярные фразы",
+        "add": "Добавить фразу",
+        "edit": "Редактировать фразу",
+        "delete": "Удалить фразу",
+        "deleteConfirm": "Вы уверены, что хотите удалить эту фразу?",
+        "titleLabel": "Заголовок",
+        "titlePlaceholder": "Введите заголовок",
+        "contentLabel": "Содержание",
+        "contentPlaceholder": "Введите содержание фразы. Поддерживаются переменные, после этого нажмите Tab для быстрого перехода к переменной и изменения её значения. Например:\\n Планируй маршрут из ${from} в ${to}, а затем отправь его на ${email}."
+      },
+      "settings.title": "Paramètres de l'assistant",
+      "icon.type": "Icône de l'assistant",
+      "settings.mcp": "Serveur MCP",
+      "settings.mcp.enableFirst": "Veuillez d'abord activer ce serveur dans les paramètres MCP",
+      "settings.mcp.title": "Paramètres MCP",
+      "settings.mcp.noServersAvailable": "Aucun serveur MCP disponible. Veuillez ajouter un serveur dans les paramètres",
+      "settings.mcp.description": "Serveur MCP activé par défaut",
+      "settings.knowledge_base.recognition.tip": "L'agent utilisera la capacité du grand modèle à reconnaître les intentions afin de déterminer si la base de connaissances doit être utilisée pour répondre. Cette fonctionnalité dépend des capacités du modèle",
+      "settings.knowledge_base.recognition": "Utiliser la base de connaissances",
+      "settings.knowledge_base.recognition.off": "Recherche forcée",
+      "settings.knowledge_base.recognition.on": "Reconnaissance des intentions",
+      "settings.reasoning_effort.default": "Par défaut",
+      "settings.more": "Paramètres de l'assistant"
     },
     "auth": {
       "error": "Échec de l'obtention automatique de la clé, veuillez la récupérer manuellement",
@@ -133,7 +175,8 @@
         "prev": "Précédent message",
         "top": "Retour en haut",
         "bottom": "Retour en bas",
-        "close": "Fermer"
+        "close": "Fermer",
+        "history": "Historique des discussions"
       },
       "resend": "Réenvoyer",
       "save": "Enregistrer",
@@ -176,7 +219,6 @@
       "topics.export.obsidian_created_placeholder": "Choisissez la date de création",
       "topics.export.obsidian_export_failed": "Échec de l'exportation",
       "topics.export.obsidian_export_success": "Exportation réussie",
-      "topics.export.obsidian_not_configured": "Obsidian non configuré",
       "topics.export.obsidian_operate": "Mode de traitement",
       "topics.export.obsidian_operate_append": "Ajouter",
       "topics.export.obsidian_operate_new_or_overwrite": "Créer (écraser si existant)",
@@ -203,7 +245,54 @@
       "topics.unpinned": "Annuler le fixage",
       "translate": "Traduire",
       "input.generate_image": "Générer une image",
-      "input.generate_image_not_supported": "Le modèle ne supporte pas la génération d'images"
+      "input.generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
+      "history": {
+        "assistant_node": "Assistant",
+        "click_to_navigate": "Cliquez pour accéder au message correspondant",
+        "coming_soon": "Le diagramme du flux de chat sera bientôt disponible",
+        "no_messages": "Aucun message trouvé",
+        "start_conversation": "Commencez une conversation pour visualiser le diagramme du flux de chat",
+        "title": "Historique des chats",
+        "user_node": "Utilisateur",
+        "view_full_content": "Voir le contenu complet"
+      },
+      "input.translating": "Traduction en cours...",
+      "input.thinking": "Pensée",
+      "input.thinking.mode.default": "Défaut",
+      "input.thinking.mode.default.tip": "Le modèle déterminera automatiquement le nombre de tokens à réfléchir",
+      "input.thinking.mode.custom": "Personnalisé",
+      "input.thinking.mode.custom.tip": "Nombre maximum de tokens sur lesquels le modèle peut réfléchir. Veuillez tenir compte des limites du contexte du modèle, sinon une erreur sera renvoyée",
+      "input.thinking.budget_exceeds_max": "Le budget de réflexion dépasse le nombre maximum de tokens",
+      "input.upload.upload_from_local": "Télécharger un fichier local...",
+      "input.web_search.builtin": "Intégré au modèle",
+      "input.web_search.builtin.enabled_content": "Utiliser la fonction de recherche web intégrée du modèle",
+      "input.web_search.builtin.disabled_content": "Le modèle actuel ne prend pas en charge la recherche web",
+      "input.web_search.no_web_search": "Pas de recherche web",
+      "input.web_search.no_web_search.description": "Ne pas activer la fonction de recherche web",
+      "settings.code_cacheable": "Mise en cache des blocs de code",
+      "settings.code_cacheable.tip": "La mise en cache des blocs de code permet de réduire le temps de rendu des longs codes, mais augmente l'utilisation de la mémoire",
+      "settings.code_cache_max_size": "Limite de cache",
+      "settings.code_cache_max_size.tip": "Nombre maximal de caractères mis en cache (en milliers), calculé selon le code surligné. La taille du code surligné est beaucoup plus grande que celle du texte brut.",
+      "settings.code_cache_ttl": "Durée du cache",
+      "settings.code_cache_ttl.tip": "Temps d'expiration du cache (en minutes)",
+      "settings.code_cache_threshold": "Seuil du cache",
+      "settings.code_cache_threshold.tip": "Longueur minimale de code autorisée pour la mise en cache (en milliers de caractères). Seuls les blocs de code supérieurs à ce seuil seront mis en cache",
+      "topics.export.md.reason": "Exporter au format Markdown (avec réflexion)",
+      "topics.export.obsidian_vault": "Coffre-fort",
+      "topics.export.obsidian_vault_placeholder": "Veuillez choisir un nom de coffre-fort",
+      "topics.export.obsidian_path": "Chemin",
+      "topics.export.obsidian_path_placeholder": "Veuillez choisir un chemin",
+      "topics.export.obsidian_no_vaults": "Aucun coffre-fort Obsidian trouvé",
+      "topics.export.obsidian_loading": "Chargement...",
+      "topics.export.obsidian_fetch_error": "Échec de récupération du coffre-fort Obsidian",
+      "topics.export.obsidian_fetch_folders_error": "Échec de récupération de la structure des dossiers",
+      "topics.export.obsidian_no_vault_selected": "Veuillez d'abord sélectionner un coffre-fort",
+      "topics.export.obsidian_select_vault_first": "Veuillez d'abord choisir un coffre-fort",
+      "topics.export.obsidian_root_directory": "Répertoire racine",
+      "topics.export.siyuan": "Exporter vers Siyuan Notes",
+      "topics.export.wait_for_title_naming": "Génération du titre en cours...",
+      "topics.export.title_naming_success": "Titre généré avec succès",
+      "topics.export.title_naming_failed": "Échec de génération du titre, utilisation du titre par défaut"
     },
     "code_block": {
       "collapse": "Réduire",
@@ -254,7 +343,16 @@
       "select": "Sélectionner",
       "topics": "Sujets",
       "warning": "Avertissement",
-      "you": "Vous"
+      "you": "Vous",
+      "sort": {
+        "pinyin": "Сортировать по пиньинь",
+        "pinyin.asc": "Сортировать по пиньинь в порядке возрастания",
+        "pinyin.desc": "Сортировать по пиньинь в порядке убывания"
+      },
+      "inspect": "Vérifier",
+      "collapse": "Réduire",
+      "loading": "Chargement...",
+      "reasoning_content": "Réflexion approfondie"
     },
     "docs": {
       "title": "Documentation d'aide"
@@ -280,7 +378,9 @@
         "description": "La formule n'a pas été rendue avec succès, veuillez vérifier si le format de la formule est correct",
         "title": "Erreur de rendu"
       },
-      "user_message_not_found": "Impossible de trouver le message d'utilisateur original"
+      "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
+      "unknown": "Неизвестная ошибка",
+      "pause_placeholder": "Прервано"
     },
     "export": {
       "assistant": "Assistant",
@@ -393,7 +493,11 @@
       "topN_tooltip": "Nombre de résultats de correspondance retournés, plus le chiffre est élevé, plus il y a de résultats de correspondance, mais plus de jetons sont consommés",
       "url_added": "URL ajoutée",
       "url_placeholder": "Entrez l'URL, plusieurs URLs séparées par des sauts de ligne",
-      "urls": "URLs"
+      "urls": "URLs",
+      "dimensions": "Размерность встраивания",
+      "dimensions_size_tooltip": "Размерность встраивания. Чем больше значение, тем выше размерность, но тем больше токенов требуется",
+      "dimensions_size_placeholder": "Значение по умолчанию (не рекомендуется изменять)",
+      "dimensions_size_too_large": "Размерность встраивания не может превышать ограничение контекста модели ({{max_context}})"
     },
     "languages": {
       "arabic": "Arabe",
@@ -453,6 +557,7 @@
       "error.enter.api.key": "Veuillez entrer votre clé API",
       "error.enter.model": "Veuillez sélectionner un modèle",
       "error.enter.name": "Veuillez entrer le nom de la base de connaissances",
+      "error.fetchTopicName": "Échec de la dénomination du sujet",
       "error.get_embedding_dimensions": "Impossible d'obtenir les dimensions d'encodage",
       "error.invalid.api.host": "Adresse API invalide",
       "error.invalid.api.key": "Clé API invalide",
@@ -505,20 +610,63 @@
         "completed": "Terminé",
         "invoking": "En cours d'exécution",
         "raw": "Brut",
-        "preview": "Aperçu"
+        "preview": "Aperçu",
+        "error": "Une erreur s'est produite"
       },
       "topic.added": "Thème ajouté avec succès",
       "upgrade.success.button": "Redémarrer",
       "upgrade.success.content": "Redémarrez pour finaliser la mise à jour",
       "upgrade.success.title": "Mise à jour réussie",
       "warn.notion.exporting": "Exportation en cours vers Notion, veuillez ne pas faire plusieurs demandes d'exportation!",
-      "warning.rate.limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer"
+      "warning.rate.limit": "Vous envoyez trop souvent, veuillez attendre {{seconds}} secondes avant de réessayer",
+      "agents": {
+        "imported": "Импортировано успешно",
+        "import.error": "Ошибка импорта"
+      },
+      "citation": "{{count}} éléments cités",
+      "error.invalid.nutstore": "Paramètres Nutstore invalides",
+      "error.invalid.nutstore_token": "Jeton Nutstore invalide",
+      "processing": "En cours de traitement...",
+      "error.siyuan.export": "Échec de l'exportation de la note Siyuan, veuillez vérifier l'état de la connexion et la configuration indiquée dans le document",
+      "error.siyuan.no_config": "L'adresse API ou le jeton Siyuan n'a pas été configuré",
+      "success.siyuan.export": "Exportation vers Siyuan réussie",
+      "warn.yuque.exporting": "Exportation Yuque en cours, veuillez ne pas demander à exporter à nouveau !",
+      "warn.siyuan.exporting": "Exportation vers Siyuan en cours, veuillez ne pas demander à exporter à nouveau !",
+      "download.success": "Téléchargement réussi",
+      "download.failed": "Échec du téléchargement"
     },
     "minapp": {
-      "sidebar.add.title": "Ajouter à la barre latérale",
-      "sidebar.remove.title": "Supprimer de la barre latérale",
-      "sidebar.hide.title": "Masquer le mini-programme",
-      "title": "Mini-programme"
+      "title": "Mini-programme",
+      "popup": {
+        "refresh": "Обновить",
+        "close": "Закрыть мини-программу",
+        "minimize": "Свернуть мини-программу",
+        "devtools": "Инструменты разработчика",
+        "openExternal": "Открыть в браузере",
+        "rightclick_copyurl": "Скопировать URL через правую кнопку мыши",
+        "open_link_external_on": "Текущий: открывать ссылки в браузере",
+        "open_link_external_off": "Текущий: открывать ссылки в окне по умолчанию"
+      },
+      "sidebar": {
+        "add": {
+          "title": "Ajouter à la barre latérale"
+        },
+        "remove": {
+          "title": "Удалить из боковой панели"
+        },
+        "remove_custom": {
+          "title": "Supprimer l'application personnalisée"
+        },
+        "hide": {
+          "title": "Cacher"
+        },
+        "close": {
+          "title": "Fermer"
+        },
+        "closeall": {
+          "title": "Закрыть все"
+        }
+      }
     },
     "miniwindow": {
       "clipboard": {
@@ -534,13 +682,17 @@
         "copy_last_message": "Appuyez sur C pour copier",
         "esc": "Appuyez sur ESC {{action}}",
         "esc_back": "Revenir en arrière",
-        "esc_close": "Fermer la fenêtre"
+        "esc_close": "Fermer la fenêtre",
+        "backspace_clear": "Appuyez sur Retour arrière pour effacer"
       },
       "input": {
         "placeholder": {
           "empty": "Demander à {{model}} pour obtenir de l'aide...",
           "title": "Que souhaitez-vous faire avec le texte ci-dessous"
         }
+      },
+      "tooltip": {
+        "pin": "Закрепить окно"
       }
     },
     "models": {
@@ -577,7 +729,9 @@
         "free": "Gratuit",
         "rerank": "Reclasser",
         "websearch": "Recherche web"
-      }
+      },
+      "rerank_model_not_support_provider": "Le modèle de réordonnancement ne prend pas en charge ce fournisseur ({{provider}}) pour le moment",
+      "enable_tool_use": "Appel d'outil"
     },
     "navbar": {
       "expand": "Agrandir la boîte de dialogue",
@@ -609,7 +763,59 @@
       "regenerate.confirm": "Cela va remplacer les images générées, voulez-vous continuer?",
       "seed": "Graine aléatoire",
       "seed_tip": "La même graine et le même prompt peuvent générer des images similaires",
-      "title": "Image"
+      "title": "Image",
+      "mode": {
+        "generate": "Создать изображение",
+        "edit": "Редактировать",
+        "remix": "Смешать",
+        "upscale": "Увеличить"
+      },
+      "generate": {
+        "model_tip": "Версия модели: V2 — это последняя модель API, V2A — быстрая модель, V_1 — первое поколение модели, _TURBO — ускоренная версия",
+        "number_images_tip": "Количество изображений за один раз",
+        "seed_tip": "Контролирует случайность генерации изображения, используется для воспроизведения одинаковых результатов",
+        "negative_prompt_tip": "Описывает элементы, которые вы не хотите видеть на изображении. Поддерживается только версиями V_1, V_1_TURBO, V_2 и V_2_TURBO",
+        "magic_prompt_option_tip": "Интеллектуальная оптимизация подсказок для улучшения результатов генерации",
+        "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше"
+      },
+      "edit": {
+        "image_file": "Image éditée",
+        "model_tip": "L'édition partielle est uniquement prise en charge par les versions V_2 et V_2_TURBO",
+        "number_images_tip": "Nombre de résultats d'édition générés",
+        "style_type_tip": "Style de l'image après édition, uniquement applicable aux versions V_2 et ultérieures",
+        "seed_tip": "Contrôle la variabilité aléatoire des résultats d'édition",
+        "magic_prompt_option_tip": "Optimisation intelligente du mot-clé d'édition"
+      },
+      "remix": {
+        "model_tip": "Sélectionnez la version du modèle IA à utiliser pour le remix",
+        "image_file": "Image de référence",
+        "image_weight": "Poids de l'image de référence",
+        "image_weight_tip": "Ajustez l'influence de l'image de référence",
+        "number_images_tip": "Nombre de résultats de remix à générer",
+        "seed_tip": "Contrôle l'aléatoire des résultats de remix",
+        "style_type_tip": "Style de l'image après le remix, uniquement applicable aux versions V_2 et supérieures",
+        "negative_prompt_tip": "Décrivez les éléments que vous ne souhaitez pas voir apparaître dans le résultat du remix",
+        "magic_prompt_option_tip": "Optimisation intelligente des mots-clés du remix"
+      },
+      "upscale": {
+        "image_file": "Image à agrandir",
+        "resemblance": "Similarité",
+        "resemblance_tip": "Contrôle le niveau de similarité entre le résultat agrandi et l'image originale",
+        "detail": "Détail",
+        "detail_tip": "Contrôle l'intensité de l'amélioration des détails dans l'image agrandie",
+        "number_images_tip": "Nombre de résultats d'agrandissement générés",
+        "seed_tip": "Contrôle la randomisation du résultat d'agrandissement",
+        "magic_prompt_option_tip": "Optimisation intelligente du prompt d'agrandissement"
+      },
+      "magic_prompt_option": "Amélioration du prompt",
+      "model": "Version",
+      "aspect_ratio": "Format d'image",
+      "style_type": "Style",
+      "learn_more": "En savoir plus",
+      "prompt_placeholder_edit": "Entrez votre description d'image, utilisez des guillemets « \"\" » pour le texte à dessiner",
+      "proxy_required": "Actuellement, un proxy doit être activé pour afficher les images générées. Le support pour une connexion directe depuis la Chine sera ajouté ultérieurement.",
+      "image_file_required": "Veuillez d'abord télécharger une image",
+      "image_file_retry": "Veuillez réuploader l'image"
     },
     "plantuml": {
       "download": {
@@ -630,6 +836,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -642,7 +849,7 @@
       "doubao": "Huoshan Engine",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modèles",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -672,7 +879,9 @@
       "xirang": "CTyun XiRang",
       "yi": "ZéroUnInfini",
       "zhinao": "360 ZhiNao",
-      "zhipu": "ZhiPu IA"
+      "zhipu": "ZhiPu IA",
+      "voyageai": "Voyage AI",
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Êtes-vous sûr de vouloir restaurer les données ?",
@@ -714,7 +923,6 @@
       "advanced.title": "Paramètres avancés",
       "assistant": "Assistant par défaut",
       "assistant.model_params": "Paramètres du modèle",
-      "assistant.show.icon": "Afficher l'icône du modèle",
       "assistant.title": "Assistant par défaut",
       "data": {
         "app_data": "Données de l'application",
@@ -724,6 +932,8 @@
         "app_knowledge.remove_all_confirm": "La suppression des fichiers de la base de connaissances libérera de l'espace de stockage, mais ne supprimera pas les données vectorisées de la base de connaissances. Après la suppression, vous ne pourrez plus ouvrir les fichiers sources. Souhaitez-vous continuer ?",
         "app_knowledge.remove_all_success": "Fichiers supprimés avec succès",
         "app_logs": "Journaux de l'application",
+        "backup.skip_file_data_title": "Sauvegarde réduite",
+        "backup.skip_file_data_help": "Passer outre les fichiers de données tels que les images et les bases de connaissances lors de la sauvegarde, et ne sauvegarder que les conversations et les paramètres. Cela réduit l'occupation d'espace et accélère la vitesse de sauvegarde.",
         "clear_cache": {
           "button": "Effacer le cache",
           "confirm": "L'effacement du cache supprimera les données du cache de l'application, y compris les données des mini-programmes. Cette action ne peut pas être annulée, voulez-vous continuer ?",
@@ -780,13 +990,13 @@
         "notion.split_size_placeholder": "Veuillez entrer la limite de blocs par page (par défaut 90)",
         "notion.title": "Configuration Notion",
         "obsidian": {
-          "folder": "Dossier",
-          "folder_placeholder": "Veuillez entrer le nom du dossier",
-          "tags": "Étiquettes globales",
-          "tags_placeholder": "Veuillez entrer le nom de l'étiquette, plusieurs étiquettes sont séparées par une virgule anglaise, Obsidian ne peut pas utiliser uniquement des chiffres",
           "title": "Configuration d'Obsidian",
-          "vault": "Coffre-fort",
-          "vault_placeholder": "Veuillez entrer le nom du coffre-fort"
+          "default_vault": "Référentiel Obsidian par défaut",
+          "default_vault_placeholder": "Veuillez sélectionner un référentiel Obsidian par défaut",
+          "default_vault_loading": "Récupération du référentiel Obsidian en cours...",
+          "default_vault_no_vaults": "Aucun référentiel Obsidian trouvé",
+          "default_vault_fetch_error": "Échec de la récupération du référentiel Obsidian",
+          "default_vault_export_failed": "Échec de l'exportation"
         },
         "title": "Paramètres des données",
         "webdav": {
@@ -818,7 +1028,26 @@
           "title": "WebDAV",
           "user": "Nom d'utilisateur WebDAV",
           "maxBackups": "Nombre maximal de sauvegardes",
-          "maxBackups.unlimited": "Illimité"
+          "maxBackups.unlimited": "Illimité",
+          "backup.manager.title": "Gestion des sauvegardes",
+          "backup.manager.refresh": "Actualiser",
+          "backup.manager.delete.selected": "Supprimer la sélection",
+          "backup.manager.delete.text": "Supprimer",
+          "backup.manager.restore.text": "Restaurer",
+          "backup.manager.restore.success": "Restauration réussie, l'application sera actualisée dans quelques secondes",
+          "backup.manager.restore.error": "Échec de la restauration",
+          "backup.manager.delete.confirm.title": "Confirmer la suppression",
+          "backup.manager.delete.confirm.single": "Voulez-vous vraiment supprimer le fichier de sauvegarde \"{{fileName}}\" ? Cette action est irréversible.",
+          "backup.manager.delete.confirm.multiple": "Voulez-vous vraiment supprimer les {{count}} fichiers de sauvegarde sélectionnés ? Cette action est irréversible.",
+          "backup.manager.delete.success.single": "Suppression réussie",
+          "backup.manager.delete.success.multiple": "{{count}} fichiers de sauvegarde supprimés avec succès",
+          "backup.manager.delete.error": "Échec de la suppression",
+          "backup.manager.fetch.error": "Échec de la récupération des fichiers de sauvegarde",
+          "backup.manager.select.files.delete": "Veuillez sélectionner les fichiers de sauvegarde à supprimer",
+          "backup.manager.columns.fileName": "Nom du fichier",
+          "backup.manager.columns.modifiedTime": "Date de modification",
+          "backup.manager.columns.size": "Taille",
+          "backup.manager.columns.actions": "Actions"
         },
         "yuque": {
           "check": {
@@ -834,16 +1063,73 @@
           "title": "Configuration Yuque",
           "token": "Token Yuque",
           "token_placeholder": "Veuillez entrer le Token Yuque"
-        }
+        },
+        "export_menu": {
+          "title": "Exporter les paramètres du menu",
+          "image": "Exporter en tant qu'image",
+          "markdown": "Exporter au format Markdown",
+          "markdown_reason": "Exporter au format Markdown (avec réflexion incluse)",
+          "notion": "Exporter vers Notion",
+          "yuque": "Exporter vers Yuque",
+          "obsidian": "Exporter vers Obsidian",
+          "siyuan": "Exporter vers Siyuan Notes",
+          "joplin": "Exporter vers Joplin",
+          "docx": "Exporter au format Word"
+        },
+        "siyuan": {
+          "check": {
+            "title": "Проверка подключения",
+            "button": "Проверить",
+            "empty_config": "Пожалуйста, введите адрес API и токен",
+            "success": "Подключение успешно",
+            "fail": "Не удалось подключиться, проверьте адрес API и токен",
+            "error": "Аномалия подключения, проверьте сетевое соединение"
+          },
+          "title": "Настройка CherryNote",
+          "api_url": "Адрес API",
+          "api_url_placeholder": "Например: http://127.0.0.1:6806",
+          "token": "Токен API",
+          "token.help": "Получить в разделе CherryNote -> Настройки -> О программе",
+          "token_placeholder": "Введите токен CherryNote",
+          "box_id": "Идентификатор блокнота",
+          "box_id_placeholder": "Введите идентификатор блокнота",
+          "root_path": "Корневой путь документа",
+          "root_path_placeholder": "Например: /CherryStudio"
+        },
+        "nutstore": {
+          "title": "Настройка坚果云",
+          "isLogin": "Вход выполнен",
+          "notLogin": "Вход не выполнен",
+          "login.button": "Войти",
+          "logout.button": "Выйти из аккаунта",
+          "logout.title": "Вы действительно хотите выйти из аккаунта坚果云?",
+          "logout.content": "После выхода будет невозможно создать резервную копию в坚果云 или восстановить данные из нее",
+          "checkConnection.name": "Проверить соединение",
+          "checkConnection.success": "Соединение с坚果云 установлено",
+          "checkConnection.fail": "Не удалось подключиться к坚果云",
+          "username": "Имя пользователя坚果云",
+          "path": "Путь хранения данных坚果云",
+          "path.placeholder": "Введите путь хранения данных坚果云",
+          "backup.button": "Резервное копирование в坚果云",
+          "restore.button": "Восстановление из坚果云",
+          "pathSelector.title": "Путь хранения данных坚果云",
+          "pathSelector.return": "Назад",
+          "pathSelector.currentPath": "Текущий путь",
+          "new_folder.button.confirm": "Подтвердить",
+          "new_folder.button.cancel": "Отмена",
+          "new_folder.button": "Создать папку"
+        },
+        "divider.basic": "Paramètres de base",
+        "divider.cloud_storage": "Paramètres de sauvegarde cloud",
+        "divider.export_settings": "Paramètres d'exportation",
+        "divider.third_party": "Connexion tierce",
+        "message_title.use_topic_naming.title": "Utiliser le modèle de dénomination thématique pour créer les titres des messages exportés",
+        "message_title.use_topic_naming.help": "Lorsque cette option est activée, le modèle de dénomination thématique sera utilisé pour créer les titres des messages exportés. Cette option affectera également toutes les méthodes d'exportation au format Markdown."
       },
       "display.assistant.title": "Paramètres de l'assistant",
       "display.custom.css": "CSS personnalisé",
       "display.custom.css.cherrycss": "Obtenir depuis cherrycss.com",
       "display.custom.css.placeholder": "/* Écrire votre CSS personnalisé ici */",
-      "display.minApp.disabled": "Applications minimisées masquées",
-      "display.minApp.empty": "Glissez les applications minimisées à masquer ici",
-      "display.minApp.title": "Paramètres d'affichage des applications minimisées",
-      "display.minApp.visible": "Applications minimisées affichées",
       "display.sidebar.chat.hiddenMessage": "L'assistant est une fonction de base et ne peut pas être masquée",
       "display.sidebar.disabled": "Icônes masquées",
       "display.sidebar.empty": "Glissez les fonctions à masquer ici",
@@ -855,6 +1141,7 @@
       "display.sidebar.translate.icon": "Afficher l'icône de traduction",
       "display.sidebar.visible": "Icônes affichées",
       "display.title": "Paramètres d'affichage",
+      "display.zoom.title": "Paramètres de zoom",
       "display.topic.title": "Paramètres de sujet",
       "font_size.title": "Taille de police des messages",
       "general": "Paramètres généraux",
@@ -864,7 +1151,6 @@
       "general.display.title": "Paramètres d'affichage",
       "general.emoji_picker": "Sélectionneur d'émoticônes",
       "general.image_upload": "Téléchargement d'images",
-      "general.manually_check_update.title": "Désactiver la vérification des mises à jour",
       "general.reset.button": "Réinitialiser",
       "general.reset.title": "Réinitialiser les données",
       "general.restore.button": "Restaurer",
@@ -930,11 +1216,94 @@
         "serverPlural": "Serveurs",
         "serverSingular": "Serveur",
         "title": "Serveurs MCP",
-        "toggleError": "Échec du basculement",
         "type": "Type",
         "updateError": "Échec de la mise à jour du serveur",
         "updateSuccess": "Serveur mis à jour avec succès",
-        "url": "URL"
+        "url": "URL",
+        "errors": {
+          "32000": "Échec du démarrage du serveur MCP, veuillez vérifier si tous les paramètres sont correctement remplis conformément au tutoriel"
+        },
+        "tabs": {
+          "general": "Général",
+          "description": "Description",
+          "tools": "Outils",
+          "prompts": "Prompts",
+          "resources": "Ressources"
+        },
+        "tools": {
+          "inputSchema": "Schéma d'entrée",
+          "availableTools": "Outils disponibles",
+          "noToolsAvailable": "Aucun outil disponible",
+          "loadError": "Échec de la récupération des outils"
+        },
+        "prompts": {
+          "availablePrompts": "Invites disponibles",
+          "noPromptsAvailable": "Aucune invite disponible",
+          "arguments": "Arguments",
+          "requiredField": "Champ obligatoire",
+          "genericError": "Erreur lors de la récupération des invites",
+          "loadError": "Échec de la récupération des invites"
+        },
+        "resources": {
+          "noResourcesAvailable": "Нет доступных ресурсов",
+          "availableResources": "Доступные ресурсы",
+          "uri": "URI",
+          "mimeType": "Тип MIME",
+          "size": "Размер",
+          "blob": "Бинарные данные",
+          "blobInvisible": "Скрытые бинарные данные",
+          "text": "Текст"
+        },
+        "types": {
+          "inMemory": "Intégré",
+          "sse": "SSE",
+          "streamableHttp": "Flux continu",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Синхронизация сервера",
+          "selectProvider": "Выберите провайдера:",
+          "discoverMcpServers": "Обнаружить MCP-серверы",
+          "discoverMcpServersDescription": "Посетите платформу для обнаружения доступных MCP-серверов",
+          "getToken": "Получить API-токен",
+          "getTokenDescription": "Получите персональный API-токен из вашей учетной записи",
+          "setToken": "Введите ваш токен",
+          "tokenRequired": "Требуется API-токен",
+          "tokenPlaceholder": "Введите API-токен здесь",
+          "button": "Синхронизировать",
+          "error": "Ошибка синхронизации MCP-сервера",
+          "success": "MCP-сервер успешно синхронизирован",
+          "unauthorized": "Синхронизация не авторизована",
+          "noServersAvailable": "Нет доступных MCP-серверов"
+        },
+        "sse": "Серверные отправляемые события (sse)",
+        "streamableHttp": "HTTP поддерживающий потоковую передачу (streamableHttp)",
+        "stdio": "Стандартный ввод/вывод (stdio)",
+        "inMemory": "В памяти",
+        "headers": "Заголовки запроса",
+        "headersTooltip": "Пользовательские заголовки HTTP-запроса",
+        "searchNpx": "Поиск MCP",
+        "newServer": "Сервер MCP",
+        "startError": "Ошибка запуска",
+        "editMcpJson": "Редактировать конфигурацию MCP",
+        "installHelp": "Получить помощь по установке",
+        "deleteServer": "Удалить сервер",
+        "deleteServerConfirm": "Вы уверены, что хотите удалить этот сервер?",
+        "registry": "Источник управления пакетами",
+        "registryTooltip": "Выберите источник для установки пакетов, чтобы решить проблемы с сетью по умолчанию.",
+        "registryDefault": "По умолчанию",
+        "not_support": "Модель не поддерживается",
+        "user": "Пользователь",
+        "system": "Система",
+        "timeout": "Таймаут",
+        "timeoutTooltip": "Таймаут запроса к серверу (в секундах), по умолчанию 60 секунд",
+        "provider": "Поставщик",
+        "providerUrl": "Адрес поставщика",
+        "logoUrl": "Адрес логотипа",
+        "tags": "Теги",
+        "tagsPlaceholder": "Введите теги",
+        "providerPlaceholder": "Название поставщика",
+        "advancedSettings": "Расширенные настройки"
       },
       "messages.divider": "Séparateur de messages",
       "messages.grid_columns": "Nombre de colonnes de la grille de messages",
@@ -1046,13 +1415,29 @@
         "docs_more_details": "Obtenir plus de détails",
         "get_api_key": "Cliquez ici pour obtenir une clé",
         "is_not_support_array_content": "Activer le mode compatible",
-        "no_models": "Veuillez ajouter un modèle avant de vérifier la connexion API",
         "not_checked": "Non vérifié",
         "remove_duplicate_keys": "Supprimer les clés en double",
         "remove_invalid_keys": "Supprimer les clés invalides",
         "search": "Rechercher une plateforme de modèles...",
         "search_placeholder": "Rechercher un ID ou un nom de modèle",
-        "title": "Services de modèles"
+        "title": "Services de modèles",
+        "oauth": {
+          "button": "Войти через аккаунт {{provider}}",
+          "description": "Этот сервис предоставляется <website>{{provider}}</website>",
+          "official_website": "Официальный сайт"
+        },
+        "notes": {
+          "title": "Примечание к модели",
+          "placeholder": "Введите содержимое в формате Markdown...",
+          "markdown_editor_default_value": "Область предварительного просмотра"
+        },
+        "basic_auth": "Authentification HTTP",
+        "basic_auth.tip": "S'applique aux instances déployées via le serveur (voir la documentation). Seule la méthode Basic est actuellement prise en charge (RFC7617).",
+        "basic_auth.user_name": "Nom d'utilisateur",
+        "basic_auth.user_name.tip": "Laisser vide pour désactiver",
+        "basic_auth.password": "Mot de passe",
+        "bills": "Factures",
+        "no_models_for_check": "Aucun modèle détectable (par exemple, modèle de chat)"
       },
       "proxy": {
         "mode": {
@@ -1094,7 +1479,7 @@
         "zoom_out": "Réduire l'interface",
         "zoom_reset": "Réinitialiser le zoom"
       },
-      "theme.auto": "Automatique",
+      "theme.system": "Système",
       "theme.dark": "Sombre",
       "theme.light": "Clair",
       "theme.title": "Thème",
@@ -1129,8 +1514,111 @@
           "description": "Tavily est un moteur de recherche conçu spécifiquement pour les agents IA, offrant des résultats en temps réel, précis, des suggestions de requêtes intelligentes et des capacités de recherche approfondie",
           "title": "Tavily"
         },
-        "title": "Recherche sur Internet"
-      }
+        "title": "Recherche sur Internet",
+        "overwrite": "Remplacer la recherche du fournisseur",
+        "overwrite_tooltip": "Forcer l'utilisation du moteur de recherche du fournisseur au lieu du modèle linguistique volumineux",
+        "subscribe": "Abonnement à la liste noire",
+        "subscribe_update": "Mettre à jour maintenant",
+        "subscribe_add": "Ajouter un abonnement",
+        "subscribe_url": "Adresse de la source d'abonnement",
+        "subscribe_name": "Nom alternatif",
+        "subscribe_name.placeholder": "Nom alternatif utilisé lorsque la source d'abonnement téléchargée ne contient pas de nom",
+        "subscribe_add_success": "Source d'abonnement ajoutée avec succès !",
+        "subscribe_delete": "Supprimer la source d'abonnement",
+        "apikey": "Clé API",
+        "free": "Gratuit",
+        "content_limit": "Limite de longueur du contenu",
+        "content_limit_tooltip": "Limite la longueur du contenu des résultats de recherche, le contenu dépassant la limite sera tronqué"
+      },
+      "miniapps": {
+        "open_link_external": {
+          "title": "Ouvrir un nouveau lien dans une fenêtre du navigateur"
+        },
+        "custom": {
+          "title": "Пользовательское приложение",
+          "edit_title": "Редактировать пользовательское приложение",
+          "save_success": "Пользовательское приложение успешно сохранено.",
+          "save_error": "Не удалось сохранить пользовательское приложение.",
+          "remove_success": "Пользовательское приложение успешно удалено.",
+          "remove_error": "Не удалось удалить пользовательское приложение.",
+          "logo_upload_success": "Логотип успешно загружен.",
+          "logo_upload_error": "Не удалось загрузить логотип.",
+          "id": "ID",
+          "id_error": "Поле ID обязательно для заполнения.",
+          "id_placeholder": "Введите ID",
+          "name": "Имя",
+          "name_error": "Поле Имя обязательно для заполнения.",
+          "name_placeholder": "Введите имя",
+          "url": "URL",
+          "url_error": "Поле URL обязательно для заполнения.",
+          "url_placeholder": "Введите URL",
+          "logo": "Логотип",
+          "logo_url": "URL логотипа",
+          "logo_file": "Загрузить файл логотипа",
+          "logo_url_label": "URL логотипа",
+          "logo_url_placeholder": "Введите URL логотипа",
+          "logo_upload_label": "Загрузить логотип",
+          "logo_upload_button": "Загрузить",
+          "save": "Сохранить",
+          "edit_description": "Здесь вы можете отредактировать конфигурацию пользовательского приложения. Каждое приложение должно содержать поля id, name, url и logo.",
+          "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
+          "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
+          "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}"
+        },
+        "title": "Paramètres de l'application",
+        "disabled": "Applications masquées",
+        "empty": "Faites glisser vers ici les applications que vous souhaitez masquer",
+        "visible": "Applications visibles",
+        "cache_settings": "Paramètres du cache",
+        "cache_title": "Nombre de caches d'applications",
+        "cache_description": "Définir le nombre maximum d'applications pouvant rester actives simultanément",
+        "reset_tooltip": "Réinitialiser aux valeurs par défaut",
+        "display_title": "Paramètres d'affichage des applications",
+        "sidebar_title": "Affichage des applications actives dans la barre latérale",
+        "sidebar_description": "Définir si les applications actives doivent s'afficher dans la barre latérale",
+        "cache_change_notice": "Les modifications prendront effet après l'ajout ou la suppression d'applications ouvertes jusqu'à atteindre la valeur définie"
+      },
+      "quickPhrase": {
+        "title": "Быстрые фразы",
+        "add": "Добавить фразу",
+        "edit": "Редактировать фразу",
+        "titleLabel": "Заголовок",
+        "contentLabel": "Содержание",
+        "titlePlaceholder": "Введите заголовок фразы",
+        "contentPlaceholder": "Введите содержание фразы, поддерживает использование переменных, после этого нажмите Tab, чтобы быстро перейти к переменной для редактирования. Например: \\n Запланируй маршрут от ${from} до ${to}, а затем отправь его на ${email}.",
+        "delete": "Удалить фразу",
+        "deleteConfirm": "После удаления фразы её невозможно восстановить. Продолжить?",
+        "locationLabel": "Добавить местоположение",
+        "global": "Глобальные фразы",
+        "assistant": "Фразы помощника"
+      },
+      "quickPanel": {
+        "title": "Быстрое меню",
+        "close": "Закрыть",
+        "select": "Выбрать",
+        "page": "Перелистнуть страницу",
+        "confirm": "Подтвердить",
+        "back": "Назад",
+        "forward": "Вперед",
+        "multiple": "Множественный выбор"
+      },
+      "privacy": {
+        "title": "Настройки конфиденциальности",
+        "enable_privacy_mode": "Отправлять анонимные сообщения об ошибках и статистику"
+      },
+      "assistant.icon.type": "Type d'icône du modèle",
+      "assistant.icon.type.model": "Icône de modèle",
+      "assistant.icon.type.emoji": "Emoji",
+      "assistant.icon.type.none": "Ne pas afficher",
+      "general.auto_check_update.title": "Mise à jour automatique",
+      "input.show_translate_confirm": "Afficher la boîte de dialogue de confirmation de traduction",
+      "messages.prompt": "Mot-clé d'affichage",
+      "messages.input.enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
+      "messages.input.enable_delete_model": "Activer la touche Supprimer pour effacer le modèle/pièce jointe saisie",
+      "messages.math_engine.none": "Aucun",
+      "models.manage.add_listed": "Ajouter un modèle depuis la liste",
+      "models.manage.remove_listed": "Supprimer un modèle de la liste",
+      "zoom.title": "Zoom de la page"
     },
     "translate": {
       "any.language": "langue arbitraire",
@@ -1155,7 +1643,10 @@
       "scroll_sync.disable": "désactiver la synchronisation du défilement",
       "scroll_sync.enable": "activer la synchronisation du défilement",
       "title": "traduction",
-      "tooltip.newline": "saut de ligne"
+      "tooltip.newline": "saut de ligne",
+      "menu": {
+        "description": "Traduire le contenu de la zone de saisie actuelle"
+      }
     },
     "tray": {
       "quit": "Quitter",
@@ -1167,6 +1658,13 @@
       "quit": "Quitter",
       "show_window": "Afficher la fenêtre",
       "visualization": "Visualisation"
+    },
+    "update": {
+      "title": "Mise à jour",
+      "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
+      "later": "Plus tard",
+      "install": "Installer",
+      "noReleaseNotes": "Aucune note de version"
     }
   }
 }

@@ -1,7 +1,16 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { CodeStyleVarious, LanguageVarious, MathEngine, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
+import {
+  AssistantsSortType,
+  CodeStyleVarious,
+  LanguageVarious,
+  MathEngine,
+  OpenAIServiceTier,
+  OpenAISummaryText,
+  PaintingProvider,
+  ThemeMode,
+  TranslateLanguageVarious
+} from '@renderer/types'
 
 import { WebDAVSyncState } from './backup'
 
@@ -23,15 +32,22 @@ export interface NutstoreSyncRuntime extends WebDAVSyncState {}
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
+export type UserTheme = {
+  colorPrimary: string
+}
+
 export interface SettingsState {
   showAssistants: boolean
   showTopics: boolean
+  assistantsTabSortType: AssistantsSortType
   sendMessageShortcut: SendMessageShortcut
   language: LanguageVarious
   targetLanguage: TranslateLanguageVarious
   proxyMode: 'system' | 'custom' | 'none'
   proxyUrl?: string
   userName: string
+  showPrompt: boolean
+  showTokens: boolean
   showMessageDivider: boolean
   messageFont: 'system' | 'serif'
   showInputEstimatedTokens: boolean
@@ -40,31 +56,47 @@ export interface SettingsState {
   trayOnClose: boolean
   tray: boolean
   theme: ThemeMode
+  userTheme: UserTheme
   windowStyle: 'transparent' | 'opaque'
   fontSize: number
   topicPosition: 'left' | 'right'
   showTopicTime: boolean
+  pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
   pasteLongTextAsFile: boolean
   pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   renderInputMessageAsMarkdown: boolean
+  // 代码执行
+  codeExecution: {
+    enabled: boolean
+    timeoutMinutes: number
+  }
+  codeEditor: {
+    enabled: boolean
+    themeLight: string
+    themeDark: string
+    highlightActiveLine: boolean
+    foldGutter: boolean
+    autocompletion: boolean
+    keymap: boolean
+  }
+  codePreview: {
+    themeLight: CodeStyleVarious
+    themeDark: CodeStyleVarious
+  }
   codeShowLineNumbers: boolean
   codeCollapsible: boolean
   codeWrappable: boolean
-  // 代码块缓存
-  codeCacheable: boolean
-  codeCacheMaxSize: number
-  codeCacheTTL: number
-  codeCacheThreshold: number
   mathEngine: MathEngine
   messageStyle: 'plain' | 'bubble'
-  codeStyle: CodeStyleVarious
   foldDisplayMode: 'expanded' | 'compact'
   gridColumns: number
   gridPopoverTrigger: 'hover' | 'click'
   messageNavigation: 'none' | 'buttons' | 'anchor'
+  // 数据目录设置
+  skipBackupFile: boolean
   // webdav 配置 host, user, pass, path
   webdavHost: string
   webdavUser: string
@@ -73,6 +105,7 @@ export interface SettingsState {
   webdavAutoSync: boolean
   webdavSyncInterval: number
   webdavMaxBackups: number
+  webdavSkipBackupFile: boolean
   translateModelPrompt: string
   autoTranslateWithSpace: boolean
   showTranslateConfirm: boolean
@@ -96,20 +129,25 @@ export interface SettingsState {
   markdownExportPath: string | null
   forceDollarMathInMarkdown: boolean
   useTopicNamingForMessageTitle: boolean
+  showModelNameInMarkdown: boolean
+  showModelProviderInMarkdown: boolean
   thoughtAutoCollapse: boolean
-  notionAutoSplit: boolean
-  notionSplitSize: number
+  notionExportReasoning: boolean
   yuqueToken: string | null
   yuqueUrl: string | null
   yuqueRepoId: string | null
   joplinToken: string | null
   joplinUrl: string | null
+  joplinExportReasoning: boolean
   defaultObsidianVault: string | null
+  defaultAgent: string | null
   // 思源笔记配置
   siyuanApiUrl: string | null
   siyuanToken: string | null
   siyuanBoxId: string | null
   siyuanRootPath: string | null
+  // 订阅的助手地址
+  agentssubscribeUrl: string | null
   // MinApps
   maxKeepAliveMinapps: number
   showOpenedMinappsInSidebar: boolean
@@ -129,6 +167,18 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
   }
+  // OpenAI
+  openAI: {
+    summaryText: OpenAISummaryText
+    serviceTier: OpenAIServiceTier
+  }
+  // Notification
+  notification: {
+    assistant: boolean
+    backup: boolean
+    knowledgeEmbed: boolean
+  }
+  defaultPaintingProvider: PaintingProvider
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -136,12 +186,15 @@ export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
 export const initialState: SettingsState = {
   showAssistants: true,
   showTopics: true,
+  assistantsTabSortType: 'list',
   sendMessageShortcut: 'Enter',
   language: navigator.language as LanguageVarious,
   targetLanguage: 'english' as TranslateLanguageVarious,
   proxyMode: 'system',
   proxyUrl: undefined,
   userName: '',
+  showPrompt: true,
+  showTokens: true,
   showMessageDivider: true,
   messageFont: 'system',
   showInputEstimatedTokens: false,
@@ -149,31 +202,48 @@ export const initialState: SettingsState = {
   launchToTray: false,
   trayOnClose: true,
   tray: true,
-  theme: ThemeMode.auto,
+  theme: ThemeMode.system,
+  userTheme: {
+    colorPrimary: '#00b96b'
+  },
   windowStyle: 'opaque',
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
+  pinTopicsToTop: false,
   assistantIconType: 'emoji',
   pasteLongTextAsFile: false,
   pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   renderInputMessageAsMarkdown: false,
+  codeExecution: {
+    enabled: false,
+    timeoutMinutes: 1
+  },
+  codeEditor: {
+    enabled: false,
+    themeLight: 'auto',
+    themeDark: 'auto',
+    highlightActiveLine: false,
+    foldGutter: false,
+    autocompletion: true,
+    keymap: false
+  },
+  codePreview: {
+    themeLight: 'auto',
+    themeDark: 'auto'
+  },
   codeShowLineNumbers: false,
   codeCollapsible: false,
   codeWrappable: false,
-  codeCacheable: false,
-  codeCacheMaxSize: 1000, // 缓存最大容量，千字符数
-  codeCacheTTL: 15, // 缓存过期时间，分钟
-  codeCacheThreshold: 2, // 允许缓存的最小代码长度，千字符数
   mathEngine: 'KaTeX',
   messageStyle: 'plain',
-  codeStyle: 'auto',
   foldDisplayMode: 'expanded',
   gridColumns: 2,
   gridPopoverTrigger: 'click',
   messageNavigation: 'none',
+  skipBackupFile: false,
   webdavHost: '',
   webdavUser: '',
   webdavPass: '',
@@ -181,6 +251,7 @@ export const initialState: SettingsState = {
   webdavAutoSync: false,
   webdavSyncInterval: 0,
   webdavMaxBackups: 0,
+  webdavSkipBackupFile: false,
   translateModelPrompt: TRANSLATE_PROMPT,
   autoTranslateWithSpace: false,
   showTranslateConfirm: true,
@@ -202,19 +273,23 @@ export const initialState: SettingsState = {
   markdownExportPath: null,
   forceDollarMathInMarkdown: false,
   useTopicNamingForMessageTitle: false,
+  showModelNameInMarkdown: false,
+  showModelProviderInMarkdown: false,
   thoughtAutoCollapse: true,
-  notionAutoSplit: false,
-  notionSplitSize: 90,
+  notionExportReasoning: false,
   yuqueToken: '',
   yuqueUrl: '',
   yuqueRepoId: '',
   joplinToken: '',
   joplinUrl: '',
+  joplinExportReasoning: false,
   defaultObsidianVault: null,
+  defaultAgent: null,
   siyuanApiUrl: null,
   siyuanToken: null,
   siyuanBoxId: null,
   siyuanRootPath: null,
+  agentssubscribeUrl: '',
   // MinApps
   maxKeepAliveMinapps: 3,
   showOpenedMinappsInSidebar: true,
@@ -232,7 +307,18 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true
-  }
+  },
+  // OpenAI
+  openAI: {
+    summaryText: 'off',
+    serviceTier: 'auto'
+  },
+  notification: {
+    assistant: false,
+    backup: false,
+    knowledgeEmbed: false
+  },
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -251,12 +337,14 @@ const settingsSlice = createSlice({
     toggleShowTopics: (state) => {
       state.showTopics = !state.showTopics
     },
+    setAssistantsTabSortType: (state, action: PayloadAction<AssistantsSortType>) => {
+      state.assistantsTabSortType = action.payload
+    },
     setSendMessageShortcut: (state, action: PayloadAction<SendMessageShortcut>) => {
       state.sendMessageShortcut = action.payload
     },
     setLanguage: (state, action: PayloadAction<LanguageVarious>) => {
       state.language = action.payload
-      window.electron.ipcRenderer.send(IpcChannel.MiniWindowReload)
     },
     setTargetLanguage: (state, action: PayloadAction<TranslateLanguageVarious>) => {
       state.targetLanguage = action.payload
@@ -269,6 +357,12 @@ const settingsSlice = createSlice({
     },
     setUserName: (state, action: PayloadAction<string>) => {
       state.userName = action.payload
+    },
+    setShowPrompt: (state, action: PayloadAction<boolean>) => {
+      state.showPrompt = action.payload
+    },
+    setShowTokens: (state, action: PayloadAction<boolean>) => {
+      state.showTokens = action.payload
     },
     setShowMessageDivider: (state, action: PayloadAction<boolean>) => {
       state.showMessageDivider = action.payload
@@ -297,6 +391,9 @@ const settingsSlice = createSlice({
     setCustomCss: (state, action: PayloadAction<string>) => {
       state.customCss = action.payload
     },
+    setUserTheme: (state, action: PayloadAction<UserTheme>) => {
+      state.userTheme = action.payload
+    },
     setFontSize: (state, action: PayloadAction<number>) => {
       state.fontSize = action.payload
     },
@@ -308,6 +405,9 @@ const settingsSlice = createSlice({
     },
     setShowTopicTime: (state, action: PayloadAction<boolean>) => {
       state.showTopicTime = action.payload
+    },
+    setPinTopicsToTop: (state, action: PayloadAction<boolean>) => {
+      state.pinTopicsToTop = action.payload
     },
     setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
       state.assistantIconType = action.payload
@@ -323,6 +423,9 @@ const settingsSlice = createSlice({
     },
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
+    },
+    setSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.skipBackupFile = action.payload
     },
     setWebdavHost: (state, action: PayloadAction<string>) => {
       state.webdavHost = action.payload
@@ -345,6 +448,59 @@ const settingsSlice = createSlice({
     setWebdavMaxBackups: (state, action: PayloadAction<number>) => {
       state.webdavMaxBackups = action.payload
     },
+    setWebdavSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.webdavSkipBackupFile = action.payload
+    },
+    setCodeExecution: (state, action: PayloadAction<{ enabled?: boolean; timeoutMinutes?: number }>) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeExecution.enabled = action.payload.enabled
+      }
+      if (action.payload.timeoutMinutes !== undefined) {
+        state.codeExecution.timeoutMinutes = action.payload.timeoutMinutes
+      }
+    },
+    setCodeEditor: (
+      state,
+      action: PayloadAction<{
+        enabled?: boolean
+        themeLight?: string
+        themeDark?: string
+        highlightActiveLine?: boolean
+        foldGutter?: boolean
+        autocompletion?: boolean
+        keymap?: boolean
+      }>
+    ) => {
+      if (action.payload.enabled !== undefined) {
+        state.codeEditor.enabled = action.payload.enabled
+      }
+      if (action.payload.themeLight !== undefined) {
+        state.codeEditor.themeLight = action.payload.themeLight
+      }
+      if (action.payload.themeDark !== undefined) {
+        state.codeEditor.themeDark = action.payload.themeDark
+      }
+      if (action.payload.highlightActiveLine !== undefined) {
+        state.codeEditor.highlightActiveLine = action.payload.highlightActiveLine
+      }
+      if (action.payload.foldGutter !== undefined) {
+        state.codeEditor.foldGutter = action.payload.foldGutter
+      }
+      if (action.payload.autocompletion !== undefined) {
+        state.codeEditor.autocompletion = action.payload.autocompletion
+      }
+      if (action.payload.keymap !== undefined) {
+        state.codeEditor.keymap = action.payload.keymap
+      }
+    },
+    setCodePreview: (state, action: PayloadAction<{ themeLight?: string; themeDark?: string }>) => {
+      if (action.payload.themeLight !== undefined) {
+        state.codePreview.themeLight = action.payload.themeLight
+      }
+      if (action.payload.themeDark !== undefined) {
+        state.codePreview.themeDark = action.payload.themeDark
+      }
+    },
     setCodeShowLineNumbers: (state, action: PayloadAction<boolean>) => {
       state.codeShowLineNumbers = action.payload
     },
@@ -353,18 +509,6 @@ const settingsSlice = createSlice({
     },
     setCodeWrappable: (state, action: PayloadAction<boolean>) => {
       state.codeWrappable = action.payload
-    },
-    setCodeCacheable: (state, action: PayloadAction<boolean>) => {
-      state.codeCacheable = action.payload
-    },
-    setCodeCacheMaxSize: (state, action: PayloadAction<number>) => {
-      state.codeCacheMaxSize = action.payload
-    },
-    setCodeCacheTTL: (state, action: PayloadAction<number>) => {
-      state.codeCacheTTL = action.payload
-    },
-    setCodeCacheThreshold: (state, action: PayloadAction<number>) => {
-      state.codeCacheThreshold = action.payload
     },
     setMathEngine: (state, action: PayloadAction<MathEngine>) => {
       state.mathEngine = action.payload
@@ -380,9 +524,6 @@ const settingsSlice = createSlice({
     },
     setMessageStyle: (state, action: PayloadAction<'plain' | 'bubble'>) => {
       state.messageStyle = action.payload
-    },
-    setCodeStyle: (state, action: PayloadAction<CodeStyleVarious>) => {
-      state.codeStyle = action.payload
     },
     setTranslateModelPrompt: (state, action: PayloadAction<string>) => {
       state.translateModelPrompt = action.payload
@@ -443,14 +584,17 @@ const settingsSlice = createSlice({
     setUseTopicNamingForMessageTitle: (state, action: PayloadAction<boolean>) => {
       state.useTopicNamingForMessageTitle = action.payload
     },
+    setShowModelNameInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelNameInMarkdown = action.payload
+    },
+    setShowModelProviderInMarkdown: (state, action: PayloadAction<boolean>) => {
+      state.showModelProviderInMarkdown = action.payload
+    },
     setThoughtAutoCollapse: (state, action: PayloadAction<boolean>) => {
       state.thoughtAutoCollapse = action.payload
     },
-    setNotionAutoSplit: (state, action: PayloadAction<boolean>) => {
-      state.notionAutoSplit = action.payload
-    },
-    setNotionSplitSize: (state, action: PayloadAction<number>) => {
-      state.notionSplitSize = action.payload
+    setNotionExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.notionExportReasoning = action.payload
     },
     setYuqueToken: (state, action: PayloadAction<string>) => {
       state.yuqueToken = action.payload
@@ -467,6 +611,18 @@ const settingsSlice = createSlice({
     setJoplinUrl: (state, action: PayloadAction<string>) => {
       state.joplinUrl = action.payload
     },
+    setJoplinExportReasoning: (state, action: PayloadAction<boolean>) => {
+      state.joplinExportReasoning = action.payload
+    },
+    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
+      state.messageNavigation = action.payload
+    },
+    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
+      state.defaultObsidianVault = action.payload
+    },
+    setDefaultAgent: (state, action: PayloadAction<string>) => {
+      state.defaultAgent = action.payload
+    },
     setSiyuanApiUrl: (state, action: PayloadAction<string>) => {
       state.siyuanApiUrl = action.payload
     },
@@ -479,11 +635,8 @@ const settingsSlice = createSlice({
     setSiyuanRootPath: (state, action: PayloadAction<string>) => {
       state.siyuanRootPath = action.payload
     },
-    setMessageNavigation: (state, action: PayloadAction<'none' | 'buttons' | 'anchor'>) => {
-      state.messageNavigation = action.payload
-    },
-    setDefaultObsidianVault: (state, action: PayloadAction<string>) => {
-      state.defaultObsidianVault = action.payload
+    setAgentssubscribeUrl: (state, action: PayloadAction<string>) => {
+      state.agentssubscribeUrl = action.payload
     },
     setMaxKeepAliveMinapps: (state, action: PayloadAction<number>) => {
       state.maxKeepAliveMinapps = action.payload
@@ -505,21 +658,38 @@ const settingsSlice = createSlice({
     },
     setEnableBackspaceDeleteModel: (state, action: PayloadAction<boolean>) => {
       state.enableBackspaceDeleteModel = action.payload
+    },
+    setOpenAISummaryText: (state, action: PayloadAction<OpenAISummaryText>) => {
+      state.openAI.summaryText = action.payload
+    },
+    setOpenAIServiceTier: (state, action: PayloadAction<OpenAIServiceTier>) => {
+      state.openAI.serviceTier = action.payload
+    },
+    setNotificationSettings: (state, action: PayloadAction<SettingsState['notification']>) => {
+      state.notification = action.payload
+    },
+    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+      state.defaultPaintingProvider = action.payload
     }
   }
 })
 
 export const {
+  setShowModelNameInMarkdown,
+  setShowModelProviderInMarkdown,
   setShowAssistants,
   toggleShowAssistants,
   setShowTopics,
   toggleShowTopics,
+  setAssistantsTabSortType,
   setSendMessageShortcut,
   setLanguage,
   setTargetLanguage,
   setProxyMode,
   setProxyUrl,
   setUserName,
+  setShowPrompt,
+  setShowTokens,
   setShowMessageDivider,
   setMessageFont,
   setShowInputEstimatedTokens,
@@ -528,15 +698,18 @@ export const {
   setTrayOnClose,
   setTray,
   setTheme,
+  setUserTheme,
   setFontSize,
   setWindowStyle,
   setTopicPosition,
   setShowTopicTime,
+  setPinTopicsToTop,
   setAssistantIconType,
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
+  setSkipBackupFile,
   setWebdavHost,
   setWebdavUser,
   setWebdavPass,
@@ -544,19 +717,18 @@ export const {
   setWebdavAutoSync,
   setWebdavSyncInterval,
   setWebdavMaxBackups,
+  setWebdavSkipBackupFile,
+  setCodeExecution,
+  setCodeEditor,
+  setCodePreview,
   setCodeShowLineNumbers,
   setCodeCollapsible,
   setCodeWrappable,
-  setCodeCacheable,
-  setCodeCacheMaxSize,
-  setCodeCacheTTL,
-  setCodeCacheThreshold,
   setMathEngine,
   setFoldDisplayMode,
   setGridColumns,
   setGridPopoverTrigger,
   setMessageStyle,
-  setCodeStyle,
   setTranslateModelPrompt,
   setAutoTranslateWithSpace,
   setShowTranslateConfirm,
@@ -577,18 +749,20 @@ export const {
   setForceDollarMathInMarkdown,
   setUseTopicNamingForMessageTitle,
   setThoughtAutoCollapse,
-  setNotionAutoSplit,
-  setNotionSplitSize,
+  setNotionExportReasoning,
   setYuqueToken,
   setYuqueRepoId,
   setYuqueUrl,
   setJoplinToken,
   setJoplinUrl,
+  setJoplinExportReasoning,
   setMessageNavigation,
   setDefaultObsidianVault,
+  setDefaultAgent,
   setSiyuanApiUrl,
   setSiyuanToken,
   setSiyuanBoxId,
+  setAgentssubscribeUrl,
   setSiyuanRootPath,
   setMaxKeepAliveMinapps,
   setShowOpenedMinappsInSidebar,
@@ -596,7 +770,11 @@ export const {
   setEnableDataCollection,
   setEnableQuickPanelTriggers,
   setExportMenuOptions,
-  setEnableBackspaceDeleteModel
+  setEnableBackspaceDeleteModel,
+  setOpenAISummaryText,
+  setOpenAIServiceTier,
+  setNotificationSettings,
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

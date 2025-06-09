@@ -1,6 +1,40 @@
-import { isOpenAIWebSearch, isReasoningModel } from '@renderer/config/models'
-import { getAssistantById } from '@renderer/services/AssistantService'
-import { Citation, Message, Model } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+
+import { findImageBlocks, getMainTextContent } from './messageUtils/find'
+
+/**
+ * HTML实体编码辅助函数
+ * @param str 输入字符串
+ * @returns string 编码后的字符串
+ */
+export const encodeHTML = (str: string) => {
+  return str.replace(/[&<>"']/g, (match) => {
+    const entities: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&apos;'
+    }
+    return entities[match]
+  })
+}
+
+/**
+ * 清理Markdown内容
+ * @param text 要清理的文本
+ * @returns 清理后的文本
+ */
+export function cleanMarkdownContent(text: string): string {
+  if (!text) return ''
+  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '') // 移除图片
+  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1') // 替换链接为纯文本
+  cleaned = cleaned.replace(/https?:\/\/\S+/g, '') // 移除URL
+  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ') // 替换分隔符为空格
+  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '') // 移除特殊字符
+  cleaned = cleaned.replace(/\s+/g, ' ').trim() // 规范化空白
+  return cleaned
+}
 
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
@@ -20,7 +54,7 @@ export function escapeDollarNumber(text: string) {
 }
 
 export function escapeBrackets(text: string) {
-  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\\]|\\\((.*?)\\\)/g
+  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\]|\\\((.*?)\\\)/g
   return text.replace(pattern, (match, codeBlock, squareBracket, roundBracket) => {
     if (codeBlock) {
       return codeBlock
@@ -38,6 +72,8 @@ $$
 }
 
 export function extractTitle(html: string): string | null {
+  if (!html) return null
+
   // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
   const match = html.match(titleRegex)
@@ -70,248 +106,76 @@ export function removeSvgEmptyLines(text: string): string {
   })
 }
 
-export function withGeminiGrounding(message: Message) {
-  const { groundingSupports } = message?.metadata?.groundingMetadata || {}
+// export function withGeminiGrounding(block: MainTextMessageBlock | TranslationMessageBlock): string {
+//   // TODO
+//   // const citationBlock = findCitationBlockWithGrounding(block)
+//   // const groundingSupports = citationBlock?.groundingMetadata?.groundingSupports
 
-  if (!groundingSupports) {
-    return message.content
-  }
+//   const content = block.content
 
-  let content = message.content
+//   // if (!groundingSupports || groundingSupports.length === 0) {
+//   //   return content
+//   // }
 
-  groundingSupports.forEach((support) => {
-    const text = support?.segment?.text
-    const indices = support?.groundingChunkIndices
+//   // groundingSupports.forEach((support) => {
+//   //   const text = support?.segment?.text
+//   //   const indices = support?.groundingChunkIndices
 
-    if (!text || !indices) return
+//   //   if (!text || !indices) return
 
-    const nodes = indices.reduce<string[]>((acc, index) => {
-      acc.push(`<sup>${index + 1}</sup>`)
-      return acc
-    }, [])
+//   //   const nodes = indices.reduce((acc, index) => {
+//   //     acc.push(`<sup>${index + 1}</sup>`)
+//   //     return acc
+//   //   }, [] as string[])
 
-    content = content.replace(text, `${text} ${nodes.join(' ')}`)
+//   //   content = content.replace(text, `${text} ${nodes.join(' ')}`)
+//   // })
+
+//   return content
+// }
+
+export function withGenerateImage(message: Message): { content: string; images?: string[] } {
+  const originalContent = getMainTextContent(message)
+  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
+  const images: string[] = []
+  let processedContent: string
+
+  processedContent = originalContent.replace(imagePattern, (_, url) => {
+    if (url) {
+      images.push(url)
+    }
+    return ''
   })
 
-  return content
-}
+  processedContent = processedContent.replace(/\n\s*\n/g, '\n').trim()
 
-interface ThoughtProcessor {
-  canProcess: (content: string, message?: Message) => boolean
-  process: (content: string) => { reasoning: string; content: string }
-}
+  const downloadPattern = /\[[^\]]*\]\((.*?)\s*("(?:.*[^"])")?\s*\)/g
+  processedContent = processedContent
+    .replace(downloadPattern, '')
+    .replace(/\n\s*\n/g, '\n')
+    .trim()
 
-const glmZeroPreviewProcessor: ThoughtProcessor = {
-  canProcess: (content: string, message?: Message) => {
-    if (!message) return false
-
-    const modelId = message.modelId || ''
-    const modelName = message.model?.name || ''
-    const isGLMZeroPreview =
-      modelId.toLowerCase().includes('glm-zero-preview') || modelName.toLowerCase().includes('glm-zero-preview')
-
-    return isGLMZeroPreview && content.includes('###Thinking')
-  },
-  process: (content: string) => {
-    const parts = content.split('###')
-    const thinkingMatch = parts.find((part) => part.trim().startsWith('Thinking'))
-    const responseMatch = parts.find((part) => part.trim().startsWith('Response'))
-
-    return {
-      reasoning: thinkingMatch ? thinkingMatch.replace('Thinking', '').trim() : '',
-      content: responseMatch ? responseMatch.replace('Response', '').trim() : ''
-    }
-  }
-}
-
-const thinkTagProcessor: ThoughtProcessor = {
-  canProcess: (content: string, message?: Message) => {
-    if (!message) return false
-
-    return content.startsWith('<think>') || content.includes('</think>')
-  },
-  process: (content: string) => {
-    // 处理正常闭合的 think 标签
-    const thinkPattern = /^<think>(.*?)<\/think>/s
-    const matches = content.match(thinkPattern)
-    if (matches) {
-      return {
-        reasoning: matches[1].trim(),
-        content: content.replace(thinkPattern, '').trim()
-      }
-    }
-
-    // 处理只有结束标签的情况
-    if (content.includes('</think>') && !content.startsWith('<think>')) {
-      const parts = content.split('</think>')
-      return {
-        reasoning: parts[0].trim(),
-        content: parts.slice(1).join('</think>').trim()
-      }
-    }
-
-    // 处理只有开始标签的情况
-    if (content.startsWith('<think>')) {
-      return {
-        reasoning: content.slice(7).trim(), // 跳过 '<think>' 标签
-        content: ''
-      }
-    }
-
-    return {
-      reasoning: '',
-      content
-    }
-  }
-}
-
-export function withMessageThought(message: Message) {
-  if (message.role !== 'assistant') {
-    return message
+  if (images.length > 0) {
+    return { content: processedContent, images }
   }
 
-  const model = message.model
-  if (!model || !isReasoningModel(model)) return message
-
-  const isClaude37Sonnet = model.id.includes('claude-3-7-sonnet') || model.id.includes('claude-3.7-sonnet')
-  if (isClaude37Sonnet) {
-    const assistant = getAssistantById(message.assistantId)
-    if (!assistant?.settings?.reasoning_effort) return message
-  }
-
-  const content = message.content.trim()
-  const processors: ThoughtProcessor[] = [glmZeroPreviewProcessor, thinkTagProcessor]
-
-  const processor = processors.find((p) => p.canProcess(content, message))
-  if (processor) {
-    const { reasoning, content: processedContent } = processor.process(content)
-    message.reasoning_content = reasoning
-    message.content = processedContent
-  }
-
-  return message
-}
-
-export function withGenerateImage(message: Message) {
-  const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const imageMatches = message.content.match(imagePattern)
-
-  if (!imageMatches || imageMatches[1] === null) {
-    return message
-  }
-
-  // 替换图片语法，保留其他内容
-  let cleanContent = message.content.replace(imagePattern, '').trim()
-
-  // 检查是否有下载链接
-  const downloadPattern = new RegExp(`\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
-  const downloadMatches = cleanContent.match(downloadPattern)
-
-  // 如果有下载链接，只保留图片前的内容
-  if (downloadMatches) {
-    const contentBeforeImage = message.content.split(imageMatches[0])[0].trim()
-    cleanContent = contentBeforeImage
-  }
-
-  message = {
-    ...message,
-    content: cleanContent,
-    metadata: {
-      ...message.metadata,
-      generateImage: {
-        type: 'url',
-        images: [imageMatches[1]]
-      }
-    }
-  }
-  return message
+  return { content: originalContent }
 }
 
 export function addImageFileToContents(messages: Message[]) {
   const lastAssistantMessage = messages.findLast((m) => m.role === 'assistant')
-  if (!lastAssistantMessage || !lastAssistantMessage.metadata || !lastAssistantMessage.metadata.generateImage) {
+  if (!lastAssistantMessage) return messages
+  const blocks = findImageBlocks(lastAssistantMessage)
+  if (!blocks || blocks.length === 0) return messages
+  if (blocks.every((v) => !v.metadata?.generateImage)) {
     return messages
   }
 
-  const imageFiles = lastAssistantMessage.metadata.generateImage.images
+  const imageFiles = blocks.map((v) => v.metadata?.generateImage?.images).flat()
   const updatedAssistantMessage = {
     ...lastAssistantMessage,
     images: imageFiles
   }
 
   return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
-}
-
-/**
- * 格式化 citations
- * @param metadata 消息的 metadata
- * @param model 模型
- * @param urlCache url 缓存
- * @returns citations
- */
-export const formatCitations = (
-  metadata: Message['metadata'],
-  model: Model | undefined,
-  urlCache: Map<string, URL>
-): Citation[] | null => {
-  if (!metadata?.citations?.length && !metadata?.annotations?.length) {
-    return null
-  }
-
-  interface UrlInfo {
-    hostname: string
-    url: string
-  }
-
-  // 提取 URL 处理函数到组件外
-  const getUrlInfo = (url: string, urlCache: Map<string, URL>): UrlInfo => {
-    try {
-      let urlObj = urlCache.get(url)
-      if (!urlObj) {
-        urlObj = new URL(url)
-        urlCache.set(url, urlObj)
-      }
-      return { hostname: urlObj.hostname, url }
-    } catch {
-      return { hostname: url, url }
-    }
-  }
-
-  // 使用 Set 提前去重，减少后续处理
-  const uniqueUrls = new Set<string>()
-  let citations: Citation[] = []
-
-  if (model && isOpenAIWebSearch(model)) {
-    citations =
-      metadata.annotations
-        ?.filter((annotation) => {
-          const url = annotation.url_citation?.url
-          if (!url || uniqueUrls.has(url)) return false
-          uniqueUrls.add(url)
-          return true
-        })
-        .map((annotation, index) => ({
-          number: index + 1,
-          url: annotation.url_citation.url,
-          hostname: annotation.url_citation.title,
-          title: annotation.url_citation.title
-        })) || []
-  } else {
-    citations = (metadata?.citations || [])
-      .filter((url) => {
-        if (!url || uniqueUrls.has(url)) return false
-        uniqueUrls.add(url)
-        return true
-      })
-      .map((url, index) => {
-        const { hostname } = getUrlInfo(url, urlCache)
-        return {
-          number: index + 1,
-          url,
-          hostname
-        }
-      })
-  }
-
-  return citations
 }

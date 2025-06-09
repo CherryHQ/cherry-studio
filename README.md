@@ -19,13 +19,15 @@ Cherry Studio is a desktop client that supports for multiple LLM providers, avai
 
 # 📖 Guide
 
-https://docs.cherry-ai.com
+<https://docs.cherry-ai.com>
 
 # 🌠 Screenshot
 
-![](https://github.com/user-attachments/assets/082efa42-c4df-4863-a9cb-80435cecce0f)
-![](https://github.com/user-attachments/assets/f8411a65-c51f-47d3-9273-62ae384cc6f1)
-![](https://github.com/user-attachments/assets/0d235b3e-65ae-45ab-987f-8dbe003c52be)
+![](https://github.com/user-attachments/assets/36dddb2c-e0fb-4a5f-9411-91447bab6e18)
+
+![](https://github.com/user-attachments/assets/f549e8a0-2385-40b4-b52b-2039e39f2930)
+
+![](https://github.com/user-attachments/assets/58e0237c-4d36-40de-b428-53051d982026)
 
 # 🌟 Key Features
 
@@ -65,34 +67,60 @@ https://docs.cherry-ai.com
 - 📝 Complete Markdown Rendering
 - 🤲 Easy Content Sharing
 
-# 📝 TODO
+# 📝 Roadmap
 
-- [x] Quick popup (read clipboard, quick question, explain, translate, summarize)
-- [x] Comparison of multi-model answers
-- [x] Support login using SSO provided by service providers
-- [x] All models support networking
-- [x] Launch of the first official version
-- [x] Bug fixes and improvements (In progress...)
-- [ ] Plugin functionality (JavaScript)
-- [ ] Browser extension (highlight text to translate, summarize, add to knowledge base)
-- [ ] iOS & Android client
-- [ ] AI notes
-- [ ] Voice input and output (AI call)
-- [ ] Data backup supports custom backup content
+We're actively working on the following features and improvements:
+
+1. 🎯 **Core Features**
+
+- Selection Assistant - Smart content selection enhancement
+- Deep Research - Advanced research capabilities
+- Memory System - Global context awareness
+- Document Preprocessing - Improved document handling
+- MCP Marketplace - Model Context Protocol ecosystem
+
+2. 🗂 **Knowledge Management**
+
+- Notes and Collections
+- Dynamic Canvas visualization
+- OCR capabilities
+- TTS (Text-to-Speech) support
+
+3. 📱 **Platform Support**
+
+- HarmonyOS Edition (PC)
+- Android App (Phase 1)
+- iOS App (Phase 1)
+- Multi-Window support
+- Window Pinning functionality
+
+4. 🔌 **Advanced Features**
+
+- Plugin System
+- ASR (Automatic Speech Recognition)
+- Assistant and Topic Interaction Refactoring
+
+Track our progress and contribute on our [project board](https://github.com/orgs/CherryHQ/projects/7).
+
+Want to influence our roadmap? Join our [GitHub Discussions](https://github.com/CherryHQ/cherry-studio/discussions) to share your ideas and feedback!
 
 # 🌈 Theme
 
-- Theme Gallery: https://cherrycss.com
-- Aero Theme: https://github.com/hakadao/CherryStudio-Aero
-- PaperMaterial Theme: https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
-- Claude dynamic-style: https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-- Maple Neon Theme: https://github.com/BoningtonChen/CherryStudio_themes
+- Theme Gallery: <https://cherrycss.com>
+- Aero Theme: <https://github.com/hakadao/CherryStudio-Aero>
+- PaperMaterial Theme: <https://github.com/rainoffallingstar/CherryStudio-PaperMaterial>
+- Claude dynamic-style: <https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic>
+- Maple Neon Theme: <https://github.com/BoningtonChen/CherryStudio_themes>
 
 Welcome PR for more themes
 
 # 🖥️ Develop
 
 Refer to the [development documentation](docs/dev.md)
+
+Refer to the [Architecture overview documentation](https://deepwiki.com/CherryHQ/cherry-studio)
+
+Refer to the [Branching Strategy](docs/branching-strategy-en.md) for contribution guidelines
 
 # 🤝 Contributing
 
@@ -117,7 +145,7 @@ For more detailed guidelines, please refer to our [Contributing Guide](./CONTRIB
 
 Thank you for your support and contributions!
 
-## Related Projects
+# 🔗 Related Projects
 
 - [one-api](https://github.com/songquanpeng/one-api):LLM API management and distribution system, supporting mainstream models like OpenAI, Azure, and Anthropic. Features unified API interface, suitable for key management and secondary distribution.
 
@@ -126,7 +154,7 @@ Thank you for your support and contributions!
 # 🚀 Contributors
 
 <a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=kangfenmao/cherry-studio" />
+  <img src="https://contrib.rocks/image?repo=CherryHQ/cherry-studio" />
 </a>
 <br /><br />
 
@@ -144,7 +172,7 @@ Thank you for your support and contributions!
 
 # ✉️ Contact
 
-yinsenho@cherry-ai.com
+<yinsenho@cherry-ai.com>
 
 # ⭐️ Star History
 

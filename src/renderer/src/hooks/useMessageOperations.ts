@@ -1,231 +1,454 @@
+import { createSelector } from '@reduxjs/toolkit'
+import Logger from '@renderer/config/logger'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { estimateMessageUsage } from '@renderer/services/TokenService'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import { estimateUserPromptUsage } from '@renderer/services/TokenService'
+import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import { updateOneBlock } from '@renderer/store/messageBlock'
+import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import {
-  clearStreamMessage,
-  clearTopicMessages,
-  commitStreamMessage,
-  deleteMessageAction,
-  resendMessage,
-  selectDisplayCount,
-  selectTopicLoading,
-  selectTopicMessages,
-  setStreamMessage,
-  setTopicLoading,
-  updateMessages,
-  updateMessageThunk
-} from '@renderer/store/messages'
-import type { Assistant, Message, Topic } from '@renderer/types'
+  appendAssistantResponseThunk,
+  clearTopicMessagesThunk,
+  cloneMessagesToNewTopicThunk,
+  deleteMessageGroupThunk,
+  deleteSingleMessageThunk,
+  initiateTranslationThunk,
+  regenerateAssistantResponseThunk,
+  removeBlocksThunk,
+  resendMessageThunk,
+  resendUserMessageWithEditThunk,
+  updateMessageAndBlocksThunk,
+  updateTranslationBlockThunk
+} from '@renderer/store/thunk/messageThunk'
+import type { Assistant, Model, Topic } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
+import { throttle } from 'lodash'
 import { useCallback } from 'react'
 
-import { TopicManager } from './useTopic'
+const selectMessagesState = (state: RootState) => state.messages
+
+export const selectNewTopicLoading = createSelector(
+  [selectMessagesState, (_, topicId: string) => topicId],
+  (messagesState, topicId) => messagesState.loadingByTopic[topicId] || false
+)
+
+export const selectNewDisplayCount = createSelector(
+  [selectMessagesState],
+  (messagesState) => messagesState.displayCount
+)
+
 /**
- * 自定义Hook，提供消息操作相关的功能
- *
- * @param topic 当前主题
- * @returns 一组消息操作方法
+ * Hook 提供针对特定主题的消息操作方法。 / Hook providing various operations for messages within a specific topic.
+ * @param topic 当前主题对象。 / The current topic object.
+ * @returns 包含消息操作函数的对象。 / An object containing message operation functions.
  */
 export function useMessageOperations(topic: Topic) {
   const dispatch = useAppDispatch()
 
   /**
-   * 删除单个消息
+   * 删除单个消息。 / Deletes a single message.
+   * Dispatches deleteSingleMessageThunk.
    */
   const deleteMessage = useCallback(
     async (id: string) => {
-      await dispatch(deleteMessageAction(topic, id))
+      await dispatch(deleteSingleMessageThunk(topic.id, id))
     },
-    [dispatch, topic]
+    [dispatch, topic.id]
   )
 
   /**
-   * 删除一组消息（基于askId）
+   * 删除一组消息（基于 askId）。 / Deletes a group of messages (based on askId).
+   * Dispatches deleteMessageGroupThunk.
    */
   const deleteGroupMessages = useCallback(
     async (askId: string) => {
-      await dispatch(deleteMessageAction(topic, askId, 'askId'))
+      await dispatch(deleteMessageGroupThunk(topic.id, askId))
     },
-    [dispatch, topic]
+    [dispatch, topic.id]
   )
 
   /**
-   * 编辑消息内容
+   * 编辑消息。 / Edits a message.
+   * 使用 newMessagesActions.updateMessage.
    */
   const editMessage = useCallback(
-    async (messageId: string, updates: Partial<Message>) => {
-      // 如果更新包含内容变更，重新计算 token
-      if ('content' in updates) {
-        const messages = store.getState().messages.messagesByTopic[topic.id]
-        const message = messages?.find((m) => m.id === messageId)
-        if (message) {
-          const updatedMessage = { ...message, ...updates }
-          const usage = await estimateMessageUsage(updatedMessage)
-          updates.usage = usage
-        }
+    async (messageId: string, updates: Partial<Omit<Message, 'id' | 'topicId' | 'blocks'>>) => {
+      if (!topic?.id) {
+        console.error('[editMessage] Topic prop is not valid.')
+        return
       }
-      await dispatch(updateMessageThunk(topic.id, messageId, updates))
+
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
+        updatedAt: new Date().toISOString(),
+        ...updates
+      }
+
+      // Call the thunk with topic.id and only message updates
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
     },
     [dispatch, topic.id]
   )
 
   /**
-   * 重新发送消息
+   * 重新发送用户消息，触发其所有助手回复的重新生成。 / Resends a user message, triggering regeneration of all its assistant responses.
+   * Dispatches resendMessageThunk.
    */
-  const resendMessageAction = useCallback(
-    async (message: Message, assistant: Assistant, isMentionModel = false) => {
-      return dispatch(resendMessage(message, assistant, topic, isMentionModel))
-    },
-    [dispatch, topic]
-  )
-
-  /**
-   * 重新发送用户消息（编辑后）
-   */
-  const resendUserMessageWithEdit = useCallback(
-    async (message: Message, editedContent: string, assistant: Assistant) => {
-      // 先更新消息内容
-      await editMessage(message.id, { content: editedContent })
-      // 然后重新发送
-      return dispatch(resendMessage({ ...message, content: editedContent }, assistant, topic))
-    },
-    [dispatch, editMessage, topic]
-  )
-
-  /**
-   * 设置流式消息
-   */
-  const setStreamMessageAction = useCallback(
-    (message: Message | null) => {
-      dispatch(setStreamMessage({ topicId: topic.id, message }))
+  const resendMessage = useCallback(
+    async (message: Message, assistant: Assistant) => {
+      await dispatch(resendMessageThunk(topic.id, message, assistant))
     },
     [dispatch, topic.id]
   )
 
   /**
-   * 提交流式消息
+   * 清除当前或指定主题的所有消息。 / Clears all messages for the current or specified topic.
+   * Dispatches clearTopicMessagesThunk.
    */
-  const commitStreamMessageAction = useCallback(
-    (messageId: string) => {
-      dispatch(commitStreamMessage({ topicId: topic.id, messageId }))
-    },
-    [dispatch, topic.id]
-  )
-
-  /**
-   * 清除流式消息
-   */
-  const clearStreamMessageAction = useCallback(
-    (messageId: string) => {
-      dispatch(clearStreamMessage({ topicId: topic.id, messageId }))
-    },
-    [dispatch, topic.id]
-  )
-
-  /**
-   * 清除会话消息
-   */
-  const clearTopicMessagesAction = useCallback(
+  const clearTopicMessages = useCallback(
     async (_topicId?: string) => {
-      const topicId = _topicId || topic.id
-      await dispatch(clearTopicMessages(topicId))
-      await TopicManager.clearTopicMessages(topicId)
+      const topicIdToClear = _topicId || topic.id
+      await dispatch(clearTopicMessagesThunk(topicIdToClear))
     },
     [dispatch, topic.id]
   )
 
   /**
-   * 更新消息数据
-   */
-  const updateMessagesAction = useCallback(
-    async (messages: Message[]) => {
-      await dispatch(updateMessages(topic, messages))
-    },
-    [dispatch, topic]
-  )
-
-  /**
-   * 创建新的上下文（clear message）
+   * 发出事件以表示创建新上下文（清空消息 UI）。 / Emits an event to signal creating a new context (clearing messages UI).
    */
   const createNewContext = useCallback(async () => {
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }, [])
 
-  const displayCount = useAppSelector(selectDisplayCount)
-  // /**
-  //  * 获取当前消息列表
-  //  */
-  // const getMessages = useCallback(() => messages, [messages])
+  const displayCount = useAppSelector(selectNewDisplayCount)
 
   /**
-   * 暂停消息生成
+   * 暂停当前主题正在进行的消息生成。 / Pauses ongoing message generation for the current topic.
    */
-  // const pauseMessage = useCallback(
-  //   // 存的是用户消息的id，也就是助手消息的askId
-  //   async (message: Message) => {
-  //     // 1. 调用 abort
-
-  //     // 2. 更新消息状态,
-  //     // await editMessage(message.id, { status: 'paused', content: message.content })
-
-  //     // 3.更改loading状态
-  //     dispatch(setTopicLoading({ topicId: message.topicId, loading: false }))
-
-  //     // 4. 清理流式消息
-  //     // clearStreamMessageAction(message.id)
-  //   },
-  //   [editMessage, dispatch, clearStreamMessageAction]
-  // )
-
   const pauseMessages = useCallback(async () => {
-    // 暂停的消息不需要在这更改status,通过catch判断abort错误之后设置message.status
-    const streamMessages = store.getState().messages.streamMessagesByTopic[topic.id]
-    if (!streamMessages) return
-    // 不需要重复暂停
-    const askIds = [...new Set(Object.values(streamMessages).map((m) => m?.askId))]
+    const state = store.getState()
+    const topicMessages = selectMessagesForTopic(state, topic.id)
+    if (!topicMessages) return
+
+    const streamingMessages = topicMessages.filter((m) => m.status === 'processing' || m.status === 'pending')
+    const askIds = [...new Set(streamingMessages?.map((m) => m.askId).filter((id) => !!id) as string[])]
 
     for (const askId of askIds) {
-      askId && abortCompletion(askId)
+      abortCompletion(askId)
     }
-    dispatch(setTopicLoading({ topicId: topic.id, loading: false }))
+    dispatch(newMessagesActions.setTopicLoading({ topicId: topic.id, loading: false }))
   }, [topic.id, dispatch])
 
   /**
-   * 恢复/重发消息
-   * 暂时不需要
+   * 恢复/重发用户消息（目前复用 resendMessage 逻辑）。 / Resumes/Resends a user message (currently reuses resendMessage logic).
    */
   const resumeMessage = useCallback(
     async (message: Message, assistant: Assistant) => {
-      return resendMessageAction(message, assistant)
+      return resendMessage(message, assistant)
     },
-    [resendMessageAction]
+    [resendMessage]
+  )
+
+  /**
+   * 重新生成指定的助手消息回复。 / Regenerates a specific assistant message response.
+   * Dispatches regenerateAssistantResponseThunk.
+   */
+  const regenerateAssistantMessage = useCallback(
+    async (message: Message, assistant: Assistant) => {
+      if (message.role !== 'assistant') {
+        console.warn('regenerateAssistantMessage should only be called for assistant messages.')
+        return
+      }
+      await dispatch(regenerateAssistantResponseThunk(topic.id, message, assistant))
+    },
+    [dispatch, topic.id]
+  )
+
+  /**
+   * 使用指定模型追加一个新的助手回复，回复与现有助手消息相同的用户查询。 / Appends a new assistant response using a specified model, replying to the same user query as an existing assistant message.
+   * Dispatches appendAssistantResponseThunk.
+   */
+  const appendAssistantResponse = useCallback(
+    async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
+      if (existingAssistantMessage.role !== 'assistant') {
+        console.error('appendAssistantResponse should only be called for an existing assistant message.')
+        return
+      }
+      if (!existingAssistantMessage.askId) {
+        console.error('Cannot append response: The existing assistant message is missing its askId.')
+        return
+      }
+      await dispatch(appendAssistantResponseThunk(topic.id, existingAssistantMessage.id, newModel, assistant))
+    },
+    [dispatch, topic.id]
+  )
+
+  /**
+   * 初始化翻译块并返回一个更新函数。 / Initiates a translation block and returns an updater function.
+   * @param messageId 要翻译的消息 ID。 / The ID of the message to translate.
+   * @param targetLanguage 目标语言代码。 / The target language code.
+   * @param sourceBlockId (可选) 源块的 ID。 / (Optional) The ID of the source block.
+   * @param sourceLanguage (可选) 源语言代码。 / (Optional) The source language code.
+   * @returns 用于更新翻译块的异步函数，如果初始化失败则返回 null。 / An async function to update the translation block, or null if initiation fails.
+   */
+  const getTranslationUpdater = useCallback(
+    async (
+      messageId: string,
+      targetLanguage: string,
+      sourceBlockId?: string,
+      sourceLanguage?: string
+    ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
+      if (!topic.id) return null
+
+      const state = store.getState()
+      const message = state.messages.entities[messageId]
+      if (!message) {
+        console.error('[getTranslationUpdater] cannot find message:', messageId)
+        return null
+      }
+
+      let existingTranslationBlockId: string | undefined
+      if (message.blocks && message.blocks.length > 0) {
+        for (const blockId of message.blocks) {
+          const block = state.messageBlocks.entities[blockId]
+          if (block && block.type === MessageBlockType.TRANSLATION) {
+            existingTranslationBlockId = blockId
+            break
+          }
+        }
+      }
+
+      let blockId: string | undefined
+      if (existingTranslationBlockId) {
+        blockId = existingTranslationBlockId
+        const changes: Partial<MessageBlock> = {
+          content: '',
+          status: MessageBlockStatus.STREAMING,
+          metadata: {
+            targetLanguage,
+            sourceBlockId,
+            sourceLanguage
+          }
+        }
+        dispatch(updateOneBlock({ id: blockId, changes }))
+        await dispatch(updateTranslationBlockThunk(blockId, '', false))
+      } else {
+        blockId = await dispatch(
+          initiateTranslationThunk(messageId, topic.id, targetLanguage, sourceBlockId, sourceLanguage)
+        )
+      }
+
+      if (!blockId) {
+        console.error('[getTranslationUpdater] Failed to create translation block.')
+        return null
+      }
+
+      return throttle(
+        (accumulatedText: string, isComplete: boolean = false) => {
+          dispatch(updateTranslationBlockThunk(blockId!, accumulatedText, isComplete))
+        },
+        200,
+        { leading: true, trailing: true }
+      )
+    },
+    [dispatch, topic.id]
+  )
+
+  /**
+   * 创建一个主题分支，克隆消息到新主题。
+   * Creates a topic branch by cloning messages to a new topic.
+   * @param sourceTopicId 源主题ID / Source topic ID
+   * @param branchPointIndex 分支点索引，此索引之前的消息将被克隆 / Branch point index, messages before this index will be cloned
+   * @param newTopic 新的主题对象，必须已经创建并添加到Redux store中 / New topic object, must be already created and added to Redux store
+   * @returns 操作是否成功 / Whether the operation was successful
+   */
+  const createTopicBranch = useCallback(
+    (sourceTopicId: string, branchPointIndex: number, newTopic: Topic) => {
+      Logger.log(`Cloning messages from topic ${sourceTopicId} to new topic ${newTopic.id}`)
+      return dispatch(cloneMessagesToNewTopicThunk(sourceTopicId, branchPointIndex, newTopic))
+    },
+    [dispatch]
+  )
+
+  /**
+   * Updates message blocks by comparing original and edited blocks.
+   * Handles adding, updating, and removing blocks in a single operation.
+   * @param messageId The ID of the message to update
+   * @param editedBlocks The complete set of blocks after editing
+   */
+  const editMessageBlocks = useCallback(
+    async (messageId: string, editedBlocks: MessageBlock[]) => {
+      if (!topic?.id) {
+        console.error('[editMessageBlocks] Topic prop is not valid.')
+        return
+      }
+
+      try {
+        // 1. Get the current state of the message and its blocks
+        const state = store.getState()
+        const message = state.messages.entities[messageId]
+        if (!message) {
+          console.error('[editMessageBlocks] Message not found:', messageId)
+          return
+        }
+
+        // 2. Get all original blocks
+        const originalBlocks = message.blocks
+          ? (message.blocks
+              .map((blockId) => state.messageBlocks.entities[blockId])
+              .filter((block) => block !== undefined) as MessageBlock[])
+          : []
+
+        // 3. Create sets for efficient comparison
+        const originalBlockIds = new Set(originalBlocks.map((block) => block.id))
+        const editedBlockIds = new Set(editedBlocks.map((block) => block.id))
+
+        // 4. Identify blocks to remove, update, and add
+        const blockIdsToRemove = originalBlocks
+          .filter((block) => !editedBlockIds.has(block.id))
+          .map((block) => block.id)
+
+        const blocksToUpdate = editedBlocks
+          .filter((block) => originalBlockIds.has(block.id))
+          .map((block) => ({
+            ...block,
+            updatedAt: new Date().toISOString()
+          }))
+
+        const blocksToAdd = editedBlocks
+          .filter((block) => !originalBlockIds.has(block.id))
+          .map((block) => ({
+            ...block,
+            updatedAt: new Date().toISOString()
+          }))
+
+        // 5. Prepare message update with new block IDs
+        const updatedBlockIds = editedBlocks.map((block) => block.id)
+        const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+          id: messageId,
+          updatedAt: new Date().toISOString(),
+          blocks: updatedBlockIds
+        }
+
+        // 6. Log operations for debugging
+        // console.log('[editMessageBlocks] Operations:', {
+        //   blocksToRemove: blockIdsToRemove.length,
+        //   blocksToUpdate: blocksToUpdate.length,
+        //   blocksToAdd: blocksToAdd.length
+        // })
+
+        // 7. Update Redux state and database
+        // First update message and add/update blocks
+        if (blocksToAdd.length > 0) {
+          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToAdd))
+        }
+
+        if (blocksToUpdate.length > 0) {
+          await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, blocksToUpdate))
+        }
+
+        // Then remove blocks if needed
+        if (blockIdsToRemove.length > 0) {
+          await dispatch(removeBlocksThunk(topic.id, messageId, blockIdsToRemove))
+        }
+      } catch (error) {
+        console.error('[editMessageBlocks] Failed to update message blocks:', error)
+      }
+    },
+    [dispatch, topic?.id]
+  )
+
+  /**
+   * 在用户消息的主文本块被编辑后重新发送该消息。 / Resends a user message after its main text block has been edited.
+   * Dispatches resendUserMessageWithEditThunk.
+   */
+  const resendUserMessageWithEdit = useCallback(
+    async (message: Message, editedBlocks: MessageBlock[], assistant: Assistant) => {
+      await editMessageBlocks(message.id, editedBlocks)
+
+      const mainTextBlock = editedBlocks.find((block) => block.type === MessageBlockType.MAIN_TEXT)
+      if (!mainTextBlock) {
+        console.error('[resendUserMessageWithEdit] Main text block not found in edited blocks')
+        return
+      }
+
+      const fileBlocks = editedBlocks.filter(
+        (block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE
+      )
+
+      const files = fileBlocks.map((block) => block.file).filter((file) => file !== undefined)
+
+      const usage = await estimateUserPromptUsage({ content: mainTextBlock.content, files })
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: message.id,
+        updatedAt: new Date().toISOString(),
+        usage
+      }
+
+      await dispatch(
+        newMessagesActions.updateMessage({ topicId: topic.id, messageId: message.id, updates: messageUpdates })
+      )
+      // 对于message的修改会在下面的thunk中保存
+      await dispatch(resendUserMessageWithEditThunk(topic.id, message, assistant))
+    },
+    [dispatch, editMessageBlocks, topic.id]
+  )
+
+  /**
+   * Removes a specific block from a message.
+   */
+  const removeMessageBlock = useCallback(
+    async (messageId: string, blockIdToRemove: string) => {
+      if (!topic?.id) {
+        console.error('[removeMessageBlock] Topic prop is not valid.')
+        return
+      }
+
+      const state = store.getState()
+      const message = state.messages.entities[messageId]
+      if (!message || !message.blocks) {
+        console.error('[removeMessageBlock] Message not found or has no blocks:', messageId)
+        return
+      }
+
+      const updatedBlocks = message.blocks.filter((blockId) => blockId !== blockIdToRemove)
+
+      const messageUpdates: Partial<Message> & Pick<Message, 'id'> = {
+        id: messageId,
+        updatedAt: new Date().toISOString(),
+        blocks: updatedBlocks
+      }
+
+      await dispatch(updateMessageAndBlocksThunk(topic.id, messageUpdates, []))
+    },
+    [dispatch, topic?.id]
   )
 
   return {
     displayCount,
-    updateMessages: updateMessagesAction,
     deleteMessage,
     deleteGroupMessages,
     editMessage,
-    resendMessage: resendMessageAction,
+    resendMessage,
+    regenerateAssistantMessage,
     resendUserMessageWithEdit,
-    setStreamMessage: setStreamMessageAction,
-    commitStreamMessage: commitStreamMessageAction,
-    clearStreamMessage: clearStreamMessageAction,
+    appendAssistantResponse,
     createNewContext,
-    clearTopicMessages: clearTopicMessagesAction,
-    // pauseMessage,
+    clearTopicMessages,
     pauseMessages,
-    resumeMessage
+    resumeMessage,
+    getTranslationUpdater,
+    createTopicBranch,
+    editMessageBlocks,
+    removeMessageBlock
   }
 }
 
-export const useTopicMessages = (topic: Topic) => {
-  const messages = useAppSelector((state) => selectTopicMessages(state, topic.id))
-  return messages
+export const useTopicMessages = (topicId: string) => {
+  return useAppSelector((state) => selectMessagesForTopic(state, topicId))
 }
 
 export const useTopicLoading = (topic: Topic) => {
-  const loading = useAppSelector((state) => selectTopicLoading(state, topic.id))
-  return loading
+  return useAppSelector((state) => selectNewTopicLoading(state, topic.id))
 }

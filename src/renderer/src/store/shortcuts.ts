@@ -60,8 +60,15 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
-      key: 'search_message',
+      key: 'search_message_in_chat',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'search_message',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'Shift', 'F'],
       editable: true,
       enabled: true,
       system: false
@@ -79,6 +86,13 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: true,
       system: false
+    },
+    {
+      key: 'exit_fullscreen',
+      shortcut: ['Escape'],
+      editable: false,
+      enabled: true,
+      system: true
     }
   ]
 }

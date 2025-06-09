@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { delay, runAsyncFunction } from '../index'
+import { runAsyncFunction } from '../index'
+import { compareVersions, hasPath, isFreeModel, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
 
 describe('Unclassified Utils', () => {
   describe('runAsyncFunction', () => {
@@ -23,21 +24,118 @@ describe('Unclassified Utils', () => {
     })
   })
 
-  describe('delay', () => {
-    it('should resolve after specified seconds', async () => {
-      // 验证指定时间后返回
-      const start = Date.now()
-      await delay(0.01)
-      const end = Date.now()
-      expect(end - start).toBeGreaterThanOrEqual(10)
+  describe('isFreeModel', () => {
+    const base = { provider: '', group: '' }
+    it('should return true if id or name contains "free" (case-insensitive)', () => {
+      expect(isFreeModel({ id: 'free-model', name: 'test', ...base })).toBe(true)
+      expect(isFreeModel({ id: 'model', name: 'FreePlan', ...base })).toBe(true)
+      expect(isFreeModel({ id: 'model', name: 'notfree', ...base })).toBe(true)
+      expect(isFreeModel({ id: 'model', name: 'test', ...base })).toBe(false)
     })
 
-    it('should resolve immediately for zero delay', async () => {
-      // 验证零延迟立即返回
-      const start = Date.now()
-      await delay(0)
-      const end = Date.now()
-      expect(end - start).toBeLessThan(100)
+    it('should handle empty id or name', () => {
+      expect(isFreeModel({ id: '', name: 'free', ...base })).toBe(true)
+      expect(isFreeModel({ id: 'free', name: '', ...base })).toBe(true)
+      expect(isFreeModel({ id: '', name: '', ...base })).toBe(false)
+    })
+  })
+
+  describe('removeQuotes', () => {
+    it('should remove all single and double quotes', () => {
+      expect(removeQuotes('"hello"')).toBe('hello')
+      expect(removeQuotes("'hello'")).toBe('hello')
+      expect(removeQuotes('"hello"')).toBe('hello')
+      expect(removeQuotes('noquotes')).toBe('noquotes')
+    })
+
+    it('should handle empty string', () => {
+      expect(removeQuotes('')).toBe('')
+    })
+
+    it('should handle string with only quotes', () => {
+      expect(removeQuotes('""')).toBe('')
+      expect(removeQuotes("''")).toBe('')
+    })
+  })
+
+  describe('removeSpecialCharacters', () => {
+    it('should remove newlines, quotes, and special characters', () => {
+      expect(removeSpecialCharacters('hello\nworld!')).toBe('helloworld')
+      expect(removeSpecialCharacters('"hello, world!"')).toBe('hello world')
+      expect(removeSpecialCharacters('你好，世界！')).toBe('你好世界')
+    })
+
+    it('should handle empty string', () => {
+      expect(removeSpecialCharacters('')).toBe('')
+    })
+
+    it('should handle string with only special characters', () => {
+      expect(removeSpecialCharacters('"\n!,.')).toBe('')
+    })
+  })
+
+  describe('isValidProxyUrl', () => {
+    it('should return true for string containing "://"', () => {
+      expect(isValidProxyUrl('http://localhost')).toBe(true)
+      expect(isValidProxyUrl('socks5://127.0.0.1:1080')).toBe(true)
+    })
+
+    it('should return false for string not containing "://"', () => {
+      expect(isValidProxyUrl('localhost')).toBe(false)
+      expect(isValidProxyUrl('127.0.0.1:1080')).toBe(false)
+    })
+
+    it('should handle empty string', () => {
+      expect(isValidProxyUrl('')).toBe(false)
+    })
+
+    it('should return true for only "://"', () => {
+      expect(isValidProxyUrl('://')).toBe(true)
+    })
+  })
+
+  describe('hasPath', () => {
+    it('should return true if url has path', () => {
+      expect(hasPath('http://a.com/path')).toBe(true)
+      expect(hasPath('http://a.com/path/to')).toBe(true)
+    })
+
+    it('should return false if url has no path or only root', () => {
+      expect(hasPath('http://a.com/')).toBe(false)
+      expect(hasPath('http://a.com')).toBe(false)
+    })
+
+    it('should return false for invalid url', () => {
+      expect(hasPath('not a url')).toBe(false)
+      expect(hasPath('')).toBe(false)
+    })
+  })
+
+  describe('compareVersions', () => {
+    it('should return 1 if v1 > v2', () => {
+      expect(compareVersions('1.2.3', '1.2.2')).toBe(1)
+      expect(compareVersions('2.0.0', '1.9.9')).toBe(1)
+      expect(compareVersions('1.2.0', '1.1.9')).toBe(1)
+      expect(compareVersions('1.2.3', '1.2')).toBe(1)
+    })
+
+    it('should return -1 if v1 < v2', () => {
+      expect(compareVersions('1.2.2', '1.2.3')).toBe(-1)
+      expect(compareVersions('1.9.9', '2.0.0')).toBe(-1)
+      expect(compareVersions('1.1.9', '1.2.0')).toBe(-1)
+      expect(compareVersions('1.2', '1.2.3')).toBe(-1)
+    })
+
+    it('should return 0 if v1 == v2', () => {
+      expect(compareVersions('1.2.3', '1.2.3')).toBe(0)
+      expect(compareVersions('1.2', '1.2.0')).toBe(0)
+      expect(compareVersions('1.0.0', '1')).toBe(0)
+    })
+
+    it('should handle non-numeric and empty string', () => {
+      expect(compareVersions('', '')).toBe(0)
+      expect(compareVersions('a.b.c', '1.2.3')).toBe(-1)
+      expect(compareVersions('1.2.3', 'a.b.c')).toBe(1)
     })
   })
 })

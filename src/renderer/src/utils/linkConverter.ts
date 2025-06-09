@@ -7,8 +7,8 @@ let urlToCounterMap: Map<string, number> = new Map()
 
 /**
  * Determines if a string looks like a host/URL
- * @param text The text to check
- * @returns Boolean indicating if the text is likely a host
+ * @param {string} text The text to check
+ * @returns {boolean} Boolean indicating if the text is likely a host
  */
 function isHost(text: string): boolean {
   // Basic check for URL-like patterns
@@ -18,11 +18,11 @@ function isHost(text: string): boolean {
 /**
  * Converts Markdown links in the text to numbered links based on the rules:s
  * [ref_N] -> [<sup>N</sup>]
- * @param text The current chunk of text to process
- * @param resetCounter Whether to reset the counter and buffer
- * @returns Processed text with complete links converted
+ * @param {string} text The current chunk of text to process
+ * @param {boolean} resetCounter Whether to reset the counter and buffer
+ * @returns {string} Processed text with complete links converted
  */
-export function convertLinksToZhipu(text: string, resetCounter = false): string {
+export function convertLinksToZhipu(text: string, resetCounter: boolean = false): string {
   if (resetCounter) {
     linkCounter = 1
     buffer = ''
@@ -57,7 +57,16 @@ export function convertLinksToZhipu(text: string, resetCounter = false): string 
   })
 }
 
-export function convertLinksToHunyuan(text: string, webSearch: any[], resetCounter = false): string {
+/**
+ * Converts Markdown links in the text to numbered links based on the rules:
+ * [N](@ref) -> [<sup>N</sup>]()
+ * [N,M,...](@ref) -> [<sup>N</sup>]() [<sup>M</sup>]() ...
+ * @param {string} text The current chunk of text to process
+ * @param {any[]} webSearch webSearch results
+ * @param {boolean} resetCounter Whether to reset the counter and buffer
+ * @returns {string} Processed text with complete links converted
+ */
+export function convertLinksToHunyuan(text: string, webSearch: any[], resetCounter: boolean = false): string {
   if (resetCounter) {
     linkCounter = 1
     buffer = ''
@@ -113,14 +122,13 @@ export function convertLinksToHunyuan(text: string, webSearch: any[], resetCount
  * Converts Markdown links in the text to numbered links based on the rules:
  * 1. ([host](url)) -> [cnt](url)
  * 2. [host](url) -> [cnt](url)
- * 3. [anytext except host](url) -> anytext[cnt](url)
+ * 3. [any text except url](url)-> any text [cnt](url)
  *
- * @param text The current chunk of text to process
- * @param resetCounter Whether to reset the counter and buffer
- * @param isZhipu Whether to use Zhipu format
- * @returns Processed text with complete links converted
+ * @param {string} text The current chunk of text to process
+ * @param {boolean} resetCounter Whether to reset the counter and buffer
+ * @returns {string} Processed text with complete links converted
  */
-export function convertLinks(text: string, resetCounter = false, isZhipu = false): string {
+export function convertLinks(text: string, resetCounter: boolean = false): string {
   if (resetCounter) {
     linkCounter = 1
     buffer = ''
@@ -132,34 +140,6 @@ export function convertLinks(text: string, resetCounter = false, isZhipu = false
 
   // Find the safe point - the position after which we might have incomplete patterns
   let safePoint = buffer.length
-  if (isZhipu) {
-    // Handle Zhipu mode - find safe point for [ref_N] patterns
-    let safePoint = buffer.length
-
-    // Check from the end for potentially incomplete [ref_N] patterns
-    for (let i = buffer.length - 1; i >= 0; i--) {
-      if (buffer[i] === '[') {
-        const substring = buffer.substring(i)
-        // Check if it's a complete [ref_N] pattern
-        const match = /^\[ref_\d+\]/.exec(substring)
-
-        if (!match) {
-          // Potentially incomplete [ref_N] pattern
-          safePoint = i
-          break
-        }
-      }
-    }
-
-    // Process the safe part of the buffer
-    const safeBuffer = buffer.substring(0, safePoint)
-    buffer = buffer.substring(safePoint)
-
-    // Replace all complete [ref_N] patterns
-    return safeBuffer.replace(/\[ref_(\d+)\]/g, (_, num) => {
-      return `[<sup>${num}</sup>]()`
-    })
-  }
 
   // Check for potentially incomplete patterns from the end
   for (let i = buffer.length - 1; i >= 0; i--) {
@@ -239,10 +219,12 @@ export function convertLinks(text: string, resetCounter = false, isZhipu = false
           urlToCounterMap.set(url, counter)
         }
 
-        if (isHost(linkText)) {
-          result += `[<sup>${counter}</sup>](${url})`
+        // Rule 3: If the link text is not a URL/host, keep the text and add the numbered link
+        if (!isHost(linkText)) {
+          result += `${linkText} [<sup>${counter}</sup>](${url})`
         } else {
-          result += `${linkText}[<sup>${counter}</sup>](${url})`
+          // Rule 2: If the link text is a URL/host, replace with numbered link
+          result += `[<sup>${counter}</sup>](${url})`
         }
 
         position += match[0].length
@@ -262,9 +244,9 @@ export function convertLinks(text: string, resetCounter = false, isZhipu = false
  * Converts Markdown links in the text to numbered links based on the rules:
  * 1. [host](url) -> [cnt](url)
  *
- * @param text The current chunk of text to process
- * @param resetCounter Whether to reset the counter and buffer
- * @returns Processed text with complete links converted
+ * @param {string} text The current chunk of text to process
+ * @param {boolean} resetCounter Whether to reset the counter and buffer
+ * @returns {string} Processed text with complete links converted
  */
 export function convertLinksToOpenRouter(text: string, resetCounter = false): string {
   if (resetCounter) {
@@ -319,9 +301,9 @@ export function convertLinksToOpenRouter(text: string, resetCounter = false): st
 
 /**
  * 根据webSearch结果补全链接，将[<sup>num</sup>]()转换为[<sup>num</sup>](webSearch[num-1].url)
- * @param text 原始文本
- * @param webSearch webSearch结果
- * @returns 补全后的文本
+ * @param {string} text 原始文本
+ * @param {any[]} webSearch webSearch结果
+ * @returns {string} 补全后的文本
  */
 export function completeLinks(text: string, webSearch: any[]): string {
   // 使用正则表达式匹配形如 [<sup>num</sup>]() 的链接
@@ -343,15 +325,15 @@ export function completeLinks(text: string, webSearch: any[]): string {
  * 2. [<sup>num</sup>](url)
  * 3. ([text](url))
  *
- * @param text Markdown格式的文本
- * @returns 提取到的URL数组，去重后的结果
+ * @param {string} text Markdown格式的文本
+ * @returns {string[]} 提取到的URL数组，去重后的结果
  */
 export function extractUrlsFromMarkdown(text: string): string[] {
   const urlSet = new Set<string>()
 
   // 匹配所有Markdown链接格式
   const linkPattern = /\[(?:[^[\]]*)\]\(([^()]+)\)/g
-  let match
+  let match: RegExpExecArray | null
 
   while ((match = linkPattern.exec(text)) !== null) {
     const url = match[1].trim()
@@ -365,8 +347,8 @@ export function extractUrlsFromMarkdown(text: string): string[] {
 
 /**
  * 验证字符串是否是有效的URL
- * @param url 要验证的URL字符串
- * @returns 是否是有效的URL
+ * @param {string} url 要验证的URL字符串
+ * @returns {boolean} 是否是有效的URL
  */
 function isValidUrl(url: string): boolean {
   try {
@@ -380,8 +362,8 @@ function isValidUrl(url: string): boolean {
 /**
  * 清理 Markdown 链接之间的逗号
  * 例如: [text](url),[text](url) -> [text](url) [text](url)
- * @param text 包含 Markdown 链接的文本
- * @returns 清理后的文本
+ * @param {string} text 包含 Markdown 链接的文本
+ * @returns {string} 清理后的文本
  */
 export function cleanLinkCommas(text: string): string {
   // 匹配两个 Markdown 链接之间的英文逗号（可能包含空格）

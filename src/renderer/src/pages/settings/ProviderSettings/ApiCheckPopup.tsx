@@ -141,6 +141,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      transitionName="animation-move-down"
       centered
       maskClosable={false}
       footer={

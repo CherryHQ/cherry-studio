@@ -8,7 +8,27 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
+      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "エージェントを作成",
+      "import": {
+        "title": "外部からインポート",
+        "type": {
+          "url": "URL",
+          "file": "ファイル"
+        },
+        "url_placeholder": "JSON URLを入力",
+        "select_file": "ファイルを選択",
+        "button": "インポート",
+        "file_filter": "JSONファイル",
+        "error": {
+          "url_required": "URLを入力してください",
+          "fetch_failed": "URLからのデータ取得に失敗しました",
+          "invalid_format": "無効なエージェント形式：必須フィールドが不足しています"
+        }
+      },
+      "export": {
+        "agent": "エージェントをエクスポート"
+      },
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
       "edit.message.add.title": "追加",
       "edit.message.assistant.placeholder": "アシスタントのメッセージを入力",
@@ -29,7 +49,10 @@
       "tag.default": "デフォルト",
       "tag.new": "新規",
       "tag.system": "システム",
-      "title": "エージェント"
+      "title": "エージェント",
+      "settings": {
+        "title": "エージェント設定"
+      }
     },
     "assistants": {
       "title": "アシスタント",
@@ -56,12 +79,46 @@
       "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
       "settings.reasoning_effort": "思考連鎖の長さ",
-      "settings.reasoning_effort.high": "長い",
-      "settings.reasoning_effort.low": "短い",
-      "settings.reasoning_effort.medium": "中程度",
       "settings.reasoning_effort.off": "オフ",
-      "settings.reasoning_effort.tip": "OpenAI o-series、Anthropic、および Grok の推論モデルのみサポート",
-      "settings.more": "アシスタント設定"
+      "settings.reasoning_effort.high": "最大限の思考",
+      "settings.reasoning_effort.low": "少しの思考",
+      "settings.reasoning_effort.medium": "普通の思考",
+      "settings.reasoning_effort.default": "デフォルト",
+      "settings.more": "アシスタント設定",
+      "settings.regular_phrases": {
+        "title": "定型プロンプト",
+        "add": "プロンプトを追加",
+        "edit": "プロンプトを編集",
+        "delete": "プロンプトを削除",
+        "deleteConfirm": "このプロンプトを削除してもよろしいですか？",
+        "titleLabel": "タイトル",
+        "titlePlaceholder": "タイトルを入力",
+        "contentLabel": "内容",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。"
+      },
+      "settings.knowledge_base.recognition.tip": "アシスタントは大規模言語モデルの意図認識能力を使用して、ナレッジベースを参照する必要があるかどうかを判断します。この機能はモデルの能力に依存します",
+      "settings.knowledge_base.recognition": "ナレッジベースの呼び出し",
+      "settings.knowledge_base.recognition.off": "強制検索",
+      "settings.knowledge_base.recognition.on": "意図認識",
+      "list": {
+        "showByList": "リスト表示",
+        "showByTags": "タグ表示"
+      },
+      "tags": {
+        "untagged": "未分類",
+        "none": "タグなし",
+        "manage": "タグ管理",
+        "add": "タグ追加",
+        "modify": "タグ修正",
+        "delete": "タグ削除",
+        "deleteConfirm": "このタグを削除してもよろしいですか？",
+        "settings": {
+          "title": "タグ設定"
+        }
+      },
+      "settings.tool_use_mode": "工具調用方式",
+      "settings.tool_use_mode.function": "関数",
+      "settings.tool_use_mode.prompt": "提示詞"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -91,7 +148,10 @@
       "manage": "管理",
       "select_model": "モデルを選択",
       "show.all": "すべて表示",
-      "update_available": "更新可能"
+      "update_available": "更新可能",
+      "includes_user_questions": "ユーザーからの質問を含む",
+      "case_sensitive": "大文字と小文字の区別",
+      "whole_word": "全語一致"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
@@ -100,7 +160,7 @@
       "artifacts.button.preview": "プレビュー",
       "artifacts.preview.openExternal.error.content": "外部ブラウザの起動に失敗しました。",
       "assistant.search.placeholder": "検索",
-      "deeply_thought": "深く考えています（{{secounds}} 秒）",
+      "deeply_thought": "深く考えています（{{seconds}} 秒）",
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
       "default.name": "デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
@@ -123,6 +183,7 @@
       "input.estimated_tokens.tip": "推定トークン数",
       "input.expand": "展開",
       "input.file_not_supported": "モデルはこのファイルタイプをサポートしません",
+      "input.file_error": "ファイル処理エラー",
       "input.generate_image": "画像を生成する",
       "input.generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "input.knowledge_base": "ナレッジベース",
@@ -136,7 +197,8 @@
       "input.translate": "{{target_language}}に翻訳",
       "input.upload": "画像またはドキュメントをアップロード",
       "input.upload.document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
-      "input.web_search": "ウェブ検索を有効にする",
+      "input.web_search": "ウェブ検索",
+      "input.web_search.settings": "ウェブ検索設定",
       "input.web_search.button.ok": "設定に移動",
       "input.web_search.enable": "ウェブ検索を有効にする",
       "input.web_search.enable_content": "ウェブ検索の接続性を先に設定で確認する必要があります",
@@ -146,6 +208,8 @@
       "message.quote": "引用",
       "message.regenerate.model": "モデルを切り替え",
       "message.useful": "役立つ",
+      "multiple.select": "選択",
+      "multiple.select.empty": "メッセージが選択されていません",
       "navigation": {
         "first": "最初のメッセージです",
         "history": "チャット履歴",
@@ -158,6 +222,20 @@
       },
       "resend": "再送信",
       "save": "保存",
+      "settings.code.title": "コード設定",
+      "settings.code_editor": {
+        "title": "コードエディター",
+        "highlight_active_line": "アクティブ行をハイライト",
+        "fold_gutter": "折りたたみガター",
+        "autocompletion": "自動補完",
+        "keymap": "キーマップ"
+      },
+      "settings.code_execution": {
+        "title": "コード実行",
+        "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
+        "timeout_minutes": "タイムアウト時間",
+        "timeout_minutes.tip": "コード実行のタイムアウト時間（分）"
+      },
       "settings.code_collapsible": "コードブロック折り畳み",
       "settings.code_wrappable": "コードブロック折り返し",
       "settings.code_cacheable": "コードブロックキャッシュ",
@@ -171,9 +249,9 @@
       "settings.context_count": "コンテキスト",
       "settings.context_count.tip": "コンテキストに保持する以前のメッセージの数",
       "settings.max": "最大",
-      "settings.max_tokens": "最大トークン制限を有効にする",
-      "settings.max_tokens.confirm": "最大トークン制限を有効にする",
-      "settings.max_tokens.confirm_content": "最大トークン制限を有効にすると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
+      "settings.max_tokens": "最大トークン数",
+      "settings.max_tokens.confirm": "最大トークン数",
+      "settings.max_tokens.confirm_content": "最大トークン数を設定すると、モデルが生成できる最大トークン数が制限されます。これにより、返される結果の長さに影響が出る可能性があります。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.max_tokens.tip": "モデルが生成できる最大トークン数。モデルのコンテキスト制限に基づいて設定する必要があります。そうしないとエラーが発生します",
       "settings.reset": "リセット",
       "settings.set_as_default": "デフォルトのアシスタントに適用",
@@ -185,7 +263,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "デフォルト値は1で、値が小さいほど回答の多様性が減り、理解しやすくなります。値が大きいほど、AIの語彙範囲が広がり、多様性が増します",
       "suggestions.title": "提案された質問",
-      "thinking": "思考中...",
+      "thinking": "思考中（用時 {{seconds}} 秒）",
       "topics.auto_rename": "自動リネーム",
       "topics.clear.title": "メッセージをクリア",
       "topics.copy.image": "画像としてコピー",
@@ -244,16 +322,56 @@
       "translate": "翻訳",
       "topics.export.siyuan": "思源笔记にエクスポート",
       "topics.export.wait_for_title_naming": "タイトルを生成中...",
+      "topics.export.obsidian_reasoning": "思考過程を含める",
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
       "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
       "input.translating": "翻訳中...",
-      "input.upload.upload_from_local": "ローカルファイルをアップロード..."
+      "input.upload.upload_from_local": "ローカルファイルをアップロード...",
+      "input.web_search.builtin": "モデル内蔵",
+      "input.web_search.builtin.enabled_content": "モデル内蔵のウェブ検索機能を使用",
+      "input.web_search.builtin.disabled_content": "現在のモデルはウェブ検索をサポートしていません",
+      "input.web_search.no_web_search": "ウェブ検索を無効にする",
+      "input.web_search.no_web_search.description": "ウェブ検索を無効にする",
+      "input.tools.collapse": "折りたたむ",
+      "input.tools.expand": "展開",
+      "input.tools.collapse_in": "折りたたむ",
+      "input.tools.collapse_out": "展開",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "デフォルト",
+      "input.thinking.mode.custom": "カスタム",
+      "input.thinking.mode.custom.tip": "モデルが最大で思考できるトークン数。モデルのコンテキスト制限を考慮する必要があります。そうしないとエラーが発生します",
+      "input.thinking.mode.default.tip": "モデルが自動的に思考のトークン数を決定します",
+      "input.thinking.mode.tokens.tip": "思考のトークン数を設定します",
+      "input.thinking.budget_exceeds_max": "思考予算が最大トークン数を超えました"
     },
     "code_block": {
       "collapse": "折りたたむ",
-      "disable_wrap": "改行解除",
-      "enable_wrap": "改行",
-      "expand": "展開する"
+      "copy.failed": "コピーに失敗しました",
+      "copy.source": "コピー源コード",
+      "copy.success": "コピーしました",
+      "copy": "コピー",
+      "download.failed.network": "ダウンロードに失敗しました。ネットワークを確認してください",
+      "download.png": "PNGとしてダウンロード",
+      "download.source": "ダウンロード源コード",
+      "download.svg": "SVGとしてダウンロード",
+      "download": "ダウンロード",
+      "edit.save.failed.message_not_found": "保存に失敗しました。対応するメッセージが見つかりませんでした",
+      "edit.save.failed": "保存に失敗しました",
+      "edit.save.success": "保存しました",
+      "edit.save": "保存する",
+      "edit": "編集",
+      "expand": "展開する",
+      "more": "もっと",
+      "preview.copy.image": "画像としてコピー",
+      "preview.source": "ソースコードを表示",
+      "preview.zoom_in": "拡大",
+      "preview.zoom_out": "縮小",
+      "preview": "プレビュー",
+      "run": "コードを実行",
+      "split.restore": "分割視圖を解除",
+      "split": "分割視圖",
+      "wrap.off": "改行解除",
+      "wrap.on": "改行"
     },
     "common": {
       "add": "追加",
@@ -269,6 +387,7 @@
       "confirm": "確認",
       "copied": "コピーされました",
       "copy": "コピー",
+      "inspect": "検査",
       "cut": "切り取り",
       "default": "デフォルト",
       "delete": "削除",
@@ -284,6 +403,7 @@
       "fullscreen": "全画面モードに入りました。F11キーで終了します",
       "knowledge_base": "ナレッジベース",
       "language": "言語",
+      "loading": "読み込み中...",
       "model": "モデル",
       "models": "モデル",
       "more": "もっと",
@@ -297,6 +417,8 @@
       "save": "保存",
       "search": "検索",
       "select": "選択",
+      "selectedMessages": "{{count}}件のメッセージを選択しました",
+      "success": "成功",
       "topics": "トピック",
       "warning": "警告",
       "you": "あなた",
@@ -305,7 +427,8 @@
         "pinyin": "ピンインでソート",
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
-      }
+      },
+      "no_results": "検索結果なし"
     },
     "docs": {
       "title": "ドキュメント"
@@ -332,7 +455,8 @@
         "title": "レンダリングエラー"
       },
       "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
-      "unknown": "不明なエラー"
+      "unknown": "不明なエラー",
+      "pause_placeholder": "応答を一時停止しました"
     },
     "export": {
       "assistant": "アシスタント",
@@ -440,7 +564,7 @@
       "threshold_tooltip": "ユーザーの質問と知識ベースの内容の関連性を評価するためのしきい値（0-1）",
       "title": "ナレッジベース",
       "topN": "返却される結果の数",
-      "topN__too_large_or_small": "結果の数は100より大きくてはならず、1より小さくてはなりません。",
+      "topN_too_large_or_small": "結果の数は30より大きくてはならず、1より小さくてはなりません。",
       "topN_placeholder": "未設定",
       "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
       "url_added": "URLが追加されました",
@@ -463,7 +587,14 @@
       "korean": "韓国語",
       "portuguese": "ポルトガル語",
       "russian": "ロシア語",
-      "spanish": "スペイン語"
+      "spanish": "スペイン語",
+      "polish": "ポーランド語",
+      "turkish": "トルコ語",
+      "thai": "タイ語",
+      "vietnamese": "ベトナム語",
+      "indonesian": "インドネシア語",
+      "urdu": "ウルドゥー語",
+      "malay": "マレー語"
     },
     "lmstudio": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -471,22 +602,11 @@
       "keep_alive_time.title": "保持時間",
       "title": "LM Studio"
     },
-    "mermaid": {
-      "download": {
-        "png": "PNGをダウンロード",
-        "svg": "SVGをダウンロード"
-      },
-      "resize": {
-        "zoom-in": "拡大する",
-        "zoom-out": "ズームアウト"
-      },
-      "tabs": {
-        "preview": "プレビュー",
-        "source": "ソース"
-      },
-      "title": "Mermaid図"
-    },
     "message": {
+      "agents": {
+        "imported": "インポートに成功しました",
+        "import.error": "インポートに失敗しました"
+      },
       "api.check.model.title": "検出に使用するモデルを選択してください",
       "api.connection.failed": "接続に失敗しました",
       "api.connection.success": "接続に成功しました",
@@ -499,16 +619,23 @@
       "backup.start.success": "バックアップを開始しました",
       "backup.success": "バックアップに成功しました",
       "chat.completion.paused": "チャットの完了が一時停止されました",
-      "citations": "参考文献",
+      "citation": "{{count}}個の引用内容",
+      "citations": "引用内容",
       "copied": "コピーしました！",
       "copy.failed": "コピーに失敗しました",
       "copy.success": "コピーしました！",
-      "error.chunk_overlap_too_large": "チャンクの重なりは、チャンクサイズを超えることはできません",
+      "delete.confirm.title": "削除確認",
+      "delete.confirm.content": "選択した{{count}}件のメッセージを削除しますか？",
+      "delete.failed": "削除に失敗しました",
+      "delete.success": "削除が成功しました",
+      "error.chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
+      "empty_url": "画像をダウンロードできません。プロンプトに不適切なコンテンツや禁止用語が含まれている可能性があります",
       "error.dimension_too_large": "内容のサイズが大きすぎます",
       "error.enter.api.host": "APIホストを入力してください",
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
       "error.enter.name": "ナレッジベース名を入力してください",
+      "error.fetchTopicName": "トピックの命名に失敗しました",
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "error.invalid.api.host": "無効なAPIアドレスです",
       "error.invalid.api.key": "無効なAPIキーです",
@@ -544,6 +671,7 @@
       "message.style": "メッセージスタイル",
       "message.style.bubble": "バブル",
       "message.style.plain": "プレーン",
+      "processing": "処理中...",
       "regenerate.confirm": "再生成すると現在のメッセージが置き換えられます",
       "reset.confirm.content": "すべてのデータをリセットしてもよろしいですか？",
       "reset.double.confirm.content": "すべてのデータが失われます。続行しますか？",
@@ -576,11 +704,15 @@
       "success.siyuan.export": "思源ノートへのエクスポートに成功しました",
       "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
       "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
-      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません"
+      "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません",
+      "download.success": "ダウンロードに成功しました",
+      "download.failed": "ダウンロードに失敗しました"
     },
     "minapp": {
       "popup": {
         "refresh": "更新",
+        "goBack": "戻る",
+        "goForward": "進む",
         "close": "ミニアプリを閉じる",
         "minimize": "ミニアプリを最小化",
         "devtools": "開発者ツール",
@@ -589,11 +721,26 @@
         "open_link_external_on": "現在：ブラウザで開く",
         "open_link_external_off": "現在：デフォルトのウィンドウで開く"
       },
-      "sidebar.add.title": "サイドバーに追加",
-      "sidebar.remove.title": "サイドバーから削除",
-      "sidebar.close.title": "閉じる",
-      "sidebar.closeall.title": "すべて閉じる",
-      "sidebar.hide.title": "ミニアプリを隠す",
+      "sidebar": {
+        "add": {
+          "title": "サイドバーに追加"
+        },
+        "remove": {
+          "title": "サイドバーから削除"
+        },
+        "remove_custom": {
+          "title": "カスタムアプリを削除"
+        },
+        "hide": {
+          "title": "非表示"
+        },
+        "close": {
+          "title": "閉じる"
+        },
+        "closeall": {
+          "title": "すべて閉じる"
+        }
+      },
       "title": "ミニアプリ"
     },
     "miniwindow": {
@@ -647,6 +794,7 @@
       "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
       "search": "モデルを検索...",
       "stream_output": "ストリーム出力",
+      "enable_tool_use": "ツール呼び出し",
       "type": {
         "embedding": "埋め込み",
         "free": "無料",
@@ -657,12 +805,18 @@
         "text": "テキスト",
         "vision": "画像",
         "websearch": "ウェブ検索"
-      }
+      },
+      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。"
     },
     "navbar": {
       "expand": "ダイアログを展開",
       "hide_sidebar": "サイドバーを非表示",
       "show_sidebar": "サイドバーを表示"
+    },
+    "notification": {
+      "assistant": "助手回應",
+      "knowledge.success": "ナレッジベースに{{type}}を正常に追加しました",
+      "knowledge.error": "ナレッジベースへの{{type}}の追加に失敗しました: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -689,19 +843,126 @@
       "regenerate.confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？",
       "seed": "シード",
       "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
-      "title": "画像"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "ダウンロードに失敗しました。ネットワークを確認してください",
-        "png": "PNG をダウンロード",
-        "svg": "SVG をダウンロード"
+      "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
+      "title": "画像",
+      "magic_prompt_option": "プロンプト強化",
+      "model": "モデル",
+      "aspect_ratio": "画幅比例",
+      "style_type": "スタイル",
+      "learn_more": "詳しくはこちら",
+      "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
+      "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
+      "paint_course": "チュートリアル",
+      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
+      "image_file_required": "画像を先にアップロードしてください",
+      "image_file_retry": "画像を先にアップロードしてください",
+      "image_placeholder": "画像がありません",
+      "image_retry": "再試行",
+      "style_types": {
+        "auto": "自動",
+        "general": "一般",
+        "realistic": "リアル",
+        "design": "デザイン",
+        "3d": "3D",
+        "anime": "アニメ"
       },
-      "tabs": {
-        "preview": "プレビュー",
-        "source": "ソースコード"
+      "rendering_speeds": {
+        "default": "デフォルト",
+        "turbo": "高速",
+        "quality": "高品質"
       },
-      "title": "PlantUML 図表"
+      "quality_options": {
+        "auto": "自動",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自動",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自動",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "aspect_ratios": {
+        "square": "正方形",
+        "portrait": "縦図",
+        "landscape": "横図"
+      },
+      "person_generation_options": {
+        "allow_all": "許可する",
+        "allow_adult": "許可する",
+        "allow_none": "許可しない"
+      },
+      "quality": "品質",
+      "moderation": "敏感度",
+      "background": "背景",
+      "mode": {
+        "generate": "画像生成",
+        "edit": "部分編集",
+        "remix": "混合",
+        "upscale": "拡大"
+      },
+      "generate": {
+        "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
+        "number_images_tip": "一度に生成する画像の枚数",
+        "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
+        "negative_prompt_tip": "画像に含めたくない内容を説明します",
+        "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
+        "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+        "person_generation": "人物生成",
+        "person_generation_tip": "人物画像を生成する"
+      },
+      "edit": {
+        "image_file": "編集画像",
+        "model_tip": "部分編集は V_2 と V_2_TURBO のバージョンのみサポートします",
+        "number_images_tip": "生成される編集結果の数",
+        "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用",
+        "seed_tip": "編集結果のランダム性を制御します",
+        "magic_prompt_option_tip": "編集効果を向上させるための提示詞を最適化します",
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
+      },
+      "remix": {
+        "model_tip": "リミックスに使用する AI モデルのバージョンを選択します",
+        "image_file": "参照画像",
+        "image_weight": "参照画像の重み",
+        "image_weight_tip": "参照画像の影響度を調整します",
+        "number_images_tip": "生成されるリミックス結果の数",
+        "seed_tip": "リミックス結果のランダム性を制御します",
+        "style_type_tip": "リミックス後の画像スタイル、V_2 以上のバージョンでのみ適用",
+        "negative_prompt_tip": "リミックス結果に含めたくない内容を説明します",
+        "magic_prompt_option_tip": "リミックス効果を向上させるための提示詞を最適化します",
+        "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です"
+      },
+      "upscale": {
+        "image_file": "拡大する画像",
+        "resemblance": "類似度",
+        "resemblance_tip": "拡大結果と原画像の類似度を制御します",
+        "detail": "詳細度",
+        "detail_tip": "拡大画像の詳細度を制御します",
+        "number_images_tip": "生成される拡大結果の数",
+        "seed_tip": "拡大結果のランダム性を制御します",
+        "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します"
+      },
+      "rendering_speed": "レンダリング速度",
+      "translating": "翻訳中...",
+      "text_desc_required": "画像の説明を先に入力してください",
+      "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "auto_create_paint": "画像を自動作成",
+      "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。",
+      "select_model": "モデルを選択",
+      "input_parameters": "パラメータ入力",
+      "input_image": "入力画像",
+      "generated_image": "生成画像",
+      "pricing": "料金",
+      "model_and_pricing": "モデルと料金",
+      "per_image": "1枚あたり",
+      "per_images": "複数枚あたり",
+      "required_field": "必須項目",
+      "uploaded_input": "アップロード済みの入力"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
@@ -710,6 +971,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -754,7 +1016,8 @@
       "zhinao": "360智脳",
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云"
+      "qiniu": "七牛云 AI 推理",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -808,6 +1071,8 @@
         "app_knowledge.remove_all": "ナレッジベースファイルを削除",
         "app_knowledge.remove_all_confirm": "ナレッジベースファイルを削除すると、ナレッジベース自体は削除されません。これにより、ストレージ容量を節約できます。続行しますか？",
         "app_knowledge.remove_all_success": "ファイル削除成功",
+        "backup.skip_file_data_title": "精簡バックアップ",
+        "backup.skip_file_data_help": "バックアップ時に、画像や知識ベースなどのデータファイルをバックアップ対象から除外し、チャット履歴と設定のみをバックアップします。スペースの占有を減らし、バックアップ速度を向上させます。",
         "app_logs": "アプリログ",
         "clear_cache": {
           "button": "キャッシュをクリア",
@@ -848,7 +1113,9 @@
           "token": "Joplin 認証トークン",
           "token_placeholder": "Joplin 認証トークンを入力してください",
           "url": "Joplin 剪輯服務 URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "エクスポート時に思考過程を含める",
+          "export_reasoning.help": "有効にすると、エクスポートされる内容にアシスタントが生成した思考過程（リースニングチェーン）が含まれます。"
         },
         "markdown_export.force_dollar_math.help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "markdown_export.force_dollar_math.title": "LaTeX数式に$$を強制使用",
@@ -857,29 +1124,12 @@
         "markdown_export.path_placeholder": "エクスポートパス",
         "markdown_export.select": "選択",
         "markdown_export.title": "Markdown エクスポート",
+        "markdown_export.show_model_name.title": "エクスポート時にモデル名を使用",
+        "markdown_export.show_model_name.help": "有効にすると、トピック命名モデルがエクスポートされたメッセージのタイトル作成に使用されます。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
+        "markdown_export.show_model_provider.title": "モデルプロバイダーを表示",
+        "markdown_export.show_model_provider.help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
         "minute_interval_one": "{{count}} 分",
         "minute_interval_other": "{{count}} 分",
-        "notion.api_key": "Notion APIキー",
-        "notion.api_key_placeholder": "Notion APIキーを入力してください",
-        "notion.auto_split": "ダイアログをエクスポートすると自動ページ分割",
-        "notion.auto_split_tip": "ダイアログが長い場合、Notionに自動的にページ分割してエクスポートします",
-        "notion.check": {
-          "button": "確認",
-          "empty_api_key": "Api_keyが設定されていません",
-          "empty_database_id": "Database_idが設定されていません",
-          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
-          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
-          "success": "接続に成功しました。"
-        },
-        "notion.database_id": "Notion データベースID",
-        "notion.database_id_placeholder": "Notion データベースIDを入力してください",
-        "notion.help": "Notion 設定ドキュメント",
-        "notion.page_name_key": "ページタイトルフィールド名",
-        "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
-        "notion.split_size": "自動ページ分割サイズ",
-        "notion.split_size_help": "Notion無料版ユーザーは90、有料版ユーザーは24990、デフォルトは90",
-        "notion.split_size_placeholder": "ページごとのブロック数制限を入力してください(デフォルト90)",
-        "notion.title": "Notion 設定",
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
@@ -999,7 +1249,25 @@
           "new_folder.button": "新しいフォルダー"
         },
         "message_title.use_topic_naming.title": "トピック命名モデルを使用してメッセージのタイトルを作成",
-        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。"
+        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。",
+        "notion.api_key": "Notion APIキー",
+        "notion.api_key_placeholder": "Notion APIキーを入力してください",
+        "notion.check": {
+          "button": "確認",
+          "empty_api_key": "Api_keyが設定されていません",
+          "empty_database_id": "Database_idが設定されていません",
+          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "success": "接続に成功しました。"
+        },
+        "notion.database_id": "Notion データベースID",
+        "notion.database_id_placeholder": "Notion データベースIDを入力してください",
+        "notion.help": "Notion 設定ドキュメント",
+        "notion.page_name_key": "ページタイトルフィールド名",
+        "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
+        "notion.title": "Notion 設定",
+        "notion.export_reasoning.title": "エクスポート時に思考チェーンを含める",
+        "notion.export_reasoning.help": "有効にすると、Notionにエクスポートする際に思考チェーンの内容が含まれます。"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
@@ -1016,6 +1284,7 @@
       "display.sidebar.translate.icon": "翻訳のアイコンを表示",
       "display.sidebar.visible": "アイコンを表示",
       "display.title": "表示設定",
+      "display.zoom.title": "ズーム設定",
       "display.topic.title": "トピック設定",
       "miniapps": {
         "title": "ミニアプリ設定",
@@ -1032,7 +1301,38 @@
         "display_title": "ミニアプリ表示設定",
         "sidebar_title": "サイドバーのアクティブなミニアプリ表示",
         "sidebar_description": "サイドバーにアクティブなミニアプリを表示するかどうかを設定します",
-        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます"
+        "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
+        "custom": {
+          "title": "カスタムミニアプリ",
+          "edit_title": "カスタムミニアプリの編集",
+          "save_success": "カスタムミニアプリの保存に成功しました。",
+          "save_error": "カスタムミニアプリの保存に失敗しました。",
+          "remove_success": "カスタムミニアプリの削除に成功しました。",
+          "remove_error": "カスタムミニアプリの削除に失敗しました。",
+          "logo_upload_success": "ロゴのアップロードに成功しました。",
+          "logo_upload_error": "ロゴのアップロードに失敗しました。",
+          "id": "ID",
+          "id_error": "IDは必須項目です。",
+          "id_placeholder": "IDを入力してください",
+          "name": "名前",
+          "name_error": "名前は必須項目です。",
+          "name_placeholder": "名前を入力してください",
+          "url": "URL",
+          "url_error": "URLは必須項目です。",
+          "url_placeholder": "URLを入力してください",
+          "logo": "ロゴ",
+          "logo_url": "ロゴURL",
+          "logo_file": "ロゴファイルをアップロード",
+          "logo_url_label": "ロゴURL",
+          "logo_url_placeholder": "ロゴURLを入力してください",
+          "logo_upload_label": "ロゴをアップロード",
+          "logo_upload_button": "アップロード",
+          "save": "保存",
+          "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリにはid、name、url、logoフィールドが必要です。",
+          "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）",
+          "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
+          "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}"
+        }
       },
       "font_size.title": "メッセージのフォントサイズ",
       "general": "一般設定",
@@ -1064,6 +1364,14 @@
         "active": "有効",
         "addError": "サーバーの追加に失敗しました",
         "addServer": "サーバーを追加",
+        "addServer.create": "クイック作成",
+        "addServer.importFrom": "JSONからインポート",
+        "addServer.importFrom.tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。",
+        "addServer.importFrom.placeholder": "MCPサーバーJSON設定を貼り付け",
+        "addServer.importFrom.invalid": "無効な入力です。JSON形式を確認してください。",
+        "addServer.importFrom.nameExists": "サーバーはすでに存在します: {{name}}",
+        "addServer.importFrom.oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
+        "addServer.importFrom.connectionFailed": "接続に失敗しました",
         "addSuccess": "サーバーが正常に追加されました",
         "args": "引数",
         "argsTooltip": "1行に1つの引数を入力してください",
@@ -1074,11 +1382,14 @@
         "stdio": "標準入力/出力 (stdio)",
         "inMemory": "メモリ",
         "config_description": "モデルコンテキストプロトコルサーバーの設定",
+        "disable": "MCPサーバーを無効にする",
+        "disable.description": "MCP機能を有効にしない",
         "deleteError": "サーバーの削除に失敗しました",
         "deleteSuccess": "サーバーが正常に削除されました",
         "dependenciesInstall": "依存関係をインストール",
         "dependenciesInstalling": "依存関係をインストール中...",
         "description": "説明",
+        "noDescriptionAvailable": "説明がありません",
         "duplicateName": "同じ名前のサーバーが既に存在します",
         "editJson": "JSONを編集",
         "editServer": "サーバーを編集",
@@ -1196,6 +1507,8 @@
         "providerPlaceholder": "プロバイダー名",
         "advancedSettings": "詳細設定"
       },
+      "messages.prompt": "プロンプト表示",
+      "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
@@ -1206,7 +1519,7 @@
       "messages.input.send_shortcuts": "送信ショートカット",
       "messages.input.show_estimated_tokens": "推定トークン数を表示",
       "messages.input.title": "入力設定",
-      "messages.input.enable_quick_triggers": "'/' と '@' を有効にしてクイックメニューを表示します。",
+      "messages.input.enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
       "messages.input.enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
       "messages.markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
       "messages.math_engine": "数式エンジン",
@@ -1226,6 +1539,7 @@
       "models.add.group_name.tooltip": "例：ChatGPT",
       "models.add.model_id": "モデルID",
       "models.add.model_id.placeholder": "必須 例：gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "モデルを選択",
       "models.add.model_id.tooltip": "例：gpt-3.5-turbo",
       "models.add.model_name": "モデル名",
       "models.add.model_name.placeholder": "例：GPT-3.5",
@@ -1237,7 +1551,10 @@
       "models.check.enabled": "開く",
       "models.check.failed": "失敗",
       "models.check.keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 個のモデルが健康チェックを完了しました（{{count_partial}} 個のモデルは一部のキーにアクセスできませんでした）、{{count_failed}} 個のモデルは完全にアクセスできませんでした。",
+      "models.check.model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
+      "models.check.model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
+      "models.check.model_status_passed": "{{count}} 個のモデルが健康チェックを通過しました",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
       "models.check.passed": "成功",
       "models.check.select_api_key": "使用するAPIキーを選択：",
@@ -1245,10 +1562,13 @@
       "models.check.start": "開始",
       "models.check.title": "モデル健康チェック",
       "models.check.use_all_keys": "キー",
+      "models.check.disclaimer": "健康チェックはリクエストを送信するため、費用が発生する可能性があります。慎重に使用してください。",
       "models.default_assistant_model": "デフォルトアシスタントモデル",
       "models.default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "models.empty": "モデルが見つかりません",
       "models.enable_topic_naming": "トピックの自動命名",
+      "models.manage.add_listed": "リストにモデルを追加",
+      "models.manage.remove_listed": "リストからモデルを削除",
       "models.manage.add_whole_group": "グループ全体を追加",
       "models.manage.remove_whole_group": "グループ全体を削除",
       "models.topic_naming_model": "トピック命名モデル",
@@ -1259,6 +1579,8 @@
       "models.translate_model_description": "翻訳サービスに使用されるモデル",
       "models.translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
       "models.translate_model_prompt_title": "翻訳モデルのプロンプト",
+      "models.quick_assistant_model": "クイックアシスタントモデル",
+      "models.quick_assistant_model_description": "クイックアシスタントで使用されるデフォルトモデル",
       "moresetting": "詳細設定",
       "moresetting.check.confirm": "選択を確認",
       "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",
@@ -1315,6 +1637,9 @@
           "rate_limit": "レート制限",
           "tooltip": "Github Copilot を使用するには、まず Github にログインする必要があります。"
         },
+        "dmxapi": {
+          "select_platform": "プラットフォームを選択"
+        },
         "delete.content": "このプロバイダーを削除してもよろしいですか？",
         "delete.title": "プロバイダーを削除",
         "docs_check": "チェック",
@@ -1332,6 +1657,9 @@
           "title": "モデルノート",
           "placeholder": "Markdown形式の内容を入力してください...",
           "markdown_editor_default_value": "プレビュー領域"
+        },
+        "openai": {
+          "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
         }
       },
       "proxy": {
@@ -1356,6 +1684,7 @@
         "clear_shortcut": "ショートカットをクリア",
         "clear_topic": "メッセージを消去",
         "copy_last_message": "最後のメッセージをコピー",
+        "exit_fullscreen": "フルスクリーンを終了",
         "key": "キー",
         "mini_window": "クイックアシスタント",
         "new_topic": "新しいトピック",
@@ -1364,6 +1693,7 @@
         "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
         "reset_to_default": "デフォルトにリセット",
         "search_message": "メッセージを検索",
+        "search_message_in_chat": "現在のチャットでメッセージを検索",
         "show_app": "アプリを表示/非表示",
         "show_settings": "設定を開く",
         "title": "ショートカット",
@@ -1374,10 +1704,11 @@
         "zoom_out": "ズームアウト",
         "zoom_reset": "ズームをリセット"
       },
-      "theme.auto": "自動",
+      "theme.system": "システム",
       "theme.dark": "ダーク",
       "theme.light": "ライト",
       "theme.title": "テーマ",
+      "theme.color_primary": "テーマ色",
       "theme.window.style.opaque": "不透明ウィンドウ",
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
@@ -1386,6 +1717,7 @@
       "topic.position.left": "左",
       "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
+      "topic.pin_to_top": "固定トピックを上部に表示",
       "tray.onclose": "閉じるときにトレイに最小化",
       "tray.show": "トレイアイコンを表示",
       "tray.title": "トレイ",
@@ -1435,7 +1767,10 @@
         "titlePlaceholder": "フレーズのタイトルを入力してください",
         "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもできます。変数を使用する場合は、Tabキーを押して変数を選択し、変数を変更してください。例：\n私の名前は${name}です。",
         "delete": "フレーズを削除",
-        "deleteConfirm": "削除後は復元できません。続行しますか？"
+        "deleteConfirm": "削除後は復元できません。続行しますか？",
+        "locationLabel": "追加場所",
+        "global": "グローバルクイックフレーズ",
+        "assistant": "アシスタントプロンプト"
       },
       "quickPanel": {
         "title": "クイックメニュー",
@@ -1451,12 +1786,44 @@
         "title": "プライバシー設定",
         "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信"
       },
-      "input.show_translate_confirm": "[to be translated]:显示翻译确认对话框"
+      "zoom": {
+        "title": "ページズーム",
+        "reset": "リセット"
+      },
+      "input.show_translate_confirm": "翻訳確認ダイアログを表示",
+      "about.debug.title": "デバッグ",
+      "about.debug.open": "開く",
+      "openai": {
+        "title": "OpenAIの設定",
+        "summary_text_mode.title": "要約モード",
+        "summary_text_mode.tip": "モデルが行った推論の要約",
+        "summary_text_mode.auto": "自動",
+        "summary_text_mode.concise": "簡潔",
+        "summary_text_mode.detailed": "詳細",
+        "summary_text_mode.off": "オフ",
+        "service_tier.title": "サービスティア",
+        "service_tier.tip": "リクエスト処理に使用するレイテンシティアを指定します",
+        "service_tier.auto": "自動",
+        "service_tier.default": "デフォルト",
+        "service_tier.flex": "フレックス"
+      },
+      "notification": {
+        "title": "通知設定",
+        "assistant": "アシスタントメッセージ",
+        "backup": "バックアップメッセージ",
+        "knowledge_embed": "ナレッジベースメッセージ"
+      }
     },
     "translate": {
       "any.language": "任意の言語",
+      "target_language": "目標言語",
+      "alter_language": "備用言語",
       "button.translate": "翻訳",
       "close": "閉じる",
+      "closed": "翻訳は閉じられました",
+      "copied": "翻訳内容がコピーされました",
+      "empty": "翻訳内容が空です",
+      "not.found": "翻訳内容が見つかりません",
       "confirm": {
         "content": "翻訳すると元のテキストが上書きされます。続行しますか？",
         "title": "翻訳確認"
@@ -1473,13 +1840,22 @@
       "input.placeholder": "翻訳するテキストを入力",
       "output.placeholder": "翻訳",
       "processing": "翻訳中...",
-      "scroll_sync.disable": "關閉滾動同步",
-      "scroll_sync.enable": "開啟滾動同步",
+      "language.same": "ソース言語と目標言語が同じです",
+      "language.not_pair": "ソース言語が設定された言語と異なります",
+      "settings": {
+        "title": "翻訳設定",
+        "model": "モデル設定",
+        "model_desc": "翻訳サービスで使用されるモデル",
+        "bidirectional": "双方向翻訳設定",
+        "bidirectional_tip": "有効にすると、ソース言語と目標言語間の双方向翻訳のみがサポートされます",
+        "scroll_sync": "スクロール同期設定"
+      },
       "title": "翻訳",
       "tooltip.newline": "改行",
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
-      }
+      },
+      "detected.language": "検出された言語"
     },
     "tray": {
       "quit": "終了",
@@ -1491,6 +1867,174 @@
       "quit": "終了",
       "show_window": "ウィンドウを表示",
       "visualization": "可視化"
+    },
+    "update": {
+      "title": "更新",
+      "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
+      "later": "後で",
+      "install": "今すぐインストール",
+      "noReleaseNotes": "暫無更新日誌"
+    },
+    "selection": {
+      "name": "テキスト選択ツール",
+      "action": {
+        "builtin": {
+          "translate": "翻訳",
+          "explain": "解説",
+          "summary": "要約",
+          "search": "検索",
+          "refine": "最適化",
+          "copy": "コピー"
+        },
+        "window": {
+          "pin": "最前面に固定",
+          "pinned": "固定中",
+          "opacity": "ウィンドウの透過度",
+          "original_show": "原文を表示",
+          "original_hide": "原文を非表示",
+          "original_copy": "原文をコピー",
+          "esc_close": "Escで閉じる",
+          "esc_stop": "Escで停止",
+          "c_copy": "Cでコピー",
+          "r_regenerate": "Rで再生成"
+        },
+        "translate": {
+          "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
+        }
+      },
+      "settings": {
+        "experimental": "実験的機能",
+        "enable": {
+          "title": "有効化",
+          "description": "現在Windowsのみ対応"
+        },
+        "toolbar": {
+          "title": "ツールバー",
+          "trigger_mode": {
+            "title": "表示方法",
+            "description": "テキスト選択時に即時表示、またはCtrlキー押下時のみ表示",
+            "description_note": "一部のアプリはCtrlキーでのテキスト選択に対応していません。AHKなどでCtrlキーをリマップすると、選択できなくなる場合があります。",
+            "selected": "選択時",
+            "ctrlkey": "Ctrlキー"
+          },
+          "compact_mode": {
+            "title": "コンパクトモード",
+            "description": "アイコンのみ表示（テキスト非表示）"
+          }
+        },
+        "window": {
+          "title": "機能ウィンドウ",
+          "follow_toolbar": {
+            "title": "ツールバーに追従",
+            "description": "ウィンドウ位置をツールバーに連動（無効時は中央表示）"
+          },
+          "remember_size": {
+            "title": "サイズを記憶",
+            "description": "アプリケーション実行中、ウィンドウは最後に調整されたサイズで表示されます"
+          },
+          "auto_close": {
+            "title": "自動閉じる",
+            "description": "最前面固定されていない場合、フォーカス喪失時に自動閉じる"
+          },
+          "auto_pin": {
+            "title": "自動で最前面に固定",
+            "description": "デフォルトで最前面表示"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "デフォルトの透明度を設定（100%は完全不透明）"
+          }
+        },
+        "actions": {
+          "title": "機能設定",
+          "reset": {
+            "button": "リセット",
+            "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",
+            "confirm": "デフォルト機能にリセットしますか？\nカスタム機能は削除されません"
+          },
+          "add_tooltip": {
+            "enabled": "カスタム機能を追加",
+            "disabled": "カスタム機能の上限に達しました (最大{{max}}個)"
+          },
+          "delete_confirm": "このカスタム機能を削除しますか？",
+          "drag_hint": "ドラッグで並べ替え (有効{{enabled}}/最大{{max}})"
+        },
+        "advanced": {
+          "title": "進階",
+          "filter_mode": {
+            "title": "アプリケーションフィルター",
+            "description": "特定のアプリケーションでのみ選択ツールを有効にするか、無効にするかを選択できます。",
+            "default": "オフ",
+            "whitelist": "ホワイトリスト",
+            "blacklist": "ブラックリスト"
+          },
+          "filter_list": {
+            "title": "フィルターリスト",
+            "description": "進階機能です。経験豊富なユーザー向けです。"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "カスタム機能追加",
+            "edit": "カスタム機能編集"
+          },
+          "name": {
+            "label": "機能名",
+            "hint": "機能名を入力"
+          },
+          "icon": {
+            "label": "アイコン",
+            "placeholder": "Lucideアイコン名を入力",
+            "error": "無効なアイコン名です",
+            "tooltip": "例: arrow-right（小文字で入力）",
+            "view_all": "全アイコンを表示",
+            "random": "ランダム選択"
+          },
+          "model": {
+            "label": "モデル",
+            "tooltip": "アシスタント使用時はシステムプロンプトとモデルパラメータも適用",
+            "default": "デフォルトモデル",
+            "assistant": "アシスタントを使用"
+          },
+          "assistant": {
+            "label": "アシスタント選択",
+            "default": "デフォルト"
+          },
+          "prompt": {
+            "label": "ユーザープロンプト",
+            "tooltip": "アシスタントのシステムプロンプトを上書きせず、入力補助として機能",
+            "placeholder": "{{text}}で選択テキストを参照（未入力時は末尾に追加）",
+            "placeholder_text": "プレースホルダー",
+            "copy_placeholder": "プレースホルダーをコピー"
+          }
+        },
+        "search_modal": {
+          "title": "検索エンジン設定",
+          "engine": {
+            "label": "検索エンジン",
+            "custom": "カスタム"
+          },
+          "custom": {
+            "name": {
+              "label": "表示名",
+              "hint": "検索エンジン名（16文字以内）",
+              "max_length": "16文字以内で入力"
+            },
+            "url": {
+              "label": "検索URL",
+              "hint": "{{queryString}}で検索語を表す",
+              "required": "URLを入力してください",
+              "invalid_format": "http:// または https:// で始まるURLを入力",
+              "missing_placeholder": "{{queryString}}を含めてください"
+            },
+            "test": "テスト"
+          }
+        },
+        "filter_modal": {
+          "title": "アプリケーションフィルターリスト",
+          "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
+        }
+      }
     }
   }
 }

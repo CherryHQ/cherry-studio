@@ -1,8 +1,11 @@
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
+import Logger from '@renderer/config/logger'
 import type { MCPConfig, MCPServer } from '@renderer/types'
 
 export const initialState: MCPConfig = {
-  servers: []
+  servers: [],
+  isUvInstalled: true,
+  isBunInstalled: true
 }
 
 const mcpSlice = createSlice({
@@ -29,6 +32,12 @@ const mcpSlice = createSlice({
       if (index !== -1) {
         state.servers[index].isActive = action.payload.isActive
       }
+    },
+    setIsUvInstalled: (state, action: PayloadAction<boolean>) => {
+      state.isUvInstalled = action.payload
+    },
+    setIsBunInstalled: (state, action: PayloadAction<boolean>) => {
+      state.isBunInstalled = action.payload
     }
   },
   selectors: {
@@ -39,7 +48,15 @@ const mcpSlice = createSlice({
   }
 })
 
-export const { setMCPServers, addMCPServer, updateMCPServer, deleteMCPServer, setMCPServerActive } = mcpSlice.actions
+export const {
+  setMCPServers,
+  addMCPServer,
+  updateMCPServer,
+  deleteMCPServer,
+  setMCPServerActive,
+  setIsBunInstalled,
+  setIsUvInstalled
+} = mcpSlice.actions
 
 // Export the generated selectors from the slice
 export const { getActiveServers, getAllServers } = mcpSlice.selectors
@@ -135,7 +152,7 @@ export const initializeMCPServers = (existingServers: MCPServer[], dispatch: (ac
   // Filter out any built-in servers that are already present
   const newServers = builtinMCPServers.filter((server) => !serverIds.has(server.name))
 
-  console.log('Adding new servers:', newServers)
+  Logger.log('[initializeMCPServers] Adding new servers:', newServers)
   // Add the new built-in servers to the existing servers
   newServers.forEach((server) => {
     dispatch(addMCPServer(server))

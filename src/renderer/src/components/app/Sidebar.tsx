@@ -1,12 +1,16 @@
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import i18n from '@renderer/i18n'
+import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
@@ -16,13 +20,13 @@ import {
   Folder,
   Languages,
   LayoutGrid,
-  MessageSquareQuote,
+  MessageSquare,
   Moon,
   Palette,
-  RefreshCcw,
   Settings,
   Sparkle,
-  Sun
+  Sun,
+  SunMoon
 } from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,7 +46,7 @@ const Sidebar: FC = () => {
   const { pathname } = useLocation()
   const navigate = useNavigate()
 
-  const { theme, settingTheme, toggleTheme } = useTheme()
+  const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
   const { t } = useTranslation()
 
@@ -59,18 +63,26 @@ const Sidebar: FC = () => {
 
   const docsId = 'cherrystudio-docs'
   const onOpenDocs = () => {
+    const isChinese = i18n.language.startsWith('zh')
     openMinapp({
       id: docsId,
       name: t('docs.title'),
-      url: 'https://docs.cherry-ai.com/',
+      url: isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us',
       logo: AppLogo
     })
   }
 
+  const isFullscreen = useFullscreen()
+
   return (
-    <Container id="app-sidebar" style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
+    <Container
+      $isFullscreen={isFullscreen}
+      id="app-sidebar"
+      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
-        <EmojiAvatar onClick={onEditUser}>{avatar}</EmojiAvatar>
+        <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
+          {avatar}
+        </EmojiAvatar>
       ) : (
         <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
       )}
@@ -95,16 +107,16 @@ const Sidebar: FC = () => {
           </Icon>
         </Tooltip>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settingTheme}`)}
+          title={t('settings.theme.title') + ': ' + t(`settings.theme.${settedTheme}`)}
           mouseEnterDelay={0.8}
           placement="right">
           <Icon theme={theme} onClick={() => toggleTheme()}>
-            {settingTheme === 'dark' ? (
+            {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
-            ) : settingTheme === 'light' ? (
+            ) : settedTheme === ThemeMode.light ? (
               <Sun size={20} className="icon" />
             ) : (
-              <RefreshCcw size={20} className="icon" />
+              <SunMoon size={20} className="icon" />
             )}
           </Icon>
         </Tooltip>
@@ -128,7 +140,7 @@ const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
   const { pathname } = useLocation()
-  const { sidebarIcons } = useSettings()
+  const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
@@ -137,7 +149,7 @@ const MainMenus: FC = () => {
   const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
 
   const iconMap = {
-    assistants: <MessageSquareQuote size={18} className="icon" />,
+    assistants: <MessageSquare size={18} className="icon" />,
     agents: <Sparkle size={18} className="icon" />,
     paintings: <Palette size={18} className="icon" />,
     translate: <Languages size={18} className="icon" />,
@@ -149,7 +161,7 @@ const MainMenus: FC = () => {
   const pathMap = {
     assistants: '/',
     agents: '/agents',
-    paintings: '/paintings',
+    paintings: `/paintings/${defaultPaintingProvider}`,
     translate: '/translate',
     minapp: '/apps',
     knowledge: '/knowledge',
@@ -308,7 +320,7 @@ const PinnedApps: FC = () => {
   )
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -316,9 +328,15 @@ const Container = styled.div`
   padding-bottom: 12px;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  height: ${isMac ? 'calc(100vh - var(--navbar-height))' : '100vh'};
+  height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
-  margin-top: ${isMac ? 'var(--navbar-height)' : 0};
+  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'var(--navbar-height)' : 0)};
+
+  .sidebar-avatar {
+    margin-bottom: ${isMac ? '12px' : '12px'};
+    margin-top: ${isMac ? '0px' : '2px'};
+    -webkit-app-region: none;
+  }
 `
 
 const AvatarImg = styled(Avatar)`
@@ -329,23 +347,6 @@ const AvatarImg = styled(Avatar)`
   margin-top: ${isMac ? '0px' : '2px'};
   border: none;
   cursor: pointer;
-`
-
-const EmojiAvatar = styled.div`
-  width: 31px;
-  height: 31px;
-  background-color: var(--color-background-soft);
-  margin-bottom: ${isMac ? '12px' : '12px'};
-  margin-top: ${isMac ? '0px' : '2px'};
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  cursor: pointer;
-  -webkit-app-region: none;
-  border: 0.5px solid var(--color-border);
-  font-size: 20px;
 `
 
 const MainMenusContainer = styled.div`
