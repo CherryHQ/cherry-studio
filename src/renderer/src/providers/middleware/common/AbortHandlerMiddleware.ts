@@ -11,23 +11,23 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
   (next) =>
   async (ctx: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
     const isRecursiveCall = ctx._internal?.toolProcessingState?.isRecursiveCall || false
-    const recursionDepth = ctx._internal?.toolProcessingState?.recursionDepth || 0
+    // const recursionDepth = ctx._internal?.toolProcessingState?.recursionDepth || 0
 
-    console.log(`[${MIDDLEWARE_NAME}] Starting middleware execution`)
-    console.log(
-      `🔄 [${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`
-    )
+    // console.log(`[${MIDDLEWARE_NAME}] Starting middleware execution`)
+    // console.log(
+    //   `🔄 [${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`
+    // )
 
     // 在递归调用中，跳过 AbortController 的创建，直接使用已有的
     if (isRecursiveCall) {
-      console.log(`🔄 [${MIDDLEWARE_NAME}] Recursive call detected, skipping AbortController creation`)
-      console.log(`[${MIDDLEWARE_NAME}] Calling downstream middleware (recursive)`)
+      // console.log(`🔄 [${MIDDLEWARE_NAME}] Recursive call detected, skipping AbortController creation`)
+      // console.log(`[${MIDDLEWARE_NAME}] Calling downstream middleware (recursive)`)
       const result = await next(ctx, params)
-      console.log(`[${MIDDLEWARE_NAME}] Downstream middleware completed (recursive)`)
+      // console.log(`[${MIDDLEWARE_NAME}] Downstream middleware completed (recursive)`)
       return result
     }
 
-    console.log(`🔄 [${MIDDLEWARE_NAME}] Creating AbortController for request`)
+    // console.log(`🔄 [${MIDDLEWARE_NAME}] Creating AbortController for request`)
 
     // 从context获取apiClient实例
     const apiClient = ctx.apiClientInstance
@@ -75,72 +75,72 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
       const result = await next(ctx, params)
 
       // 响应后处理：为流式响应添加abort处理
-      if (result.stream && result.stream instanceof ReadableStream) {
-        const originalStream = result.stream
+      // if (result.stream && result.stream instanceof ReadableStream) {
+      const originalStream = result.stream
 
-        // 检查abort状态
-        if (abortSignal.aborted) {
-          console.log(`🔄 [${MIDDLEWARE_NAME}] Request already aborted, cleaning up`)
-          cleanup()
-          throw new DOMException('Request was aborted', 'AbortError')
-        }
-
-        const error = new DOMException('Request was aborted', 'AbortError')
-
-        // 使用 TransformStream 处理 abort 检测
-        const streamWithAbortHandler = (originalStream as ReadableStream<Chunk>).pipeThrough(
-          new TransformStream<Chunk, Chunk | ErrorChunk>({
-            transform(chunk, controller) {
-              // 检查 abort 状态
-              if (abortSignal.aborted) {
-                console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected, converting to ErrorChunk`)
-
-                // 转换为 ErrorChunk
-                const errorChunk: ErrorChunk = {
-                  type: ChunkType.ERROR,
-                  error
-                }
-
-                controller.enqueue(errorChunk)
-                return
-              }
-
-              // 正常传递 chunk
-              controller.enqueue(chunk)
-            },
-
-            flush(controller) {
-              // 在流结束时再次检查 abort 状态
-              if (abortSignal.aborted) {
-                console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected at flush, converting to ErrorChunk`)
-                const errorChunk: ErrorChunk = {
-                  type: ChunkType.ERROR,
-                  error
-                }
-                controller.enqueue(errorChunk)
-              }
-              // 在流完全处理完成后清理 AbortController
-              console.log(`🔄 [${MIDDLEWARE_NAME}] Stream processing completed, cleaning up AbortController`)
-              cleanup()
-            }
-          })
-        )
-
-        console.log(
-          `🔄 [${MIDDLEWARE_NAME}] Set up abort handling with TransformStream, cleanup will be called when stream ends`
-        )
-        return {
-          ...result,
-          stream: streamWithAbortHandler
-        }
-      } else {
-        // 对于非流式响应，直接清理
-        console.log(`🔄 [${MIDDLEWARE_NAME}] No stream to process, cleaning up immediately`)
+      // 检查abort状态
+      if (abortSignal.aborted) {
+        console.log(`🔄 [${MIDDLEWARE_NAME}] Request already aborted, cleaning up`)
         cleanup()
-        return result
+        throw new DOMException('Request was aborted', 'AbortError')
       }
+
+      const error = new DOMException('Request was aborted', 'AbortError')
+
+      // 使用 TransformStream 处理 abort 检测
+      const streamWithAbortHandler = (originalStream as ReadableStream<Chunk>).pipeThrough(
+        new TransformStream<Chunk, Chunk | ErrorChunk>({
+          transform(chunk, controller) {
+            // 检查 abort 状态
+            if (abortSignal.aborted) {
+              console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected, converting to ErrorChunk`)
+
+              // 转换为 ErrorChunk
+              const errorChunk: ErrorChunk = {
+                type: ChunkType.ERROR,
+                error
+              }
+
+              controller.enqueue(errorChunk)
+              return
+            }
+
+            // 正常传递 chunk
+            controller.enqueue(chunk)
+          },
+
+          flush(controller) {
+            // 在流结束时再次检查 abort 状态
+            if (abortSignal.aborted) {
+              // console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected at flush, converting to ErrorChunk`)
+              const errorChunk: ErrorChunk = {
+                type: ChunkType.ERROR,
+                error
+              }
+              controller.enqueue(errorChunk)
+            }
+            // 在流完全处理完成后清理 AbortController
+            // console.log(`🔄 [${MIDDLEWARE_NAME}] Stream processing completed, cleaning up AbortController`)
+            cleanup()
+          }
+        })
+      )
+
+      // console.log(
+      //   `🔄 [${MIDDLEWARE_NAME}] Set up abort handling with TransformStream, cleanup will be called when stream ends`
+      // )
+      return {
+        ...result,
+        stream: streamWithAbortHandler
+      }
+      // } else {
+      //   // 对于非流式响应，直接清理
+      //   // console.log(`🔄 [${MIDDLEWARE_NAME}] No stream to process, cleaning up immediately`)
+      //   cleanup()
+      //   return result
+      // }
     } catch (error) {
-      console.error(`🔄 [${MIDDLEWARE_NAME}] Error occurred, cleaning up:`, error)
+      // console.error(`🔄 [${MIDDLEWARE_NAME}] Error occurred, cleaning up:`, error)
       cleanup()
       throw error
     }

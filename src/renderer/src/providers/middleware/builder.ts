@@ -112,8 +112,6 @@ export class MiddlewareBuilder<TMiddleware = any> {
     const index = this.findMiddlewareIndex(targetName)
     if (index !== -1) {
       this.middlewares.splice(index, 1)
-    } else {
-      console.warn(`MiddlewareBuilder: 未找到名为 '${targetName}' 的中间件，无法移除`)
     }
     return this
   }
