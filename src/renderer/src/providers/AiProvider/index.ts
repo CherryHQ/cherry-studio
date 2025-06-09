@@ -4,6 +4,7 @@ import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import { RequestOptions, SdkModel } from '@renderer/types/sdk'
 
 import { CompletionsMiddlewareBuilder } from '../middleware/builder'
+import { MIDDLEWARE_NAME as AbortHandlerMiddlewareName } from '../middleware/common/AbortHandlerMiddleware'
 import { applyCompletionsMiddlewares } from '../middleware/composer'
 import { MIDDLEWARE_NAME as McpToolChunkMiddlewareName } from '../middleware/core/McpToolChunkMiddleware'
 import { MIDDLEWARE_NAME as ThinkChunkMiddlewareName } from '../middleware/core/ThinkChunkMiddleware'
@@ -35,6 +36,10 @@ export default class AiProvider {
     if (!params.mcpTools?.length) {
       builder.remove(ToolUseExtractionMiddlewareName)
       builder.remove(McpToolChunkMiddlewareName)
+    }
+
+    if (params.callType !== 'chat') {
+      builder.remove(AbortHandlerMiddlewareName)
     }
 
     const middlewares = builder.build()

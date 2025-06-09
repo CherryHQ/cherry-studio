@@ -1,4 +1,5 @@
 import * as AbortHandlerModule from './common/AbortHandlerMiddleware'
+import * as ErrorHandlerModule from './common/ErrorHandlerMiddleware'
 import * as FinalChunkConsumerModule from './common/FinalChunkConsumerMiddleware'
 import * as LoggingModule from './common/LoggingMiddleware'
 import * as McpToolChunkModule from './core/McpToolChunkMiddleware'
@@ -18,6 +19,10 @@ import * as ToolUseExtractionMiddleware from './feat/ToolUseExtractionMiddleware
  * 注意：目前中间件文件还未导出 MIDDLEWARE_NAME，会有 linter 错误，这是正常的
  */
 export const MiddlewareRegistry = {
+  [ErrorHandlerModule.MIDDLEWARE_NAME]: {
+    name: ErrorHandlerModule.MIDDLEWARE_NAME,
+    middleware: ErrorHandlerModule.ErrorHandlerMiddleware
+  },
   // 通用中间件
   [AbortHandlerModule.MIDDLEWARE_NAME]: {
     name: AbortHandlerModule.MIDDLEWARE_NAME,
@@ -99,6 +104,7 @@ export function getRegisteredMiddlewareNames(): string[] {
  */
 export const DefaultCompletionsNamedMiddlewares = [
   MiddlewareRegistry[FinalChunkConsumerModule.MIDDLEWARE_NAME], // 最终消费者
+  MiddlewareRegistry[ErrorHandlerModule.MIDDLEWARE_NAME], // 错误处理
   MiddlewareRegistry[TransformCoreToSdkParamsModule.MIDDLEWARE_NAME], // 参数转换
   MiddlewareRegistry[AbortHandlerModule.MIDDLEWARE_NAME], // 中止处理
   MiddlewareRegistry[McpToolChunkModule.MIDDLEWARE_NAME], // 工具处理
@@ -109,7 +115,6 @@ export const DefaultCompletionsNamedMiddlewares = [
   MiddlewareRegistry[ThinkChunkModule.MIDDLEWARE_NAME], // 思考处理（通用SDK）
   MiddlewareRegistry[ResponseTransformModule.MIDDLEWARE_NAME], // 响应转换
   MiddlewareRegistry[StreamAdapterModule.MIDDLEWARE_NAME] // 流适配器
-  // MiddlewareRegistry[SdkCallModule.MIDDLEWARE_NAME] // SDK调用
 ]
 
 /**

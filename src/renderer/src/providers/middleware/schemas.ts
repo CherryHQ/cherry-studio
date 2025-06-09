@@ -14,6 +14,17 @@ import { ProcessingState } from './types'
  * 这是应用层参数转换后的标准格式，不包含回调函数和控制逻辑
  */
 export interface CompletionsParams {
+  /**
+   * 调用的业务场景类型，用于中间件判断是否执行
+   * 'chat': 主要对话流程
+   * 'translate': 翻译
+   * 'summary': 摘要
+   * 'search': 搜索摘要
+   * 'generate': 生成
+   * 'check': API检查
+   */
+  callType?: 'chat' | 'translate' | 'summary' | 'search' | 'generate' | 'check'
+
   // 基础对话数据
   messages: Message[] | string // 联合类型方便判断是否为空
 
@@ -22,6 +33,10 @@ export interface CompletionsParams {
 
   onChunk?: (chunk: Chunk) => void
   onResponse?: (text: string, isComplete: boolean) => void
+
+  // 错误相关
+  onError?: (error: Error) => void
+  shouldThrow?: boolean
 
   // 工具相关
   mcpTools?: MCPTool[]

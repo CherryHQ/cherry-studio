@@ -341,6 +341,7 @@ export async function fetchChatCompletion({
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   await AI.completions(
     {
+      callType: 'chat',
       messages: _messages,
       assistant,
       onChunk: onChunkReceived,
@@ -389,6 +390,7 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   const params: CompletionsParams = {
+    callType: 'translate',
     messages: content,
     assistant: { ...assistant, model },
     streamOutput: stream,
@@ -419,6 +421,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const AI = new AiProvider(provider)
 
   const params: CompletionsParams = {
+    callType: 'summary',
     messages: filterMessages(userMessages),
     assistant: { ...assistant, prompt, model },
     maxTokens: 1000,
@@ -445,6 +448,7 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
   const AI = new AiProvider(provider)
 
   const params: CompletionsParams = {
+    callType: 'search',
     messages: messages,
     assistant,
     streamOutput: false
@@ -468,6 +472,7 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
   assistant.prompt = prompt
 
   const params: CompletionsParams = {
+    callType: 'generate',
     messages: content,
     assistant,
     streamOutput: false
@@ -582,6 +587,7 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   } catch (error: any) {
     if (error.message.includes('stream')) {
       const params: CompletionsParams = {
+        callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: false
