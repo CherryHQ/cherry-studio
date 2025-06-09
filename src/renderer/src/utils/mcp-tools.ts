@@ -542,7 +542,7 @@ export async function parseAndCallTools<R>(
         ...toolResponse,
         status: 'invoking'
       },
-      onChunk
+      onChunk!
     )
   }
 
@@ -556,7 +556,7 @@ export async function parseAndCallTools<R>(
         status: 'done',
         response: toolCallResponse
       },
-      onChunk
+      onChunk!
     )
 
     for (const content of toolCallResponse.content) {
@@ -566,10 +566,10 @@ export async function parseAndCallTools<R>(
     }
 
     if (images.length) {
-      onChunk({
+      onChunk?.({
         type: ChunkType.IMAGE_CREATED
       })
-      onChunk({
+      onChunk?.({
         type: ChunkType.IMAGE_COMPLETE,
         image: {
           type: 'base64',

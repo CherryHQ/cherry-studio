@@ -30,6 +30,7 @@ import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchMo
 import { GenericChunk } from '@renderer/providers/middleware/schemas'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
@@ -322,6 +323,32 @@ export class AnthropicAPIClient extends BaseApiClient<
       newMessages.push(...toolResults)
     }
     return newMessages
+  }
+
+  override estimateMessageTokens(message: AnthropicSdkMessageParam): number {
+    if (typeof message.content === 'string') {
+      return estimateTextTokens(message.content)
+    }
+    return message.content
+      .map((content) => {
+        switch (content.type) {
+          case 'text':
+            return estimateTextTokens(content.text)
+          case 'image':
+            if (content.source.type === 'base64') {
+              return estimateTextTokens(content.source.data)
+            } else {
+              return estimateTextTokens(content.source.url)
+            }
+          case 'tool_use':
+            return estimateTextTokens(JSON.stringify(content.input))
+          case 'tool_result':
+            return estimateTextTokens(JSON.stringify(content.content))
+          default:
+            return 0
+        }
+      })
+      .reduce((acc, curr) => acc + curr, 0)
   }
 
   public buildAssistantMessage(message: Anthropic.Message): AnthropicSdkMessageParam {

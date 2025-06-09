@@ -1,5 +1,6 @@
 import { isOpenAIWebSearch, isSupportedReasoningEffortOpenAIModel, isVisionModel } from '@renderer/config/models'
 import { GenericChunk } from '@renderer/providers/middleware/schemas'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileTypes,
   MCPCallToolResponse,
@@ -206,6 +207,39 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
     const newReqMessages = [...currentReqMessages, assistantMessage, ...(toolCalls || []), ...(toolResults || [])]
     return newReqMessages
+  }
+
+  override estimateMessageTokens(message: OpenAIResponseSdkMessageParam): number {
+    let sum = 0
+    if ('content' in message) {
+      if (typeof message.content === 'string') {
+        sum += estimateTextTokens(message.content)
+      } else if (Array.isArray(message.content)) {
+        for (const part of message.content) {
+          switch (part.type) {
+            case 'input_text':
+              sum += estimateTextTokens(part.text)
+              break
+            case 'input_image':
+              sum += estimateTextTokens(part.image_url || '')
+              break
+            default:
+              break
+          }
+        }
+      }
+    }
+    switch (message.type) {
+      case 'function_call_output':
+        sum += estimateTextTokens(message.output)
+        break
+      case 'function_call':
+        sum += estimateTextTokens(message.arguments)
+        break
+      default:
+        break
+    }
+    return sum
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: OpenAIResponseSdkParams): OpenAIResponseSdkMessageParam[] {

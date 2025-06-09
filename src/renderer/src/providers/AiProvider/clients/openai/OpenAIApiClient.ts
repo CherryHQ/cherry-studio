@@ -14,6 +14,7 @@ import {
   isVisionModel
 } from '@renderer/config/models'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
 import {
   Assistant,
@@ -48,7 +49,7 @@ import {
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import OpenAI, { AzureOpenAI } from 'openai'
-import { ChatCompletionContentPart, ChatCompletionTool } from 'openai/resources'
+import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
 import { Stream } from 'openai/streaming'
 
 import { GenericChunk } from '../../../middleware/schemas'
@@ -318,6 +319,36 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
     const newReqMessages = [...currentReqMessages, assistantMessage, ...(toolResults || [])]
     return newReqMessages
+  }
+
+  override estimateMessageTokens(message: OpenAISdkMessageParam): number {
+    let sum = 0
+    if (typeof message.content === 'string') {
+      sum += estimateTextTokens(message.content)
+    } else if (Array.isArray(message.content)) {
+      sum += (message.content || [])
+        .map((part: ChatCompletionContentPart | ChatCompletionContentPartRefusal) => {
+          switch (part.type) {
+            case 'text':
+              return estimateTextTokens(part.text)
+            case 'image_url':
+              return estimateTextTokens(part.image_url.url)
+            case 'input_audio':
+              return estimateTextTokens(part.input_audio.data)
+            case 'file':
+              return estimateTextTokens(part.file.file_data || '')
+            default:
+              return 0
+          }
+        })
+        .reduce((acc, curr) => acc + curr, 0)
+    }
+    if ('tool_calls' in message && message.tool_calls) {
+      sum += message.tool_calls.reduce((acc, toolCall) => {
+        return acc + estimateTextTokens(JSON.stringify(toolCall.function.arguments))
+      }, 0)
+    }
+    return sum
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: OpenAISdkParams): OpenAISdkMessageParam[] {

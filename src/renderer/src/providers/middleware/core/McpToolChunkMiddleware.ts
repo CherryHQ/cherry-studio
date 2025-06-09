@@ -326,7 +326,26 @@ function buildParamsWithToolResults(
   const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, output, toolResults, toolCalls)
 
   Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Message roles:`, newReqMessages.map((m) => m.role).join(' -> '))
+
+  // 估算新增消息的 token 消耗并累加到 usage 中
+  if (ctx._internal.observer?.usage && newReqMessages.length > currentReqMessages.length) {
+    try {
+      const newMessages = newReqMessages.slice(currentReqMessages.length)
+      const additionalTokens = newMessages.reduce((acc, message) => {
+        return acc + ctx.apiClientInstance.estimateMessageTokens(message)
+      }, 0)
+
+      if (additionalTokens > 0) {
+        ctx._internal.observer.usage.prompt_tokens += additionalTokens
+        ctx._internal.observer.usage.total_tokens += additionalTokens
+        Logger.debug(
+          `🔧 [${MIDDLEWARE_NAME}] Added ${additionalTokens} tokens to usage for ${newMessages.length} new messages. New prompt_tokens: ${ctx._internal.observer.usage.prompt_tokens}`
+        )
+      }
+    } catch (error) {
+      Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error estimating token usage for new messages:`, error)
+    }
+  }
 
   // 更新递归状态
   if (!ctx._internal.toolProcessingState) {

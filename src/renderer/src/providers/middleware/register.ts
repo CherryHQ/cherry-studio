@@ -108,7 +108,8 @@ export const DefaultCompletionsNamedMiddlewares = [
   MiddlewareRegistry[ThinkingTagExtractionModule.MIDDLEWARE_NAME], // 思考标签提取处理（特定provider）
   MiddlewareRegistry[ThinkChunkModule.MIDDLEWARE_NAME], // 思考处理（通用SDK）
   MiddlewareRegistry[ResponseTransformModule.MIDDLEWARE_NAME], // 响应转换
-  MiddlewareRegistry[StreamAdapterModule.MIDDLEWARE_NAME] // 流适配器
+  MiddlewareRegistry[StreamAdapterModule.MIDDLEWARE_NAME], // 流适配器
+  MiddlewareRegistry[RawStreamListenerModule.MIDDLEWARE_NAME] // 原始流监听器
   // MiddlewareRegistry[SdkCallModule.MIDDLEWARE_NAME] // SDK调用
 ]
 

@@ -115,6 +115,8 @@ export abstract class BaseApiClient<
     toolCalls?: TToolCall[]
   ): TMessageParam[]
 
+  abstract estimateMessageTokens(message: TMessageParam): number
+
   abstract convertMcpToolResponseToSdkMessageParam(
     mcpToolResponse: MCPToolResponse,
     resp: MCPCallToolResponse,

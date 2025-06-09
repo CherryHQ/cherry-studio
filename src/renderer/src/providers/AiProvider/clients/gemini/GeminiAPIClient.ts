@@ -20,6 +20,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { findTokenLimit, isGeminiReasoningModel, isGemmaModel, isVisionModel } from '@renderer/config/models'
 import { GenericChunk } from '@renderer/providers/middleware/schemas'
 import { CacheService } from '@renderer/services/CacheService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
@@ -669,6 +670,29 @@ export class GeminiAPIClient extends BaseApiClient<
     }
 
     return [...currentReqMessages, userMessage]
+  }
+
+  override estimateMessageTokens(message: GeminiSdkMessageParam): number {
+    return (
+      message.parts?.reduce((acc, part) => {
+        if (part.text) {
+          return acc + estimateTextTokens(part.text)
+        }
+        if (part.functionCall) {
+          return acc + estimateTextTokens(JSON.stringify(part.functionCall))
+        }
+        if (part.functionResponse) {
+          return acc + estimateTextTokens(JSON.stringify(part.functionResponse.response))
+        }
+        if (part.inlineData) {
+          return acc + estimateTextTokens(part.inlineData.data || '')
+        }
+        if (part.fileData) {
+          return acc + estimateTextTokens(part.fileData.fileUri || '')
+        }
+        return acc
+      }, 0) || 0
+    )
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: GeminiSdkParams): GeminiSdkMessageParam[] {
