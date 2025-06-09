@@ -47,7 +47,7 @@ const Artifacts: FC<Props> = ({ html }) => {
   }
 
   return (
-    <Container>
+    <Container className="html-artifacts">
       <Button icon={<ExpandOutlined />} onClick={handleOpenInApp}>
         {t('chat.artifacts.button.preview')}
       </Button>

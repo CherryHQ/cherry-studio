@@ -290,6 +290,10 @@ const SplitViewWrapper = styled.div`
     flex: 1 1 auto;
     width: 100%;
   }
+
+  &:not(:has(+ .html-artifacts)) {
+    border-radius: 0 0 8px 8px;
+  }
 `
 
 export default memo(CodeBlockView)

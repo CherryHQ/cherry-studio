@@ -119,7 +119,7 @@
   }
 
   pre {
-    border-radius: 5px;
+    border-radius: 8px;
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
@@ -306,7 +306,7 @@ mjx-container {
 
 /* CodeMirror 相关样式 */
 .cm-editor {
-  border-radius: 5px;
+  border-radius: inherit;
 
   &.cm-focused {
     outline: none;

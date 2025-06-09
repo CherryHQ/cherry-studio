@@ -1,5 +1,4 @@
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
-import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setOpenAIServiceTier, setOpenAISummaryText } from '@renderer/store/settings'
 import { OpenAIServiceTier, OpenAISummaryText } from '@renderer/types'
@@ -93,49 +92,49 @@ const OpenAISettingsGroup: FC<Props> = ({
   }, [serviceTierMode, serviceTierOptions, setServiceTierMode])
 
   return (
-    <CollapsibleSettingGroup title={t('settings.openai.title')} defaultExpanded={true}>
-      <SettingGroup>
-        <SettingRow>
-          <SettingRowTitleSmall>
-            {t('settings.openai.service_tier.title')}{' '}
-            <Tooltip title={t('settings.openai.service_tier.tip')}>
-              <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-            </Tooltip>
-          </SettingRowTitleSmall>
-          <StyledSelect
-            value={serviceTierMode}
-            style={{ width: 135 }}
-            onChange={(value) => {
-              setServiceTierMode(value as OpenAIServiceTier)
-            }}
-            size="small"
-            options={serviceTierOptions}
-          />
-        </SettingRow>
-        {isOpenAIReasoning && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitleSmall>
-                {t('settings.openai.summary_text_mode.title')}{' '}
-                <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
-                  <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-                </Tooltip>
-              </SettingRowTitleSmall>
-              <StyledSelect
-                value={summaryText}
-                style={{ width: 135 }}
-                onChange={(value) => {
-                  setSummaryText(value as OpenAISummaryText)
-                }}
-                size="small"
-                options={summaryTextOptions}
-              />
-            </SettingRow>
-          </>
-        )}
-      </SettingGroup>
-    </CollapsibleSettingGroup>
+    <SettingGroup>
+      {/* <SettingTitle>{t('settings.openai.title')}</SettingTitle>
+      <SettingDivider /> */}
+      <SettingRow>
+        <SettingRowTitleSmall>
+          {t('settings.openai.service_tier.title')}{' '}
+          <Tooltip title={t('settings.openai.service_tier.tip')}>
+            <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+          </Tooltip>
+        </SettingRowTitleSmall>
+        <StyledSelect
+          value={serviceTierMode}
+          style={{ width: 135 }}
+          onChange={(value) => {
+            setServiceTierMode(value as OpenAIServiceTier)
+          }}
+          size="small"
+          options={serviceTierOptions}
+        />
+      </SettingRow>
+      {isOpenAIReasoning && (
+        <>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('settings.openai.summary_text_mode.title')}{' '}
+              <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
+            <StyledSelect
+              value={summaryText}
+              style={{ width: 135 }}
+              onChange={(value) => {
+                setSummaryText(value as OpenAISummaryText)
+              }}
+              size="small"
+              options={summaryTextOptions}
+            />
+          </SettingRow>
+        </>
+      )}
+    </SettingGroup>
   )
 }
 

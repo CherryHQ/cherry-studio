@@ -1,8 +1,6 @@
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
-import { AppLogo, UserAvatar } from '@renderer/config/env'
+import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import useAvatar from '@renderer/hooks/useAvatar'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -11,9 +9,8 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { ThemeMode } from '@renderer/types'
-import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
-import { Avatar, Dropdown, Tooltip } from 'antd'
+import { Dropdown, Tooltip } from 'antd'
 import {
   CircleHelp,
   FileSearch,
@@ -35,7 +32,6 @@ import styled from 'styled-components'
 
 import DragableList from '../DragableList'
 import MinAppIcon from '../Icons/MinAppIcon'
-import UserPopup from '../Popups/UserPopup'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup, openMinapp } = useMinappPopup()
@@ -47,10 +43,7 @@ const Sidebar: FC = () => {
   const navigate = useNavigate()
 
   const { theme, settedTheme, toggleTheme } = useTheme()
-  const avatar = useAvatar()
   const { t } = useTranslation()
-
-  const onEditUser = () => UserPopup.show()
 
   const backgroundColor = useNavBackgroundColor()
 
@@ -79,13 +72,6 @@ const Sidebar: FC = () => {
       $isFullscreen={isFullscreen}
       id="app-sidebar"
       style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
-      {isEmoji(avatar) ? (
-        <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
-          {avatar}
-        </EmojiAvatar>
-      ) : (
-        <AvatarImg src={avatar || UserAvatar} draggable={false} className="nodrag" onClick={onEditUser} />
-      )}
       <MainMenusContainer>
         <Menus onClick={hideMinappPopup}>
           <MainMenus />
@@ -337,16 +323,6 @@ const Container = styled.div<{ $isFullscreen: boolean }>`
     margin-top: ${isMac ? '0px' : '2px'};
     -webkit-app-region: none;
   }
-`
-
-const AvatarImg = styled(Avatar)`
-  width: 31px;
-  height: 31px;
-  background-color: var(--color-background-soft);
-  margin-bottom: ${isMac ? '12px' : '12px'};
-  margin-top: ${isMac ? '0px' : '2px'};
-  border: none;
-  cursor: pointer;
 `
 
 const MainMenusContainer = styled.div`

@@ -1,6 +1,21 @@
+import {
+  FileExcelFilled,
+  FileImageFilled,
+  FileMarkdownFilled,
+  FilePdfFilled,
+  FilePptFilled,
+  FileTextFilled,
+  FileUnknownFilled,
+  FileWordFilled,
+  FileZipFilled,
+  FolderOpenFilled,
+  GlobalOutlined,
+  LinkOutlined
+} from '@ant-design/icons'
+import CustomTag from '@renderer/components/CustomTag'
 import FileManager from '@renderer/services/FileManager'
+import { FileType } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
-import { Upload } from 'antd'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -8,76 +23,88 @@ interface Props {
   block: FileMessageBlock
 }
 
-const StyledUpload = styled(Upload)`
-  .ant-upload-list-item-name {
-    max-width: 220px;
-    display: inline-block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
-  }
-`
-
 const MessageAttachments: FC<Props> = ({ block }) => {
-  // const handleCopyImage = async (image: FileType) => {
-  //   const data = await FileManager.readFile(image)
-  //   const blob = new Blob([data], { type: 'image/png' })
-  //   const item = new ClipboardItem({ [blob.type]: blob })
-  //   await navigator.clipboard.write([item])
-  // }
-
   if (!block.file) {
     return null
   }
-  // 由图片块代替
-  // if (block.file.type === FileTypes.IMAGE) {
-  //   return (
-  //     <Container style={{ marginBottom: 8 }}>
-  //       <Image
-  //         src={FileManager.getFileUrl(block.file)}
-  //         key={block.file.id}
-  //         width="33%"
-  //         preview={{
-  //           toolbarRender: (
-  //             _,
-  //             {
-  //               transform: { scale },
-  //               actions: { onFlipY, onFlipX, onRotateLeft, onRotateRight, onZoomOut, onZoomIn, onReset }
-  //             }
-  //           ) => (
-  //             <ToobarWrapper size={12} className="toolbar-wrapper">
-  //               <SwapOutlined rotate={90} onClick={onFlipY} />
-  //               <SwapOutlined onClick={onFlipX} />
-  //               <RotateLeftOutlined onClick={onRotateLeft} />
-  //               <RotateRightOutlined onClick={onRotateRight} />
-  //               <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-  //               <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-  //               <UndoOutlined onClick={onReset} />
-  //               <CopyOutlined onClick={() => handleCopyImage(block.file)} />
-  //               <DownloadOutlined onClick={() => download(FileManager.getFileUrl(block.file))} />
-  //             </ToobarWrapper>
-  //           )
-  //         }}
-  //       />
-  //     </Container>
-  //   )
-  // }
+
+  const MAX_FILENAME_DISPLAY_LENGTH = 20
+  function truncateFileName(name: string, maxLength: number = MAX_FILENAME_DISPLAY_LENGTH) {
+    if (name.length <= maxLength) return name
+    return name.slice(0, maxLength - 3) + '...'
+  }
+
+  const getFileIcon = (type?: string) => {
+    if (!type) return <FileUnknownFilled />
+
+    const ext = type.toLowerCase()
+
+    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
+      return <FileImageFilled />
+    }
+
+    if (['.doc', '.docx'].includes(ext)) {
+      return <FileWordFilled />
+    }
+    if (['.xls', '.xlsx'].includes(ext)) {
+      return <FileExcelFilled />
+    }
+    if (['.ppt', '.pptx'].includes(ext)) {
+      return <FilePptFilled />
+    }
+    if (ext === '.pdf') {
+      return <FilePdfFilled />
+    }
+    if (['.md', '.markdown'].includes(ext)) {
+      return <FileMarkdownFilled />
+    }
+
+    if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
+      return <FileZipFilled />
+    }
+
+    if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
+      return <FileTextFilled />
+    }
+
+    if (['.url'].includes(ext)) {
+      return <LinkOutlined />
+    }
+
+    if (['.sitemap'].includes(ext)) {
+      return <GlobalOutlined />
+    }
+
+    if (['.folder'].includes(ext)) {
+      return <FolderOpenFilled />
+    }
+
+    return <FileUnknownFilled />
+  }
+
+  const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
+    const fullName = FileManager.formatFileName(file)
+    const displayName = truncateFileName(fullName)
+
+    return (
+      <FileName
+        onClick={() => {
+          const path = FileManager.getSafePath(file)
+          if (path) {
+            window.api.file.openPath(path)
+          }
+        }}
+        title={fullName}>
+        {displayName}
+      </FileName>
+    )
+  }
 
   return (
     <Container style={{ marginTop: 2, marginBottom: 8 }} className="message-attachments">
-      <StyledUpload
-        listType="text"
-        disabled
-        fileList={[
-          {
-            uid: block.file.id,
-            url: 'file://' + FileManager.getSafePath(block.file),
-            status: 'done' as const,
-            name: FileManager.formatFileName(block.file)
-          }
-        ]}
-      />
+      <CustomTag key={block.file.id} icon={getFileIcon(block.file.ext)} color="#37a5aa">
+        <FileNameRender file={block.file} />
+      </CustomTag>
     </Container>
   )
 }
@@ -89,23 +116,11 @@ const Container = styled.div`
   margin-top: 8px;
 `
 
-// const Image = styled(AntdImage)`
-//   border-radius: 10px;
-// `
-
-// const ToobarWrapper = styled(Space)`
-//   padding: 0px 24px;
-//   color: #fff;
-//   font-size: 20px;
-//   background-color: rgba(0, 0, 0, 0.1);
-//   border-radius: 100px;
-//   .anticon {
-//     padding: 12px;
-//     cursor: pointer;
-//   }
-//   .anticon:hover {
-//     opacity: 0.3;
-//   }
-// `
+const FileName = styled.span`
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
+  }
+`
 
 export default MessageAttachments

@@ -1,7 +1,4 @@
-import { NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import { isLinux, isWindows } from '@renderer/config/constant'
-import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { Button, Dropdown, Menu, type MenuProps } from 'antd'
 import { ChevronDown, Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -74,29 +71,27 @@ export const McpSettingsNavbar = () => {
   }))
 
   return (
-    <NavbarRight style={{ paddingRight: useFullscreen() ? '12px' : isWindows ? 150 : isLinux ? 120 : 12 }}>
-      <HStack alignItems="center" gap={5}>
+    <HStack alignItems="center" gap={5} style={{ marginRight: 10 }}>
+      <Button
+        size="small"
+        type="text"
+        onClick={() => navigate('/mcp-servers/npx-search')}
+        icon={<Search size={14} />}
+        className="nodrag"
+        style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
+        {t('settings.mcp.searchNpx')}
+      </Button>
+      <Dropdown menu={{ items: resourceMenuItems }} trigger={['click']}>
         <Button
           size="small"
           type="text"
-          onClick={() => navigate('/settings/mcp/npx-search')}
-          icon={<Search size={14} />}
           className="nodrag"
-          style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
-          {t('settings.mcp.searchNpx')}
+          style={{ fontSize: 13, height: 28, borderRadius: 20, display: 'flex', alignItems: 'center' }}>
+          {t('settings.mcp.findMore')}
+          <ChevronDown size={16} />
         </Button>
-        <Dropdown menu={{ items: resourceMenuItems }} trigger={['click']}>
-          <Button
-            size="small"
-            type="text"
-            className="nodrag"
-            style={{ fontSize: 13, height: 28, borderRadius: 20, display: 'flex', alignItems: 'center' }}>
-            {t('settings.mcp.findMore')}
-            <ChevronDown size={16} />
-          </Button>
-        </Dropdown>
-        <InstallNpxUv mini />
-      </HStack>
-    </NavbarRight>
+      </Dropdown>
+      <InstallNpxUv mini />
+    </HStack>
   )
 }

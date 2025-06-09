@@ -14,7 +14,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
-        <Flex gap="8px" wrap>
+        <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
           {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
         </Flex>
       )}

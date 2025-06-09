@@ -1,14 +1,13 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { Center, VStack } from '@renderer/components/Layout'
+import { SettingDescription, SettingRow, SettingSubtitle } from '@renderer/pages/settings'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
 import { Alert, Button } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
-
-import { SettingDescription, SettingRow, SettingSubtitle } from '..'
 
 interface Props {
   mini?: boolean
@@ -26,7 +25,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const checkBinaries = useCallback(async () => {
+  const checkBinaries = async () => {
     const uvExists = await window.api.isBinaryExist('uv')
     const bunExists = await window.api.isBinaryExist('bun')
     const { uvPath, bunPath, dir } = await window.api.mcp.getInstallInfo()
@@ -36,7 +35,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
     setUvPath(uvPath)
     setBunPath(bunPath)
     setBinariesDir(dir)
-  }, [dispatch])
+  }
 
   const installUV = async () => {
     try {
@@ -69,7 +68,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
 
   useEffect(() => {
     checkBinaries()
-  }, [checkBinaries])
+  }, [])
 
   if (mini) {
     const installed = isUvInstalled && isBunInstalled
@@ -82,7 +81,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
         className="nodrag"
         color={installed ? 'green' : 'danger'}
-        onClick={() => navigate('/settings/mcp/mcp-install')}
+        onClick={() => navigate('/mcp-servers/mcp-install')}
       />
     )
   }

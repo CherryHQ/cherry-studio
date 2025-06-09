@@ -3,6 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import DragableList from '@renderer/components/DragableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { SettingTitle } from '@renderer/pages/settings'
 import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Button, Dropdown, Empty, Switch, Tag } from 'antd'
@@ -12,7 +13,6 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
-import { SettingTitle } from '..'
 import AddMcpServerModal from './AddMcpServerModal'
 import EditMcpJsonPopup from './EditMcpJsonPopup'
 import SyncServersPopup from './SyncServersPopup'
@@ -36,7 +36,7 @@ const McpServersList: FC = () => {
       isActive: false
     }
     addMCPServer(newServer)
-    navigate(`/settings/mcp/settings`, { state: { server: newServer } })
+    navigate(`/mcp-servers/settings`, { state: { server: newServer } })
     window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
   }, [addMCPServer, navigate, t])
 
@@ -50,7 +50,7 @@ const McpServersList: FC = () => {
       setIsAddModalVisible(false)
       window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-quick-add' })
       // Optionally navigate to the new server's settings page
-      // navigate(`/settings/mcp/settings`, { state: { server } })
+      // navigate(`/mcp-servers/settings`, { state: { server } })
     },
     [addMCPServer, t]
   )
@@ -117,9 +117,9 @@ const McpServersList: FC = () => {
           </Button>
         </ButtonGroup>
       </ListHeader>
-      <DragableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
+      <DragableList list={mcpServers} onUpdate={updateMcpServers} listStyle={{ marginBottom: 12 }}>
         {(server: MCPServer) => (
-          <ServerCard key={server.id} onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}>
+          <ServerCard key={server.id} onClick={() => navigate(`/mcp-servers/settings`, { state: { server } })}>
             <ServerHeader>
               <ServerName>
                 {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
@@ -148,7 +148,7 @@ const McpServersList: FC = () => {
                 <Button
                   icon={<Settings2 size={16} />}
                   type="text"
-                  onClick={() => navigate(`/settings/mcp/settings`, { state: { server } })}
+                  onClick={() => navigate(`/mcp-servers/settings`, { state: { server } })}
                 />
               </StatusIndicator>
             </ServerHeader>
@@ -207,6 +207,7 @@ const ListHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin: 0 auto;
 
   h2 {
     font-size: 22px;
@@ -217,8 +218,8 @@ const ListHeader = styled.div`
 const ServerCard = styled.div`
   display: flex;
   flex-direction: column;
-  border: 0.5px solid var(--color-border);
-  border-radius: var(--list-item-border-radius);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   padding: 10px 16px;
   transition: all 0.2s ease;
   background-color: var(--color-background);

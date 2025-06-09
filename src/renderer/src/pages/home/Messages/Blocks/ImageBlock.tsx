@@ -21,7 +21,7 @@ const ImageBlock: React.FC<Props> = ({ block }) => {
         <ImageViewer
           src={src}
           key={`image-${index}`}
-          style={{ maxWidth: 500, maxHeight: 500, padding: 5, borderRadius: 8 }}
+          style={{ maxWidth: 500, maxHeight: 'min(500px, 55vh)', borderRadius: 8 }}
         />
       ))}
     </Container>

@@ -15,15 +15,17 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [open, setOpen] = useState(true)
 
   const onOk = () => {
+    resolve(true)
     setOpen(false)
   }
 
   const onCancel = () => {
+    resolve(false)
     setOpen(false)
   }
 
   const onClose = () => {
-    resolve({})
+    TopView.hide(TopViewKey)
   }
 
   TemplatePopup.hide = onCancel
@@ -51,16 +53,7 @@ export default class TemplatePopup {
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

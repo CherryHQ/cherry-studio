@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -37,6 +38,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { deleteGroupMessages } = useMessageOperations(topic)
+  const { showAssistants } = useSettings()
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -53,8 +55,12 @@ const MessageGroupMenuBar: FC<Props> = ({
       onOk: () => deleteGroupMessages(askId)
     })
   }
+
   return (
-    <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
+    <GroupMenuBar
+      $layout={multiModelMessageStyle}
+      className="group-menu-bar"
+      style={{ maxWidth: showAssistants ? 'calc(100vw - var(--assistants-width))' : '100vw' }}>
       <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
         <LayoutContainer>
           {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
@@ -104,7 +110,7 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
   margin: 0 20px;
   padding: 6px 10px;
   border-radius: 6px;
-  margin-top: 10px;
+  margin-top: 6px;
   justify-content: space-between;
   overflow: hidden;
   border: 0.5px solid var(--color-border);

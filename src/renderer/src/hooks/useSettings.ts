@@ -9,7 +9,6 @@ import {
   setLaunchToTray,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
-  setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
   setTheme,
@@ -91,9 +90,6 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
-    },
-    setShowTokens(showTokens: boolean) {
-      dispatch(setShowTokens(showTokens))
     }
   }
 }

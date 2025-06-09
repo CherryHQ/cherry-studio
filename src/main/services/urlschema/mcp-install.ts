@@ -65,7 +65,7 @@ export function handleMcpProtocolUrl(url: URL) {
 
       const mainWindow = windowService.getMainWindow()
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript("window.navigate('/settings/mcp')")
+        mainWindow.webContents.executeJavaScript("window.navigate('/mcp-servers')")
       }
       break
     }

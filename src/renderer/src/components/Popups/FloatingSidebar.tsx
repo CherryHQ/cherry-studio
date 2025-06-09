@@ -14,14 +14,7 @@ interface Props {
   position: 'left' | 'right'
 }
 
-const FloatingSidebar: FC<Props> = ({
-  children,
-  activeAssistant,
-  setActiveAssistant,
-  activeTopic,
-  setActiveTopic,
-  position = 'left'
-}) => {
+const FloatingSidebar: FC<Props> = ({ children, activeAssistant, setActiveAssistant, activeTopic, setActiveTopic }) => {
   const [open, setOpen] = useState(false)
 
   useHotkeys('esc', () => {
@@ -45,12 +38,11 @@ const FloatingSidebar: FC<Props> = ({
   const content = (
     <PopoverContent maxHeight={maxHeight}>
       <HomeTabs
+        tab="assistants"
         activeAssistant={activeAssistant}
         activeTopic={activeTopic}
         setActiveAssistant={setActiveAssistant}
         setActiveTopic={setActiveTopic}
-        position={position}
-        forceToSeeAllTab={true}
         style={{
           background: 'transparent',
           border: 'none',

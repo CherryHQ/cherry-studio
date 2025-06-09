@@ -1,58 +1,15 @@
-import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useActiveTopic } from '@renderer/hooks/useTopic'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import NavigationService from '@renderer/services/NavigationService'
-import { Assistant } from '@renderer/types'
-import { FC, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { FC, useEffect } from 'react'
 import styled from 'styled-components'
 
 import Chat from './Chat'
-import Navbar from './Navbar'
-import HomeTabs from './Tabs'
-
-let _activeAssistant: Assistant
+import ChatNavbar from './ChatNavbar'
 
 const HomePage: FC = () => {
-  const { assistants } = useAssistants()
-  const navigate = useNavigate()
-
-  const location = useLocation()
-  const state = location.state
-
-  const [activeAssistant, setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
-  const { activeTopic, setActiveTopic } = useActiveTopic(activeAssistant, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
 
-  _activeAssistant = activeAssistant
-
   useEffect(() => {
-    NavigationService.setNavigate(navigate)
-  }, [navigate])
-
-  useEffect(() => {
-    state?.assistant && setActiveAssistant(state?.assistant)
-    state?.topic && setActiveTopic(state?.topic)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state])
-
-  useEffect(() => {
-    const unsubscribe = EventEmitter.on(EVENT_NAMES.SWITCH_ASSISTANT, (assistantId: string) => {
-      const newAssistant = assistants.find((a) => a.id === assistantId)
-      if (newAssistant) {
-        setActiveAssistant(newAssistant)
-      }
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [assistants, setActiveAssistant])
-
-  useEffect(() => {
-    const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? 520 : 1080, 600)
+    window.api.window.setMinimumSize(showAssistants ? 1080 : 520, 600)
 
     return () => {
       window.api.window.resetMinimumSize()
@@ -61,45 +18,22 @@ const HomePage: FC = () => {
 
   return (
     <Container id="home-page">
-      <Navbar
-        activeAssistant={activeAssistant}
-        activeTopic={activeTopic}
-        setActiveTopic={setActiveTopic}
-        setActiveAssistant={setActiveAssistant}
-        position="left"
-      />
+      <ChatNavbar />
       <ContentContainer id="content-container">
-        {showAssistants && (
-          <HomeTabs
-            activeAssistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
-            setActiveTopic={setActiveTopic}
-            position="left"
-          />
-        )}
-        <Chat
-          assistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-        />
+        <Chat />
       </ContentContainer>
     </Container>
   )
 }
 
 const Container = styled.div`
+  min-width: 0;
   display: flex;
   flex: 1;
   flex-direction: column;
-  max-width: calc(100vw - var(--sidebar-width));
 `
 
 const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
   overflow: hidden;
 `
 

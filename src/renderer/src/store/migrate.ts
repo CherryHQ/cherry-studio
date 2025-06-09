@@ -1286,8 +1286,6 @@ const migrateConfig = {
   },
   '99': (state: RootState) => {
     try {
-      state.settings.showPrompt = true
-
       addWebSearchProvider(state, 'bocha')
 
       updateWebSearchProvider(state, {
@@ -1491,7 +1489,6 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.tokenFluxPaintings) {
         state.paintings.tokenFluxPaintings = []
       }
-      state.settings.showTokens = true
       state.settings.earlyAccess = false
       return state
     } catch (error) {

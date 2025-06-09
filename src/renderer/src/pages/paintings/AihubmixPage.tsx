@@ -1,6 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -785,7 +785,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
@@ -794,7 +794,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             </Button>
           </NavbarRight>
         )}
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <LeftContainer>
           <ProviderTitleContainer>

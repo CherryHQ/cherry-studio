@@ -29,7 +29,7 @@
   --color-text-secondary: rgba(235, 235, 245, 0.7);
   --color-icon: #ffffff99;
   --color-icon-white: #ffffff;
-  --color-border: #ffffff19;
+  --color-border: #383838;
   --color-border-soft: #ffffff10;
   --color-border-mute: #ffffff05;
   --color-error: #f44336;
@@ -44,8 +44,8 @@
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
 
-  --color-list-item: #222;
-  --color-list-item-hover: #1e1e1e;
+  --color-list-item: rgba(255, 255, 255, 0.1);
+  --color-list-item-hover: rgba(255, 255, 255, 0.05);
 
   --modal-background: #1f1f1f;
 
@@ -56,7 +56,7 @@
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
 
-  --navbar-height: 40px;
+  --navbar-height: 42px;
   --sidebar-width: 50px;
   --status-bar-height: 40px;
   --input-bar-height: 100px;
@@ -66,12 +66,13 @@
   --settings-width: 250px;
   --scrollbar-width: 5px;
 
-  --chat-background: #111111;
-  --chat-background-user: #28b561;
-  --chat-background-assistant: #2c2c2c;
+  --chat-background: transparent;
+  --chat-background-user: rgba(255, 255, 255, 0.08);
+  --chat-background-assistant: transparent;
   --chat-text-user: var(--color-black);
 
-  --list-item-border-radius: 20px;
+  --list-item-border-radius: 8px;
+  --border-width: 0.5px;
 }
 
 [theme-mode='light'] {
@@ -120,8 +121,8 @@
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
 
-  --color-list-item: #eee;
-  --color-list-item-hover: #f5f5f5;
+  --color-list-item: rgba(255, 255, 255, 0.9);
+  --color-list-item-hover: rgba(255, 255, 255, 0.5);
 
   --modal-background: var(--color-white);
 
@@ -132,8 +133,10 @@
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
   --navbar-background: rgba(244, 244, 244);
 
-  --chat-background: #f3f3f3;
-  --chat-background-user: #95ec69;
-  --chat-background-assistant: #ffffff;
+  --chat-background: transparent;
+  --chat-background-user: rgba(0, 0, 0, 0.045);
+  --chat-background-assistant: transparent;
   --chat-text-user: var(--color-text);
+
+  --border-width: 0.5px;
 }

@@ -1,12 +1,10 @@
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChat } from '@renderer/hooks/useChat'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
-import { Assistant, Topic } from '@renderer/types'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import React, { FC, useMemo, useState } from 'react'
@@ -15,31 +13,20 @@ import styled from 'styled-components'
 
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
-import Tabs from './Tabs'
 
-interface Props {
-  assistant: Assistant
-  activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-  setActiveAssistant: (assistant: Assistant) => void
-}
-
-const Chat: FC<Props> = (props) => {
-  const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, messageStyle, showAssistants } = useSettings()
-  const { showTopics } = useShowTopics()
-  const { isMultiSelectMode } = useChatContext(props.activeTopic)
+const Chat: FC = () => {
+  const { activeAssistant, activeTopic, setActiveTopic } = useChat()
+  const { messageStyle, showAssistants } = useSettings()
+  const { isMultiSelectMode } = useChatContext(activeTopic)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
   const maxWidth = useMemo(() => {
-    const showRightTopics = showTopics && topicPosition === 'right'
     const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-    const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
-  }, [showAssistants, showTopics, topicPosition])
+    return `calc(100vw - ${minusAssistantsWidth})`
+  }, [showAssistants])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
@@ -116,36 +103,24 @@ const Chat: FC<Props> = (props) => {
           onIncludeUserChange={userOutlinedItemClickHandler}
         />
         <Messages
-          key={props.activeTopic.id}
-          assistant={assistant}
-          topic={props.activeTopic}
-          setActiveTopic={props.setActiveTopic}
+          key={activeTopic.id}
+          assistant={activeAssistant}
+          topic={activeTopic}
+          setActiveTopic={setActiveTopic}
           onComponentUpdate={messagesComponentUpdateHandler}
           onFirstUpdate={messagesComponentFirstUpdateHandler}
         />
         <QuickPanelProvider>
-          <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-          {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
+          <Inputbar />
+          {isMultiSelectMode && <MultiSelectActionPopup topic={activeTopic} />}
         </QuickPanelProvider>
       </Main>
-      {topicPosition === 'right' && showTopics && (
-        <Tabs
-          activeAssistant={assistant}
-          activeTopic={props.activeTopic}
-          setActiveAssistant={props.setActiveAssistant}
-          setActiveTopic={props.setActiveTopic}
-          position="right"
-        />
-      )}
     </Container>
   )
 }
 
 const Container = styled.div`
-  display: flex;
-  flex-direction: row;
   height: 100%;
-  flex: 1;
 `
 
 const Main = styled(Flex)`

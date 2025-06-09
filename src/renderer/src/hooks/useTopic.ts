@@ -1,46 +1,15 @@
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
-import { find, isEmpty } from 'lodash'
-import { useEffect, useState } from 'react'
+import { isEmpty } from 'lodash'
 
-import { useAssistant } from './useAssistant'
 import { getStoreSetting } from './useSettings'
 
 const renamingTopics = new Set<string>()
-
-let _activeTopic: Topic
-let _setActiveTopic: (topic: Topic) => void
-
-export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
-  const { assistant } = useAssistant(_assistant.id)
-  const [activeTopic, setActiveTopic] = useState(topic || _activeTopic || assistant?.topics[0])
-
-  _activeTopic = activeTopic
-  _setActiveTopic = setActiveTopic
-
-  useEffect(() => {
-    if (activeTopic) {
-      store.dispatch(loadTopicMessagesThunk(activeTopic.id))
-      EventEmitter.emit(EVENT_NAMES.CHANGE_TOPIC, activeTopic)
-    }
-  }, [activeTopic])
-
-  useEffect(() => {
-    // activeTopic not in assistant.topics
-    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
-      setActiveTopic(assistant.topics[0])
-    }
-  }, [activeTopic?.id, assistant])
-
-  return { activeTopic, setActiveTopic }
-}
 
 export function useTopic(assistant: Assistant, topicId?: string) {
   return assistant?.topics.find((topic) => topic.id === topicId)
@@ -86,7 +55,6 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
         .substring(0, 50)
       if (topicName) {
         const data = { ...topic, name: topicName } as Topic
-        _setActiveTopic(data)
         store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
       }
       return
@@ -97,7 +65,6 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
       const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
       if (summaryText) {
         const data = { ...topic, name: summaryText }
-        _setActiveTopic(data)
         store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
       } else {
         window.message?.error(i18n.t('message.error.fetchTopicName'))

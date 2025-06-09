@@ -1,24 +1,16 @@
 import { isLinux, isMac, isWindows } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
+import { Button } from 'antd'
+import { CircleArrowLeft, X } from 'lucide-react'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
-  const backgroundColor = useNavBackgroundColor()
-
-  return (
-    <NavbarContainer {...props} style={{ backgroundColor }}>
-      {children}
-    </NavbarContainer>
-  )
-}
-
-export const NavbarLeft: FC<Props> = ({ children, ...props }) => {
-  return <NavbarLeftContainer {...props}>{children}</NavbarLeftContainer>
+  return <NavbarContainer {...props}>{children}</NavbarContainer>
 }
 
 export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
@@ -36,10 +28,41 @@ export const NavbarRight: FC<Props> = ({ children, ...props }) => {
 
 export const NavbarMain: FC<Props> = ({ children, ...props }) => {
   const isFullscreen = useFullscreen()
+
   return (
     <NavbarMainContainer {...props} $isFullscreen={isFullscreen}>
+      <CloseIcon />
       {children}
+      <MacCloseIcon />
     </NavbarMainContainer>
+  )
+}
+
+const MacCloseIcon = () => {
+  const navigate = useNavigate()
+
+  if (!isMac) {
+    return null
+  }
+
+  return <Button type="text" icon={<X size={18} />} onClick={() => navigate('/')} className="nodrag" />
+}
+
+const CloseIcon = () => {
+  const navigate = useNavigate()
+
+  if (isMac) {
+    return null
+  }
+
+  return (
+    <Button
+      type="text"
+      onClick={() => navigate('/')}
+      className="nodrag"
+      style={{ marginRight: 2 }}
+      icon={<CircleArrowLeft size={20} color="var(--color-icon)" style={{ marginTop: 2 }} />}
+    />
   )
 }
 
@@ -49,28 +72,8 @@ const NavbarContainer = styled.div`
   flex-direction: row;
   min-height: var(--navbar-height);
   max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
   -webkit-app-region: drag;
-`
-
-const NavbarLeftContainer = styled.div`
-  min-width: var(--assistants-width);
-  padding: 0 10px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  font-weight: bold;
-  color: var(--color-text-1);
-`
-
-const NavbarCenterContainer = styled.div`
-  flex: 1;
-  display: flex;
-  align-items: center;
-  padding: 0 ${isMac ? '20px' : 0};
-  font-weight: bold;
-  color: var(--color-text-1);
+  background-color: var(--color-background);
 `
 
 const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
@@ -78,7 +81,7 @@ const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   align-items: center;
   padding: 0 12px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '140px' : isLinux ? '120px' : '12px')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '135px' : isLinux ? '120px' : '12px')};
   justify-content: flex-end;
 `
 
@@ -87,9 +90,26 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   flex-direction: row;
   align-items: center;
+  height: var(--navbar-height);
+  max-height: var(--navbar-height);
+  min-height: var(--navbar-height);
   justify-content: space-between;
-  padding: 0 ${isMac ? '20px' : 0};
+  padding-left: ${isMac ? '70px' : '10px'};
   font-weight: bold;
   color: var(--color-text-1);
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '140px' : isLinux ? '120px' : '12px')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '135px' : isLinux ? '120px' : '12px')};
+  -webkit-app-region: drag;
+`
+
+const NavbarCenterContainer = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  height: var(--navbar-height);
+  max-height: var(--navbar-height);
+  min-height: var(--navbar-height);
+  padding: 0 8px;
+  font-weight: bold;
+  justify-content: space-between;
+  color: var(--color-text-1);
 `

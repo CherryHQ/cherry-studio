@@ -5,7 +5,7 @@ import {
   SortAscendingOutlined,
   SortDescendingOutlined
 } from '@ant-design/icons'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
 import ListItem from '@renderer/components/ListItem'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Logger from '@renderer/config/logger'
@@ -207,9 +207,9 @@ const FilesPage: FC = () => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('files.title')}</NavbarCenter>
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <SideNav>
           {menuItems.map((item) => (

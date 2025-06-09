@@ -54,6 +54,7 @@ export const SettingRow = styled.div`
   justify-content: space-between;
   align-items: center;
   min-height: 24px;
+  gap: 10px;
 `
 
 export const SettingRowTitle = styled.div`

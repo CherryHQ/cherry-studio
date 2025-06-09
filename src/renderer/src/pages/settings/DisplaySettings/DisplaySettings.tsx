@@ -7,10 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
-  AssistantIconType,
   DEFAULT_SIDEBAR_ICONS,
-  setAssistantIconType,
-  setClickAssistantToShowTopic,
   setCustomCss,
   setPinTopicsToTop,
   setShowTopicTime,
@@ -54,20 +51,8 @@ const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
 `
 
 const DisplaySettings: FC = () => {
-  const {
-    windowStyle,
-    setWindowStyle,
-    topicPosition,
-    setTopicPosition,
-    clickAssistantToShowTopic,
-    showTopicTime,
-    pinTopicsToTop,
-    customCss,
-    sidebarIcons,
-    setTheme,
-    assistantIconType,
-    userTheme
-  } = useSettings()
+  const { windowStyle, setWindowStyle, showTopicTime, pinTopicsToTop, customCss, sidebarIcons, setTheme, userTheme } =
+    useSettings()
   const { theme, settedTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -158,15 +143,6 @@ const DisplaySettings: FC = () => {
     setCurrentZoom(zoomFactor)
   }
 
-  const assistantIconTypeOptions = useMemo(
-    () => [
-      { value: 'model', label: t('settings.assistant.icon.type.model') },
-      { value: 'emoji', label: t('settings.assistant.icon.type.emoji') },
-      { value: 'none', label: t('settings.assistant.icon.type.none') }
-    ],
-    [t]
-  )
-
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -237,31 +213,6 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
-          <Segmented
-            value={topicPosition || 'right'}
-            shape="round"
-            onChange={setTopicPosition}
-            options={[
-              { value: 'left', label: t('settings.topic.position.left') },
-              { value: 'right', label: t('settings.topic.position.right') }
-            ]}
-          />
-        </SettingRow>
-        <SettingDivider />
-        {topicPosition === 'left' && (
-          <>
-            <SettingRow>
-              <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
-              <Switch
-                checked={clickAssistantToShowTopic}
-                onChange={(checked) => dispatch(setClickAssistantToShowTopic(checked))}
-              />
-            </SettingRow>
-            <SettingDivider />
-          </>
-        )}
-        <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
         </SettingRow>
@@ -269,19 +220,6 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
           <Switch checked={pinTopicsToTop} onChange={(checked) => dispatch(setPinTopicsToTop(checked))} />
-        </SettingRow>
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
-          <Segmented
-            value={assistantIconType}
-            shape="round"
-            onChange={(value) => dispatch(setAssistantIconType(value as AssistantIconType))}
-            options={assistantIconTypeOptions}
-          />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

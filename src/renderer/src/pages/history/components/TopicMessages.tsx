@@ -2,12 +2,12 @@ import { ArrowRightOutlined, MessageOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { useChat } from '@renderer/hooks/useChat'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { isGenerating, locateToMessage } from '@renderer/services/MessagesService'
-import NavigationService from '@renderer/services/NavigationService'
+import { locateToMessage } from '@renderer/services/MessagesService'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
@@ -23,10 +23,10 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const TopicMessages: FC<Props> = ({ topic, ...props }) => {
-  const navigate = NavigationService.navigate!
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
   const { messageStyle } = useSettings()
   const dispatch = useAppDispatch()
+  const { setActiveAssistant, setActiveTopic } = useChat()
 
   useEffect(() => {
     topic && dispatch(loadTopicMessagesThunk(topic.id))
@@ -39,11 +39,13 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
   }
 
   const onContinueChat = async (topic: Topic) => {
-    await isGenerating()
     SearchPopup.hide()
     const assistant = getAssistantById(topic.assistantId)
-    navigate('/', { state: { assistant, topic } })
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
+    if (assistant) {
+      setActiveAssistant(assistant)
+      setActiveTopic(topic)
+      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 100)
+    }
   }
 
   return (
@@ -57,7 +59,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
                 type="text"
                 size="middle"
                 style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 5 }}
-                onClick={() => locateToMessage(navigate, message)}
+                onClick={() => locateToMessage({ message, setActiveAssistant, setActiveTopic })}
                 icon={<ArrowRightOutlined />}
               />
               <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />

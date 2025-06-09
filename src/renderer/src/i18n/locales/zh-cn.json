@@ -218,6 +218,7 @@
       "message.new.context": "清除上下文",
       "message.quote": "引用",
       "message.regenerate.model": "切换模型",
+      "message.settings": "设置",
       "message.useful": "有用",
       "multiple.select": "多选",
       "multiple.select.empty": "未选中任何消息",
@@ -233,7 +234,7 @@
       },
       "resend": "重新发送",
       "save": "保存",
-      "settings.code.title": "代码块设置",
+      "settings.code.title": "代码设置",
       "settings.code_editor": {
         "title": "代码编辑器",
         "highlight_active_line": "高亮当前行",
@@ -421,7 +422,8 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "无结果"
+      "no_results": "无结果",
+      "apps": "应用"
     },
     "docs": {
       "title": "帮助文档"
@@ -1057,7 +1059,6 @@
       "about.updateNotAvailable": "你的软件已是最新版本",
       "about.website.button": "查看",
       "about.website.title": "官方网站",
-      "advanced.auto_switch_to_topics": "自动切换到话题",
       "advanced.title": "高级设置",
       "assistant": "默认助手",
       "assistant.model_params": "模型参数",
@@ -1271,7 +1272,6 @@
           "new_folder.button": "新建文件夹"
         }
       },
-      "display.assistant.title": "助手设置",
       "display.custom.css": "自定义 CSS",
       "display.custom.css.cherrycss": "从 cherrycss.com 获取",
       "display.custom.css.placeholder": "/* 这里写自定义CSS */",
@@ -1514,9 +1514,7 @@
         "advancedSettings": "高级设置"
       },
       "messages.prompt": "显示提示词",
-      "messages.tokens": "显示Token用量",
       "messages.divider": "消息分割线",
-      "messages.divider.tooltip": "不适用于气泡样式消息",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
       "messages.grid_popover_trigger.click": "点击显示",
@@ -1728,9 +1726,6 @@
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
       "title": "设置",
-      "topic.position": "话题位置",
-      "topic.position.left": "左侧",
-      "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
       "topic.pin_to_top": "固定话题置顶",
       "tray.onclose": "关闭时最小化到托盘",

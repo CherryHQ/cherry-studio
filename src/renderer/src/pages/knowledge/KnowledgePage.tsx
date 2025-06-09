@@ -1,5 +1,5 @@
 import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
 import DragableList from '@renderer/components/DragableList'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -92,9 +92,9 @@ const KnowledgePage: FC = () => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('knowledge.title')}</NavbarCenter>
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <SideNav>
           <ScrollContainer>

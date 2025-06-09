@@ -6,7 +6,6 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Button, Drawer, Tooltip } from 'antd'
@@ -43,8 +42,6 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
   const lastMoveTime = useRef(0)
-  const { topicPosition, showTopics } = useSettings()
-  const showRightTopics = topicPosition === 'right' && showTopics
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
@@ -273,14 +270,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       // Calculate if the mouse is in the trigger area
       const triggerWidth = 60 // Same as the width in styled component
 
-      // Safe way to calculate position when using calc expressions
-      let rightOffset = RIGHT_GAP // Default right offset
-      if (showRightTopics) {
-        // When topics are shown on right, we need to account for topic list width
-        rightOffset += 275 // --topic-list-width
-      }
-
-      const rightPosition = window.innerWidth - rightOffset - triggerWidth
+      const rightPosition = window.innerWidth - triggerWidth
       const topPosition = window.innerHeight * 0.35 // 35% from top
       const height = window.innerHeight * 0.3 // 30% of window height
 
@@ -325,16 +315,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         clearTimeout(hideTimer)
       }
     }
-  }, [
-    containerId,
-    hideTimer,
-    resetHideTimer,
-    isNearButtons,
-    handleMouseEnter,
-    handleMouseLeave,
-    showRightTopics,
-    manuallyClosedUntil
-  ])
+  }, [containerId, hideTimer, resetHideTimer, isNearButtons, handleMouseEnter, handleMouseLeave, manuallyClosedUntil])
 
   return (
     <>

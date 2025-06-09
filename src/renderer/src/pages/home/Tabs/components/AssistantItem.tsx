@@ -20,12 +20,12 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { getLeadingEmoji, uuid } from '@renderer/utils'
+import { classNames, getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import { Dropdown, MenuProps } from 'antd'
+import { Button, Dropdown, MenuProps } from 'antd'
 import { omit } from 'lodash'
-import { AlignJustify, Plus, Settings2, Tag, Tags } from 'lucide-react'
-import { FC, memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { AlignJustify, EllipsisVertical, Plus, Settings2, Tag, Tags } from 'lucide-react'
+import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
@@ -43,6 +43,7 @@ interface AssistantItemProps {
   addAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
+  singleLine?: boolean
 }
 
 const AssistantItem: FC<AssistantItemProps> = ({
@@ -53,16 +54,18 @@ const AssistantItem: FC<AssistantItemProps> = ({
   onDelete,
   addAgent,
   addAssistant,
-  handleSortByChange
+  handleSortByChange,
+  singleLine = false
 }) => {
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { clickAssistantToShowTopic, topicPosition, assistantIconType, setAssistantIconType } = useSettings()
+  const { assistantIconType, setAssistantIconType } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   useEffect(() => {
     if (isActive) {
@@ -121,17 +124,13 @@ const AssistantItem: FC<AssistantItemProps> = ({
   )
 
   const handleSwitch = useCallback(async () => {
-    if (clickAssistantToShowTopic) {
-      if (topicPosition === 'left') {
-        EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
-      }
-      onSwitch(assistant)
-    } else {
-      startTransition(() => {
-        onSwitch(assistant)
-      })
+    if (isMenuOpen) {
+      return
     }
-  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
+
+    EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+    onSwitch(assistant)
+  }, [isMenuOpen, onSwitch, assistant])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(
@@ -139,31 +138,61 @@ const AssistantItem: FC<AssistantItemProps> = ({
     [assistant.emoji, assistantName]
   )
 
+  const assistantNave = (
+    <AssistantNameRow className="name" title={fullAssistantName}>
+      {assistantIconType === 'model' ? (
+        <ModelAvatar
+          model={assistant.model || defaultModel}
+          size={24}
+          className={isPending && !isActive ? 'animation-pulse' : ''}
+        />
+      ) : (
+        assistantIconType === 'emoji' && (
+          <EmojiIcon
+            emoji={assistant.emoji || getLeadingEmoji(assistantName)}
+            className={isPending && !isActive ? 'animation-pulse' : ''}
+          />
+        )
+      )}
+      <AssistantName className="text-nowrap">{assistantName}</AssistantName>
+    </AssistantNameRow>
+  )
+
+  if (singleLine) {
+    return (
+      <Container
+        onClick={handleSwitch}
+        className={classNames({ active: isActive, 'is-menu-open': isMenuOpen, singleLine })}>
+        {assistantNave}
+        <Button
+          className="item-menu-button"
+          type="text"
+          size="small"
+          icon={<Settings2 size={16} color="var(--color-text-3)" />}
+          onClick={(e) => {
+            e.stopPropagation()
+            AssistantSettingsPopup.show({ assistant })
+          }}
+        />
+      </Container>
+    )
+  }
+
   return (
     <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
-      <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
-        <AssistantNameRow className="name" title={fullAssistantName}>
-          {assistantIconType === 'model' ? (
-            <ModelAvatar
-              model={assistant.model || defaultModel}
-              size={24}
-              className={isPending && !isActive ? 'animation-pulse' : ''}
-            />
-          ) : (
-            assistantIconType === 'emoji' && (
-              <EmojiIcon
-                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
-                className={isPending && !isActive ? 'animation-pulse' : ''}
-              />
-            )
-          )}
-          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
-        </AssistantNameRow>
-        {isActive && (
-          <MenuButton onClick={() => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)}>
-            <TopicCount className="topics-count">{assistant.topics.length}</TopicCount>
-          </MenuButton>
-        )}
+      <Container
+        onClick={handleSwitch}
+        className={classNames({ active: isActive, 'is-menu-open': isMenuOpen, singleLine })}>
+        {assistantNave}
+        <Dropdown menu={{ items: menuItems }} trigger={['click']} onOpenChange={setIsMenuOpen}>
+          <Button
+            className="item-menu-button"
+            type="text"
+            size="small"
+            icon={<EllipsisVertical size={16} color="var(--color-text-3)" />}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </Dropdown>
       </Container>
     </Dropdown>
   )
@@ -382,6 +411,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+  align-items: center;
   padding: 0 8px;
   height: 37px;
   position: relative;
@@ -389,11 +419,27 @@ const Container = styled.div`
   border: 0.5px solid transparent;
   width: calc(var(--assistants-width) - 20px);
   cursor: pointer;
+  &.is-menu-open {
+    .item-menu-button {
+      display: block;
+    }
+  }
   &:hover {
     background-color: var(--color-list-item-hover);
+    .item-menu-button {
+      display: block;
+    }
   }
   &.active {
     background-color: var(--color-list-item);
+  }
+  .item-menu-button {
+    display: none;
+  }
+  &.singleLine {
+    .item-menu-button {
+      display: block;
+    }
   }
 `
 
@@ -408,33 +454,6 @@ const AssistantNameRow = styled.div`
 
 const AssistantName = styled.div`
   font-size: 13px;
-`
-
-const MenuButton = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  min-width: 22px;
-  height: 22px;
-  min-height: 22px;
-  border-radius: 11px;
-  position: absolute;
-  background-color: var(--color-background);
-  right: 9px;
-  top: 6px;
-  padding: 0 5px;
-  border: 0.5px solid var(--color-border);
-`
-
-const TopicCount = styled.div`
-  color: var(--color-text);
-  font-size: 10px;
-  border-radius: 10px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
 `
 
 export default memo(AssistantItem)

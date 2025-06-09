@@ -1,4 +1,4 @@
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import {
   Cloud,
@@ -10,11 +10,9 @@ import {
   Package,
   Rocket,
   Settings2,
-  SquareTerminal,
   TextCursorInput,
   Zap
 } from 'lucide-react'
-// 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Route, Routes, useLocation } from 'react-router-dom'
@@ -24,8 +22,6 @@ import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings/DataSettings'
 import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
-import MCPSettings from './MCPSettings'
-import { McpSettingsNavbar } from './MCPSettings/McpSettingsNavbar'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
@@ -41,10 +37,9 @@ const SettingsPage: FC = () => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-        {pathname.includes('/settings/mcp') && <McpSettingsNavbar />}
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <SettingMenus>
           <MenuItemLink to="/settings/provider">
@@ -63,12 +58,6 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/web-search')}>
               <Globe size={18} />
               {t('settings.websearch.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
-              <SquareTerminal size={18} />
-              {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/general">
@@ -125,7 +114,6 @@ const SettingsPage: FC = () => {
             <Route path="provider" element={<ProvidersList />} />
             <Route path="model" element={<ModelSettings />} />
             <Route path="web-search" element={<WebSearchSettings />} />
-            <Route path="mcp/*" element={<MCPSettings />} />
             <Route path="general" element={<GeneralSettings />} />
             <Route path="display" element={<DisplaySettings />} />
             <Route path="shortcut" element={<ShortcutSettings />} />

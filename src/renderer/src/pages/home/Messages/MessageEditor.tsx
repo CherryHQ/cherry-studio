@@ -261,7 +261,7 @@ const EditorContainer = styled.div`
   padding: 8px 0;
   border: 1px solid var(--color-border);
   transition: all 0.2s ease;
-  border-radius: 15px;
+  border-radius: var(--list-item-border-radius);
   margin-top: 5px;
   background-color: var(--color-background-opacity);
   width: 100%;

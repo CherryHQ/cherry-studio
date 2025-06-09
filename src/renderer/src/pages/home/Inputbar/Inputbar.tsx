@@ -11,11 +11,12 @@ import {
 } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useChat } from '@renderer/hooks/useChat'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -30,7 +31,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { FileType, KnowledgeBase, KnowledgeItem, Model } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
@@ -52,21 +53,17 @@ import InputbarTools, { InputbarToolsRef } from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
+import SettingButton from './SettingButton'
 import TokenCount from './TokenCount'
-
-interface Props {
-  assistant: Assistant
-  setActiveTopic: (topic: Topic) => void
-  topic: Topic
-}
 
 let _text = ''
 let _files: FileType[] = []
 
-const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
+const Inputbar: FC = () => {
+  const { activeAssistant, activeTopic: topic, setActiveTopic } = useChat()
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(activeAssistant.id)
   const {
     targetLanguage,
     sendMessageShortcut,
@@ -86,7 +83,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
-  const { isBubbleStyle } = useMessageStyle()
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
@@ -139,17 +135,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
-  const resizeTextArea = useCallback(() => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
+  const resizeTextArea = useCallback(
+    (force: boolean = false) => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        // 如果已经手动设置了高度,则不自动调整
+        if (textareaHeight && !force) {
+          return
+        }
+        textArea.style.height = 'auto'
+        textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
       }
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
-    }
-  }, [textareaHeight])
+    },
+    [textareaHeight]
+  )
 
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
@@ -405,8 +404,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const addNewTopic = useCallback(async () => {
-    await modelGenerating()
-
     const topic = getDefaultTopic(assistant.id)
 
     await db.topics.add({ id: topic.id, messages: [] })
@@ -629,11 +626,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
-      // EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (message: Message) => {
-      //   setText(message.content)
-      //   textareaRef.current?.focus()
-      //   setTimeout(() => resizeTextArea(), 0)
-      // }),
       EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
@@ -693,8 +685,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
-
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
     updateAssistant({ ...assistant, knowledge_bases: bases })
     setSelectedKnowledgeBases(bases ?? [])
@@ -752,12 +742,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } else {
       textArea.style.height = 'auto'
       setTextareaHeight(undefined)
-      requestAnimationFrame(() => {
-        if (textArea) {
-          const contentHeight = textArea.scrollHeight
-          textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
-        }
-      })
+      setTimeout(() => resizeTextArea(true), 0)
     }
 
     textareaRef.current?.focus()
@@ -802,7 +787,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             contextMenu="true"
             variant="borderless"
             spellCheck={false}
-            rows={textareaRows}
+            rows={2}
             ref={textareaRef}
             style={{
               fontSize,
@@ -858,11 +843,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
+              <SettingButton assistant={assistant} ToolbarButton={ToolbarButton} />
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
-                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
-                    <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                  <ToolbarButton type="text" onClick={onPause} style={{ width: 30, height: 30, marginRight: 2 }}>
+                    <CirclePause style={{ color: 'var(--color-error)' }} size={28} />
                   </ToolbarButton>
                 </Tooltip>
               )}
@@ -909,10 +895,10 @@ const Container = styled.div`
 `
 
 const InputBarContainer = styled.div`
-  border: 0.5px solid var(--color-border);
+  border: 1px solid var(--color-border);
   transition: all 0.2s ease;
   position: relative;
-  margin: 14px 20px;
+  margin: 16px 20px;
   margin-top: 0;
   border-radius: 15px;
   padding-top: 6px; // 为拖动手柄留出空间
@@ -949,9 +935,12 @@ const Textarea = styled(TextArea)`
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
-  transition: height 0.2s ease;
+  transition: none !important;
   &.ant-input {
     line-height: 1.4;
+  }
+  .ant-input-textarea-show-count::after {
+    transition: none !important;
   }
 `
 
@@ -961,7 +950,7 @@ const Toolbar = styled.div`
   justify-content: space-between;
   padding: 0 8px;
   padding-bottom: 0;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
   height: 30px;
   gap: 16px;
   position: relative;

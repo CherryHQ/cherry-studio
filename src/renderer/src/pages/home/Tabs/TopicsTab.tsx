@@ -4,7 +4,6 @@ import {
   DeleteOutlined,
   EditOutlined,
   FolderOutlined,
-  MenuOutlined,
   PushpinOutlined,
   QuestionCircleOutlined,
   UploadOutlined
@@ -55,7 +54,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop } = useSettings()
 
   const borderRadius = showTopicTime ? 12 : 'var(--list-item-border-radius)'
 
@@ -250,23 +249,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
         }
       },
       {
-        label: t('settings.topic.position'),
-        key: 'topic-position',
-        icon: <MenuOutlined />,
-        children: [
-          {
-            label: t('settings.topic.position.left'),
-            key: 'left',
-            onClick: () => setTopicPosition('left')
-          },
-          {
-            label: t('settings.topic.position.right'),
-            key: 'right',
-            onClick: () => setTopicPosition('right')
-          }
-        ]
-      },
-      {
         label: t('chat.topics.copy.title'),
         key: 'copy',
         icon: <CopyIcon />,
@@ -399,7 +381,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     setActiveTopic,
     onPinTopic,
     onClearMessages,
-    setTopicPosition,
     onMoveTopic,
     onDeleteTopic
   ])
@@ -477,9 +458,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                     {fullTopicPrompt}
                   </TopicPromptText>
                 )}
-                {showTopicTime && (
-                  <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD HH:mm')}</TopicTime>
-                )}
+                {showTopicTime && <TopicTime className="time">{dayjs(topic.createdAt).format('MM/DD')}</TopicTime>}
               </TopicListItem>
             )
           }}
@@ -568,7 +547,8 @@ const TopicPromptText = styled.div`
 
 const TopicTime = styled.div`
   color: var(--color-text-3);
-  font-size: 11px;
+  font-size: 12px;
+  font-family: ubuntu;
 `
 
 const MenuButton = styled.div`

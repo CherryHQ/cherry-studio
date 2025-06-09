@@ -5,7 +5,7 @@ import ImageSize3_2 from '@renderer/assets/images/paintings/image-size-3-2.svg'
 import ImageSize3_4 from '@renderer/assets/images/paintings/image-size-3-4.svg'
 import ImageSize9_16 from '@renderer/assets/images/paintings/image-size-9-16.svg'
 import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -354,7 +354,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
@@ -367,7 +367,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             </Button>
           </NavbarRight>
         )}
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>

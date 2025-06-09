@@ -1,12 +1,13 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
-import type { MinAppType, Topic } from '@renderer/types'
+import type { Assistant, MinAppType, Topic } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface ChatState {
   isMultiSelectMode: boolean
   selectedMessageIds: string[]
   activeTopic: Topic | null
+  activeAssistant: Assistant | null
 }
 
 export interface UpdateState {
@@ -65,7 +66,8 @@ const initialState: RuntimeState = {
   chat: {
     isMultiSelectMode: false,
     selectedMessageIds: [],
-    activeTopic: null
+    activeTopic: null,
+    activeAssistant: null
   }
 }
 
@@ -118,6 +120,9 @@ const runtimeSlice = createSlice({
     },
     setActiveTopic: (state, action: PayloadAction<Topic>) => {
       state.chat.activeTopic = action.payload
+    },
+    setActiveAssistant: (state, action: PayloadAction<Assistant>) => {
+      state.chat.activeAssistant = action.payload
     }
   }
 })
@@ -137,7 +142,8 @@ export const {
   // Chat related actions
   toggleMultiSelectMode,
   setSelectedMessageIds,
-  setActiveTopic
+  setActiveTopic,
+  setActiveAssistant
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

@@ -395,10 +395,7 @@ const MinappPopupContainer: React.FC = () => {
       height={'100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{
-        marginLeft: 'var(--sidebar-width)',
-        backgroundColor: window.root.style.background
-      }}>
+      style={{ backgroundColor: window.root.style.background }}>
       {!isReady && (
         <EmptyView>
           <Avatar
@@ -418,7 +415,7 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-left: ${isMac ? '20px' : '10px'};
+  padding-left: ${isMac ? '80px' : '10px'};
   padding-right: 10px;
   position: absolute;
   top: 0;

@@ -24,7 +24,6 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
 import { takeRight } from 'lodash'
-import { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
@@ -81,17 +80,30 @@ export function isGenerating() {
   })
 }
 
-export async function locateToMessage(navigate: NavigateFunction, message: Message) {
+export async function locateToMessage({
+  message,
+  setActiveAssistant,
+  setActiveTopic
+}: {
+  message: Message
+  setActiveAssistant: (assistant: Assistant) => void
+  setActiveTopic: (topic: Topic) => void
+}) {
   await isGenerating()
 
   SearchPopup.hide()
   const assistant = getAssistantById(message.assistantId)
   const topic = await getTopicById(message.topicId)
 
-  navigate('/', { state: { assistant, topic } })
+  if (!assistant || !topic) {
+    return
+  }
+
+  setActiveAssistant(assistant)
+  setActiveTopic(topic)
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 300)
+  setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 500)
 }
 
 /**

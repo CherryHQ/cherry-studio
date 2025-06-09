@@ -78,7 +78,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       title={t('chat.input.translate', { target_language: t(`languages.${targetLanguage.toString()}`) })}
       arrow>
       <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
-        {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
+        {isTranslating ? <LoadingOutlined spin /> : <Languages size={16} />}
       </ToolbarButton>
     </Tooltip>
   )

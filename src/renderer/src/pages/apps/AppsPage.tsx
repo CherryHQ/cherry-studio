@@ -1,7 +1,7 @@
-import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { Button, Input } from 'antd'
-import { Search, SettingsIcon, X } from 'lucide-react'
+import { Search, SettingsIcon } from 'lucide-react'
 import React, { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
@@ -41,8 +41,8 @@ const AppsPage: FC = () => {
 
   return (
     <Container onContextMenu={handleContextMenu}>
-      <Navbar>
-        <NavbarMain>
+      <NavbarMain>
+        <NavbarCenter>
           {t('minapp.title')}
           <Input
             placeholder={t('common.search')}
@@ -50,10 +50,7 @@ const AppsPage: FC = () => {
             style={{
               width: '30%',
               height: 28,
-              borderRadius: 15,
-              position: 'absolute',
-              left: '50vw',
-              transform: 'translateX(-50%)'
+              borderRadius: 15
             }}
             size="small"
             variant="filled"
@@ -65,11 +62,11 @@ const AppsPage: FC = () => {
           <Button
             type="text"
             className="nodrag"
-            icon={isSettingsOpen ? <X size={18} /> : <SettingsIcon size={18} color="var(--color-text-2)" />}
+            icon={<SettingsIcon size={18} color={isSettingsOpen ? 'var(--color-primary)' : 'var(--color-text-2)'} />}
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
           />
-        </NavbarMain>
-      </Navbar>
+        </NavbarCenter>
+      </NavbarMain>
       <ContentContainer id="content-container">
         {isSettingsOpen && <MiniAppSettings />}
         {!isSettingsOpen && (

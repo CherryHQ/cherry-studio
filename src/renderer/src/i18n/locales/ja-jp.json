@@ -201,6 +201,7 @@
       "message.quote": "引用",
       "message.regenerate.model": "モデルを切り替え",
       "message.useful": "役立つ",
+      "message.settings": "設定",
       "multiple.select": "選択",
       "multiple.select.empty": "メッセージが選択されていません",
       "navigation": {
@@ -421,7 +422,8 @@
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
       },
-      "no_results": "検索結果なし"
+      "no_results": "検索結果なし",
+      "apps": "アプリ"
     },
     "docs": {
       "title": "ドキュメント"
@@ -1055,7 +1057,6 @@
       "about.updateNotAvailable": "最新バージョンを使用しています",
       "about.website.button": "ウェブサイト",
       "about.website.title": "公式ウェブサイト",
-      "advanced.auto_switch_to_topics": "トピックに自動的に切り替える",
       "advanced.title": "詳細設定",
       "assistant": "デフォルトアシスタント",
       "assistant.model_params": "モデルパラメータ",
@@ -1269,7 +1270,6 @@
         "notion.export_reasoning.title": "エクスポート時に思考チェーンを含める",
         "notion.export_reasoning.help": "有効にすると、Notionにエクスポートする際に思考チェーンの内容が含まれます。"
       },
-      "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
       "display.custom.css.cherrycss": "cherrycss.comから取得",
       "display.custom.css.placeholder": "/* ここにカスタムCSSを入力 */",
@@ -1508,9 +1508,7 @@
         "advancedSettings": "詳細設定"
       },
       "messages.prompt": "プロンプト表示",
-      "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
-      "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
       "messages.grid_popover_trigger.click": "クリックで表示",
@@ -1716,9 +1714,6 @@
       "theme.window.style.title": "ウィンドウスタイル",
       "theme.window.style.transparent": "透明ウィンドウ",
       "title": "設定",
-      "topic.position": "トピックの位置",
-      "topic.position.left": "左",
-      "topic.position.right": "右",
       "topic.show.time": "トピックの時間を表示",
       "topic.pin_to_top": "固定トピックを上部に表示",
       "tray.onclose": "閉じるときにトレイに最小化",

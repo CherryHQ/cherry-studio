@@ -38,7 +38,6 @@ import ChatNavigation from './ChatNavigation'
 import MessageAnchorLine from './MessageAnchorLine'
 import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
-import Prompt from './Prompt'
 
 interface MessagesProps {
   assistant: Assistant
@@ -53,7 +52,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     `topic-${topic.id}`
   )
   const { t } = useTranslation()
-  const { showPrompt, messageNavigation } = useSettings()
+  const { messageNavigation } = useSettings()
   const { updateTopic, addTopic } = useAssistant(assistant.id)
   const dispatch = useAppDispatch()
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
@@ -271,7 +270,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       id="messages"
       className="messages-container"
       ref={scrollContainerRef}
-      style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0 }}
+      style={{ position: 'relative' }}
       key={assistant.id}
       onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
@@ -299,7 +298,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             )}
           </ScrollContainer>
         </InfiniteScroll>
-        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
@@ -372,7 +370,6 @@ const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   flex-direction: column-reverse;
   padding: 10px 0 20px;
   overflow-x: hidden;
-  background-color: var(--color-background);
   z-index: 1;
   margin-right: 2px;
 `

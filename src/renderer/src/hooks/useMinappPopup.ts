@@ -1,5 +1,6 @@
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import {
   setCurrentMinappId,
@@ -32,6 +33,7 @@ export const useMinappPopup = () => {
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
+      EventEmitter.emit(EVENT_NAMES.OPEN_MINAPP, app)
       if (keepAlive) {
         // 如果小程序已经打开，只切换显示
         if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {

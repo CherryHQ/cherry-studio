@@ -1,11 +1,11 @@
 import { ArrowRightOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
+import { useChat } from '@renderer/hooks/useChat'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
 import { locateToMessage } from '@renderer/services/MessagesService'
-import NavigationService from '@renderer/services/NavigationService'
 import { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { runAsyncFunction } from '@renderer/utils'
@@ -19,10 +19,10 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 const SearchMessage: FC<Props> = ({ message, ...props }) => {
-  const navigate = NavigationService.navigate!
   const { messageStyle } = useSettings()
   const { t } = useTranslation()
   const [topic, setTopic] = useState<Topic | null>(null)
+  const { setActiveAssistant, setActiveTopic } = useChat()
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -50,11 +50,13 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
             type="text"
             size="middle"
             style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 10 }}
-            onClick={() => locateToMessage(navigate, message)}
+            onClick={() => locateToMessage({ message, setActiveAssistant, setActiveTopic })}
             icon={<ArrowRightOutlined />}
           />
           <HStack mt="10px" justifyContent="center">
-            <Button onClick={() => locateToMessage(navigate, message)} icon={<ArrowRightOutlined />}>
+            <Button
+              onClick={() => locateToMessage({ message, setActiveAssistant, setActiveTopic })}
+              icon={<ArrowRightOutlined />}>
               {t('history.locate.message')}
             </Button>
           </HStack>
