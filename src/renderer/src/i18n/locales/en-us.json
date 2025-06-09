@@ -8,7 +8,10 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
-      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Available variables",
+        "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name"
+      },
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -30,16 +33,7 @@
         "agent": "Export Agent"
       },
       "delete.popup.content": "Are you sure you want to delete this agent?",
-      "edit.message.add.title": "Add",
-      "edit.message.assistant.placeholder": "Enter assistant message",
-      "edit.message.assistant.title": "Assistant",
-      "edit.message.empty.content": "Conversation input content cannot be empty",
-      "edit.message.group.title": "Message Group",
-      "edit.message.title": "Preset messages",
-      "edit.message.user.placeholder": "Enter user message",
-      "edit.message.user.title": "User",
       "edit.model.select.title": "Select Model",
-      "edit.settings.hide_preset_messages": "Hide Preset Message",
       "edit.title": "Edit Agent",
       "manage.title": "Manage Agents",
       "my_agents": "My Agents",
@@ -76,7 +70,6 @@
       "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
       "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
-      "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
       "settings.reasoning_effort.off": "Off",
@@ -322,6 +315,7 @@
       "translate": "Translate",
       "topics.export.siyuan": "Export to Siyuan Note",
       "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.obsidian_reasoning": "Include Reasoning Chain",
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
@@ -586,7 +580,14 @@
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
+      "spanish": "Spanish",
+      "polish": "Polish",
+      "turkish": "Turkish",
+      "thai": "Thai",
+      "vietnamese": "Vietnamese",
+      "indonesian": "Indonesian",
+      "urdu": "Urdu",
+      "malay": "Malay"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -627,6 +628,7 @@
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
+      "error.fetchTopicName": "Failed to name the topic",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
       "error.invalid.api.host": "Invalid API Host",
       "error.invalid.api.key": "Invalid API Key",
@@ -941,10 +943,22 @@
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       },
       "text_desc_required": "Please enter image description first",
+      "image_handle_required": "Please upload an image first.",
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "req_error_token": "Please check the validity of the token",
+      "req_error_no_balance": "Please check the validity of the token",
       "auto_create_paint": "Auto-create image",
-      "auto_create_paint_tip": "After the image is generated, a new image will be created automatically."
-
+      "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
+      "select_model": "Select Model",
+      "input_parameters": "Input Parameters",
+      "input_image": "Input Image",
+      "generated_image": "Generated Image",
+      "pricing": "Pricing",
+      "model_and_pricing": "Model & Pricing",
+      "per_image": "per image",
+      "per_images": "per images",
+      "required_field": "Required field",
+      "uploaded_input": "Uploaded input"
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -1097,7 +1111,9 @@
           "token": "Joplin Authorization Token",
           "token_placeholder": "Joplin Authorization Token",
           "url": "Joplin Web Clipper Service URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "Include Reasoning Chain in Export",
+          "export_reasoning.help": "When enabled, the exported content will include the reasoning chain (thought process) generated by the assistant."
         },
         "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
@@ -1106,12 +1122,14 @@
         "markdown_export.path_placeholder": "Export Path",
         "markdown_export.select": "Select",
         "markdown_export.title": "Markdown Export",
+        "markdown_export.show_model_name.title": "Use Model Name on Export",
+        "markdown_export.show_model_name.help": "When enabled, the topic-naming model will be used to create titles for exported messages. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
+        "markdown_export.show_model_provider.title": "Show Model Provider",
+        "markdown_export.show_model_provider.help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
-        "notion.auto_split": "Auto split when exporting",
-        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.check": {
           "button": "Check",
           "empty_api_key": "API key is not configured",
@@ -1125,10 +1143,9 @@
         "notion.help": "Notion Configuration Documentation",
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
-        "notion.split_size": "Split size",
-        "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
-        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
-        "notion.title": "Notion Configuration",
+        "notion.title": "Notion Settings",
+        "notion.export_reasoning.title": "Include Reasoning Chain in Export",
+        "notion.export_reasoning.help": "When enabled, exported content will include reasoning chain (thought process).",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -1324,6 +1341,8 @@
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
       "general.auto_check_update.title": "Auto Update",
+      "general.early_access.title": "Early Access",
+      "general.early_access.tooltip": "Enable to use the latest version from GitHub, which may be slower. Please backup your data in advance.",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1491,6 +1510,7 @@
         "advancedSettings": "Advanced Settings"
       },
       "messages.prompt": "Show prompt",
+      "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
@@ -1794,6 +1814,8 @@
     },
     "translate": {
       "any.language": "Any language",
+      "target_language": "Target Language",
+      "alter_language": "Alternative Language",
       "button.translate": "Translate",
       "close": "Close",
       "closed": "Translation closed",
@@ -1844,6 +1866,13 @@
       "show_window": "Show Window",
       "visualization": "Visualization"
     },
+    "update": {
+      "title": "Update",
+      "message": "New version {{version}} is ready, do you want to install it now?",
+      "later": "Later",
+      "install": "Install",
+      "noReleaseNotes": "No release notes"
+    },
     "selection": {
       "name": "Selection Assistant",
       "action": {
@@ -1853,7 +1882,8 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy"
+          "copy": "Copy",
+          "quote": "Quote"
         },
         "window": {
           "pin": "Pin",
@@ -1866,6 +1896,9 @@
           "esc_stop": "Esc: Stop",
           "c_copy": "C: Copy",
           "r_regenerate": "R: Regenerate"
+        },
+        "translate": {
+          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
         }
       },
       "settings": {

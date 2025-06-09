@@ -1,5 +1,7 @@
 import { isWin } from '@main/constant'
+import { locales } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
+import { FeedUrl } from '@shared/config/constant'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
@@ -19,6 +21,7 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.setFeedURL(configManager.getFeedUrl())
 
     // 检测下载错误
     autoUpdater.on('error', (error) => {
@@ -61,6 +64,11 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
+  public setFeedUrl(feedUrl: FeedUrl) {
+    autoUpdater.setFeedURL(feedUrl)
+    configManager.setFeedUrl(feedUrl)
+  }
+
   public async checkForUpdates() {
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
@@ -94,15 +102,22 @@ export default class AppUpdater {
     if (!this.releaseInfo) {
       return
     }
+    const locale = locales[configManager.getLanguage()]
+    const { update: updateLocale } = locale.translation
+
+    let detail = this.formatReleaseNotes(this.releaseInfo.releaseNotes)
+    if (detail === '') {
+      detail = updateLocale.noReleaseNotes
+    }
 
     dialog
       .showMessageBox({
         type: 'info',
-        title: '安装更新',
+        title: updateLocale.title,
         icon,
-        message: `新版本 ${this.releaseInfo.version} 已准备就绪`,
-        detail: this.formatReleaseNotes(this.releaseInfo.releaseNotes),
-        buttons: ['稍后安装', '立即安装'],
+        message: updateLocale.message.replace('{{version}}', this.releaseInfo.version),
+        detail,
+        buttons: [updateLocale.later, updateLocale.install],
         defaultId: 1,
         cancelId: 0
       })
@@ -118,7 +133,7 @@ export default class AppUpdater {
 
   private formatReleaseNotes(releaseNotes: string | ReleaseNoteInfo[] | null | undefined): string {
     if (!releaseNotes) {
-      return '暂无更新说明'
+      return ''
     }
 
     if (typeof releaseNotes === 'string') {

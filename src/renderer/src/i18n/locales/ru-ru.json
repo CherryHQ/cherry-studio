@@ -8,19 +8,13 @@
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
-      "add.prompt.variables.tip": "Доступные переменные: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Доступные переменные",
+        "content": "{{date}}:\tДата\n{{time}}:\tВремя\n{{datetime}}:\tДата и время\n{{system}}:\tОперационная система\n{{arch}}:\tАрхитектура процессора\n{{language}}:\tЯзык\n{{model_name}}:\tНазвание модели"
+      },
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
-      "edit.message.add.title": "Добавить",
-      "edit.message.assistant.placeholder": "Введите сообщение ассистента",
-      "edit.message.assistant.title": "Ассистент",
-      "edit.message.empty.content": "Содержание вводимого сообщения не может быть пустым",
-      "edit.message.group.title": "Группа сообщений",
-      "edit.message.title": "Предустановленные сообщения",
-      "edit.message.user.placeholder": "Введите сообщение пользователя",
-      "edit.message.user.title": "Пользователь",
       "edit.model.select.title": "Выбрать модель",
-      "edit.settings.hide_preset_messages": "Скрыть предустановленные сообщения",
       "edit.title": "Редактировать агента",
       "manage.title": "Редактировать агентов",
       "my_agents": "Мои агенты",
@@ -76,7 +70,6 @@
       "settings.default_model": "Модель по умолчанию",
       "settings.knowledge_base": "Настройки базы знаний",
       "settings.model": "Настройки модели",
-      "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
       "settings.reasoning_effort.off": "Выключить",
       "settings.reasoning_effort.high": "Стараюсь думать",
@@ -322,6 +315,7 @@
       "translate": "Перевести",
       "topics.export.siyuan": "Экспорт в Siyuan Note",
       "topics.export.wait_for_title_naming": "Создание заголовка...",
+      "topics.export.obsidian_reasoning": "Включить цепочку рассуждений",
       "topics.export.title_naming_success": "Заголовок успешно создан",
       "topics.export.title_naming_failed": "Не удалось создать заголовок, используется заголовок по умолчанию",
       "input.translating": "Перевод...",
@@ -586,7 +580,14 @@
       "korean": "Корейский",
       "portuguese": "Португальский",
       "russian": "Русский",
-      "spanish": "Испанский"
+      "spanish": "Испанский",
+      "polish": "Польский",
+      "turkish": "Туркменский",
+      "thai": "Тайский",
+      "vietnamese": "Вьетнамский",
+      "indonesian": "Индонезийский",
+      "urdu": "Урду",
+      "malay": "Малайзийский"
     },
     "lmstudio": {
       "keep_alive_time.description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -627,6 +628,7 @@
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
+      "error.fetchTopicName": "Не удалось назвать тему",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "error.invalid.api.host": "Неверный API адрес",
       "error.invalid.api.key": "Неверный API ключ",
@@ -941,9 +943,22 @@
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
       },
       "text_desc_required": "Пожалуйста, сначала введите описание изображения",
+      "image_handle_required": "Пожалуйста, сначала загрузите изображение.",
       "req_error_text": "Операция не удалась, повторите попытку. Пожалуйста, избегайте защищенных авторским правом терминов и конфиденциальных слов в запросах.",
+      "req_error_token": "Пожалуйста, проверьте действительность токена",
+      "req_error_no_balance": "Пожалуйста, проверьте действительность токена",
       "auto_create_paint": "Автоматическое создание изображения",
-      "auto_create_paint_tip": "После генерации изображения будет автоматически создано новое."
+      "auto_create_paint_tip": "После генерации изображения будет автоматически создано новое.",
+      "select_model": "Выбрать модель",
+      "input_parameters": "Ввести параметры",
+      "input_image": "Входное изображение",
+      "generated_image": "Сгенерированное изображение",
+      "pricing": "Цены",
+      "model_and_pricing": "Модель и цены",
+      "per_image": "за изображение",
+      "per_images": "за изображения",
+      "required_field": "Обязательное поле",
+      "uploaded_input": "Загруженный ввод"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -1094,7 +1109,9 @@
           "token": "Токен Joplin",
           "token_placeholder": "Введите токен Joplin",
           "url": "URL Joplin",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+          "export_reasoning.help": "Если включено, экспортируемый контент будет содержать цепочку рассуждений, сгенерированную ассистентом."
         },
         "markdown_export.force_dollar_math.help": "Если включено, при экспорте в Markdown для обозначения формул LaTeX будет принудительно использоваться $$. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "markdown_export.force_dollar_math.title": "Принудительно использовать $$ для формул LaTeX",
@@ -1103,12 +1120,14 @@
         "markdown_export.path_placeholder": "Путь экспорта",
         "markdown_export.select": "Выбрать",
         "markdown_export.title": "Экспорт в Markdown",
+        "markdown_export.show_model_name.title": "Использовать имя модели при экспорте",
+        "markdown_export.show_model_name.help": "Если включено, для создания заголовков экспортируемых сообщений будет использоваться модель именования темы. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
+        "markdown_export.show_model_provider.title": "Показать поставщика модели",
+        "markdown_export.show_model_provider.help": "Показывать поставщика модели (например, OpenAI, Gemini) при экспорте в Markdown",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минут",
         "notion.api_key": "Ключ API Notion",
         "notion.api_key_placeholder": "Введите ключ API Notion",
-        "notion.auto_split": "Автоматическое разбиение на страницы при экспорте диалога",
-        "notion.auto_split_tip": "Автоматическое разбиение на страницы при экспорте в Notion, если тема слишком длинная",
         "notion.check": {
           "button": "Проверить",
           "empty_api_key": "Не настроен API key",
@@ -1122,10 +1141,9 @@
         "notion.help": "Документация по настройке Notion",
         "notion.page_name_key": "Название поля заголовка страницы",
         "notion.page_name_key_placeholder": "Введите название поля заголовка страницы, по умолчанию Name",
-        "notion.split_size": "Размер автоматического разбиения",
-        "notion.split_size_help": "Рекомендуется 90 для пользователей бесплатной версии Notion, 24990 для пользователей премиум-версии, значение по умолчанию — 90",
-        "notion.split_size_placeholder": "Введите ограничение количества блоков на странице (по умолчанию 90)",
         "notion.title": "Настройки Notion",
+        "notion.export_reasoning.title": "Включить цепочку рассуждений при экспорте",
+        "notion.export_reasoning.help": "При включении, содержимое цепочки рассуждений будет включено при экспорте в Notion.",
         "title": "Настройки данных",
         "webdav": {
           "autoSync": "Автоматическое резервное копирование",
@@ -1486,6 +1504,7 @@
         "advancedSettings": "Расширенные настройки"
       },
       "messages.prompt": "Показывать подсказки",
+      "messages.tokens": "Показать использование токенов",
       "messages.divider": "Показывать разделитель между сообщениями",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
@@ -1734,7 +1753,9 @@
         "content_limit": "Ограничение длины текста",
         "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автообновление",
+      "general.auto_check_update.title": "Автоматическое обновление",
+      "general.early_access.title": "Ранний доступ",
+      "general.early_access.tooltip": "Включить для использования последней версии из GitHub, что может быть медленнее и нестабильно. Пожалуйста, сделайте резервную копию данных заранее.",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
@@ -1793,6 +1814,8 @@
     },
     "translate": {
       "any.language": "Любой язык",
+      "target_language": "Целевой язык",
+      "alter_language": "Альтернативный язык",
       "button.translate": "Перевести",
       "close": "Закрыть",
       "closed": "Перевод закрыт",
@@ -1843,6 +1866,13 @@
       "show_window": "Показать окно",
       "visualization": "Визуализация"
     },
+    "update": {
+      "title": "Обновление",
+      "message": "Новая версия {{version}} готова, установить сейчас?",
+      "later": "Позже",
+      "install": "Установить",
+      "noReleaseNotes": "Нет заметок об обновлении"
+    },
     "selection": {
       "name": "Помощник выбора",
       "action": {
@@ -1852,7 +1882,8 @@
           "summary": "Суммаризировать",
           "search": "Поиск",
           "refine": "Уточнить",
-          "copy": "Копировать"
+          "copy": "Копировать",
+          "quote": "Цитировать"
         },
         "window": {
           "pin": "Закрепить",
@@ -1865,6 +1896,9 @@
           "esc_stop": "Esc - остановить",
           "c_copy": "C - копировать",
           "r_regenerate": "R - перегенерировать"
+        },
+        "translate": {
+          "smart_translate_tips": "Смарт-перевод: содержимое будет переведено на целевой язык; содержимое уже на целевом языке будет переведено на альтернативный язык"
         }
       },
       "settings": {

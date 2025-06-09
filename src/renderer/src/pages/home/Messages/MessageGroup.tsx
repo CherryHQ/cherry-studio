@@ -19,11 +19,10 @@ import SelectableMessage from './MessageSelect'
 interface Props {
   messages: (Message & { index: number })[]
   topic: Topic
-  hidePresetMessages?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
 }
 
-const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElement }: Props) => {
+const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const { editMessage } = useMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
@@ -168,7 +167,6 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
         message,
         topic,
         index: message.index,
-        hidePresetMessages,
         style: {
           paddingTop: isGrouped && ['horizontal', 'grid'].includes(multiModelMessageStyle) ? 0 : 15
         }
@@ -220,16 +218,7 @@ const MessageGroup = ({ messages, topic, hidePresetMessages, registerMessageElem
         </SelectableMessage>
       )
     },
-    [
-      isGrid,
-      isGrouped,
-      topic,
-      hidePresetMessages,
-      multiModelMessageStyle,
-      isHorizontal,
-      selectedMessageId,
-      gridPopoverTrigger
-    ]
+    [isGrid, isGrouped, topic, multiModelMessageStyle, isHorizontal, selectedMessageId, gridPopoverTrigger]
   )
 
   return (
@@ -287,7 +276,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
   gap: ${({ $layout }) => ($layout === 'horizontal' ? '16px' : '0')};
   grid-template-columns: repeat(
     ${({ $layout, $count }) => (['fold', 'vertical'].includes($layout) ? 1 : $count)},
-    minmax(550px, 1fr)
+    minmax(480px, 1fr)
   );
   @media (max-width: 800px) {
     grid-template-columns: repeat(

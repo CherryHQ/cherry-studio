@@ -1,4 +1,5 @@
 import {
+  CheckOutlined,
   DeleteOutlined,
   EditOutlined,
   MinusCircleOutlined,
@@ -19,7 +20,7 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel, getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import { Dropdown, MenuProps } from 'antd'
 import { omit } from 'lodash'
@@ -151,7 +152,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
           ) : (
             assistantIconType === 'emoji' && (
               <EmojiIcon
-                emoji={assistant.emoji || assistantName.slice(0, 1)}
+                emoji={assistant.emoji || getLeadingEmoji(assistantName)}
                 className={isPending && !isActive ? 'animation-pulse' : ''}
               />
             )
@@ -184,11 +185,10 @@ const handleTagOperation = (
   assistants: Assistant[],
   updateAssistants: (assistants: Assistant[]) => void
 ) => {
-  if (assistant.tags?.includes(tag)) {
-    updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
-  } else {
-    updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
-  }
+  const removeTag = () => updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
+  const addTag = () => updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
+  const hasTag = assistant.tags?.includes(tag)
+  hasTag ? removeTag() : addTag()
 }
 
 // 提取创建菜单项的函数
@@ -202,8 +202,7 @@ const createTagMenuItems = (
   const items: MenuProps['items'] = [
     ...allTags.map((tag) => ({
       label: tag,
-      icon: assistant.tags?.includes(tag) ? <DeleteOutlined size={14} /> : <Tag size={12} />,
-      danger: assistant.tags?.includes(tag),
+      icon: assistant.tags?.includes(tag) ? <CheckOutlined size={14} /> : <Tag size={12} />,
       key: `all-tag-${tag}`,
       onClick: () => handleTagOperation(tag, assistant, assistants, updateAssistants)
     }))
@@ -383,23 +382,18 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 8px;
   height: 37px;
   position: relative;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
   width: calc(var(--assistants-width) - 20px);
   cursor: pointer;
-  .iconfont {
-    opacity: 0;
-    color: var(--color-text-3);
-  }
   &:hover {
-    background-color: var(--color-background-soft);
+    background-color: var(--color-list-item-hover);
   }
   &.active {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
+    background-color: var(--color-list-item);
   }
 `
 
@@ -423,7 +417,6 @@ const MenuButton = styled.div`
   align-items: center;
   min-width: 22px;
   height: 22px;
-  min-width: 22px;
   min-height: 22px;
   border-radius: 11px;
   position: absolute;

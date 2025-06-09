@@ -52,13 +52,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     initUserTheme()
 
     // listen for theme updates from main process
-    const cleanup = window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
+    return window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
       document.body.setAttribute('theme-mode', actualTheme)
       setActualTheme(actualTheme)
     })
-
-    return cleanup
-  }, [])
+  }, [actualTheme, initUserTheme, setSettedTheme, settedTheme])
 
   useEffect(() => {
     window.api.setTheme(settedTheme)
