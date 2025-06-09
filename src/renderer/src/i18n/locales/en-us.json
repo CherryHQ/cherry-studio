@@ -973,6 +973,7 @@
       "azure-openai": "Azure OpenAI",
       "baichuan": "Baichuan",
       "baidu-cloud": "Baidu Cloud",
+      "cephalon": "Cephalon",
       "copilot": "GitHub Copilot",
       "dashscope": "Alibaba Cloud",
       "deepseek": "DeepSeek",

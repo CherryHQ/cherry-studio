@@ -487,6 +487,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     models: SYSTEM_MODELS.voyageai,
     isSystem: true,
     enabled: false
+  },
+  {
+    id: 'cephalon',
+    name: 'Cephalon',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://cephalon.cloud/user-center/v1/model',
+    models: SYSTEM_MODELS.cephalon,
+    isSystem: true,
+    enabled: false
   }
 ]
 

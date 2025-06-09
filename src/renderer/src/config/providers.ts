@@ -44,6 +44,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -94,7 +95,8 @@ const PROVIDER_LOGO_MAP = {
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
   qiniu: QiniuProviderLogo,
-  tokenflux: TokenFluxProviderLogo
+  tokenflux: TokenFluxProviderLogo,
+  cephalon: CephalonProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -611,6 +613,17 @@ export const PROVIDER_CONFIG = {
       apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
       docs: `${TOKENFLUX_HOST}/docs`,
       models: `${TOKENFLUX_HOST}/models`
+    }
+  },
+  cephalon: {
+    api: {
+      url: 'https://cephalon.cloud/user-center/v1/model'
+    },
+    websites: {
+      official: 'https://cephalon.cloud',
+      apiKey: 'https://cephalon.cloud/api',
+      docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
+      models: 'https://cephalon.ai/models'
     }
   }
 }
