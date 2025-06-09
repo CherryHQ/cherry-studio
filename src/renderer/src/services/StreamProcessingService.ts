@@ -28,7 +28,8 @@ export interface StreamProcessorCallbacks {
   onLLMWebSearchComplete?: (llmWebSearchResult: WebSearchResponse) => void
   // Image generation chunk received
   onImageCreated?: () => void
-  onImageGenerated?: (imageData: GenerateImageResponse) => void
+  onImageDelta?: (imageData: GenerateImageResponse) => void
+  onImageGenerated?: (imageData?: GenerateImageResponse) => void
   // Called when an error occurs during chunk processing
   onError?: (error: any) => void
   // Called when the entire stream processing is signaled as complete (success or failure)
@@ -85,8 +86,11 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
       if (data.type === ChunkType.IMAGE_CREATED && callbacks.onImageCreated) {
         callbacks.onImageCreated()
       }
+      if (data.type === ChunkType.IMAGE_DELTA && callbacks.onImageDelta) {
+        callbacks.onImageDelta(data.image)
+      }
       if (data.type === ChunkType.IMAGE_COMPLETE && callbacks.onImageGenerated) {
-        callbacks.onImageGenerated(data.image)
+        callbacks.onImageGenerated(data?.image)
       }
       if (data.type === ChunkType.ERROR && callbacks.onError) {
         callbacks.onError(data.error)

@@ -267,10 +267,6 @@ export function applyCompletionsMiddlewares<
       const abortSignal = context._internal.flowControl?.abortSignal
       const timeout = context._internal.customState?.sdkMetadata?.timeout
 
-      if (!abortSignal) {
-        throw new Error('Abort signal not found in context. Middleware chain should have set it.')
-      }
-
       // Call the original SDK method with transformed parameters
       // 使用转换后的参数调用原始 SDK 方法
       const rawOutput = await originalCompletionsMethod.call(originalApiClientInstance, sdkPayload, {

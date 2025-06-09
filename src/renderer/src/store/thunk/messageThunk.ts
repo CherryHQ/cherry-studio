@@ -35,6 +35,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
@@ -652,7 +653,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
         }
       },
-      onImageGenerated: (imageData) => {
+      onImageDelta: (imageData) => {
         const imageUrl = imageData.images?.[0] || 'placeholder_image_url'
         if (lastBlockId && lastBlockType === MessageBlockType.IMAGE) {
           const changes: Partial<ImageMessageBlock> = {
@@ -662,6 +663,26 @@ const fetchAndProcessAssistantResponseImpl = async (
           }
           dispatch(updateOneBlock({ id: lastBlockId, changes }))
           saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+        }
+      },
+      onImageGenerated: (imageData) => {
+        if (lastBlockId && lastBlockType === MessageBlockType.IMAGE) {
+          if (!imageData) {
+            const changes: Partial<ImageMessageBlock> = {
+              status: MessageBlockStatus.SUCCESS
+            }
+            dispatch(updateOneBlock({ id: lastBlockId, changes }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          } else {
+            const imageUrl = imageData.images?.[0] || 'placeholder_image_url'
+            const changes: Partial<ImageMessageBlock> = {
+              url: imageUrl,
+              metadata: { generateImageResponse: imageData },
+              status: MessageBlockStatus.SUCCESS
+            }
+            dispatch(updateOneBlock({ id: lastBlockId, changes }))
+            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          }
         } else {
           console.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
         }
@@ -740,18 +761,20 @@ const fetchAndProcessAssistantResponseImpl = async (
             saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
           }
 
-          // const content = getMainTextContent(finalAssistantMsg)
-          // if (!isOnHomePage()) {
-          //   await notificationService.send({
-          //     id: uuid(),
-          //     type: 'success',
-          //     title: t('notification.assistant'),
-          //     message: content.length > 50 ? content.slice(0, 47) + '...' : content,
-          //     silent: false,
-          //     timestamp: Date.now(),
-          //     source: 'assistant'
-          //   })
-          // }
+          const endTime = Date.now()
+          const duration = endTime - startTime
+          const content = getMainTextContent(finalAssistantMsg)
+          if (!isOnHomePage() && duration > 60 * 1000) {
+            await notificationService.send({
+              id: uuid(),
+              type: 'success',
+              title: t('notification.assistant'),
+              message: content.length > 50 ? content.slice(0, 47) + '...' : content,
+              silent: false,
+              timestamp: Date.now(),
+              source: 'assistant'
+            })
+          }
 
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
@@ -795,6 +818,7 @@ const fetchAndProcessAssistantResponseImpl = async (
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
+    const startTime = Date.now()
     await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,

@@ -54,7 +54,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   /**
    * 根据模型特征选择合适的客户端
-   * 注意: 返回的client保持完整的实例引用，不会丢失任何功能
    */
   public getClient(model: Model) {
     if (isOpenAIWebSearch(model) || model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
@@ -262,7 +261,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         messages: OpenAIResponseSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
+        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch, enableGenerateImage } = coreRequest
         // 1. 处理系统消息
         const systemMessage: OpenAI.Responses.EasyInputMessage = {
           role: 'system',
@@ -316,6 +315,14 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
             type: 'web_search_preview'
           })
         }
+
+        if (enableGenerateImage) {
+          tools.push({
+            type: 'image_generation',
+            partial_images: streamOutput ? 2 : undefined
+          })
+        }
+
         const toolChoices: OpenAI.Responses.ToolChoiceTypes = {
           type: 'web_search_preview'
         }
@@ -388,6 +395,14 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               case 'function_call':
                 toolCalls.push(output)
                 break
+              case 'image_generation_call':
+                controller.enqueue({
+                  type: ChunkType.IMAGE_COMPLETE,
+                  image: {
+                    type: 'base64',
+                    images: [`data:image/png;base64,${output.result}`]
+                  }
+                })
             }
           }
         } else {
@@ -401,6 +416,20 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: chunk.delta
+              })
+              break
+            case 'response.image_generation_call.partial_image':
+              controller.enqueue({
+                type: ChunkType.IMAGE_DELTA,
+                image: {
+                  type: 'base64',
+                  images: [`data:image/png;base64,${chunk.partial_image_b64}`]
+                }
+              })
+              break
+            case 'response.image_generation_call.completed':
+              controller.enqueue({
+                type: ChunkType.IMAGE_COMPLETE
               })
               break
             case 'response.output_text.delta': {

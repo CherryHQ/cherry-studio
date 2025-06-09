@@ -120,7 +120,7 @@ export interface ImageDeltaChunk {
   /**
    * A chunk of Base64 encoded image data
    */
-  image: string
+  image: { type: 'base64'; images: string[] }
 
   /**
    * The type of the chunk
@@ -137,7 +137,7 @@ export interface ImageCompleteChunk {
   /**
    * The image content of the chunk
    */
-  image: { type: 'base64'; images: string[] }
+  image?: { type: 'base64'; images: string[] }
 }
 
 export interface ThinkingDeltaChunk {

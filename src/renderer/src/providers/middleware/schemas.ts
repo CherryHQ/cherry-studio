@@ -50,6 +50,7 @@ export interface CompletionsParams {
   streamOutput: boolean
   enableWebSearch?: boolean
   enableReasoning?: boolean
+  enableGenerateImage?: boolean
 
   // 上下文控制
   contextCount?: number

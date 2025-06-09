@@ -2,8 +2,10 @@ import Logger from '@renderer/config/logger'
 import {
   getOpenAIWebSearchParams,
   isEmbeddingModel,
+  isGenerateImageModel,
   isOpenAIWebSearch,
   isReasoningModel,
+  isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
@@ -337,8 +339,15 @@ export async function fetchChatCompletion({
 
   const enableWebSearch = (assistant.enableWebSearch && isWebSearchModel(model)) || false
 
+  const enableGenerateImage =
+    isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
+
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+  if (enableGenerateImage) {
+    onChunkReceived({ type: ChunkType.IMAGE_CREATED })
+  }
+
   await AI.completions(
     {
       callType: 'chat',
@@ -348,8 +357,9 @@ export async function fetchChatCompletion({
       mcpTools: mcpTools,
       maxTokens,
       streamOutput: assistant.settings?.streamOutput || false,
-      enableReasoning: enableReasoning,
-      enableWebSearch
+      enableReasoning,
+      enableWebSearch,
+      enableGenerateImage
     },
     {
       streamOutput: assistant.settings?.streamOutput || false
@@ -573,6 +583,7 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
       }
     } else {
       const params: CompletionsParams = {
+        callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: true
