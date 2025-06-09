@@ -34,6 +34,16 @@ if (isWin) {
   app.commandLine.appendSwitch('wm-window-animations-disabled')
 }
 
+// Enable features for unresponsive renderer js call stacks
+app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
+app.on('web-contents-created', (_, webContents) => {
+  webContents.on('unresponsive', async () => {
+    // Interrupt execution and collect call stack from unresponsive renderer
+    const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
+    Logger.error('Renderer unresponsive\n', callStack)
+  })
+})
+
 // in production mode, handle uncaught exception and unhandled rejection globally
 if (!isDev) {
   // handle uncaught exception
