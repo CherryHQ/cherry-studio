@@ -140,6 +140,8 @@ import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
 import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
+import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
+import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
@@ -297,7 +299,7 @@ export function getModelLogo(modelId: string) {
     'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
     deepseek: isLight ? DeepSeekModelLogo : DeepSeekModelLogoDark,
-    '(qwen|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
+    '(qwen|qwq|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
     gemma: isLight ? GemmaModelLogo : GemmaModelLogoDark,
     'yi-': isLight ? YiModelLogo : YiModelLogoDark,
     llama: isLight ? LlamaModelLogo : LlamaModelLogoDark,
@@ -376,12 +378,14 @@ export function getModelLogo(modelId: string) {
     'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark,
     xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
+    youdao: YoudaoLogo,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     'bge-': BgeModelLogo,
     'voyage-': VoyageModelLogo,
-    tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark
+    tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
+    'nomic-': NomicLogo
   }
 
   for (const key in logoMap) {
