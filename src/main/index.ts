@@ -2,7 +2,7 @@ import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { app } from 'electron'
+import { app, session } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
@@ -37,10 +37,20 @@ if (isWin) {
 // Enable features for unresponsive renderer js call stacks
 app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
 app.on('web-contents-created', (_, webContents) => {
+  webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Document-Policy': ['include-js-call-stacks-in-crash-reports']
+      }
+    })
+  })
+
   webContents.on('unresponsive', async () => {
     // Interrupt execution and collect call stack from unresponsive renderer
+    Logger.error('Renderer unresponsive start')
     const callStack = await webContents.mainFrame.collectJavaScriptCallStack()
-    Logger.error('Renderer unresponsive\n', callStack)
+    Logger.error('Renderer unresponsive js call stack\n', callStack)
   })
 })
 
