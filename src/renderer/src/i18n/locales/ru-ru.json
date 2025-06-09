@@ -8,19 +8,13 @@
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
-      "add.prompt.variables.tip": "Доступные переменные: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Доступные переменные",
+        "content": "{{date}}:\tДата\n{{time}}:\tВремя\n{{datetime}}:\tДата и время\n{{system}}:\tОперационная система\n{{arch}}:\tАрхитектура процессора\n{{language}}:\tЯзык\n{{model_name}}:\tНазвание модели"
+      },
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
-      "edit.message.add.title": "Добавить",
-      "edit.message.assistant.placeholder": "Введите сообщение ассистента",
-      "edit.message.assistant.title": "Ассистент",
-      "edit.message.empty.content": "Содержание вводимого сообщения не может быть пустым",
-      "edit.message.group.title": "Группа сообщений",
-      "edit.message.title": "Предустановленные сообщения",
-      "edit.message.user.placeholder": "Введите сообщение пользователя",
-      "edit.message.user.title": "Пользователь",
       "edit.model.select.title": "Выбрать модель",
-      "edit.settings.hide_preset_messages": "Скрыть предустановленные сообщения",
       "edit.title": "Редактировать агента",
       "manage.title": "Редактировать агентов",
       "my_agents": "Мои агенты",
@@ -76,7 +70,6 @@
       "settings.default_model": "Модель по умолчанию",
       "settings.knowledge_base": "Настройки базы знаний",
       "settings.model": "Настройки модели",
-      "settings.preset_messages": "Предустановленные сообщения",
       "settings.prompt": "Настройки промптов",
       "settings.reasoning_effort.off": "Выключить",
       "settings.reasoning_effort.high": "Стараюсь думать",
@@ -950,7 +943,10 @@
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
       },
       "text_desc_required": "Пожалуйста, сначала введите описание изображения",
+      "image_handle_required": "Пожалуйста, сначала загрузите изображение.",
       "req_error_text": "Операция не удалась, повторите попытку. Пожалуйста, избегайте защищенных авторским правом терминов и конфиденциальных слов в запросах.",
+      "req_error_token": "Пожалуйста, проверьте действительность токена",
+      "req_error_no_balance": "Пожалуйста, проверьте действительность токена",
       "auto_create_paint": "Автоматическое создание изображения",
       "auto_create_paint_tip": "После генерации изображения будет автоматически создано новое.",
       "select_model": "Выбрать модель",
@@ -1757,7 +1753,9 @@
         "content_limit": "Ограничение длины текста",
         "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
       },
-      "general.auto_check_update.title": "Включить автообновление",
+      "general.auto_check_update.title": "Автоматическое обновление",
+      "general.early_access.title": "Ранний доступ",
+      "general.early_access.tooltip": "Включить для использования последней версии из GitHub, что может быть медленнее и нестабильно. Пожалуйста, сделайте резервную копию данных заранее.",
       "quickPhrase": {
         "title": "Быстрые фразы",
         "add": "Добавить фразу",
@@ -1884,7 +1882,8 @@
           "summary": "Суммаризировать",
           "search": "Поиск",
           "refine": "Уточнить",
-          "copy": "Копировать"
+          "copy": "Копировать",
+          "quote": "Цитировать"
         },
         "window": {
           "pin": "Закрепить",

@@ -8,7 +8,10 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
-      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "利用可能な変数",
+        "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名"
+      },
       "add.title": "エージェントを作成",
       "import": {
         "title": "外部からインポート",
@@ -30,16 +33,7 @@
         "agent": "エージェントをエクスポート"
       },
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
-      "edit.message.add.title": "追加",
-      "edit.message.assistant.placeholder": "アシスタントのメッセージを入力",
-      "edit.message.assistant.title": "アシスタント",
-      "edit.message.empty.content": "会話の入力内容が空です",
-      "edit.message.group.title": "メッセージグループ",
-      "edit.message.title": "プリセットメッセージ",
-      "edit.message.user.placeholder": "ユーザーメッセージを入力",
-      "edit.message.user.title": "ユーザー",
       "edit.model.select.title": "モデルを選択",
-      "edit.settings.hide_preset_messages": "プリセットメッセージを非表示",
       "edit.title": "エージェントを編集",
       "manage.title": "エージェントを管理",
       "my_agents": "マイエージェント",
@@ -76,7 +70,6 @@
       "settings.default_model": "デフォルトモデル",
       "settings.knowledge_base": "ナレッジベース設定",
       "settings.model": "モデル設定",
-      "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
       "settings.reasoning_effort": "思考連鎖の長さ",
       "settings.reasoning_effort.off": "オフ",
@@ -950,7 +943,10 @@
       "rendering_speed": "レンダリング速度",
       "translating": "翻訳中...",
       "text_desc_required": "画像の説明を先に入力してください",
+      "image_handle_required": "最初に画像をアップロードしてください。",
       "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "req_error_token": "トークンの有効性を確認してください",
+      "req_error_no_balance": "トークンの有効性を確認してください",
       "auto_create_paint": "画像を自動作成",
       "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。",
       "select_model": "モデルを選択",
@@ -1758,6 +1754,8 @@
         "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
       },
       "general.auto_check_update.title": "自動更新",
+      "general.early_access.title": "早期アクセス",
+      "general.early_access.tooltip": "有効にすると、GitHub の最新バージョンを使用します。ダウンロード速度が遅く、不安定な場合があります。データを事前にバックアップしてください。",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",
@@ -1884,7 +1882,8 @@
           "summary": "要約",
           "search": "検索",
           "refine": "最適化",
-          "copy": "コピー"
+          "copy": "コピー",
+          "quote": "引用"
         },
         "window": {
           "pin": "最前面に固定",

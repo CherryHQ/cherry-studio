@@ -18,7 +18,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { addAssistantMessagesToTopic, getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
@@ -33,8 +33,10 @@ import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
@@ -408,7 +410,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     const topic = getDefaultTopic(assistant.id)
 
     await db.topics.add({ id: topic.id, messages: [] })
-    await addAssistantMessagesToTopic({ assistant, topic })
 
     // Clear previous state
     // Reset to assistant default model
@@ -419,6 +420,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, setActiveTopic, setModel])
+
+  const onQuote = useCallback(
+    (text: string) => {
+      const quotedText = formatQuotedText(text)
+      setText((prevText) => {
+        const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+        setTimeout(() => resizeTextArea(), 0)
+        return newText
+      })
+      textareaRef.current?.focus()
+    },
+    [resizeTextArea]
+  )
 
   const onPause = async () => {
     await pauseMessages()
@@ -624,21 +638,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
-      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
-        setText((prevText) => {
-          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-          setTimeout(() => resizeTextArea(), 0)
-          return newText
-        })
-        textareaRef.current?.focus()
-      })
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
     ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+
+    // 监听引用事件
+    const quoteFromAnywhereRemover = window.electron?.ipcRenderer.on(
+      IpcChannel.App_QuoteToMain,
+      (_, selectedText: string) => onQuote(selectedText)
+    )
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub())
+      quoteFromAnywhereRemover?.()
+    }
+  }, [addNewTopic, onQuote])
 
   useEffect(() => {
-    textareaRef.current?.focus()
+    if (!document.querySelector('.topview-fullscreen-container')) {
+      textareaRef.current?.focus()
+    }
   }, [assistant, topic])
 
   useEffect(() => {
@@ -723,48 +741,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [])
 
   const onToggleExpended = () => {
-    if (textareaHeight) {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        setTextareaHeight(undefined)
-        setTimeout(() => {
-          textArea.style.height = `${textArea.scrollHeight}px`
-        }, 200)
-        return
-      }
-    }
-
-    const isExpended = !expended
-    setExpend(isExpended)
+    const currentlyExpanded = expended || !!textareaHeight
+    const shouldExpand = !currentlyExpanded
+    setExpend(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
-
-    if (textArea) {
-      if (isExpended) {
-        textArea.style.height = '70vh'
-      } else {
-        resetHeight()
-      }
+    if (!textArea) return
+    if (shouldExpand) {
+      textArea.style.height = '70vh'
+      setTextareaHeight(window.innerHeight * 0.7)
+    } else {
+      textArea.style.height = 'auto'
+      setTextareaHeight(undefined)
+      requestAnimationFrame(() => {
+        if (textArea) {
+          const contentHeight = textArea.scrollHeight
+          textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+        }
+      })
     }
 
     textareaRef.current?.focus()
-  }
-
-  const resetHeight = () => {
-    if (expended) {
-      setExpend(false)
-    }
-
-    setTextareaHeight(undefined)
-
-    requestAnimationFrame(() => {
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        textArea.style.height = 'auto'
-        const contentHeight = textArea.scrollHeight
-        textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
-      }
-    })
   }
 
   const isExpended = expended || !!textareaHeight
@@ -949,11 +945,11 @@ const Textarea = styled(TextArea)`
   padding: 0;
   border-radius: 0;
   display: flex;
-  flex: 1;
   resize: none !important;
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
+  transition: height 0.2s ease;
   &.ant-input {
     line-height: 1.4;
   }
@@ -968,6 +964,9 @@ const Toolbar = styled.div`
   margin-bottom: 4px;
   height: 30px;
   gap: 16px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
 `
 
 const ToolbarMenu = styled.div`

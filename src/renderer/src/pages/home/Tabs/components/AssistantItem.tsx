@@ -1,4 +1,5 @@
 import {
+  CheckOutlined,
   DeleteOutlined,
   EditOutlined,
   MinusCircleOutlined,
@@ -184,11 +185,10 @@ const handleTagOperation = (
   assistants: Assistant[],
   updateAssistants: (assistants: Assistant[]) => void
 ) => {
-  if (assistant.tags?.includes(tag)) {
-    updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
-  } else {
-    updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
-  }
+  const removeTag = () => updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
+  const addTag = () => updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
+  const hasTag = assistant.tags?.includes(tag)
+  hasTag ? removeTag() : addTag()
 }
 
 // 提取创建菜单项的函数
@@ -202,8 +202,7 @@ const createTagMenuItems = (
   const items: MenuProps['items'] = [
     ...allTags.map((tag) => ({
       label: tag,
-      icon: assistant.tags?.includes(tag) ? <DeleteOutlined size={14} /> : <Tag size={12} />,
-      danger: assistant.tags?.includes(tag),
+      icon: assistant.tags?.includes(tag) ? <CheckOutlined size={14} /> : <Tag size={12} />,
       key: `all-tag-${tag}`,
       onClick: () => handleTagOperation(tag, assistant, assistants, updateAssistants)
     }))

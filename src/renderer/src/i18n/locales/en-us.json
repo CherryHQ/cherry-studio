@@ -8,7 +8,10 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
-      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Available variables",
+        "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name"
+      },
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -30,16 +33,7 @@
         "agent": "Export Agent"
       },
       "delete.popup.content": "Are you sure you want to delete this agent?",
-      "edit.message.add.title": "Add",
-      "edit.message.assistant.placeholder": "Enter assistant message",
-      "edit.message.assistant.title": "Assistant",
-      "edit.message.empty.content": "Conversation input content cannot be empty",
-      "edit.message.group.title": "Message Group",
-      "edit.message.title": "Preset messages",
-      "edit.message.user.placeholder": "Enter user message",
-      "edit.message.user.title": "User",
       "edit.model.select.title": "Select Model",
-      "edit.settings.hide_preset_messages": "Hide Preset Message",
       "edit.title": "Edit Agent",
       "manage.title": "Manage Agents",
       "my_agents": "My Agents",
@@ -76,7 +70,6 @@
       "settings.mcp.noServersAvailable": "No MCP servers available. Add servers in settings",
       "settings.mcp.description": "Default enabled MCP servers",
       "settings.model": "Model Settings",
-      "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
       "settings.reasoning_effort.off": "Off",
@@ -950,7 +943,10 @@
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       },
       "text_desc_required": "Please enter image description first",
+      "image_handle_required": "Please upload an image first.",
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "req_error_token": "Please check the validity of the token",
+      "req_error_no_balance": "Please check the validity of the token",
       "auto_create_paint": "Auto-create image",
       "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
       "select_model": "Select Model",
@@ -1345,6 +1341,8 @@
       "general.emoji_picker": "Emoji Picker",
       "general.image_upload": "Image Upload",
       "general.auto_check_update.title": "Auto Update",
+      "general.early_access.title": "Early Access",
+      "general.early_access.tooltip": "Enable to use the latest version from GitHub, which may be slower. Please backup your data in advance.",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",
@@ -1884,7 +1882,8 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy"
+          "copy": "Copy",
+          "quote": "Quote"
         },
         "window": {
           "pin": "Pin",

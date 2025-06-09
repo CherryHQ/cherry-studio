@@ -129,7 +129,8 @@ export function getUserMessage({
   const blocks: MessageBlock[] = []
   const blockIds: string[] = []
 
-  if (content?.trim()) {
+  // 内容为空也应该创建空文本块
+  if (content !== undefined) {
     // Pass messageId when creating blocks
     const textBlock = createMainTextBlock(messageId, content, {
       status: MessageBlockStatus.SUCCESS,

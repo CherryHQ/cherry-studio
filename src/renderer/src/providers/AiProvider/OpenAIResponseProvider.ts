@@ -55,7 +55,7 @@ import mime from 'mime'
 import OpenAI from 'openai'
 import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
-import { FileLike, toFile } from 'openai/uploads'
+import { toFile, Uploadable } from 'openai/uploads'
 
 import { CompletionsParams } from '.'
 import BaseProvider from './BaseProvider'
@@ -821,12 +821,10 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
    */
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      content: getMainTextContent(message)
+    }))
     const userMessageContent = userMessages.reduce((prev, curr) => {
       const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`
       return prev + (prev ? '\n' : '') + content
@@ -1052,7 +1050,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
     const { signal } = abortController
     const content = getMainTextContent(lastUserMessage!)
     let response: OpenAI.Images.ImagesResponse | null = null
-    let images: FileLike[] = []
+    let images: Uploadable[] = []
 
     try {
       if (lastUserMessage) {
@@ -1084,7 +1082,7 @@ export abstract class BaseOpenAIProvider extends BaseProvider {
             return await toFile(bytes, fileName, { type: mimeType })
           })
         )
-        images = images.concat(assistantImages.filter(Boolean) as FileLike[])
+        images = images.concat(assistantImages.filter(Boolean) as Uploadable[])
       }
 
       onChunk({

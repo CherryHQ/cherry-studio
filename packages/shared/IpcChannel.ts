@@ -13,12 +13,15 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
+  App_SetFeedUrl = 'app:set-feed-url',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
 
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
+
+  App_QuoteToMain = 'app:quote-to-main',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
