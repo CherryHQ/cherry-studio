@@ -4422,7 +4422,7 @@ __metadata:
     electron-icon-builder: "npm:^2.0.1"
     electron-log: "npm:^5.1.5"
     electron-store: "npm:^8.2.0"
-    electron-updater: "patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch"
+    electron-updater: "npm:6.6.2"
     electron-vite: "npm:^2.3.0"
     electron-window-state: "npm:^5.0.3"
     emittery: "npm:^1.0.3"
@@ -5387,13 +5387,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"builder-util-runtime@npm:9.3.2":
-  version: 9.3.2
-  resolution: "builder-util-runtime@npm:9.3.2"
+"builder-util-runtime@npm:9.3.1":
+  version: 9.3.1
+  resolution: "builder-util-runtime@npm:9.3.1"
   dependencies:
     debug: "npm:^4.3.4"
     sax: "npm:^1.2.4"
-  checksum: 10c0/1a103268ef800a504f04021ce14db282ddcfb72dec8238e7c9624a9c651ccd9c15c45ddcdb00e7cf6a5164d9822e30efdeeff470b506ed6aa9ed27c0aaefa695
+  checksum: 10c0/32de87e5f294154de707f40acf59a5600af9d1ce903ccbba53b81824de7a1dd9568c5f0c033ed765e14c4ea73347aac09ecbce686e1bc7fefbd7b4f64d2c9d68
   languageName: node
   linkType: hard
 
@@ -7076,11 +7076,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron-updater@npm:6.6.3":
-  version: 6.6.3
-  resolution: "electron-updater@npm:6.6.3"
+"electron-updater@npm:6.6.2":
+  version: 6.6.2
+  resolution: "electron-updater@npm:6.6.2"
   dependencies:
-    builder-util-runtime: "npm:9.3.2"
+    builder-util-runtime: "npm:9.3.1"
     fs-extra: "npm:^10.1.0"
     js-yaml: "npm:^4.1.0"
     lazy-val: "npm:^1.0.5"
@@ -7088,23 +7088,7 @@ __metadata:
     lodash.isequal: "npm:^4.5.0"
     semver: "npm:^7.6.3"
     tiny-typed-emitter: "npm:^2.1.0"
-  checksum: 10c0/fb924eb0fb8d692b703f49196400422faf4c25416abe22c9b3aad0a48890929fa3dde4c8671a74cd71b4a4ef93937f3d9f78ea3c2891a5c6d7938355bc699863
-  languageName: node
-  linkType: hard
-
-"electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch":
-  version: 6.6.3
-  resolution: "electron-updater@patch:electron-updater@npm%3A6.6.3#~/.yarn/patches/electron-updater-npm-6.6.3-9269dbaf84.patch::version=6.6.3&hash=4f329d"
-  dependencies:
-    builder-util-runtime: "npm:9.3.2"
-    fs-extra: "npm:^10.1.0"
-    js-yaml: "npm:^4.1.0"
-    lazy-val: "npm:^1.0.5"
-    lodash.escaperegexp: "npm:^4.1.2"
-    lodash.isequal: "npm:^4.5.0"
-    semver: "npm:^7.6.3"
-    tiny-typed-emitter: "npm:^2.1.0"
-  checksum: 10c0/31ca459c2589243e4553531927d9d7c5a99e2395683278b3d4639ebef39963f9fdd0bcf8dda42efecec4d5899dd4e3431473b4b95e72a5813132a1b19fea04e2
+  checksum: 10c0/2b9ae5583b95f6772c4a2515ddba7ba52b65460ab81f09ae4f0b97c7e3d7b7e3d9426775eb9a53d3193bd4c3d5466bf30827c1a6ee75e4aca739c647f6ac46ff
   languageName: node
   linkType: hard
 
