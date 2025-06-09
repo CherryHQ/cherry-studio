@@ -22,14 +22,23 @@ import OpenAI, { AzureOpenAI } from 'openai'
 import { Stream } from 'openai/streaming'
 
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | GoogleGenAI
-export type SdkParams = OpenAISdkParams | AnthropicSdkParams | GeminiSdkParams
-export type SdkRawChunk = OpenAISdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
-export type SdkRawOutput = OpenAISdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput
-export type SdkMessageParam = OpenAISdkMessageParam | AnthropicSdkMessageParam | GeminiSdkMessageParam
-export type SdkMessage = OpenAISdkMessage | AnthropicSdkMessage
-export type SdkToolCall = OpenAI.Chat.Completions.ChatCompletionMessageToolCall | ToolUseBlock | FunctionCall
-export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool
+export type SdkParams = OpenAISdkParams | OpenAIResponseSdkParams | AnthropicSdkParams | GeminiSdkParams
+export type SdkRawChunk = OpenAISdkRawChunk | OpenAIResponseSdkRawChunk | AnthropicSdkRawChunk | GeminiSdkRawChunk
+export type SdkRawOutput = OpenAISdkRawOutput | OpenAIResponseSdkRawOutput | AnthropicSdkRawOutput | GeminiSdkRawOutput
+export type SdkMessageParam =
+  | OpenAISdkMessageParam
+  | OpenAIResponseSdkMessageParam
+  | AnthropicSdkMessageParam
+  | GeminiSdkMessageParam
+export type SdkToolCall =
+  | OpenAI.Chat.Completions.ChatCompletionMessageToolCall
+  | ToolUseBlock
+  | FunctionCall
+  | OpenAIResponseSdkToolCall
+export type SdkTool = OpenAI.Chat.Completions.ChatCompletionTool | ToolUnion | Tool | OpenAIResponseSdkTool
 export type SdkModel = OpenAI.Models.Model | Anthropic.ModelInfo | GeminiModel
+
+export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions
 
 /**
  * OpenAI
@@ -39,7 +48,7 @@ type OpenAIParamsWithoutReasoningEffort = Omit<OpenAI.Chat.Completions.ChatCompl
 
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled'; budget_tokens?: number }
-  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string }
+  reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string } | OpenAI.Reasoning
   reasoning_effort?: OpenAI.Chat.Completions.ChatCompletionCreateParams['reasoning_effort'] | 'none' | 'auto'
   enable_thinking?: boolean
   thinking_budget?: number
@@ -60,13 +69,30 @@ export type OpenAISdkRawContentSource =
   | OpenAI.Chat.Completions.ChatCompletionMessage
 
 export type OpenAISdkMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam
-export type OpenAISdkMessage = OpenAI.Chat.Completions.ChatCompletionMessage
+
+/**
+ * OpenAI Response
+ */
+
+export type OpenAIResponseSdkParams = OpenAI.Responses.ResponseCreateParams
+export type OpenAIResponseSdkRawOutput = Stream<OpenAI.Responses.ResponseStreamEvent> | OpenAI.Responses.Response
+export type OpenAIResponseSdkRawChunk = OpenAI.Responses.ResponseStreamEvent | OpenAI.Responses.Response
+export type OpenAIResponseSdkMessageParam = OpenAI.Responses.ResponseInputItem
+export type OpenAIResponseSdkToolCall = OpenAI.Responses.ResponseFunctionToolCall
+export type OpenAIResponseSdkTool = OpenAI.Responses.Tool
+
+/**
+ * Anthropic
+ */
 
 export type AnthropicSdkParams = MessageCreateParams
 export type AnthropicSdkRawOutput = MessageStream | Message
 export type AnthropicSdkRawChunk = RawMessageStreamEvent | Message
 export type AnthropicSdkMessageParam = MessageParam
-export type AnthropicSdkMessage = Message
+
+/**
+ * Gemini
+ */
 
 export type GeminiSdkParams = SendMessageParameters & CreateChatParameters
 export type GeminiSdkRawOutput = AsyncGenerator<GenerateContentResponse> | GenerateContentResponse
@@ -79,5 +105,3 @@ export type GeminiOptions = {
   abortSignal?: AbortSignal
   timeout?: number
 }
-
-export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | GeminiOptions

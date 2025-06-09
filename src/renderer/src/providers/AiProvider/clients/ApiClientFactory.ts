@@ -1,9 +1,11 @@
 import { Provider } from '@renderer/types'
 
+import { AihubmixAPIClient } from './AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
+import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 
 /**
  * Factory for creating ApiClient instances based on provider configuration
@@ -21,12 +23,23 @@ export class ApiClientFactory {
     })
 
     let instance: BaseApiClient
+
+    // 首先检查特殊的provider id
+    if (provider.id === 'aihubmix') {
+      console.log(`[ApiClientFactory] Creating AihubmixAPIClient for provider: ${provider.id}`)
+      instance = new AihubmixAPIClient(provider) as BaseApiClient
+      return instance
+    }
+
     // 然后检查标准的provider type
     switch (provider.type) {
       case 'openai':
       case 'azure-openai':
         console.log(`[ApiClientFactory] Creating OpenAIApiClient for provider: ${provider.id}`)
         instance = new OpenAIAPIClient(provider) as BaseApiClient
+        break
+      case 'openai-response':
+        instance = new OpenAIResponseAPIClient(provider) as BaseApiClient
         break
       case 'gemini':
         instance = new GeminiAPIClient(provider) as BaseApiClient
@@ -40,15 +53,10 @@ export class ApiClientFactory {
         break
     }
 
-    // console.log(`[ApiClientFactory] Wrapping ${provider.id} with middleware. Config:`, {
-    //   completionsMiddlewares: middlewareConfig.completions?.length || 0,
-    //   methodMiddlewares: Object.keys(middlewareConfig.methods || {}).length
-    // })
-    //
-    // const wrappedInstance = wrapProviderWithMiddleware(instance, middlewareConfig)
-    // console.log(`[ApiClientFactory] Successfully wrapped ${provider.id} with middleware`)
-    //
-    // return wrappedInstance
-    return instance // Return the raw instance
+    return instance
   }
+}
+
+export function isOpenAIProvider(provider: Provider) {
+  return !['anthropic', 'gemini'].includes(provider.type)
 }

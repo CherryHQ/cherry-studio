@@ -4,7 +4,7 @@ import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware, ProcessingState } from '../types'
+import { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'FinalChunkConsumerAndNotifierMiddleware'
 
@@ -35,21 +35,22 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
       if (!ctx._internal.customState) {
         ctx._internal.customState = {}
       }
-      ctx._internal.customState.accumulatedUsage = {
-        prompt_tokens: 0,
-        completion_tokens: 0,
-        total_tokens: 0,
-        thoughts_tokens: 0
-      }
-      ctx._internal.customState.accumulatedMetrics = {
-        completion_tokens: 0,
-        time_completion_millsec: 0,
-        time_first_token_millsec: 0,
-        time_thinking_millsec: 0
+      ctx._internal.observer = {
+        usage: {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0
+        },
+        metrics: {
+          completion_tokens: 0,
+          time_completion_millsec: 0,
+          time_first_token_millsec: 0,
+          time_thinking_millsec: 0
+        }
       }
       // 初始化文本累积器
       ctx._internal.customState.accumulatedText = ''
-      Logger.debug(`[${MIDDLEWARE_NAME}] Initialized accumulation data for top-level call`)
+      ctx._internal.customState.startTimestamp = Date.now()
     } else {
       Logger.debug(`[${MIDDLEWARE_NAME}] Recursive call, will use existing accumulation data`)
     }
@@ -78,9 +79,8 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
 
             if (chunk) {
               const genericChunk = chunk as GenericChunk
-
               // 提取并累加usage/metrics数据
-              extractAndAccumulateUsageMetrics(genericChunk, ctx._internal.observer)
+              extractAndAccumulateUsageMetrics(ctx, genericChunk)
 
               const shouldSkipChunk =
                 isRecursiveCall &&
@@ -118,6 +118,8 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
             Logger.info(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (onChunk not provided)`)
           }
           if (params.onChunk && !isRecursiveCall) {
+            Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with usage:`, ctx._internal.observer?.usage)
+            Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with metrics:`, ctx._internal.observer?.metrics)
             params.onChunk({
               type: ChunkType.BLOCK_COMPLETE,
               response: {
@@ -156,22 +158,35 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
 /**
  * 从GenericChunk或原始SDK chunks中提取usage/metrics数据并累加
  */
-function extractAndAccumulateUsageMetrics(chunk: GenericChunk, observer: ProcessingState['observer']): void {
-  if (!observer?.usage || !observer?.metrics) {
+function extractAndAccumulateUsageMetrics(ctx: CompletionsContext, chunk: GenericChunk): void {
+  if (!ctx._internal.observer?.usage || !ctx._internal.observer?.metrics) {
     return
   }
 
   try {
-    // 从LLM_RESPONSE_COMPLETE chunk中提取usage数据
-    if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE && chunk.response?.usage) {
-      accumulateUsage(observer.usage, chunk.response.usage)
-      console.log(`[${MIDDLEWARE_NAME}] Extracted usage from LLM_RESPONSE_COMPLETE:`, observer.usage)
+    if (ctx._internal.customState && !ctx._internal.customState?.firstTokenTimestamp) {
+      ctx._internal.customState.firstTokenTimestamp = Date.now()
+      Logger.debug(`[${MIDDLEWARE_NAME}] First token timestamp: ${ctx._internal.customState.firstTokenTimestamp}`)
+    }
+    if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
+      Logger.debug(`[${MIDDLEWARE_NAME}] LLM_RESPONSE_COMPLETE chunk received:`, ctx._internal)
+      // 从LLM_RESPONSE_COMPLETE chunk中提取usage数据
+      if (chunk.response?.usage) {
+        accumulateUsage(ctx._internal.observer.usage, chunk.response.usage)
+      }
+
+      if (ctx._internal.customState && ctx._internal.customState?.firstTokenTimestamp) {
+        ctx._internal.observer.metrics.time_first_token_millsec =
+          ctx._internal.customState.firstTokenTimestamp - ctx._internal.customState.startTimestamp
+        ctx._internal.observer.metrics.time_completion_millsec +=
+          Date.now() - ctx._internal.customState.firstTokenTimestamp
+      }
     }
 
     // 也可以从其他chunk类型中提取metrics数据
-    if (chunk.type === ChunkType.THINKING_COMPLETE && chunk.thinking_millsec && observer.metrics) {
-      observer.metrics.time_thinking_millsec = Math.max(
-        observer.metrics.time_thinking_millsec || 0,
+    if (chunk.type === ChunkType.THINKING_COMPLETE && chunk.thinking_millsec && ctx._internal.observer?.metrics) {
+      ctx._internal.observer.metrics.time_thinking_millsec = Math.max(
+        ctx._internal.observer.metrics.time_thinking_millsec || 0,
         chunk.thinking_millsec
       )
     }

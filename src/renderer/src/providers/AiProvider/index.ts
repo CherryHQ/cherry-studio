@@ -11,6 +11,8 @@ import { MIDDLEWARE_NAME as WebSearchMiddlewareName } from '../middleware/core/W
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from '../middleware/feat/ThinkingTagExtractionMiddleware'
 import { MIDDLEWARE_NAME as ToolUseExtractionMiddlewareName } from '../middleware/feat/ToolUseExtractionMiddleware'
 import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
+import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
+import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 
 export default class AiProvider {
   private apiClient: BaseApiClient
@@ -37,12 +39,30 @@ export default class AiProvider {
 
     const middlewares = builder.build()
 
+    const model = params.assistant.model
+    if (!model) {
+      return Promise.reject(new Error('Model is required'))
+    }
+
+    // 根据client类型选择合适的处理方式
+    let client: BaseApiClient
+
+    if (this.apiClient instanceof AihubmixAPIClient) {
+      // AihubmixAPIClient: 根据模型选择合适的子client
+      client = this.apiClient.getClientForModel(model)
+      if (client instanceof OpenAIResponseAPIClient) {
+        client = client.getClient(model) as BaseApiClient
+      }
+    } else if (this.apiClient instanceof OpenAIResponseAPIClient) {
+      // OpenAIResponseAPIClient: 根据模型特征选择API类型
+      client = this.apiClient.getClient(model) as BaseApiClient
+    } else {
+      // 其他client直接使用
+      client = this.apiClient
+    }
+
     // 2. Create the wrapped SDK method with middlewares
-    const wrappedCompletionMethod = applyCompletionsMiddlewares(
-      this.apiClient,
-      this.apiClient.createCompletions,
-      middlewares
-    )
+    const wrappedCompletionMethod = applyCompletionsMiddlewares(client, client.createCompletions, middlewares)
 
     // 3. Execute the wrapped method with the original params
     return wrappedCompletionMethod(params, options)

@@ -115,6 +115,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                   type: ChunkType.TEXT_COMPLETE,
                   text: finalText
                 })
+                controller.enqueue(chunk)
               } else {
                 // 其他类型的chunk直接传递
                 controller.enqueue(chunk)

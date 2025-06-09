@@ -202,7 +202,8 @@ export function applyCompletionsMiddlewares<
         toolProcessingState: {
           recursionDepth: 0,
           isRecursiveCall: false
-        }
+        },
+        observer: {}
       }
     }
   }

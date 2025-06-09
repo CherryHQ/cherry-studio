@@ -8,7 +8,6 @@ import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import { WebSearchSource } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -505,10 +504,20 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onLLMWebSearchInProgress: () => {
-        const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
-        citationBlockId = citationBlock.id
-        handleBlockTransition(citationBlock, MessageBlockType.CITATION)
-        // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
+        if (lastBlockType === MessageBlockType.UNKNOWN && lastBlockId) {
+          lastBlockType = MessageBlockType.CITATION
+          citationBlockId = lastBlockId
+          const changes = {
+            type: MessageBlockType.CITATION,
+            status: MessageBlockStatus.PROCESSING
+          }
+          dispatch(updateOneBlock({ id: lastBlockId, changes }))
+          saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+        } else {
+          const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
+          citationBlockId = citationBlock.id
+          handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        }
       },
       onLLMWebSearchComplete: async (llmWebSearchResult) => {
         if (citationBlockId) {
@@ -668,7 +677,12 @@ const fetchAndProcessAssistantResponseImpl = async (
           // 更新topic的name
           autoRenameTopic(assistant, topicId)
 
-          if (response && response.usage?.total_tokens === 0) {
+          if (
+            response &&
+            (response.usage?.total_tokens === 0 ||
+              response?.usage?.prompt_tokens === 0 ||
+              response?.usage?.completion_tokens === 0)
+          ) {
             const usage = await estimateMessagesUsage({ assistant, messages: finalContextWithAssistant })
             response.usage = usage
           }
@@ -701,8 +715,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     }
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
-    // TODO: 在这里能否加快上屏速度？
-    streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
+
     await fetchChatCompletion({
       messages: messagesForContext,
       assistant: assistant,

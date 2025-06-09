@@ -417,17 +417,23 @@ export class AnthropicAPIClient extends BaseApiClient<
         const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
         // 1. 处理系统消息
         let systemPrompt = assistant.prompt
+
+        // 2. 设置工具
+        const { tools } = this.setupToolsConfig({
+          mcpTools: mcpTools,
+          model,
+          enableToolUse: isEnabledToolUse(assistant)
+        })
+
         if (this.useSystemPromptForTools) {
           systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
         }
-        if (this.useSystemPromptForTools && mcpTools && mcpTools.length) {
-          systemPrompt = buildSystemPrompt(systemPrompt, mcpTools)
-        }
+
         const systemMessage: TextBlockParam | undefined = systemPrompt
           ? { type: 'text', text: systemPrompt }
           : undefined
 
-        // 2. 处理用户消息
+        // 3. 处理用户消息
         const sdkMessages: AnthropicSdkMessageParam[] = []
         if (typeof messages === 'string') {
           sdkMessages.push({ role: 'user', content: messages })
@@ -437,13 +443,6 @@ export class AnthropicAPIClient extends BaseApiClient<
             sdkMessages.push(await this.convertMessageToSdkParam(message))
           }
         }
-
-        // 3. 设置工具
-        const { tools } = this.setupToolsConfig({
-          mcpTools: mcpTools,
-          model,
-          enableToolUse: isEnabledToolUse(assistant)
-        })
 
         if (enableWebSearch) {
           const webSearchTool = await this.getWebSearchParams(model)
@@ -613,11 +612,17 @@ export class AnthropicAPIClient extends BaseApiClient<
               }
               break
             }
-            case 'message_stop': {
+            case 'message_delta': {
               controller.enqueue({
-                type: ChunkType.LLM_RESPONSE_COMPLETE
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: {
+                  usage: {
+                    prompt_tokens: rawChunk.usage.input_tokens || 0,
+                    completion_tokens: rawChunk.usage.output_tokens || 0,
+                    total_tokens: (rawChunk.usage.input_tokens || 0) + (rawChunk.usage.output_tokens || 0)
+                  }
+                }
               })
-              break
             }
           }
         }

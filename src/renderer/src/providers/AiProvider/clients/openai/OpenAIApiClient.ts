@@ -1,11 +1,9 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
+import Logger from '@renderer/config/logger'
 import {
   findTokenLimit,
   getOpenAIWebSearchParams,
-  isClaudeReasoningModel,
-  isOpenAIReasoningModel,
   isReasoningModel,
-  isSupportedModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -15,14 +13,12 @@ import {
   isSupportedThinkingTokenQwenModel,
   isVisionModel
 } from '@renderer/config/models'
-import { getAssistantSettings } from '@renderer/services/AssistantService'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
-import store from '@renderer/store' // For Copilot token
+// For Copilot token
 import {
   Assistant,
   EFFORT_RATIO,
   FileTypes,
-  GenerateImageParams,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
@@ -42,7 +38,6 @@ import {
   ReasoningEffortOptionalParams,
   SdkToolCall
 } from '@renderer/types/sdk'
-import { formatApiHost } from '@renderer/utils/api'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -57,15 +52,15 @@ import { ChatCompletionContentPart, ChatCompletionTool } from 'openai/resources'
 import { Stream } from 'openai/streaming'
 
 import { GenericChunk } from '../../../middleware/schemas'
-import { BaseApiClient } from '../BaseApiClient'
 import {
   RawStreamListener,
   RequestTransformer,
   ResponseChunkTransformer,
   ResponseChunkTransformerContext
 } from '../types'
+import { OpenAIBaseClient } from './OpenAIBaseClient'
 
-export class OpenAIAPIClient extends BaseApiClient<
+export class OpenAIAPIClient extends OpenAIBaseClient<
   OpenAI | AzureOpenAI,
   OpenAISdkParams,
   OpenAISdkRawOutput,
@@ -78,12 +73,6 @@ export class OpenAIAPIClient extends BaseApiClient<
     super(provider)
   }
 
-  // 仅适用于openai
-  override getBaseURL(): string {
-    const host = this.provider.apiHost
-    return formatApiHost(host)
-  }
-
   override async createCompletions(
     payload: OpenAISdkParams,
     options?: OpenAI.RequestOptions
@@ -94,175 +83,13 @@ export class OpenAIAPIClient extends BaseApiClient<
   }
 
   /**
-   * Generate an image
-   * @param params - The parameters
-   * @returns The generated image
-   */
-  override async generateImage({
-    model,
-    prompt,
-    negativePrompt,
-    imageSize,
-    batchSize,
-    seed,
-    numInferenceSteps,
-    guidanceScale,
-    signal,
-    promptEnhancement
-  }: GenerateImageParams): Promise<string[]> {
-    const sdk = await this.getSdkInstance()
-    const response = (await sdk.request({
-      method: 'post',
-      path: '/images/generations',
-      signal,
-      body: {
-        model,
-        prompt,
-        negative_prompt: negativePrompt,
-        image_size: imageSize,
-        batch_size: batchSize,
-        seed: seed ? parseInt(seed) : undefined,
-        num_inference_steps: numInferenceSteps,
-        guidance_scale: guidanceScale,
-        prompt_enhancement: promptEnhancement
-      }
-    })) as { data: Array<{ url: string }> }
-
-    return response.data.map((item) => item.url)
-  }
-
-  override async getEmbeddingDimensions(model: Model): Promise<number> {
-    const sdk = await this.getSdkInstance()
-    try {
-      const data = await sdk.embeddings.create({
-        model: model.id,
-        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-        encoding_format: 'float'
-      })
-      return data.data[0].embedding.length
-    } catch (e) {
-      return 0
-    }
-  }
-
-  override async listModels(): Promise<OpenAI.Models.Model[]> {
-    try {
-      const sdk = await this.getSdkInstance()
-      const response = await sdk.models.list()
-      if (this.provider.id === 'github') {
-        // @ts-ignore key is not typed
-        return response?.body
-          .map((model) => ({
-            id: model.name,
-            description: model.summary,
-            object: 'model',
-            owned_by: model.publisher
-          }))
-          .filter(isSupportedModel)
-      }
-      if (this.provider.id === 'together') {
-        // @ts-ignore key is not typed
-        return response?.body.map((model) => ({
-          id: model.id,
-          description: model.display_name,
-          object: 'model',
-          owned_by: model.organization
-        }))
-      }
-      const models = response.data || []
-      models.forEach((model) => {
-        model.id = model.id.trim()
-      })
-
-      return models.filter(isSupportedModel)
-    } catch (error) {
-      console.error('Error listing models:', error)
-      return []
-    }
-  }
-
-  override async getSdkInstance() {
-    if (this.sdkInstance) {
-      return this.sdkInstance
-    }
-
-    if (this.provider.id === 'copilot') {
-      const defaultHeaders = store.getState().copilot.defaultHeaders
-      const { token } = await window.api.copilot.getToken(defaultHeaders)
-      this.provider.apiKey = token // Update API key for each call to copilot
-    }
-
-    if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
-      this.sdkInstance = new AzureOpenAI({
-        dangerouslyAllowBrowser: true,
-        apiKey: this.provider.apiKey,
-        apiVersion: this.provider.apiVersion,
-        endpoint: this.provider.apiHost
-      })
-    } else {
-      this.sdkInstance = new OpenAI({
-        dangerouslyAllowBrowser: true,
-        apiKey: this.provider.apiKey,
-        baseURL: this.getBaseURL(),
-        defaultHeaders: {
-          ...this.defaultHeaders(),
-          ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
-          ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
-        }
-      })
-    }
-    return this.sdkInstance
-  }
-
-  override getTemperature(assistant: Assistant, model: Model): number | undefined {
-    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
-      return undefined
-    }
-    return assistant.settings?.temperature
-  }
-
-  override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
-      return undefined
-    }
-    return assistant.settings?.topP
-  }
-
-  /**
-   * Get the provider specific parameters for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The provider specific parameters
-   */
-  private getProviderSpecificParameters(assistant: Assistant, model: Model) {
-    const { maxTokens } = getAssistantSettings(assistant)
-
-    if (this.provider.id === 'openrouter') {
-      if (model.id.includes('deepseek-r1')) {
-        return {
-          include_reasoning: true
-        }
-      }
-    }
-
-    if (isOpenAIReasoningModel(model)) {
-      return {
-        max_tokens: undefined,
-        max_completion_tokens: maxTokens
-      }
-    }
-
-    return {}
-  }
-
-  /**
    * Get the reasoning effort for the assistant
    * @param assistant - The assistant
    * @param model - The model
    * @returns The reasoning effort
    */
   // Method for reasoning effort, moved from OpenAIProvider
-  private getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
+  override getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
     if (this.provider.id === 'groq') {
       return {}
     }
@@ -521,11 +348,18 @@ export class OpenAIAPIClient extends BaseApiClient<
           }
         }
 
+        // 2. 设置工具（必须在this.usesystemPromptForTools前面）
+        const { tools } = this.setupToolsConfig({
+          mcpTools: mcpTools,
+          model,
+          enableToolUse: isEnabledToolUse(assistant)
+        })
+
         if (this.useSystemPromptForTools) {
           systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
         }
 
-        // 2. 处理用户消息
+        // 3. 处理用户消息
         const userMessages: OpenAISdkMessageParam[] = []
         if (typeof messages === 'string') {
           userMessages.push({ role: 'user', content: messages })
@@ -545,7 +379,7 @@ export class OpenAIAPIClient extends BaseApiClient<
           lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
         }
 
-        // 3. 最终请求消息
+        // 4. 最终请求消息
         let reqMessages: OpenAISdkMessageParam[]
         if (!systemMessage.content) {
           reqMessages = [...userMessages]
@@ -554,13 +388,6 @@ export class OpenAIAPIClient extends BaseApiClient<
         }
 
         reqMessages = processReqMessages(model, reqMessages)
-
-        // 4. 设置工具
-        const { tools } = this.setupToolsConfig({
-          mcpTools: mcpTools,
-          model,
-          enableToolUse: isEnabledToolUse(assistant)
-        })
 
         // 5. 创建通用参数
         const commonParams = {
@@ -726,7 +553,7 @@ export class OpenAIAPIClient extends BaseApiClient<
 
           // 处理finish_reason，发送流结束信号
           if ('finish_reason' in choice && choice.finish_reason) {
-            console.log(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
+            Logger.debug(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
             if (webSearchData) {
               controller.enqueue({
@@ -735,7 +562,14 @@ export class OpenAIAPIClient extends BaseApiClient<
               })
             }
             controller.enqueue({
-              type: ChunkType.LLM_RESPONSE_COMPLETE
+              type: ChunkType.LLM_RESPONSE_COMPLETE,
+              response: {
+                usage: {
+                  prompt_tokens: chunk.usage?.prompt_tokens || 0,
+                  completion_tokens: chunk.usage?.completion_tokens || 0,
+                  total_tokens: (chunk.usage?.prompt_tokens || 0) + (chunk.usage?.completion_tokens || 0)
+                }
+              }
             })
           }
         }

@@ -423,13 +423,21 @@ export class GeminiAPIClient extends BaseApiClient<
         const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
         // 1. 处理系统消息
         let systemInstruction = assistant.prompt
+
+        // 2. 设置工具
+        const { tools } = this.setupToolsConfig({
+          mcpTools,
+          model,
+          enableToolUse: isEnabledToolUse(assistant)
+        })
+
         if (this.useSystemPromptForTools) {
           systemInstruction = buildSystemPrompt(assistant.prompt || '', mcpTools)
         }
 
         let messageContents: Content
         const history: Content[] = []
-        // 2. 处理用户消息
+        // 3. 处理用户消息
         if (typeof messages === 'string') {
           messageContents = {
             role: 'user',
@@ -442,13 +450,6 @@ export class GeminiAPIClient extends BaseApiClient<
             history.push(await this.convertMessageToSdkParam(message))
           }
         }
-
-        // 3. 设置工具
-        const { tools } = this.setupToolsConfig({
-          mcpTools,
-          model,
-          enableToolUse: isEnabledToolUse(assistant)
-        })
 
         if (enableWebSearch) {
           tools.push({
@@ -556,7 +557,15 @@ export class GeminiAPIClient extends BaseApiClient<
                 toolCalls = toolCalls.concat(chunk.functionCalls)
               }
               controller.enqueue({
-                type: ChunkType.LLM_RESPONSE_COMPLETE
+                type: ChunkType.LLM_RESPONSE_COMPLETE,
+                response: {
+                  usage: {
+                    prompt_tokens: chunk.usageMetadata?.promptTokenCount || 0,
+                    completion_tokens:
+                      (chunk.usageMetadata?.totalTokenCount || 0) - (chunk.usageMetadata?.promptTokenCount || 0),
+                    total_tokens: chunk.usageMetadata?.totalTokenCount || 0
+                  }
+                }
               })
             }
           }

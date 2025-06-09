@@ -337,6 +337,7 @@ export async function fetchChatCompletion({
   const enableWebSearch = (assistant.enableWebSearch && isWebSearchModel(model)) || false
 
   // --- Call AI Completions ---
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   await AI.completions(
     {
       messages: _messages,
