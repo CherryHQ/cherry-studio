@@ -30,6 +30,7 @@ import {
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -407,6 +408,7 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const userMessages = takeRight(messages, 5)
 
   const provider = getProviderByModel(model)
 
@@ -417,15 +419,16 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const AI = new AiProvider(provider)
 
   const params: CompletionsParams = {
-    messages: filterMessages(messages),
+    messages: filterMessages(userMessages),
     assistant: { ...assistant, prompt, model },
+    maxTokens: 1000,
     streamOutput: false
   }
 
   try {
     const { getText } = await AI.completions(params)
     const text = getText()
-    return text?.replace(/["']/g, '') || null
+    return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
     return null
   }
@@ -557,24 +560,38 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
 
   const assistant = getDefaultAssistant()
   assistant.model = model
+  try {
+    if (isEmbeddingModel(model)) {
+      const result = await ai.getEmbeddingDimensions(model)
+      if (result === 0) {
+        throw new Error(i18n.t('message.error.enter.model'))
+      }
+    } else {
+      const params: CompletionsParams = {
+        messages: 'hi',
+        assistant,
+        streamOutput: true
+      }
 
-  if (isEmbeddingModel(model)) {
-    const result = await ai.getEmbeddingDimensions(model)
-    if (result === 0) {
-      throw new Error(i18n.t('message.error.enter.model'))
+      // Try streaming check first
+      const result = await ai.completions(params)
+      if (!result.getText()) {
+        throw new Error('No response received')
+      }
     }
-  } else {
-    const params: CompletionsParams = {
-      messages: 'hi',
-      assistant,
-      streamOutput: true
-    }
-
-    // Try streaming check first
-    const result = await ai.completions(params)
-    console.log('checkApi: result', result.getText())
-    if (!result.getText()) {
-      throw new Error('No response received')
+  } catch (error: any) {
+    if (error.message.includes('stream')) {
+      const params: CompletionsParams = {
+        messages: 'hi',
+        assistant,
+        streamOutput: false
+      }
+      const result = await ai.completions(params)
+      if (!result.getText()) {
+        throw new Error('No response received')
+      }
+    } else {
+      throw error
     }
   }
 }

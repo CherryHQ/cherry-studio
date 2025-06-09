@@ -104,7 +104,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if (isSupportedThinkingTokenClaudeModel(model)) {
-        return { thinking: { type: 'disabled' } }
+        return {}
       }
 
       if (isSupportedThinkingTokenGeminiModel(model)) {
@@ -356,7 +356,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         })
 
         if (this.useSystemPromptForTools) {
-          systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+          systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools)
         }
 
         // 3. 处理用户消息
