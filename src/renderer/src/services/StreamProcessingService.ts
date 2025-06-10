@@ -30,6 +30,7 @@ export interface StreamProcessorCallbacks {
   onImageCreated?: () => void
   onImageDelta?: (imageData: GenerateImageResponse) => void
   onImageGenerated?: (imageData?: GenerateImageResponse) => void
+  onLLMResponseComplete?: (response?: Response) => void
   // Called when an error occurs during chunk processing
   onError?: (error: any) => void
   // Called when the entire stream processing is signaled as complete (success or failure)
@@ -105,6 +106,10 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
         case ChunkType.IMAGE_COMPLETE: {
           if (callbacks.onImageGenerated) callbacks.onImageGenerated(data.image)
+          break
+        }
+        case ChunkType.LLM_RESPONSE_COMPLETE: {
+          if (callbacks.onLLMResponseComplete) callbacks.onLLMResponseComplete(data.response)
           break
         }
         case ChunkType.ERROR: {

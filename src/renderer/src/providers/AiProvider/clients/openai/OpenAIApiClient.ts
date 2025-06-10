@@ -36,8 +36,7 @@ import {
   OpenAISdkRawChunk,
   OpenAISdkRawContentSource,
   OpenAISdkRawOutput,
-  ReasoningEffortOptionalParams,
-  SdkToolCall
+  ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
@@ -315,9 +314,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     const assistantMessage: OpenAISdkMessageParam = {
       role: 'assistant',
       content: output,
-      tool_calls: toolCalls
+      tool_calls: toolCalls.length > 0 ? toolCalls : undefined
     }
-    const newReqMessages = [...currentReqMessages, assistantMessage, ...(toolResults || [])]
+    const newReqMessages = [...currentReqMessages, assistantMessage, ...toolResults]
     return newReqMessages
   }
 
@@ -541,7 +540,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       return null
     }
-
+    const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 处理chunk
@@ -576,15 +575,36 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
           // 处理工具调用
           if (contentSource.tool_calls) {
-            controller.enqueue({
-              type: ChunkType.MCP_TOOL_CREATED,
-              tool_calls: contentSource.tool_calls as SdkToolCall[]
-            })
+            for (const toolCall of contentSource.tool_calls) {
+              if ('index' in toolCall) {
+                const { id, index, function: fun } = toolCall
+                if (fun?.name) {
+                  toolCalls[index] = {
+                    id: id || '',
+                    function: {
+                      name: fun.name,
+                      arguments: fun.arguments || ''
+                    },
+                    type: 'function'
+                  }
+                } else if (fun?.arguments) {
+                  toolCalls[index].function.arguments += fun.arguments
+                }
+              } else {
+                toolCalls.push(toolCall)
+              }
+            }
           }
 
           // 处理finish_reason，发送流结束信号
           if ('finish_reason' in choice && choice.finish_reason) {
             Logger.debug(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
+            if (toolCalls.length > 0) {
+              controller.enqueue({
+                type: ChunkType.MCP_TOOL_CREATED,
+                tool_calls: toolCalls
+              })
+            }
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
             if (webSearchData) {
               controller.enqueue({
