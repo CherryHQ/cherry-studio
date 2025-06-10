@@ -138,23 +138,27 @@ export abstract class OpenAIBaseClient<
       return this.sdkInstance
     }
 
+    let apiKeyForSdkInstance = this.provider.apiKey
+
     if (this.provider.id === 'copilot') {
       const defaultHeaders = store.getState().copilot.defaultHeaders
       const { token } = await window.api.copilot.getToken(defaultHeaders)
-      this.provider.apiKey = token // Update API key for each call to copilot
+      // this.provider.apiKey不允许修改
+      // this.provider.apiKey = token
+      apiKeyForSdkInstance = token
     }
 
     if (this.provider.id === 'azure-openai' || this.provider.type === 'azure-openai') {
       this.sdkInstance = new AzureOpenAI({
         dangerouslyAllowBrowser: true,
-        apiKey: this.provider.apiKey,
+        apiKey: apiKeyForSdkInstance,
         apiVersion: this.provider.apiVersion,
         endpoint: this.provider.apiHost
       }) as TSdkInstance
     } else {
       this.sdkInstance = new OpenAI({
         dangerouslyAllowBrowser: true,
-        apiKey: this.provider.apiKey,
+        apiKey: apiKeyForSdkInstance,
         baseURL: this.getBaseURL(),
         defaultHeaders: {
           ...this.defaultHeaders(),
