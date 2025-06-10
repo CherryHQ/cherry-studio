@@ -620,7 +620,7 @@ export const PROVIDER_CONFIG = {
       url: 'https://cephalon.cloud/user-center/v1/model'
     },
     websites: {
-      official: 'https://cephalon.cloud',
+      official: 'https://cephalon.cloud/share/register-landing?invite_id=jSdOYA',
       apiKey: 'https://cephalon.cloud/api',
       docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
       models: 'https://cephalon.cloud/model'
