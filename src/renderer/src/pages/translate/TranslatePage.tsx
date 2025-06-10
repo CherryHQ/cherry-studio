@@ -512,12 +512,10 @@ const TranslatePage: FC = () => {
                 onChange={(value) => setSourceLanguage(value)}
                 options={[
                   {
-                    // 如果选择了"auto"并且已检测到语言，显示检测到的语言；否则显示"任意语言"
-                    label:
-                      sourceLanguage === 'auto' && detectedLanguage
-                        ? t(`languages.${detectedLanguage}`)
-                        : t('translate.any.language'),
-                    value: 'auto'
+                    value: 'auto',
+                    label: detectedLanguage
+                      ? `${t('translate.detected.language')}(${t(`languages.${detectedLanguage.toLowerCase()}`)})`
+                      : t('translate.detected.language')
                   },
                   ...translateLanguageOptions().map((lang) => ({
                     value: lang.value,
