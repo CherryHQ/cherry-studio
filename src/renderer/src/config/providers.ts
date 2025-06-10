@@ -617,13 +617,13 @@ export const PROVIDER_CONFIG = {
   },
   lanyun: {
     api: {
-      url: "https://maas-api.lanyun.net/v1/chat/completions"
+      url: 'https://maas-api.lanyun.net/v1/chat/completions'
     },
     websites: {
       official: 'https://lanyun.net',
-      apiKey: `https://maas.lanyun.net/api/#/system/apiKey`,
-      docs: `https://archive.lanyun.net/maas/doc/`,
-      models: `https://maas.lanyun.net/api/#/model/modelSquare`
+      apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
+      docs: 'https://archive.lanyun.net/maas/doc/',
+      models: 'https://maas.lanyun.net/api/#/model/modelSquare'
     }
   }
 }
