@@ -1,8 +1,8 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import {
   setMaxKeepAliveMinapps,
@@ -12,9 +12,9 @@ import {
 import { Button, message, Slider, Switch, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRowTitle, SettingTitle } from '..'
 import MiniAppIconsManager from './MiniAppIconsManager'
 
 // 默认小程序缓存数量
@@ -22,10 +22,10 @@ const DEFAULT_MAX_KEEPALIVE = 3
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
+  const navigate = useNavigate()
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
   const [disabledMiniApps, setDisabledMiniApps] = useState(disabled || [])
@@ -72,82 +72,86 @@ const MiniAppSettings: FC = () => {
   }, [])
 
   return (
-    <SettingContainer theme={theme}>
+    <Container>
       {contextHolder} {/* 添加消息上下文 */}
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.miniapps.title')}</SettingTitle>
-        <SettingDivider />
-
-        <SettingTitle
-          style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{t('settings.miniapps.display_title')}</span>
-          <ResetButtonWrapper>
-            <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
-          </ResetButtonWrapper>
-        </SettingTitle>
-        <BorderedContainer>
-          <MiniAppIconsManager
-            visibleMiniApps={visibleMiniApps}
-            disabledMiniApps={disabledMiniApps}
-            setVisibleMiniApps={setVisibleMiniApps}
-            setDisabledMiniApps={setDisabledMiniApps}
-          />
-        </BorderedContainer>
-        <SettingDivider />
-        <SettingRow style={{ height: 40, alignItems: 'center' }}>
-          <SettingLabelGroup>
-            <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
-          </SettingLabelGroup>
-          <Switch
-            checked={minappsOpenLinkExternal}
-            onChange={(checked) => dispatch(setMinappsOpenLinkExternal(checked))}
-          />
-        </SettingRow>
-        <SettingDivider />
-
-        {/* 缓存小程序数量设置 */}
-        <SettingRow>
-          <SettingLabelGroup>
-            <SettingRowTitle>{t('settings.miniapps.cache_title')}</SettingRowTitle>
-            <SettingDescription>{t('settings.miniapps.cache_description')}</SettingDescription>
-          </SettingLabelGroup>
-          <CacheSettingControls>
-            <SliderWithResetContainer>
-              <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
-                <ResetButton onClick={handleResetCacheLimit}>
-                  <UndoOutlined />
-                </ResetButton>
-              </Tooltip>
-              <Slider
-                min={1}
-                max={10}
-                value={maxKeepAliveMinapps}
-                onChange={handleCacheChange}
-                marks={{
-                  1: '1',
-                  5: '5',
-                  10: 'Max'
-                }}
-                tooltip={{ formatter: (value) => `${value}` }}
-              />
-            </SliderWithResetContainer>
-          </CacheSettingControls>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingLabelGroup>
-            <SettingRowTitle>{t('settings.miniapps.sidebar_title')}</SettingRowTitle>
-            <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
-          </SettingLabelGroup>
-          <Switch
-            checked={showOpenedMinappsInSidebar}
-            onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
-          />
-        </SettingRow>
-      </SettingGroup>
-    </SettingContainer>
+      <SettingTitle
+        style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>{t('settings.miniapps.display_title')}</span>
+        <ResetButtonWrapper>
+          <Button onClick={handleResetMinApps}>{t('common.reset')}</Button>
+        </ResetButtonWrapper>
+      </SettingTitle>
+      <BorderedContainer>
+        <MiniAppIconsManager
+          visibleMiniApps={visibleMiniApps}
+          disabledMiniApps={disabledMiniApps}
+          setVisibleMiniApps={setVisibleMiniApps}
+          setDisabledMiniApps={setDisabledMiniApps}
+        />
+      </BorderedContainer>
+      <SettingDivider />
+      <SettingRow style={{ height: 40, alignItems: 'center' }}>
+        <SettingLabelGroup>
+          <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
+        </SettingLabelGroup>
+        <Switch
+          checked={minappsOpenLinkExternal}
+          onChange={(checked) => dispatch(setMinappsOpenLinkExternal(checked))}
+        />
+      </SettingRow>
+      <SettingDivider />
+      {/* 缓存小程序数量设置 */}
+      <SettingRow>
+        <SettingLabelGroup>
+          <SettingRowTitle>{t('settings.miniapps.cache_title')}</SettingRowTitle>
+          <SettingDescription>{t('settings.miniapps.cache_description')}</SettingDescription>
+        </SettingLabelGroup>
+        <CacheSettingControls>
+          <SliderWithResetContainer>
+            <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
+              <ResetButton onClick={handleResetCacheLimit}>
+                <UndoOutlined />
+              </ResetButton>
+            </Tooltip>
+            <Slider
+              min={1}
+              max={10}
+              value={maxKeepAliveMinapps}
+              onChange={handleCacheChange}
+              marks={{
+                1: '1',
+                5: '5',
+                10: 'Max'
+              }}
+              tooltip={{ formatter: (value) => `${value}` }}
+            />
+          </SliderWithResetContainer>
+        </CacheSettingControls>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingLabelGroup>
+          <SettingRowTitle>{t('settings.miniapps.sidebar_title')}</SettingRowTitle>
+          <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
+        </SettingLabelGroup>
+        <Switch
+          checked={showOpenedMinappsInSidebar}
+          onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
+        />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow style={{ justifyContent: 'flex-end' }}>
+        <Button onClick={() => navigate('/apps')}>{t('common.close')}</Button>
+      </SettingRow>
+    </Container>
   )
 }
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+`
 
 // 修改和新增样式
 const SettingRow = styled.div`

@@ -188,6 +188,9 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         case 'search':
           handleSearch(newAction)
           break
+        case 'quote':
+          handleQuote(newAction)
+          break
         default:
           handleDefaultAction(newAction)
           break
@@ -220,6 +223,16 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     window.api?.selection.hideToolbar()
   }
 
+  /**
+   * Quote the selected text to the inputbar of the main window
+   */
+  const handleQuote = (action: ActionItem) => {
+    if (action.selectedText) {
+      window.api?.quoteToMainWindow(action.selectedText)
+      window.api?.selection.hideToolbar()
+    }
+  }
+
   const handleDefaultAction = (action: ActionItem) => {
     window.api?.selection.processAction(action)
     window.api?.selection.hideToolbar()
@@ -227,7 +240,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 
   return (
     <Container>
-      <LogoWrapper>
+      <LogoWrapper $draggable={!demo}>
         <Logo src={AppLogo} key={animateKey} className="animate" draggable={false} />
       </LogoWrapper>
       <ActionWrapper>
@@ -261,13 +274,13 @@ const Container = styled.div`
   box-sizing: border-box;
 `
 
-const LogoWrapper = styled.div`
+const LogoWrapper = styled.div<{ $draggable: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  -webkit-app-region: drag;
   margin-left: 5px;
   background-color: transparent;
+  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'}
 `
 
 const Logo = styled(Avatar)`

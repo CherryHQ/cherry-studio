@@ -193,7 +193,7 @@ const SelectionAssistantSettings: FC = () => {
           <SelectionActionsList actionItems={actionItems} setActionItems={setActionItems} />
 
           <SettingGroup>
-            <SettingTitle>高级</SettingTitle>
+            <SettingTitle>{t('selection.settings.advanced.title')}</SettingTitle>
 
             <SettingDivider />
 

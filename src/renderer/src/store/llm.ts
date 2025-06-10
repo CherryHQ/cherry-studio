@@ -491,10 +491,10 @@ export const INITIAL_PROVIDERS: Provider[] = [
 ]
 
 const initialState: LlmState = {
-  defaultModel: SYSTEM_MODELS.silicon[1],
-  topicNamingModel: SYSTEM_MODELS.silicon[2],
-  translateModel: SYSTEM_MODELS.silicon[3],
-  quickAssistantModel: SYSTEM_MODELS.silicon[1],
+  defaultModel: SYSTEM_MODELS.defaultModel[0],
+  topicNamingModel: SYSTEM_MODELS.defaultModel[1],
+  translateModel: SYSTEM_MODELS.defaultModel[2],
+  quickAssistantModel: SYSTEM_MODELS.defaultModel[3],
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {

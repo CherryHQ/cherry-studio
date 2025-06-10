@@ -286,12 +286,14 @@ export default class GeminiProvider extends BaseProvider {
   private getBudgetToken(assistant: Assistant, model: Model) {
     if (isGeminiReasoningModel(model)) {
       const reasoningEffort = assistant?.settings?.reasoning_effort
+      const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')
 
       // 如果thinking_budget是undefined，不思考
       if (reasoningEffort === undefined) {
         return {
           thinkingConfig: {
-            includeThoughts: false
+            includeThoughts: false,
+            ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
           } as ThinkingConfig
         }
       }
@@ -763,13 +765,11 @@ export default class GeminiProvider extends BaseProvider {
   public async summaries(messages: Message[], assistant: Assistant): Promise<string> {
     const model = getTopNamingModel() || assistant.model || getDefaultModel()
 
-    const userMessages = takeRight(messages, 5)
-      .filter((message) => !message.isPreset)
-      .map((message) => ({
-        role: message.role,
-        // Get content using helper
-        content: getMainTextContent(message)
-      }))
+    const userMessages = takeRight(messages, 5).map((message) => ({
+      role: message.role,
+      // Get content using helper
+      content: getMainTextContent(message)
+    }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
       const content = curr.role === 'user' ? `User: ${curr.content}` : `Assistant: ${curr.content}`

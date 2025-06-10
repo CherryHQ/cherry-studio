@@ -14,9 +14,9 @@ interface BackupFile {
 
 interface WebdavConfig {
   webdavHost: string
-  webdavUser: string
-  webdavPass: string
-  webdavPath: string
+  webdavUser?: string
+  webdavPass?: string
+  webdavPath?: string
 }
 
 interface WebdavBackupManagerProps {
@@ -47,7 +47,7 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
   const { webdavHost, webdavUser, webdavPass, webdavPath } = webdavConfig
 
   const fetchBackupFiles = useCallback(async () => {
-    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+    if (!webdavHost) {
       message.error(t('message.error.invalid.webdav'))
       return
     }
@@ -93,7 +93,7 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
       return
     }
 
-    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+    if (!webdavHost) {
       message.error(t('message.error.invalid.webdav'))
       return
     }
@@ -132,7 +132,7 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
   }
 
   const handleDeleteSingle = async (fileName: string) => {
-    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+    if (!webdavHost) {
       message.error(t('message.error.invalid.webdav'))
       return
     }
@@ -165,7 +165,7 @@ export function WebdavBackupManager({ visible, onClose, webdavConfig, restoreMet
   }
 
   const handleRestore = async (fileName: string) => {
-    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+    if (!webdavHost) {
       message.error(t('message.error.invalid.webdav'))
       return
     }

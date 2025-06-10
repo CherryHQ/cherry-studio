@@ -185,10 +185,10 @@ const handleTagOperation = (
   assistants: Assistant[],
   updateAssistants: (assistants: Assistant[]) => void
 ) => {
-  if (assistant.tags?.includes(tag)) {
-    return
-  }
-  updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
+  const removeTag = () => updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [] } : a)))
+  const addTag = () => updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tag] } : a)))
+  const hasTag = assistant.tags?.includes(tag)
+  hasTag ? removeTag() : addTag()
 }
 
 // 提取创建菜单项的函数
