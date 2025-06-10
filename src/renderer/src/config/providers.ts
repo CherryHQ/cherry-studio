@@ -44,6 +44,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 
 import { TOKENFLUX_HOST } from './constant'
 
@@ -94,7 +95,8 @@ const PROVIDER_LOGO_MAP = {
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
   qiniu: QiniuProviderLogo,
-  tokenflux: TokenFluxProviderLogo
+  tokenflux: TokenFluxProviderLogo,
+  lanyun: LanyunProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -611,6 +613,17 @@ export const PROVIDER_CONFIG = {
       apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
       docs: `${TOKENFLUX_HOST}/docs`,
       models: `${TOKENFLUX_HOST}/models`
+    }
+  },
+  lanyun: {
+    api: {
+      url: "https://maas-api.lanyun.net/v1/chat/completions"
+    },
+    websites: {
+      official: 'https://lanyun.net',
+      apiKey: `https://maas.lanyun.net/api/#/system/apiKey`,
+      docs: `https://archive.lanyun.net/maas/doc/`,
+      models: `https://maas.lanyun.net/api/#/model/modelSquare`
     }
   }
 }
