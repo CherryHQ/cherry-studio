@@ -755,7 +755,8 @@
       },
       "input": {
         "placeholder": {
-          "empty": "询问 {{model}} 获取帮助...",
+          "model_empty": "询问 {{model}} 获取帮助...",
+          "assistant_empty": "询问 {{assistant}} 获取帮助...",
           "title": "你想对下方文字做什么"
         }
       },
@@ -1583,6 +1584,8 @@
       "models.translate_model_prompt_title": "翻译模型提示词",
       "models.quick_assistant_model": "快捷助手模型",
       "models.quick_assistant_model_description": "快捷助手使用的默认模型",
+      "models.use_model": "使用模型",
+      "models.use_assistant": "使用助手",
       "moresetting": "更多设置",
       "moresetting.check.confirm": "确认勾选",
       "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",

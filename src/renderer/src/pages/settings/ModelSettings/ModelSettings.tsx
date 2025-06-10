@@ -1,14 +1,17 @@
 import { RedoOutlined } from '@ant-design/icons'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isEmbeddingModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAssistants, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
+import { useAppSelector } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
+import { setQuickAssistantRefersToAssistantId, setUseAssistantForQuickAssistant } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
@@ -16,6 +19,7 @@ import { find, sortBy } from 'lodash'
 import { FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
@@ -33,6 +37,7 @@ const ModelSettings: FC = () => {
     setTranslateModel,
     setQuickAssistantModel
   } = useDefaultModel()
+  const { assistants } = useAssistants()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
@@ -40,6 +45,7 @@ const ModelSettings: FC = () => {
   const { translateModelPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
+  const { quickAssistantRefersToAssistantId, useAssistantForQuickAssistant } = useAppSelector((state) => state.llm)
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
@@ -170,22 +176,85 @@ const ModelSettings: FC = () => {
             {t('settings.models.quick_assistant_model')}
           </HStack>
         </SettingTitle>
-        <HStack alignItems="center">
-          <Select
-            value={defaultQuickAssistantModel}
-            defaultValue={defaultQuickAssistantModel}
-            style={{ width: 360 }}
-            onChange={(value) => setQuickAssistantModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
-            showSearch
-            placeholder={t('settings.models.empty')}
-          />
-          <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={QuickAssistantSettings.show} />
+        <HStack alignItems="center" gap={12}>
+          <Button
+            type={!useAssistantForQuickAssistant ? 'primary' : 'default'}
+            onClick={() => dispatch(setUseAssistantForQuickAssistant(false))}
+            style={{ minWidth: 120 }}>
+            {t('settings.models.use_model')}
+          </Button>
+          <Button
+            type={useAssistantForQuickAssistant ? 'primary' : 'default'}
+            onClick={() => {
+              dispatch(setUseAssistantForQuickAssistant(true))
+              // 設定為第一個可用的助手，如果沒有則保持當前值
+              const firstAssistant = assistants.find((a) => a.type !== 'system' && a.id !== 'quick-assistant')
+              if (firstAssistant && !quickAssistantRefersToAssistantId) {
+                dispatch(setQuickAssistantRefersToAssistantId(firstAssistant.id))
+              }
+            }}
+            style={{ minWidth: 120 }}>
+            {t('settings.models.use_assistant')}
+          </Button>
         </HStack>
+
+        {!useAssistantForQuickAssistant ? (
+          <HStack alignItems="center" style={{ marginTop: 12 }}>
+            <Select
+              value={defaultQuickAssistantModel}
+              defaultValue={defaultQuickAssistantModel}
+              style={{ width: 360 }}
+              onChange={(value) => setQuickAssistantModel(find(allModels, JSON.parse(value)) as Model)}
+              options={selectOptions}
+              showSearch
+              placeholder={t('settings.models.empty')}
+            />
+            <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={QuickAssistantSettings.show} />
+          </HStack>
+        ) : (
+          <HStack alignItems="center" style={{ marginTop: 12 }}>
+            <Select
+              value={quickAssistantRefersToAssistantId}
+              style={{ width: 360 }}
+              onChange={(value) => dispatch(setQuickAssistantRefersToAssistantId(value))}
+              placeholder={t('settings.quickAssistant.selectAssistant')}>
+              {assistants
+                .filter((a) => a.id !== quickAssistantModel.id)
+                .map((a) => (
+                  <Select.Option key={a.id} value={a.id}>
+                    <AssistantItem>
+                      <ModelAvatar model={a.model || defaultModel} size={18} />
+                      <AssistantName>{a.name}</AssistantName>
+                      <Spacer />
+                    </AssistantItem>
+                  </Select.Option>
+                ))}
+            </Select>
+          </HStack>
+        )}
         <SettingDescription>{t('settings.models.quick_assistant_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )
 }
+
+const AssistantItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+`
+
+const AssistantName = styled.span`
+  max-width: calc(100% - 60px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const Spacer = styled.div`
+  flex: 1;
+`
 
 export default ModelSettings

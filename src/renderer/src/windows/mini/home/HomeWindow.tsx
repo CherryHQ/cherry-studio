@@ -6,7 +6,7 @@ import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store from '@renderer/store'
+import store, { useAppSelector } from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
@@ -42,10 +42,9 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const { quickAssistant } = useQuickAssistant()
-  const topic = defaultAssistant.topics[0]
-  const { defaultModel, quickAssistantModel } = useDefaultModel()
-  // 如果 quickAssistantModel 未設定，則使用 defaultModel
-  const model = quickAssistantModel || defaultModel
+  const topic = (quickAssistant ?? defaultAssistant).topics[0]
+  const { defaultModel } = useDefaultModel()
+  const model = quickAssistant?.model || defaultModel
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -54,6 +53,8 @@ const HomeWindow: FC = () => {
   const referenceText = selectedText || clipboardText || text
 
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
+
+  const { useAssistantForQuickAssistant } = useAppSelector((state) => state.llm)
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -187,7 +188,7 @@ const HomeWindow: FC = () => {
 
       fetchChatCompletion({
         messages: [userMessage],
-        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
+        assistant: { ...assistant, model: quickAssistant?.model || getDefaultModel() },
         onChunkReceived: (chunk: Chunk) => {
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
@@ -224,7 +225,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, quickAssistant, defaultAssistant, topic, quickAssistantModel]
+    [content, quickAssistant, defaultAssistant, topic]
   )
 
   const clearClipboard = () => {
@@ -290,7 +291,7 @@ const HomeWindow: FC = () => {
             <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           </div>
         )}
-        <ChatWindow route={route} assistant={defaultAssistant} />
+        <ChatWindow route={route} assistant={quickAssistant ?? defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
       </Container>

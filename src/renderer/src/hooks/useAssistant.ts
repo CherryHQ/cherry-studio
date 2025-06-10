@@ -120,15 +120,40 @@ export function useDefaultModel() {
 }
 
 export function useQuickAssistant() {
-  const quickAssistant = useAppSelector((state) => state.assistants.quickAssistant)
+  const { quickAssistant, assistants } = useAppSelector((state) => state.assistants)
+  const { quickAssistantModel, quickAssistantRefersToAssistantId, useAssistantForQuickAssistant } = useAppSelector(
+    (state) => state.llm
+  )
   const dispatch = useAppDispatch()
-  const { quickAssistantModel } = useDefaultModel()
 
-  return {
-    quickAssistant: {
+  const finalQuickAssistant = useMemo(() => {
+    if (!quickAssistant) {
+      return null
+    }
+
+    if (useAssistantForQuickAssistant && quickAssistantRefersToAssistantId) {
+      const referredAssistant = assistants.find((a) => a.id === quickAssistantRefersToAssistantId)
+      if (referredAssistant) {
+        return {
+          ...referredAssistant // Use all settings from the referred assistant
+        }
+      }
+    }
+    // Fallback to original quick assistant settings with selected model
+    return {
       ...quickAssistant,
       model: quickAssistantModel
-    },
+    }
+  }, [
+    quickAssistant,
+    assistants,
+    quickAssistantModel,
+    quickAssistantRefersToAssistantId,
+    useAssistantForQuickAssistant
+  ])
+
+  return {
+    quickAssistant: finalQuickAssistant,
     updateQuickAssistant: (assistant: Partial<Assistant>) => dispatch(updateQuickAssistant(assistant as Assistant))
   }
 }

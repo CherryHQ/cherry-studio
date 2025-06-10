@@ -13,21 +13,21 @@ import { SettingContainer, SettingSubtitle } from '..'
 
 const QuickAssistantSettings: FC = () => {
   const { quickAssistant, updateQuickAssistant } = useQuickAssistant()
-  const [temperature, setTemperature] = useState(quickAssistant.settings?.temperature ?? DEFAULT_TEMPERATURE)
-  const [contextCount, setContextCount] = useState(quickAssistant.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
-  const [topP, setTopP] = useState(quickAssistant.settings?.topP ?? 1)
+  const [temperature, setTemperature] = useState(quickAssistant!.settings?.temperature ?? DEFAULT_TEMPERATURE)
+  const [contextCount, setContextCount] = useState(quickAssistant!.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
+  const [topP, setTopP] = useState(quickAssistant!.settings?.topP ?? 1)
 
   const { t } = useTranslation()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettingsType>) => {
     console.log('Updating assistant settings:', {
-      ...quickAssistant.settings,
+      ...quickAssistant!.settings,
       ...settings
     })
     updateQuickAssistant({
       ...quickAssistant,
       settings: {
-        ...quickAssistant.settings,
+        ...quickAssistant!.settings,
         temperature: settings.temperature ?? temperature,
         contextCount: settings.contextCount ?? contextCount,
         streamOutput: settings.streamOutput ?? true,
@@ -56,7 +56,7 @@ const QuickAssistantSettings: FC = () => {
     updateQuickAssistant({
       ...quickAssistant,
       settings: {
-        ...quickAssistant.settings,
+        ...quickAssistant!.settings,
         temperature: DEFAULT_TEMPERATURE,
         contextCount: DEFAULT_CONTEXTCOUNT,
         streamOutput: true,
@@ -71,7 +71,7 @@ const QuickAssistantSettings: FC = () => {
       <TextArea
         rows={4}
         placeholder={t('common.assistant') + t('common.prompt')}
-        value={quickAssistant.prompt}
+        value={quickAssistant!.prompt}
         onChange={(e) => {
           const newPrompt = e.target.value
           updateQuickAssistant({
