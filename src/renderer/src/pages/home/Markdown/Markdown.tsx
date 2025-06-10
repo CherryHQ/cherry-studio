@@ -93,18 +93,14 @@ const Markdown: FC<Props> = ({ block }) => {
     } as Partial<Components>
   }, [onSaveCodeBlock])
 
+  if (messageContent.includes('<style>')) {
+    components.style = MarkdownShadowDOMRenderer as any
+  }
+
   const urlTransform = useCallback((value: string) => {
     if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
     return defaultUrlTransform(value)
   }, [])
-
-  // if (role === 'user' && !renderInputMessageAsMarkdown) {
-  //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
-  // }
-
-  if (messageContent.includes('<style>')) {
-    components.style = MarkdownShadowDOMRenderer as any
-  }
 
   return (
     <ReactMarkdown

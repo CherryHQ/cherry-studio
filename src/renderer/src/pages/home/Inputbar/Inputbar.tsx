@@ -654,7 +654,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [addNewTopic, onQuote])
 
   useEffect(() => {
-    textareaRef.current?.focus()
+    if (!document.querySelector('.topview-fullscreen-container')) {
+      textareaRef.current?.focus()
+    }
   }, [assistant, topic])
 
   useEffect(() => {

@@ -20,10 +20,16 @@ interface FileInfo {
   name: string
 }
 
+const ObsidianProcessingMethod = {
+  APPEND: '1',
+  PREPEND: '2',
+  NEW_OR_OVERWRITE: '3'
+} as const
+
 interface PopupContainerProps {
   title: string
   obsidianTags: string | null
-  processingMethod: string | '3'
+  processingMethod: (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
   open: boolean
   resolve: (success: boolean) => void
   message?: Message
@@ -230,10 +236,10 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       markdown = ''
     }
     let content = ''
-    if (state.processingMethod !== '3') {
+    if (state.processingMethod !== ObsidianProcessingMethod.NEW_OR_OVERWRITE) {
       content = `\n---\n${markdown}`
     } else {
-      content = `---\n\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
+      content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
     }
     if (content === '') {
       window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
@@ -280,9 +286,9 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           const titleWithoutExt = fileName.endsWith('.md') ? fileName.substring(0, fileName.length - 3) : fileName
           handleChange('title', titleWithoutExt)
           setHasTitleBeenManuallyEdited(false)
-          handleChange('processingMethod', '1')
+          handleChange('processingMethod', ObsidianProcessingMethod.APPEND)
         } else {
-          handleChange('processingMethod', '3')
+          handleChange('processingMethod', ObsidianProcessingMethod.NEW_OR_OVERWRITE)
           if (!hasTitleBeenManuallyEdited) {
             handleChange('title', title)
           }
@@ -390,9 +396,15 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             onChange={(value) => handleChange('processingMethod', value)}
             placeholder={i18n.t('chat.topics.export.obsidian_operate_placeholder')}
             allowClear>
-            <Option value="1">{i18n.t('chat.topics.export.obsidian_operate_append')}</Option>
-            <Option value="2">{i18n.t('chat.topics.export.obsidian_operate_prepend')}</Option>
-            <Option value="3">{i18n.t('chat.topics.export.obsidian_operate_new_or_overwrite')}</Option>
+            <Option value={ObsidianProcessingMethod.APPEND}>
+              {i18n.t('chat.topics.export.obsidian_operate_append')}
+            </Option>
+            <Option value={ObsidianProcessingMethod.PREPEND}>
+              {i18n.t('chat.topics.export.obsidian_operate_prepend')}
+            </Option>
+            <Option value={ObsidianProcessingMethod.NEW_OR_OVERWRITE}>
+              {i18n.t('chat.topics.export.obsidian_operate_new_or_overwrite')}
+            </Option>
           </Select>
         </Form.Item>
         <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
@@ -403,4 +415,4 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
   )
 }
 
-export { PopupContainer }
+export { ObsidianProcessingMethod, PopupContainer }

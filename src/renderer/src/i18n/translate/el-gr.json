@@ -8,6 +8,10 @@
       "add.name.placeholder": "Εισαγάγετε όνομα",
       "add.prompt": "Φράση προκαλέσεως",
       "add.prompt.placeholder": "Εισαγάγετε φράση προκαλέσεως",
+      "add.prompt.variables.tip": {
+        "title": "Διαθέσιμες μεταβλητές",
+        "content": "{{date}}:\tΗμερομηνία\n{{time}}:\tΏρα\n{{datetime}}:\tΗμερομηνία και ώρα\n{{system}}:\tΛειτουργικό σύστημα\n{{arch}}:\tΑρχιτεκτονική CPU\n{{language}}:\tΓλώσσα\n{{model_name}}:\tΌνομα μοντέλου"
+      },
       "add.title": "Δημιουργία νέου ειδικού",
       "delete.popup.content": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον ειδικό;",
       "edit.model.select.title": "Επιλογή μοντέλου",
@@ -1296,6 +1300,7 @@
         "advancedSettings": "Προχωρημένες Ρυθμίσεις"
       },
       "messages.divider": "Διαχωριστική γραμμή μηνυμάτων",
+      "messages.divider.tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας",
       "messages.grid_columns": "Αριθμός στήλων γριλ μηνυμάτων",
       "messages.grid_popover_trigger": "Καταγραφή στοιχείων στο grid",
       "messages.grid_popover_trigger.click": "Εμφάνιση κλικ",

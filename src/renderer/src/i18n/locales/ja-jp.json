@@ -8,7 +8,10 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
-      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "利用可能な変数",
+        "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名"
+      },
       "add.title": "エージェントを作成",
       "import": {
         "title": "外部からインポート",
@@ -940,7 +943,10 @@
       "rendering_speed": "レンダリング速度",
       "translating": "翻訳中...",
       "text_desc_required": "画像の説明を先に入力してください",
+      "image_handle_required": "最初に画像をアップロードしてください。",
       "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "req_error_token": "トークンの有効性を確認してください",
+      "req_error_no_balance": "トークンの有効性を確認してください",
       "auto_create_paint": "画像を自動作成",
       "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。",
       "select_model": "モデルを選択",
@@ -1500,6 +1506,7 @@
       "messages.prompt": "プロンプト表示",
       "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
+      "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
       "messages.grid_popover_trigger.click": "クリックで表示",
@@ -1913,7 +1920,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "検出された言語"
+      "detected.language": "自動検出"
     },
     "tray": {
       "quit": "終了",

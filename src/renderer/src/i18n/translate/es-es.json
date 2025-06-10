@@ -8,6 +8,10 @@
       "add.name.placeholder": "Ingrese el nombre",
       "add.prompt": "Palabra clave",
       "add.prompt.placeholder": "Ingrese la palabra clave",
+      "add.prompt.variables.tip": {
+        "title": "Variables disponibles",
+        "content": "{{date}}:\tFecha\n{{time}}:\tHora\n{{datetime}}:\tFecha y hora\n{{system}}:\tSistema operativo\n{{arch}}:\tArquitectura de CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNombre del modelo"
+      },
       "add.title": "Crear agente inteligente",
       "delete.popup.content": "¿Está seguro de que desea eliminar este agente inteligente?",
       "edit.model.select.title": "Seleccionar modelo",
@@ -1295,6 +1299,7 @@
         "advancedSettings": "Configuración avanzada"
       },
       "messages.divider": "Separador de mensajes",
+      "messages.divider.tooltip": "No aplicable para mensajes de estilo burbuja",
       "messages.grid_columns": "Número de columnas en la cuadrícula de mensajes",
       "messages.grid_popover_trigger": "Desencadenante de detalles de cuadrícula",
       "messages.grid_popover_trigger.click": "Mostrar al hacer clic",

@@ -8,7 +8,10 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
-      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Available variables",
+        "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name"
+      },
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -940,7 +943,10 @@
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       },
       "text_desc_required": "Please enter image description first",
+      "image_handle_required": "Please upload an image first.",
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "req_error_token": "Please check the validity of the token",
+      "req_error_no_balance": "Please check the validity of the token",
       "auto_create_paint": "Auto-create image",
       "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
       "select_model": "Select Model",
@@ -1506,6 +1512,7 @@
       "messages.prompt": "Show prompt",
       "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
+      "messages.divider.tooltip": "Not applicable to bubble-style message",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
       "messages.grid_popover_trigger.click": "Click to display",
@@ -1880,7 +1887,7 @@
       "close": "Close",
       "closed": "Translation closed",
       "copied": "Translation content copied",
-      "detected.language": "Detected Language",
+      "detected.language": "Auto Detect",
       "empty": "Translation content is empty",
       "not.found": "Translation content not found",
       "confirm": {
