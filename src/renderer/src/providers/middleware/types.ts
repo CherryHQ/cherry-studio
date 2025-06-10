@@ -26,27 +26,10 @@ export type OnChunkFunction = (chunk: Chunk | ErrorChunk) => void
 /**
  * Base context that carries information about the current method call.
  */
-export interface BaseContext<
-  TSdkInstance extends SdkInstance = SdkInstance,
-  TSdkParams extends SdkParams = SdkParams,
-  TRawOutput extends SdkRawOutput = SdkRawOutput,
-  TRawChunk extends SdkRawChunk = SdkRawChunk,
-  TMessageParam extends SdkMessageParam = SdkMessageParam,
-  TToolCall extends SdkToolCall = SdkToolCall,
-  TSdkSpecificTool extends SdkTool = SdkTool
-> {
+export interface BaseContext {
   [MIDDLEWARE_CONTEXT_SYMBOL]: true
   methodName: string
   originalArgs: Readonly<any[]>
-  apiClientInstance: BaseApiClient<
-    TSdkInstance,
-    TSdkParams,
-    TRawOutput,
-    TRawChunk,
-    TMessageParam,
-    TToolCall,
-    TSdkSpecificTool
-  >
 }
 
 /**
@@ -96,7 +79,10 @@ export interface CompletionsContext<
   TRawOutput extends SdkRawOutput = SdkRawOutput,
   TRawChunk extends SdkRawChunk = SdkRawChunk,
   TSdkSpecificTool extends SdkTool = SdkTool
-> extends BaseContext<
+> extends BaseContext {
+  readonly methodName: 'completions' // 强制方法名为 'completions'
+
+  apiClientInstance: BaseApiClient<
     TSdkInstance,
     TSdkParams,
     TRawOutput,
@@ -104,20 +90,15 @@ export interface CompletionsContext<
     TSdkMessageParam,
     TSdkToolCall,
     TSdkSpecificTool
-  > {
-  readonly methodName: 'completions' // 强制方法名为 'completions'
+  >
 
   // --- Mutable internal state for the duration of the middleware chain ---
   _internal: ProcessingState<TSdkParams, TSdkMessageParam, TSdkToolCall> // 包含所有可变的处理状态
 }
 
-export interface MiddlewareAPI<
-  Ctx extends BaseContext<any, any, any, any, any, any, any> = BaseContext,
-  Args extends readonly unknown[] = readonly unknown[]
-> {
+export interface MiddlewareAPI<Ctx extends BaseContext = BaseContext, Args extends any[] = any[]> {
   getContext: () => Ctx // Function to get the current context / 获取当前上下文的函数
   getOriginalArgs: () => Args // Function to get the original arguments of the method call / 获取方法调用原始参数的函数
-  getApiClientInstance: () => Ctx['apiClientInstance'] // Function to get the ApiClient instance / 获取ApiClient实例的函数
 }
 
 /**
@@ -126,8 +107,8 @@ export interface MiddlewareAPI<
 export type Middleware<TContext extends BaseContext> = (
   api: MiddlewareAPI<TContext>
 ) => (
-  next: (context: TContext, args: readonly unknown[]) => Promise<unknown>
-) => (context: TContext, args: readonly unknown[]) => Promise<unknown>
+  next: (context: TContext, args: any[]) => Promise<unknown>
+) => (context: TContext, args: any[]) => Promise<unknown>
 
 export type MethodMiddleware = Middleware<BaseContext>
 
@@ -153,7 +134,7 @@ export type CompletionsMiddleware<
       TRawChunk,
       TSdkSpecificTool
     >,
-    readonly [CompletionsParams]
+    [CompletionsParams]
   >
 ) => (
   next: (

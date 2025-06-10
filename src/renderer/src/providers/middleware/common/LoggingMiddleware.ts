@@ -40,10 +40,10 @@ const stringifyArgsForLogging = (args: any[]): string => {
  */
 export const createGenericLoggingMiddleware: () => MethodMiddleware = () => {
   const middlewareName = 'GenericLoggingMiddleware'
-  return (api: MiddlewareAPI<BaseContext, any[]>) => (next) => async (ctx, args) => {
-    const apiClientId = api.getApiClientInstance().provider?.id || 'unknown-provider'
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  return (_: MiddlewareAPI<BaseContext, any[]>) => (next) => async (ctx, args) => {
     const methodName = ctx.methodName
-    const logPrefix = `[${middlewareName} (${apiClientId}-${methodName})]`
+    const logPrefix = `[${middlewareName} (${methodName})]`
     console.log(`${logPrefix} Initiating. Args:`, stringifyArgsForLogging(args))
     const startTime = Date.now()
     try {

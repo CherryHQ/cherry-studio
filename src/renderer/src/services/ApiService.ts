@@ -25,7 +25,6 @@ import {
   MCPTool,
   Model,
   Provider,
-  Suggestion,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -489,36 +488,6 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
     return result.getText() || ''
   } catch (error: any) {
     return ''
-  }
-}
-
-export async function fetchSuggestions({
-  messages,
-  assistant
-}: {
-  messages: Message[]
-  assistant: Assistant
-}): Promise<Suggestion[]> {
-  const model = assistant.model
-  if (!model || model.id.endsWith('global')) {
-    return []
-  }
-
-  const provider = getAssistantProvider(assistant)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const AI = new AiProvider(provider)
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const params: CompletionsParams = {
-    messages: filterMessages(messages),
-    assistant,
-    streamOutput: false
-  }
-
-  try {
-    return []
-  } catch (error: any) {
-    return []
   }
 }
 

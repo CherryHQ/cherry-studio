@@ -1,5 +1,5 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
@@ -444,10 +444,11 @@ export type GenerateImageParams = {
   imageSize: string
   batchSize: number
   seed?: string
-  numInferenceSteps: number
-  guidanceScale: number
+  numInferenceSteps?: number
+  guidanceScale?: number
   signal?: AbortSignal
   promptEnhancement?: boolean
+  personGeneration?: PersonGeneration
 }
 
 export type GenerateImageResponse = {

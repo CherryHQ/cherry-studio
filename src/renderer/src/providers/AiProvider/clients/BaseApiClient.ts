@@ -144,11 +144,11 @@ export abstract class BaseApiClient<
    * 通用函数
    **/
 
-  protected getBaseURL(): string {
+  public getBaseURL(): string {
     return this.provider.apiHost
   }
 
-  protected getApiKey() {
+  public getApiKey() {
     const keys = this.provider.apiKey.split(',').map((key) => key.trim())
     const keyName = `provider:${this.provider.id}:last_used_key`
 

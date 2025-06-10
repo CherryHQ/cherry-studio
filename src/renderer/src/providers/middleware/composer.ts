@@ -33,15 +33,13 @@ import {
 function createInitialCallContext<TContext extends BaseContext, TCallArgs extends unknown[]>(
   methodName: string,
   originalCallArgs: TCallArgs, // Renamed from originalArgs to avoid confusion with context.originalArgs
-  apiClientInstance: TContext['apiClientInstance'],
   // Factory to create specific context from base and the *original call arguments array*
   specificContextFactory?: (base: BaseContext, callArgs: TCallArgs) => TContext
 ): TContext {
   const baseContext: BaseContext = {
     [MIDDLEWARE_CONTEXT_SYMBOL]: true,
     methodName,
-    originalArgs: originalCallArgs, // Store the full original arguments array in the context
-    apiClientInstance
+    originalArgs: originalCallArgs // Store the full original arguments array in the context
   }
 
   if (specificContextFactory) {
@@ -94,7 +92,6 @@ export function applyMethodMiddlewares<
   TResult = unknown,
   TContext extends BaseContext = BaseContext
 >(
-  originalApiClientInstance: TContext['apiClientInstance'],
   methodName: string,
   originalMethod: (...args: TArgs) => Promise<TResult>,
   middlewares: MethodMiddleware[], // Expects generic middlewares / 期望通用中间件
@@ -106,14 +103,12 @@ export function applyMethodMiddlewares<
     const ctx = createInitialCallContext<TContext, TArgs>(
       methodName,
       methodCallArgs, // Pass the actual call arguments array / 传递实际的调用参数数组
-      originalApiClientInstance,
       specificContextFactory
     )
 
     const api: MiddlewareAPI<TContext, TArgs> = {
       getContext: () => ctx,
-      getOriginalArgs: () => methodCallArgs, // API provides the original arguments array / API提供原始参数数组
-      getApiClientInstance: () => originalApiClientInstance
+      getOriginalArgs: () => methodCallArgs // API provides the original arguments array / API提供原始参数数组
     }
 
     // `finalDispatch` is the function that will ultimately call the original provider method. /
@@ -124,7 +119,7 @@ export function applyMethodMiddlewares<
       _: TContext,
       currentArgs: TArgs // Generic final dispatch expects args array / 通用finalDispatch期望参数数组
     ): Promise<TResult> => {
-      return originalMethod.apply(originalApiClientInstance, currentArgs)
+      return originalMethod.apply(currentArgs)
     }
 
     const chain = middlewares.map((middleware) => middleware(api)) // Cast API if TContext/TArgs mismatch general ProviderMethodMiddleware / 如果TContext/TArgs与通用的ProviderMethodMiddleware不匹配，则转换API
@@ -182,7 +177,7 @@ export function applyCompletionsMiddlewares<
   // Factory to create AiProviderMiddlewareCompletionsContext. /
   // 用于创建 AiProviderMiddlewareCompletionsContext 的工厂函数。
   const completionsContextFactory = (
-    base: BaseContext<TSdkInstance, TSdkParams, TRawOutput, TRawChunk, TMessageParam, TToolCall, TSdkSpecificTool>,
+    base: BaseContext,
     callArgs: [CompletionsParams]
   ): CompletionsContext<
     TSdkParams,
@@ -215,19 +210,10 @@ export function applyCompletionsMiddlewares<
     // `originalCallArgs` for context creation is `[params]`. /
     // 用于上下文创建的 `originalCallArgs` 是 `[params]`。
     const originalCallArgs: [CompletionsParams] = [params]
-    const baseContext: BaseContext<
-      TSdkInstance,
-      TSdkParams,
-      TRawOutput,
-      TRawChunk,
-      TMessageParam,
-      TToolCall,
-      TSdkSpecificTool
-    > = {
+    const baseContext: BaseContext = {
       [MIDDLEWARE_CONTEXT_SYMBOL]: true,
       methodName,
-      originalArgs: originalCallArgs,
-      apiClientInstance: originalApiClientInstance
+      originalArgs: originalCallArgs
     }
     const ctx = completionsContextFactory(baseContext, originalCallArgs)
 
@@ -236,8 +222,7 @@ export function applyCompletionsMiddlewares<
       [CompletionsParams]
     > = {
       getContext: () => ctx,
-      getOriginalArgs: () => originalCallArgs, // API provides [CompletionsParams] / API提供 `[CompletionsParams]`
-      getApiClientInstance: () => originalApiClientInstance
+      getOriginalArgs: () => originalCallArgs // API provides [CompletionsParams] / API提供 `[CompletionsParams]`
     }
 
     // `finalDispatch` for CompletionsMiddleware: expects (context, params) not (context, args_array). /

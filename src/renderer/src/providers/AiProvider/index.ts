@@ -91,4 +91,12 @@ export default class AiProvider {
   public async generateImage(params: GenerateImageParams): Promise<string[]> {
     return this.apiClient.generateImage(params)
   }
+
+  public getBaseURL(): string {
+    return this.apiClient.getBaseURL()
+  }
+
+  public getApiKey(): string {
+    return this.apiClient.getApiKey()
+  }
 }
