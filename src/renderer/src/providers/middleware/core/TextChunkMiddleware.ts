@@ -95,7 +95,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
 
                 // 将Web搜索完成事件继续传递下去
                 controller.enqueue(chunk)
-              } else if (chunk.type === ChunkType.LLM_RESPONSE_COMPLETE) {
+              } else if (accumulatedTextContent) {
                 let finalText = accumulatedTextContent
                 ctx._internal.customState!.accumulatedText = finalText
                 // 如果有待处理的Web搜索结果，尝试完善链接
@@ -115,7 +115,10 @@ export const TextChunkMiddleware: CompletionsMiddleware =
                   type: ChunkType.TEXT_COMPLETE,
                   text: finalText
                 })
-                controller.enqueue(chunk)
+                accumulatedTextContent = ''
+                controller.enqueue({
+                  type: ChunkType.LLM_RESPONSE_COMPLETE
+                })
               } else {
                 // 其他类型的chunk直接传递
                 controller.enqueue(chunk)

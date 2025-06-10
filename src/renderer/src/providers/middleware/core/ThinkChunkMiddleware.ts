@@ -72,24 +72,22 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
                   thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                 }
                 controller.enqueue(enhancedChunk)
-              } else if (chunk.type === ChunkType.TEXT_DELTA || chunk.type === ChunkType.MCP_TOOL_CREATED) {
-                // 如果有累积的思考内容，在第一个文本块到达时生成THINKING_COMPLETE
-                if (hasThinkingContent && thinkingStartTime > 0) {
-                  const thinkingCompleteChunk: ThinkingCompleteChunk = {
-                    type: ChunkType.THINKING_COMPLETE,
-                    text: accumulatedThinkingContent,
-                    thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
-                  }
-                  controller.enqueue(thinkingCompleteChunk)
-                  hasThinkingContent = false
-                  accumulatedThinkingContent = ''
-                  thinkingStartTime = 0
+              } else if (hasThinkingContent && thinkingStartTime > 0) {
+                // 收到任何非THINKING_DELTA的chunk时，如果有累积的思考内容，生成THINKING_COMPLETE
+                const thinkingCompleteChunk: ThinkingCompleteChunk = {
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: accumulatedThinkingContent,
+                  thinking_millsec: thinkingStartTime > 0 ? Date.now() - thinkingStartTime : 0
                 }
+                controller.enqueue(thinkingCompleteChunk)
+                hasThinkingContent = false
+                accumulatedThinkingContent = ''
+                thinkingStartTime = 0
 
-                // 直接传递文本块
+                // 继续传递当前chunk
                 controller.enqueue(chunk)
               } else {
-                // 其他类型的chunk直接传递
+                // 其他情况直接传递
                 controller.enqueue(chunk)
               }
             }
