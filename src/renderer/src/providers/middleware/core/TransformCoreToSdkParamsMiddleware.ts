@@ -1,4 +1,5 @@
 import Logger from '@renderer/config/logger'
+import { ChunkType } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
@@ -74,7 +75,11 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
 
       Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Successfully transformed CoreCompletionsRequest to SDK params:`, sdkPayload)
       Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Has metadata:`, !!metadata)
-
+      if (params.enableGenerateImage) {
+        params.onChunk?.({
+          type: ChunkType.IMAGE_CREATED
+        })
+      }
       return next(ctx, params)
     } catch (error) {
       Logger.error(`🔄 [${MIDDLEWARE_NAME}] Error during request transformation:`, error)

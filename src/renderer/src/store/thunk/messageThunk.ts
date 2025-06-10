@@ -660,11 +660,11 @@ const fetchAndProcessAssistantResponseImpl = async (
           initialPlaceholderBlockId = null
           dispatch(updateOneBlock({ id: imageBlockId, changes: initialChanges }))
           saveUpdatedBlockToDB(imageBlockId, assistantMsgId, topicId, getState)
-        } else {
+        } else if (!imageBlockId) {
           const imageBlock = createImageBlock(assistantMsgId, {
-            status: MessageBlockStatus.PROCESSING
+            status: MessageBlockStatus.STREAMING
           })
-          imageBlockId = imageBlock.id // 立即设置ID，防止竞态条件
+          imageBlockId = imageBlock.id
           await handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
         }
       },
@@ -674,7 +674,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           const changes: Partial<ImageMessageBlock> = {
             url: imageUrl,
             metadata: { generateImageResponse: imageData },
-            status: MessageBlockStatus.SUCCESS
+            status: MessageBlockStatus.STREAMING
           }
           dispatch(updateOneBlock({ id: imageBlockId, changes }))
           saveUpdatedBlockToDB(imageBlockId, assistantMsgId, topicId, getState)

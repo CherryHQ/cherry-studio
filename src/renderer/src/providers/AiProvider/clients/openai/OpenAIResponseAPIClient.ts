@@ -292,7 +292,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         systemMessage.content = systemMessageContent
 
         // 3. 处理用户消息
-        const userMessage: OpenAI.Responses.ResponseInputItem[] = []
+        let userMessage: OpenAI.Responses.ResponseInputItem[] = []
         if (typeof messages === 'string') {
           userMessage.push({ role: 'user', content: messages })
         } else {
@@ -300,6 +300,22 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           for (const message of processedMessages) {
             userMessage.push(await this.convertMessageToSdkParam(message, model))
           }
+        }
+        // FIXME: 最好还是直接使用previous_response_id来处理（或者在数据库中存储image_generation_call的id）
+        if (enableGenerateImage) {
+          const finalAssistantMessage = userMessage.findLast(
+            (m) => (m as OpenAI.Responses.EasyInputMessage).role === 'assistant'
+          ) as OpenAI.Responses.EasyInputMessage
+          const finalUserMessage = userMessage.pop() as OpenAI.Responses.EasyInputMessage
+          if (
+            finalAssistantMessage &&
+            Array.isArray(finalAssistantMessage.content) &&
+            finalUserMessage &&
+            Array.isArray(finalUserMessage.content)
+          ) {
+            finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
+          }
+          userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
         }
 
         // 4. 最终请求消息
@@ -397,6 +413,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
                 break
               case 'image_generation_call':
                 controller.enqueue({
+                  type: ChunkType.IMAGE_CREATED
+                })
+                controller.enqueue({
                   type: ChunkType.IMAGE_COMPLETE,
                   image: {
                     type: 'base64',
@@ -416,6 +435,11 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               controller.enqueue({
                 type: ChunkType.THINKING_DELTA,
                 text: chunk.delta
+              })
+              break
+            case 'response.image_generation_call.generating':
+              controller.enqueue({
+                type: ChunkType.IMAGE_CREATED
               })
               break
             case 'response.image_generation_call.partial_image':

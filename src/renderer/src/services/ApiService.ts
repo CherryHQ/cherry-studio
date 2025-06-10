@@ -344,10 +344,6 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-  if (enableGenerateImage) {
-    onChunkReceived({ type: ChunkType.IMAGE_CREATED })
-  }
-
   await AI.completions(
     {
       callType: 'chat',
