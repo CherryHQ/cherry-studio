@@ -315,6 +315,7 @@ interface MessageWrapperProps {
 
 const MessageWrapper = styled(Scrollbar)<MessageWrapperProps>`
   width: 100%;
+  display: flex;
 
   &.horizontal {
     display: inline-block;

@@ -1302,6 +1302,7 @@
         "advancedSettings": "Configurações Avançadas"
       },
       "messages.divider": "Divisor de mensagens",
+      "messages.divider.tooltip": "Não aplicável a mensagens de estilo bolha",
       "messages.grid_columns": "Número de colunas da grade de mensagens",
       "messages.grid_popover_trigger": "Disparador de detalhes da grade",
       "messages.grid_popover_trigger.click": "Clique para mostrar",

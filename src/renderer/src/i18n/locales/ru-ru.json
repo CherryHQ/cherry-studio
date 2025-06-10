@@ -1507,6 +1507,7 @@
       "messages.prompt": "Показывать подсказки",
       "messages.tokens": "Показать использование токенов",
       "messages.divider": "Показывать разделитель между сообщениями",
+      "messages.divider.tooltip": "Не применимо к сообщениям в стиле пузырей",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.grid_popover_trigger.click": "Нажатие для отображения",
