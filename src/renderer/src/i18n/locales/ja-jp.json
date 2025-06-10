@@ -1853,7 +1853,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "検出された言語"
+      "detected.language": "自動検出"
     },
     "tray": {
       "quit": "終了",

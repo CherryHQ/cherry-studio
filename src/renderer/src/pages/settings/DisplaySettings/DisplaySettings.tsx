@@ -1,4 +1,5 @@
 import { SyncOutlined } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
 import { HStack } from '@renderer/components/Layout'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -16,7 +17,7 @@ import {
   setSidebarIcons
 } from '@renderer/store/settings'
 import { ThemeMode } from '@renderer/types'
-import { Button, ColorPicker, Input, Segmented, Switch } from 'antd'
+import { Button, ColorPicker, Segmented, Switch } from 'antd'
 import { Minus, Plus, RotateCcw } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -307,17 +308,24 @@ const DisplaySettings: FC = () => {
           </TitleExtra>
         </SettingTitle>
         <SettingDivider />
-        <Input.TextArea
+        <CodeEditor
           value={customCss}
-          onChange={(e) => {
-            dispatch(setCustomCss(e.target.value))
-          }}
+          language="css"
           placeholder={t('settings.display.custom.css.placeholder')}
-          style={{
-            minHeight: 200,
-            fontFamily: 'monospace'
+          onChange={(value) => dispatch(setCustomCss(value))}
+          height="350px"
+          options={{
+            collapsible: true,
+            wrappable: true,
+            autocompletion: true,
+            lineNumbers: true,
+            foldGutter: true,
+            keymap: true
           }}
-          spellCheck={false}
+          style={{
+            outline: '0.5px solid var(--color-border)',
+            borderRadius: '5px'
+          }}
         />
       </SettingGroup>
     </SettingContainer>

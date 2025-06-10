@@ -1854,7 +1854,7 @@
       },
       "title": "翻译",
       "tooltip.newline": "换行",
-      "detected.language": "检测到的语言"
+      "detected.language": "自动检测"
     },
     "tray": {
       "quit": "退出",

@@ -1821,7 +1821,7 @@
       "close": "Close",
       "closed": "Translation closed",
       "copied": "Translation content copied",
-      "detected.language": "Detected Language",
+      "detected.language": "Auto Detect",
       "empty": "Translation content is empty",
       "not.found": "Translation content not found",
       "confirm": {
