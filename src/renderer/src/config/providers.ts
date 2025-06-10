@@ -623,7 +623,7 @@ export const PROVIDER_CONFIG = {
       official: 'https://cephalon.cloud',
       apiKey: 'https://cephalon.cloud/api',
       docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
-      models: 'https://cephalon.ai/models'
+      models: 'https://cephalon.cloud/model'
     }
   }
 }
