@@ -69,6 +69,7 @@ import OpenAISettingsGroup from './components/OpenAISettingsGroup'
 
 interface Props {
   assistant: Assistant
+  onClose: () => void
 }
 
 const SettingsTab: FC<Props> = (props) => {
@@ -197,7 +198,10 @@ const SettingsTab: FC<Props> = (props) => {
               type="text"
               size="small"
               icon={<Settings2 size={16} />}
-              onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
+              onClick={() => {
+                AssistantSettingsPopup.show({ assistant, tab: 'model' })
+                props.onClose()
+              }}
             />
           </HStack>
         }>
@@ -681,8 +685,10 @@ const SettingsTab: FC<Props> = (props) => {
 }
 
 const Container = styled(Scrollbar)`
+  min-width: 300px;
+  max-width: 40vw;
+  max-height: 70vh;
   display: flex;
-  flex: 1;
   flex-direction: column;
   padding: 0 8px;
   padding-right: 0;

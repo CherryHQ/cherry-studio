@@ -1,8 +1,12 @@
 import path from 'node:path'
 
 import { getConfigDir } from '@main/utils/file'
-import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth'
-import { OAuthClientInformation, OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth'
+import { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
+import {
+  OAuthClientInformation,
+  OAuthClientInformationFull,
+  OAuthTokens
+} from '@modelcontextprotocol/sdk/shared/auth.js'
 import Logger from 'electron-log'
 import open from 'open'
 

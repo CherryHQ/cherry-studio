@@ -38,8 +38,22 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     setSettedTheme(nextTheme || ThemeMode.system)
   }
 
+  const tailwindThemeChange = (theme) => {
+    const root = window.document.documentElement
+    root.classList.remove('light', 'dark')
+    root.classList.add(theme)
+  }
+
   useEffect(() => {
-    // Set initial theme and OS attributes on body
+    window.api?.setTheme(settedTheme || actualTheme)
+  }, [settedTheme, actualTheme])
+
+  useEffect(() => {
+    document.body.setAttribute('theme-mode', settedTheme)
+    tailwindThemeChange(settedTheme)
+  }, [settedTheme])
+
+  useEffect(() => {
     document.body.setAttribute('os', isMac ? 'mac' : 'windows')
     document.body.setAttribute('theme-mode', actualTheme)
 

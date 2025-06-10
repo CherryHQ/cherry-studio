@@ -1,4 +1,5 @@
 import { CopyOutlined, DeleteOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons'
+import { NavbarIcon } from '@renderer/components/app/MainNavbar'
 import CustomTag from '@renderer/components/CustomTag'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { HStack } from '@renderer/components/Layout'
@@ -22,7 +23,6 @@ import styled from 'styled-components'
 
 import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
-import { NavbarIcon } from '../home/Navbar'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'

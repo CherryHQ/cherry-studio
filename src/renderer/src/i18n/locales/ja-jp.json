@@ -421,7 +421,9 @@
         "pinyin.asc": "ピンインで昇順ソート",
         "pinyin.desc": "ピンインで降順ソート"
       },
-      "no_results": "検索結果なし"
+      "no_results": "検索結果なし",
+      "apps": "アプリ",
+      "mcp": "ツール"
     },
     "docs": {
       "title": "ドキュメント"

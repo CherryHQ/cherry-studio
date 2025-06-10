@@ -25,7 +25,6 @@
 }
 
 .minapp-drawer {
-  max-width: calc(100vw - var(--sidebar-width));
   .ant-drawer-content-wrapper {
     box-shadow: none;
   }
@@ -33,7 +32,7 @@
     position: absolute;
     -webkit-app-region: drag;
     min-height: calc(var(--navbar-height) + 0.5px);
-    width: calc(100vw - var(--sidebar-width));
+    width: 100%;
     margin-top: -0.5px;
     border-bottom: none;
   }

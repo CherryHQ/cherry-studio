@@ -1,5 +1,6 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { Center, VStack } from '@renderer/components/Layout'
+import { SettingDescription, SettingRow, SettingSubtitle } from '@renderer/pages/settings'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
 import { Alert, Button } from 'antd'
@@ -7,8 +8,6 @@ import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
-
-import { SettingDescription, SettingRow, SettingSubtitle } from '..'
 
 interface Props {
   mini?: boolean
@@ -82,7 +81,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         icon={installed ? <CheckCircleOutlined /> : <WarningOutlined />}
         className="nodrag"
         color={installed ? 'green' : 'danger'}
-        onClick={() => navigate('/settings/mcp/mcp-install')}
+        onClick={() => navigate('mcp-install')}
       />
     )
   }

@@ -1,7 +1,8 @@
 import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
-import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
+import MCPDescription from '@renderer/pages/mcp-servers/McpDescription'
+import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '@renderer/pages/settings'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import { Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
@@ -12,7 +13,6 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
@@ -319,7 +319,7 @@ const McpSettings: React.FC = () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
             window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
-            navigate('/settings/mcp')
+            navigate('/mcp-servers')
           }
         })
       } catch (error: any) {
@@ -608,7 +608,7 @@ const McpSettings: React.FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
+    <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 20, backgroundColor: 'transparent' }}>
       <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
         <SettingTitle>
           <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>

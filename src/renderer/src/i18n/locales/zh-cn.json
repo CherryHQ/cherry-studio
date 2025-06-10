@@ -421,7 +421,9 @@
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
       },
-      "no_results": "无结果"
+      "no_results": "无结果",
+      "apps": "应用",
+      "mcp": "工具"
     },
     "docs": {
       "title": "帮助文档"
@@ -1811,6 +1813,13 @@
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
       }
+    },
+    "discover": {
+      "title": "发现",
+      "install": "安装",
+      "uninstall": "卸载",
+      "update": "更新",
+      "update_all": "全部更新"
     },
     "translate": {
       "any.language": "任意语言",

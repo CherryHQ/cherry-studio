@@ -24,7 +24,8 @@ export default defineConfig({
       // 渲染进程单元测试配置
       {
         extends: true,
-        plugins: rendererConfig.plugins,
+        // exclude tailwindcss plugin
+        plugins: rendererConfig.plugins.slice(1),
         resolve: {
           alias: rendererConfig.resolve.alias
         },

@@ -7,5 +7,11 @@
     {
       "path": "./tsconfig.web.json"
     }
-  ]
+  ],
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@renderer/*": ["src/renderer/src/*"],
+    }
+  }
 }

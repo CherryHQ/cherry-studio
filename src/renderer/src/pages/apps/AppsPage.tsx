@@ -1,4 +1,3 @@
-import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { Button, Input } from 'antd'
 import { Search, SettingsIcon, X } from 'lucide-react'
@@ -41,35 +40,37 @@ const AppsPage: FC = () => {
 
   return (
     <Container onContextMenu={handleContextMenu}>
-      <Navbar>
-        <NavbarMain>
-          {t('minapp.title')}
-          <Input
-            placeholder={t('common.search')}
-            className="nodrag"
-            style={{
-              width: '30%',
-              height: 28,
-              borderRadius: 15,
-              position: 'absolute',
-              left: '50vw',
-              transform: 'translateX(-50%)'
-            }}
-            size="small"
-            variant="filled"
-            suffix={<Search size={18} />}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            disabled={isSettingsOpen}
-          />
-          <Button
-            type="text"
-            className="nodrag"
-            icon={isSettingsOpen ? <X size={18} /> : <SettingsIcon size={18} color="var(--color-text-2)" />}
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-          />
-        </NavbarMain>
-      </Navbar>
+      {/* <Navbar> */}
+      {/* <NavbarMain> */}
+      {/* {t('minapp.title')} */}
+      <div className="p-2">
+        <Input
+          placeholder={t('common.search')}
+          className="nodrag"
+          style={{
+            width: '30%',
+            height: 28,
+            borderRadius: 15,
+            position: 'absolute',
+            left: '50vw',
+            transform: 'translateX(-50%)'
+          }}
+          size="small"
+          variant="filled"
+          suffix={<Search size={18} />}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          disabled={isSettingsOpen}
+        />
+        <Button
+          type="text"
+          className="nodrag"
+          icon={isSettingsOpen ? <X size={18} /> : <SettingsIcon size={18} color="var(--color-text-2)" />}
+          onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+        />
+      </div>
+      {/* </NavbarMain> */}
+      {/* </Navbar> */}
       <ContentContainer id="content-container">
         {isSettingsOpen && <MiniAppSettings />}
         {!isSettingsOpen && (

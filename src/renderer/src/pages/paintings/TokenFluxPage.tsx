@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
@@ -367,7 +367,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
@@ -376,7 +376,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             </Button>
           </NavbarRight>
         )}
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <LeftContainer>
           {/* Provider Section */}

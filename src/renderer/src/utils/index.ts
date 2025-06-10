@@ -1,9 +1,10 @@
 import Logger from '@renderer/config/logger'
 import { Model } from '@renderer/types'
 import { ModalFuncProps } from 'antd/es/modal/interface'
+import { type ClassValue, clsx } from 'clsx'
+import { twMerge } from 'tailwind-merge'
 // @ts-ignore next-line`
 import { v4 as uuidv4 } from 'uuid'
-
 /**
  * 异步执行一个函数。
  * @param {() => void} fn 要执行的函数
@@ -225,6 +226,10 @@ export function getMcpConfigSampleFromReadme(readme: string): Record<string, any
     }
   }
   return null
+}
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
 }
 
 export * from './file'

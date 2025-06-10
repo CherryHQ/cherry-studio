@@ -15,7 +15,6 @@ import styled from 'styled-components'
 
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
-import Tabs from './Tabs'
 
 interface Props {
   assistant: Assistant
@@ -38,7 +37,7 @@ const Chat: FC<Props> = (props) => {
     const showRightTopics = showTopics && topicPosition === 'right'
     const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
     const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-    return `calc(100vw - var(--sidebar-width) ${minusAssistantsWidth} ${minusRightTopicsWidth})`
+    return `calc(100vw - ${minusAssistantsWidth} ${minusRightTopicsWidth})`
   }, [showAssistants, showTopics, topicPosition])
 
   useHotkeys('esc', () => {
@@ -128,15 +127,6 @@ const Chat: FC<Props> = (props) => {
           {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
         </QuickPanelProvider>
       </Main>
-      {topicPosition === 'right' && showTopics && (
-        <Tabs
-          activeAssistant={assistant}
-          activeTopic={props.activeTopic}
-          setActiveAssistant={props.setActiveAssistant}
-          setActiveTopic={props.setActiveTopic}
-          position="right"
-        />
-      )}
     </Container>
   )
 }

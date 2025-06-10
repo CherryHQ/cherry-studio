@@ -1,6 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import { NavbarCenter, NavbarMain, NavbarRight } from '@renderer/components/app/Navbar'
 import { VStack } from '@renderer/components/Layout'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -645,7 +645,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   return (
     <Container>
-      <Navbar>
+      <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
@@ -658,7 +658,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </Button>
           </NavbarRight>
         )}
-      </Navbar>
+      </NavbarMain>
       <ContentContainer id="content-container">
         <LeftContainer>
           <ProviderTitleContainer>

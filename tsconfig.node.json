@@ -10,6 +10,7 @@
   ],
   "compilerOptions": {
     "composite": true,
+    "moduleResolution": "bundler",
     "types": [
       "electron-vite/node"
     ],
@@ -17,7 +18,9 @@
     "paths": {
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
-      "@shared/*": ["packages/shared/*"]
+      "@shared/*": ["packages/shared/*"],
+      "@renderer/*": ["src/renderer/src/*"],
+      "@modelcontextprotocol/sdk/*": ["node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
     }
   }
 }

@@ -1,10 +1,8 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { RedoOutlined } from '@ant-design/icons'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
-import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -19,7 +17,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { FileType } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Avatar, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -785,7 +783,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   return (
     <Container>
-      <Navbar>
+      {/* <NavbarMain>
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
@@ -794,7 +792,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             </Button>
           </NavbarRight>
         )}
-      </Navbar>
+      </NavbarMain> */}
       <ContentContainer id="content-container">
         <LeftContainer>
           <ProviderTitleContainer>

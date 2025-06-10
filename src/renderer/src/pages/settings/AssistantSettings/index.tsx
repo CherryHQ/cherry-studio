@@ -80,7 +80,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     <StyledModal
       open={open}
       onOk={onOk}
-      onClose={onCancel}
+      // onClose={onCancel}
       onCancel={onCancel}
       afterClose={afterClose}
       footer={null}

@@ -421,7 +421,9 @@
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
       },
-      "no_results": "No results"
+      "no_results": "No results",
+      "apps": "Apps",
+      "mcp": "Tools"
     },
     "docs": {
       "title": "Docs"

@@ -257,7 +257,7 @@ const MessageFooter = styled.div`
   align-items: center;
   padding: 2px 0;
   margin-top: 2px;
-  border-top: 1px dotted var(--color-border);
+  border-top: 0.5px dotted var(--color-border);
   gap: 20px;
 `
 

@@ -47,7 +47,7 @@ As [role name], with [list skills], strictly adhering to [list constraints], usi
 `
 
 export const SUMMARIZE_PROMPT =
-  "You are an assistant skilled in conversation. You need to summarize the user's conversation into a title within 10 words. The language of the title should be consistent with the user's primary language. Do not use punctuation marks or other special symbols"
+  "You are an assistant skilled in conversation. You need to summarize the user's conversation into a title within 10 words. The language of the title should be consistent with the user's primary language. Do not use punctuation marks, markdown language markers, or other special symbols"
 
 // https://github.com/ItzCrazyKns/Perplexica/blob/master/src/lib/prompts/webSearch.ts
 export const SEARCH_SUMMARY_PROMPT = `

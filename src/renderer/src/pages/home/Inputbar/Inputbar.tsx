@@ -14,7 +14,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
@@ -52,6 +52,7 @@ import InputbarTools, { InputbarToolsRef } from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
+import SettingButton from './SettingButton'
 import TokenCount from './TokenCount'
 
 interface Props {
@@ -405,8 +406,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const addNewTopic = useCallback(async () => {
-    await modelGenerating()
-
     const topic = getDefaultTopic(assistant.id)
 
     await db.topics.add({ id: topic.id, messages: [] })
@@ -858,6 +857,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
+              <SettingButton assistant={assistant} ToolbarButton={ToolbarButton} />
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} arrow>
