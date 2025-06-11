@@ -72,7 +72,8 @@ export class WindowService {
         webviewTag: true,
         allowRunningInsecureContent: true,
         zoomFactor: configManager.getZoomFactor(),
-        backgroundThrottling: false
+        backgroundThrottling: false,
+        spellcheck: true
       }
     })
 

@@ -177,7 +177,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             }}
             autoFocus
             contextMenu="true"
-            spellCheck={false}
+            spellCheck={true}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onFocus={() => {
               // 记录当前聚焦的组件
