@@ -53,18 +53,19 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
 })
 
 // Import the functions to test AFTER setting up mocks
+import db from '@renderer/databases'
+import { Topic } from '@renderer/types'
+import { markdownToPlainText } from '@renderer/utils/markdown'
+
+import { copyMessageAsPlainText } from '../copy'
 import {
   getTitleFromString,
   messagesToMarkdown,
   messageToMarkdown,
   messageToMarkdownWithReasoning,
-  topicToPlainText,
-  messageToPlainText
+  messageToPlainText,
+  topicToPlainText
 } from '../export'
-import { copyMessageAsPlainText } from '../copy'
-import { Topic } from '@renderer/types'
-import db from '@renderer/databases'
-import { markdownToPlainText } from '@renderer/utils/markdown'
 
 // --- Helper Functions for Test Data ---
 
@@ -161,6 +162,13 @@ beforeEach(() => {
   // Reset mocks and modules before each test suite (describe block)
   vi.resetModules()
   vi.clearAllMocks()
+
+  // Mock i18next translation function
+  vi.mock('i18next', () => ({
+    default: {
+      t: vi.fn((key) => key)
+    }
+  }))
 
   // Mock store - primarily for settings
   vi.doMock('@renderer/store', () => ({
@@ -529,6 +537,24 @@ describe('export', () => {
           writeText: writeTextMock
         }
       })
+
+      // Mock window.message methods
+      vi.stubGlobal('window', {
+        message: {
+          success: vi.fn(),
+          error: vi.fn(),
+          warning: vi.fn(),
+          info: vi.fn()
+        }
+      })
+
+      // Mock i18next translation function
+      vi.mock('i18next', () => ({
+        default: {
+          t: vi.fn((key) => key)
+        }
+      }))
+
       writeTextMock.mockReset()
       // Ensure markdownToPlainText mock is set
       ;(markdownToPlainText as any).mockImplementation((str) => str.replace(/[#*_]/g, ''))
