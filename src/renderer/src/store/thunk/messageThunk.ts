@@ -8,7 +8,6 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
-import { WebSearchSource } from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -22,7 +21,6 @@ import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@r
 import { Response } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
-import { extractUrlsFromMarkdown } from '@renderer/utils/linkConverter'
 import {
   createAssistantMessage,
   createBaseMessageBlock,
@@ -348,6 +346,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     let thinkingBlockId: string | null = null
     let imageBlockId: string | null = null
     let toolBlockId: string | null = null
+    let hasWebSearch = false
     const toolCallIdToBlockIdMap = new Map<string, string>()
     const notificationService = NotificationService.getInstance()
 
@@ -442,7 +441,6 @@ const fetchAndProcessAssistantResponseImpl = async (
             citationReferences: citationBlockId ? [{ citationBlockId }] : []
           })
           mainTextBlockId = newBlock.id // 立即设置ID，防止竞态条件
-          citationBlockId = null
           await handleBlockTransition(newBlock, MessageBlockType.MAIN_TEXT)
         }
       },
@@ -455,25 +453,20 @@ const fetchAndProcessAssistantResponseImpl = async (
           cancelThrottledBlockUpdate(mainTextBlockId)
           dispatch(updateOneBlock({ id: mainTextBlockId, changes }))
           saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
-
-          if (assistant.enableWebSearch && assistant.model?.provider === 'openrouter') {
-            const extractedUrls = extractUrlsFromMarkdown(finalText)
-            if (extractedUrls.length > 0) {
-              const citationBlock = createCitationBlock(
-                assistantMsgId,
-                { response: { source: WebSearchSource.OPENROUTER, results: extractedUrls } },
-                { status: MessageBlockStatus.SUCCESS }
-              )
-              await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
-              // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
-            }
-          }
+          mainTextBlockId = null
         } else {
           console.warn(
             `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${lastBlockType}) or lastBlockId  is null.`
           )
         }
-        mainTextBlockId = null
+        if (citationBlockId && !hasWebSearch) {
+          const changes: Partial<CitationMessageBlock> = {
+            status: MessageBlockStatus.SUCCESS
+          }
+          dispatch(updateOneBlock({ id: citationBlockId, changes }))
+          saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
+          citationBlockId = null
+        }
       },
       onThinkingChunk: async (text, thinking_millsec) => {
         accumulatedThinking += text
@@ -598,15 +591,17 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
       },
       onLLMWebSearchInProgress: async () => {
-        if (lastBlockType === MessageBlockType.UNKNOWN && lastBlockId) {
+        if (initialPlaceholderBlockId) {
           lastBlockType = MessageBlockType.CITATION
-          citationBlockId = lastBlockId
+          citationBlockId = initialPlaceholderBlockId
           const changes = {
             type: MessageBlockType.CITATION,
             status: MessageBlockStatus.PROCESSING
           }
-          dispatch(updateOneBlock({ id: lastBlockId, changes }))
-          saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+          lastBlockType = MessageBlockType.CITATION
+          dispatch(updateOneBlock({ id: initialPlaceholderBlockId, changes }))
+          saveUpdatedBlockToDB(initialPlaceholderBlockId, assistantMsgId, topicId, getState)
+          initialPlaceholderBlockId = null
         } else {
           const citationBlock = createCitationBlock(assistantMsgId, {}, { status: MessageBlockStatus.PROCESSING })
           citationBlockId = citationBlock.id
@@ -615,27 +610,19 @@ const fetchAndProcessAssistantResponseImpl = async (
       },
       onLLMWebSearchComplete: async (llmWebSearchResult) => {
         if (citationBlockId) {
+          hasWebSearch = true
           const changes: Partial<CitationMessageBlock> = {
             response: llmWebSearchResult,
             status: MessageBlockStatus.SUCCESS
           }
           dispatch(updateOneBlock({ id: citationBlockId, changes }))
           saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
-        } else {
-          const citationBlock = createCitationBlock(
-            assistantMsgId,
-            { response: llmWebSearchResult },
-            { status: MessageBlockStatus.SUCCESS }
-          )
-          citationBlockId = citationBlock.id
-          await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
-        }
-        if (mainTextBlockId) {
-          const state = getState()
-          const existingMainTextBlock = state.messageBlocks.entities[mainTextBlockId]
-          if (existingMainTextBlock && existingMainTextBlock.type === MessageBlockType.MAIN_TEXT) {
-            const currentRefs = existingMainTextBlock.citationReferences || []
-            if (!currentRefs.some((ref) => ref.citationBlockId === citationBlockId)) {
+
+          if (mainTextBlockId) {
+            const state = getState()
+            const existingMainTextBlock = state.messageBlocks.entities[mainTextBlockId]
+            if (existingMainTextBlock && existingMainTextBlock.type === MessageBlockType.MAIN_TEXT) {
+              const currentRefs = existingMainTextBlock.citationReferences || []
               const mainTextChanges = {
                 citationReferences: [
                   ...currentRefs,
@@ -645,6 +632,7 @@ const fetchAndProcessAssistantResponseImpl = async (
               dispatch(updateOneBlock({ id: mainTextBlockId, changes: mainTextChanges }))
               saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
             }
+            mainTextBlockId = null
           }
         }
       },
@@ -769,13 +757,15 @@ const fetchAndProcessAssistantResponseImpl = async (
           const contextForUsage = userMsgIndex !== -1 ? orderedMsgs.slice(0, userMsgIndex + 1) : []
           const finalContextWithAssistant = [...contextForUsage, finalAssistantMsg]
 
-          if (lastBlockId) {
+          const possibleBlockId =
+            mainTextBlockId || thinkingBlockId || toolBlockId || imageBlockId || citationBlockId || lastBlockId
+          if (possibleBlockId) {
             const changes: Partial<MessageBlock> = {
               status: MessageBlockStatus.SUCCESS
             }
-            cancelThrottledBlockUpdate(lastBlockId)
-            dispatch(updateOneBlock({ id: lastBlockId, changes }))
-            saveUpdatedBlockToDB(lastBlockId, assistantMsgId, topicId, getState)
+            cancelThrottledBlockUpdate(possibleBlockId)
+            dispatch(updateOneBlock({ id: possibleBlockId, changes }))
+            saveUpdatedBlockToDB(possibleBlockId, assistantMsgId, topicId, getState)
           }
 
           const endTime = Date.now()

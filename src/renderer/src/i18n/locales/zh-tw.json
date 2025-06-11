@@ -1509,6 +1509,7 @@
       "messages.prompt": "提示詞顯示",
       "messages.tokens": "Token用量顯示",
       "messages.divider": "訊息間顯示分隔線",
+      "messages.divider.tooltip": "不適用於氣泡樣式消息",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
       "messages.grid_popover_trigger.click": "點選顯示",
@@ -1853,7 +1854,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "檢測到的語言"
+      "detected.language": "自動檢測"
     },
     "tray": {
       "quit": "結束",

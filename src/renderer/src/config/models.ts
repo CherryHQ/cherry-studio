@@ -143,7 +143,7 @@ import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import { Assistant, Model } from '@renderer/types'
+import { Model } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -2285,8 +2285,30 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   )
 }
 
-export function isOpenAIWebSearch(model: Model): boolean {
+export function isOpenAIChatCompletionOnlyModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  return (
+    model.id.includes('gpt-4o-search-preview') ||
+    model.id.includes('gpt-4o-mini-search-preview') ||
+    model.id.includes('o1-mini') ||
+    model.id.includes('o1-preview')
+  )
+}
+
+export function isOpenAIWebSearchChatCompletionOnlyModel(model: Model): boolean {
   return model.id.includes('gpt-4o-search-preview') || model.id.includes('gpt-4o-mini-search-preview')
+}
+
+export function isOpenAIWebSearchModel(model: Model): boolean {
+  return (
+    model.id.includes('gpt-4o-search-preview') ||
+    model.id.includes('gpt-4o-mini-search-preview') ||
+    (model.id.includes('gpt-4.1') && !model.id.includes('gpt-4.1-nano')) ||
+    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image'))
+  )
 }
 
 export function isSupportedThinkingTokenModel(model?: Model): boolean {
@@ -2429,7 +2451,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIWebSearch(model)) {
+  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model)) {
     return true
   }
 
@@ -2459,17 +2481,13 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  // 不管哪个供应商都判断了
   if (model.id.includes('claude')) {
     return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
   }
 
   if (provider.type === 'openai-response') {
-    if (
-      isOpenAILLMModel(model) &&
-      !isTextToImageModel(model) &&
-      !isOpenAIReasoningModel(model) &&
-      !GENERATE_IMAGE_MODELS.includes(model.id)
-    ) {
+    if (isOpenAIWebSearchModel(model)) {
       return true
     }
 
@@ -2481,12 +2499,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'aihubmix') {
-    if (
-      isOpenAILLMModel(model) &&
-      !isTextToImageModel(model) &&
-      !isOpenAIReasoningModel(model) &&
-      !GENERATE_IMAGE_MODELS.includes(model.id)
-    ) {
+    if (isOpenAIWebSearchModel(model)) {
       return true
     }
 
@@ -2495,7 +2508,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider?.type === 'openai') {
-    if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearch(model)) {
+    if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
@@ -2529,6 +2542,20 @@ export function isWebSearchModel(model: Model): boolean {
   return false
 }
 
+export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (provider.id !== 'openrouter') {
+    return false
+  }
+
+  return isOpenAIWebSearchModel(model) || model.id.includes('sonar')
+}
+
 export function isGenerateImageModel(model: Model): boolean {
   if (!model) {
     return false
@@ -2559,54 +2586,50 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
   return SUPPORTED_DISABLE_GENERATION_MODELS.includes(model.id)
 }
 
-export function getOpenAIWebSearchParams(assistant: Assistant, model: Model): Record<string, any> {
-  if (isWebSearchModel(model)) {
-    if (assistant.enableWebSearch) {
-      const webSearchTools = getWebSearchTools(model)
+export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
+  if (!isEnableWebSearch) {
+    return {}
+  }
 
-      if (model.provider === 'grok') {
-        return {
-          search_parameters: {
-            mode: 'auto',
-            return_citations: true,
-            sources: [{ type: 'web' }, { type: 'x' }, { type: 'news' }]
-          }
-        }
-      }
+  const webSearchTools = getWebSearchTools(model)
 
-      if (model.provider === 'hunyuan') {
-        return { enable_enhancement: true, citation: true, search_info: true }
-      }
-
-      if (model.provider === 'dashscope') {
-        return {
-          enable_search: true,
-          search_options: {
-            forced_search: true
-          }
-        }
-      }
-
-      if (model.provider === 'openrouter') {
-        return {
-          plugins: [{ id: 'web', search_prompts: WEB_SEARCH_PROMPT_FOR_OPENROUTER }]
-        }
-      }
-
-      if (isOpenAIWebSearch(model)) {
-        return {
-          web_search_options: {}
-        }
-      }
-
-      return {
-        tools: webSearchTools
-      }
-    } else {
-      if (model.provider === 'hunyuan') {
-        return { enable_enhancement: false }
+  if (model.provider === 'grok') {
+    return {
+      search_parameters: {
+        mode: 'auto',
+        return_citations: true,
+        sources: [{ type: 'web' }, { type: 'x' }, { type: 'news' }]
       }
     }
+  }
+
+  if (model.provider === 'hunyuan') {
+    return { enable_enhancement: true, citation: true, search_info: true }
+  }
+
+  if (model.provider === 'dashscope') {
+    return {
+      enable_search: true,
+      search_options: {
+        forced_search: true
+      }
+    }
+  }
+
+  if (isOpenAIWebSearchChatCompletionOnlyModel(model)) {
+    return {
+      web_search_options: {}
+    }
+  }
+
+  if (model.provider === 'openrouter') {
+    return {
+      plugins: [{ id: 'web', search_prompts: WEB_SEARCH_PROMPT_FOR_OPENROUTER }]
+    }
+  }
+
+  return {
+    tools: webSearchTools
   }
 
   return {}

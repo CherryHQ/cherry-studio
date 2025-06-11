@@ -49,15 +49,9 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPart, ChatCompletionContentPartRefusal, ChatCompletionTool } from 'openai/resources'
-import { Stream } from 'openai/streaming'
 
 import { GenericChunk } from '../../../middleware/schemas'
-import {
-  RawStreamListener,
-  RequestTransformer,
-  ResponseChunkTransformer,
-  ResponseChunkTransformerContext
-} from '../types'
+import { RequestTransformer, ResponseChunkTransformer, ResponseChunkTransformerContext } from '../types'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
 export class OpenAIAPIClient extends OpenAIBaseClient<
@@ -129,7 +123,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
-            effort: assistant?.settings?.reasoning_effort === 'auto' ? 'medium' : assistant?.settings?.reasoning_effort
+            effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
           }
         }
       }
@@ -146,14 +140,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     // Grok models
     if (isSupportedReasoningEffortGrokModel(model)) {
       return {
-        reasoning_effort: assistant?.settings?.reasoning_effort
+        reasoning_effort: reasoningEffort
       }
     }
 
     // OpenAI models
     if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
       return {
-        reasoning_effort: assistant?.settings?.reasoning_effort
+        reasoning_effort: reasoningEffort
       }
     }
 
@@ -367,7 +361,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         messages: OpenAISdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, streamOutput } = coreRequest
+        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
         // 1. 处理系统消息
         let systemMessage = { role: 'system', content: assistant.prompt || '' }
 
@@ -376,6 +370,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             role: 'developer',
             content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
           }
+        }
+
+        if (model.id.includes('o1-mini') || model.id.includes('o1-preview')) {
+          systemMessage.role = 'assistant'
         }
 
         // 2. 设置工具（必须在this.usesystemPromptForTools前面）
@@ -433,7 +431,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           service_tier: this.getServiceTier(model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getReasoningEffort(assistant, model),
-          ...getOpenAIWebSearchParams(assistant, model),
+          ...getOpenAIWebSearchParams(model, enableWebSearch),
           ...this.getCustomParameters(assistant)
         }
 
@@ -457,24 +455,30 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
   // 在RawSdkChunkToGenericChunkMiddleware中使用
   getResponseChunkTransformer = (): ResponseChunkTransformer<OpenAISdkRawChunk> => {
+    let hasBeenCollectedWebSearch = false
     const collectWebSearchData = (
       chunk: OpenAISdkRawChunk,
       contentSource: OpenAISdkRawContentSource,
       context: ResponseChunkTransformerContext
     ) => {
+      if (hasBeenCollectedWebSearch) {
+        return
+      }
       // OpenAI annotations
       // @ts-ignore - annotations may not be in standard type definitions
       const annotations = contentSource.annotations || chunk.annotations
-      if (annotations) {
+      if (annotations && annotations.length > 0 && annotations[0].type === 'url_citation') {
+        hasBeenCollectedWebSearch = true
         return {
           results: annotations,
-          source: WebSearchSource.OPENAI_RESPONSE
+          source: WebSearchSource.OPENAI
         }
       }
 
       // Grok citations
       // @ts-ignore - citations may not be in standard type definitions
       if (context.provider?.id === 'grok' && chunk.citations) {
+        hasBeenCollectedWebSearch = true
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
@@ -484,7 +488,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       // Perplexity citations
       // @ts-ignore - citations may not be in standard type definitions
-      if (context.provider?.id === 'perplexity' && chunk.citations) {
+      if (context.provider?.id === 'perplexity' && chunk.citations && chunk.citations.length > 0) {
+        hasBeenCollectedWebSearch = true
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
@@ -494,7 +499,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       // OpenRouter citations
       // @ts-ignore - citations may not be in standard type definitions
-      if (context.provider?.id === 'openrouter' && chunk.citations) {
+      if (context.provider?.id === 'openrouter' && chunk.citations && chunk.citations.length > 0) {
+        hasBeenCollectedWebSearch = true
         return {
           // @ts-ignore - citations may not be in standard type definitions
           results: chunk.citations,
@@ -505,6 +511,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       // Zhipu web search
       // @ts-ignore - web_search may not be in standard type definitions
       if (context.provider?.id === 'zhipu' && chunk.web_search) {
+        hasBeenCollectedWebSearch = true
         return {
           // @ts-ignore - web_search may not be in standard type definitions
           results: chunk.web_search,
@@ -515,6 +522,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       // Hunyuan web search
       // @ts-ignore - search_info may not be in standard type definitions
       if (context.provider?.id === 'hunyuan' && chunk.search_info?.search_results) {
+        hasBeenCollectedWebSearch = true
         return {
           // @ts-ignore - search_info may not be in standard type definitions
           results: chunk.search_info.search_results,
@@ -554,6 +562,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             'delta' in choice ? choice.delta : 'message' in choice ? choice.message : null
 
           if (!contentSource) return
+
+          const webSearchData = collectWebSearchData(chunk, contentSource, context)
+          if (webSearchData) {
+            controller.enqueue({
+              type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+              llm_web_search: webSearchData
+            })
+          }
 
           // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
           // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
@@ -626,20 +642,5 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
       }
     })
-  }
-
-  /**
-   * OpenAI专用的原始流监听器
-   * 处理OpenAI Stream对象的特定事件
-   */
-  override attachRawStreamListener(
-    rawOutput: OpenAISdkRawOutput,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _listener: RawStreamListener<OpenAISdkRawChunk>
-  ): OpenAISdkRawOutput {
-    if (rawOutput instanceof Stream) {
-      return rawOutput
-    }
-    return rawOutput
   }
 }

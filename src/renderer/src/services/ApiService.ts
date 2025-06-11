@@ -1,9 +1,8 @@
 import Logger from '@renderer/config/logger'
 import {
-  getOpenAIWebSearchParams,
   isEmbeddingModel,
   isGenerateImageModel,
-  isOpenAIWebSearch,
+  isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
@@ -70,6 +69,7 @@ async function fetchExternalTool(
   const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
+  // 使用外部搜索工具
   const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
   const shouldKnowledgeSearch = hasKnowledgeBase
 
@@ -152,12 +152,6 @@ async function fetchExternalTool(
     if (!assistant.model) {
       console.warn('searchTheWeb called without assistant.model')
       return undefined
-    }
-
-    // Pass the guaranteed model to the check function
-    const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
-    if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model)) {
-      return
     }
 
     try {
@@ -258,7 +252,7 @@ async function fetchExternalTool(
 
     // Get MCP tools (Fix duplicate declaration)
     let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const enabledMCPs = lastUserMessage?.enabledMCPs
+    const enabledMCPs = assistant.mcpServers
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
         const toolPromises = enabledMCPs.map(async (mcpServer) => {
@@ -336,13 +330,20 @@ export async function fetchChatCompletion({
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
-  const enableWebSearch = (assistant.enableWebSearch && isWebSearchModel(model)) || false
+  const enableWebSearch =
+    (assistant.enableWebSearch && isWebSearchModel(model)) ||
+    isOpenRouterBuiltInWebSearchModel(model) ||
+    model.id.includes('sonar') ||
+    false
 
   const enableGenerateImage =
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+  if (enableWebSearch) {
+    onChunkReceived({ type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS })
+  }
   await AI.completions(
     {
       callType: 'chat',

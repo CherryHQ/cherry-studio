@@ -1512,6 +1512,7 @@
       "messages.prompt": "显示提示词",
       "messages.tokens": "显示Token用量",
       "messages.divider": "消息分割线",
+      "messages.divider.tooltip": "不适用于气泡样式消息",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
       "messages.grid_popover_trigger.click": "点击显示",
@@ -1853,7 +1854,7 @@
       },
       "title": "翻译",
       "tooltip.newline": "换行",
-      "detected.language": "检测到的语言"
+      "detected.language": "自动检测"
     },
     "tray": {
       "quit": "退出",

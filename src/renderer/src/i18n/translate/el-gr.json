@@ -1300,6 +1300,7 @@
         "advancedSettings": "Προχωρημένες Ρυθμίσεις"
       },
       "messages.divider": "Διαχωριστική γραμμή μηνυμάτων",
+      "messages.divider.tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας",
       "messages.grid_columns": "Αριθμός στήλων γριλ μηνυμάτων",
       "messages.grid_popover_trigger": "Καταγραφή στοιχείων στο grid",
       "messages.grid_popover_trigger.click": "Εμφάνιση κλικ",

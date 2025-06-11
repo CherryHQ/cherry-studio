@@ -7,7 +7,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
-import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
+import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 
 export const processMessages = async (
   assistant: Assistant,
@@ -32,8 +32,11 @@ export const processMessages = async (
     store.dispatch(newMessagesActions.addMessage({ topicId: topic.id, message: userMessage }))
     store.dispatch(upsertManyBlocks(userBlocks))
 
-    let blockId: string | null = null
-    let blockContent: string = ''
+    let textBlockId: string | null = null
+    let textBlockContent: string = ''
+
+    let thinkingBlockId: string | null = null
+    let thinkingBlockContent: string = ''
 
     const assistantMessage = getAssistantMessage({
       assistant,
@@ -52,17 +55,14 @@ export const processMessages = async (
       onChunkReceived: (chunk: Chunk) => {
         switch (chunk.type) {
           case ChunkType.THINKING_DELTA:
-          case ChunkType.THINKING_COMPLETE:
-            //TODO
-            break
-          case ChunkType.TEXT_DELTA:
             {
-              blockContent += chunk.text
-              if (!blockId) {
-                const block = createMainTextBlock(assistantMessage.id, chunk.text, {
-                  status: MessageBlockStatus.STREAMING
+              thinkingBlockContent += chunk.text
+              if (!thinkingBlockId) {
+                const block = createThinkingBlock(assistantMessage.id, chunk.text, {
+                  status: MessageBlockStatus.STREAMING,
+                  thinking_millsec: chunk.thinking_millsec
                 })
-                blockId = block.id
+                thinkingBlockId = block.id
                 store.dispatch(
                   newMessagesActions.updateMessage({
                     topicId: topic.id,
@@ -72,7 +72,46 @@ export const processMessages = async (
                 )
                 store.dispatch(upsertOneBlock(block))
               } else {
-                store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+                store.dispatch(
+                  updateOneBlock({
+                    id: thinkingBlockId,
+                    changes: { content: thinkingBlockContent, thinking_millsec: chunk.thinking_millsec }
+                  })
+                )
+              }
+              onStream()
+            }
+            break
+          case ChunkType.THINKING_COMPLETE:
+            {
+              if (thinkingBlockId) {
+                store.dispatch(
+                  updateOneBlock({
+                    id: thinkingBlockId,
+                    changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: chunk.thinking_millsec }
+                  })
+                )
+              }
+            }
+            break
+          case ChunkType.TEXT_DELTA:
+            {
+              textBlockContent += chunk.text
+              if (!textBlockId) {
+                const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                  status: MessageBlockStatus.STREAMING
+                })
+                textBlockId = block.id
+                store.dispatch(
+                  newMessagesActions.updateMessage({
+                    topicId: topic.id,
+                    messageId: assistantMessage.id,
+                    updates: { blockInstruction: { id: block.id } }
+                  })
+                )
+                store.dispatch(upsertOneBlock(block))
+              } else {
+                store.dispatch(updateOneBlock({ id: textBlockId, changes: { content: textBlockContent } }))
               }
 
               onStream()
@@ -80,10 +119,10 @@ export const processMessages = async (
             break
           case ChunkType.TEXT_COMPLETE:
             {
-              blockId &&
+              textBlockId &&
                 store.dispatch(
                   updateOneBlock({
-                    id: blockId,
+                    id: textBlockId,
                     changes: { status: MessageBlockStatus.SUCCESS }
                   })
                 )
@@ -94,12 +133,12 @@ export const processMessages = async (
                   updates: { status: AssistantMessageStatus.SUCCESS }
                 })
               )
-              blockContent = chunk.text
+              textBlockContent = chunk.text
             }
             break
           case ChunkType.BLOCK_COMPLETE:
           case ChunkType.ERROR:
-            onFinish(blockContent)
+            onFinish(textBlockContent)
             break
         }
       }

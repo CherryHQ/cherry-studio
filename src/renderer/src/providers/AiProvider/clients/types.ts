@@ -75,6 +75,7 @@ export interface ResponseChunkTransformerContext {
   isEnabledWebSearch: boolean
   isEnabledReasoning: boolean
   mcpTools: MCPTool[]
+  provider: Provider
 }
 
 /**

@@ -57,7 +57,7 @@ export interface ProcessingState<
     recursionDepth?: number
   }
   webSearchState?: {
-    results?: WebSearchResponse[]
+    results?: WebSearchResponse
   }
   flowControl?: {
     abortController?: AbortController

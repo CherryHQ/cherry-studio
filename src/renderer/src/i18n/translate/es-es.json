@@ -1299,6 +1299,7 @@
         "advancedSettings": "Configuración avanzada"
       },
       "messages.divider": "Separador de mensajes",
+      "messages.divider.tooltip": "No aplicable para mensajes de estilo burbuja",
       "messages.grid_columns": "Número de columnas en la cuadrícula de mensajes",
       "messages.grid_popover_trigger": "Desencadenante de detalles de cuadrícula",
       "messages.grid_popover_trigger.click": "Mostrar al hacer clic",

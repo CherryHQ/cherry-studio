@@ -521,7 +521,7 @@ export enum WebSearchSource {
 }
 
 export type WebSearchResponse = {
-  results: WebSearchResults
+  results?: WebSearchResults
   source: WebSearchSource
 }
 

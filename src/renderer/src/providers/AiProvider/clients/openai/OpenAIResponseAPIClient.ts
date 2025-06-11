@@ -1,4 +1,8 @@
-import { isOpenAIWebSearch, isSupportedReasoningEffortOpenAIModel, isVisionModel } from '@renderer/config/models'
+import {
+  isOpenAIChatCompletionOnlyModel,
+  isSupportedReasoningEffortOpenAIModel,
+  isVisionModel
+} from '@renderer/config/models'
 import { GenericChunk } from '@renderer/providers/middleware/schemas'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
@@ -56,7 +60,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
    * 根据模型特征选择合适的客户端
    */
   public getClient(model: Model) {
-    if (isOpenAIWebSearch(model) || model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+    if (isOpenAIChatCompletionOnlyModel(model)) {
       return this.client
     } else {
       return this

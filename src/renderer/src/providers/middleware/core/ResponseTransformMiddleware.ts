@@ -57,7 +57,8 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
           isEnabledToolCalling: (params.mcpTools && params.mcpTools.length > 0) || false,
           isEnabledWebSearch: params.enableWebSearch || false,
           isEnabledReasoning: params.enableReasoning || false,
-          mcpTools: params.mcpTools || []
+          mcpTools: params.mcpTools || [],
+          provider: ctx.apiClientInstance?.provider
         }
 
         console.log(`[${MIDDLEWARE_NAME}] Transforming raw SDK chunks with context:`, transformerContext)

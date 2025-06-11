@@ -108,8 +108,8 @@ export const DefaultCompletionsNamedMiddlewares = [
   MiddlewareRegistry[TransformCoreToSdkParamsModule.MIDDLEWARE_NAME], // 参数转换
   MiddlewareRegistry[AbortHandlerModule.MIDDLEWARE_NAME], // 中止处理
   MiddlewareRegistry[McpToolChunkModule.MIDDLEWARE_NAME], // 工具处理
-  MiddlewareRegistry[WebSearchModule.MIDDLEWARE_NAME], // Web搜索处理
   MiddlewareRegistry[TextChunkModule.MIDDLEWARE_NAME], // 文本处理
+  MiddlewareRegistry[WebSearchModule.MIDDLEWARE_NAME], // Web搜索处理
   MiddlewareRegistry[ToolUseExtractionMiddleware.MIDDLEWARE_NAME], // 工具使用提取处理
   MiddlewareRegistry[ThinkingTagExtractionModule.MIDDLEWARE_NAME], // 思考标签提取处理（特定provider）
   MiddlewareRegistry[ThinkChunkModule.MIDDLEWARE_NAME], // 思考处理（通用SDK）

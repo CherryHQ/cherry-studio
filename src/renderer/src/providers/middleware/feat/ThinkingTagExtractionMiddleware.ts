@@ -50,23 +50,6 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
         `[${MIDDLEWARE_NAME}] Received generic chunk stream from upstream. Stream is: ${resultFromUpstream ? 'present' : 'absent'}`
       )
 
-      // 检查是否启用reasoning
-      const enableReasoning = params.enableReasoning || false
-      if (!enableReasoning) {
-        Logger.debug(`[${MIDDLEWARE_NAME}] Reasoning not enabled, passing through unchanged.`)
-        return result
-      }
-
-      // 检查是否是支持思考标签的provider
-      const provider = context.apiClientInstance?.provider
-
-      if (!provider || provider.type !== 'openai') {
-        Logger.debug(
-          `[${MIDDLEWARE_NAME}] Provider ${provider} not supported for tag extraction, passing through unchanged.`
-        )
-        return result
-      }
-
       // 检查是否有流需要处理
       if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
         // 获取当前模型的思考标签配置

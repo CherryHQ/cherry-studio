@@ -443,7 +443,6 @@ export function extractWebSearchReferences(text: string): Array<{
  */
 export function smartLinkConverter(
   text: string,
-  webSearchResults: any[] = [],
   providerType: string = 'openai',
   resetCounter: boolean = false
 ): string {
@@ -457,12 +456,9 @@ export function smartLinkConverter(
 
   // 根据检测到的引用模式选择合适的转换器
   const hasZhipuPattern = references.some((ref) => ref.placeholder.includes('ref_'))
-  const hasHunyuanPattern = references.some((ref) => ref.placeholder.includes('@ref'))
 
   if (hasZhipuPattern) {
     return convertLinksToZhipu(text, resetCounter)
-  } else if (hasHunyuanPattern) {
-    return convertLinksToHunyuan(text, webSearchResults, resetCounter)
   } else if (providerType === 'openrouter') {
     return convertLinksToOpenRouter(text, resetCounter)
   } else {

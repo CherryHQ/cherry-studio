@@ -1300,6 +1300,7 @@
         "advancedSettings": "Расширенные настройки"
       },
       "messages.divider": "Séparateur de messages",
+      "messages.divider.tooltip": "Non applicable aux messages de style bulle",
       "messages.grid_columns": "Nombre de colonnes de la grille de messages",
       "messages.grid_popover_trigger": "Déclencheur de popover de la grille",
       "messages.grid_popover_trigger.click": "Afficher au clic",

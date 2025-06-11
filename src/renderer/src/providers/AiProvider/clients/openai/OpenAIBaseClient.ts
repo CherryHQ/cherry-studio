@@ -1,7 +1,7 @@
 import {
   isClaudeReasoningModel,
+  isNotSupportTemperatureAndTopP,
   isOpenAIReasoningModel,
-  isOpenAIWebSearch,
   isSupportedModel,
   isSupportedReasoningEffortOpenAIModel
 } from '@renderer/config/models'
@@ -172,8 +172,7 @@ export abstract class OpenAIBaseClient<
 
   override getTemperature(assistant: Assistant, model: Model): number | undefined {
     if (
-      isOpenAIReasoningModel(model) ||
-      isOpenAIWebSearch(model) ||
+      isNotSupportTemperatureAndTopP(model) ||
       (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
     ) {
       return undefined
@@ -182,7 +181,10 @@ export abstract class OpenAIBaseClient<
   }
 
   override getTopP(assistant: Assistant, model: Model): number | undefined {
-    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+    if (
+      isNotSupportTemperatureAndTopP(model) ||
+      (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))
+    ) {
       return undefined
     }
     return assistant.settings?.topP
