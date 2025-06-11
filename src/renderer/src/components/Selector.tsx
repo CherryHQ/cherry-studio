@@ -1,7 +1,7 @@
 import { ConfigProvider, Dropdown } from 'antd'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { ReactNode, useMemo, useState } from 'react'
-import styled, { css } from 'styled-components'
+import styled, { createGlobalStyle, css } from 'styled-components'
 
 interface SelectorProps<V = string | number> {
   options: { label: string | ReactNode; value: V }[]
@@ -51,7 +51,14 @@ const Selector = <V extends string | number>({
           }
         }
       }}>
-      <Dropdown menu={{ items, onClick }} trigger={['click']} placement={placement} open={open} onOpenChange={setOpen}>
+      <SelectorStyle />
+      <Dropdown
+        overlayClassName="selector-dropdown"
+        menu={{ items, onClick }}
+        trigger={['click']}
+        placement={placement}
+        open={open}
+        onOpenChange={setOpen}>
         <Label $size={size} $open={open}>
           {label}
           <LabelIcon size={size + 3} />
@@ -60,6 +67,13 @@ const Selector = <V extends string | number>({
     </ConfigProvider>
   )
 }
+
+const SelectorStyle = createGlobalStyle`
+  .ant-dropdown-menu {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+`
 
 const LabelIcon = styled(ChevronsUpDown)`
   border-radius: 4px;

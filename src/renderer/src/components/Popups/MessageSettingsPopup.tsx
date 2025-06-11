@@ -20,12 +20,13 @@ import {
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import { CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
-import { Col, InputNumber, Modal, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Col, InputNumber, Modal, Row, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import Selector from '../Selector'
 import { TopView } from '../TopView'
 
 interface ShowParams {
@@ -150,56 +151,56 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('message.message.style')}</SettingRowTitleSmall>
-          <StyledSelect
+          <Selector
             value={messageStyle}
             onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
-            style={{ width: 135 }}
-            size="small">
-            <Select.Option value="plain">{t('message.message.style.plain')}</Select.Option>
-            <Select.Option value="bubble">{t('message.message.style.bubble')}</Select.Option>
-          </StyledSelect>
+            options={[
+              { label: t('message.message.style.plain'), value: 'plain' },
+              { label: t('message.message.style.bubble'), value: 'bubble' }
+            ]}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('message.message.multi_model_style')}</SettingRowTitleSmall>
-          <StyledSelect
-            size="small"
+          <Selector
             value={multiModelMessageStyle}
             onChange={(value) =>
               dispatch(setMultiModelMessageStyle(value as 'fold' | 'vertical' | 'horizontal' | 'grid'))
             }
-            style={{ width: 135 }}>
-            <Select.Option value="fold">{t('message.message.multi_model_style.fold')}</Select.Option>
-            <Select.Option value="vertical">{t('message.message.multi_model_style.vertical')}</Select.Option>
-            <Select.Option value="horizontal">{t('message.message.multi_model_style.horizontal')}</Select.Option>
-            <Select.Option value="grid">{t('message.message.multi_model_style.grid')}</Select.Option>
-          </StyledSelect>
+            options={[
+              { label: t('message.message.multi_model_style.fold'), value: 'fold' },
+              { label: t('message.message.multi_model_style.vertical'), value: 'vertical' },
+              { label: t('message.message.multi_model_style.horizontal'), value: 'horizontal' },
+              { label: t('message.message.multi_model_style.grid'), value: 'grid' }
+            ]}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.navigation')}</SettingRowTitleSmall>
-          <StyledSelect
-            size="small"
+          <Selector
             value={messageNavigation}
             onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
-            style={{ width: 135 }}>
-            <Select.Option value="none">{t('settings.messages.navigation.none')}</Select.Option>
-            <Select.Option value="buttons">{t('settings.messages.navigation.buttons')}</Select.Option>
-            <Select.Option value="anchor">{t('settings.messages.navigation.anchor')}</Select.Option>
-          </StyledSelect>
+            options={[
+              { label: t('settings.messages.navigation.none'), value: 'none' },
+              { label: t('settings.messages.navigation.buttons'), value: 'buttons' },
+              { label: t('settings.messages.navigation.anchor'), value: 'anchor' }
+            ]}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
-          <StyledSelect
+          <Selector
             value={mathEngine}
             onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
-            style={{ width: 135 }}
-            size="small">
-            <Select.Option value="KaTeX">KaTeX</Select.Option>
-            <Select.Option value="MathJax">MathJax</Select.Option>
-            <Select.Option value="none">{t('settings.messages.math_engine.none')}</Select.Option>
-          </StyledSelect>
+            options={[
+              { label: 'KaTeX', value: 'KaTeX' },
+              { label: 'MathJax', value: 'MathJax' },
+              { label: t('settings.messages.math_engine.none'), value: 'none' }
+            ]}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -226,17 +227,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       <SettingGroup>
         <SettingRow>
           <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
-          <StyledSelect
+          <Selector
             value={codeStyle}
             onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
-            style={{ width: 135 }}
-            size="small">
-            {themeNames.map((theme) => (
-              <Select.Option key={theme} value={theme}>
-                {theme}
-              </Select.Option>
-            ))}
-          </StyledSelect>
+            options={themeNames.map((theme) => ({ label: theme, value: theme }))}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -362,14 +357,6 @@ const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   border-radius: 8px;
   margin-bottom: 10px;
   margin-top: 10px;
-`
-
-const StyledSelect = styled(Select)`
-  .ant-select-selector {
-    border-radius: 15px !important;
-    padding: 4px 10px !important;
-    height: 26px !important;
-  }
 `
 
 const TopViewKey = 'MessageSettingsPopup'
