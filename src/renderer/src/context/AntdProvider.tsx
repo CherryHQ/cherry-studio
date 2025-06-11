@@ -38,7 +38,15 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             boxShadowSecondary: 'none',
             defaultShadow: 'none',
             dangerShadow: 'none',
-            primaryShadow: 'none'
+            primaryShadow: 'none',
+            controlHeight: 30,
+            paddingInline: 10
+          },
+          Input: {
+            controlHeight: 30
+          },
+          Select: {
+            controlHeight: 30
           },
           Collapse: {
             headerBg: 'transparent'
