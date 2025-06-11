@@ -319,7 +319,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ) {
             finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
           }
-          userMessage = [{ ...finalUserMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
+          // 这里是故意将上条助手消息的内容（包含图片和文件）作为用户消息发送
+          userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
         }
 
         // 4. 最终请求消息
