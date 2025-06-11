@@ -39,8 +39,12 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       <table>{children}</table>
       <ToolbarWrapper className="table-toolbar">
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
-          <ToolButton onClick={handleCopyTable}>
-            {copied ? <Check size={14} style={{ color: 'var(--color-primary)' }} /> : <Copy size={14} />}
+          <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
+            {copied ? (
+              <Check size={14} style={{ color: 'var(--color-primary)' }} data-testid="check-icon" />
+            ) : (
+              <Copy size={14} data-testid="copy-icon" />
+            )}
           </ToolButton>
         </Tooltip>
       </ToolbarWrapper>
