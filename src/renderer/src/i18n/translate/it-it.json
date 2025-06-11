@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Aggiungi all'assistente",
+      "add.knowledge_base": "Base di conoscenze",
+      "add.knowledge_base.placeholder": "Seleziona base di conoscenze",
+      "add.name": "Nome",
+      "add.name.placeholder": "Inserisci nome",
+      "add.prompt": "Prompt",
+      "add.prompt.placeholder": "Inserisci prompt",
+      "add.prompt.variables.tip": {
+        "title": "Variabili disponibili",
+        "content": "{{date}}:\tData\n{{time}}:\tOra\n{{datetime}}:\tData e ora\n{{system}}:\tSistema operativo\n{{arch}}:\tArchitettura CPU\n{{language}}:\tLingua\n{{model_name}}:\tNome modello"
+      },
+      "add.title": "Crea agente",
+      "import": {
+        "title": "Importa da esterno",
+        "type": {
+          "url": "URL",
+          "file": "File"
+        },
+        "url_placeholder": "Inserisci URL JSON",
+        "select_file": "Seleziona file",
+        "button": "Importa",
+        "file_filter": "File JSON",
+        "error": {
+          "url_required": "Si prega di inserire un URL",
+          "fetch_failed": "Errore nel recupero dall'URL",
+          "invalid_format": "Formato agente non valido: campi obbligatori mancanti"
+        }
+      },
+      "export": {
+        "agent": "Esporta agente"
+      },
+      "delete.popup.content": "Sei sicuro di voler eliminare questo agente?",
+      "edit.model.select.title": "Seleziona modello",
+      "edit.title": "Modifica agente",
+      "manage.title": "Gestisci agenti",
+      "my_agents": "I miei agenti",
+      "search.no_results": "Nessun risultato trovato",
+      "sorting.title": "Ordinamento",
+      "settings": {
+        "title": "Impostazioni agente"
+      },
+      "tag.agent": "Agente",
+      "tag.default": "Predefinito",
+      "tag.new": "Nuovo",
+      "tag.system": "Sistema",
+      "title": "Agenti"
+    },
+    "languages": {
+      "albanian": "Albanese",
+      "arabic": "Arabo",
+      "armenian": "Armeno",
+      "belarusian": "Bielorusso",
+      "bulgarian": "Bulgaro",
+      "chinese": "Cinese",
+      "chinese-traditional": "Cinese tradizionale",
+      "croatian": "Croato",
+      "czech": "Ceco",
+      "danish": "Danese",
+      "dutch": "Olandese",
+      "english": "Inglese",
+      "estonian": "Estone",
+      "finnish": "Finlandese",
+      "french": "Francese",
+      "georgian": "Georgiano",
+      "german": "Tedesco",
+      "greek": "Greco",
+      "hungarian": "Ungherese",
+      "indonesian": "Indonesiano",
+      "italian": "Italiano",
+      "japanese": "Giapponese",
+      "korean": "Coreano",
+      "latvian": "Lettone",
+      "lithuanian": "Lituano",
+      "macedonian": "Macedone",
+      "malay": "Malese",
+      "norwegian": "Norvegese",
+      "polish": "Polacco",
+      "portuguese": "Portoghese",
+      "romanian": "Rumeno",
+      "russian": "Russo",
+      "serbian": "Serbo",
+      "slovak": "Slovacco",
+      "slovenian": "Sloveno",
+      "spanish": "Spagnolo",
+      "swedish": "Svedese",
+      "thai": "Tailandese",
+      "turkish": "Turco",
+      "ukrainian": "Ucraino",
+      "urdu": "Urdu",
+      "vietnamese": "Vietnamita"
+    }
+  }
+}

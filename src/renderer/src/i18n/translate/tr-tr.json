@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Asistana ekle",
+      "add.knowledge_base": "Bilgi tabanı",
+      "add.knowledge_base.placeholder": "Bilgi tabanı seç",
+      "add.name": "İsim",
+      "add.name.placeholder": "İsim girin",
+      "add.prompt": "İstem",
+      "add.prompt.placeholder": "İstem girin",
+      "add.prompt.variables.tip": {
+        "title": "Mevcut değişkenler",
+        "content": "{{date}}:\tTarih\n{{time}}:\tSaat\n{{datetime}}:\tTarih ve saat\n{{system}}:\tİşletim sistemi\n{{arch}}:\tCPU mimarisi\n{{language}}:\tDil\n{{model_name}}:\tModel adı"
+      },
+      "add.title": "Ajan oluştur",
+      "import": {
+        "title": "Dışarıdan içe aktar",
+        "type": {
+          "url": "URL",
+          "file": "Dosya"
+        },
+        "url_placeholder": "JSON URL girin",
+        "select_file": "Dosya seç",
+        "button": "İçe aktar",
+        "file_filter": "JSON dosyaları",
+        "error": {
+          "url_required": "Lütfen bir URL girin",
+          "fetch_failed": "URL'den getirme başarısız",
+          "invalid_format": "Geçersiz ajan formatı: gerekli alanlar eksik"
+        }
+      },
+      "export": {
+        "agent": "Ajanı dışa aktar"
+      },
+      "delete.popup.content": "Bu ajanı silmek istediğinizden emin misiniz?",
+      "edit.model.select.title": "Model seç",
+      "edit.title": "Ajanı düzenle",
+      "manage.title": "Ajanları yönet",
+      "my_agents": "Ajanlarım",
+      "search.no_results": "Sonuç bulunamadı",
+      "sorting.title": "Sıralama",
+      "settings": {
+        "title": "Ajan ayarları"
+      },
+      "tag.agent": "Ajan",
+      "tag.default": "Varsayılan",
+      "tag.new": "Yeni",
+      "tag.system": "Sistem",
+      "title": "Ajanlar"
+    },
+    "languages": {
+      "albanian": "Arnavutça",
+      "arabic": "Arapça",
+      "armenian": "Ermenice",
+      "belarusian": "Belarusça",
+      "bulgarian": "Bulgarca",
+      "chinese": "Çince",
+      "chinese-traditional": "Geleneksel Çince",
+      "croatian": "Hırvatça",
+      "czech": "Çekçe",
+      "danish": "Danca",
+      "dutch": "Felemenkçe",
+      "english": "İngilizce",
+      "estonian": "Estonca",
+      "finnish": "Fince",
+      "french": "Fransızca",
+      "georgian": "Gürcüce",
+      "german": "Almanca",
+      "greek": "Yunanca",
+      "hungarian": "Macarca",
+      "indonesian": "Endonezce",
+      "italian": "İtalyanca",
+      "japanese": "Japonca",
+      "korean": "Korece",
+      "latvian": "Letonca",
+      "lithuanian": "Litvanca",
+      "macedonian": "Makedonca",
+      "malay": "Malayca",
+      "norwegian": "Norveççe",
+      "polish": "Lehçe",
+      "portuguese": "Portekizce",
+      "romanian": "Rumence",
+      "russian": "Rusça",
+      "serbian": "Sırpça",
+      "slovak": "Slovakça",
+      "slovenian": "Slovence",
+      "spanish": "İspanyolca",
+      "swedish": "İsveççe",
+      "thai": "Tayca",
+      "turkish": "Türkçe",
+      "ukrainian": "Ukraynaca",
+      "urdu": "Urduca",
+      "vietnamese": "Vietnamca"
+    }
+  }
+}

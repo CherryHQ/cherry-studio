@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "إضافة إلى المساعد",
+      "add.knowledge_base": "قاعدة المعرفة",
+      "add.knowledge_base.placeholder": "اختر قاعدة المعرفة",
+      "add.name": "الاسم",
+      "add.name.placeholder": "أدخل الاسم",
+      "add.prompt": "المطالبة",
+      "add.prompt.placeholder": "أدخل المطالبة",
+      "add.prompt.variables.tip": {
+        "title": "المتغيرات المتاحة",
+        "content": "{{date}}:\tالتاريخ\n{{time}}:\tالوقت\n{{datetime}}:\tالتاريخ والوقت\n{{system}}:\tنظام التشغيل\n{{arch}}:\tمعمارية المعالج\n{{language}}:\tاللغة\n{{model_name}}:\tاسم النموذج"
+      },
+      "add.title": "إنشاء وكيل",
+      "import": {
+        "title": "استيراد من الخارج",
+        "type": {
+          "url": "رابط",
+          "file": "ملف"
+        },
+        "url_placeholder": "أدخل رابط JSON",
+        "select_file": "اختر ملف",
+        "button": "استيراد",
+        "file_filter": "ملفات JSON",
+        "error": {
+          "url_required": "يرجى إدخال رابط",
+          "fetch_failed": "فشل في الحصول على البيانات من الرابط",
+          "invalid_format": "تنسيق وكيل غير صحيح: حقول مطلوبة مفقودة"
+        }
+      },
+      "export": {
+        "agent": "تصدير الوكيل"
+      },
+      "delete.popup.content": "هل أنت متأكد من أنك تريد حذف هذا الوكيل؟",
+      "edit.model.select.title": "اختر النموذج",
+      "edit.title": "تحرير الوكيل",
+      "manage.title": "إدارة الوكلاء",
+      "my_agents": "وكلائي",
+      "search.no_results": "لم يتم العثور على نتائج",
+      "sorting.title": "الترتيب",
+      "settings": {
+        "title": "إعدادات الوكيل"
+      },
+      "tag.agent": "وكيل",
+      "tag.default": "افتراضي",
+      "tag.new": "جديد",
+      "tag.system": "النظام",
+      "title": "الوكلاء"
+    },
+    "languages": {
+      "albanian": "الألبانية",
+      "arabic": "العربية",
+      "armenian": "الأرمنية",
+      "belarusian": "البيلاروسية",
+      "bulgarian": "البلغارية",
+      "chinese": "الصينية",
+      "chinese-traditional": "الصينية التقليدية",
+      "croatian": "الكرواتية",
+      "czech": "التشيكية",
+      "danish": "الدنماركية",
+      "dutch": "الهولندية",
+      "english": "الإنجليزية",
+      "estonian": "الإستونية",
+      "finnish": "الفنلندية",
+      "french": "الفرنسية",
+      "georgian": "الجورجية",
+      "german": "الألمانية",
+      "greek": "اليونانية",
+      "hungarian": "المجرية",
+      "indonesian": "الإندونيسية",
+      "italian": "الإيطالية",
+      "japanese": "اليابانية",
+      "korean": "الكورية",
+      "latvian": "اللاتفية",
+      "lithuanian": "الليتوانية",
+      "macedonian": "المقدونية",
+      "malay": "الماليزية",
+      "norwegian": "النرويجية",
+      "polish": "البولندية",
+      "portuguese": "البرتغالية",
+      "romanian": "الرومانية",
+      "russian": "الروسية",
+      "serbian": "الصربية",
+      "slovak": "السلوفاكية",
+      "slovenian": "السلوفينية",
+      "spanish": "الإسبانية",
+      "swedish": "السويدية",
+      "thai": "التايلاندية",
+      "turkish": "التركية",
+      "ukrainian": "الأوكرانية",
+      "urdu": "الأردية",
+      "vietnamese": "الفيتنامية"
+    }
+  }
+}

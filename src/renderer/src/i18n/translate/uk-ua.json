@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Додати до асистента",
+      "add.knowledge_base": "База знань",
+      "add.knowledge_base.placeholder": "Виберіть базу знань",
+      "add.name": "Ім'я",
+      "add.name.placeholder": "Введіть ім'я",
+      "add.prompt": "Промпт",
+      "add.prompt.placeholder": "Введіть промпт",
+      "add.prompt.variables.tip": {
+        "title": "Доступні змінні",
+        "content": "{{date}}:\tДата\n{{time}}:\tЧас\n{{datetime}}:\tДата та час\n{{system}}:\tОпераційна система\n{{arch}}:\tАрхітектура CPU\n{{language}}:\tМова\n{{model_name}}:\tНазва моделі"
+      },
+      "add.title": "Створити агента",
+      "import": {
+        "title": "Імпорт ззовні",
+        "type": {
+          "url": "URL",
+          "file": "Файл"
+        },
+        "url_placeholder": "Введіть JSON URL",
+        "select_file": "Виберіть файл",
+        "button": "Імпортувати",
+        "file_filter": "JSON файли",
+        "error": {
+          "url_required": "Будь ласка, введіть URL",
+          "fetch_failed": "Помилка отримання з URL",
+          "invalid_format": "Неправильний формат агента: відсутні обов'язкові поля"
+        }
+      },
+      "export": {
+        "agent": "Експортувати агента"
+      },
+      "delete.popup.content": "Ви впевнені, що хочете видалити цього агента?",
+      "edit.model.select.title": "Виберіть модель",
+      "edit.title": "Редагувати агента",
+      "manage.title": "Управління агентами",
+      "my_agents": "Мої агенти",
+      "search.no_results": "Результатів не знайдено",
+      "sorting.title": "Сортування",
+      "settings": {
+        "title": "Налаштування агента"
+      },
+      "tag.agent": "Агент",
+      "tag.default": "За замовчуванням",
+      "tag.new": "Новий",
+      "tag.system": "Система",
+      "title": "Агенти"
+    },
+    "languages": {
+      "albanian": "Албанська",
+      "arabic": "Арабська",
+      "armenian": "Вірменська",
+      "belarusian": "Білоруська",
+      "bulgarian": "Болгарська",
+      "chinese": "Китайська",
+      "chinese-traditional": "Традиційна китайська",
+      "croatian": "Хорватська",
+      "czech": "Чеська",
+      "danish": "Данська",
+      "dutch": "Голландська",
+      "english": "Англійська",
+      "estonian": "Естонська",
+      "finnish": "Фінська",
+      "french": "Французька",
+      "georgian": "Грузинська",
+      "german": "Німецька",
+      "greek": "Грецька",
+      "hungarian": "Угорська",
+      "indonesian": "Індонезійська",
+      "italian": "Італійська",
+      "japanese": "Японська",
+      "korean": "Корейська",
+      "latvian": "Латвійська",
+      "lithuanian": "Литовська",
+      "macedonian": "Македонська",
+      "malay": "Малайська",
+      "norwegian": "Норвезька",
+      "polish": "Польська",
+      "portuguese": "Португальська",
+      "romanian": "Румунська",
+      "russian": "Російська",
+      "serbian": "Сербська",
+      "slovak": "Словацька",
+      "slovenian": "Словенська",
+      "spanish": "Іспанська",
+      "swedish": "Шведська",
+      "thai": "Тайська",
+      "turkish": "Турецька",
+      "ukrainian": "Українська",
+      "urdu": "Урду",
+      "vietnamese": "В'єтнамська"
+    }
+  }
+}

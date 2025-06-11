@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "어시스턴트에 추가",
+      "add.knowledge_base": "지식 베이스",
+      "add.knowledge_base.placeholder": "지식 베이스 선택",
+      "add.name": "이름",
+      "add.name.placeholder": "이름 입력",
+      "add.prompt": "프롬프트",
+      "add.prompt.placeholder": "프롬프트 입력",
+      "add.prompt.variables.tip": {
+        "title": "사용 가능한 변수",
+        "content": "{{date}}:\t날짜\n{{time}}:\t시간\n{{datetime}}:\t날짜와 시간\n{{system}}:\t운영 체제\n{{arch}}:\tCPU 아키텍처\n{{language}}:\t언어\n{{model_name}}:\t모델 이름"
+      },
+      "add.title": "에이전트 생성",
+      "import": {
+        "title": "외부에서 가져오기",
+        "type": {
+          "url": "URL",
+          "file": "파일"
+        },
+        "url_placeholder": "JSON URL 입력",
+        "select_file": "파일 선택",
+        "button": "가져오기",
+        "file_filter": "JSON 파일",
+        "error": {
+          "url_required": "URL을 입력해주세요",
+          "fetch_failed": "URL에서 가져오기 실패",
+          "invalid_format": "잘못된 에이전트 형식: 필수 필드 누락"
+        }
+      },
+      "export": {
+        "agent": "에이전트 내보내기"
+      },
+      "delete.popup.content": "이 에이전트를 삭제하시겠습니까?",
+      "edit.model.select.title": "모델 선택",
+      "edit.title": "에이전트 편집",
+      "manage.title": "에이전트 관리",
+      "my_agents": "내 에이전트",
+      "search.no_results": "결과를 찾을 수 없습니다",
+      "sorting.title": "정렬",
+      "settings": {
+        "title": "에이전트 설정"
+      },
+      "tag.agent": "에이전트",
+      "tag.default": "기본값",
+      "tag.new": "새로운",
+      "tag.system": "시스템",
+      "title": "에이전트"
+    },
+    "languages": {
+      "albanian": "알바니아어",
+      "arabic": "아랍어",
+      "armenian": "아르메니아어",
+      "belarusian": "벨라루스어",
+      "bulgarian": "불가리아어",
+      "chinese": "중국어",
+      "chinese-traditional": "번체 중국어",
+      "croatian": "크로아티아어",
+      "czech": "체코어",
+      "danish": "덴마크어",
+      "dutch": "네덜란드어",
+      "english": "영어",
+      "estonian": "에스토니아어",
+      "finnish": "핀란드어",
+      "french": "프랑스어",
+      "georgian": "조지아어",
+      "german": "독일어",
+      "greek": "그리스어",
+      "hungarian": "헝가리어",
+      "indonesian": "인도네시아어",
+      "italian": "이탈리아어",
+      "japanese": "일본어",
+      "korean": "한국어",
+      "latvian": "라트비아어",
+      "lithuanian": "리투아니아어",
+      "macedonian": "마케도니아어",
+      "malay": "말레이어",
+      "norwegian": "노르웨이어",
+      "polish": "폴란드어",
+      "portuguese": "포르투갈어",
+      "romanian": "루마니아어",
+      "russian": "러시아어",
+      "serbian": "세르비아어",
+      "slovak": "슬로바키아어",
+      "slovenian": "슬로베니아어",
+      "spanish": "스페인어",
+      "swedish": "스웨덴어",
+      "thai": "태국어",
+      "turkish": "터키어",
+      "ukrainian": "우크라이나어",
+      "urdu": "우르두어",
+      "vietnamese": "베트남어"
+    }
+  }
+}

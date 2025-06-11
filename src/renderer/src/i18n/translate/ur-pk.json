@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "اسسٹنٹ میں شامل کریں",
+      "add.knowledge_base": "علمی بنیاد",
+      "add.knowledge_base.placeholder": "علمی بنیاد منتخب کریں",
+      "add.name": "نام",
+      "add.name.placeholder": "نام درج کریں",
+      "add.prompt": "پرامپٹ",
+      "add.prompt.placeholder": "پرامپٹ درج کریں",
+      "add.prompt.variables.tip": {
+        "title": "دستیاب متغیرات",
+        "content": "{{date}}:\tتاریخ\n{{time}}:\tوقت\n{{datetime}}:\tتاریخ اور وقت\n{{system}}:\tآپریٹنگ سسٹم\n{{arch}}:\tسی پی یو آرکیٹیکچر\n{{language}}:\tزبان\n{{model_name}}:\tماڈل کا نام"
+      },
+      "add.title": "ایجنٹ بنائیں",
+      "import": {
+        "title": "بیرونی سے درآمد کریں",
+        "type": {
+          "url": "یو آر ایل",
+          "file": "فائل"
+        },
+        "url_placeholder": "JSON URL درج کریں",
+        "select_file": "فائل منتخب کریں",
+        "button": "درآمد کریں",
+        "file_filter": "JSON فائلز",
+        "error": {
+          "url_required": "برائے کرم URL درج کریں",
+          "fetch_failed": "URL سے حاصل کرنے میں ناکامی",
+          "invalid_format": "غلط ایجنٹ فارمیٹ: ضروری فیلڈ غائب"
+        }
+      },
+      "export": {
+        "agent": "ایجنٹ برآمد کریں"
+      },
+      "delete.popup.content": "کیا آپ واقعی اس ایجنٹ کو حذف کرنا چاہتے ہیں؟",
+      "edit.model.select.title": "ماڈل منتخب کریں",
+      "edit.title": "ایجنٹ میں ترمیم کریں",
+      "manage.title": "ایجنٹس کا انتظام کریں",
+      "my_agents": "میرے ایجنٹس",
+      "search.no_results": "کوئی نتائج نہیں ملے",
+      "sorting.title": "ترتیب",
+      "settings": {
+        "title": "ایجنٹ کی ترتیبات"
+      },
+      "tag.agent": "ایجنٹ",
+      "tag.default": "ڈیفالٹ",
+      "tag.new": "نیا",
+      "tag.system": "سسٹم",
+      "title": "ایجنٹس"
+    },
+    "languages": {
+      "albanian": "البانوی",
+      "arabic": "عربی",
+      "armenian": "آرمینی",
+      "belarusian": "بیلاروسی",
+      "bulgarian": "بلغاری",
+      "chinese": "چینی",
+      "chinese-traditional": "روایتی چینی",
+      "croatian": "کروشین",
+      "czech": "چیک",
+      "danish": "ڈینش",
+      "dutch": "ڈچ",
+      "english": "انگریزی",
+      "estonian": "استونین",
+      "finnish": "فنش",
+      "french": "فرانسیسی",
+      "georgian": "جارجین",
+      "german": "جرمن",
+      "greek": "یونانی",
+      "hungarian": "ہنگری",
+      "indonesian": "انڈونیشی",
+      "italian": "اطالوی",
+      "japanese": "جاپانی",
+      "korean": "کوریائی",
+      "latvian": "لیٹوین",
+      "lithuanian": "لتھوانین",
+      "macedonian": "میسیڈونین",
+      "malay": "مالے",
+      "norwegian": "نارویجن",
+      "polish": "پولش",
+      "portuguese": "پرتگیزی",
+      "romanian": "رومانین",
+      "russian": "روسی",
+      "serbian": "سربین",
+      "slovak": "سلواک",
+      "slovenian": "سلوینین",
+      "spanish": "ہسپانوی",
+      "swedish": "سویڈش",
+      "thai": "تھائی",
+      "turkish": "ترکی",
+      "ukrainian": "یوکرینی",
+      "urdu": "اردو",
+      "vietnamese": "ویتنامی"
+    }
+  }
+}

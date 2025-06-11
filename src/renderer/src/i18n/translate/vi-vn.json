@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Thêm vào trợ lý",
+      "add.knowledge_base": "Cơ sở tri thức",
+      "add.knowledge_base.placeholder": "Chọn cơ sở tri thức",
+      "add.name": "Tên",
+      "add.name.placeholder": "Nhập tên",
+      "add.prompt": "Prompt",
+      "add.prompt.placeholder": "Nhập prompt",
+      "add.prompt.variables.tip": {
+        "title": "Biến có sẵn",
+        "content": "{{date}}:\tNgày\n{{time}}:\tGiờ\n{{datetime}}:\tNgày và giờ\n{{system}}:\tHệ điều hành\n{{arch}}:\tKiến trúc CPU\n{{language}}:\tNgôn ngữ\n{{model_name}}:\tTên mô hình"
+      },
+      "add.title": "Tạo tác nhân",
+      "import": {
+        "title": "Nhập từ bên ngoài",
+        "type": {
+          "url": "URL",
+          "file": "Tệp"
+        },
+        "url_placeholder": "Nhập URL JSON",
+        "select_file": "Chọn tệp",
+        "button": "Nhập",
+        "file_filter": "Tệp JSON",
+        "error": {
+          "url_required": "Vui lòng nhập URL",
+          "fetch_failed": "Lỗi lấy dữ liệu từ URL",
+          "invalid_format": "Định dạng tác nhân không hợp lệ: thiếu trường bắt buộc"
+        }
+      },
+      "export": {
+        "agent": "Xuất tác nhân"
+      },
+      "delete.popup.content": "Bạn có chắc chắn muốn xóa tác nhân này?",
+      "edit.model.select.title": "Chọn mô hình",
+      "edit.title": "Chỉnh sửa tác nhân",
+      "manage.title": "Quản lý tác nhân",
+      "my_agents": "Tác nhân của tôi",
+      "search.no_results": "Không tìm thấy kết quả",
+      "sorting.title": "Sắp xếp",
+      "settings": {
+        "title": "Cài đặt tác nhân"
+      },
+      "tag.agent": "Tác nhân",
+      "tag.default": "Mặc định",
+      "tag.new": "Mới",
+      "tag.system": "Hệ thống",
+      "title": "Tác nhân"
+    },
+    "languages": {
+      "albanian": "Albania",
+      "arabic": "Ả Rập",
+      "armenian": "Armenia",
+      "belarusian": "Belarus",
+      "bulgarian": "Bulgaria",
+      "chinese": "Tiếng Trung",
+      "chinese-traditional": "Tiếng Trung phồn thể",
+      "croatian": "Croatia",
+      "czech": "Séc",
+      "danish": "Đan Mạch",
+      "dutch": "Hà Lan",
+      "english": "Tiếng Anh",
+      "estonian": "Estonia",
+      "finnish": "Phần Lan",
+      "french": "Pháp",
+      "georgian": "Georgia",
+      "german": "Đức",
+      "greek": "Hy Lạp",
+      "hungarian": "Hungary",
+      "indonesian": "Indonesia",
+      "italian": "Ý",
+      "japanese": "Nhật Bản",
+      "korean": "Hàn Quốc",
+      "latvian": "Latvia",
+      "lithuanian": "Litva",
+      "macedonian": "Macedonia",
+      "malay": "Malaysia",
+      "norwegian": "Na Uy",
+      "polish": "Ba Lan",
+      "portuguese": "Bồ Đào Nha",
+      "romanian": "Romania",
+      "russian": "Nga",
+      "serbian": "Serbia",
+      "slovak": "Slovakia",
+      "slovenian": "Slovenia",
+      "spanish": "Tây Ban Nha",
+      "swedish": "Thụy Điển",
+      "thai": "Thái Lan",
+      "turkish": "Thổ Nhĩ Kỳ",
+      "ukrainian": "Ukraine",
+      "urdu": "Urdu",
+      "vietnamese": "Tiếng Việt"
+    }
+  }
+}

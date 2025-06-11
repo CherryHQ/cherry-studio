@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Добави към Асистент",
+      "add.knowledge_base": "База от знания",
+      "add.knowledge_base.placeholder": "Избери База от знания",
+      "add.name": "Име",
+      "add.name.placeholder": "Въведи име",
+      "add.prompt": "Промпт",
+      "add.prompt.placeholder": "Въведи промпт",
+      "add.prompt.variables.tip": {
+        "title": "Налични променливи",
+        "content": "{{date}}:\tДата\n{{time}}:\tВреме\n{{datetime}}:\tДата и време\n{{system}}:\tОперационна система\n{{arch}}:\tПроцесорна архитектура\n{{language}}:\tЕзик\n{{model_name}}:\tИме на модела"
+      },
+      "add.title": "Създай Агент",
+      "import": {
+        "title": "Импортирай от външен източник",
+        "type": {
+          "url": "URL",
+          "file": "Файл"
+        },
+        "url_placeholder": "Въведи JSON URL",
+        "select_file": "Избери файл",
+        "button": "Импортирай",
+        "file_filter": "JSON файлове",
+        "error": {
+          "url_required": "Моля въведете URL",
+          "fetch_failed": "Неуспешно извличане от URL",
+          "invalid_format": "Невалиден формат на агент: липсват задължителни полета"
+        }
+      },
+      "export": {
+        "agent": "Експортирай Агент"
+      },
+      "delete.popup.content": "Сигурни ли сте, че искате да изтриете този агент?",
+      "edit.model.select.title": "Избери модел",
+      "edit.title": "Редактирай Агент",
+      "manage.title": "Управлявай Агенти",
+      "my_agents": "Моите агенти",
+      "search.no_results": "Няма намерени резултати",
+      "sorting.title": "Сортиране",
+      "settings": {
+        "title": "Настройки на агента"
+      },
+      "tag.agent": "Агент",
+      "tag.default": "По подразбиране",
+      "tag.new": "Нов",
+      "tag.system": "Система",
+      "title": "Агенти"
+    },
+    "languages": {
+      "albanian": "Албански",
+      "arabic": "Арабски",
+      "armenian": "Арменски",
+      "belarusian": "Белоруски",
+      "bulgarian": "Български",
+      "chinese": "Китайски",
+      "chinese-traditional": "Традиционен китайски",
+      "croatian": "Хърватски",
+      "czech": "Чешки",
+      "danish": "Датски",
+      "dutch": "Холандски",
+      "english": "Английски",
+      "estonian": "Естонски",
+      "finnish": "Фински",
+      "french": "Френски",
+      "georgian": "Грузински",
+      "german": "Немски",
+      "greek": "Гръцки",
+      "hungarian": "Унгарски",
+      "indonesian": "Индонезийски",
+      "italian": "Италиански",
+      "japanese": "Японски",
+      "korean": "Корейски",
+      "latvian": "Латвийски",
+      "lithuanian": "Литовски",
+      "macedonian": "Македонски",
+      "malay": "Малайски",
+      "norwegian": "Норвежки",
+      "polish": "Полски",
+      "portuguese": "Португалски",
+      "romanian": "Румънски",
+      "russian": "Руски",
+      "serbian": "Сръбски",
+      "slovak": "Словашки",
+      "slovenian": "Словенски",
+      "spanish": "Испански",
+      "swedish": "Шведски",
+      "thai": "Тайландски",
+      "turkish": "Турски",
+      "ukrainian": "Украински",
+      "urdu": "Урду",
+      "vietnamese": "Виетнамски"
+    }
+  }
+}

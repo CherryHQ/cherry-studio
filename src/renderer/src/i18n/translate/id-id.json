@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Tambahkan ke Asisten",
+      "add.knowledge_base": "Basis Pengetahuan",
+      "add.knowledge_base.placeholder": "Pilih Basis Pengetahuan",
+      "add.name": "Nama",
+      "add.name.placeholder": "Masukkan nama",
+      "add.prompt": "Prompt",
+      "add.prompt.placeholder": "Masukkan prompt",
+      "add.prompt.variables.tip": {
+        "title": "Variabel yang tersedia",
+        "content": "{{date}}:\tTanggal\n{{time}}:\tWaktu\n{{datetime}}:\tTanggal dan waktu\n{{system}}:\tSistem operasi\n{{arch}}:\tArsitektur CPU\n{{language}}:\tBahasa\n{{model_name}}:\tNama model"
+      },
+      "add.title": "Buat Agen",
+      "import": {
+        "title": "Impor dari eksternal",
+        "type": {
+          "url": "URL",
+          "file": "File"
+        },
+        "url_placeholder": "Masukkan URL JSON",
+        "select_file": "Pilih file",
+        "button": "Impor",
+        "file_filter": "File JSON",
+        "error": {
+          "url_required": "Silakan masukkan URL",
+          "fetch_failed": "Gagal mengambil dari URL",
+          "invalid_format": "Format agen tidak valid: field wajib hilang"
+        }
+      },
+      "export": {
+        "agent": "Ekspor Agen"
+      },
+      "delete.popup.content": "Apakah Anda yakin ingin menghapus agen ini?",
+      "edit.model.select.title": "Pilih model",
+      "edit.title": "Edit Agen",
+      "manage.title": "Kelola Agen",
+      "my_agents": "Agen Saya",
+      "search.no_results": "Tidak ada hasil ditemukan",
+      "sorting.title": "Pengurutan",
+      "settings": {
+        "title": "Pengaturan Agen"
+      },
+      "tag.agent": "Agen",
+      "tag.default": "Default",
+      "tag.new": "Baru",
+      "tag.system": "Sistem",
+      "title": "Agen"
+    },
+    "languages": {
+      "albanian": "Albania",
+      "arabic": "Arab",
+      "armenian": "Armenia",
+      "belarusian": "Belarus",
+      "bulgarian": "Bulgaria",
+      "chinese": "Cina",
+      "chinese-traditional": "Cina Tradisional",
+      "croatian": "Kroasia",
+      "czech": "Ceko",
+      "danish": "Denmark",
+      "dutch": "Belanda",
+      "english": "Inggris",
+      "estonian": "Estonia",
+      "finnish": "Finlandia",
+      "french": "Perancis",
+      "georgian": "Georgia",
+      "german": "Jerman",
+      "greek": "Yunani",
+      "hungarian": "Hungaria",
+      "indonesian": "Indonesia",
+      "italian": "Italia",
+      "japanese": "Jepang",
+      "korean": "Korea",
+      "latvian": "Latvia",
+      "lithuanian": "Lithuania",
+      "macedonian": "Makedonia",
+      "malay": "Melayu",
+      "norwegian": "Norwegia",
+      "polish": "Polandia",
+      "portuguese": "Portugal",
+      "romanian": "Rumania",
+      "russian": "Rusia",
+      "serbian": "Serbia",
+      "slovak": "Slovakia",
+      "slovenian": "Slovenia",
+      "spanish": "Spanyol",
+      "swedish": "Swedia",
+      "thai": "Thailand",
+      "turkish": "Turki",
+      "ukrainian": "Ukraina",
+      "urdu": "Urdu",
+      "vietnamese": "Vietnam"
+    }
+  }
+}
