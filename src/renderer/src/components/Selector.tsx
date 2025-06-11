@@ -61,6 +61,13 @@ const Selector = <V extends string | number>({
   )
 }
 
+const LabelIcon = styled(ChevronsUpDown)`
+  border-radius: 4px;
+  padding: 2px 0;
+  background-color: var(--color-background-soft);
+  transition: background-color 0.2s;
+`
+
 const Label = styled.div<{ $size: number; $open: boolean }>`
   display: flex;
   align-items: center;
@@ -72,18 +79,18 @@ const Label = styled.div<{ $size: number; $open: boolean }>`
   transition: background-color 0.2s;
   &:hover {
     background-color: var(--color-background-mute);
+    ${LabelIcon} {
+      background-color: var(--color-background-mute);
+    }
   }
   ${({ $open }) =>
     $open &&
     css`
       background-color: var(--color-background-mute);
+      ${LabelIcon} {
+        background-color: var(--color-background-mute);
+      }
     `}
-`
-
-const LabelIcon = styled(ChevronsUpDown)`
-  border-radius: 4px;
-  padding: 2px 0;
-  background-color: var(--color-background-mute);
 `
 
 const CheckIcon = styled.div`
