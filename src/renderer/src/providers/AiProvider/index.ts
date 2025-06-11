@@ -1,4 +1,4 @@
-import { isFunctionCallingModel } from '@renderer/config/models'
+import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
 import { ApiClientFactory } from '@renderer/providers/AiProvider/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/providers/AiProvider/clients/BaseApiClient'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
@@ -7,13 +7,16 @@ import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
 import { CompletionsMiddlewareBuilder } from '../middleware/builder'
 import { MIDDLEWARE_NAME as AbortHandlerMiddlewareName } from '../middleware/common/AbortHandlerMiddleware'
+import { MIDDLEWARE_NAME as FinalChunkConsumerMiddlewareName } from '../middleware/common/FinalChunkConsumerMiddleware'
 import { applyCompletionsMiddlewares } from '../middleware/composer'
 import { MIDDLEWARE_NAME as McpToolChunkMiddlewareName } from '../middleware/core/McpToolChunkMiddleware'
 import { MIDDLEWARE_NAME as RawStreamListenerMiddlewareName } from '../middleware/core/RawStreamListenerMiddleware'
 import { MIDDLEWARE_NAME as ThinkChunkMiddlewareName } from '../middleware/core/ThinkChunkMiddleware'
 import { MIDDLEWARE_NAME as WebSearchMiddlewareName } from '../middleware/core/WebSearchMiddleware'
+import { MIDDLEWARE_NAME as ImageGenerationMiddlewareName } from '../middleware/feat/ImageGenerationMiddleware'
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from '../middleware/feat/ThinkingTagExtractionMiddleware'
 import { MIDDLEWARE_NAME as ToolUseExtractionMiddlewareName } from '../middleware/feat/ToolUseExtractionMiddleware'
+import { MiddlewareRegistry } from '../middleware/register'
 import { CompletionsParams, CompletionsResult } from '../middleware/schemas'
 import { OpenAIAPIClient } from './clients'
 import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
@@ -54,29 +57,39 @@ export default class AiProvider {
 
     // 2. 构建中间件链
     const builder = CompletionsMiddlewareBuilder.withDefaults()
-    if (!params.enableReasoning) {
-      builder.remove(ThinkingTagExtractionMiddlewareName)
-      builder.remove(ThinkChunkMiddlewareName)
-    }
-    // 注意：用client判断会导致typescript类型收窄
-    if (!(this.apiClient instanceof OpenAIAPIClient)) {
-      builder.remove(ThinkingTagExtractionMiddlewareName)
-    }
-    if (!(this.apiClient instanceof AnthropicAPIClient)) {
-      builder.remove(RawStreamListenerMiddlewareName)
-    }
-    if (!params.enableWebSearch) {
-      builder.remove(WebSearchMiddlewareName)
-    }
-    if (!params.mcpTools?.length) {
-      builder.remove(ToolUseExtractionMiddlewareName)
-      builder.remove(McpToolChunkMiddlewareName)
-    }
-    if (isEnabledToolUse(params.assistant) && isFunctionCallingModel(model)) {
-      builder.remove(ToolUseExtractionMiddlewareName)
-    }
-    if (params.callType !== 'chat') {
-      builder.remove(AbortHandlerMiddlewareName)
+    // images api
+    if (isDedicatedImageGenerationModel(model)) {
+      builder.clear()
+      builder
+        .add(MiddlewareRegistry[FinalChunkConsumerMiddlewareName])
+        .add(MiddlewareRegistry[AbortHandlerMiddlewareName])
+        .add(MiddlewareRegistry[ImageGenerationMiddlewareName])
+    } else {
+      // Existing logic for other models
+      if (!params.enableReasoning) {
+        builder.remove(ThinkingTagExtractionMiddlewareName)
+        builder.remove(ThinkChunkMiddlewareName)
+      }
+      // 注意：用client判断会导致typescript类型收窄
+      if (!(this.apiClient instanceof OpenAIAPIClient)) {
+        builder.remove(ThinkingTagExtractionMiddlewareName)
+      }
+      if (!(this.apiClient instanceof AnthropicAPIClient)) {
+        builder.remove(RawStreamListenerMiddlewareName)
+      }
+      if (!params.enableWebSearch) {
+        builder.remove(WebSearchMiddlewareName)
+      }
+      if (!params.mcpTools?.length) {
+        builder.remove(ToolUseExtractionMiddlewareName)
+        builder.remove(McpToolChunkMiddlewareName)
+      }
+      if (isEnabledToolUse(params.assistant) && isFunctionCallingModel(model)) {
+        builder.remove(ToolUseExtractionMiddlewareName)
+      }
+      if (params.callType !== 'chat') {
+        builder.remove(AbortHandlerMiddlewareName)
+      }
     }
 
     const middlewares = builder.build()

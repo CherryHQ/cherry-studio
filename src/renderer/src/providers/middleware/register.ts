@@ -11,6 +11,7 @@ import * as TextChunkModule from './core/TextChunkMiddleware'
 import * as ThinkChunkModule from './core/ThinkChunkMiddleware'
 import * as TransformCoreToSdkParamsModule from './core/TransformCoreToSdkParamsMiddleware'
 import * as WebSearchModule from './core/WebSearchMiddleware'
+import * as ImageGenerationModule from './feat/ImageGenerationMiddleware'
 import * as ThinkingTagExtractionModule from './feat/ThinkingTagExtractionMiddleware'
 import * as ToolUseExtractionMiddleware from './feat/ToolUseExtractionMiddleware'
 
@@ -79,6 +80,10 @@ export const MiddlewareRegistry = {
   [TextChunkModule.MIDDLEWARE_NAME]: {
     name: TextChunkModule.MIDDLEWARE_NAME,
     middleware: TextChunkModule.TextChunkMiddleware
+  },
+  [ImageGenerationModule.MIDDLEWARE_NAME]: {
+    name: ImageGenerationModule.MIDDLEWARE_NAME,
+    middleware: ImageGenerationModule.ImageGenerationMiddleware
   }
 } as const
 

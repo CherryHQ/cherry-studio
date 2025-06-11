@@ -319,7 +319,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           ) {
             finalAssistantMessage.content = [...finalAssistantMessage.content, ...finalUserMessage.content]
           }
-          userMessage = [{ ...finalAssistantMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
+          userMessage = [{ ...finalUserMessage, role: 'user' } as OpenAI.Responses.EasyInputMessage]
         }
 
         // 4. 最终请求消息
@@ -348,7 +348,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         }
 
         tools = tools.concat(extraTools)
-
         const commonParams = {
           model: model.id,
           input:

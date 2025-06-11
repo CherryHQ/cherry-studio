@@ -199,6 +199,10 @@ export const VISION_REGEX = new RegExp(
   'i'
 )
 
+// For middleware to identify models that must use the dedicated Image API
+export const DEDICATED_IMAGE_MODELS = ['dall-e-3', 'dall-e-2', 'gpt-image-1']
+export const isDedicatedImageGenerationModel = (model: Model): boolean => DEDICATED_IMAGE_MODELS.includes(model.id)
+
 // Text to image models
 export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus/i
 
