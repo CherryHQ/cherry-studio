@@ -188,6 +188,9 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
         case 'search':
           handleSearch(newAction)
           break
+        case 'quote':
+          handleQuote(newAction)
+          break
         default:
           handleDefaultAction(newAction)
           break
@@ -218,6 +221,16 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     const searchUrl = customUrl.replace('{{queryString}}', encodeURIComponent(action.selectedText || ''))
     window.api?.openWebsite(searchUrl)
     window.api?.selection.hideToolbar()
+  }
+
+  /**
+   * Quote the selected text to the inputbar of the main window
+   */
+  const handleQuote = (action: ActionItem) => {
+    if (action.selectedText) {
+      window.api?.quoteToMainWindow(action.selectedText)
+      window.api?.selection.hideToolbar()
+    }
   }
 
   const handleDefaultAction = (action: ActionItem) => {

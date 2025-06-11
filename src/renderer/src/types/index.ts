@@ -256,6 +256,12 @@ export interface ScalePainting extends PaintingParams {
   renderingSpeed?: string
 }
 
+export enum generationModeType {
+  GENERATION = 'generation',
+  EDIT = 'edit',
+  MERGE = 'merge'
+}
+
 export interface DmxapiPainting extends PaintingParams {
   model?: string
   prompt?: string
@@ -265,6 +271,7 @@ export interface DmxapiPainting extends PaintingParams {
   seed?: string
   style_type?: string
   autoCreate?: boolean
+  generationMode?: generationModeType
 }
 
 export interface TokenFluxPainting extends PaintingParams {
@@ -347,9 +354,9 @@ export type CodeStyleVarious = 'auto' | string
 
 export type WebDavConfig = {
   webdavHost: string
-  webdavUser: string
-  webdavPass: string
-  webdavPath: string
+  webdavUser?: string
+  webdavPass?: string
+  webdavPath?: string
   fileName?: string
   skipBackupFile?: boolean
 }
@@ -416,6 +423,7 @@ export interface KnowledgeBase {
 export type KnowledgeBaseParams = {
   id: string
   model: string
+  provider: string
   dimensions?: number
   apiKey: string
   apiVersion?: string

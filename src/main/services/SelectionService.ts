@@ -14,6 +14,7 @@ import type {
 
 import type { ActionItem } from '../../renderer/src/types/selectionTypes'
 import { ConfigKeys, configManager } from './ConfigManager'
+import storeSyncService from './StoreSyncService'
 
 let SelectionHook: SelectionHookConstructor | null = null
 try {
@@ -334,6 +335,20 @@ export class SelectionService {
     this.logInfo('SelectionService Quitted')
   }
 
+  /**
+   * Toggle the enabled state of the selection service
+   * Will sync the new enabled store to all renderer windows
+   */
+  public toggleEnabled(enabled: boolean | undefined = undefined) {
+    if (!this.selectionHook) return
+
+    const newEnabled = enabled === undefined ? !configManager.getSelectionAssistantEnabled() : enabled
+
+    configManager.setSelectionAssistantEnabled(newEnabled)
+
+    //sync the new enabled state to all renderer windows
+    storeSyncService.syncToRenderer('selectionStore/setSelectionEnabled', newEnabled)
+  }
   /**
    * Create and configure the toolbar window
    * Sets up window properties, event handlers, and loads the toolbar UI

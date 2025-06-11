@@ -8,7 +8,10 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
-      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "利用可能な変数",
+        "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名"
+      },
       "add.title": "エージェントを作成",
       "import": {
         "title": "外部からインポート",
@@ -563,8 +566,12 @@
       "urls": "URL",
       "dimensions": "埋め込み次元",
       "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
-      "dimensions_size_placeholder": "デフォルト値（変更はお勧めしません）",
-      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。"
+      "dimensions_size_placeholder": " 埋め込み次元のサイズ（例：1024）",
+      "dimensions_auto_set": "埋め込み次元を自動設定",
+      "dimensions_error_invalid": "埋め込み次元のサイズを入力してください",
+      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
+      "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
+      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -941,7 +948,10 @@
       "rendering_speed": "レンダリング速度",
       "translating": "翻訳中...",
       "text_desc_required": "画像の説明を先に入力してください",
+      "image_handle_required": "最初に画像をアップロードしてください。",
       "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "req_error_token": "トークンの有効性を確認してください",
+      "req_error_no_balance": "トークンの有効性を確認してください",
       "auto_create_paint": "画像を自動作成",
       "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。",
       "select_model": "モデルを選択",
@@ -1501,6 +1511,7 @@
       "messages.prompt": "プロンプト表示",
       "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
+      "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
       "messages.grid_popover_trigger.click": "クリックで表示",
@@ -1533,7 +1544,8 @@
       "models.add.model_id.select.placeholder": "モデルを選択",
       "models.add.model_id.tooltip": "例：gpt-3.5-turbo",
       "models.add.model_name": "モデル名",
-      "models.add.model_name.placeholder": "例：GPT-3.5",
+      "models.add.model_name.tooltip": "例：GPT-4",
+      "models.add.model_name.placeholder": "例：GPT-4",
       "models.check.all": "すべて",
       "models.check.all_models_passed": "すべてのモデルチェックが成功しました",
       "models.check.button_caption": "健康チェック",
@@ -1678,6 +1690,7 @@
         "exit_fullscreen": "フルスクリーンを終了",
         "key": "キー",
         "mini_window": "クイックアシスタント",
+        "selection_assistant_toggle": "選択アシスタントを切り替え",
         "new_topic": "新しいトピック",
         "press_shortcut": "ショートカットを押す",
         "reset_defaults": "デフォルトのショートカットをリセット",
@@ -1848,7 +1861,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "検出された言語"
+      "detected.language": "自動検出"
     },
     "tray": {
       "quit": "終了",
@@ -1877,7 +1890,8 @@
           "summary": "要約",
           "search": "検索",
           "refine": "最適化",
-          "copy": "コピー"
+          "copy": "コピー",
+          "quote": "引用"
         },
         "window": {
           "pin": "最前面に固定",

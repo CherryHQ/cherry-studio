@@ -56,6 +56,7 @@ export default abstract class BaseProvider {
   abstract models(): Promise<OpenAI.Models.Model[]>
   abstract generateImage(params: GenerateImageParams): Promise<string[]>
   abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
+  // 由于现在出现了一些能够选择嵌入维度的嵌入模型，这个不考虑dimensions参数的方法将只能应用于那些不支持dimensions的模型
   abstract getEmbeddingDimensions(model: Model): Promise<number>
   public abstract convertMcpTools<T>(mcpTools: MCPTool[]): T[]
   public abstract mcpToolCallResponseToMessage(

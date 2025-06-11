@@ -129,22 +129,29 @@ ul {
   .message-content-container {
     margin: 5px 0;
     border-radius: 8px;
-    padding: 10px 15px 0 15px;
+    padding: 0.5rem 1rem;
   }
+
+  .block-wrapper {
+    display: flow-root;
+  }
+
+  .message-content-container > *:last-child {
+    margin-bottom: 0;
+  }
+
   .message-thought-container {
     margin-top: 8px;
   }
+
   .message-user {
     color: var(--chat-text-user);
-    .markdown,
-    .anticon,
-    .iconfont,
-    .lucide,
-    .message-tokens {
+    .message-content-container-user .anticon {
       color: var(--chat-text-user) !important;
     }
-    .message-action-button:hover {
-      background-color: var(--color-white-soft);
+
+    .markdown {
+      color: var(--chat-text-user);
     }
   }
   .group-grid-container.horizontal,
@@ -164,6 +171,12 @@ ul {
   }
   code {
     color: var(--color-text);
+  }
+  .markdown {
+    display: flow-root;
+    *:last-child {
+      margin-bottom: 0;
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css'
 import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
 
+import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -22,7 +23,6 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 
 import CodeBlock from './CodeBlock'
-import ImagePreview from './ImagePreview'
 import Link from './Link'
 
 const ALLOWED_ELEMENTS =
@@ -83,23 +83,24 @@ const Markdown: FC<Props> = ({ block }) => {
       code: (props: any) => (
         <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
       ),
-      img: ImagePreview,
-      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
+      img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
+      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
+      p: (props) => {
+        const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
+        if (hasImage) return <div {...props} />
+        return <p {...props} />
+      }
     } as Partial<Components>
   }, [onSaveCodeBlock])
+
+  if (messageContent.includes('<style>')) {
+    components.style = MarkdownShadowDOMRenderer as any
+  }
 
   const urlTransform = useCallback((value: string) => {
     if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
     return defaultUrlTransform(value)
   }, [])
-
-  // if (role === 'user' && !renderInputMessageAsMarkdown) {
-  //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
-  // }
-
-  if (messageContent.includes('<style>')) {
-    components.style = MarkdownShadowDOMRenderer as any
-  }
 
   return (
     <ReactMarkdown

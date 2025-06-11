@@ -1,6 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
@@ -23,7 +22,6 @@ const DEFAULT_MAX_KEEPALIVE = 3
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
-  const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()

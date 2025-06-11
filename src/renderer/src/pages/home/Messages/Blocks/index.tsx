@@ -42,6 +42,7 @@ const blockWrapperVariants = {
 const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, enableAnimation }) => {
   return (
     <motion.div
+      className="block-wrapper"
       variants={blockWrapperVariants}
       initial={enableAnimation ? 'hidden' : 'static'}
       animate={enableAnimation ? 'visible' : 'static'}>

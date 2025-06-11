@@ -8,7 +8,10 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
-      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Available variables",
+        "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name"
+      },
       "add.title": "Create Agent",
       "import": {
         "title": "Import from External",
@@ -563,8 +566,12 @@
       "urls": "URLs",
       "dimensions": "Embedding dimension",
       "dimensions_size_tooltip": "The size of the embedding dimension; the larger the value, the larger the embedding dimension, but it also consumes more tokens.",
-      "dimensions_size_placeholder": "Default value (modification not recommended)",
-      "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}})."
+      "dimensions_size_placeholder": " Embedding dimension size, e.g. 1024",
+      "dimensions_auto_set": "Auto-set embedding dimensions",
+      "dimensions_error_invalid": "Please enter embedding dimension size",
+      "dimensions_size_too_large": "The embedding dimension cannot exceed the model's context limit ({{max_context}}).",
+      "dimensions_set_right": "⚠️ Please ensure the model supports the set embedding dimension size",
+      "dimensions_default": "The model will use default embedding dimensions"
     },
     "languages": {
       "arabic": "Arabic",
@@ -941,7 +948,10 @@
         "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
       },
       "text_desc_required": "Please enter image description first",
+      "image_handle_required": "Please upload an image first.",
       "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "req_error_token": "Please check the validity of the token",
+      "req_error_no_balance": "Please check the validity of the token",
       "auto_create_paint": "Auto-create image",
       "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
       "select_model": "Select Model",
@@ -1507,6 +1517,7 @@
       "messages.prompt": "Show prompt",
       "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
+      "messages.divider.tooltip": "Not applicable to bubble-style message",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
       "messages.grid_popover_trigger.click": "Click to display",
@@ -1539,6 +1550,7 @@
       "models.add.model_id.select.placeholder": "Select Model",
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
+      "models.add.model_name.tooltip": "Optional e.g. GPT-4",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
       "models.check.all": "All",
       "models.check.all_models_passed": "All models check passed",
@@ -1690,6 +1702,7 @@
         "exit_fullscreen": "Exit Fullscreen",
         "key": "Key",
         "mini_window": "Quick Assistant",
+        "selection_assistant_toggle": "Toggle Selection Assistant",
         "new_topic": "New Topic",
         "press_shortcut": "Press Shortcut",
         "reset_defaults": "Reset Defaults",
@@ -1815,7 +1828,7 @@
       "close": "Close",
       "closed": "Translation closed",
       "copied": "Translation content copied",
-      "detected.language": "Detected Language",
+      "detected.language": "Auto Detect",
       "empty": "Translation content is empty",
       "not.found": "Translation content not found",
       "confirm": {
@@ -1877,7 +1890,8 @@
           "summary": "Summarize",
           "search": "Search",
           "refine": "Refine",
-          "copy": "Copy"
+          "copy": "Copy",
+          "quote": "Quote"
         },
         "window": {
           "pin": "Pin",

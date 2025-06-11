@@ -14,6 +14,7 @@ import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
+import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { defaultWebSearchProviders } from './websearch'
 
@@ -72,6 +73,17 @@ function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchPr
       state.websearch.providers[index] = {
         ...state.websearch.providers[index],
         ...provider
+      }
+    }
+  }
+}
+
+function addSelectionAction(state: RootState, id: string) {
+  if (state.selectionStore && state.selectionStore.actionItems) {
+    if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
+      const action = defaultActionItems.find((item) => item.id === id)
+      if (action) {
+        state.selectionStore.actionItems.push(action)
       }
     }
   }
@@ -1481,6 +1493,39 @@ const migrateConfig = {
       }
       state.settings.showTokens = true
       state.settings.earlyAccess = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '111': (state: RootState) => {
+    try {
+      addSelectionAction(state, 'quote')
+      if (
+        state.llm.translateModel.provider === 'silicon' &&
+        state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct'
+      ) {
+        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
+      }
+
+      // Add selection_assistant_toggle shortcut after mini_window if it doesn't exist
+      if (state.shortcuts) {
+        const miniWindowIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === 'mini_window')
+        const hasSelectionAssistant = state.shortcuts.shortcuts.some(
+          (shortcut) => shortcut.key === 'selection_assistant_toggle'
+        )
+
+        if (miniWindowIndex !== -1 && !hasSelectionAssistant) {
+          state.shortcuts.shortcuts.splice(miniWindowIndex + 1, 0, {
+            key: 'selection_assistant_toggle',
+            shortcut: [],
+            editable: true,
+            enabled: false,
+            system: true
+          })
+        }
+      }
+
       return state
     } catch (error) {
       return state

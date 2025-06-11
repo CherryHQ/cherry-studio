@@ -33,8 +33,10 @@ import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
@@ -419,6 +421,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
   }, [addTopic, assistant, setActiveTopic, setModel])
 
+  const onQuote = useCallback(
+    (text: string) => {
+      const quotedText = formatQuotedText(text)
+      setText((prevText) => {
+        const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
+        setTimeout(() => resizeTextArea(), 0)
+        return newText
+      })
+      textareaRef.current?.focus()
+    },
+    [resizeTextArea]
+  )
+
   const onPause = async () => {
     await pauseMessages()
   }
@@ -623,21 +638,25 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         _setEstimateTokenCount(tokensCount)
         setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic),
-      EventEmitter.on(EVENT_NAMES.QUOTE_TEXT, (quotedText: string) => {
-        setText((prevText) => {
-          const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-          setTimeout(() => resizeTextArea(), 0)
-          return newText
-        })
-        textareaRef.current?.focus()
-      })
+      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
     ]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [addNewTopic, resizeTextArea])
+
+    // 监听引用事件
+    const quoteFromAnywhereRemover = window.electron?.ipcRenderer.on(
+      IpcChannel.App_QuoteToMain,
+      (_, selectedText: string) => onQuote(selectedText)
+    )
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub())
+      quoteFromAnywhereRemover?.()
+    }
+  }, [addNewTopic, onQuote])
 
   useEffect(() => {
-    textareaRef.current?.focus()
+    if (!document.querySelector('.topview-fullscreen-container')) {
+      textareaRef.current?.focus()
+    }
   }, [assistant, topic])
 
   useEffect(() => {

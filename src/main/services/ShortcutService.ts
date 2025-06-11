@@ -4,10 +4,15 @@ import { BrowserWindow, globalShortcut } from 'electron'
 import Logger from 'electron-log'
 
 import { configManager } from './ConfigManager'
+import selectionService from './SelectionService'
 import { windowService } from './WindowService'
 
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
+let selectionAssistantToggleAccelerator: string | null = null
+
+//indicate if the shortcuts are registered on app boot time
+let isRegisterOnBoot = true
 
 // store the focus and blur handlers for each window to unregister them later
 const windowOnHandlers = new Map<BrowserWindow, { onFocusHandler: () => void; onBlurHandler: () => void }>()
@@ -27,6 +32,12 @@ function getShortcutHandler(shortcut: Shortcut) {
     case 'mini_window':
       return () => {
         windowService.toggleMiniWindow()
+      }
+    case 'selection_assistant_toggle':
+      return () => {
+        if (selectionService) {
+          selectionService.toggleEnabled()
+        }
       }
     default:
       return null
@@ -93,11 +104,14 @@ const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutForm
 }
 
 export function registerShortcuts(window: BrowserWindow) {
-  window.once('ready-to-show', () => {
-    if (configManager.getLaunchToTray()) {
-      registerOnlyUniversalShortcuts()
-    }
-  })
+  if (isRegisterOnBoot) {
+    window.once('ready-to-show', () => {
+      if (configManager.getLaunchToTray()) {
+        registerOnlyUniversalShortcuts()
+      }
+    })
+    isRegisterOnBoot = false
+  }
 
   //only for clearer code
   const registerOnlyUniversalShortcuts = () => {
@@ -124,7 +138,10 @@ export function registerShortcuts(window: BrowserWindow) {
         }
 
         // only register universal shortcuts when needed
-        if (onlyUniversalShortcuts && !['show_app', 'mini_window'].includes(shortcut.key)) {
+        if (
+          onlyUniversalShortcuts &&
+          !['show_app', 'mini_window', 'selection_assistant_toggle'].includes(shortcut.key)
+        ) {
           return
         }
 
@@ -144,6 +161,10 @@ export function registerShortcuts(window: BrowserWindow) {
               return
             }
             showMiniWindowAccelerator = formatShortcutKey(shortcut.shortcut)
+            break
+
+          case 'selection_assistant_toggle':
+            selectionAssistantToggleAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
           //the following ZOOMs will register shortcuts seperately, so will return
@@ -192,6 +213,14 @@ export function registerShortcuts(window: BrowserWindow) {
           convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(showMiniWindowAccelerator)
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
+
+      if (selectionAssistantToggleAccelerator) {
+        const handler = getShortcutHandler({ key: 'selection_assistant_toggle' } as Shortcut)
+        const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
+          selectionAssistantToggleAccelerator
+        )
+        handler && globalShortcut.register(accelerator, () => handler(window))
+      }
     } catch (error) {
       Logger.error('[ShortcutService] Failed to unregister shortcuts')
     }
@@ -217,6 +246,7 @@ export function unregisterAllShortcuts() {
   try {
     showAppAccelerator = null
     showMiniWindowAccelerator = null
+    selectionAssistantToggleAccelerator = null
     windowOnHandlers.forEach((handlers, window) => {
       window.off('focus', handlers.onFocusHandler)
       window.off('blur', handlers.onBlurHandler)

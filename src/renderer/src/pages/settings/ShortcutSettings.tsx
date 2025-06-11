@@ -18,9 +18,16 @@ const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { shortcuts } = useShortcuts()
+  const { shortcuts: originalShortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
+
+  //TODO: if shortcut is not available on all the platforms, block the shortcut here
+  let shortcuts = originalShortcuts
+  if (!isWindows) {
+    //Selection Assistant only available on Windows now
+    shortcuts = shortcuts.filter((s) => s.key !== 'selection_assistant_toggle')
+  }
 
   const handleClear = (record: Shortcut) => {
     dispatch(

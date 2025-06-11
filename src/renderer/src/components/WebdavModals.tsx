@@ -123,7 +123,7 @@ export function useWebdavRestoreModal({
   const [backupFiles, setBackupFiles] = useState<BackupFile[]>([])
 
   const showRestoreModal = useCallback(async () => {
-    if (!webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+    if (!webdavHost) {
       window.message.error({ content: t('message.error.invalid.webdav'), key: 'webdav-error' })
       return
     }
@@ -146,7 +146,7 @@ export function useWebdavRestoreModal({
   }, [webdavHost, webdavUser, webdavPass, webdavPath, t])
 
   const handleRestore = useCallback(async () => {
-    if (!selectedFile || !webdavHost || !webdavUser || !webdavPass || !webdavPath) {
+    if (!selectedFile || !webdavHost) {
       window.message.error({
         content: !selectedFile ? t('message.error.no.file.selected') : t('message.error.invalid.webdav'),
         key: 'restore-error'
@@ -170,7 +170,7 @@ export function useWebdavRestoreModal({
         }
       }
     })
-  }, [selectedFile, webdavHost, webdavUser, webdavPass, webdavPath, t, restoreMethod])
+  }, [selectedFile, webdavHost, t, restoreMethod])
 
   const handleCancel = () => {
     setIsRestoreModalVisible(false)

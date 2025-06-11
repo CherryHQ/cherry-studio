@@ -351,4 +351,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // selection assistant
   SelectionService.registerIpcHandler()
+
+  ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 }

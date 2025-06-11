@@ -295,10 +295,12 @@ class BackupManager {
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data, undefined, webdavConfig.skipBackupFile)
+    const contentLength = (await fs.stat(backupedFilePath)).size
     const webdavClient = new WebDav(webdavConfig)
     try {
       const result = await webdavClient.putFileContents(filename, fs.createReadStream(backupedFilePath), {
-        overwrite: true
+        overwrite: true,
+        contentLength
       })
       // 上传成功后删除本地备份文件
       await fs.remove(backupedFilePath)

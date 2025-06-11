@@ -8,7 +8,10 @@
       "add.name.placeholder": "Введите имя",
       "add.prompt": "Промпт",
       "add.prompt.placeholder": "Введите промпт",
-      "add.prompt.variables.tip": "Доступные переменные: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "Доступные переменные",
+        "content": "{{date}}:\tДата\n{{time}}:\tВремя\n{{datetime}}:\tДата и время\n{{system}}:\tОперационная система\n{{arch}}:\tАрхитектура процессора\n{{language}}:\tЯзык\n{{model_name}}:\tНазвание модели"
+      },
       "add.title": "Создать агента",
       "delete.popup.content": "Вы уверены, что хотите удалить этого агента?",
       "edit.model.select.title": "Выбрать модель",
@@ -563,8 +566,12 @@
       "urls": "URL-адреса",
       "dimensions": "векторное пространство",
       "dimensions_size_tooltip": "Размерность вложения, чем больше значение, тем больше размерность вложения, но и потребляемых токенов также становится больше.",
-      "dimensions_size_placeholder": "Значение по умолчанию (не рекомендуется изменять)",
-      "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})"
+      "dimensions_size_placeholder": " Размерность эмбеддинга, например 1024",
+      "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
+      "dimensions_error_invalid": "Пожалуйста, введите размерность эмбеддинга",
+      "dimensions_size_too_large": "Размерность вложения не может превышать ограничение контекста модели ({{max_context}})",
+      "dimensions_set_right": "⚠️ Убедитесь, что модель поддерживает заданный размер эмбеддинга",
+      "dimensions_default": "Модель будет использовать размер эмбеддинга по умолчанию"
     },
     "languages": {
       "arabic": "Арабский",
@@ -941,7 +948,10 @@
         "magic_prompt_option_tip": "Улучшает увеличение изображений с помощью интеллектуального оптимизирования промптов"
       },
       "text_desc_required": "Пожалуйста, сначала введите описание изображения",
+      "image_handle_required": "Пожалуйста, сначала загрузите изображение.",
       "req_error_text": "Операция не удалась, повторите попытку. Пожалуйста, избегайте защищенных авторским правом терминов и конфиденциальных слов в запросах.",
+      "req_error_token": "Пожалуйста, проверьте действительность токена",
+      "req_error_no_balance": "Пожалуйста, проверьте действительность токена",
       "auto_create_paint": "Автоматическое создание изображения",
       "auto_create_paint_tip": "После генерации изображения будет автоматически создано новое.",
       "select_model": "Выбрать модель",
@@ -1501,6 +1511,7 @@
       "messages.prompt": "Показывать подсказки",
       "messages.tokens": "Показать использование токенов",
       "messages.divider": "Показывать разделитель между сообщениями",
+      "messages.divider.tooltip": "Не применимо к сообщениям в стиле пузырей",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.grid_popover_trigger.click": "Нажатие для отображения",
@@ -1533,6 +1544,7 @@
       "models.add.model_id.select.placeholder": "Выберите модель",
       "models.add.model_id.tooltip": "Пример: gpt-3.5-turbo",
       "models.add.model_name": "Имя модели",
+      "models.add.model_name.tooltip": "Необязательно, например, GPT-4",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
       "models.check.all": "Все",
       "models.check.all_models_passed": "Все модели прошли проверку",
@@ -1678,6 +1690,7 @@
         "exit_fullscreen": "Выйти из полноэкранного режима",
         "key": "Клавиша",
         "mini_window": "Быстрый помощник",
+        "selection_assistant_toggle": "Переключить помощник выделения",
         "new_topic": "Новый топик",
         "press_shortcut": "Нажмите сочетание клавиш",
         "reset_defaults": "Сбросить настройки по умолчанию",
@@ -1848,7 +1861,7 @@
       "menu": {
         "description": "Перевести содержимое текущего ввода"
       },
-      "detected.language": "Обнаруженный язык"
+      "detected.language": "Автоматическое обнаружение"
     },
     "tray": {
       "quit": "Выйти",
@@ -1877,7 +1890,8 @@
           "summary": "Суммаризировать",
           "search": "Поиск",
           "refine": "Уточнить",
-          "copy": "Копировать"
+          "copy": "Копировать",
+          "quote": "Цитировать"
         },
         "window": {
           "pin": "Закрепить",

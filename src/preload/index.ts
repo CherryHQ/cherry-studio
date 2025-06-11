@@ -1,11 +1,11 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
+import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, ThemeMode, WebDavConfig } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
-import { FeedUrl } from '@shared/config/constant'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
@@ -86,7 +86,7 @@ const api = {
     getPathForFile: (file: File) => webUtils.getPathForFile(file)
   },
   fs: {
-    read: (path: string) => ipcRenderer.invoke(IpcChannel.Fs_Read, path)
+    read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding)
   },
   export: {
     toWord: (markdown: string, fileName: string) => ipcRenderer.invoke(IpcChannel.Export_Word, markdown, fileName)
@@ -228,7 +228,8 @@ const api = {
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
-  }
+  },
+  quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

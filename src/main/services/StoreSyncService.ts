@@ -50,6 +50,23 @@ export class StoreSyncService {
   }
 
   /**
+   * Sync an action to all renderer windows
+   * @param type Action type, like 'settings/setTray'
+   * @param payload Action payload
+   *
+   * NOTICE: DO NOT use directly in ConfigManager, may cause infinite sync loop
+   */
+  public syncToRenderer(type: string, payload: any): void {
+    const action: StoreSyncAction = {
+      type,
+      payload
+    }
+
+    //-1 means the action is from the main process, will be broadcast to all windows
+    this.broadcastToOtherWindows(-1, action)
+  }
+
+  /**
    * Register IPC handlers for store sync communication
    * Handles window subscription, unsubscription and action broadcasting
    */

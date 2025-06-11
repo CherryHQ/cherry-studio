@@ -151,7 +151,7 @@ index 2404264d4ba0204322548945ebb7eab3bea82173..8f1bc45cc45e0797d50989d96b51147b
 +			"embeddings/decoding base64 embeddings from base64"
 +		);
 +		return response._thenUnwrap((response) => {
-+			if (response && response.data) {
++			if (response && response.data && typeof response.data[0]?.embedding === 'string') {
 +				response.data.forEach((embeddingBase64Obj) => {
 +					const embeddingBase64Str = embeddingBase64Obj.embedding;
 +					embeddingBase64Obj.embedding = (0, utils_1.toFloat32Array)(
@@ -266,7 +266,7 @@ index 19dcaef578c194a89759c4360073cfd4f7dd2cbf..0284e9cc615c900eff508eb595f7360a
 +			"embeddings/decoding base64 embeddings from base64"
 +		);
 +		return response._thenUnwrap((response) => {
-+			if (response && response.data) {
++			if (response && response.data && typeof response.data[0]?.embedding === 'string') {
 +				response.data.forEach((embeddingBase64Obj) => {
 +					const embeddingBase64Str = embeddingBase64Obj.embedding;
 +					embeddingBase64Obj.embedding = toFloat32Array(embeddingBase64Str);
