@@ -26,7 +26,6 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
     navigator.clipboard
       .writeText(tableMarkdown)
       .then(() => {
-        window.message?.success({ content: t('message.copy.success'), key: 'copy-table' })
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
       })
