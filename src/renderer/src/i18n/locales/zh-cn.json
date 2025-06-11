@@ -1702,6 +1702,7 @@
         "key": "按键",
         "mini_window": "快捷助手",
         "selection_assistant_toggle": "开关划词助手",
+        "selection_assistant_select_text": "划词助手：取词",
         "new_topic": "新建话题",
         "press_shortcut": "按下快捷键",
         "reset_defaults": "重置默认快捷键",
@@ -1917,11 +1918,16 @@
         "toolbar": {
           "title": "工具栏",
           "trigger_mode": {
-            "title": "触发方式",
-            "description": "划词立即显示工具栏，或者划词后按住 Ctrl 键才显示工具栏。",
+            "title": "取词方式",
+            "description": "划词后，触发取词并显示工具栏的方式",
             "description_note": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
             "selected": "划词",
-            "ctrlkey": "Ctrl 键"
+            "selected_note": "划词后立即显示工具栏",
+            "ctrlkey": "Ctrl 键",
+            "ctrlkey_note": "划词后，再 按住 Ctrl键，才显示工具栏",
+            "shortcut": "快捷键",
+            "shortcut_note": "划词后，使用快捷键显示工具栏。请在快捷键设置页面中设置取词快捷键并启用。",
+            "shortcut_link": "前往快捷键设置"
           },
           "compact_mode": {
             "title": "紧凑模式",

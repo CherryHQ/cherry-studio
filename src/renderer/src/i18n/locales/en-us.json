@@ -1702,6 +1702,7 @@
         "key": "Key",
         "mini_window": "Quick Assistant",
         "selection_assistant_toggle": "Toggle Selection Assistant",
+        "selection_assistant_select_text": "Selection Assistant: Select Text",
         "new_topic": "New Topic",
         "press_shortcut": "Press Shortcut",
         "reset_defaults": "Reset Defaults",
@@ -1918,10 +1919,15 @@
           "title": "Toolbar",
           "trigger_mode": {
             "title": "Trigger Mode",
-            "description": "Show toolbar immediately when text is selected, or show only when Ctrl key is held after selection.",
-            "description_note": "The Ctrl key may not work in some apps. If you use AHK or other tools to remap the Ctrl key, it may not work.",
+            "description": "The way to trigger the selection assistant and show the toolbar",
+            "description_note": "Some applications do not support selecting text with the Ctrl key. If you have remapped the Ctrl key using tools like AHK, it may cause some applications to fail to select text.",
             "selected": "Selection",
-            "ctrlkey": "Ctrl Key"
+            "selected_note": "Show toolbar immediately when text is selected",
+            "ctrlkey": "Ctrl Key",
+            "ctrlkey_note": "After selection, hold down the Ctrl key to show the toolbar",
+            "shortcut": "Shortcut",
+            "shortcut_note": "After selection, use shortcut to show the toolbar. Please set the shortcut in the shortcut settings page and enable it. ",
+            "shortcut_link": "Go to Shortcut Settings"
           },
           "compact_mode": {
             "title": "Compact Mode",

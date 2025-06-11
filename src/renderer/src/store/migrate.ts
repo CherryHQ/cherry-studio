@@ -16,6 +16,7 @@ import { INITIAL_PROVIDERS, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
@@ -85,6 +86,48 @@ function addSelectionAction(state: RootState, id: string) {
       if (action) {
         state.selectionStore.actionItems.push(action)
       }
+    }
+  }
+}
+
+/**
+ * Add shortcuts(ids from shortcutsInitialState) after the shortcut(afterId)
+ * if afterId is 'first', add to the first
+ * if afterId is 'last', add to the last
+ */
+function addShortcuts(state: RootState, ids: string[], afterId: string) {
+  const defaultShortcuts = shortcutsInitialState.shortcuts
+
+  // 确保 state.shortcuts 存在
+  if (!state.shortcuts) {
+    return
+  }
+
+  // 从 defaultShortcuts 中找到要添加的快捷键
+  const shortcutsToAdd = defaultShortcuts.filter((shortcut) => ids.includes(shortcut.key))
+
+  // 过滤掉已经存在的快捷键
+  const existingKeys = state.shortcuts.shortcuts.map((s) => s.key)
+  const newShortcuts = shortcutsToAdd.filter((shortcut) => !existingKeys.includes(shortcut.key))
+
+  if (newShortcuts.length === 0) {
+    return
+  }
+
+  if (afterId === 'first') {
+    // 添加到最前面
+    state.shortcuts.shortcuts.unshift(...newShortcuts)
+  } else if (afterId === 'last') {
+    // 添加到最后面
+    state.shortcuts.shortcuts.push(...newShortcuts)
+  } else {
+    // 添加到指定快捷键后面
+    const afterIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === afterId)
+    if (afterIndex !== -1) {
+      state.shortcuts.shortcuts.splice(afterIndex + 1, 0, ...newShortcuts)
+    } else {
+      // 如果找不到指定的快捷键，则添加到最后
+      state.shortcuts.shortcuts.push(...newShortcuts)
     }
   }
 }
@@ -1508,23 +1551,8 @@ const migrateConfig = {
         state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
       }
 
-      // Add selection_assistant_toggle shortcut after mini_window if it doesn't exist
-      if (state.shortcuts) {
-        const miniWindowIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === 'mini_window')
-        const hasSelectionAssistant = state.shortcuts.shortcuts.some(
-          (shortcut) => shortcut.key === 'selection_assistant_toggle'
-        )
-
-        if (miniWindowIndex !== -1 && !hasSelectionAssistant) {
-          state.shortcuts.shortcuts.splice(miniWindowIndex + 1, 0, {
-            key: 'selection_assistant_toggle',
-            shortcut: [],
-            editable: true,
-            enabled: false,
-            system: true
-          })
-        }
-      }
+      // add selection_assistant_toggle and selection_assistant_select_text shortcuts after mini_window
+      addShortcuts(state, ['selection_assistant_toggle', 'selection_assistant_select_text'], 'mini_window')
 
       return state
     } catch (error) {

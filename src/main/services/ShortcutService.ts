@@ -10,6 +10,7 @@ import { windowService } from './WindowService'
 let showAppAccelerator: string | null = null
 let showMiniWindowAccelerator: string | null = null
 let selectionAssistantToggleAccelerator: string | null = null
+let selectionAssistantSelectTextAccelerator: string | null = null
 
 //indicate if the shortcuts are registered on app boot time
 let isRegisterOnBoot = true
@@ -39,6 +40,12 @@ function getShortcutHandler(shortcut: Shortcut) {
           selectionService.toggleEnabled()
         }
       }
+    case 'selection_assistant_select_text':
+      return () => {
+        if (selectionService) {
+          selectionService.processSelectTextByShortcut()
+        }
+      }
     default:
       return null
   }
@@ -48,9 +55,8 @@ function formatShortcutKey(shortcut: string[]): string {
   return shortcut.join('+')
 }
 
-const convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat = (
-  shortcut: string | string[]
-): string => {
+// convert the shortcut recorded by keyboard event key value to electron global shortcut format
+const convertShortcutFormat = (shortcut: string | string[]): string => {
   const accelerator = (() => {
     if (Array.isArray(shortcut)) {
       return shortcut
@@ -140,7 +146,9 @@ export function registerShortcuts(window: BrowserWindow) {
         // only register universal shortcuts when needed
         if (
           onlyUniversalShortcuts &&
-          !['show_app', 'mini_window', 'selection_assistant_toggle'].includes(shortcut.key)
+          !['show_app', 'mini_window', 'selection_assistant_toggle', 'selection_assistant_select_text'].includes(
+            shortcut.key
+          )
         ) {
           return
         }
@@ -167,6 +175,10 @@ export function registerShortcuts(window: BrowserWindow) {
             selectionAssistantToggleAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
+          case 'selection_assistant_select_text':
+            selectionAssistantSelectTextAccelerator = formatShortcutKey(shortcut.shortcut)
+            break
+
           //the following ZOOMs will register shortcuts seperately, so will return
           case 'zoom_in':
             globalShortcut.register('CommandOrControl+=', () => handler(window))
@@ -183,9 +195,7 @@ export function registerShortcuts(window: BrowserWindow) {
             return
         }
 
-        const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
-          shortcut.shortcut
-        )
+        const accelerator = convertShortcutFormat(shortcut.shortcut)
 
         globalShortcut.register(accelerator, () => handler(window))
       } catch (error) {
@@ -202,23 +212,25 @@ export function registerShortcuts(window: BrowserWindow) {
 
       if (showAppAccelerator) {
         const handler = getShortcutHandler({ key: 'show_app' } as Shortcut)
-        const accelerator =
-          convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(showAppAccelerator)
+        const accelerator = convertShortcutFormat(showAppAccelerator)
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
 
       if (showMiniWindowAccelerator) {
         const handler = getShortcutHandler({ key: 'mini_window' } as Shortcut)
-        const accelerator =
-          convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(showMiniWindowAccelerator)
+        const accelerator = convertShortcutFormat(showMiniWindowAccelerator)
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
 
       if (selectionAssistantToggleAccelerator) {
         const handler = getShortcutHandler({ key: 'selection_assistant_toggle' } as Shortcut)
-        const accelerator = convertShortcutRecordedByKeyboardEventKeyValueToElectronGlobalShortcutFormat(
-          selectionAssistantToggleAccelerator
-        )
+        const accelerator = convertShortcutFormat(selectionAssistantToggleAccelerator)
+        handler && globalShortcut.register(accelerator, () => handler(window))
+      }
+
+      if (selectionAssistantSelectTextAccelerator) {
+        const handler = getShortcutHandler({ key: 'selection_assistant_select_text' } as Shortcut)
+        const accelerator = convertShortcutFormat(selectionAssistantSelectTextAccelerator)
         handler && globalShortcut.register(accelerator, () => handler(window))
       }
     } catch (error) {
@@ -247,6 +259,7 @@ export function unregisterAllShortcuts() {
     showAppAccelerator = null
     showMiniWindowAccelerator = null
     selectionAssistantToggleAccelerator = null
+    selectionAssistantSelectTextAccelerator = null
     windowOnHandlers.forEach((handlers, window) => {
       window.off('focus', handlers.onFocusHandler)
       window.off('blur', handlers.onBlurHandler)

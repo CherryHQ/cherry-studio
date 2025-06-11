@@ -1692,6 +1692,7 @@
         "key": "按鍵",
         "mini_window": "快捷助手",
         "selection_assistant_toggle": "開關劃詞助手",
+        "selection_assistant_select_text": "劃詞助手：取词",
         "new_topic": "新增話題",
         "press_shortcut": "按下快捷鍵",
         "reset_defaults": "重設預設快捷鍵",
@@ -1917,11 +1918,16 @@
         "toolbar": {
           "title": "工具列",
           "trigger_mode": {
-            "title": "觸發方式",
-            "description": "劃詞立即顯示工具列，或者劃詞後按住 Ctrl 鍵才顯示工具列。",
+            "title": "取詞方式",
+            "description": "劃詞後，觸發取詞並顯示工具列的方式",
             "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了AHK等工具對Ctrl鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
             "selected": "劃詞",
-            "ctrlkey": "Ctrl 鍵"
+            "selected_note": "劃詞後，立即顯示工具列",
+            "ctrlkey": "Ctrl 鍵",
+            "ctrlkey_note": "劃詞後，再 按住 Ctrl鍵，才顯示工具列",
+            "shortcut": "快捷鍵",
+            "shortcut_note": "劃詞後，使用快捷鍵顯示工具列。請在快捷鍵設定頁面中設置取詞快捷鍵並啟用。",
+            "shortcut_link": "前往快捷鍵設定"
           },
           "compact_mode": {
             "title": "緊湊模式",

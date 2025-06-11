@@ -40,6 +40,14 @@ const initialState: ShortcutsState = {
       system: true
     },
     {
+      //to select text with selection assistant
+      key: 'selection_assistant_select_text',
+      shortcut: [],
+      editable: true,
+      enabled: false,
+      system: true
+    },
+    {
       key: 'new_topic',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'N'],
       editable: true,
