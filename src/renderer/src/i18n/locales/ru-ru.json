@@ -1539,6 +1539,7 @@
       "models.add.model_id.select.placeholder": "Выберите модель",
       "models.add.model_id.tooltip": "Пример: gpt-3.5-turbo",
       "models.add.model_name": "Имя модели",
+      "models.add.model_name.tooltip": "Необязательно, например, GPT-4",
       "models.add.model_name.placeholder": "Необязательно, например, GPT-4",
       "models.check.all": "Все",
       "models.check.all_models_passed": "Все модели прошли проверку",

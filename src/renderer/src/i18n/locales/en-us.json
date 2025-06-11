@@ -1545,6 +1545,7 @@
       "models.add.model_id.select.placeholder": "Select Model",
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
+      "models.add.model_name.tooltip": "Optional e.g. GPT-4",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
       "models.check.all": "All",
       "models.check.all_models_passed": "All models check passed",
