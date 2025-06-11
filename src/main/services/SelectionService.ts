@@ -591,7 +591,7 @@ export class SelectionService {
    * it's a public method used by shortcut service
    */
   public processSelectTextByShortcut(): void {
-    if (!this.selectionHook || this.triggerMode !== TriggerMode.Shortcut) return
+    if (!this.selectionHook || !this.started || this.triggerMode !== TriggerMode.Shortcut) return
 
     const selectionData = this.selectionHook.getCurrentSelection()
 
@@ -1189,7 +1189,8 @@ export class SelectionService {
   }
 
   public writeToClipboard(text: string): boolean {
-    return this.selectionHook?.writeToClipboard(text) ?? false
+    if (!this.selectionHook || !this.started) return false
+    return this.selectionHook.writeToClipboard(text)
   }
 
   /**
