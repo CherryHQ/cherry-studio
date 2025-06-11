@@ -140,6 +140,8 @@ import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
 import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
+import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
+import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Assistant, Model } from '@renderer/types'
 import OpenAI from 'openai'
@@ -297,7 +299,7 @@ export function getModelLogo(modelId: string) {
     'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDakr,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
     deepseek: isLight ? DeepSeekModelLogo : DeepSeekModelLogoDark,
-    '(qwen|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
+    '(qwen|qwq|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
     gemma: isLight ? GemmaModelLogo : GemmaModelLogoDark,
     'yi-': isLight ? YiModelLogo : YiModelLogoDark,
     llama: isLight ? LlamaModelLogo : LlamaModelLogoDark,
@@ -376,12 +378,14 @@ export function getModelLogo(modelId: string) {
     'google/': isLight ? GoogleModelLogo : GoogleModelLogoDark,
     xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
+    youdao: YoudaoLogo,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     'bge-': BgeModelLogo,
     'voyage-': VoyageModelLogo,
-    tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark
+    tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
+    'nomic-': NomicLogo
   }
 
   for (const key in logoMap) {
@@ -395,6 +399,37 @@ export function getModelLogo(modelId: string) {
 }
 
 export const SYSTEM_MODELS: Record<string, Model[]> = {
+  defaultModel: [
+    {
+      // 默认助手模型
+      id: 'deepseek-ai/DeepSeek-V3',
+      name: 'deepseek-ai/DeepSeek-V3',
+      provider: 'silicon',
+      group: 'deepseek-ai'
+    },
+    {
+      // 默认话题命名模型
+      id: 'Qwen/Qwen3-8B',
+      name: 'Qwen/Qwen3-8B',
+      provider: 'silicon',
+      group: 'Qwen'
+    },
+    {
+      // 默认翻译模型
+      id: 'deepseek-ai/DeepSeek-V3',
+      name: 'deepseek-ai/DeepSeek-V3',
+      provider: 'silicon',
+      group: 'deepseek-ai'
+    },
+    {
+      // 默认快捷助手模型
+      id: 'deepseek-ai/DeepSeek-V3',
+      name: 'deepseek-ai/DeepSeek-V3',
+      provider: 'silicon',
+      group: 'deepseek-ai'
+    }
+  ],
+
   aihubmix: [
     {
       id: 'gpt-4o',
@@ -601,16 +636,16 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     },
     {
-      id: 'meta-llama/Llama-3.3-70B-Instruct',
-      name: 'meta-llama/Llama-3.3-70B-Instruct',
-      provider: 'silicon',
-      group: 'meta-llama'
-    },
-    {
       id: 'BAAI/bge-m3',
       name: 'BAAI/bge-m3',
       provider: 'silicon',
       group: 'BAAI'
+    },
+    {
+      id: 'Qwen/Qwen3-8B',
+      name: 'Qwen/Qwen3-8B',
+      provider: 'silicon',
+      group: 'Qwen'
     }
   ],
   ppio: [
@@ -1348,15 +1383,39 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   grok: [
     {
-      id: 'grok-beta',
+      id: 'grok-3',
       provider: 'grok',
-      name: 'Grok Beta',
+      name: 'Grok 3',
       group: 'Grok'
     },
     {
-      id: 'grok-vision-beta',
+      id: 'grok-3-fast',
       provider: 'grok',
-      name: 'Grok Vision Beta',
+      name: 'Grok 3 Fast',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-3-mini',
+      provider: 'grok',
+      name: 'Grok 3 Mini',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-3-mini-fast',
+      provider: 'grok',
+      name: 'Grok 3 Mini Fast',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-2-vision-1212',
+      provider: 'grok',
+      name: 'Grok 2 Vision 1212',
+      group: 'Grok'
+    },
+    {
+      id: 'grok-2-1212',
+      provider: 'grok',
+      name: 'Grok 2 1212',
       group: 'Grok'
     }
   ],
@@ -1683,24 +1742,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'ERNIE-Speed-128K',
       provider: 'dmxapi',
       name: 'ERNIE-Speed-128K',
-      group: '免费模型'
-    },
-    {
-      id: 'THUDM/glm-4-9b-chat',
-      provider: 'dmxapi',
-      name: 'THUDM/glm-4-9b-chat',
-      group: '免费模型'
-    },
-    {
-      id: 'glm-4-flash',
-      provider: 'dmxapi',
-      name: 'glm-4-flash',
-      group: '免费模型'
-    },
-    {
-      id: 'hunyuan-lite',
-      provider: 'dmxapi',
-      name: 'hunyuan-lite',
       group: '免费模型'
     },
     {
@@ -2315,7 +2356,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   return (
-    model.id.toLowerCase().includes('qwen3') ||
+    model.id.toLowerCase().startsWith('qwen3') ||
+    model.id.toLowerCase().startsWith('qwen/qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2606,7 +2648,8 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
-  'gemini-.*$': { min: 0, max: 24576 },
+  'gemini-.*-flash.*$': { min: 0, max: 24576 },
+  'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
   // Qwen models
   'qwen-plus-.*$': { min: 0, max: 38912 },

@@ -14,6 +14,7 @@ import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { INITIAL_PROVIDERS, initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
+import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { defaultWebSearchProviders } from './websearch'
 
@@ -81,6 +82,17 @@ function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchPr
       state.websearch.providers[index] = {
         ...state.websearch.providers[index],
         ...provider
+      }
+    }
+  }
+}
+
+function addSelectionAction(state: RootState, id: string) {
+  if (state.selectionStore && state.selectionStore.actionItems) {
+    if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
+      const action = defaultActionItems.find((item) => item.id === id)
+      if (action) {
+        state.selectionStore.actionItems.push(action)
       }
     }
   }
@@ -1484,6 +1496,33 @@ const migrateConfig = {
     }
   },
   '110': (state: RootState) => {
+    try {
+      if (state.paintings && !state.paintings.tokenFluxPaintings) {
+        state.paintings.tokenFluxPaintings = []
+      }
+      state.settings.showTokens = true
+      state.settings.earlyAccess = false
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '111': (state: RootState) => {
+    try {
+      addSelectionAction(state, 'quote')
+      if (
+        state.llm.translateModel.provider === 'silicon' &&
+        state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct'
+      ) {
+        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
+      }
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '112': (state: RootState) => {
     try {
       addProvider(state, 'vertexai')
       state.llm.providers = moveProvider(state.llm.providers, 'vertexai', 10)

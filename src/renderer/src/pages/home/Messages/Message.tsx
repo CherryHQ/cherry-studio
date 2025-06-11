@@ -7,6 +7,7 @@ import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
+import { estimateMessageUsage } from '@renderer/services/TokenService'
 import { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
@@ -20,7 +21,6 @@ import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenubar from './MessageMenubar'
-import MessageTokens from './MessageTokens'
 
 interface Props {
   message: Message
@@ -28,7 +28,6 @@ interface Props {
   assistant?: Assistant
   index?: number
   total?: number
-  hidePresetMessages?: boolean
   hideMenuBar?: boolean
   style?: React.CSSProperties
   isGrouped?: boolean
@@ -41,7 +40,6 @@ const MessageItem: FC<Props> = ({
   topic,
   // assistant,
   index,
-  hidePresetMessages,
   hideMenuBar = false,
   isGrouped,
   isStreaming = false,
@@ -52,7 +50,7 @@ const MessageItem: FC<Props> = ({
   const model = useModel(getMessageModelId(message), message.model?.provider) || message.model
   const { isBubbleStyle } = useMessageStyle()
   const { showMessageDivider, messageFont, fontSize, narrowMode, messageStyle } = useSettings()
-  const { editMessageBlocks, resendUserMessageWithEdit } = useMessageOperations(topic)
+  const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
   const isEditing = editingMessageId === message.id
@@ -69,14 +67,15 @@ const MessageItem: FC<Props> = ({
   const handleEditSave = useCallback(
     async (blocks: MessageBlock[]) => {
       try {
-        console.log('after save blocks', blocks)
         await editMessageBlocks(message.id, blocks)
+        const usage = await estimateMessageUsage(message)
+        editMessage(message.id, { usage: usage })
         stopEditing()
       } catch (error) {
         console.error('Failed to save message blocks:', error)
       }
     },
-    [message, editMessageBlocks, stopEditing]
+    [message, editMessageBlocks, stopEditing, editMessage]
   )
 
   const handleEditResend = useCallback(
@@ -99,7 +98,7 @@ const MessageItem: FC<Props> = ({
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
-  const messageBorder = showMessageDivider ? undefined : 'none'
+  const messageBorder = !isBubbleStyle && showMessageDivider ? '1px dotted var(--color-border)' : 'none'
   const messageBackground = getMessageBackground(isBubbleStyle, isAssistantMessage)
 
   const messageHighlightHandler = useCallback((highlight: boolean = true) => {
@@ -120,10 +119,6 @@ const MessageItem: FC<Props> = ({
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
 
-  if (hidePresetMessages && message.isPreset) {
-    return null
-  }
-
   if (message.type === 'clear') {
     return (
       <NewContextMessage className="clear-context-divider" onClick={() => EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)}>
@@ -131,22 +126,6 @@ const MessageItem: FC<Props> = ({
           {t('chat.message.new.context')}
         </Divider>
       </NewContextMessage>
-    )
-  }
-
-  if (isEditing) {
-    return (
-      <MessageContainer style={{ paddingTop: 15 }}>
-        <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
-        <div style={{ paddingLeft: messageStyle === 'plain' ? 46 : undefined }}>
-          <MessageEditor
-            message={message}
-            onSave={handleEditSave}
-            onResend={handleEditResend}
-            onCancel={handleEditCancel}
-          />
-        </div>
-      </MessageContainer>
     )
   }
 
@@ -159,35 +138,100 @@ const MessageItem: FC<Props> = ({
         'message-user': !isAssistantMessage
       })}
       ref={messageContainerRef}
-      style={{ ...style, alignItems: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined }}>
-      <ContextMenu>
-        <MessageHeader message={message} assistant={assistant} model={model} key={getModelUniqId(model)} />
-        <MessageContentContainer
-          className={
-            message.role === 'user'
-              ? 'message-content-container message-content-container-user'
-              : message.role === 'assistant'
-                ? 'message-content-container message-content-container-assistant'
-                : 'message-content-container'
-          }
+      style={{
+        ...style,
+        justifyContent: isBubbleStyle ? (isAssistantMessage ? 'flex-start' : 'flex-end') : undefined,
+        flex: isBubbleStyle ? undefined : 1
+      }}>
+      {isEditing && (
+        <ContextMenu
           style={{
-            fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-            fontSize,
-            background: messageBackground,
-            overflowY: 'visible',
-            maxWidth: narrowMode ? 760 : undefined
+            display: 'flex',
+            flexDirection: 'column',
+            alignSelf: isAssistantMessage ? 'flex-start' : 'flex-end',
+            width: isBubbleStyle ? '70%' : '100%'
           }}>
-          <MessageErrorBoundary>
-            <MessageContent message={message} />
-          </MessageErrorBoundary>
-          {showMenubar && (
+          <MessageHeader
+            message={message}
+            assistant={assistant}
+            model={model}
+            key={getModelUniqId(model)}
+            index={index}
+          />
+          <div style={{ paddingLeft: messageStyle === 'plain' ? 46 : undefined }}>
+            <MessageEditor
+              message={message}
+              onSave={handleEditSave}
+              onResend={handleEditResend}
+              onCancel={handleEditCancel}
+            />
+          </div>
+        </ContextMenu>
+      )}
+      {!isEditing && (
+        <ContextMenu
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignSelf: isAssistantMessage ? 'flex-start' : 'flex-end',
+            flex: 1,
+            maxWidth: '100%'
+          }}>
+          <MessageHeader
+            message={message}
+            assistant={assistant}
+            model={model}
+            key={getModelUniqId(model)}
+            index={index}
+          />
+          <MessageContentContainer
+            className={
+              message.role === 'user'
+                ? 'message-content-container message-content-container-user'
+                : message.role === 'assistant'
+                  ? 'message-content-container message-content-container-assistant'
+                  : 'message-content-container'
+            }
+            style={{
+              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+              fontSize,
+              background: messageBackground,
+              overflowY: 'visible',
+              maxWidth: narrowMode ? 760 : undefined,
+              alignSelf: isBubbleStyle ? (isAssistantMessage ? 'start' : 'end') : undefined
+            }}>
+            <MessageErrorBoundary>
+              <MessageContent message={message} />
+            </MessageErrorBoundary>
+            {showMenubar && !isBubbleStyle && (
+              <MessageFooter
+                className="MessageFooter"
+                style={{
+                  borderTop: messageBorder,
+                  flexDirection: !isLastMessage ? 'row-reverse' : undefined
+                }}>
+                <MessageMenubar
+                  message={message}
+                  assistant={assistant}
+                  model={model}
+                  index={index}
+                  topic={topic}
+                  isLastMessage={isLastMessage}
+                  isAssistantMessage={isAssistantMessage}
+                  isGrouped={isGrouped}
+                  messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+                  setModel={setModel}
+                />
+              </MessageFooter>
+            )}
+          </MessageContentContainer>
+          {showMenubar && isBubbleStyle && (
             <MessageFooter
               className="MessageFooter"
               style={{
-                border: messageBorder,
-                flexDirection: isLastMessage || isBubbleStyle ? 'row-reverse' : undefined
+                borderTop: messageBorder,
+                flexDirection: !isAssistantMessage ? 'row-reverse' : undefined
               }}>
-              <MessageTokens message={message} isLastMessage={isLastMessage} />
               <MessageMenubar
                 message={message}
                 assistant={assistant}
@@ -202,8 +246,8 @@ const MessageItem: FC<Props> = ({
               />
             </MessageFooter>
           )}
-        </MessageContentContainer>
-      </ContextMenu>
+        </ContextMenu>
+      )}
     </MessageContainer>
   )
 }
@@ -218,7 +262,7 @@ const getMessageBackground = (isBubbleStyle: boolean, isAssistantMessage: boolea
 
 const MessageContainer = styled.div`
   display: flex;
-  flex-direction: column;
+  width: 100%;
   position: relative;
   transition: background-color 0.3s ease;
   padding: 0 20px;
@@ -261,12 +305,12 @@ const MessageFooter = styled.div`
   align-items: center;
   padding: 2px 0;
   margin-top: 2px;
-  border-top: 1px dotted var(--color-border);
   gap: 20px;
 `
 
 const NewContextMessage = styled.div`
   cursor: pointer;
+  flex: 1;
 `
 
 export default memo(MessageItem)

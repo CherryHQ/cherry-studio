@@ -5,6 +5,8 @@ import { RootState, useAppDispatch } from '@renderer/store'
 import {
   setForceDollarMathInMarkdown,
   setmarkdownExportPath,
+  setShowModelNameInMarkdown,
+  setShowModelProviderInMarkdown,
   setUseTopicNamingForMessageTitle
 } from '@renderer/store/settings'
 import { Button, Switch } from 'antd'
@@ -23,6 +25,8 @@ const MarkdownExportSettings: FC = () => {
   const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)
   const forceDollarMathInMarkdown = useSelector((state: RootState) => state.settings.forceDollarMathInMarkdown)
   const useTopicNamingForMessageTitle = useSelector((state: RootState) => state.settings.useTopicNamingForMessageTitle)
+  const showModelNameInExport = useSelector((state: RootState) => state.settings.showModelNameInMarkdown)
+  const showModelProviderInMarkdown = useSelector((state: RootState) => state.settings.showModelProviderInMarkdown)
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
@@ -41,6 +45,14 @@ const MarkdownExportSettings: FC = () => {
 
   const handleToggleTopicNaming = (checked: boolean) => {
     dispatch(setUseTopicNamingForMessageTitle(checked))
+  }
+
+  const handleToggleShowModelName = (checked: boolean) => {
+    dispatch(setShowModelNameInMarkdown(checked))
+  }
+
+  const handleToggleShowModelProvider = (checked: boolean) => {
+    dispatch(setShowModelProviderInMarkdown(checked))
   }
 
   return (
@@ -85,6 +97,22 @@ const MarkdownExportSettings: FC = () => {
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.message_title.use_topic_naming.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.markdown_export.show_model_name.title')}</SettingRowTitle>
+        <Switch checked={showModelNameInExport} onChange={handleToggleShowModelName} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.markdown_export.show_model_name.help')}</SettingHelpText>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.markdown_export.show_model_provider.title')}</SettingRowTitle>
+        <Switch checked={showModelProviderInMarkdown} onChange={handleToggleShowModelProvider} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.markdown_export.show_model_provider.help')}</SettingHelpText>
       </SettingRow>
     </SettingGroup>
   )

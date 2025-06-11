@@ -5,8 +5,15 @@ import EmbeddingsFactory from './EmbeddingsFactory'
 
 export default class Embeddings {
   private sdk: BaseEmbeddings
-  constructor({ model, apiKey, apiVersion, baseURL, dimensions }: KnowledgeBaseParams) {
-    this.sdk = EmbeddingsFactory.create({ model, apiKey, apiVersion, baseURL, dimensions } as KnowledgeBaseParams)
+  constructor({ model, provider, apiKey, apiVersion, baseURL, dimensions }: KnowledgeBaseParams) {
+    this.sdk = EmbeddingsFactory.create({
+      model,
+      provider,
+      apiKey,
+      apiVersion,
+      baseURL,
+      dimensions
+    } as KnowledgeBaseParams)
   }
   public async init(): Promise<void> {
     return this.sdk.init()

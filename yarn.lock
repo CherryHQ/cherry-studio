@@ -654,6 +654,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@cherrystudio/embedjs-ollama@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-ollama@npm:0.1.31"
+  dependencies:
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@langchain/core": "npm:^0.3.26"
+    "@langchain/ollama": "npm:^0.1.4"
+    debug: "npm:^4.4.0"
+  checksum: 10c0/7ac807aca5a99dccc2d2bfc8245c9b9c5184c7b0b48f1ea4d3367a2175a8978c5cbc425614e1851074cffd93ffbb31350e4e567de308aa5100a6a2cbd795813f
+  languageName: node
+  linkType: hard
+
 "@cherrystudio/embedjs-openai@npm:^0.1.31":
   version: 0.1.31
   resolution: "@cherrystudio/embedjs-openai@npm:0.1.31"
@@ -2628,6 +2640,34 @@ __metadata:
     zod: "npm:^3.22.4"
     zod-to-json-schema: "npm:^3.22.3"
   checksum: 10c0/7002581999230bc6fbdb6c2fad0eda2c1ca93a7629e28eadf1501dd0a7f785010d6b3e7841148ced186fc0fb4a84ec5f3b75850985579610e222943cc57e1649
+  languageName: node
+  linkType: hard
+
+"@langchain/ollama@npm:^0.1.4":
+  version: 0.1.6
+  resolution: "@langchain/ollama@npm:0.1.6"
+  dependencies:
+    ollama: "npm:^0.5.12"
+    uuid: "npm:^10.0.0"
+    zod: "npm:^3.24.1"
+    zod-to-json-schema: "npm:^3.24.1"
+  peerDependencies:
+    "@langchain/core": ">=0.2.21 <0.4.0"
+  checksum: 10c0/535f2f4304edf125d0133a80fcb7657c5ffcab3c180e3ea69ce171c7a5fadb220b0d00c3bb7523bbe4f2f56663e0dd59cd19e19adadf0091c800b9ddca17ed3b
+  languageName: node
+  linkType: hard
+
+"@langchain/ollama@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@langchain/ollama@npm:0.2.1"
+  dependencies:
+    ollama: "npm:^0.5.12"
+    uuid: "npm:^10.0.0"
+    zod: "npm:^3.24.1"
+    zod-to-json-schema: "npm:^3.24.1"
+  peerDependencies:
+    "@langchain/core": ">=0.2.21 <0.4.0"
+  checksum: 10c0/be3083a15e879f2c19d0a51aafb88a3ba4ea69f9fdd90e6069b84edd92649c00a29a34cb885746e099f5cab0791b55df3776cd582cba7de299b8bd574d32b8c1
   languageName: node
   linkType: hard
 
@@ -5558,6 +5598,7 @@ __metadata:
     "@cherrystudio/embedjs-loader-sitemap": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-web": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-xml": "npm:^0.1.31"
+    "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
@@ -5572,6 +5613,7 @@ __metadata:
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
+    "@langchain/ollama": "npm:^0.2.1"
     "@modelcontextprotocol/sdk": "npm:^1.11.4"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
@@ -5635,7 +5677,7 @@ __metadata:
     eslint-plugin-unused-imports: "npm:^4.1.4"
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
-    franc: "npm:^6.2.0"
+    franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
     google-auth-library: "npm:^9.15.1"
     html-to-image: "npm:^1.11.13"
@@ -5654,7 +5696,7 @@ __metadata:
     node-stream-zip: "npm:^1.15.0"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
-    openai: "patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch"
+    openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     playwright: "npm:^1.52.0"
@@ -5682,7 +5724,7 @@ __metadata:
     remark-math: "npm:^6.0.0"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.19"
+    selection-hook: "npm:^0.9.23"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
@@ -9835,12 +9877,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"franc@npm:^6.2.0":
+"franc-min@npm:^6.2.0":
   version: 6.2.0
-  resolution: "franc@npm:6.2.0"
+  resolution: "franc-min@npm:6.2.0"
   dependencies:
     trigram-utils: "npm:^2.0.0"
-  checksum: 10c0/136a08d6e4632f17eae6f0ae93b224b0bf2233dc1d5dbd0b23e479960f6c71c0847bef834d3b6b7c9cefb4f905d5e08fc82b0738bb3ed4a6c83faffcf9fa2a11
+  checksum: 10c0/21c243982b713a7726ffdb185415636c63711e7267be301b6d0607e3533f76771f2396091d9f1ca017f98357e4aa885c0cf4a2c0f90012e138f741cd9cfb5e45
   languageName: node
   linkType: hard
 
@@ -13925,6 +13967,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ollama@npm:^0.5.12":
+  version: 0.5.16
+  resolution: "ollama@npm:0.5.16"
+  dependencies:
+    whatwg-fetch: "npm:^3.6.20"
+  checksum: 10c0/901f9dac5692447219b3a48dcb9ad4f7da292a8ddbbbf429482cdde56e787a8a37123f3df18957733b8990f70b67fd05eb13b9bb17bd029eb6597d5b36345d7a
+  languageName: node
+  linkType: hard
+
 "on-finished@npm:^2.4.1":
   version: 2.4.1
   resolution: "on-finished@npm:2.4.1"
@@ -14008,17 +14059,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"openai@npm:4.96.0":
-  version: 4.96.0
-  resolution: "openai@npm:4.96.0"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
+"openai@npm:5.1.0":
+  version: 5.1.0
+  resolution: "openai@npm:5.1.0"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -14029,21 +14072,13 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/d4c3fa76374730c856f774e07f375b51041b8e8429ae2cbd8605b168bf81673017f5dd1c0e42419ca54d8d3fd7cd93d57830d6bc6b9dcd317e70109018d599ea
+  checksum: 10c0/d5882c95f95bfc4127ccbe494d298f43fe56cd3a9fd5711d1f02a040cfa6cdcc1e706ffe05f3d428421ec4caa526fe1b5ff50e1849dbfb3016d289853262ea3d
   languageName: node
   linkType: hard
 
-"openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch":
-  version: 4.96.0
-  resolution: "openai@patch:openai@npm%3A4.96.0#~/.yarn/patches/openai-npm-4.96.0-0665b05cb9.patch::version=4.96.0&hash=6bc976"
-  dependencies:
-    "@types/node": "npm:^18.11.18"
-    "@types/node-fetch": "npm:^2.6.4"
-    abort-controller: "npm:^3.0.0"
-    agentkeepalive: "npm:^4.2.1"
-    form-data-encoder: "npm:1.7.2"
-    formdata-node: "npm:^4.3.2"
-    node-fetch: "npm:^2.6.7"
+"openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch":
+  version: 5.1.0
+  resolution: "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch::version=5.1.0&hash=7d7491"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -14054,7 +14089,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/e50e4b9b60e94fadaca541cf2c36a12c55221555dd2ce977738e13978b7187504263f2e31b4641f2b6e70fce562b4e1fa2affd68caeca21248ddfa8847eeb003
+  checksum: 10c0/e7d2429887d0060cf9d8cd2c04640f759b55bffab696b3e926e510357af1b5f5b3bcf55d0e0dbe2282da8438a61fd75259847899db289d1e18ff0798b2450344
   languageName: node
   linkType: hard
 
@@ -16415,13 +16450,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.19":
-  version: 0.9.19
-  resolution: "selection-hook@npm:0.9.19"
+"selection-hook@npm:^0.9.23":
+  version: 0.9.23
+  resolution: "selection-hook@npm:0.9.23"
   dependencies:
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/e90889b5b76e96b45a7c04429621346b5296e41d821e57b72178e6f93e622298288cd9586bd79273320fd26f98cc7ffb44496e0b66430b6dfcdc9b875c2c0d3f
+  checksum: 10c0/3b91193814c063e14dd788cff3b27020821bbeae24eab106d2ce5bf600c034c1b3db96ce573c456b74d0553346dfcf4c7cc8d49386a22797b42667f7ed3eee01
   languageName: node
   linkType: hard
 
@@ -18473,6 +18508,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"whatwg-fetch@npm:^3.6.20":
+  version: 3.6.20
+  resolution: "whatwg-fetch@npm:3.6.20"
+  checksum: 10c0/fa972dd14091321d38f36a4d062298df58c2248393ef9e8b154493c347c62e2756e25be29c16277396046d6eaa4b11bd174f34e6403fff6aaca9fb30fa1ff46d
+  languageName: node
+  linkType: hard
+
 "whatwg-mimetype@npm:^4.0.0":
   version: 4.0.0
   resolution: "whatwg-mimetype@npm:4.0.0"
@@ -18840,6 +18882,13 @@ __metadata:
   version: 3.24.2
   resolution: "zod@npm:3.24.2"
   checksum: 10c0/c638c7220150847f13ad90635b3e7d0321b36cce36f3fc6050ed960689594c949c326dfe2c6fa87c14b126ee5d370ccdebd6efb304f41ef5557a4aaca2824565
+  languageName: node
+  linkType: hard
+
+"zod@npm:^3.24.1":
+  version: 3.25.56
+  resolution: "zod@npm:3.25.56"
+  checksum: 10c0/3800f01d4b1df932b91354eb1e648f69cc7e5561549e6d2bf83827d930a5f33bbf92926099445f6fc1ebb64ca9c6513ef9ae5e5409cfef6325f354bcf6fc9a24
   languageName: node
   linkType: hard
 

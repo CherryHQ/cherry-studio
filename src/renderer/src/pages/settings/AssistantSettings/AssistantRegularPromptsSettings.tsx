@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuidv4 } from 'uuid'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '..'
+import { SettingDivider, SettingRow, SettingTitle } from '..'
 
 const { TextArea } = Input
 
@@ -79,52 +79,50 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
   const reversedPrompts = [...promptsList].reverse()
 
   return (
-    <SettingContainer style={{ padding: 0, background: '#0000' }}>
-      <SettingGroup style={{ marginBottom: 0, padding: 0, border: 'none' }}>
-        <SettingTitle>
-          {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
-          <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
-        </SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <StyledPromptList>
-            <DragableList
-              list={reversedPrompts}
-              onUpdate={(newPrompts) => handleUpdateOrder([...newPrompts].reverse())}
-              style={{ paddingBottom: dragging ? '34px' : 0 }}
-              onDragStart={() => setDragging(true)}
-              onDragEnd={() => setDragging(false)}>
-              {(prompt) => (
-                <FileItem
-                  key={prompt.id}
-                  fileInfo={{
-                    name: prompt.title,
-                    ext: '.txt',
-                    extra: prompt.content,
-                    actions: (
-                      <Flex gap={4} style={{ opacity: 0.6 }}>
-                        <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(prompt)} />
-                        <Popconfirm
-                          title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
-                          description={t(
-                            'assistants.settings.regular_phrases.deleteConfirm',
-                            'Are you sure to delete this prompt?'
-                          )}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={() => handleDelete(prompt.id)}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          <Button key="delete" type="text" danger icon={<DeleteOutlined />} />
-                        </Popconfirm>
-                      </Flex>
-                    )
-                  }}
-                />
-              )}
-            </DragableList>
-          </StyledPromptList>
-        </SettingRow>
-      </SettingGroup>
+    <Container>
+      <SettingTitle>
+        {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
+        <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
+      </SettingTitle>
+      <SettingDivider />
+      <SettingRow>
+        <StyledPromptList>
+          <DragableList
+            list={reversedPrompts}
+            onUpdate={(newPrompts) => handleUpdateOrder([...newPrompts].reverse())}
+            style={{ paddingBottom: dragging ? '34px' : 0 }}
+            onDragStart={() => setDragging(true)}
+            onDragEnd={() => setDragging(false)}>
+            {(prompt) => (
+              <FileItem
+                key={prompt.id}
+                fileInfo={{
+                  name: prompt.title,
+                  ext: '.txt',
+                  extra: prompt.content,
+                  actions: (
+                    <Flex gap={4} style={{ opacity: 0.6 }}>
+                      <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => handleEdit(prompt)} />
+                      <Popconfirm
+                        title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
+                        description={t(
+                          'assistants.settings.regular_phrases.deleteConfirm',
+                          'Are you sure to delete this prompt?'
+                        )}
+                        okText={t('common.confirm')}
+                        cancelText={t('common.cancel')}
+                        onConfirm={() => handleDelete(prompt.id)}
+                        icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
+                        <Button key="delete" type="text" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    </Flex>
+                  )
+                }}
+              />
+            )}
+          </DragableList>
+        </StyledPromptList>
+      </SettingRow>
 
       <Modal
         title={
@@ -159,9 +157,15 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
           </div>
         </Space>
       </Modal>
-    </SettingContainer>
+    </Container>
   )
 }
+
+const Container = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+`
 
 const Label = styled.div`
   font-size: 14px;
@@ -171,8 +175,6 @@ const Label = styled.div`
 
 const StyledPromptList = styled.div`
   width: 100%;
-  height: calc(100vh - 162px); // Adjusted height to match other settings pages
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 8px;

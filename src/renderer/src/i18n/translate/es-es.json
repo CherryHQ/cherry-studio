@@ -8,18 +8,13 @@
       "add.name.placeholder": "Ingrese el nombre",
       "add.prompt": "Palabra clave",
       "add.prompt.placeholder": "Ingrese la palabra clave",
+      "add.prompt.variables.tip": {
+        "title": "Variables disponibles",
+        "content": "{{date}}:\tFecha\n{{time}}:\tHora\n{{datetime}}:\tFecha y hora\n{{system}}:\tSistema operativo\n{{arch}}:\tArquitectura de CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNombre del modelo"
+      },
       "add.title": "Crear agente inteligente",
       "delete.popup.content": "¿Está seguro de que desea eliminar este agente inteligente?",
-      "edit.message.add.title": "Agregar",
-      "edit.message.assistant.placeholder": "Ingrese el mensaje del asistente",
-      "edit.message.assistant.title": "Asistente",
-      "edit.message.empty.content": "El contenido de la sesión de chat no puede estar vacío",
-      "edit.message.group.title": "Grupo de mensajes",
-      "edit.message.title": "Mensaje predeterminado",
-      "edit.message.user.placeholder": "Ingrese el mensaje del usuario",
-      "edit.message.user.title": "Usuario",
       "edit.model.select.title": "Seleccionar modelo",
-      "edit.settings.hide_preset_messages": "Ocultar mensajes predeterminados",
       "edit.title": "Editar agente inteligente",
       "manage.title": "Administrar agentes inteligentes",
       "my_agents": "Mis agentes inteligentes",
@@ -64,7 +59,6 @@
       "settings.default_model": "Modelo Predeterminado",
       "settings.knowledge_base": "Configuración de Base de Conocimientos",
       "settings.model": "Configuración de Modelo",
-      "settings.preset_messages": "Mensajes Preestablecidos",
       "settings.prompt": "Configuración de Palabras Clave",
       "settings.reasoning_effort": "Longitud de Cadena de Razonamiento",
       "settings.reasoning_effort.high": "Largo",
@@ -558,6 +552,7 @@
       "error.enter.api.key": "Ingrese su clave API",
       "error.enter.model": "Seleccione un modelo",
       "error.enter.name": "Ingrese el nombre de la base de conocimiento",
+      "error.fetchTopicName": "Error al nombrar el tema",
       "error.get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "error.invalid.api.host": "Dirección API inválida",
       "error.invalid.api.key": "Clave API inválida",
@@ -1304,6 +1299,7 @@
         "advancedSettings": "Configuración avanzada"
       },
       "messages.divider": "Separador de mensajes",
+      "messages.divider.tooltip": "No aplicable para mensajes de estilo burbuja",
       "messages.grid_columns": "Número de columnas en la cuadrícula de mensajes",
       "messages.grid_popover_trigger": "Desencadenante de detalles de cuadrícula",
       "messages.grid_popover_trigger.click": "Mostrar al hacer clic",
@@ -1656,6 +1652,13 @@
       "quit": "Salir",
       "show_window": "Mostrar Ventana",
       "visualization": "Visualización"
+    },
+    "update": {
+      "title": "Actualización",
+      "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
+      "later": "Más tarde",
+      "install": "Instalar",
+      "noReleaseNotes": "Sin notas de la versión"
     }
   }
 }

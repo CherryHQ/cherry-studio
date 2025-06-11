@@ -5,6 +5,7 @@ import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -16,10 +17,10 @@ import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import {
   exportMarkdownToJoplin,
-  exportMarkdownToNotion,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
@@ -66,6 +67,9 @@ const MessageMenubar: FC<Props> = (props) => {
     appendAssistantResponse,
     removeMessageBlock
   } = useMessageOperations(topic)
+
+  const { isBubbleStyle } = useMessageStyle()
+
   const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
@@ -244,7 +248,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMarkdownToNotion(title, markdown)
+              exportMessageToNotion(title, markdown, message)
             }
           },
           exportMenuOptions.yuque && {
@@ -260,9 +264,8 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.obsidian'),
             key: 'obsidian',
             onClick: async () => {
-              const markdown = messageToMarkdown(message)
               const title = topic.name?.replace(/\//g, '_') || 'Untitled'
-              await ObsidianExportPopup.show({ title, markdown, processingMethod: '1' })
+              await ObsidianExportPopup.show({ title, message, processingMethod: '1' })
             }
           },
           exportMenuOptions.joplin && {
@@ -270,8 +273,7 @@ const MessageMenubar: FC<Props> = (props) => {
             key: 'joplin',
             onClick: async () => {
               const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMarkdownToJoplin(title, markdown)
+              exportMarkdownToJoplin(title, message)
             }
           },
           exportMenuOptions.siyuan && {
@@ -334,24 +336,29 @@ const MessageMenubar: FC<Props> = (props) => {
     return translationBlocks.length > 0
   }, [message])
 
+  const softHoverBg = isBubbleStyle && !isLastMessage
+
   return (
     <MenusBar className={`menubar ${isLastMessage && 'show'}`}>
       {message.role === 'user' && (
         <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={() => handleResendUserMessage()}>
+          <ActionButton
+            className="message-action-button"
+            onClick={() => handleResendUserMessage()}
+            $softHoverBg={isBubbleStyle}>
             <SyncOutlined />
           </ActionButton>
         </Tooltip>
       )}
       {message.role === 'user' && (
         <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onEdit}>
+          <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
             <EditOutlined />
           </ActionButton>
         </Tooltip>
       )}
       <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
-        <ActionButton className="message-action-button" onClick={onCopy}>
+        <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
           {!copied && <Copy size={16} />}
           {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
         </ActionButton>
@@ -368,7 +375,7 @@ const MessageMenubar: FC<Props> = (props) => {
             mouseEnterDelay={0.8}
             open={showRegenerateTooltip}
             onOpenChange={setShowRegenerateTooltip}>
-            <ActionButton className="message-action-button">
+            <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
               <RefreshCw size={16} />
             </ActionButton>
           </Tooltip>
@@ -376,7 +383,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       {isAssistantMessage && (
         <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onMentionModel}>
+          <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
             <AtSign size={16} />
           </ActionButton>
         </Tooltip>
@@ -384,6 +391,10 @@ const MessageMenubar: FC<Props> = (props) => {
       {!isUserMessage && (
         <Dropdown
           menu={{
+            style: {
+              maxHeight: 250,
+              overflowY: 'auto'
+            },
             items: [
               ...TranslateLanguageOptions.map((item) => ({
                 label: item.emoji + ' ' + item.label,
@@ -439,10 +450,13 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: (e) => e.domEvent.stopPropagation()
           }}
           trigger={['click']}
-          placement="topRight"
+          placement="top"
           arrow>
           <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
-            <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+            <ActionButton
+              className="message-action-button"
+              onClick={(e) => e.stopPropagation()}
+              $softHoverBg={softHoverBg}>
               <Languages size={16} />
             </ActionButton>
           </Tooltip>
@@ -450,7 +464,7 @@ const MessageMenubar: FC<Props> = (props) => {
       )}
       {isAssistantMessage && isGrouped && (
         <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={onUseful}>
+          <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
             {message.useful ? (
               <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
             ) : (
@@ -465,7 +479,7 @@ const MessageMenubar: FC<Props> = (props) => {
         icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
         onOpenChange={(open) => open && setShowDeleteTooltip(false)}
         onConfirm={() => deleteMessage(message.id)}>
-        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+        <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()} $softHoverBg={softHoverBg}>
           <Tooltip
             title={t('common.delete')}
             mouseEnterDelay={1}
@@ -481,7 +495,10 @@ const MessageMenubar: FC<Props> = (props) => {
           trigger={['click']}
           placement="topRight"
           arrow>
-          <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
+          <ActionButton
+            className="message-action-button"
+            onClick={(e) => e.stopPropagation()}
+            $softHoverBg={softHoverBg}>
             <Menu size={19} />
           </ActionButton>
         </Dropdown>
@@ -498,7 +515,7 @@ const MenusBar = styled.div`
   gap: 6px;
 `
 
-const ActionButton = styled.div`
+const ActionButton = styled.div<{ $softHoverBg?: boolean }>`
   cursor: pointer;
   border-radius: 8px;
   display: flex;
@@ -509,8 +526,11 @@ const ActionButton = styled.div`
   height: 30px;
   transition: all 0.2s ease;
   &:hover {
-    background-color: var(--color-background-mute);
-    .anticon {
+    background-color: ${(props) =>
+      props.$softHoverBg ? 'var(--color-background-soft)' : 'var(--color-background-mute)'};
+    color: var(--color-text-1);
+    .anticon,
+    .lucide {
       color: var(--color-text-1);
     }
   }
@@ -519,9 +539,6 @@ const ActionButton = styled.div`
     cursor: pointer;
     font-size: 14px;
     color: var(--color-icon);
-  }
-  &:hover {
-    color: var(--color-text-1);
   }
   .icon-at {
     font-size: 16px;

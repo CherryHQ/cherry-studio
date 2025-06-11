@@ -137,6 +137,7 @@ export async function backupToWebdav({
         timestamp: Date.now(),
         source: 'backup'
       })
+      showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
 
       // 清理旧备份文件
       if (webdavMaxBackups > 0) {
@@ -202,6 +203,7 @@ export async function backupToWebdav({
       source: 'backup'
     })
     store.dispatch(setWebDAVSyncState({ lastSyncError: error.message }))
+    showMessage && window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
     console.error('[Backup] backupToWebdav: Error uploading file to WebDAV:', error)
     throw error
   } finally {

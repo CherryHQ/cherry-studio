@@ -306,9 +306,14 @@ mjx-container {
 
 /* CodeMirror 相关样式 */
 .cm-editor {
+  border-radius: 5px;
+
+  &.cm-focused {
+    outline: none;
+  }
+
   .cm-scroller {
     font-family: var(--code-font-family);
-    padding: 1px;
     border-radius: 5px;
 
     .cm-gutters {
