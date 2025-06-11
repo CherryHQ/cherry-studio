@@ -1,19 +1,34 @@
 import { ConfigProvider, Dropdown } from 'antd'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { FC, useMemo } from 'react'
-import styled from 'styled-components'
+import { ReactNode, useMemo, useState } from 'react'
+import styled, { css } from 'styled-components'
 
-interface SelectorProps {
-  options: { label: string; value: string }[]
-  value: string | number | undefined
+interface SelectorProps<V = string | number> {
+  options: { label: string | ReactNode; value: V }[]
+  value?: V
+  placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
   /** 字体大小 */
   size?: number
-  onChange: (value: string) => void
+  onChange: (value: V) => void
 }
 
-const Selector: FC<SelectorProps> = ({ options, value, onChange, placement = 'bottomRight', size = 13 }) => {
-  const label = useMemo(() => options?.find((option) => option.value === value)?.label, [options, value])
+const Selector = <V extends string | number>({
+  options,
+  value,
+  onChange = () => {},
+  placement = 'bottomRight',
+  size = 13,
+  placeholder
+}: SelectorProps<V>) => {
+  const [open, setOpen] = useState(false)
+
+  const label = useMemo(() => {
+    if (value) {
+      return options?.find((option) => option.value === value)?.label
+    }
+    return placeholder
+  }, [options, value, placeholder])
 
   const items = useMemo(() => {
     return options.map((option) => ({
@@ -24,7 +39,7 @@ const Selector: FC<SelectorProps> = ({ options, value, onChange, placement = 'bo
   }, [options, value])
 
   function onClick(e: { key: string }) {
-    onChange(e.key)
+    onChange(e.key as V)
   }
 
   return (
@@ -36,8 +51,8 @@ const Selector: FC<SelectorProps> = ({ options, value, onChange, placement = 'bo
           }
         }
       }}>
-      <Dropdown menu={{ items, onClick }} trigger={['click']} placement={placement}>
-        <Label $size={size}>
+      <Dropdown menu={{ items, onClick }} trigger={['click']} placement={placement} open={open} onOpenChange={setOpen}>
+        <Label $size={size} $open={open}>
           {label}
           <LabelIcon size={size + 3} />
         </Label>
@@ -46,7 +61,7 @@ const Selector: FC<SelectorProps> = ({ options, value, onChange, placement = 'bo
   )
 }
 
-const Label = styled.div<{ $size: number }>`
+const Label = styled.div<{ $size: number; $open: boolean }>`
   display: flex;
   align-items: center;
   gap: 4px;
@@ -58,6 +73,11 @@ const Label = styled.div<{ $size: number }>`
   &:hover {
     background-color: var(--color-background-mute);
   }
+  ${({ $open }) =>
+    $open &&
+    css`
+      background-color: var(--color-background-mute);
+    `}
 `
 
 const LabelIcon = styled(ChevronsUpDown)`

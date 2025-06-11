@@ -52,6 +52,9 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           Segmented: {
             itemActiveBg: 'var(--color-background-mute)',
             itemHoverBg: 'var(--color-background-mute)'
+          },
+          Switch: {
+            colorTextQuaternary: 'rgba(153,153,153,0.25)'
           }
         },
         token: {
