@@ -316,6 +316,8 @@ export class SelectionService {
       this.toolbarWindow.close()
       this.toolbarWindow = null
     }
+    this.closePreloadedActionWindows()
+
     this.started = false
     this.logInfo('SelectionService Stopped')
     return true
@@ -395,6 +397,9 @@ export class SelectionService {
 
     // Clean up when closed
     this.toolbarWindow.on('closed', () => {
+      if (!this.toolbarWindow?.isDestroyed()) {
+        this.toolbarWindow?.destroy()
+      }
       this.toolbarWindow = null
     })
 
@@ -986,6 +991,17 @@ export class SelectionService {
       }
     } catch (error) {
       this.logError('Failed to initialize preloaded windows:', error as Error)
+    }
+  }
+
+  /**
+   * Close all preloaded action windows
+   */
+  private closePreloadedActionWindows() {
+    for (const actionWindow of this.preloadedActionWindows) {
+      if (!actionWindow.isDestroyed()) {
+        actionWindow.destroy()
+      }
     }
   }
 
