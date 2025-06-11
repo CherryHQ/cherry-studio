@@ -23,6 +23,7 @@ import {
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
+import { copyMessageAsPlainText } from '@renderer/utils/copy'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -201,6 +202,11 @@ const MessageMenubar: FC<Props> = (props) => {
         key: 'export',
         icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
+          {
+            label: t('chat.topics.copy.plain_text'),
+            key: 'copy_message_plain_text',
+            onClick: () => copyMessageAsPlainText(message)
+          },
           exportMenuOptions.image && {
             label: t('chat.topics.copy.image'),
             key: 'img',
