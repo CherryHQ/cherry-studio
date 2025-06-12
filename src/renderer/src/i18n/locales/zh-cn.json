@@ -1037,6 +1037,7 @@
     },
     "settings": {
       "about": "关于我们",
+      "private": "隐私设置",
       "about.checkingUpdate": "正在检查更新...",
       "about.checkUpdate": "检查更新",
       "about.checkUpdate.available": "立即更新",
@@ -1054,6 +1055,7 @@
       "about.releases.title": "更新日志",
       "about.social.title": "社交账号",
       "about.title": "关于我们",
+      "private.title": "隐私设置",
       "about.updateAvailable": "发现新版本 {{version}}",
       "about.updateError": "更新出错",
       "about.updateNotAvailable": "你的软件已是最新版本",

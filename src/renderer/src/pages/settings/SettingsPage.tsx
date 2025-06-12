@@ -10,6 +10,7 @@ import {
   Package,
   Rocket,
   Settings2,
+  ShieldAlert,
   SquareTerminal,
   TextCursorInput,
   Zap
@@ -26,6 +27,7 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import { McpSettingsNavbar } from './MCPSettings/McpSettingsNavbar'
+import PrivateSettings from './PrivateSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
@@ -119,6 +121,12 @@ const SettingsPage: FC = () => {
               {t('settings.about')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/private">
+            <MenuItem className={isRoute('/settings/private')}>
+              <ShieldAlert size={18} />
+              {t('settings.private')}
+            </MenuItem>
+          </MenuItemLink>
         </SettingMenus>
         <SettingContent>
           <Routes>
@@ -133,6 +141,7 @@ const SettingsPage: FC = () => {
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
             <Route path="data" element={<DataSettings />} />
             <Route path="about" element={<AboutSettings />} />
+            <Route path="private" element={<PrivateSettings />} />
             <Route path="quickPhrase" element={<QuickPhraseSettings />} />
           </Routes>
         </SettingContent>
