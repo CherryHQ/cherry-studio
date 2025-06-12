@@ -4,7 +4,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
-import { setRenamingTopicIds } from '@renderer/store/runtime'
+import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
@@ -61,9 +61,9 @@ export async function getTopicById(topicId: string) {
  * 开始重命名指定话题
  */
 export const startTopicRenaming = (topicId: string) => {
-  const currentIds = store.getState().runtime.renamingTopicIds
+  const currentIds = store.getState().runtime.chat.renamingTopics
   if (!currentIds.includes(topicId)) {
-    store.dispatch(setRenamingTopicIds([...currentIds, topicId]))
+    store.dispatch(setRenamingTopics([...currentIds, topicId]))
   }
 }
 
@@ -71,15 +71,28 @@ export const startTopicRenaming = (topicId: string) => {
  * 完成重命名指定话题
  */
 export const finishTopicRenaming = (topicId: string) => {
-  const currentIds = store.getState().runtime.renamingTopicIds
-  store.dispatch(setRenamingTopicIds(currentIds.filter((id) => id !== topicId)))
+  const state = store.getState()
+
+  // 1. 立即从 renamingTopics 移除
+  const currentRenaming = state.runtime.chat.renamingTopics
+  store.dispatch(setRenamingTopics(currentRenaming.filter((id) => id !== topicId)))
+
+  // 2. 立即添加到 newlyRenamedTopics
+  const currentNewlyRenamed = state.runtime.chat.newlyRenamedTopics
+  store.dispatch(setNewlyRenamedTopics([...currentNewlyRenamed, topicId]))
+
+  // 3. 延迟从 newlyRenamedTopics 移除
+  setTimeout(() => {
+    const current = store.getState().runtime.chat.newlyRenamedTopics
+    store.dispatch(setNewlyRenamedTopics(current.filter((id) => id !== topicId)))
+  }, 700)
 }
 
 /**
  * 判断指定话题是否正在重命名
  */
 export const isTopicRenaming = (topicId: string) => {
-  return store.getState().runtime.renamingTopicIds.includes(topicId)
+  return store.getState().runtime.chat.renamingTopics.includes(topicId)
 }
 
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
