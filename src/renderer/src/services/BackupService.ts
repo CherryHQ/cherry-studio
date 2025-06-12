@@ -312,8 +312,18 @@ export async function backupToS3({
 
   store.dispatch(setS3SyncState({ syncing: true, lastSyncError: null }))
 
-  const { s3Endpoint, s3Region, s3Bucket, s3AccessKeyId, s3SecretAccessKey, s3Root, s3MaxBackups, s3SkipBackupFile } =
-    store.getState().settings
+  const {
+    s3: {
+      endpoint: s3Endpoint,
+      region: s3Region,
+      bucket: s3Bucket,
+      accessKeyId: s3AccessKeyId,
+      secretAccessKey: s3SecretAccessKey,
+      root: s3Root,
+      maxBackups: s3MaxBackups,
+      skipBackupFile: s3SkipBackupFile
+    }
+  } = store.getState().settings
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
@@ -436,7 +446,16 @@ export async function backupToS3({
 
 // 从 S3 恢复
 export async function restoreFromS3(fileName?: string) {
-  const { s3Endpoint, s3Region, s3Bucket, s3AccessKeyId, s3SecretAccessKey, s3Root } = store.getState().settings
+  const {
+    s3: {
+      endpoint: s3Endpoint,
+      region: s3Region,
+      bucket: s3Bucket,
+      accessKeyId: s3AccessKeyId,
+      secretAccessKey: s3SecretAccessKey,
+      root: s3Root
+    }
+  } = store.getState().settings
   let data = ''
 
   try {
@@ -475,7 +494,11 @@ export function startAutoSync(immediate = false) {
     return
   }
 
-  const { webdavAutoSync, webdavHost, s3AutoSync, s3Endpoint } = store.getState().settings
+  const {
+    webdavAutoSync,
+    webdavHost,
+    s3: { autoSync: s3AutoSync, endpoint: s3Endpoint }
+  } = store.getState().settings
 
   // 检查WebDAV或S3自动同步配置
   const hasWebdavConfig = webdavAutoSync && webdavHost
@@ -504,11 +527,14 @@ export function startAutoSync(immediate = false) {
       syncTimeout = null
     }
 
-    const { webdavSyncInterval, s3SyncInterval } = store.getState().settings
+    const {
+      webdavSyncInterval: _webdavSyncInterval,
+      s3: { syncInterval: _s3SyncInterval }
+    } = store.getState().settings
     const { webdavSync, s3Sync } = store.getState().backup
 
     // 使用当前激活的同步配置
-    const syncInterval = hasWebdavConfig ? webdavSyncInterval : s3SyncInterval
+    const syncInterval = hasWebdavConfig ? _webdavSyncInterval : _s3SyncInterval
     const lastSyncTime = hasWebdavConfig ? webdavSync?.lastSyncTime : s3Sync?.lastSyncTime
 
     if (syncInterval <= 0) {

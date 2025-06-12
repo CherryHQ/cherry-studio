@@ -29,9 +29,17 @@ export function useS3BackupModal() {
     setBackuping(true)
     try {
       // 调用S3备份API
-      const { s3Endpoint, s3Region, s3Bucket, s3AccessKeyId, s3SecretAccessKey, s3Root, s3SkipBackupFile } = (
-        await import('@renderer/store')
-      ).default.getState().settings
+      const {
+        s3: {
+          endpoint: s3Endpoint,
+          region: s3Region,
+          bucket: s3Bucket,
+          accessKeyId: s3AccessKeyId,
+          secretAccessKey: s3SecretAccessKey,
+          root: s3Root,
+          skipBackupFile: s3SkipBackupFile
+        }
+      } = (await import('@renderer/store')).default.getState().settings
 
       const backupData = await (await import('@renderer/services/BackupService')).getBackupData()
 
