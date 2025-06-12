@@ -22,6 +22,7 @@ import { Message } from '@renderer/types/newMessage'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { message } from 'antd'
 import { findLast, isEmpty } from 'lodash'
 
 import AiProvider from '../providers/AiProvider'
@@ -343,10 +344,12 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+  //优先级, 用户配置的话题命名模型>当前助手的话题命名模型>默认模型
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
+    message.warning(i18n.t('message.error.topic_naming_model_key_missing'))
     return null
   }
 
@@ -356,6 +359,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     const text = await AI.summaries(filterMessages(messages), assistant)
     return text?.replace(/["']/g, '') || null
   } catch (error: any) {
+    message.error(i18n.t('message.error.fetchTopicName'))
     return null
   }
 }

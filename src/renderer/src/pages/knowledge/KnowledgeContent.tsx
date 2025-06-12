@@ -1,6 +1,7 @@
 import { CopyOutlined, DeleteOutlined, EditOutlined, RedoOutlined } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { DownloadIcon } from '@renderer/components/Icons/DownloadIcons'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
@@ -12,7 +13,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
+import { Alert, Button, Dropdown, Empty, message, Space, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
@@ -106,7 +107,23 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       addFiles(uploadedFiles)
     }
   }
-
+  /**
+   * 将urlItems放在txt文件中,然后下载
+   */
+  const handleDownload = (knowledge: KnowledgeItem[], fileName: string) => {
+    const urlsString = knowledge.map((item) => item.content).join('\n')
+    const blob = new Blob([urlsString], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${fileName}.txt`
+    document.body.appendChild(anchor)
+    anchor.click()
+    setTimeout(() => {
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    }, 0)
+  }
   const handleAddUrl = async () => {
     if (disabled) {
       return
@@ -419,16 +436,30 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           defaultActiveKey={[]}
           activeKey={expandAll ? ['1'] : undefined}
           extra={
-            <Button
-              type="text"
-              icon={<Plus size={16} />}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleAddUrl()
-              }}
-              disabled={disabled}>
-              {t('knowledge.add_url')}
-            </Button>
+            <Space>
+              <Button
+                type="text"
+                icon={<Plus size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleAddUrl()
+                }}
+                disabled={disabled}>
+                {t('knowledge.add_url')}
+              </Button>
+              {urlItems.length > 0 && (
+                <Button
+                  type="text"
+                  icon={<DownloadIcon />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDownload(urlItems, t('knowledge.urls'))
+                  }}
+                  disabled={disabled}>
+                  {t('knowledge.download_resource')}
+                </Button>
+              )}
+            </Space>
           }>
           <FlexColumn>
             {urlItems.length === 0 && <EmptyView />}
@@ -496,16 +527,30 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           defaultActiveKey={[]}
           activeKey={expandAll ? ['1'] : undefined}
           extra={
-            <Button
-              type="text"
-              icon={<Plus size={16} />}
-              onClick={(e) => {
-                e.stopPropagation()
-                handleAddSitemap()
-              }}
-              disabled={disabled}>
-              {t('knowledge.add_sitemap')}
-            </Button>
+            <Space>
+              <Button
+                type="text"
+                icon={<Plus size={16} />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleAddSitemap()
+                }}
+                disabled={disabled}>
+                {t('knowledge.add_sitemap')}
+              </Button>
+              {sitemapItems.length > 0 && (
+                <Button
+                  type="text"
+                  icon={<DownloadIcon />}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDownload(sitemapItems, t('knowledge.sitemaps'))
+                  }}
+                  disabled={disabled}>
+                  {t('knowledge.download_resource')}
+                </Button>
+              )}
+            </Space>
           }>
           <FlexColumn>
             {sitemapItems.length === 0 && <EmptyView />}
