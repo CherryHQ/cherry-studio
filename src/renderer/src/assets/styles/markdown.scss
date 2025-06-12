@@ -295,13 +295,16 @@ emoji-picker {
   --border-size: 0;
 }
 
-.katex-display {
+.katex,
+mjx-container {
+  display: inline-block;
   overflow-x: auto;
   overflow-y: hidden;
-}
-
-mjx-container {
-  overflow-x: auto;
+  overflow-wrap: break-word;
+  vertical-align: middle;
+  max-width: 100%;
+  padding: 1px 2px;
+  margin-top: -2px;
 }
 
 /* CodeMirror 相关样式 */

@@ -978,6 +978,7 @@
       "azure-openai": "Azure OpenAI",
       "baichuan": "百川",
       "baidu-cloud": "百度云千帆",
+      "cephalon": "Cephalon",
       "copilot": "GitHub Copilot",
       "dashscope": "阿里云百炼",
       "deepseek": "深度求索",
@@ -1018,7 +1019,8 @@
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
       "qiniu": "七牛云 AI 推理",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "302ai": "302.AI"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",

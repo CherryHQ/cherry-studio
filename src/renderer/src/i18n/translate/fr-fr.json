@@ -840,6 +840,7 @@
       "azure-openai": "Azure OpenAI",
       "baichuan": "BaiChuan",
       "baidu-cloud": "Baidu Cloud Qianfan",
+      "cephalon": "Cephalon",
       "copilot": "GitHub Copilote",
       "dashscope": "AliCloud BaiLian",
       "deepseek": "DeepSeek",
