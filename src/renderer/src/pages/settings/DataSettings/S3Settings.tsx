@@ -6,18 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  setS3AccessKeyId as _setS3AccessKeyId,
-  setS3AutoSync,
-  setS3Bucket as _setS3Bucket,
-  setS3Endpoint as _setS3Endpoint,
-  setS3MaxBackups as _setS3MaxBackups,
-  setS3Region as _setS3Region,
-  setS3Root as _setS3Root,
-  setS3SecretAccessKey as _setS3SecretAccessKey,
-  setS3SkipBackupFile as _setS3SkipBackupFile,
-  setS3SyncInterval as _setS3SyncInterval
-} from '@renderer/store/settings'
+import { setS3 } from '@renderer/store/settings'
 import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -26,17 +15,19 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const S3Settings: FC = () => {
+  const { s3 } = useSettings()
+
   const {
-    s3Endpoint: s3EndpointInit,
-    s3Region: s3RegionInit,
-    s3Bucket: s3BucketInit,
-    s3AccessKeyId: s3AccessKeyIdInit,
-    s3SecretAccessKey: s3SecretAccessKeyInit,
-    s3Root: s3RootInit,
-    s3SyncInterval: s3SyncIntervalInit,
-    s3MaxBackups: s3MaxBackupsInit,
-    s3SkipBackupFile: s3SkipBackupFileInit
-  } = useSettings()
+    endpoint: s3EndpointInit,
+    region: s3RegionInit,
+    bucket: s3BucketInit,
+    accessKeyId: s3AccessKeyIdInit,
+    secretAccessKey: s3SecretAccessKeyInit,
+    root: s3RootInit,
+    syncInterval: s3SyncIntervalInit,
+    maxBackups: s3MaxBackupsInit,
+    skipBackupFile: s3SkipBackupFileInit
+  } = s3
 
   const [endpoint, setEndpoint] = useState<string | undefined>(s3EndpointInit)
   const [region, setRegion] = useState<string | undefined>(s3RegionInit)
@@ -58,24 +49,22 @@ const S3Settings: FC = () => {
 
   const onSyncIntervalChange = (value: number) => {
     setSyncInterval(value)
-    dispatch(_setS3SyncInterval(value))
+    dispatch(setS3({ ...s3, syncInterval: value, autoSync: value !== 0 }))
     if (value === 0) {
-      dispatch(setS3AutoSync(false))
       stopAutoSync()
     } else {
-      dispatch(setS3AutoSync(true))
       startAutoSync()
     }
   }
 
   const onMaxBackupsChange = (value: number) => {
     setMaxBackups(value)
-    dispatch(_setS3MaxBackups(value))
+    dispatch(setS3({ ...s3, maxBackups: value }))
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
-    dispatch(_setS3SkipBackupFile(value))
+    dispatch(setS3({ ...s3, skipBackupFile: value }))
   }
 
   const renderSyncStatus = () => {
@@ -126,7 +115,7 @@ const S3Settings: FC = () => {
           onChange={(e) => setEndpoint(e.target.value)}
           style={{ width: 250 }}
           type="url"
-          onBlur={() => dispatch(_setS3Endpoint(endpoint || ''))}
+          onBlur={() => dispatch(setS3({ ...s3, endpoint: endpoint || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -137,7 +126,7 @@ const S3Settings: FC = () => {
           value={region}
           onChange={(e) => setRegion(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(_setS3Region(region || ''))}
+          onBlur={() => dispatch(setS3({ ...s3, region: region || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -148,7 +137,7 @@ const S3Settings: FC = () => {
           value={bucket}
           onChange={(e) => setBucket(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(_setS3Bucket(bucket || ''))}
+          onBlur={() => dispatch(setS3({ ...s3, bucket: bucket || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -159,7 +148,7 @@ const S3Settings: FC = () => {
           value={accessKeyId}
           onChange={(e) => setAccessKeyId(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(_setS3AccessKeyId(accessKeyId || ''))}
+          onBlur={() => dispatch(setS3({ ...s3, accessKeyId: accessKeyId || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -170,7 +159,7 @@ const S3Settings: FC = () => {
           value={secretAccessKey}
           onChange={(e) => setSecretAccessKey(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(_setS3SecretAccessKey(secretAccessKey || ''))}
+          onBlur={() => dispatch(setS3({ ...s3, secretAccessKey: secretAccessKey || '' }))}
         />
       </SettingRow>
       <SettingDivider />
@@ -181,7 +170,7 @@ const S3Settings: FC = () => {
           value={root}
           onChange={(e) => setRoot(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(_setS3Root(root || ''))}
+          onBlur={() => dispatch(setS3({ ...s3, root: root || '' }))}
         />
       </SettingRow>
       <SettingDivider />
