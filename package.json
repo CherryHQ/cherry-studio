@@ -88,7 +88,7 @@
     "fast-xml-parser": "^5.2.0",
     "franc-min": "^6.2.0",
     "fs-extra": "^11.2.0",
-    "jsdom": "^26.0.0",
+    "jsdom": "patch:jsdom@npm%3A26.1.0#~/.yarn/patches/jsdom-npm-26.1.0-3857255f02.patch",
     "markdown-it": "^14.1.0",
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.1.1",
