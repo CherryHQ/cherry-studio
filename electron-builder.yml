@@ -107,8 +107,11 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增划词助手
-    助手支持分组
-    支持主题颜色切换
-    划词助手支持应用过滤
-    翻译模块功能改进
+    划词助手：支持文本选择快捷键、开关快捷键、思考块支持和引用功能
+    复制功能：新增纯文本复制（去除Markdown格式符号）
+    知识库：支持设置向量维度，修复Ollama分数错误和维度编辑问题
+    多语言：增加模型名称多语言提示和翻译源语言手动选择
+    文件管理：修复主题/消息删除时文件未清理问题，优化文件选择流程
+    模型：修复Gemini模型推理预算、Voyage AI嵌入问题和DeepSeek翻译模型更新
+    图像功能：统一图片查看器，支持Base64图片渲染，修复图片预览相关问题
+    UI：实现标签折叠/拖拽排序，修复气泡溢出，增加引文索引显示

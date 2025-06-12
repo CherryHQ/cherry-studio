@@ -261,6 +261,7 @@
       "topics.clear.title": "清空訊息",
       "topics.copy.image": "複製為圖片",
       "topics.copy.md": "複製為 Markdown",
+      "topics.copy.plain_text": "複製為純文字（移除 Markdown）",
       "topics.copy.title": "複製",
       "topics.delete.shortcut": "按住 {{key}} 可直接刪除",
       "topics.edit.placeholder": "輸入新名稱",
@@ -566,8 +567,12 @@
       "urls": "網址",
       "dimensions": "嵌入維度",
       "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
-      "dimensions_size_placeholder": "預設值（不建議修改）",
-      "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）"
+      "dimensions_size_placeholder": " 嵌入維度大小，例如 1024",
+      "dimensions_auto_set": "自動設定嵌入維度",
+      "dimensions_error_invalid": "請輸入嵌入維度大小",
+      "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
+      "dimensions_set_right": "⚠️ 請確保模型支援所設置的嵌入維度大小",
+      "dimensions_default": "模型將使用預設嵌入維度"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -1510,6 +1515,7 @@
       "messages.prompt": "提示詞顯示",
       "messages.tokens": "Token用量顯示",
       "messages.divider": "訊息間顯示分隔線",
+      "messages.divider.tooltip": "不適用於氣泡樣式消息",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
       "messages.grid_popover_trigger.click": "點選顯示",
@@ -1543,6 +1549,7 @@
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "選填，例如 GPT-4",
+      "models.add.model_name.tooltip": "例如 GPT-4",
       "models.check.all": "所有",
       "models.check.all_models_passed": "所有模型檢查通過",
       "models.check.button_caption": "健康檢查",
@@ -1686,6 +1693,8 @@
         "copy_last_message": "複製上一則訊息",
         "key": "按鍵",
         "mini_window": "快捷助手",
+        "selection_assistant_toggle": "開關劃詞助手",
+        "selection_assistant_select_text": "劃詞助手：取词",
         "new_topic": "新增話題",
         "press_shortcut": "按下快捷鍵",
         "reset_defaults": "重設預設快捷鍵",
@@ -1854,7 +1863,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "檢測到的語言"
+      "detected.language": "自動檢測"
     },
     "tray": {
       "quit": "結束",
@@ -1911,11 +1920,16 @@
         "toolbar": {
           "title": "工具列",
           "trigger_mode": {
-            "title": "觸發方式",
-            "description": "劃詞立即顯示工具列，或者劃詞後按住 Ctrl 鍵才顯示工具列。",
+            "title": "取詞方式",
+            "description": "劃詞後，觸發取詞並顯示工具列的方式",
             "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了AHK等工具對Ctrl鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
             "selected": "劃詞",
-            "ctrlkey": "Ctrl 鍵"
+            "selected_note": "劃詞後，立即顯示工具列",
+            "ctrlkey": "Ctrl 鍵",
+            "ctrlkey_note": "劃詞後，再 按住 Ctrl鍵，才顯示工具列",
+            "shortcut": "快捷鍵",
+            "shortcut_note": "劃詞後，使用快捷鍵顯示工具列。請在快捷鍵設定頁面中設置取詞快捷鍵並啟用。",
+            "shortcut_link": "前往快捷鍵設定"
           },
           "compact_mode": {
             "title": "緊湊模式",

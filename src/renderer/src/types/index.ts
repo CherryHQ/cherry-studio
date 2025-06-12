@@ -705,3 +705,4 @@ export interface StoreSyncAction {
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
+export type { Message } from './newMessage'
