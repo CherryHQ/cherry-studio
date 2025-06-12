@@ -84,6 +84,12 @@
       "settings.reasoning_effort.medium": "斟酌",
       "settings.reasoning_effort.high": "沉思",
       "settings.reasoning_effort.default": "默认",
+      "settings.reader": "阅读器设置",
+      "settings.reader.reference": "选择参考资料",
+      "settings.reader.upload": "点击选择",
+      "settings.reader.reupload": "重新上传",
+      "settings.reader.pickFromFiles": "从文件中选择",
+      "settings.reader.pickFromFiles.confirm": "确认选择该文档吗？",
       "settings.more": "助手设置",
       "settings.regular_phrases": {
         "title": "常用短语",
@@ -2050,6 +2056,13 @@
           "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
         }
       }
+    },
+    "reader": {
+      "outlineEmpty": "无可读目录",
+      "reference": "参考资料",
+      "close": "关闭阅读器",
+      "attaching": "正在关联",
+      "pageIndex": "第{{index}}页"
     }
   }
 }

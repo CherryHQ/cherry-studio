@@ -111,7 +111,13 @@
         "settings": {
           "title": "Tag Settings"
         }
-      }
+      },
+      "settings.reader": "[to be translated]:阅读器设置",
+      "settings.reader.reference": "[to be translated]:选择参考资料",
+      "settings.reader.upload": "[to be translated]:点击选择",
+      "settings.reader.reupload": "[to be translated]:重新上传",
+      "settings.reader.pickFromFiles": "[to be translated]:从文件中选择",
+      "settings.reader.pickFromFiles.confirm": "[to be translated]:确认选择该文档吗？"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -2050,6 +2056,13 @@
           "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       }
+    },
+    "reader": {
+      "outlineEmpty": "[to be translated]:无可读目录",
+      "reference": "[to be translated]:参考资料",
+      "close": "[to be translated]:关闭阅读器",
+      "attaching": "[to be translated]:正在关联",
+      "pageIndex": "[to be translated]:第{{index}}页"
     }
   }
 }
