@@ -1,4 +1,3 @@
-import Logger from '@renderer/config/logger'
 import { MCPTool } from '@renderer/types'
 import { ChunkType, MCPToolCreatedChunk, TextDeltaChunk } from '@renderer/types/chunk'
 import { parseToolUse } from '@renderer/utils/mcp-tools'
@@ -34,12 +33,7 @@ export const ToolUseExtractionMiddleware: CompletionsMiddleware =
     const mcpTools = params.mcpTools || []
 
     // 如果没有工具，直接调用下一个中间件
-    if (!mcpTools || mcpTools.length === 0) {
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}] No MCP tools available, skipping`)
-      return next(ctx, params)
-    }
-
-    Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Starting tool use extraction with ${mcpTools.length} tools`)
+    if (!mcpTools || mcpTools.length === 0) return next(ctx, params)
 
     // 调用下游中间件
     const result = await next(ctx, params)
@@ -47,8 +41,6 @@ export const ToolUseExtractionMiddleware: CompletionsMiddleware =
     // 响应后处理：处理工具使用标签提取
     if (result.stream) {
       const resultFromUpstream = result.stream as ReadableStream<GenericChunk>
-
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Processing stream for tool use extraction`)
 
       const processedStream = resultFromUpstream.pipeThrough(createToolUseExtractionTransform(ctx, mcpTools))
 
@@ -81,10 +73,6 @@ function createToolUseExtractionTransform(
           for (const result of extractionResults) {
             if (result.complete && result.tagContentExtracted) {
               // 提取到完整的工具使用内容，解析并转换为 SDK ToolCall 格式
-              Logger.debug(
-                `🔧 [${MIDDLEWARE_NAME}][DEBUG] Extracted tool use content: ${result.tagContentExtracted.substring(0, 100)}...`
-              )
-
               const toolUseResponses = parseToolUse(result.tagContentExtracted, mcpTools)
 
               if (toolUseResponses.length > 0) {
@@ -117,15 +105,9 @@ function createToolUseExtractionTransform(
     },
 
     async flush(controller) {
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Transform stream flushing`)
-
       // 检查是否有未完成的标签内容
       const finalResult = tagExtractor.finalize()
       if (finalResult && finalResult.tagContentExtracted) {
-        Logger.debug(
-          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Finalizing with remaining tool use content: ${finalResult.tagContentExtracted.substring(0, 100)}...`
-        )
-
         const toolUseResponses = parseToolUse(finalResult.tagContentExtracted, mcpTools)
         if (toolUseResponses.length > 0) {
           const mcpToolCreatedChunk: MCPToolCreatedChunk = {
@@ -135,8 +117,6 @@ function createToolUseExtractionTransform(
           controller.enqueue(mcpToolCreatedChunk)
         }
       }
-
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Tool use extraction completed`)
     }
   })
 }

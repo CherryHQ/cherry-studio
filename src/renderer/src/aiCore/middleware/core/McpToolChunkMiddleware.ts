@@ -27,14 +27,10 @@ export const McpToolChunkMiddleware: CompletionsMiddleware =
 
     // 如果没有工具，直接调用下一个中间件
     if (!mcpTools || mcpTools.length === 0) {
-      Logger.info(`🔧 [${MIDDLEWARE_NAME}] No MCP tools available, skipping`)
       return next(ctx, params)
     }
 
-    Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Starting tool handling with ${mcpTools.length} tools`)
-
     const executeWithToolHandling = async (currentParams: CompletionsParams, depth = 0): Promise<CompletionsResult> => {
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current recursion depth: ${depth}`)
       if (depth >= MAX_TOOL_RECURSION_DEPTH) {
         Logger.error(`🔧 [${MIDDLEWARE_NAME}] Maximum recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
         throw new Error(`Maximum tool recursion depth ${MAX_TOOL_RECURSION_DEPTH} exceeded`)
@@ -104,22 +100,15 @@ function createToolHandlingTransform(
           if (createdChunk.tool_calls && createdChunk.tool_calls.length > 0) {
             toolCalls.push(...createdChunk.tool_calls)
             hasToolCalls = true
-            Logger.debug(
-              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Intercepted ${createdChunk.tool_calls.length} tool calls, total: ${toolCalls.length}`
-            )
           }
 
           // 2. 处理Tool Use方式的工具调用
           if (createdChunk.tool_use_responses && createdChunk.tool_use_responses.length > 0) {
             toolUseResponses.push(...createdChunk.tool_use_responses)
             hasToolUseResponses = true
-            Logger.debug(
-              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Intercepted ${createdChunk.tool_use_responses.length} tool use responses, total: ${toolUseResponses.length}`
-            )
           }
 
           // 不转发MCP工具进展chunks，避免重复处理
-          Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Intercepting MCP tool progress chunk to prevent duplicate processing`)
           return
         }
 
@@ -132,26 +121,16 @@ function createToolHandlingTransform(
     },
 
     async flush(controller) {
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Transform stream flushing at depth ${depth}`)
-      Logger.debug(
-        `🔧 [${MIDDLEWARE_NAME}][DEBUG] hasToolCalls: ${hasToolCalls}, toolCalls.length: ${toolCalls.length}`
-      )
-      Logger.debug(
-        `🔧 [${MIDDLEWARE_NAME}][DEBUG] hasToolUseResponses: ${hasToolUseResponses}, toolUseResponses.length: ${toolUseResponses.length}`
-      )
-
       const shouldExecuteToolCalls = hasToolCalls && toolCalls.length > 0
       const shouldExecuteToolUseResponses = hasToolUseResponses && toolUseResponses.length > 0
 
       if (!streamEnded && (shouldExecuteToolCalls || shouldExecuteToolUseResponses)) {
         streamEnded = true
-        Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting tool processing at depth ${depth}`)
 
         try {
           let toolResult: SdkMessageParam[] = []
 
           if (shouldExecuteToolCalls) {
-            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing ${toolCalls.length} function calls`)
             toolResult = await executeToolCalls(
               ctx,
               toolCalls,
@@ -160,9 +139,7 @@ function createToolHandlingTransform(
               currentParams.onChunk,
               currentParams.assistant.model!
             )
-            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Function calls completed, got ${toolResult.length} results`)
           } else if (shouldExecuteToolUseResponses) {
-            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Executing ${toolUseResponses.length} tool use responses`)
             toolResult = await executeToolUseResponses(
               ctx,
               toolUseResponses,
@@ -171,24 +148,13 @@ function createToolHandlingTransform(
               currentParams.onChunk,
               currentParams.assistant.model!
             )
-            Logger.debug(
-              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool use responses completed, got ${toolResult.length} results`
-            )
           }
 
           if (toolResult.length > 0) {
-            Logger.debug(
-              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Building params for recursive call with ${toolResult.length} tool results`
-            )
             const output = ctx._internal.toolProcessingState?.output
 
             const newParams = buildParamsWithToolResults(ctx, currentParams, output!, toolResult, toolCalls)
-            Logger.debug(
-              `🔧 [${MIDDLEWARE_NAME}][DEBUG] Starting recursive tool call from depth ${depth} to ${depth + 1}`
-            )
             await executeWithToolHandling(newParams, depth + 1)
-          } else {
-            Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] No tool results to process, skipping recursion`)
           }
         } catch (error) {
           console.error(`🔧 [${MIDDLEWARE_NAME}] Error in tool processing:`, error)
@@ -197,13 +163,7 @@ function createToolHandlingTransform(
           hasToolCalls = false
           hasToolUseResponses = false
         }
-      } else {
-        Logger.debug(
-          `🔧 [${MIDDLEWARE_NAME}][DEBUG] Skipping tool processing - streamEnded: ${streamEnded}, shouldExecuteToolCalls: ${shouldExecuteToolCalls}, shouldExecuteToolUseResponses: ${shouldExecuteToolUseResponses}`
-        )
       }
-
-      Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Transform stream flushed at depth ${depth}`)
     }
   })
 }
@@ -219,8 +179,6 @@ async function executeToolCalls(
   onChunk: CompletionsParams['onChunk'],
   model: Model
 ): Promise<SdkMessageParam[]> {
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolCalls.length} tools`)
-
   // 转换为MCPToolResponse格式
   const mcpToolResponses: ToolCallResponse[] = toolCalls
     .map((toolCall) => {
@@ -232,36 +190,23 @@ async function executeToolCalls(
     })
     .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
 
-  Logger.debug(
-    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Successfully converted ${mcpToolResponses.length}/${toolCalls.length} tool calls`
-  )
-
   if (mcpToolResponses.length === 0) {
     console.warn(`🔧 [${MIDDLEWARE_NAME}] No valid MCP tool responses to execute`)
     return []
   }
 
   // 使用现有的parseAndCallTools函数执行工具
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with ${mcpToolResponses.length} responses`)
   const toolResults = await parseAndCallTools(
     mcpToolResponses,
     allToolResponses,
     onChunk,
     (mcpToolResponse, resp, model) => {
-      Logger.debug(
-        `🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting MCP response to SDK message for tool: ${mcpToolResponse.tool?.name}`
-      )
       return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
     mcpTools
   )
 
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Tool execution completed, ${toolResults.length} results`)
-  Logger.debug(
-    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool results types:`,
-    toolResults.map((r: any) => r.role || r.type || 'unknown').join(', ')
-  )
   return toolResults
 }
 
@@ -277,32 +222,18 @@ async function executeToolUseResponses(
   onChunk: CompletionsParams['onChunk'],
   model: Model
 ): Promise<SdkMessageParam[]> {
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Executing ${toolUseResponses.length} tool use responses`)
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Available tools:`, mcpTools.map((t) => t.name).join(', '))
-
   // 直接使用parseAndCallTools函数处理已经解析好的ToolUseResponse
-  Logger.debug(
-    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Calling parseAndCallTools with ${toolUseResponses.length} tool use responses`
-  )
   const toolResults = await parseAndCallTools(
     toolUseResponses,
     allToolResponses,
     onChunk,
     (mcpToolResponse, resp, model) => {
-      Logger.debug(
-        `🔧 [${MIDDLEWARE_NAME}][DEBUG] Converting MCP response to SDK message for tool: ${mcpToolResponse.tool?.name}`
-      )
       return ctx.apiClientInstance.convertMcpToolResponseToSdkMessageParam(mcpToolResponse, resp, model)
     },
     model,
     mcpTools
   )
 
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}] Tool use responses execution completed, ${toolResults.length} results`)
-  Logger.debug(
-    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Tool results types:`,
-    toolResults.map((r: any) => r.role || r.type || 'unknown').join(', ')
-  )
   return toolResults
 }
 
@@ -318,14 +249,11 @@ function buildParamsWithToolResults(
 ): CompletionsParams {
   // 获取当前已经转换好的reqMessages，如果没有则使用原始messages
   const currentReqMessages = getCurrentReqMessages(ctx)
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] Current messages count: ${currentReqMessages.length}`)
 
   const apiClient = ctx.apiClientInstance
 
   // 从回复中构建助手消息
   const newReqMessages = apiClient.buildSdkMessages(currentReqMessages, output, toolResults, toolCalls)
-
-  Logger.debug(`🔧 [${MIDDLEWARE_NAME}][DEBUG] New messages array length: ${newReqMessages.length}`)
 
   // 估算新增消息的 token 消耗并累加到 usage 中
   if (ctx._internal.observer?.usage && newReqMessages.length > currentReqMessages.length) {
@@ -338,9 +266,6 @@ function buildParamsWithToolResults(
       if (additionalTokens > 0) {
         ctx._internal.observer.usage.prompt_tokens += additionalTokens
         ctx._internal.observer.usage.total_tokens += additionalTokens
-        Logger.debug(
-          `🔧 [${MIDDLEWARE_NAME}] Added ${additionalTokens} tokens to usage for ${newMessages.length} new messages. New prompt_tokens: ${ctx._internal.observer.usage.prompt_tokens}`
-        )
       }
     } catch (error) {
       Logger.error(`🔧 [${MIDDLEWARE_NAME}] Error estimating token usage for new messages:`, error)
@@ -353,10 +278,6 @@ function buildParamsWithToolResults(
   }
   ctx._internal.toolProcessingState.isRecursiveCall = true
   ctx._internal.toolProcessingState.recursionDepth = (ctx._internal.toolProcessingState?.recursionDepth || 0) + 1
-
-  Logger.debug(
-    `🔧 [${MIDDLEWARE_NAME}][DEBUG] Updated recursion state - depth: ${ctx._internal.toolProcessingState.recursionDepth}`
-  )
 
   return {
     ...currentParams,

@@ -40,25 +40,15 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
     // 调用下游中间件
     const result = await next(context, params)
 
-    Logger.debug(`[${MIDDLEWARE_NAME}] ThinkingTagExtractionMiddleware result: ${result}`)
-
     // 响应后处理：处理思考标签提取
     if (result.stream) {
       const resultFromUpstream = result.stream as ReadableStream<GenericChunk>
-
-      Logger.debug(
-        `[${MIDDLEWARE_NAME}] Received generic chunk stream from upstream. Stream is: ${resultFromUpstream ? 'present' : 'absent'}`
-      )
 
       // 检查是否有流需要处理
       if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
         // 获取当前模型的思考标签配置
         const model = params.assistant?.model
         const reasoningTag = getAppropriateTag(model)
-
-        Logger.debug(
-          `[${MIDDLEWARE_NAME}] Using reasoning tags: ${reasoningTag.openingTag} ... ${reasoningTag.closingTag} for model: ${model?.id}`
-        )
 
         // 创建标签提取器
         const tagExtractor = new TagExtractor(reasoningTag)
@@ -139,7 +129,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
           stream: processedStream
         }
       } else {
-        Logger.debug(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+        Logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
       }
     }
     return result

@@ -1,5 +1,5 @@
-import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
+import { isDedicatedImageGenerationModel } from '@renderer/config/models'
 import { ChunkType } from '@renderer/types/chunk'
 import { findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import OpenAI from 'openai'

@@ -32,21 +32,14 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
     if (result.stream) {
       const resultFromUpstream = result.stream as ReadableStream<GenericChunk>
 
-      Logger.debug(
-        `[${MIDDLEWARE_NAME}] Received generic chunk stream from upstream. Stream is: ${resultFromUpstream ? 'present' : 'absent'}`
-      )
-
       // 检查是否启用reasoning
       const enableReasoning = params.enableReasoning || false
       if (!enableReasoning) {
-        Logger.debug(`[${MIDDLEWARE_NAME}] Reasoning not enabled, passing through unchanged.`)
         return result
       }
 
       // 检查是否有流需要处理
       if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
-        console.log(`[${MIDDLEWARE_NAME}] Processing reasoning chunks from SDK.`)
-
         // thinking 处理状态
         let accumulatedThinkingContent = ''
         let hasThinkingContent = false
@@ -100,7 +93,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
           stream: processedStream
         }
       } else {
-        Logger.debug(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
+        Logger.warn(`[${MIDDLEWARE_NAME}] No generic chunk stream to process or not a ReadableStream.`)
       }
     }
 

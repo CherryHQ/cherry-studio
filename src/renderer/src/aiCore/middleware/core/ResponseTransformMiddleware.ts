@@ -30,7 +30,6 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
 
       // 处理ReadableStream类型的流
       if (adaptedStream instanceof ReadableStream) {
-        Logger.debug(`[${MIDDLEWARE_NAME}] Processing result, has stream: ${!!adaptedStream}`)
         const apiClient = ctx.apiClientInstance
         if (!apiClient) {
           console.error(`[${MIDDLEWARE_NAME}] ApiClient instance not found in context`)
@@ -40,7 +39,7 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
         // 获取响应转换器
         const responseChunkTransformer = apiClient.getResponseChunkTransformer?.()
         if (!responseChunkTransformer) {
-          Logger.debug(`[${MIDDLEWARE_NAME}] No ResponseChunkTransformer available, skipping transformation`)
+          Logger.warn(`[${MIDDLEWARE_NAME}] No ResponseChunkTransformer available, skipping transformation`)
           return result
         }
 

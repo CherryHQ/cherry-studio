@@ -49,10 +49,6 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
     }
 
     try {
-      // 调用transformer进行转换
-      Logger.debug(
-        `🔄 [${MIDDLEWARE_NAME}] Transforming ${params.messages?.length || 0} application messages to SDK format`
-      )
       const transformResult = await requestTransformer.transform(
         params,
         assistant,
@@ -73,8 +69,6 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
         }
       }
 
-      Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Successfully transformed CoreCompletionsRequest to SDK params:`, sdkPayload)
-      Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Has metadata:`, !!metadata)
       if (params.enableGenerateImage) {
         params.onChunk?.({
           type: ChunkType.IMAGE_CREATED

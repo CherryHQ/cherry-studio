@@ -25,10 +25,10 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
             if (ctx._internal?.toolProcessingState) {
               ctx._internal.toolProcessingState.output = message
             }
-          },
-          onContentBlock: (contentBlock) => {
-            console.log(`[${MIDDLEWARE_NAME}] 📝 Anthropic content block:`, contentBlock.type)
           }
+          // onContentBlock: (contentBlock) => {
+          //   console.log(`[${MIDDLEWARE_NAME}] 📝 Anthropic content block:`, contentBlock.type)
+          // }
         }
 
         const specificApiClient = ctx.apiClientInstance as AnthropicAPIClient

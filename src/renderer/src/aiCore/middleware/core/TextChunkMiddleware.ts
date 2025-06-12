@@ -27,10 +27,6 @@ export const TextChunkMiddleware: CompletionsMiddleware =
     if (result.stream) {
       const resultFromUpstream = result.stream as ReadableStream<GenericChunk>
 
-      Logger.debug(
-        `[${MIDDLEWARE_NAME}] Received result from upstream. Stream is: ${resultFromUpstream ? 'present' : 'absent'}`
-      )
-
       if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
         const assistant = params.assistant
         const model = params.assistant?.model
@@ -95,7 +91,7 @@ export const TextChunkMiddleware: CompletionsMiddleware =
           stream: enhancedTextStream
         }
       } else {
-        Logger.debug(`[${MIDDLEWARE_NAME}] No stream to process or not a ReadableStream. Returning original result.`)
+        Logger.warn(`[${MIDDLEWARE_NAME}] No stream to process or not a ReadableStream. Returning original result.`)
       }
     }
 

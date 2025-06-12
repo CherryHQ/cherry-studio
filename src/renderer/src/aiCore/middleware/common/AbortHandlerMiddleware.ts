@@ -67,11 +67,8 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
     const streamWithAbortHandler = (result.stream as ReadableStream<Chunk>).pipeThrough(
       new TransformStream<Chunk, Chunk | ErrorChunk>({
         transform(chunk, controller) {
-          console.log('transform_abortSignal', abortSignal?.aborted)
           // 检查 abort 状态
           if (abortSignal?.aborted) {
-            console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected, converting to ErrorChunk`)
-
             // 转换为 ErrorChunk
             const errorChunk: ErrorChunk = {
               type: ChunkType.ERROR,
@@ -89,7 +86,6 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
 
         flush(controller) {
           // 在流结束时再次检查 abort 状态
-          console.log('flush_abortSignal', abortSignal?.aborted)
           if (abortSignal?.aborted) {
             const errorChunk: ErrorChunk = {
               type: ChunkType.ERROR,

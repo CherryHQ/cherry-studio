@@ -25,10 +25,6 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
       params._internal?.toolProcessingState?.isRecursiveCall ||
       ctx._internal?.toolProcessingState?.isRecursiveCall ||
       false
-    const recursionDepth =
-      params._internal?.toolProcessingState?.recursionDepth || ctx._internal?.toolProcessingState?.recursionDepth || 0
-
-    Logger.debug(`[${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`)
 
     // 初始化累计数据（只在顶层调用时初始化）
     if (!isRecursiveCall) {
@@ -51,8 +47,6 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
       // 初始化文本累积器
       ctx._internal.customState.accumulatedText = ''
       ctx._internal.customState.startTimestamp = Date.now()
-    } else {
-      Logger.debug(`[${MIDDLEWARE_NAME}] Recursive call, will use existing accumulation data`)
     }
 
     // 调用下游中间件
@@ -61,10 +55,6 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
     // 响应后处理：处理GenericChunk流式响应
     if (result.stream) {
       const resultFromUpstream = result.stream
-
-      Logger.debug(
-        `[${MIDDLEWARE_NAME}] Received GenericChunk stream from upstream. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`
-      )
 
       if (resultFromUpstream && resultFromUpstream instanceof ReadableStream) {
         const reader = resultFromUpstream.getReader()
@@ -87,11 +77,7 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
                 (genericChunk.type === ChunkType.BLOCK_COMPLETE ||
                   genericChunk.type === ChunkType.LLM_RESPONSE_COMPLETE)
 
-              if (shouldSkipChunk) {
-                Logger.debug(
-                  `[${MIDDLEWARE_NAME}] Skipping completion chunk in recursive call - Type: ${genericChunk.type}`
-                )
-              } else params.onChunk?.(genericChunk)
+              if (!shouldSkipChunk) params.onChunk?.(genericChunk)
             } else {
               Logger.warn(`[${MIDDLEWARE_NAME}] Received undefined chunk before stream was done.`)
             }
@@ -100,26 +86,7 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
           Logger.error(`[${MIDDLEWARE_NAME}] Error consuming stream:`, error)
           throw error
         } finally {
-          // Logger.debug(`[${MIDDLEWARE_NAME}] Stream consumption completed`)
-          // const finalIsRecursiveCall = ctx._internal?.toolProcessingState?.isRecursiveCall || false
-          // const finalRecursionDepth = ctx._internal?.toolProcessingState?.recursionDepth || 0
-
-          // Logger.debug(
-          //   `[${MIDDLEWARE_NAME}] Initial recursive call state: isRecursiveCall: ${isRecursiveCall}, recursionDepth: ${recursionDepth}`
-          // )
-
-          // Logger.debug(
-          //   `[${MIDDLEWARE_NAME}] Final recursive call state: isRecursiveCall: ${finalIsRecursiveCall}, recursionDepth: ${finalRecursionDepth}`
-          // )
-
-          // if (finalIsRecursiveCall) {
-          //   Logger.debug(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (recursive call detected)`)
-          // } else {
-          //   Logger.info(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (onChunk not provided)`)
-          // }
           if (params.onChunk && !isRecursiveCall) {
-            // Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with usage:`, ctx._internal.observer?.usage)
-            // Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with metrics:`, ctx._internal.observer?.metrics)
             params.onChunk({
               type: ChunkType.BLOCK_COMPLETE,
               response: {

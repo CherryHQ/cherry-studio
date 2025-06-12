@@ -1,4 +1,3 @@
-import Logger from '@renderer/config/logger'
 import { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream, createSingleChunkReadableStream } from '@renderer/utils/stream'
 
@@ -40,14 +39,12 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
         stream: whatwgReadableStream
       }
     } else if (result.rawOutput && result.rawOutput instanceof ReadableStream) {
-      Logger.debug(`[${MIDDLEWARE_NAME}] Stream is already ReadableStream, passing through`)
       return {
         ...result,
         stream: result.rawOutput
       }
     } else if (result.rawOutput) {
       // 非流式输出，强行变为可读流
-      Logger.debug(`[${MIDDLEWARE_NAME}] Converting non-stream output to ReadableStream`)
       const whatwgReadableStream: ReadableStream<SdkRawChunk> = createSingleChunkReadableStream<SdkRawChunk>(
         result.rawOutput
       )
