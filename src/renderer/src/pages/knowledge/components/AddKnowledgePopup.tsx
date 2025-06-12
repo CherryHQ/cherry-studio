@@ -113,7 +113,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
         if (autoDims || typeof values.dimensions === 'undefined') {
           try {
-            const aiProvider = new AiProvider(provider)
+            const aiProvider = await AiProvider.create(provider)
             values.dimensions = await aiProvider.getEmbeddingDimensions(selectedEmbeddingModel)
           } catch (error) {
             console.error('Error getting embedding dimensions:', error)
@@ -139,7 +139,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           version: 1
         }
 
-        await window.api.knowledgeBase.create(getKnowledgeBaseParams(newBase))
+        await window.api.knowledgeBase.create(await getKnowledgeBaseParams(newBase))
 
         addKnowledgeBase(newBase)
         setOpen(false)

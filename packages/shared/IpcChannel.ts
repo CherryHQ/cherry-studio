@@ -86,6 +86,10 @@ export enum IpcChannel {
   Gemini_ListFiles = 'gemini:list-files',
   Gemini_DeleteFile = 'gemini:delete-file',
 
+  // VertexAI
+  VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
+
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
 

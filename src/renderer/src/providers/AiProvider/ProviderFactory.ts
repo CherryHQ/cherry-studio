@@ -6,9 +6,10 @@ import BaseProvider from './BaseProvider'
 import GeminiProvider from './GeminiProvider'
 import OpenAIProvider from './OpenAIProvider'
 import OpenAIResponseProvider from './OpenAIResponseProvider'
+import VertexProvider from './VertexProvider'
 
 export default class ProviderFactory {
-  static create(provider: Provider): BaseProvider {
+  static async create(provider: Provider): Promise<BaseProvider> {
     if (provider.id === 'aihubmix') {
       return new AihubmixProvider(provider)
     }
@@ -22,6 +23,8 @@ export default class ProviderFactory {
         return new AnthropicProvider(provider)
       case 'gemini':
         return new GeminiProvider(provider)
+      case 'vertexai':
+        return await VertexProvider.create(provider)
       default:
         return new OpenAIProvider(provider)
     }
@@ -29,5 +32,5 @@ export default class ProviderFactory {
 }
 
 export function isOpenAIProvider(provider: Provider) {
-  return !['anthropic', 'gemini'].includes(provider.type)
+  return !['anthropic', 'gemini', 'vertexai'].includes(provider.type)
 }

@@ -49,7 +49,7 @@ async function performModelCheck<T>(
     }
   }
 
-  const AI = new AiProvider(provider)
+  const AI = await AiProvider.create(provider)
 
   try {
     const startTime = performance.now()

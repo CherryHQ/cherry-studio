@@ -849,9 +849,8 @@
       "rendering_speed": "Скорость рендеринга",
       "learn_more": "Узнать больше",
       "prompt_placeholder_edit": "Введите ваше описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
-      "prompt_placeholder_en": "Введите” английский “описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
       "paint_course": "Руководство / Учебник",
-      "proxy_required": "Открыть прокси и включить “TUN режим” для просмотра сгенерированных изображений или скопировать их в браузер для открытия. В будущем будет поддерживаться прямое соединение",
+      "proxy_required": "Сейчас необходимо открыть прокси для просмотра сгенерированных изображений, в будущем будет поддерживаться прямое соединение",
       "image_file_required": "Пожалуйста, сначала загрузите изображение",
       "image_file_retry": "Пожалуйста, сначала загрузите изображение",
       "image_placeholder": "Изображение недоступно",
@@ -1017,7 +1016,8 @@
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
       "qiniu": "Qiniu AI",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "vertexai": "Vertex AI"
     },
     "restore": {
       "confirm": "Вы уверены, что хотите восстановить данные?",
@@ -1662,6 +1662,27 @@
         },
         "openai": {
           "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
+        },
+        "vertex_ai": {
+          "project_id": "ID проекта",
+          "project_id_placeholder": "your-google-cloud-project-id",
+          "project_id_help": "Ваш ID проекта Google Cloud",
+          "location": "Местоположение",
+          "location_help": "Местоположение службы Vertex AI, например, us-central1",
+          "service_account": {
+            "title": "Конфигурация Service Account",
+            "private_key": "Приватный ключ",
+            "private_key_placeholder": "Введите приватный ключ Service Account",
+            "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
+            "client_email": "Email клиента",
+            "client_email_placeholder": "Введите email клиента Service Account",
+            "client_email_help": "Поле client_email из файла ключа JSON, загруженного из Google Cloud Console",
+            "description": "Используйте Service Account для аутентификации, подходит для сред, где ADC недоступен",
+            "auth_success": "Service Account успешно аутентифицирован",
+            "incomplete_config": "Пожалуйста, сначала завершите конфигурацию Service Account"
+          },
+          "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
+          "learn_more": "Узнать больше"
         }
       },
       "proxy": {

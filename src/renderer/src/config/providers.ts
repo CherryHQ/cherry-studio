@@ -39,6 +39,7 @@ import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
@@ -94,7 +95,8 @@ const PROVIDER_LOGO_MAP = {
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
   qiniu: QiniuProviderLogo,
-  tokenflux: TokenFluxProviderLogo
+  tokenflux: TokenFluxProviderLogo,
+  vertexai: VertexAIProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -611,6 +613,17 @@ export const PROVIDER_CONFIG = {
       apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
       docs: `${TOKENFLUX_HOST}/docs`,
       models: `${TOKENFLUX_HOST}/models`
+    }
+  },
+  vertexai: {
+    api: {
+      url: 'https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/overview'
+    },
+    websites: {
+      official: 'https://cloud.google.com/vertex-ai',
+      apiKey: 'https://console.cloud.google.com/apis/credentials',
+      docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
+      models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
     }
   }
 }
