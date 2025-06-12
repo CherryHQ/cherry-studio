@@ -24,10 +24,10 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
-import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens } from '@renderer/services/TokenService'

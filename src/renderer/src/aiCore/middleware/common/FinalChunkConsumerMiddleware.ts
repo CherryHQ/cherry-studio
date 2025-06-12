@@ -100,26 +100,26 @@ const FinalChunkConsumerMiddleware: CompletionsMiddleware =
           Logger.error(`[${MIDDLEWARE_NAME}] Error consuming stream:`, error)
           throw error
         } finally {
-          Logger.debug(`[${MIDDLEWARE_NAME}] Stream consumption completed`)
-          const finalIsRecursiveCall = ctx._internal?.toolProcessingState?.isRecursiveCall || false
-          const finalRecursionDepth = ctx._internal?.toolProcessingState?.recursionDepth || 0
+          // Logger.debug(`[${MIDDLEWARE_NAME}] Stream consumption completed`)
+          // const finalIsRecursiveCall = ctx._internal?.toolProcessingState?.isRecursiveCall || false
+          // const finalRecursionDepth = ctx._internal?.toolProcessingState?.recursionDepth || 0
 
-          Logger.debug(
-            `[${MIDDLEWARE_NAME}] Initial recursive call state: isRecursiveCall: ${isRecursiveCall}, recursionDepth: ${recursionDepth}`
-          )
+          // Logger.debug(
+          //   `[${MIDDLEWARE_NAME}] Initial recursive call state: isRecursiveCall: ${isRecursiveCall}, recursionDepth: ${recursionDepth}`
+          // )
 
-          Logger.debug(
-            `[${MIDDLEWARE_NAME}] Final recursive call state: isRecursiveCall: ${finalIsRecursiveCall}, recursionDepth: ${finalRecursionDepth}`
-          )
+          // Logger.debug(
+          //   `[${MIDDLEWARE_NAME}] Final recursive call state: isRecursiveCall: ${finalIsRecursiveCall}, recursionDepth: ${finalRecursionDepth}`
+          // )
 
-          if (finalIsRecursiveCall) {
-            Logger.debug(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (recursive call detected)`)
-          } else {
-            Logger.info(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (onChunk not provided)`)
-          }
+          // if (finalIsRecursiveCall) {
+          //   Logger.debug(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (recursive call detected)`)
+          // } else {
+          //   Logger.info(`[${MIDDLEWARE_NAME}] Skipping final BLOCK_COMPLETE (onChunk not provided)`)
+          // }
           if (params.onChunk && !isRecursiveCall) {
-            Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with usage:`, ctx._internal.observer?.usage)
-            Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with metrics:`, ctx._internal.observer?.metrics)
+            // Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with usage:`, ctx._internal.observer?.usage)
+            // Logger.debug(`[${MIDDLEWARE_NAME}] Emitting BLOCK_COMPLETE with metrics:`, ctx._internal.observer?.metrics)
             params.onChunk({
               type: ChunkType.BLOCK_COMPLETE,
               response: {

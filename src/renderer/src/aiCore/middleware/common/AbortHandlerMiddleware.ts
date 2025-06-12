@@ -1,3 +1,4 @@
+import { Chunk, ChunkType, ErrorChunk } from '@renderer/types/chunk'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
@@ -10,23 +11,12 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
   (next) =>
   async (ctx: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
     const isRecursiveCall = ctx._internal?.toolProcessingState?.isRecursiveCall || false
-    // const recursionDepth = ctx._internal?.toolProcessingState?.recursionDepth || 0
-
-    // console.log(`[${MIDDLEWARE_NAME}] Starting middleware execution`)
-    // console.log(
-    //   `🔄 [${MIDDLEWARE_NAME}] Starting middleware. isRecursive: ${isRecursiveCall}, depth: ${recursionDepth}`
-    // )
 
     // 在递归调用中，跳过 AbortController 的创建，直接使用已有的
     if (isRecursiveCall) {
-      // console.log(`🔄 [${MIDDLEWARE_NAME}] Recursive call detected, skipping AbortController creation`)
-      // console.log(`[${MIDDLEWARE_NAME}] Calling downstream middleware (recursive)`)
       const result = await next(ctx, params)
-      // console.log(`[${MIDDLEWARE_NAME}] Downstream middleware completed (recursive)`)
       return result
     }
-
-    // console.log(`🔄 [${MIDDLEWARE_NAME}] Creating AbortController for request`)
 
     // 获取当前消息的ID用于abort管理
     // 优先使用处理过的消息，如果没有则使用原始消息
@@ -38,7 +28,6 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
       const processedMessages = params.messages
       const lastUserMessage = processedMessages.findLast((m) => m.role === 'user')
       messageId = lastUserMessage?.id
-      console.log(`🔄 [${MIDDLEWARE_NAME}] Using messageId from last user message: ${messageId}`)
     }
 
     if (!messageId) {
@@ -51,13 +40,17 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
 
     addAbortController(messageId, abortFn)
 
+    let abortSignal: AbortSignal | null = abortController.signal
+
     const cleanup = (): void => {
       removeAbortController(messageId as string, abortFn)
+      if (ctx._internal?.flowControl) {
+        ctx._internal.flowControl.abortController = undefined
+        ctx._internal.flowControl.abortSignal = undefined
+        ctx._internal.flowControl.cleanup = undefined
+      }
+      abortSignal = null
     }
-
-    const abortSignal = abortController.signal
-
-    console.log(`🔄 [${MIDDLEWARE_NAME}] AbortController created for message: ${messageId}`)
 
     // 将controller添加到_internal中的flowControl状态
     if (!ctx._internal.flowControl) {
@@ -67,10 +60,51 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
     ctx._internal.flowControl.abortSignal = abortSignal
     ctx._internal.flowControl.cleanup = cleanup
 
-    console.log('ctx._internal.flowControl', ctx._internal.flowControl)
+    const result = await next(ctx, params)
 
-    // This middleware is now only responsible for creating the abort controller and setting up the context.
-    // The actual handling of the abort signal (e.g., throwing an error) and calling cleanup()
-    // is delegated to downstream middlewares or the final consumer of the stream.
-    return next(ctx, params)
+    const error = new DOMException('Request was aborted', 'AbortError')
+
+    const streamWithAbortHandler = (result.stream as ReadableStream<Chunk>).pipeThrough(
+      new TransformStream<Chunk, Chunk | ErrorChunk>({
+        transform(chunk, controller) {
+          console.log('transform_abortSignal', abortSignal?.aborted)
+          // 检查 abort 状态
+          if (abortSignal?.aborted) {
+            console.log(`🔄 [${MIDDLEWARE_NAME}] Abort detected, converting to ErrorChunk`)
+
+            // 转换为 ErrorChunk
+            const errorChunk: ErrorChunk = {
+              type: ChunkType.ERROR,
+              error
+            }
+
+            controller.enqueue(errorChunk)
+            cleanup()
+            return
+          }
+
+          // 正常传递 chunk
+          controller.enqueue(chunk)
+        },
+
+        flush(controller) {
+          // 在流结束时再次检查 abort 状态
+          console.log('flush_abortSignal', abortSignal?.aborted)
+          if (abortSignal?.aborted) {
+            const errorChunk: ErrorChunk = {
+              type: ChunkType.ERROR,
+              error
+            }
+            controller.enqueue(errorChunk)
+          }
+          // 在流完全处理完成后清理 AbortController
+          cleanup()
+        }
+      })
+    )
+
+    return {
+      ...result,
+      stream: streamWithAbortHandler
+    }
   }
