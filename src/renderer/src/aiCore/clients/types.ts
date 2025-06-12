@@ -13,7 +13,7 @@ import {
 } from '@renderer/types/sdk'
 import OpenAI from 'openai'
 
-import { CompletionsParams, GenericChunk } from '../../middleware/schemas'
+import { CompletionsParams, GenericChunk } from '../middleware/schemas'
 
 /**
  * 原始流监听器接口

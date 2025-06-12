@@ -18,7 +18,7 @@
 
 这是整个 AI 功能的核心模块。
 
-#### 2.1.1. `XxxApiClient` (例如 `aiCore/openai/OpenAIApiClient.ts`)
+#### 2.1.1. `XxxApiClient` (例如 `aiCore/clients/openai/OpenAIApiClient.ts`)
 
 - **职责**：作为特定 AI Provider SDK 的纯粹适配层。
   - **参数适配**：将应用内部统一的 `CoreRequest` 对象 (见下文) 转换为特定 SDK 所需的请求参数格式。
@@ -39,7 +39,7 @@
 
 - 根据 Provider 配置动态创建和返回相应的 `XxxApiClient` 实例。
 
-#### 2.1.4. `services/AiCoreService.ts` (或其他如 `AiCoreService.ts`)
+#### 2.1.4. `AiCoreService.ts` (`aiCore/index.ts`)
 
 - **职责**：作为所有 AI 相关业务功能的统一入口。
   - 提供面向应用的高层接口，例如：
@@ -125,8 +125,8 @@
 **应用层 (例如 UI 组件)**
 ||
 \\/
-**`AiProvider.completions` (`providers/AiProvider/index.ts`)**
-(1. 准备ApiClient实例. 2. 使用 `CompletionsMiddlewareBuilder.withDefaults()` 构建中间件链. 3. 调用 `applyCompletionsMiddlewares`)
+**`AiProvider.completions` (`aiCore/index.ts`)**
+(1. prepare ApiClient instance. 2. use `CompletionsMiddlewareBuilder.withDefaults()` to build middleware chain. 3. call `applyCompletionsMiddlewares`)
 ||
 \\/
 **`applyCompletionsMiddlewares` (`middleware/composer.ts`)**
@@ -156,29 +156,31 @@
 
 ```
 src/renderer/src/
-├── providers/                          # AI提供者相关代码
-│   ├── AiProvider/                     # 主要的 AI Provider 层
-│   │   ├── clients/                    # 特定 Provider 的适配层
-│   │   │   ├── openai/
-│   │   │   │   └── OpenAIApiClient.ts
-│   │   │   ├── gemini/
-│   │   │   │   └── GeminiApiClient.ts
-│   │   │   ├── BaseApiClient.ts        # ApiClient 基类
-│   │   │   ├── ApiClientFactory.ts     # ApiClient 工厂
-│   │   │   └── types.ts                # 客户端相关类型
-│   │   └── index.ts                    # AiProvider 主入口
-│
-├── middleware/                         # 中间件
-│   ├── common/                         # 通用型中间件
-│   ├── core/                           # 核心流转中间件
-│   ├── feature/                        # 特定特性处理中间件
-│   ├── middlewareTypes.ts              # 中间件核心类型
-│   └── index.ts
-│
-├── types/
-│   ├── chunk.ts                        # 全局统一 Chunk 类型定义
-│   └── ...                             # 其他全局类型
-└── ...                                 # 其他应用目录
+└── aiCore/
+    ├── clients/
+    │   ├── openai/
+    │   ├── gemini/
+    │   ├── anthropic/
+    │   ├── BaseApiClient.ts
+    │   ├── ApiClientFactory.ts
+    │   ├── AihubmixAPIClient.ts
+    │   ├── index.ts
+    │   └── types.ts
+    ├── middleware/
+    │   ├── common/
+    │   ├── core/
+    │   ├── feat/
+    │   ├── builder.ts
+    │   ├── composer.ts
+    │   ├── index.ts
+    │   ├── register.ts
+    │   ├── schemas.ts
+    │   ├── types.ts
+    │   └── utils.ts
+    ├── types/
+    │   ├── chunk.ts
+    │   └── ...
+    └── index.ts
 ```
 
 ## 5. 迁移和实施建议

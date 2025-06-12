@@ -1,3 +1,4 @@
+import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
 import Logger from '@renderer/config/logger'
 import {
   isEmbeddingModel,
@@ -16,7 +17,6 @@ import {
 } from '@renderer/config/prompts'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { CompletionsParams } from '@renderer/providers/middleware/schemas'
 import {
   Assistant,
   ExternalToolResult,
@@ -36,7 +36,7 @@ import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
-import AiProvider from '../providers/AiProvider'
+import AiProvider from '../aiCore'
 import {
   getAssistantProvider,
   getAssistantSettings,

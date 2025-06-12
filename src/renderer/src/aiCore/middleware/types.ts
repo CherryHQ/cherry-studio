@@ -10,7 +10,7 @@ import {
   SdkToolCall
 } from '@renderer/types/sdk'
 
-import { BaseApiClient } from '../AiProvider/clients'
+import { BaseApiClient } from '../clients'
 import { CompletionsParams, CompletionsResult } from './schemas'
 
 /**

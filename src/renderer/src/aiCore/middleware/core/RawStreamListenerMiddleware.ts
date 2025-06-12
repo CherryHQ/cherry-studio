@@ -1,7 +1,7 @@
-import { AnthropicAPIClient } from '@renderer/providers/AiProvider/clients/anthropic/AnthropicAPIClient'
+import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
 import { AnthropicSdkRawChunk, AnthropicSdkRawOutput } from '@renderer/types/sdk'
 
-import { AnthropicStreamListener } from '../../AiProvider/clients/types'
+import { AnthropicStreamListener } from '../../clients/types'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 

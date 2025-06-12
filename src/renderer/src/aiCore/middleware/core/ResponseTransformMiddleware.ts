@@ -1,7 +1,7 @@
 import Logger from '@renderer/config/logger'
 import { SdkRawChunk } from '@renderer/types/sdk'
 
-import { ResponseChunkTransformerContext } from '../../AiProvider/clients/types'
+import { ResponseChunkTransformerContext } from '../../clients/types'
 import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 

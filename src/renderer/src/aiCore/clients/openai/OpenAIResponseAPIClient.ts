@@ -1,9 +1,9 @@
+import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
   isOpenAIChatCompletionOnlyModel,
   isSupportedReasoningEffortOpenAIModel,
   isVisionModel
 } from '@renderer/config/models'
-import { GenericChunk } from '@renderer/providers/middleware/schemas'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   FileTypes,
