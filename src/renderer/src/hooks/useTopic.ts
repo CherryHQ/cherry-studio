@@ -88,20 +88,15 @@ export const finishTopicRenaming = (topicId: string) => {
   }, 700)
 }
 
-/**
- * 判断指定话题是否正在重命名
- */
-export const isTopicRenaming = (topicId: string) => {
-  return store.getState().runtime.chat.renamingTopics.includes(topicId)
-}
+const topicRenamingLocks = new Set<string>()
 
 export const autoRenameTopic = async (assistant: Assistant, topicId: string) => {
-  if (isTopicRenaming(topicId)) {
+  if (topicRenamingLocks.has(topicId)) {
     return
   }
 
   try {
-    startTopicRenaming(topicId)
+    topicRenamingLocks.add(topicId)
 
     const topic = await getTopicById(topicId)
     const enableTopicNaming = getStoreSetting('enableTopicNaming')
@@ -122,24 +117,36 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
         .join('\n\n')
         .substring(0, 50)
       if (topicName) {
-        const data = { ...topic, name: topicName } as Topic
-        _setActiveTopic(data)
-        store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+        try {
+          startTopicRenaming(topicId)
+
+          const data = { ...topic, name: topicName } as Topic
+          _setActiveTopic(data)
+          store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+        } finally {
+          finishTopicRenaming(topicId)
+        }
       }
       return
     }
 
     if (topic && topic.name === i18n.t('chat.default.topic.name') && topic.messages.length >= 2) {
-      const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
-      const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
-      if (summaryText) {
-        const data = { ...topic, name: summaryText }
-        _setActiveTopic(data)
-        store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+      try {
+        startTopicRenaming(topicId)
+
+        const { fetchMessagesSummary } = await import('@renderer/services/ApiService')
+        const summaryText = await fetchMessagesSummary({ messages: topic.messages, assistant })
+        if (summaryText) {
+          const data = { ...topic, name: summaryText }
+          _setActiveTopic(data)
+          store.dispatch(updateTopic({ assistantId: assistant.id, topic: data }))
+        }
+      } finally {
+        finishTopicRenaming(topicId)
       }
     }
   } finally {
-    finishTopicRenaming(topicId)
+    topicRenamingLocks.delete(topicId)
   }
 }
 
