@@ -188,32 +188,6 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
 
         <div style={{ display: showAdvanced ? 'block' : 'none' }}>
           <Form.Item
-            name="dimensions"
-            label={t('knowledge.dimensions')}
-            layout="horizontal"
-            initialValue={base.dimensions}
-            tooltip={{ title: t('knowledge.dimensions_size_tooltip') }}
-            rules={[
-              {
-                validator(_, value) {
-                  const maxContext = getEmbeddingMaxContext(base.model.id)
-                  if (value && maxContext && value > maxContext) {
-                    return Promise.reject(
-                      new Error(t('knowledge.dimensions_size_too_large', { max_context: maxContext }))
-                    )
-                  }
-                  return Promise.resolve()
-                }
-              }
-            ]}>
-            <InputNumber
-              style={{ width: '100%' }}
-              defaultValue={base.dimensions}
-              placeholder={t('knowledge.dimensions_size_placeholder')}
-              disabled={base.model.id !== 'voyage-3-large'}
-            />
-          </Form.Item>
-          <Form.Item
             name="chunkSize"
             label={t('knowledge.chunk_size')}
             layout="horizontal"

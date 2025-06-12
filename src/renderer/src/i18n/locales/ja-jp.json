@@ -261,6 +261,7 @@
       "topics.clear.title": "メッセージをクリア",
       "topics.copy.image": "画像としてコピー",
       "topics.copy.md": "Markdownとしてコピー",
+      "topics.copy.plain_text": "プレーンテキストとしてコピー（Markdownを除去）",
       "topics.copy.title": "コピー",
       "topics.delete.shortcut": "{{key}}キーを押しながらで直接削除",
       "topics.edit.placeholder": "新しい名前を入力",
@@ -565,8 +566,12 @@
       "urls": "URL",
       "dimensions": "埋め込み次元",
       "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
-      "dimensions_size_placeholder": "デフォルト値（変更はお勧めしません）",
-      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。"
+      "dimensions_size_placeholder": " 埋め込み次元のサイズ（例：1024）",
+      "dimensions_auto_set": "埋め込み次元を自動設定",
+      "dimensions_error_invalid": "埋め込み次元のサイズを入力してください",
+      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
+      "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
+      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -628,7 +633,6 @@
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
       "error.enter.name": "ナレッジベース名を入力してください",
-      "error.fetchTopicName": "トピックの命名に失敗しました",
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "error.invalid.api.host": "無効なAPIアドレスです",
       "error.invalid.api.key": "無効なAPIキーです",
@@ -1506,6 +1510,7 @@
       "messages.prompt": "プロンプト表示",
       "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
+      "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
       "messages.grid_popover_trigger.click": "クリックで表示",
@@ -1538,7 +1543,8 @@
       "models.add.model_id.select.placeholder": "モデルを選択",
       "models.add.model_id.tooltip": "例：gpt-3.5-turbo",
       "models.add.model_name": "モデル名",
-      "models.add.model_name.placeholder": "例：GPT-3.5",
+      "models.add.model_name.tooltip": "例：GPT-4",
+      "models.add.model_name.placeholder": "例：GPT-4",
       "models.check.all": "すべて",
       "models.check.all_models_passed": "すべてのモデルチェックが成功しました",
       "models.check.button_caption": "健康チェック",
@@ -1683,6 +1689,8 @@
         "exit_fullscreen": "フルスクリーンを終了",
         "key": "キー",
         "mini_window": "クイックアシスタント",
+        "selection_assistant_toggle": "選択アシスタントを切り替え",
+        "selection_assistant_select_text": "選択アシスタント：テキストを選択",
         "new_topic": "新しいトピック",
         "press_shortcut": "ショートカットを押す",
         "reset_defaults": "デフォルトのショートカットをリセット",
@@ -1853,7 +1861,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "検出された言語"
+      "detected.language": "自動検出"
     },
     "tray": {
       "quit": "終了",
@@ -1910,11 +1918,16 @@
         "toolbar": {
           "title": "ツールバー",
           "trigger_mode": {
-            "title": "表示方法",
-            "description": "テキスト選択時に即時表示、またはCtrlキー押下時のみ表示",
-            "description_note": "一部のアプリはCtrlキーでのテキスト選択に対応していません。AHKなどでCtrlキーをリマップすると、選択できなくなる場合があります。",
+            "title": "単語の取り出し方",
+            "description": "テキスト選択後、取詞ツールバーを表示する方法",
+            "description_note": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
             "selected": "選択時",
-            "ctrlkey": "Ctrlキー"
+            "selected_note": "テキスト選択時に即時表示",
+            "ctrlkey": "Ctrlキー",
+            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
+            "shortcut": "ショートカットキー",
+            "shortcut_note": "テキスト選択後、ショートカットキーを押下して表示。ショートカットキーを設定するには、ショートカット設定ページで有効にしてください。",
+            "shortcut_link": "ショートカット設定ページに移動"
           },
           "compact_mode": {
             "title": "コンパクトモード",

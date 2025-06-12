@@ -318,7 +318,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.divider')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>
+              {t('settings.messages.divider')}
+              <Tooltip title={t('settings.messages.divider.tooltip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
             <Switch
               size="small"
               checked={showMessageDivider}

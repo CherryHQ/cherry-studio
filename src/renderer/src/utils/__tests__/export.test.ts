@@ -1,7 +1,7 @@
 // Import Message, MessageBlock, and necessary enums
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks Setup ---
 
@@ -36,8 +36,36 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   })
 }))
 
+vi.mock('@renderer/databases', () => ({
+  default: {
+    topics: {
+      get: vi.fn()
+    }
+  }
+}))
+
+vi.mock('@renderer/utils/markdown', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...(actual as any),
+    markdownToPlainText: vi.fn((str) => str) // Simple pass-through for testing export logic
+  }
+})
+
 // Import the functions to test AFTER setting up mocks
-import { getTitleFromString, messagesToMarkdown, messageToMarkdown, messageToMarkdownWithReasoning } from '../export'
+import db from '@renderer/databases'
+import { Topic } from '@renderer/types'
+import { markdownToPlainText } from '@renderer/utils/markdown'
+
+import { copyMessageAsPlainText } from '../copy'
+import {
+  getTitleFromString,
+  messagesToMarkdown,
+  messageToMarkdown,
+  messageToMarkdownWithReasoning,
+  messageToPlainText,
+  topicToPlainText
+} from '../export'
 
 // --- Helper Functions for Test Data ---
 
@@ -134,6 +162,13 @@ beforeEach(() => {
   // Reset mocks and modules before each test suite (describe block)
   vi.resetModules()
   vi.clearAllMocks()
+
+  // Mock i18next translation function
+  vi.mock('i18next', () => ({
+    default: {
+      t: vi.fn((key) => key)
+    }
+  }))
 
   // Mock store - primarily for settings
   vi.doMock('@renderer/store', () => ({
@@ -342,6 +377,212 @@ describe('export', () => {
       const markdown = messagesToMarkdown(msgs)
       expect(markdown).toContain('Single user query')
       expect(markdown.split('\n\n---\n\n').length).toBe(1)
+    })
+  })
+
+  describe('formatMessageAsPlainText (via topicToPlainText)', () => {
+    it('should format user and assistant messages correctly to plain text with roles', async () => {
+      const userMsg = createMessage({ role: 'user', id: 'u_plain_formatted' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '# User Content Formatted' }
+      ])
+      const assistantMsg = createMessage({ role: 'assistant', id: 'a_plain_formatted' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '*Assistant Content Formatted*' }
+      ])
+      const testTopic: Topic = {
+        id: 't_plain_formatted',
+        name: 'Formatted Plain Topic',
+        assistantId: 'asst_test_formatted',
+        messages: [userMsg, assistantMsg] as any,
+        createdAt: '',
+        updatedAt: ''
+      }
+      ;(db.topics.get as any).mockResolvedValue({ messages: [userMsg, assistantMsg] })
+      // Specific mock for this test to check formatting
+      ;(markdownToPlainText as any).mockImplementation((str) => str.replace(/[#*]/g, ''))
+
+      const plainText = await topicToPlainText(testTopic)
+
+      expect(plainText).toContain('User:\nUser Content Formatted')
+      expect(plainText).toContain('Assistant:\nAssistant Content Formatted')
+      expect(markdownToPlainText).toHaveBeenCalledWith('# User Content Formatted')
+      expect(markdownToPlainText).toHaveBeenCalledWith('*Assistant Content Formatted*')
+      expect(markdownToPlainText).toHaveBeenCalledWith('Formatted Plain Topic')
+    })
+  })
+
+  describe('messageToPlainText', () => {
+    it('should convert a single message content to plain text without role prefix', () => {
+      const testMessage = createMessage({ role: 'user', id: 'single_msg_plain' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '### Single Message Content' }
+      ])
+      ;(markdownToPlainText as any).mockImplementation((str) => str.replace(/[#*_]/g, ''))
+
+      const result = messageToPlainText(testMessage)
+      expect(result).toBe('Single Message Content')
+      expect(markdownToPlainText).toHaveBeenCalledWith('### Single Message Content')
+    })
+
+    it('should return empty string for message with no main text', () => {
+      const testMessage = createMessage({ role: 'user', id: 'empty_msg_plain' }, [])
+      ;(markdownToPlainText as any).mockReturnValue('') // Mock to return empty for empty input
+
+      const result = messageToPlainText(testMessage)
+      expect(result).toBe('')
+      expect(markdownToPlainText).toHaveBeenCalledWith('')
+    })
+  })
+
+  describe('messagesToPlainText (via topicToPlainText)', () => {
+    it('should join multiple formatted plain text messages with double newlines', async () => {
+      const msg1 = createMessage({ role: 'user', id: 'm_plain1_formatted' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Msg1 Formatted' }
+      ])
+      const msg2 = createMessage({ role: 'assistant', id: 'm_plain2_formatted' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Msg2 Formatted' }
+      ])
+      const testTopic: Topic = {
+        id: 't_multi_plain_formatted',
+        name: 'Multi Plain Formatted',
+        assistantId: 'asst_test_multi_formatted',
+        messages: [msg1, msg2] as any,
+        createdAt: '',
+        updatedAt: ''
+      }
+      ;(db.topics.get as any).mockResolvedValue({ messages: [msg1, msg2] })
+      ;(markdownToPlainText as any).mockImplementation((str) => str) // Pass-through
+
+      const plainText = await topicToPlainText(testTopic)
+      expect(plainText).toBe('Multi Plain Formatted\n\nUser:\nMsg1 Formatted\n\nAssistant:\nMsg2 Formatted')
+    })
+  })
+
+  describe('topicToPlainText', () => {
+    beforeEach(() => {
+      vi.clearAllMocks() // Clear mocks before each test in this suite
+      // Mock store for settings if not already done globally or if specific settings are needed
+      vi.doMock('@renderer/store', () => ({
+        default: {
+          getState: () => ({
+            settings: { forceDollarMathInMarkdown: false } // Default or specific settings
+          })
+        }
+      }))
+    })
+
+    it('should return plain text for a topic with messages', async () => {
+      const msg1 = createMessage({ role: 'user', id: 'tp_u1' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '**Hello**' }
+      ])
+      const msg2 = createMessage({ role: 'assistant', id: 'tp_a1' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '_World_' }
+      ])
+      const testTopic: Topic = {
+        id: 'topic1_plain',
+        name: '# Topic One',
+        assistantId: 'asst_test',
+        messages: [msg1, msg2] as any,
+        createdAt: '',
+        updatedAt: ''
+      }
+      ;(db.topics.get as any).mockResolvedValue({ messages: [msg1, msg2] })
+      ;(markdownToPlainText as any).mockImplementation((str) => str.replace(/[#*_]/g, ''))
+
+      const result = await topicToPlainText(testTopic)
+      expect(db.topics.get).toHaveBeenCalledWith('topic1_plain')
+      expect(markdownToPlainText).toHaveBeenCalledWith('# Topic One')
+      expect(markdownToPlainText).toHaveBeenCalledWith('**Hello**')
+      expect(markdownToPlainText).toHaveBeenCalledWith('_World_')
+      expect(result).toBe('Topic One\n\nUser:\nHello\n\nAssistant:\nWorld')
+    })
+
+    it('should return only topic name if topic has no messages', async () => {
+      const testTopic: Topic = {
+        id: 'topic_empty_plain',
+        name: '## Empty Topic',
+        assistantId: 'asst_test',
+        messages: [] as any,
+        createdAt: '',
+        updatedAt: ''
+      }
+      ;(db.topics.get as any).mockResolvedValue({ messages: [] })
+      ;(markdownToPlainText as any).mockImplementation((str) => str.replace(/[#*_]/g, ''))
+
+      const result = await topicToPlainText(testTopic)
+      expect(result).toBe('Empty Topic')
+      expect(markdownToPlainText).toHaveBeenCalledWith('## Empty Topic')
+    })
+
+    it('should return empty string if topicMessages is null', async () => {
+      const testTopic: Topic = {
+        id: 'topic_null_msgs_plain',
+        name: 'Null Messages Topic',
+        assistantId: 'asst_test',
+        messages: null as any,
+        createdAt: '',
+        updatedAt: ''
+      }
+      ;(db.topics.get as any).mockResolvedValue(null)
+
+      const result = await topicToPlainText(testTopic)
+      expect(result).toBe('')
+    })
+  })
+
+  describe('copyMessageAsPlainText', () => {
+    // Mock navigator.clipboard.writeText
+    const writeTextMock = vi.fn()
+    beforeEach(() => {
+      vi.stubGlobal('navigator', {
+        clipboard: {
+          writeText: writeTextMock
+        }
+      })
+
+      // Mock window.message methods
+      vi.stubGlobal('window', {
+        message: {
+          success: vi.fn(),
+          error: vi.fn(),
+          warning: vi.fn(),
+          info: vi.fn()
+        }
+      })
+
+      // Mock i18next translation function
+      vi.mock('i18next', () => ({
+        default: {
+          t: vi.fn((key) => key)
+        }
+      }))
+
+      writeTextMock.mockReset()
+      // Ensure markdownToPlainText mock is set
+      ;(markdownToPlainText as any).mockImplementation((str) => str.replace(/[#*_]/g, ''))
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('should call messageToPlainText and copy its result to clipboard', async () => {
+      const testMessage = createMessage({ role: 'user', id: 'copy_msg_plain' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '**Copy This Plain**' }
+      ])
+
+      await copyMessageAsPlainText(testMessage)
+
+      expect(markdownToPlainText).toHaveBeenCalledWith('**Copy This Plain**')
+      expect(writeTextMock).toHaveBeenCalledWith('Copy This Plain')
+    })
+
+    it('should handle empty message content', async () => {
+      const testMessage = createMessage({ role: 'user', id: 'copy_empty_msg_plain' }, [])
+      ;(markdownToPlainText as any).mockReturnValue('')
+
+      await copyMessageAsPlainText(testMessage)
+
+      expect(markdownToPlainText).toHaveBeenCalledWith('')
+      expect(writeTextMock).toHaveBeenCalledWith('')
     })
   })
 })
