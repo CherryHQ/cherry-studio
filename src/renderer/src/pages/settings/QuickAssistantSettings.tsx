@@ -23,10 +23,9 @@ const QuickAssistantSettings: FC = () => {
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
     dispatch(setEnableQuickAssistant(enable))
-    await window.api.config.set('enableQuickAssistant', enable)
-    window.api.restartTray()
-    const disable = !enable
-    disable && window.api.miniWindow.close()
+    await window.api.config.set('enableQuickAssistant', enable, true)
+
+    !enable && window.api.miniWindow.close()
 
     if (enable && !clickTrayToShowQuickAssistant) {
       window.message.info({

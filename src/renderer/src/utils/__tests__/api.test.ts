@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatApiHost, maskApiKey } from '../api'
+import { formatApiHost, maskApiKey, splitApiKeyString } from '../api'
 
 describe('api', () => {
   describe('formatApiHost', () => {
@@ -65,6 +65,62 @@ describe('api', () => {
 
       // 8 characters
       expect(maskApiKey('12345678')).toBe('12345678')
+    })
+  })
+
+  describe('splitApiKeyString', () => {
+    it('should split comma-separated keys', () => {
+      const input = 'key1,key2,key3'
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key1', 'key2', 'key3'])
+    })
+
+    it('should trim spaces around keys', () => {
+      const input = ' key1 , key2 ,key3 '
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key1', 'key2', 'key3'])
+    })
+
+    it('should handle escaped commas', () => {
+      const input = 'key1,key2\\,withcomma,key3'
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key1', 'key2,withcomma', 'key3'])
+    })
+
+    it('should handle multiple escaped commas', () => {
+      const input = 'key1\\,withcomma1,key2\\,withcomma2'
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key1,withcomma1', 'key2,withcomma2'])
+    })
+
+    it('should ignore empty keys', () => {
+      const input = 'key1,,key2, ,key3'
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key1', 'key2', 'key3'])
+    })
+
+    it('should return empty array for empty string', () => {
+      const input = ''
+      const result = splitApiKeyString(input)
+      expect(result).toEqual([])
+    })
+
+    it('should handle only one key', () => {
+      const input = 'singlekey'
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['singlekey'])
+    })
+
+    it('should handle only escaped comma', () => {
+      const input = 'key\\,withcomma'
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key,withcomma'])
+    })
+
+    it('should handle all keys with spaces and escaped commas', () => {
+      const input = ' key1 , key2\\,withcomma , key3 '
+      const result = splitApiKeyString(input)
+      expect(result).toEqual(['key1', 'key2,withcomma', 'key3'])
     })
   })
 })

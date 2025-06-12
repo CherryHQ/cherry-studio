@@ -1,21 +1,21 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { getDefaultModel } from '@renderer/services/AssistantService'
+import { Assistant } from '@renderer/types'
 import { FC } from 'react'
 import styled from 'styled-components'
 
 import Messages from './components/Messages'
-
 interface Props {
   route: string
+  assistant: Assistant
 }
 
-const ChatWindow: FC<Props> = ({ route }) => {
-  const { defaultAssistant } = useDefaultAssistant()
+const ChatWindow: FC<Props> = ({ route, assistant }) => {
+  // const { defaultAssistant } = useDefaultAssistant()
 
   return (
     <Main className="bubble">
-      <Messages assistant={{ ...defaultAssistant, model: getDefaultModel() }} route={route} />
+      <Messages assistant={{ ...assistant, model: getDefaultModel() }} route={route} />
     </Main>
   )
 }

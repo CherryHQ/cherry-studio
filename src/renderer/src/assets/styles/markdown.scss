@@ -20,10 +20,8 @@
   h5,
   h6 {
     margin: 1em 0 1em 0;
-    font-weight: 800;
-    font-family:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue',
-      sans-serif;
+    font-weight: bold;
+    font-family: var(--font-family);
   }
 
   h1 {
@@ -117,7 +115,7 @@
   }
 
   code {
-    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-family: var(--code-font-family);
   }
 
   pre {
@@ -125,7 +123,9 @@
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
-    &:has(> .mermaid) {
+    &:has(.mermaid),
+    &:has(.plantuml-preview),
+    &:has(.svg-preview) {
       background-color: transparent;
     }
     &:not(pre pre) {
@@ -153,7 +153,7 @@
     padding-left: 1em;
     color: var(--color-text-light);
     border-left: 4px solid var(--color-border);
-    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-family: var(--font-family);
   }
 
   table {
@@ -171,9 +171,7 @@
   th {
     background-color: var(--color-background-mute);
     font-weight: bold;
-    font-family:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue',
-      sans-serif;
+    font-family: var(--font-family);
   }
 
   img {
@@ -301,6 +299,35 @@ emoji-picker {
   overflow-x: auto;
   overflow-y: hidden;
 }
+
 mjx-container {
   overflow-x: auto;
+}
+
+/* CodeMirror 相关样式 */
+.cm-editor {
+  border-radius: 5px;
+
+  &.cm-focused {
+    outline: none;
+  }
+
+  .cm-scroller {
+    font-family: var(--code-font-family);
+    border-radius: 5px;
+
+    .cm-gutters {
+      line-height: 1.6;
+    }
+
+    .cm-content {
+      line-height: 1.6;
+      padding-left: 0.25em;
+    }
+
+    .cm-lineWrapping * {
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+  }
 }

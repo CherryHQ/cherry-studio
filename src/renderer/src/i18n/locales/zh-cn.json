@@ -8,7 +8,27 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
+      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "创建智能体",
+      "import": {
+        "title": "从外部导入",
+        "type": {
+          "url": "URL",
+          "file": "文件"
+        },
+        "url_placeholder": "输入 JSON URL",
+        "select_file": "选择文件",
+        "button": "导入",
+        "file_filter": "JSON 文件",
+        "error": {
+          "url_required": "请输入 URL",
+          "fetch_failed": "从 URL 获取数据失败",
+          "invalid_format": "无效的代理格式：缺少必填字段"
+        }
+      },
+      "export": {
+        "agent": "导出智能体"
+      },
       "delete.popup.content": "确定要删除此智能体吗？",
       "edit.message.add.title": "添加",
       "edit.message.assistant.placeholder": "输入助手消息",
@@ -29,7 +49,10 @@
       "tag.default": "默认",
       "tag.new": "新建",
       "tag.system": "系统",
-      "title": "智能体"
+      "title": "智能体",
+      "settings": {
+        "title": "智能体配置"
+      }
     },
     "assistants": {
       "title": "助手",
@@ -52,16 +75,50 @@
       "settings.mcp.description": "默认启用的 MCP 服务器",
       "settings.default_model": "默认模型",
       "settings.knowledge_base": "知识库设置",
+      "settings.knowledge_base.recognition.tip": "智能体将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力",
+      "settings.knowledge_base.recognition": "调用知识库",
+      "settings.knowledge_base.recognition.off": "强制检索",
+      "settings.knowledge_base.recognition.on": "意图识别",
+      "settings.tool_use_mode": "工具调用方式",
+      "settings.tool_use_mode.function": "函数",
+      "settings.tool_use_mode.prompt": "提示词",
       "settings.model": "模型设置",
       "settings.preset_messages": "预设消息",
       "settings.prompt": "提示词设置",
       "settings.reasoning_effort": "思维链长度",
-      "settings.reasoning_effort.high": "长",
-      "settings.reasoning_effort.low": "短",
-      "settings.reasoning_effort.medium": "中",
-      "settings.reasoning_effort.off": "关",
-      "settings.reasoning_effort.tip": "仅支持 OpenAI o-series、Anthropic、Grok 推理模型",
-      "settings.more": "助手设置"
+      "settings.reasoning_effort.off": "关闭",
+      "settings.reasoning_effort.low": "浮想",
+      "settings.reasoning_effort.medium": "斟酌",
+      "settings.reasoning_effort.high": "沉思",
+      "settings.reasoning_effort.default": "默认",
+      "settings.more": "助手设置",
+      "settings.regular_phrases": {
+        "title": "常用短语",
+        "add": "添加短语",
+        "edit": "编辑短语",
+        "delete": "删除短语",
+        "deleteConfirm": "确定要删除这个短语吗？",
+        "titleLabel": "标题",
+        "titlePlaceholder": "输入标题",
+        "contentLabel": "内容",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}"
+      },
+      "list": {
+        "showByList": "列表展示",
+        "showByTags": "标签展示"
+      },
+      "tags": {
+        "none": "暂无标签",
+        "manage": "标签管理",
+        "add": "添加标签",
+        "untagged": "未分组",
+        "modify": "修改标签",
+        "delete": "删除标签",
+        "deleteConfirm": "确定要删除这个标签吗？",
+        "settings": {
+          "title": "标签设置"
+        }
+      }
     },
     "auth": {
       "error": "自动获取密钥失败，请手动获取",
@@ -73,7 +130,7 @@
     "backup": {
       "confirm": "确定要备份数据吗？",
       "confirm.button": "选择备份位置",
-      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+      "content": "备份全部数据，包括聊天记录、设置、知识库等所有数据。请注意，备份过程可能需要一些时间，感谢您的耐心等待",
       "progress": {
         "completed": "备份完成",
         "compressing": "压缩文件...",
@@ -91,7 +148,10 @@
       "manage": "管理",
       "select_model": "选择模型",
       "show.all": "显示全部",
-      "update_available": "有可用更新"
+      "update_available": "有可用更新",
+      "includes_user_questions": "包含用户提问",
+      "case_sensitive": "区分大小写",
+      "whole_word": "全字匹配"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -100,8 +160,8 @@
       "artifacts.button.preview": "预览",
       "artifacts.preview.openExternal.error.content": "外部浏览器打开出错",
       "assistant.search.placeholder": "搜索",
-      "deeply_thought": "已深度思考（用时 {{secounds}} 秒）",
-      "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天。",
+      "deeply_thought": "已深度思考（用时 {{seconds}} 秒）",
+      "default.description": "你好，我是默认助手。你可以立刻开始跟我聊天",
       "default.name": "默认助手",
       "default.topic.name": "默认话题",
       "history": {
@@ -123,6 +183,7 @@
       "input.estimated_tokens.tip": "预估 token 数",
       "input.expand": "展开",
       "input.file_not_supported": "模型不支持此文件类型",
+      "input.file_error": "文件处理出错",
       "input.generate_image": "生成图片",
       "input.generate_image_not_supported": "模型不支持生成图片",
       "input.knowledge_base": "知识库",
@@ -133,21 +194,40 @@
       "input.translating": "翻译中...",
       "input.send": "发送",
       "input.settings": "设置",
+      "input.thinking": "思考",
+      "input.thinking.mode.default": "默认",
+      "input.thinking.mode.default.tip": "模型会自动确定思考的 token 数",
+      "input.thinking.mode.custom": "自定义",
+      "input.thinking.mode.custom.tip": "模型最多可以思考的 token 数。需要考虑模型的上下文限制，否则会报错",
+      "input.thinking.mode.tokens.tip": "设置思考的 token 数",
+      "input.thinking.budget_exceeds_max": "思考预算超过最大 token 数",
       "input.topics": " 话题 ",
       "input.translate": "翻译成{{target_language}}",
       "input.upload": "上传图片或文档",
       "input.upload.upload_from_local": "上传本地文件...",
       "input.upload.document": "上传文档（模型不支持图片）",
-      "input.web_search": "开启网络搜索",
+      "input.web_search": "网络搜索",
+      "input.web_search.settings": "网络搜索设置",
       "input.web_search.button.ok": "去设置",
       "input.web_search.enable": "开启网络搜索",
       "input.web_search.enable_content": "需要先在设置中检查网络搜索连通性",
+      "input.web_search.builtin": "模型内置",
+      "input.web_search.builtin.enabled_content": "使用模型内置的网络搜索功能",
+      "input.web_search.builtin.disabled_content": "当前模型不支持网络搜索功能",
+      "input.web_search.no_web_search": "不使用网络",
+      "input.web_search.no_web_search.description": "不启用网络搜索功能",
+      "input.tools.collapse": "折叠",
+      "input.tools.expand": "展开",
+      "input.tools.collapse_in": "加入折叠",
+      "input.tools.collapse_out": "移出折叠",
       "message.new.branch": "分支",
       "message.new.branch.created": "新分支已创建",
       "message.new.context": "清除上下文",
       "message.quote": "引用",
       "message.regenerate.model": "切换模型",
       "message.useful": "有用",
+      "multiple.select": "多选",
+      "multiple.select.empty": "未选中任何消息",
       "navigation": {
         "first": "已经是第一条消息",
         "history": "聊天历史",
@@ -160,12 +240,26 @@
       },
       "resend": "重新发送",
       "save": "保存",
+      "settings.code.title": "代码块设置",
+      "settings.code_editor": {
+        "title": "代码编辑器",
+        "highlight_active_line": "高亮当前行",
+        "fold_gutter": "折叠控件",
+        "autocompletion": "自动补全",
+        "keymap": "快捷键"
+      },
+      "settings.code_execution": {
+        "title": "代码执行",
+        "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
+        "timeout_minutes": "超时时间",
+        "timeout_minutes.tip": "代码执行超时时间（分钟）"
+      },
       "settings.code_collapsible": "代码块可折叠",
       "settings.code_wrappable": "代码块可换行",
       "settings.code_cacheable": "代码块缓存",
       "settings.code_cacheable.tip": "缓存代码块可以减少长代码块的渲染时间，但会增加内存占用",
       "settings.code_cache_max_size": "缓存上限",
-      "settings.code_cache_max_size.tip": "允许缓存的字符数上限（千字符），按照高亮后的代码计算。高亮后的代码长度相比于纯文本会长很多。",
+      "settings.code_cache_max_size.tip": "允许缓存的字符数上限（千字符），按照高亮后的代码计算。高亮后的代码长度相比于纯文本会长很多",
       "settings.code_cache_ttl": "缓存期限",
       "settings.code_cache_ttl.tip": "缓存过期时间（分钟）",
       "settings.code_cache_threshold": "缓存阈值",
@@ -173,9 +267,9 @@
       "settings.context_count": "上下文数",
       "settings.context_count.tip": "要保留在上下文中的消息数量，数值越大，上下文越长，消耗的 token 越多。普通聊天建议 5-10",
       "settings.max": "不限",
-      "settings.max_tokens": "开启消息长度限制",
-      "settings.max_tokens.confirm": "开启消息长度限制",
-      "settings.max_tokens.confirm_content": "开启消息长度限制后，单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
+      "settings.max_tokens": "最大 TOKEN 数",
+      "settings.max_tokens.confirm": "最大 Token 数",
+      "settings.max_tokens.confirm_content": "设置单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.max_tokens.tip": "单次交互所用的最大 Token 数, 会影响返回结果的长度。要根据模型上下文限制来设置，否则会报错",
       "settings.reset": "重置",
       "settings.set_as_default": "应用到默认助手",
@@ -187,7 +281,7 @@
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "默认值为 1，值越小，AI 生成的内容越单调，也越容易理解；值越大，AI 回复的词汇围越大，越多样化",
       "suggestions.title": "建议的问题",
-      "thinking": "思考中",
+      "thinking": "思考中（用时 {{seconds}} 秒）",
       "topics.auto_rename": "生成话题名",
       "topics.clear.title": "清空消息",
       "topics.copy.image": "复制为图片",
@@ -231,6 +325,7 @@
       "topics.export.obsidian_no_vault_selected": "请先选择一个保管库",
       "topics.export.obsidian_select_vault_first": "请先选择保管库",
       "topics.export.obsidian_root_directory": "根目录",
+      "topics.export.obsidian_reasoning": "导出思维链",
       "topics.export.title": "导出",
       "topics.export.word": "导出为 Word",
       "topics.export.yuque": "导出到语雀",
@@ -251,9 +346,32 @@
     },
     "code_block": {
       "collapse": "收起",
-      "disable_wrap": "取消换行",
-      "enable_wrap": "换行",
-      "expand": "展开"
+      "copy.failed": "复制失败",
+      "copy.source": "复制源代码",
+      "copy.success": "复制成功",
+      "copy": "复制",
+      "download.failed.network": "下载失败，请检查网络",
+      "download.png": "下载 PNG",
+      "download.source": "下载源代码",
+      "download.svg": "下载 SVG",
+      "download": "下载",
+      "edit.save.failed.message_not_found": "保存失败，没有找到对应的消息",
+      "edit.save.failed": "保存失败",
+      "edit.save.success": "已保存",
+      "edit.save": "保存修改",
+      "edit": "编辑",
+      "expand": "展开",
+      "more": "更多",
+      "preview.copy.image": "复制为图片",
+      "preview.source": "查看源代码",
+      "preview.zoom_in": "放大",
+      "preview.zoom_out": "缩小",
+      "preview": "预览",
+      "run": "运行代码",
+      "split.restore": "取消分割视图",
+      "split": "分割视图",
+      "wrap.off": "取消换行",
+      "wrap.on": "换行"
     },
     "common": {
       "add": "添加",
@@ -269,6 +387,7 @@
       "confirm": "确认",
       "copied": "已复制",
       "copy": "复制",
+      "inspect": "检查",
       "cut": "剪切",
       "default": "默认",
       "delete": "删除",
@@ -284,6 +403,7 @@
       "fullscreen": "已进入全屏模式，按 F11 退出",
       "knowledge_base": "知识库",
       "language": "语言",
+      "loading": "加载中...",
       "model": "模型",
       "models": "模型",
       "more": "更多",
@@ -297,6 +417,8 @@
       "save": "保存",
       "search": "搜索",
       "select": "选择",
+      "selectedMessages": "选中 {{count}} 条消息",
+      "success": "成功",
       "topics": "话题",
       "warning": "警告",
       "you": "用户",
@@ -305,7 +427,8 @@
         "pinyin": "按拼音排序",
         "pinyin.asc": "按拼音升序",
         "pinyin.desc": "按拼音降序"
-      }
+      },
+      "no_results": "无结果"
     },
     "docs": {
       "title": "帮助文档"
@@ -332,7 +455,8 @@
         "title": "渲染错误"
       },
       "user_message_not_found": "无法找到原始用户消息",
-      "unknown": "未知错误"
+      "unknown": "未知错误",
+      "pause_placeholder": "已中断"
     },
     "export": {
       "assistant": "助手",
@@ -444,7 +568,7 @@
       "threshold_tooltip": "用于衡量用户问题与知识库内容之间的相关性（0-1）",
       "title": "知识库",
       "topN": "返回结果数量",
-      "topN__too_large_or_small": "返回结果数量不能大于100或小于1",
+      "topN_too_large_or_small": "返回结果数量不能大于30或小于1",
       "topN_placeholder": "未设置",
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
@@ -463,7 +587,14 @@
       "korean": "韩文",
       "portuguese": "葡萄牙文",
       "russian": "俄文",
-      "spanish": "西班牙文"
+      "spanish": "西班牙文",
+      "polish": "波兰文",
+      "turkish": "土耳其文",
+      "thai": "泰文",
+      "vietnamese": "越南文",
+      "indonesian": "印尼文",
+      "urdu": "乌尔都文",
+      "malay": "马来文"
     },
     "lmstudio": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -471,22 +602,11 @@
       "keep_alive_time.title": "保持活跃时间",
       "title": "LM Studio"
     },
-    "mermaid": {
-      "download": {
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "resize": {
-        "zoom-in": "放大",
-        "zoom-out": "缩小"
-      },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
-      },
-      "title": "Mermaid 图表"
-    },
     "message": {
+      "agents": {
+        "imported": "导入成功",
+        "import.error": "导入失败"
+      },
       "api.check.model.title": "请选择要检测的模型",
       "api.connection.failed": "连接失败",
       "api.connection.success": "连接成功",
@@ -499,16 +619,23 @@
       "backup.start.success": "开始备份",
       "backup.success": "备份成功",
       "chat.completion.paused": "会话已停止",
+      "citation": "{{count}}个引用内容",
       "citations": "引用内容",
       "copied": "已复制",
       "copy.failed": "复制失败",
       "copy.success": "复制成功",
+      "delete.confirm.title": "删除确认",
+      "delete.confirm.content": "确认删除选中的{{count}}条消息吗？",
+      "delete.failed": "删除失败",
+      "delete.success": "删除成功",
+      "empty_url": "无法下载图片，可能是提示词包含敏感内容或违禁词汇",
       "error.chunk_overlap_too_large": "分段重叠不能大于分段大小",
       "error.dimension_too_large": "内容尺寸过大",
       "error.enter.api.host": "请输入您的 API 地址",
       "error.enter.api.key": "请输入您的 API 密钥",
       "error.enter.model": "请选择一个模型",
       "error.enter.name": "请输入知识库名称",
+      "error.fetchTopicName": "话题命名失败",
       "error.get_embedding_dimensions": "获取嵌入维度失败",
       "error.invalid.api.host": "无效的 API 地址",
       "error.invalid.api.key": "无效的 API 密钥",
@@ -528,7 +655,7 @@
       "group.delete.content": "删除分组消息会删除用户提问和所有助手的回答",
       "group.delete.title": "删除分组消息",
       "ignore.knowledge.base": "联网模式开启，忽略知识库",
-      "info.notion.block_reach_limit": "对话过长，正在分页导出到Notion",
+      "info.notion.block_reach_limit": "对话过长，正在分段导出到Notion",
       "loading.notion.exporting_progress": "正在导出到Notion ({{current}}/{{total}})...",
       "loading.notion.preparing": "正在准备导出到Notion...",
       "mention.title": "切换模型回答",
@@ -545,6 +672,7 @@
       "message.style": "消息样式",
       "message.style.bubble": "气泡",
       "message.style.plain": "简洁",
+      "processing": "正在处理...",
       "regenerate.confirm": "重新生成会覆盖当前消息",
       "reset.confirm.content": "确定要重置所有数据吗？",
       "reset.double.confirm.content": "你的全部数据都会丢失，如果没有备份数据，将无法恢复，确定要继续吗？",
@@ -576,11 +704,15 @@
       "error.siyuan.no_config": "未配置思源笔记API地址或令牌",
       "success.siyuan.export": "导出到思源笔记成功",
       "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
-      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!"
+      "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!",
+      "download.success": "下载成功",
+      "download.failed": "下载失败"
     },
     "minapp": {
       "popup": {
         "refresh": "刷新",
+        "goBack": "后退",
+        "goForward": "前进",
         "close": "关闭小程序",
         "minimize": "最小化小程序",
         "devtools": "开发者工具",
@@ -589,11 +721,26 @@
         "open_link_external_on": "当前：在浏览器中打开链接",
         "open_link_external_off": "当前：使用默认窗口打开链接"
       },
-      "sidebar.add.title": "添加到侧边栏",
-      "sidebar.remove.title": "从侧边栏移除",
-      "sidebar.close.title": "关闭",
-      "sidebar.closeall.title": "全部关闭",
-      "sidebar.hide.title": "隐藏小程序",
+      "sidebar": {
+        "add": {
+          "title": "添加到侧边栏"
+        },
+        "remove": {
+          "title": "从侧边栏移除"
+        },
+        "remove_custom": {
+          "title": "删除自定义应用"
+        },
+        "hide": {
+          "title": "隐藏"
+        },
+        "close": {
+          "title": "关闭"
+        },
+        "closeall": {
+          "title": "关闭所有"
+        }
+      },
       "title": "小程序"
     },
     "miniwindow": {
@@ -644,9 +791,11 @@
       "pinned": "已固定",
       "rerank_model": "重排模型",
       "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
+      "rerank_model_not_support_provider": "目前重排序模型不支持该服务商 ({{provider}})",
       "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "search": "搜索模型...",
       "stream_output": "流式输出",
+      "enable_tool_use": "工具调用",
       "type": {
         "embedding": "嵌入",
         "free": "免费",
@@ -663,6 +812,11 @@
       "expand": "伸缩对话框",
       "hide_sidebar": "隐藏侧边栏",
       "show_sidebar": "显示侧边栏"
+    },
+    "notification": {
+      "assistant": "助手响应",
+      "knowledge.success": "成功添加 {{type}} 到知识库",
+      "knowledge.error": "添加 {{type}} 到知识库失败: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -689,19 +843,126 @@
       "regenerate.confirm": "这将覆盖已生成的图片，是否继续？",
       "seed": "随机种子",
       "seed_tip": "相同的种子和提示词可以生成相似的图片",
-      "title": "图片"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
+      "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
+      "title": "图片",
+      "magic_prompt_option": "提示词增强",
+      "model": "模型",
+      "aspect_ratio": "画幅比例",
+      "style_type": "风格",
+      "rendering_speed": "渲染速度",
+      "learn_more": "了解更多",
+      "paint_course": "教程",
+      "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
+      "prompt_placeholder_en": "输入”英文“图片描述，目前 Imagen 仅支持英文提示词",
+      "proxy_required": "打开代理并开启”TUN模式“查看生成图片或复制到浏览器打开，后续会支持国内直连",
+      "image_file_required": "请先上传图片",
+      "image_file_retry": "请重新上传图片",
+      "image_placeholder": "暂无图片",
+      "image_retry": "重试",
+      "translating": "翻译中...",
+      "style_types": {
+        "auto": "自动",
+        "general": "通用",
+        "realistic": "写实",
+        "design": "设计",
+        "3d": "3D",
+        "anime": "动漫"
       },
-      "tabs": {
-        "preview": "预览",
-        "source": "源码"
+      "rendering_speeds": {
+        "default": "默认",
+        "turbo": "快速",
+        "quality": "高质量"
       },
-      "title": "PlantUML 图表"
+      "quality_options": {
+        "auto": "自动",
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      },
+      "moderation_options": {
+        "auto": "自动",
+        "low": "低"
+      },
+      "background_options": {
+        "auto": "自动",
+        "transparent": "透明",
+        "opaque": "不透明"
+      },
+      "person_generation_options": {
+        "allow_all": "允许所有",
+        "allow_adult": "允许成人",
+        "allow_none": "不允许"
+      },
+      "aspect_ratios": {
+        "square": "方形",
+        "portrait": "竖图",
+        "landscape": "横图"
+      },
+      "quality": "质量",
+      "moderation": "敏感度",
+      "background": "背景",
+      "mode": {
+        "generate": "绘图",
+        "edit": "编辑",
+        "remix": "混合",
+        "upscale": "高清增强"
+      },
+      "generate": {
+        "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
+        "number_images_tip": "单次出图数量",
+        "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
+        "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
+        "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
+        "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
+        "person_generation": "生成人物",
+        "person_generation_tip": "允许模型生成人物图像"
+      },
+      "edit": {
+        "image_file": "编辑的图像",
+        "model_tip": "支持 V3 和 V2 版本",
+        "number_images_tip": "生成的编辑结果数量",
+        "style_type_tip": "编辑后的图像风格，仅适用于 V_2 及以上版本",
+        "seed_tip": "控制编辑结果的随机性",
+        "magic_prompt_option_tip": "智能优化编辑提示词",
+        "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本"
+      },
+      "remix": {
+        "model_tip": "选择重混使用的 AI 模型版本",
+        "image_file": "参考图",
+        "image_weight": "参考图权重",
+        "image_weight_tip": "调整参考图像的影响程度",
+        "number_images_tip": "生成的重混结果数量",
+        "seed_tip": "控制重混结果的随机性",
+        "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本",
+        "negative_prompt_tip": "描述不想在重混结果中出现的元素",
+        "magic_prompt_option_tip": "智能优化重混提示词",
+        "rendering_speed_tip": "控制渲染速度与质量之间的平衡，仅适用于V_3版本"
+      },
+      "upscale": {
+        "image_file": "需要放大的图片",
+        "resemblance": "相似度",
+        "resemblance_tip": "控制放大结果与原图的相似程度",
+        "detail": "细节",
+        "detail_tip": "控制放大图像的细节增强程度",
+        "number_images_tip": "生成的放大结果数量",
+        "seed_tip": "控制放大结果的随机性",
+        "magic_prompt_option_tip": "智能优化放大提示词"
+      },
+      "text_desc_required": "请先输入图片描述",
+      "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "auto_create_paint": "自动新建图片",
+      "auto_create_paint_tip": "在图片生成后，会自动新建图片",
+      "select_model": "选择模型",
+      "input_parameters": "输入参数",
+      "input_image": "输入图片",
+      "generated_image": "生成图片",
+      "pricing": "定价",
+      "model_and_pricing": "模型与定价",
+      "per_image": "每张图片",
+      "per_images": "每张图片",
+      "required_field": "必填项",
+      "uploaded_input": "已上传输入"
     },
     "prompts": {
       "explanation": "帮我解释一下这个概念",
@@ -710,6 +971,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -722,7 +984,7 @@
       "doubao": "火山引擎",
       "fireworks": "Fireworks",
       "gemini": "Gemini",
-      "gitee-ai": "Gitee AI",
+      "gitee-ai": "模力方舟",
       "github": "GitHub Models",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -754,12 +1016,13 @@
       "zhinao": "360智脑",
       "zhipu": "智谱AI",
       "voyageai": "Voyage AI",
-      "qiniu": "七牛云"
+      "qiniu": "七牛云 AI 推理",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "确定要恢复数据吗？",
       "confirm.button": "选择备份文件",
-      "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待。",
+      "content": "恢复操作将使用备份数据覆盖当前所有应用数据。请注意，恢复过程可能需要一些时间，感谢您的耐心等待",
       "progress": {
         "completed": "恢复完成",
         "copying_files": "复制文件... {{progress}}%",
@@ -777,6 +1040,8 @@
       "about.checkUpdate.available": "立即更新",
       "about.contact.button": "邮件",
       "about.contact.title": "邮件联系",
+      "about.debug.title": "调试面板",
+      "about.debug.open": "打开",
       "about.description": "一款为创造者而生的 AI 助手",
       "about.downloading": "正在下载更新...",
       "about.feedback.button": "反馈",
@@ -809,6 +1074,8 @@
         "app_knowledge.remove_all_confirm": "删除知识库文件可以减少存储空间占用，但不会删除知识库向量化数据，删除之后将无法打开源文件，是否删除？",
         "app_knowledge.remove_all_success": "文件删除成功",
         "app_logs": "应用日志",
+        "backup.skip_file_data_title": "精简备份",
+        "backup.skip_file_data_help": "备份时跳过备份图片、知识库等数据文件，仅备份聊天记录和设置。减少空间占用, 加快备份速度",
         "clear_cache": {
           "button": "清除缓存",
           "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
@@ -848,23 +1115,27 @@
           "token": "Joplin 授权令牌",
           "token_placeholder": "请输入 Joplin 授权令牌",
           "url": "Joplin 剪裁服务监听 URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "导出时包含思维链",
+          "export_reasoning.help": "开启后，导出到Joplin时会包含思维链内容。"
         },
-        "markdown_export.force_dollar_math.help": "开启后，导出Markdown时会将强制使用$$来标记LaTeX公式。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
+        "markdown_export.force_dollar_math.help": "开启后，导出Markdown时会将强制使用$$来标记LaTeX公式。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等",
         "markdown_export.force_dollar_math.title": "强制使用$$来标记LaTeX公式",
         "markdown_export.help": "若填入，则每次导出时将自动保存到该路径；否则，将弹出保存对话框",
         "markdown_export.path": "默认导出路径",
         "markdown_export.path_placeholder": "导出路径",
         "markdown_export.select": "选择",
         "markdown_export.title": "Markdown 导出",
+        "markdown_export.show_model_name.title": "导出时使用模型名称",
+        "markdown_export.show_model_name.help": "开启后，使用话题命名模型为导出的消息创建标题。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
+        "markdown_export.show_model_provider.title": "显示模型供应商",
+        "markdown_export.show_model_provider.help": "在导出Markdown时显示模型供应商，如OpenAI、Gemini等",
         "message_title.use_topic_naming.title": "使用话题命名模型为导出的消息创建标题",
-        "message_title.use_topic_naming.help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过Markdown导出的方式。",
+        "message_title.use_topic_naming.help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过Markdown导出的方式",
         "minute_interval_one": "{{count}} 分钟",
         "minute_interval_other": "{{count}} 分钟",
         "notion.api_key": "Notion 密钥",
         "notion.api_key_placeholder": "请输入Notion 密钥",
-        "notion.auto_split": "导出对话时自动分页",
-        "notion.auto_split_tip": "当要导出的话题过长时自动分页导出到Notion",
         "notion.check": {
           "button": "检测",
           "empty_api_key": "未配置 API key",
@@ -878,10 +1149,9 @@
         "notion.help": "Notion 配置文档",
         "notion.page_name_key": "页面标题字段名",
         "notion.page_name_key_placeholder": "请输入页面标题字段名，默认为 Name",
-        "notion.split_size": "自动分页大小",
-        "notion.split_size_help": "Notion免费版用户建议设置为90，高级版用户建议设置为24990，默认值为90",
-        "notion.split_size_placeholder": "请输入每页块数限制(默认90)",
-        "notion.title": "Notion 配置",
+        "notion.title": "Notion 设置",
+        "notion.export_reasoning.title": "导出时包含思维链",
+        "notion.export_reasoning.help": "开启后，导出到Notion时会包含思维链内容。",
         "title": "数据设置",
         "webdav": {
           "autoSync": "自动备份",
@@ -897,8 +1167,8 @@
           "backup.manager.restore.success": "恢复成功，应用将在几秒后刷新",
           "backup.manager.restore.error": "恢复失败",
           "backup.manager.delete.confirm.title": "确认删除",
-          "backup.manager.delete.confirm.single": "确定要删除备份文件 \"{{fileName}}\" 吗？此操作不可恢复。",
-          "backup.manager.delete.confirm.multiple": "确定要删除选中的 {{count}} 个备份文件吗？此操作不可恢复。",
+          "backup.manager.delete.confirm.single": "确定要删除备份文件 \"{{fileName}}\" 吗？此操作不可恢复",
+          "backup.manager.delete.confirm.multiple": "确定要删除选中的 {{count}} 个备份文件吗？此操作不可恢复",
           "backup.manager.delete.success.single": "删除成功",
           "backup.manager.delete.success.multiple": "成功删除 {{count}} 个备份文件",
           "backup.manager.delete.error": "删除失败",
@@ -1016,6 +1286,7 @@
       "display.sidebar.translate.icon": "显示翻译图标",
       "display.sidebar.visible": "显示的图标",
       "display.title": "显示设置",
+      "display.zoom.title": "缩放设置",
       "display.topic.title": "话题设置",
       "miniapps": {
         "title": "小程序设置",
@@ -1024,6 +1295,37 @@
         "visible": "显示的小程序",
         "open_link_external": {
           "title": "在浏览器中打开新窗口链接"
+        },
+        "custom": {
+          "title": "自定义",
+          "edit_title": "编辑自定义小程序",
+          "save_success": "自定义小程序保存成功",
+          "save_error": "自定义小程序保存失败",
+          "remove_success": "自定义小程序删除成功",
+          "remove_error": "自定义小程序删除失败",
+          "logo_upload_success": "Logo 上传成功",
+          "logo_upload_error": "Logo 上传失败",
+          "id": "ID",
+          "id_error": "ID 是必填项",
+          "id_placeholder": "请输入 ID",
+          "name": "名称",
+          "name_error": "名称是必填项",
+          "name_placeholder": "请输入名称",
+          "url": "URL",
+          "url_error": "URL 是必填项",
+          "url_placeholder": "请输入 URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "上传 Logo 文件",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "请输入 Logo URL",
+          "logo_upload_label": "上传 Logo",
+          "logo_upload_button": "上传",
+          "save": "保存",
+          "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
+          "placeholder": "请输入自定义小程序配置（JSON格式）",
+          "duplicate_ids": "发现重复的ID: {{ids}}",
+          "conflicting_ids": "与默认应用ID冲突: {{ids}}"
         },
         "cache_settings": "缓存设置",
         "cache_title": "小程序缓存数量",
@@ -1066,6 +1368,14 @@
         "active": "启用",
         "addError": "添加服务器失败",
         "addServer": "添加服务器",
+        "addServer.create": "快速创建",
+        "addServer.importFrom": "从 JSON 导入",
+        "addServer.importFrom.tooltip": "请从 MCP Servers 的介绍页面复制配置JSON（优先使用\n NPX或 UVX 配置），并粘贴到输入框中",
+        "addServer.importFrom.placeholder": "粘贴 MCP 服务器 JSON 配置",
+        "addServer.importFrom.invalid": "无效输入，请检查 JSON 格式",
+        "addServer.importFrom.nameExists": "服务器已存在：{{name}}",
+        "addServer.importFrom.oneServer": "每次只能保存一個 MCP 伺服器配置",
+        "addServer.importFrom.connectionFailed": "連接失敗",
         "addSuccess": "服务器添加成功",
         "args": "参数",
         "argsTooltip": "每个参数占一行",
@@ -1076,11 +1386,14 @@
         "stdio": "标准输入/输出 (stdio)",
         "inMemory": "内存",
         "config_description": "配置模型上下文协议服务器",
+        "disable": "不使用 MCP 服务器",
+        "disable.description": "不启用 MCP 服务功能",
         "deleteError": "删除服务器失败",
         "deleteSuccess": "服务器删除成功",
         "dependenciesInstall": "安装依赖项",
         "dependenciesInstalling": "正在安装依赖项...",
         "description": "描述",
+        "noDescriptionAvailable": "暂无描述",
         "duplicateName": "已存在同名服务器",
         "editJson": "编辑JSON",
         "editServer": "编辑服务器",
@@ -1094,7 +1407,7 @@
         "installError": "安装依赖项失败",
         "installSuccess": "依赖项安装成功",
         "jsonFormatError": "JSON格式化错误",
-        "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确。",
+        "jsonModeHint": "编辑MCP服务器配置的JSON表示。保存前请确保格式正确",
         "jsonSaveError": "保存JSON配置失败",
         "jsonSaveSuccess": "JSON配置已保存",
         "missingDependencies": "缺失，请安装它以继续",
@@ -1161,7 +1474,7 @@
         "deleteServer": "删除服务器",
         "deleteServerConfirm": "确定要删除此服务器吗？",
         "registry": "包管理源",
-        "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题。",
+        "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题",
         "registryDefault": "默认",
         "not_support": "模型不支持",
         "user": "用户",
@@ -1198,6 +1511,8 @@
         "providerPlaceholder": "提供者名称",
         "advancedSettings": "高级设置"
       },
+      "messages.prompt": "显示提示词",
+      "messages.tokens": "显示Token用量",
       "messages.divider": "消息分割线",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
@@ -1208,7 +1523,7 @@
       "messages.input.send_shortcuts": "发送快捷键",
       "messages.input.show_estimated_tokens": "显示预估 Token 数",
       "messages.input.title": "输入设置",
-      "messages.input.enable_quick_triggers": "启用 '/' 和 '@' 触发快捷菜单",
+      "messages.input.enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
       "messages.input.enable_delete_model": "启用删除键删除输入的模型/附件",
       "messages.markdown_rendering_input_message": "Markdown 渲染输入消息",
       "messages.math_engine": "数学公式引擎",
@@ -1228,6 +1543,7 @@
       "models.add.group_name.tooltip": "例如 ChatGPT",
       "models.add.model_id": "模型 ID",
       "models.add.model_id.placeholder": "必填 例如 gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "选择模型",
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名称",
       "models.add.model_name.placeholder": "例如 GPT-3.5",
@@ -1239,18 +1555,24 @@
       "models.check.enabled": "开启",
       "models.check.failed": "失败",
       "models.check.keys_status_count": "通过：{{count_passed}}个密钥，失败：{{count_failed}}个密钥",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} 个模型完成健康检测（其中 {{count_partial}} 个模型用某些密钥无法访问），{{count_failed}} 个模型完全无法访问。",
-      "models.check.no_api_keys": "未找到API密钥，请先添加API密钥。",
+      "models.check.model_status_failed": "{{count}} 个模型完全无法访问",
+      "models.check.model_status_partial": "其中 {{count}} 个模型用某些密钥无法访问",
+      "models.check.model_status_passed": "{{count}} 个模型通过健康检测",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
+      "models.check.no_api_keys": "未找到API密钥，请先添加API密钥",
       "models.check.passed": "通过",
       "models.check.select_api_key": "选择要使用的API密钥：",
       "models.check.single": "单个",
       "models.check.start": "开始",
       "models.check.title": "模型健康检测",
       "models.check.use_all_keys": "使用密钥",
+      "models.check.disclaimer": "健康检查需要发送请求，请谨慎使用。按次收费的模型可能产生更多费用，请自行承担。",
       "models.default_assistant_model": "默认助手模型",
       "models.default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "models.empty": "没有模型",
       "models.enable_topic_naming": "话题自动重命名",
+      "models.manage.add_listed": "添加列表中的模型",
+      "models.manage.remove_listed": "移除列表中的模型",
       "models.manage.add_whole_group": "添加整个分组",
       "models.manage.remove_whole_group": "移除整个分组",
       "models.topic_naming_model": "话题命名模型",
@@ -1261,10 +1583,18 @@
       "models.translate_model_description": "翻译服务使用的模型",
       "models.translate_model_prompt_message": "请输入翻译模型提示词",
       "models.translate_model_prompt_title": "翻译模型提示词",
+      "models.quick_assistant_model": "快捷助手模型",
+      "models.quick_assistant_model_description": "快捷助手使用的默认模型",
       "moresetting": "更多设置",
       "moresetting.check.confirm": "确认勾选",
       "moresetting.check.warn": "请慎重勾选此选项，勾选错误会导致模型无法正常使用！！！",
       "moresetting.warn": "风险警告",
+      "notification": {
+        "title": "通知设置",
+        "assistant": "助手消息",
+        "backup": "备份",
+        "knowledge_embed": "知识嵌入"
+      },
       "provider": {
         "add.name": "提供商名称",
         "add.name.placeholder": "例如 OpenAI",
@@ -1278,7 +1608,7 @@
         "api_key.tip": "多个密钥使用逗号分隔",
         "api_version": "API 版本",
         "basic_auth": "HTTP 认证",
-        "basic_auth.tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）。",
+        "basic_auth.tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）",
         "basic_auth.user_name": "用户名",
         "basic_auth.user_name.tip": "留空以禁用",
         "basic_auth.password": "密码",
@@ -1292,6 +1622,9 @@
           "button": "使用{{provider}}账号登录",
           "description": "本服务由<website>{{provider}}</website>提供",
           "official_website": "官方网站"
+        },
+        "openai": {
+          "alert": "OpenAI 服务商不再支持旧的调用方式，如果使用第三方 API 请新建服务商"
         },
         "copilot": {
           "auth_failed": "Github Copilot 认证失败",
@@ -1316,6 +1649,9 @@
           "open_verification_first": "请先点击上方链接访问验证页面",
           "rate_limit": "速率限制",
           "tooltip": "使用 Github Copilot 需要先登录 Github"
+        },
+        "dmxapi": {
+          "select_platform": "选择平台"
         },
         "delete.content": "确定要删除此模型提供商吗?",
         "delete.title": "删除提供商",
@@ -1358,6 +1694,7 @@
         "clear_shortcut": "清除快捷键",
         "clear_topic": "清空消息",
         "copy_last_message": "复制上一条消息",
+        "exit_fullscreen": "退出全屏",
         "key": "按键",
         "mini_window": "快捷助手",
         "new_topic": "新建话题",
@@ -1366,6 +1703,7 @@
         "reset_defaults_confirm": "确定要重置所有快捷键吗？",
         "reset_to_default": "重置为默认",
         "search_message": "搜索消息",
+        "search_message_in_chat": "在当前对话中搜索消息",
         "show_app": "显示/隐藏应用",
         "show_settings": "打开设置",
         "title": "快捷方式",
@@ -1376,10 +1714,11 @@
         "zoom_out": "缩小界面",
         "zoom_reset": "重置缩放"
       },
-      "theme.auto": "自动",
+      "theme.system": "系统",
       "theme.dark": "深色",
       "theme.light": "浅色",
       "theme.title": "主题",
+      "theme.color_primary": "主题颜色",
       "theme.window.style.opaque": "不透明窗口",
       "theme.window.style.title": "窗口样式",
       "theme.window.style.transparent": "透明窗口",
@@ -1388,6 +1727,7 @@
       "topic.position.left": "左侧",
       "topic.position.right": "右侧",
       "topic.show.time": "显示话题时间",
+      "topic.pin_to_top": "固定话题置顶",
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
       "tray.title": "托盘",
@@ -1434,9 +1774,12 @@
         "titleLabel": "标题",
         "contentLabel": "内容",
         "titlePlaceholder": "请输入短语标题",
-        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}。",
+        "contentPlaceholder": "请输入短语内容，支持使用变量，然后按Tab键可以快速定位到变量进行修改。比如：\n帮我规划从${from}到${to}的路线，然后发送到${email}",
         "delete": "删除短语",
-        "deleteConfirm": "删除短语后将无法恢复，是否继续？"
+        "deleteConfirm": "删除短语后将无法恢复，是否继续？",
+        "locationLabel": "添加位置",
+        "global": "全局短语",
+        "assistant": "助手短语"
       },
       "quickPanel": {
         "title": "快捷菜单",
@@ -1451,12 +1794,36 @@
       "privacy": {
         "title": "隐私设置",
         "enable_privacy_mode": "匿名发送错误报告和数据统计"
+      },
+      "zoom": {
+        "title": "缩放",
+        "reset": "重置"
+      },
+      "openai": {
+        "title": "OpenAI 设置",
+        "summary_text_mode.title": "摘要模式",
+        "summary_text_mode.tip": "模型执行的推理摘要",
+        "summary_text_mode.auto": "自动",
+        "summary_text_mode.concise": "简洁",
+        "summary_text_mode.detailed": "详细",
+        "summary_text_mode.off": "关闭",
+        "service_tier.title": "服务层级",
+        "service_tier.tip": "指定用于处理请求的延迟层级",
+        "service_tier.auto": "自动",
+        "service_tier.default": "默认",
+        "service_tier.flex": "灵活"
       }
     },
     "translate": {
       "any.language": "任意语言",
+      "target_language": "目标语言",
+      "alter_language": "备用语言",
       "button.translate": "翻译",
       "close": "关闭",
+      "closed": "翻译已关闭",
+      "copied": "翻译内容已复制",
+      "empty": "翻译内容为空",
+      "not.found": "未找到翻译内容",
       "confirm": {
         "content": "翻译后将覆盖原文，是否继续？",
         "title": "翻译确认"
@@ -1476,10 +1843,19 @@
       "input.placeholder": "输入文本进行翻译",
       "output.placeholder": "翻译",
       "processing": "翻译中...",
-      "scroll_sync.disable": "关闭滚动同步",
-      "scroll_sync.enable": "开启滚动同步",
+      "language.same": "源语言和目标语言相同",
+      "language.not_pair": "源语言与设置的语言不同",
+      "settings": {
+        "title": "翻译设置",
+        "model": "模型设置",
+        "model_desc": "翻译服务使用的模型",
+        "bidirectional": "双向翻译设置",
+        "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
+        "scroll_sync": "滚动同步设置"
+      },
       "title": "翻译",
-      "tooltip.newline": "换行"
+      "tooltip.newline": "换行",
+      "detected.language": "检测到的语言"
     },
     "tray": {
       "quit": "退出",
@@ -1491,6 +1867,174 @@
       "quit": "退出",
       "show_window": "显示窗口",
       "visualization": "可视化"
+    },
+    "update": {
+      "title": "更新提示",
+      "message": "发现新版本 {{version}}，是否立即安装？",
+      "later": "稍后",
+      "install": "立即安装",
+      "noReleaseNotes": "暂无更新日志"
+    },
+    "selection": {
+      "name": "划词助手",
+      "action": {
+        "builtin": {
+          "translate": "翻译",
+          "explain": "解释",
+          "summary": "总结",
+          "search": "搜索",
+          "refine": "优化",
+          "copy": "复制"
+        },
+        "window": {
+          "pin": "置顶",
+          "pinned": "已置顶",
+          "opacity": "窗口透明度",
+          "original_show": "显示原文",
+          "original_hide": "隐藏原文",
+          "original_copy": "复制原文",
+          "esc_close": "Esc 关闭",
+          "esc_stop": "Esc 停止",
+          "c_copy": "C 复制",
+          "r_regenerate": "R 重新生成"
+        },
+        "translate": {
+          "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
+        }
+      },
+      "settings": {
+        "experimental": "实验性功能",
+        "enable": {
+          "title": "启用",
+          "description": "当前仅支持 Windows 系统"
+        },
+        "toolbar": {
+          "title": "工具栏",
+          "trigger_mode": {
+            "title": "触发方式",
+            "description": "划词立即显示工具栏，或者划词后按住 Ctrl 键才显示工具栏。",
+            "description_note": "少数应用不支持通过 Ctrl 键划词。若使用了AHK等工具对 Ctrl 键进行了重映射，可能导致部分应用无法划词。",
+            "selected": "划词",
+            "ctrlkey": "Ctrl 键"
+          },
+          "compact_mode": {
+            "title": "紧凑模式",
+            "description": "紧凑模式下，只显示图标，不显示文字"
+          }
+        },
+        "window": {
+          "title": "功能窗口",
+          "follow_toolbar": {
+            "title": "跟随工具栏",
+            "description": "窗口位置将跟随工具栏显示，禁用后则始终居中显示"
+          },
+          "remember_size": {
+            "title": "记住大小",
+            "description": "应用运行期间，窗口会按上次调整的大小显示"
+          },
+          "auto_close": {
+            "title": "自动关闭",
+            "description": "当窗口未置顶且失去焦点时，将自动关闭该窗口"
+          },
+          "auto_pin": {
+            "title": "自动置顶",
+            "description": "默认将窗口置于顶部"
+          },
+          "opacity": {
+            "title": "透明度",
+            "description": "设置窗口的默认透明度，100%为完全不透明"
+          }
+        },
+        "actions": {
+          "title": "功能",
+          "reset": {
+            "button": "重置",
+            "tooltip": "重置为默认功能，自定义功能不会被删除",
+            "confirm": "确定要重置为默认功能吗？自定义功能不会被删除。"
+          },
+          "add_tooltip": {
+            "enabled": "添加自定义功能",
+            "disabled": "自定义功能已达上限 ({{max}}个)"
+          },
+          "delete_confirm": "确定要删除这个自定义功能吗？",
+          "drag_hint": "拖拽排序，移动到上方以启用功能 ({{enabled}}/{{max}})"
+        },
+        "advanced": {
+          "title": "高级",
+          "filter_mode": {
+            "title": "应用筛选",
+            "description": "可以限制划词助手只在特定应用中生效（白名单）或不生效（黑名单）",
+            "default": "关闭",
+            "whitelist": "白名单",
+            "blacklist": "黑名单"
+          },
+          "filter_list": {
+            "title": "筛选名单",
+            "description": "高级功能，建议有经验的用户在了解的情况下再进行设置"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "添加自定义功能",
+            "edit": "编辑自定义功能"
+          },
+          "name": {
+            "label": "名称",
+            "hint": "请输入功能名称"
+          },
+          "icon": {
+            "label": "图标",
+            "placeholder": "输入 Lucide 图标名称",
+            "error": "无效的图标名称，请检查输入",
+            "tooltip": "Lucide图标名称为小写，如 arrow-right",
+            "view_all": "查看所有图标",
+            "random": "随机图标"
+          },
+          "model": {
+            "label": "模型",
+            "tooltip": "使用助手：会同时使用助手的系统提示词和模型参数",
+            "default": "默认模型",
+            "assistant": "使用助手"
+          },
+          "assistant": {
+            "label": "选择助手",
+            "default": "默认"
+          },
+          "prompt": {
+            "label": "用户提示词(Prompt)",
+            "tooltip": "用户提示词，作为用户输入的补充，不会覆盖助手的系统提示词",
+            "placeholder": "使用占位符{{text}}代表选中的文本，不填写时，选中的文本将添加到本提示词的末尾",
+            "placeholder_text": "占位符",
+            "copy_placeholder": "复制占位符"
+          }
+        },
+        "search_modal": {
+          "title": "设置搜索引擎",
+          "engine": {
+            "label": "搜索引擎",
+            "custom": "自定义"
+          },
+          "custom": {
+            "name": {
+              "label": "自定义名称",
+              "hint": "请输入搜索引擎名称",
+              "max_length": "名称不能超过16个字符"
+            },
+            "url": {
+              "label": "自定义搜索 URL",
+              "hint": "用 {{queryString}} 代表搜索词",
+              "required": "请输入搜索 URL",
+              "invalid_format": "请输入以 http:// 或 https:// 开头的有效 URL",
+              "missing_placeholder": "URL 必须包含 {{queryString}} 占位符"
+            },
+            "test": "测试"
+          }
+        },
+        "filter_modal": {
+          "title": "应用筛选名单",
+          "user_tips": "请输入应用的执行文件名，每行一个，不区分大小写，可以模糊匹配。例如：chrome.exe、weixin.exe、Cherry Studio.exe等"
+        }
+      }
     }
   }
 }

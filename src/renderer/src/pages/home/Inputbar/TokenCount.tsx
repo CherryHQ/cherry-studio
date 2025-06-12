@@ -22,18 +22,6 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
   }
 
   const formatMaxCount = (max: number) => {
-    if (max == 20) {
-      return (
-        <span
-          style={{
-            fontSize: '16px',
-            position: 'relative',
-            top: '1px'
-          }}>
-          ∞
-        </span>
-      )
-    }
     return max.toString()
   }
 
@@ -43,7 +31,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
         <HStack justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            {contextCount.current} / {contextCount.max == 20 ? '∞' : contextCount.max}
+            {contextCount.current} / {contextCount.max}
           </Text>
         </HStack>
         <Divider style={{ margin: '5px 0' }} />
@@ -74,8 +62,6 @@ const Container = styled.div`
   z-index: 10;
   padding: 3px 10px;
   user-select: none;
-  font-family: Ubuntu;
-  border: 0.5px solid var(--color-text-3);
   border-radius: 20px;
   display: flex;
   align-items: center;

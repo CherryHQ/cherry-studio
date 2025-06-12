@@ -1,8 +1,7 @@
 import { CopyOutlined } from '@ant-design/icons'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
-import { DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
-import { getFileFromUrl, getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import { FileType, KnowledgeBase } from '@renderer/types'
 import { Input, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { useRef, useState } from 'react'
@@ -38,29 +37,8 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     setSearchKeyword(value.trim())
     setLoading(true)
     try {
-      const searchResults = await window.api.knowledgeBase.search({
-        search: value,
-        base: getKnowledgeBaseParams(base)
-      })
-      let rerankResult = searchResults
-      if (base.rerankModel) {
-        rerankResult = await window.api.knowledgeBase.rerank({
-          search: value,
-          base: getKnowledgeBaseParams(base),
-          results: searchResults
-        })
-      }
-      const results = await Promise.all(
-        rerankResult.map(async (item) => {
-          const file = await getFileFromUrl(item.metadata.source)
-          return { ...item, file }
-        })
-      )
-      const filteredResults = results.filter((item) => {
-        const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
-        return item.score >= threshold
-      })
-      setResults(filteredResults)
+      const searchResults = await searchKnowledgeBase(value, base)
+      setResults(searchResults)
     } catch (error) {
       console.error('Search failed:', error)
     } finally {

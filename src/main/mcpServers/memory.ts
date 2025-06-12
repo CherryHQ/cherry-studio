@@ -2,6 +2,7 @@ import { getConfigDir } from '@main/utils/file'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { Mutex } from 'async-mutex' // 引入 Mutex
+import Logger from 'electron-log'
 import { promises as fs } from 'fs'
 import path from 'path'
 
@@ -355,9 +356,9 @@ class MemoryServer {
   private async _initializeManager(memoryPath: string): Promise<void> {
     try {
       this.knowledgeGraphManager = await KnowledgeGraphManager.create(memoryPath)
-      console.log('KnowledgeGraphManager initialized successfully.')
+      Logger.log('KnowledgeGraphManager initialized successfully.')
     } catch (error) {
-      console.error('Failed to initialize KnowledgeGraphManager:', error)
+      Logger.error('Failed to initialize KnowledgeGraphManager:', error)
       // Server might be unusable, consider how to handle this state
       // Maybe set a flag and return errors for all tool calls?
       this.knowledgeGraphManager = null // Ensure it's null if init fails

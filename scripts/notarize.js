@@ -7,7 +7,6 @@ exports.default = async function notarizing(context) {
   }
 
   if (!process.env.APPLE_ID || !process.env.APPLE_APP_SPECIFIC_PASSWORD || !process.env.APPLE_TEAM_ID) {
-    console.log('Skipping notarization')
     return
   }
 

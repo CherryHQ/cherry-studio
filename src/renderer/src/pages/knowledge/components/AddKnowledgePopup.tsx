@@ -1,7 +1,8 @@
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
+// import { SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { SettingHelpText } from '@renderer/pages/settings'
@@ -13,7 +14,7 @@ import { getErrorMessage } from '@renderer/utils/error'
 import { Form, Input, Modal, Select, Slider } from 'antd'
 import { find, sortBy } from 'lodash'
 import { nanoid } from 'nanoid'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -39,59 +40,68 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { providers } = useProviders()
   const { addKnowledgeBase } = useKnowledgeBases()
 
-  const allModels = providers
-    .map((p) => p.models)
-    .flat()
-    .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
+  const embeddingModels = useMemo(() => {
+    return providers
+      .map((p) => p.models)
+      .flat()
+      .filter((model) => isEmbeddingModel(model))
+  }, [providers])
 
-  const rerankModels = providers
-    .map((p) => p.models)
-    .flat()
-    .filter((model) => isRerankModel(model))
+  const rerankModels = useMemo(() => {
+    return providers
+      .map((p) => p.models)
+      .flat()
+      .filter((model) => isRerankModel(model))
+  }, [providers])
 
   const nameInputRef = useRef<any>(null)
 
-  const selectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isEmbeddingModel(model) && !isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const embeddingSelectOptions = useMemo(() => {
+    return providers
+      .filter((p) => p.models.length > 0)
+      .map((p) => ({
+        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        title: p.name,
+        options: sortBy(p.models, 'name')
+          .filter((model) => isEmbeddingModel(model))
+          .map((m) => ({
+            label: m.name,
+            value: getModelUniqId(m),
+            key: `${p.id}-${m.id}`
+          }))
+      }))
+      .filter((group) => group.options.length > 0)
+  }, [providers, t])
 
-  const rerankSelectOptions = providers
-    .filter((p) => p.models.length > 0)
-    .filter((p) => SUPPORTED_REANK_PROVIDERS.includes(p.id))
-    .map((p) => ({
-      label: p.isSystem ? t(`provider.${p.id}`) : p.name,
-      title: p.name,
-      options: sortBy(p.models, 'name')
-        .filter((model) => isRerankModel(model))
-        .map((m) => ({
-          label: m.name,
-          value: getModelUniqId(m)
-        }))
-    }))
-    .filter((group) => group.options.length > 0)
+  const rerankSelectOptions = useMemo(() => {
+    return providers
+      .filter((p) => p.models.length > 0)
+      .filter((p) => !NOT_SUPPORTED_REANK_PROVIDERS.includes(p.id))
+      .map((p) => ({
+        label: p.isSystem ? t(`provider.${p.id}`) : p.name,
+        title: p.name,
+        options: sortBy(p.models, 'name')
+          .filter((model) => isRerankModel(model))
+          .map((m) => ({
+            label: m.name,
+            value: getModelUniqId(m)
+          }))
+      }))
+      .filter((group) => group.options.length > 0)
+  }, [providers, t])
 
   const onOk = async () => {
     try {
       const values = await form.validateFields()
-      const selectedModel = find(allModels, JSON.parse(values.model)) as Model
+      const selectedEmbeddingModel = find(embeddingModels, JSON.parse(values.model)) as Model
 
       const selectedRerankModel = values.rerankModel
         ? (find(rerankModels, JSON.parse(values.rerankModel)) as Model)
         : undefined
 
-      if (selectedModel) {
+      if (selectedEmbeddingModel) {
         setLoading(true)
-        const provider = providers.find((p) => p.id === selectedModel.provider)
+        const provider = providers.find((p) => p.id === selectedEmbeddingModel.provider)
 
         if (!provider) {
           return
@@ -101,7 +111,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         let dimensions = 0
 
         try {
-          dimensions = await aiProvider.getEmbeddingDimensions(selectedModel)
+          dimensions = await aiProvider.getEmbeddingDimensions(selectedEmbeddingModel)
         } catch (error) {
           console.error('Error getting embedding dimensions:', error)
           window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
@@ -112,7 +122,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         const newBase = {
           id: nanoid(),
           name: values.name,
-          model: selectedModel,
+          model: selectedEmbeddingModel,
           rerankModel: selectedRerankModel,
           dimensions,
           documentCount: values.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
@@ -165,7 +175,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           label={t('models.embedding_model')}
           tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
-          <Select style={{ width: '100%' }} options={selectOptions} placeholder={t('settings.models.empty')} />
+          <Select style={{ width: '100%' }} options={embeddingSelectOptions} placeholder={t('settings.models.empty')} />
         </Form.Item>
 
         <Form.Item
@@ -176,8 +186,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           <Select style={{ width: '100%' }} options={rerankSelectOptions} placeholder={t('settings.models.empty')} />
         </Form.Item>
         <SettingHelpText style={{ marginTop: -15, marginBottom: 20 }}>
-          {t('models.rerank_model_support_provider', {
-            provider: SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
+          {t('models.rerank_model_not_support_provider', {
+            provider: NOT_SUPPORTED_REANK_PROVIDERS.map((id) => t(`provider.${id}`))
           })}
         </SettingHelpText>
         <Form.Item

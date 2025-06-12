@@ -1,6 +1,6 @@
-import { SILICON_CLIENT_ID } from '@renderer/config/constant'
-import { getLanguageCode } from '@renderer/i18n'
-import i18n from '@renderer/i18n'
+import { SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
+import i18n, { getLanguageCode } from '@renderer/i18n'
+
 export const oauthWithSiliconFlow = async (setKey) => {
   const authUrl = `https://account.siliconflow.cn/oauth?client_id=${SILICON_CLIENT_ID}`
 
@@ -58,6 +58,22 @@ export const oauthWithAihubmix = async (setKey) => {
   window.addEventListener('message', messageHandler)
 }
 
+export const oauthWithTokenFlux = async () => {
+  const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
+  const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
+  if (!resp.ok) {
+    window.message.error(i18n.t('oauth.error'))
+    return
+  }
+  const data = await resp.json()
+  const authUrl = data.data.url
+  window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+}
+
 export const providerCharge = async (provider: string) => {
   const chargeUrlMap = {
     silicon: {
@@ -69,6 +85,11 @@ export const providerCharge = async (provider: string) => {
       url: `https://aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
       width: 720,
       height: 900
+    },
+    tokenflux: {
+      url: `https://tokenflux.ai/dashboard/billing`,
+      width: 900,
+      height: 700
     }
   }
 
@@ -90,6 +111,11 @@ export const providerBills = async (provider: string) => {
     },
     aihubmix: {
       url: `https://aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      width: 900,
+      height: 700
+    },
+    tokenflux: {
+      url: `https://tokenflux.ai/dashboard/billing`,
       width: 900,
       height: 700
     }

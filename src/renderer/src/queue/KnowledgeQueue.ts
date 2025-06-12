@@ -1,17 +1,17 @@
+import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { NotificationService } from '@renderer/services/NotificationService'
 import store from '@renderer/store'
 import { clearCompletedProcessing, updateBaseItemUniqueId, updateItemProcessingStatus } from '@renderer/store/knowledge'
 import { KnowledgeItem } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import type { LoaderReturn } from '@shared/config/types'
+import { t } from 'i18next'
 
 class KnowledgeQueue {
   private processing: Map<string, boolean> = new Map()
   private readonly MAX_RETRIES = 1
-
-  constructor() {
-    this.checkAllBases().catch(console.error)
-  }
 
   public async checkAllBases(): Promise<void> {
     const state = store.getState()
@@ -37,7 +37,7 @@ class KnowledgeQueue {
 
   async processQueue(baseId: string): Promise<void> {
     if (this.processing.get(baseId)) {
-      console.log(`[KnowledgeQueue] Queue for base ${baseId} is already being processed`)
+      Logger.log(`[KnowledgeQueue] Queue for base ${baseId} is already being processed`)
       return
     }
 
@@ -71,7 +71,7 @@ class KnowledgeQueue {
         processableItem = findProcessableItem()
       }
     } finally {
-      console.log(`[KnowledgeQueue] Finished processing queue for base ${baseId}`)
+      Logger.log(`[KnowledgeQueue] Finished processing queue for base ${baseId}`)
       this.processing.set(baseId, false)
     }
   }
@@ -87,13 +87,14 @@ class KnowledgeQueue {
   }
 
   private async processItem(baseId: string, item: KnowledgeItem): Promise<void> {
+    const notificationService = NotificationService.getInstance()
     try {
       if (item.retryCount && item.retryCount >= this.MAX_RETRIES) {
-        console.log(`[KnowledgeQueue] Item ${item.id} has reached max retries, skipping`)
+        Logger.log(`[KnowledgeQueue] Item ${item.id} has reached max retries, skipping`)
         return
       }
 
-      console.log(`[KnowledgeQueue] Starting to process item ${item.id} (${item.type})`)
+      Logger.log(`[KnowledgeQueue] Starting to process item ${item.id} (${item.type})`)
 
       store.dispatch(
         updateItemProcessingStatus({
@@ -120,7 +121,7 @@ class KnowledgeQueue {
       let result: LoaderReturn | null = null
       let note, content
 
-      console.log(`[KnowledgeQueue] Processing item: ${sourceItem.content}`)
+      Logger.log(`[KnowledgeQueue] Processing item: ${sourceItem.content}`)
 
       switch (item.type) {
         case 'note':
@@ -135,7 +136,17 @@ class KnowledgeQueue {
           break
       }
 
-      console.log(`[KnowledgeQueue] Successfully completed processing item ${item.id}`)
+      Logger.log(`[KnowledgeQueue] Successfully completed processing item ${item.id}`)
+
+      notificationService.send({
+        id: uuid(),
+        type: 'success',
+        title: t('knowledge.status_completed"'),
+        message: t('notification.knowledge.success', { type: item.type }),
+        silent: false,
+        timestamp: Date.now(),
+        source: 'knowledgeEmbed'
+      })
 
       store.dispatch(
         updateItemProcessingStatus({
@@ -155,11 +166,24 @@ class KnowledgeQueue {
           })
         )
       }
-      console.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
+      Logger.log(`[KnowledgeQueue] Updated uniqueId for item ${item.id} in base ${baseId} `)
 
       store.dispatch(clearCompletedProcessing({ baseId }))
     } catch (error) {
-      console.error(`[KnowledgeQueue] Error processing item ${item.id}: `, error)
+      Logger.error(`[KnowledgeQueue] Error processing item ${item.id}: `, error)
+      notificationService.send({
+        id: uuid(),
+        type: 'error',
+        title: t('common.knowledge'),
+        message: t('notification.knowledge.error', {
+          type: item.type,
+          error: error instanceof Error ? error.message : 'Unkown error'
+        }),
+        silent: false,
+        timestamp: Date.now(),
+        source: 'knowledgeEmbed'
+      })
+
       store.dispatch(
         updateItemProcessingStatus({
           baseId,

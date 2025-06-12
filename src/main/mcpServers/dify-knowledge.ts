@@ -56,7 +56,6 @@ class DifyKnowledgeServer {
   private config: DifyKnowledgeServerConfig
 
   constructor(difyKey: string, args: string[]) {
-    console.log('DifyKnowledgeServer args', args)
     if (args.length === 0) {
       throw new Error('DifyKnowledgeServer requires at least one argument')
     }
@@ -113,8 +112,6 @@ class DifyKnowledgeServer {
               const errorDetails = JSON.stringify(parsed.error.format(), null, 2)
               throw new Error(`无效的参数:\n${errorDetails}`)
             }
-
-            console.log('DifyKnowledgeServer search_knowledge parsed', parsed.data)
             return await this.performSearchKnowledge(
               parsed.data.id,
               parsed.data.query,

@@ -35,7 +35,6 @@ const ListItemContainer = styled.div`
   flex-direction: column;
   justify-content: space-between;
   position: relative;
-  font-family: Ubuntu;
   cursor: pointer;
   border: 1px solid transparent;
 

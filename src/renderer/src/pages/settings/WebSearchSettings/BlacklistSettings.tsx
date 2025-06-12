@@ -1,4 +1,5 @@
 import { CheckOutlined, InfoCircleOutlined, LoadingOutlined } from '@ant-design/icons'
+import Logger from '@renderer/config/logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useBlacklist } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -55,7 +56,7 @@ const BlacklistSettings: FC = () => {
         name: source.name
       }))
     )
-    console.log('subscribeSources', websearch.subscribeSources)
+    Logger.log('subscribeSources', websearch.subscribeSources)
   }, [websearch.subscribeSources])
 
   useEffect(() => {
@@ -89,7 +90,7 @@ const BlacklistSettings: FC = () => {
     })
   }
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
-    console.log('selectedRowKeys changed: ', newSelectedRowKeys)
+    Logger.log('selectedRowKeys changed: ', newSelectedRowKeys)
     setSelectedRowKeys(newSelectedRowKeys)
   }
 

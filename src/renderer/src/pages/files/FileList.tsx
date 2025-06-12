@@ -8,7 +8,6 @@ import React, { memo } from 'react'
 import styled from 'styled-components'
 
 import FileItem from './FileItem'
-import GeminiFiles from './GeminiFiles'
 
 interface FileItemProps {
   id: FileTypes | 'all' | string
@@ -28,7 +27,7 @@ interface FileItemProps {
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
   if (id === FileTypes.IMAGE && files?.length && files?.length > 0) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: 16, overflowY: 'auto' }}>
         <Image.PreviewGroup>
           <Row gutter={[16, 16]}>
             {files?.map((file) => (
@@ -56,10 +55,6 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
         </Image.PreviewGroup>
       </div>
     )
-  }
-
-  if (id.startsWith('gemini_')) {
-    return <GeminiFiles id={id.replace('gemini_', '') as string} />
   }
 
   return (

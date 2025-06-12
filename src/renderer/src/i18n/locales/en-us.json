@@ -8,7 +8,27 @@
       "add.name.placeholder": "Enter name",
       "add.prompt": "Prompt",
       "add.prompt.placeholder": "Enter prompt",
+      "add.prompt.variables.tip": "Available variables: {{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
       "add.title": "Create Agent",
+      "import": {
+        "title": "Import from External",
+        "type": {
+          "url": "URL",
+          "file": "File"
+        },
+        "url_placeholder": "Enter JSON URL",
+        "select_file": "Select File",
+        "button": "Import",
+        "file_filter": "JSON Files",
+        "error": {
+          "url_required": "Please enter a URL",
+          "fetch_failed": "Failed to fetch from URL",
+          "invalid_format": "Invalid agent format: missing required fields"
+        }
+      },
+      "export": {
+        "agent": "Export Agent"
+      },
       "delete.popup.content": "Are you sure you want to delete this agent?",
       "edit.message.add.title": "Add",
       "edit.message.assistant.placeholder": "Enter assistant message",
@@ -25,6 +45,9 @@
       "my_agents": "My Agents",
       "search.no_results": "No results found",
       "sorting.title": "Sorting",
+      "settings": {
+        "title": "Agent Setting"
+      },
       "tag.agent": "Agent",
       "tag.default": "Default",
       "tag.new": "New",
@@ -56,12 +79,46 @@
       "settings.preset_messages": "Preset Messages",
       "settings.prompt": "Prompt Settings",
       "settings.reasoning_effort": "Reasoning effort",
-      "settings.reasoning_effort.high": "high",
-      "settings.reasoning_effort.low": "low",
-      "settings.reasoning_effort.medium": "medium",
-      "settings.reasoning_effort.off": "off",
-      "settings.reasoning_effort.tip": "Only supported by OpenAI o-series, Anthropic, and Grok reasoning models",
-      "settings.more": "Assistant Settings"
+      "settings.reasoning_effort.off": "Off",
+      "settings.reasoning_effort.high": "Think harder",
+      "settings.reasoning_effort.low": "Think less",
+      "settings.reasoning_effort.medium": "Think normally",
+      "settings.reasoning_effort.default": "Default",
+      "settings.more": "Assistant Settings",
+      "settings.knowledge_base.recognition.tip": "The assistant will use the large model's intent recognition capability to determine whether to use the knowledge base for answering. This feature will depend on the model's capabilities",
+      "settings.knowledge_base.recognition": "Use Knowledge Base",
+      "settings.knowledge_base.recognition.off": "Force Search",
+      "settings.knowledge_base.recognition.on": "Intent Recognition",
+      "settings.tool_use_mode": "Tool Use Mode",
+      "settings.tool_use_mode.function": "Function",
+      "settings.tool_use_mode.prompt": "Prompt",
+      "settings.regular_phrases": {
+        "title": "Regular Phrase",
+        "add": "Add Phrase",
+        "edit": "Edit Phrase",
+        "delete": "Delete Phrase",
+        "deleteConfirm": "Are you sure to delete this phrase?",
+        "titleLabel": "Title",
+        "titlePlaceholder": "Enter title",
+        "contentLabel": "Content",
+        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}."
+      },
+      "list": {
+        "showByList": "List View",
+        "showByTags": "Tag View"
+      },
+      "tags": {
+        "untagged": "Untagged",
+        "none": "No tags",
+        "manage": "Tag Management",
+        "modify": "Modify Tag",
+        "add": "Add Tag",
+        "delete": "Delete Tag",
+        "deleteConfirm": "Are you sure to delete this tag?",
+        "settings": {
+          "title": "Tag Settings"
+        }
+      }
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -91,7 +148,10 @@
       "manage": "Manage",
       "select_model": "Select Model",
       "show.all": "Show All",
-      "update_available": "Update Available"
+      "update_available": "Update Available",
+      "includes_user_questions": "Include Your Questions",
+      "case_sensitive": "Case Sensitive",
+      "whole_word": "Whole Word"
     },
     "chat": {
       "add.assistant.title": "Add Assistant",
@@ -100,7 +160,7 @@
       "artifacts.button.preview": "Preview",
       "artifacts.preview.openExternal.error.content": "Error opening the external browser.",
       "assistant.search.placeholder": "Search",
-      "deeply_thought": "Deeply thought ({{secounds}} seconds)",
+      "deeply_thought": "Deeply thought ({{seconds}} seconds)",
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
@@ -123,6 +183,7 @@
       "input.estimated_tokens.tip": "Estimated tokens",
       "input.expand": "Expand",
       "input.file_not_supported": "Model does not support this file type",
+      "input.file_error": "Error processing file",
       "input.generate_image": "Generate image",
       "input.generate_image_not_supported": "The model does not support generating images.",
       "input.knowledge_base": "Knowledge Base",
@@ -136,7 +197,8 @@
       "input.translate": "Translate to {{target_language}}",
       "input.upload": "Upload image or document file",
       "input.upload.document": "Upload document file (model does not support images)",
-      "input.web_search": "Enable web search",
+      "input.web_search": "Web search",
+      "input.web_search.settings": "Web Search Settings",
       "input.web_search.button.ok": "Go to Settings",
       "input.web_search.enable": "Enable web search",
       "input.web_search.enable_content": "Need to check web search connectivity in settings first",
@@ -146,6 +208,8 @@
       "message.quote": "Quote",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
+      "multiple.select": "Multiple Select",
+      "multiple.select.empty": "No Messages Selected",
       "navigation": {
         "first": "Already at the first message",
         "history": "Chat History",
@@ -158,6 +222,20 @@
       },
       "resend": "Resend",
       "save": "Save",
+      "settings.code.title": "Code Block Settings",
+      "settings.code_editor": {
+        "title": "Code Editor",
+        "highlight_active_line": "Highlight active line",
+        "fold_gutter": "Fold gutter",
+        "autocompletion": "Autocompletion",
+        "keymap": "Keymap"
+      },
+      "settings.code_execution": {
+        "title": "Code Execution",
+        "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
+        "timeout_minutes": "Timeout",
+        "timeout_minutes.tip": "The timeout time (minutes) of code execution"
+      },
       "settings.code_collapsible": "Code block collapsible",
       "settings.code_wrappable": "Code block wrappable",
       "settings.code_cacheable": "Code block cache",
@@ -171,21 +249,21 @@
       "settings.context_count": "Context",
       "settings.context_count.tip": "The number of previous messages to keep in the context.",
       "settings.max": "Max",
-      "settings.max_tokens": "Enable max tokens limit",
-      "settings.max_tokens.confirm": "Enable max tokens limit",
-      "settings.max_tokens.confirm_content": "Enable max tokens limit, affects the length of the result. Need to consider the context limit of the model, otherwise an error will be reported",
+      "settings.max_tokens": "Set max tokens",
+      "settings.max_tokens.confirm": "Set max tokens",
+      "settings.max_tokens.confirm_content": "Set the maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.max_tokens.tip": "The maximum number of tokens the model can generate. Need to consider the context limit of the model, otherwise an error will be reported",
       "settings.reset": "Reset",
       "settings.set_as_default": "Apply to default assistant",
       "settings.show_line_numbers": "Show line numbers in code",
       "settings.temperature": "Temperature",
       "settings.temperature.tip": "Higher values make the model more creative and unpredictable, while lower values make it more deterministic and precise.",
-      "settings.thought_auto_collapse": "Automatically Collapse Thought Content",
+      "settings.thought_auto_collapse": "Collapse Thought Content",
       "settings.thought_auto_collapse.tip": "Automatically collapse thought content after thinking ends",
       "settings.top_p": "Top-P",
       "settings.top_p.tip": "Default value is 1, the smaller the value, the less variety in the answers, the easier to understand, the larger the value, the larger the range of the AI's vocabulary, the more diverse",
       "suggestions.title": "Suggested Questions",
-      "thinking": "Thinking",
+      "thinking": "Thinking ({{seconds}} seconds)",
       "topics.auto_rename": "Auto Rename",
       "topics.clear.title": "Clear Messages",
       "topics.copy.image": "Copy as image",
@@ -244,16 +322,56 @@
       "translate": "Translate",
       "topics.export.siyuan": "Export to Siyuan Note",
       "topics.export.wait_for_title_naming": "Generating title...",
+      "topics.export.obsidian_reasoning": "Include Reasoning Chain",
       "topics.export.title_naming_success": "Title generated successfully",
       "topics.export.title_naming_failed": "Failed to generate title, using default title",
       "input.translating": "Translating...",
-      "input.upload.upload_from_local": "Upload local file..."
+      "input.upload.upload_from_local": "Upload local file...",
+      "input.web_search.builtin": "Model Built-in",
+      "input.web_search.builtin.enabled_content": "Use the built-in web search function of the model",
+      "input.web_search.builtin.disabled_content": "The current model does not support web search",
+      "input.web_search.no_web_search": "Disable Web Search",
+      "input.web_search.no_web_search.description": "Do not enable web search",
+      "input.tools.collapse": "Collapse",
+      "input.tools.expand": "Expand",
+      "input.tools.collapse_in": "Collapse",
+      "input.tools.collapse_out": "Remove from collapse",
+      "input.thinking": "Thinking",
+      "input.thinking.mode.default": "Default",
+      "input.thinking.mode.default.tip": "The model will automatically determine the number of tokens to think",
+      "input.thinking.mode.custom": "Custom",
+      "input.thinking.mode.custom.tip": "The maximum number of tokens the model can think. Need to consider the context limit of the model, otherwise an error will be reported",
+      "input.thinking.mode.tokens.tip": "Set the number of thinking tokens to use.",
+      "input.thinking.budget_exceeds_max": "Thinking budget exceeds the maximum token number"
     },
     "code_block": {
       "collapse": "Collapse",
-      "disable_wrap": "Unwrap",
-      "enable_wrap": "Wrap",
-      "expand": "Expand"
+      "copy.failed": "Copy failed",
+      "copy.source": "Copy Source Code",
+      "copy.success": "Copied",
+      "copy": "Copy",
+      "download.failed.network": "Download failed, please check the network",
+      "download.png": "Download PNG",
+      "download.source": "Download Source Code",
+      "download.svg": "Download SVG",
+      "download": "Download",
+      "edit.save.failed.message_not_found": "Save failed, message not found",
+      "edit.save.failed": "Save failed",
+      "edit.save.success": "Saved",
+      "edit.save": "Save Changes",
+      "edit": "Edit",
+      "expand": "Expand",
+      "more": "More",
+      "preview.copy.image": "Copy as image",
+      "preview.source": "View Source Code",
+      "preview.zoom_in": "Zoom In",
+      "preview.zoom_out": "Zoom Out",
+      "preview": "Preview",
+      "run": "Run",
+      "split.restore": "Restore Split View",
+      "split": "Split View",
+      "wrap.off": "Unwrap",
+      "wrap.on": "Wrap"
     },
     "common": {
       "add": "Add",
@@ -269,6 +387,7 @@
       "confirm": "Confirm",
       "copied": "Copied",
       "copy": "Copy",
+      "inspect": "Inspect",
       "cut": "Cut",
       "default": "Default",
       "delete": "Delete",
@@ -284,6 +403,7 @@
       "fullscreen": "Entered fullscreen mode. Press F11 to exit",
       "knowledge_base": "Knowledge Base",
       "language": "Language",
+      "loading": "Loading...",
       "model": "Model",
       "models": "Models",
       "more": "More",
@@ -297,6 +417,8 @@
       "save": "Save",
       "search": "Search",
       "select": "Select",
+      "selectedMessages": "Selected {{count}} messages",
+      "success": "Success",
       "topics": "Topics",
       "warning": "Warning",
       "you": "You",
@@ -305,7 +427,8 @@
         "pinyin": "Sort by Pinyin",
         "pinyin.asc": "Sort by Pinyin (A-Z)",
         "pinyin.desc": "Sort by Pinyin (Z-A)"
-      }
+      },
+      "no_results": "No results"
     },
     "docs": {
       "title": "Docs"
@@ -332,7 +455,8 @@
         "title": "Render Error"
       },
       "user_message_not_found": "Cannot find original user message to resend",
-      "unknown": "Unknown error"
+      "unknown": "Unknown error",
+      "pause_placeholder": "Paused"
     },
     "export": {
       "assistant": "Assistant",
@@ -440,7 +564,7 @@
       "threshold_tooltip": "Used to evaluate the relevance between the user's question and the content in the knowledge base (0-1)",
       "title": "Knowledge Base",
       "topN": "Number of results returned",
-      "topN__too_large_or_small": "The number of results returned cannot be greater than 100 or less than 1.",
+      "topN_too_large_or_small": "The number of results returned cannot be greater than 30 or less than 1.",
       "topN_placeholder": "Not set",
       "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
       "url_added": "URL added",
@@ -463,7 +587,14 @@
       "korean": "Korean",
       "portuguese": "Portuguese",
       "russian": "Russian",
-      "spanish": "Spanish"
+      "spanish": "Spanish",
+      "polish": "Polish",
+      "turkish": "Turkish",
+      "thai": "Thai",
+      "vietnamese": "Vietnamese",
+      "indonesian": "Indonesian",
+      "urdu": "Urdu",
+      "malay": "Malay"
     },
     "lmstudio": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -471,22 +602,11 @@
       "keep_alive_time.title": "Keep Alive Time",
       "title": "LM Studio"
     },
-    "mermaid": {
-      "download": {
-        "png": "Download PNG",
-        "svg": "Download SVG"
-      },
-      "resize": {
-        "zoom-in": "Zoom In",
-        "zoom-out": "Zoom Out"
-      },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
-      },
-      "title": "Mermaid Diagram"
-    },
     "message": {
+      "agents": {
+        "imported": "Imported successfully",
+        "import.error": "Import failed"
+      },
       "api.check.model.title": "Select the model to use for detection",
       "api.connection.failed": "Connection failed",
       "api.connection.success": "Connection successful",
@@ -499,16 +619,23 @@
       "backup.start.success": "Backup started",
       "backup.success": "Backup successful",
       "chat.completion.paused": "Chat completion paused",
+      "citation": "{{count}} citations",
       "citations": "References",
       "copied": "Copied!",
       "copy.failed": "Copy failed",
       "copy.success": "Copied!",
+      "delete.confirm.title": "Delete Confirmation",
+      "delete.confirm.content": "Are you sure you want to delete the selected {{count}} message(s)?",
+      "delete.failed": "Delete Failed",
+      "delete.success": "Delete Successful",
+      "empty_url": "Failed to download image, possibly due to prompt containing sensitive content or prohibited words",
       "error.chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "error.dimension_too_large": "Content size is too large",
       "error.enter.api.host": "Please enter your API host first",
       "error.enter.api.key": "Please enter your API key first",
       "error.enter.model": "Please select a model first",
       "error.enter.name": "Please enter the name of the knowledge base",
+      "error.fetchTopicName": "Failed to name the topic",
       "error.get_embedding_dimensions": "Failed to get embedding dimensions",
       "error.invalid.api.host": "Invalid API Host",
       "error.invalid.api.key": "Invalid API Key",
@@ -535,7 +662,7 @@
       "message.code_style": "Code style",
       "message.delete.content": "Are you sure you want to delete this message?",
       "message.delete.title": "Delete Message",
-      "message.multi_model_style": "Multi-model response style",
+      "message.multi_model_style": "Group style",
       "message.multi_model_style.fold": "Fold view",
       "message.multi_model_style.fold.compress": "Switch to compact layout",
       "message.multi_model_style.fold.expand": "Switch to expanded layout",
@@ -545,6 +672,7 @@
       "message.style": "Message style",
       "message.style.bubble": "Bubble",
       "message.style.plain": "Plain",
+      "processing": "Processing...",
       "regenerate.confirm": "Regenerating will replace current message",
       "reset.confirm.content": "Are you sure you want to clear all data?",
       "reset.double.confirm.content": "All data will be lost, do you want to continue?",
@@ -576,11 +704,15 @@
       "error.siyuan.no_config": "Siyuan Note API address or token is not configured",
       "success.siyuan.export": "Successfully exported to Siyuan Note",
       "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
-      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!"
+      "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!",
+      "download.success": "Download successfully",
+      "download.failed": "Download failed"
     },
     "minapp": {
       "popup": {
         "refresh": "Refresh",
+        "goBack": "Go Back",
+        "goForward": "Go Forward",
         "close": "Close MinApp",
         "minimize": "Minimize MinApp",
         "devtools": "Developer Tools",
@@ -589,11 +721,26 @@
         "open_link_external_on": "Current: Open links in browser",
         "open_link_external_off": "Current: Open links in default window"
       },
-      "sidebar.add.title": "Add to sidebar",
-      "sidebar.remove.title": "Remove from sidebar",
-      "sidebar.close.title": "Close",
-      "sidebar.closeall.title": "Close All",
-      "sidebar.hide.title": "Hide MinApp",
+      "sidebar": {
+        "add": {
+          "title": "Add to Sidebar"
+        },
+        "remove": {
+          "title": "Remove from Sidebar"
+        },
+        "remove_custom": {
+          "title": "Delete Custom App"
+        },
+        "hide": {
+          "title": "Hide"
+        },
+        "close": {
+          "title": "Close"
+        },
+        "closeall": {
+          "title": "Close All"
+        }
+      },
       "title": "MinApp"
     },
     "miniwindow": {
@@ -644,9 +791,11 @@
       "pinned": "Pinned",
       "rerank_model": "Reordering Model",
       "rerank_model_support_provider": "Currently, the reordering model only supports some providers ({{provider}})",
+      "rerank_model_not_support_provider": "Currently, the reordering model does not support this provider ({{provider}})",
       "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
       "search": "Search models...",
       "stream_output": "Stream output",
+      "enable_tool_use": "Enable Tool Use",
       "type": {
         "embedding": "Embedding",
         "free": "Free",
@@ -663,6 +812,11 @@
       "expand": "Expand Dialog",
       "hide_sidebar": "Hide Sidebar",
       "show_sidebar": "Show Sidebar"
+    },
+    "notification": {
+      "assistant": "Assistant Response",
+      "knowledge.success": "Successfully added {{type}} to the knowledge base",
+      "knowledge.error": "Failed to add {{type}} to knowledge base: {{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -689,19 +843,126 @@
       "regenerate.confirm": "This will replace your existing generated images. Do you want to continue?",
       "seed": "Seed",
       "seed_tip": "The same seed and prompt can produce similar images",
-      "title": "Images"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "Download failed, please check the network",
-        "png": "Download PNG",
-        "svg": "Download SVG"
+      "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
+      "title": "Images",
+      "magic_prompt_option": "Magic Prompt",
+      "model": "Model",
+      "aspect_ratio": "Aspect Ratio",
+      "style_type": "Style",
+      "rendering_speed": "Rendering Speed",
+      "learn_more": "Learn More",
+      "paint_course": "tutorial",
+      "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
+      "prompt_placeholder_en": "Enter your image description, currently Imagen only supports English prompts",
+      "proxy_required": "Open the proxy and enable “TUN mode” to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
+      "image_file_required": "Please upload an image first",
+      "image_file_retry": "Please re-upload an image first",
+      "image_placeholder": "No image available",
+      "image_retry": "Retry",
+      "translating": "Translating...",
+      "style_types": {
+        "auto": "Auto",
+        "general": "General",
+        "realistic": "Realistic",
+        "design": "Design",
+        "3d": "3D",
+        "anime": "Anime"
       },
-      "tabs": {
-        "preview": "Preview",
-        "source": "Source"
+      "rendering_speeds": {
+        "default": "Default",
+        "turbo": "Turbo",
+        "quality": "Quality"
       },
-      "title": "PlantUML Diagram"
+      "quality_options": {
+        "auto": "Auto",
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High"
+      },
+      "moderation_options": {
+        "auto": "Auto",
+        "low": "Low"
+      },
+      "background_options": {
+        "auto": "Auto",
+        "transparent": "Transparent",
+        "opaque": "Opaque"
+      },
+      "aspect_ratios": {
+        "square": "Square",
+        "portrait": "Portrait",
+        "landscape": "Landscape"
+      },
+      "person_generation_options": {
+        "allow_all": "Allow all",
+        "allow_adult": "Allow adult",
+        "allow_none": "Not allowed"
+      },
+      "quality": "Quality",
+      "moderation": "Moderation",
+      "background": "Background",
+      "mode": {
+        "generate": "Draw",
+        "edit": "Edit",
+        "remix": "Remix",
+        "upscale": "Upscale"
+      },
+      "generate": {
+        "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
+        "number_images_tip": "Number of images to generate",
+        "seed_tip": "Controls image generation randomness for reproducible results",
+        "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
+        "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
+        "style_type_tip": "Image generation style for V_2 and above",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
+        "person_generation": "Generate person",
+        "person_generation_tip": "Allow model to generate person images"
+      },
+      "edit": {
+        "image_file": "Edited Image",
+        "model_tip": "V3 and V2 versions supported",
+        "number_images_tip": "Number of edited results to generate",
+        "style_type_tip": "Style for edited image, only for V_2 and above",
+        "seed_tip": "Controls editing randomness",
+        "magic_prompt_option_tip": "Intelligently enhances editing prompts",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
+      },
+      "remix": {
+        "model_tip": "Select AI model version for remixing",
+        "image_file": "Reference Image",
+        "image_weight": "Reference Image Weight",
+        "image_weight_tip": "Adjust reference image influence",
+        "number_images_tip": "Number of remix results to generate",
+        "seed_tip": "Control the randomness of the mixed result",
+        "style_type_tip": "Style for remixed image, only for V_2 and above",
+        "negative_prompt_tip": "Describe unwanted elements in remix results",
+        "magic_prompt_option_tip": "Intelligently enhances remix prompts",
+        "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3"
+      },
+      "upscale": {
+        "image_file": "Image to upscale",
+        "resemblance": "Similarity",
+        "resemblance_tip": "Controls similarity to original image",
+        "detail": "Detail",
+        "detail_tip": "Controls detail enhancement level",
+        "number_images_tip": "Number of upscaled results to generate",
+        "seed_tip": "Controls upscaling randomness",
+        "magic_prompt_option_tip": "Intelligently enhances upscaling prompts"
+      },
+      "text_desc_required": "Please enter image description first",
+      "req_error_text": "Operation failed. Please try again. Avoid using 'copyrighted' or 'sensitive' words in your prompt.",
+      "auto_create_paint": "Auto-create image",
+      "auto_create_paint_tip": "After the image is generated, a new image will be created automatically.",
+      "select_model": "Select Model",
+      "input_parameters": "Input Parameters",
+      "input_image": "Input Image",
+      "generated_image": "Generated Image",
+      "pricing": "Pricing",
+      "model_and_pricing": "Model & Pricing",
+      "per_image": "per image",
+      "per_images": "per images",
+      "required_field": "Required field",
+      "uploaded_input": "Uploaded input"
     },
     "prompts": {
       "explanation": "Explain this concept to me",
@@ -710,6 +971,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
@@ -754,7 +1016,8 @@
       "zhinao": "360AI",
       "zhipu": "ZHIPU AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu"
+      "qiniu": "Qiniu AI",
+      "tokenflux": "TokenFlux"
     },
     "restore": {
       "confirm": "Are you sure you want to restore data?",
@@ -777,6 +1040,8 @@
       "about.checkUpdate.available": "Update",
       "about.contact.button": "Email",
       "about.contact.title": "Contact",
+      "about.debug.title": "Debug",
+      "about.debug.open": "Open",
       "about.description": "A powerful AI assistant for producer",
       "about.downloading": "Downloading...",
       "about.feedback.button": "Feedback",
@@ -809,6 +1074,8 @@
         "app_knowledge.remove_all_confirm": "Deleting knowledge base files will reduce the storage space occupied, but will not delete the knowledge base vector data, after deletion, the source file will no longer be able to be opened. Continue?",
         "app_knowledge.remove_all_success": "Files removed successfully",
         "app_logs": "App Logs",
+        "backup.skip_file_data_title": "Slim Backup",
+        "backup.skip_file_data_help": "Skip backing up data files such as pictures and knowledge bases during backup, and only back up chat records and settings. Reduce space occupancy and speed up the backup speed.",
         "clear_cache": {
           "button": "Clear Cache",
           "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
@@ -848,7 +1115,9 @@
           "token": "Joplin Authorization Token",
           "token_placeholder": "Joplin Authorization Token",
           "url": "Joplin Web Clipper Service URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "Include Reasoning Chain in Export",
+          "export_reasoning.help": "When enabled, the exported content will include the reasoning chain (thought process) generated by the assistant."
         },
         "markdown_export.force_dollar_math.help": "When enabled, $$ will be forcibly used to mark LaTeX formulas when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "markdown_export.force_dollar_math.title": "Force $$ for LaTeX formulas",
@@ -857,12 +1126,14 @@
         "markdown_export.path_placeholder": "Export Path",
         "markdown_export.select": "Select",
         "markdown_export.title": "Markdown Export",
+        "markdown_export.show_model_name.title": "Use Model Name on Export",
+        "markdown_export.show_model_name.help": "When enabled, the topic-naming model will be used to create titles for exported messages. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
+        "markdown_export.show_model_provider.title": "Show Model Provider",
+        "markdown_export.show_model_provider.help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "notion.api_key": "Notion API Key",
         "notion.api_key_placeholder": "Enter Notion API Key",
-        "notion.auto_split": "Auto split when exporting",
-        "notion.auto_split_tip": "Automatically split pages when exporting long topics to Notion",
         "notion.check": {
           "button": "Check",
           "empty_api_key": "API key is not configured",
@@ -876,10 +1147,9 @@
         "notion.help": "Notion Configuration Documentation",
         "notion.page_name_key": "Page Title Field Name",
         "notion.page_name_key_placeholder": "Enter page title field name, default is Name",
-        "notion.split_size": "Split size",
-        "notion.split_size_help": "Recommended: 90 for Free plan, 24990 for Plus plan, default is 90",
-        "notion.split_size_placeholder": "Enter block limit per page (default 90)",
-        "notion.title": "Notion Configuration",
+        "notion.title": "Notion Settings",
+        "notion.export_reasoning.title": "Include Reasoning Chain in Export",
+        "notion.export_reasoning.help": "When enabled, exported content will include reasoning chain (thought process).",
         "title": "Data Settings",
         "webdav": {
           "autoSync": "Auto Backup",
@@ -1016,9 +1286,41 @@
       "display.sidebar.translate.icon": "Show Translate icon",
       "display.sidebar.visible": "Show icons",
       "display.title": "Display Settings",
+      "display.zoom.title": "Zoom Settings",
       "display.topic.title": "Topic Settings",
       "miniapps": {
         "title": "Mini Apps Settings",
+        "custom": {
+          "title": "Custom",
+          "edit_title": "Edit Custom Mini App",
+          "save_success": "Custom mini app saved successfully.",
+          "save_error": "Failed to save custom mini app.",
+          "remove_success": "Custom mini app removed successfully.",
+          "remove_error": "Failed to remove custom mini app.",
+          "logo_upload_success": "Logo uploaded successfully.",
+          "logo_upload_error": "Failed to upload logo.",
+          "id": "ID",
+          "id_error": "ID is required.",
+          "id_placeholder": "Enter ID",
+          "name": "Name",
+          "name_error": "Name is required.",
+          "name_placeholder": "Enter name",
+          "url": "URL",
+          "url_error": "URL is required.",
+          "url_placeholder": "Enter URL",
+          "logo": "Logo",
+          "logo_url": "Logo URL",
+          "logo_file": "Upload Logo File",
+          "logo_url_label": "Logo URL",
+          "logo_url_placeholder": "Enter logo URL",
+          "logo_upload_label": "Upload Logo",
+          "logo_upload_button": "Upload",
+          "save": "Save",
+          "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+          "placeholder": "Enter custom mini app configuration (JSON format)",
+          "duplicate_ids": "Duplicate IDs found: {{ids}}",
+          "conflicting_ids": "Conflicting IDs with default apps: {{ids}}"
+        },
         "disabled": "Hidden Mini Apps",
         "empty": "Drag mini apps from the left to hide them",
         "visible": "Visible Mini Apps",
@@ -1066,6 +1368,14 @@
         "active": "Active",
         "addError": "Failed to add server",
         "addServer": "Add Server",
+        "addServer.create": "Quick Create",
+        "addServer.importFrom": "Import from JSON",
+        "addServer.importFrom.tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box.",
+        "addServer.importFrom.placeholder": "Paste MCP server JSON config",
+        "addServer.importFrom.invalid": "Invalid input, please check JSON format",
+        "addServer.importFrom.nameExists": "Server already exists: {{name}}",
+        "addServer.importFrom.oneServer": "Only one MCP server configuration at a time",
+        "addServer.importFrom.connectionFailed": "Connection failed",
         "addSuccess": "Server added successfully",
         "args": "Arguments",
         "argsTooltip": "Each argument on a new line",
@@ -1076,11 +1386,14 @@
         "stdio": "Standard Input/Output (stdio)",
         "inMemory": "Memory",
         "config_description": "Configure Model Context Protocol servers",
+        "disable": "Disable MCP Server",
+        "disable.description": "Do not enable MCP server functionality",
         "deleteError": "Failed to delete server",
         "deleteSuccess": "Server deleted successfully",
         "dependenciesInstall": "Install Dependencies",
         "dependenciesInstalling": "Installing dependencies...",
         "description": "Description",
+        "noDescriptionAvailable": "No description available",
         "duplicateName": "A server with this name already exists",
         "editJson": "Edit JSON",
         "editServer": "Edit Server",
@@ -1198,6 +1511,8 @@
         "providerPlaceholder": "Provider name",
         "advancedSettings": "Advanced Settings"
       },
+      "messages.prompt": "Show prompt",
+      "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
@@ -1208,14 +1523,14 @@
       "messages.input.send_shortcuts": "Send shortcuts",
       "messages.input.show_estimated_tokens": "Show estimated tokens",
       "messages.input.title": "Input Settings",
-      "messages.input.enable_quick_triggers": "Enable '/' and '@' triggers",
+      "messages.input.enable_quick_triggers": "Enable / and @ triggers",
       "messages.input.enable_delete_model": "Enable the backspace key to delete models/attachments.",
       "messages.markdown_rendering_input_message": "Markdown render input message",
       "messages.math_engine": "Math engine",
       "messages.math_engine.none": "None",
       "messages.metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
       "messages.model.title": "Model Settings",
-      "messages.navigation": "Message Navigation",
+      "messages.navigation": "Navigation bar",
       "messages.navigation.anchor": "Message Anchor",
       "messages.navigation.buttons": "Navigation Buttons",
       "messages.navigation.none": "None",
@@ -1228,6 +1543,7 @@
       "models.add.group_name.tooltip": "Optional e.g. ChatGPT",
       "models.add.model_id": "Model ID",
       "models.add.model_id.placeholder": "Required e.g. gpt-3.5-turbo",
+      "models.add.model_id.select.placeholder": "Select Model",
       "models.add.model_id.tooltip": "Example: gpt-3.5-turbo",
       "models.add.model_name": "Model Name",
       "models.add.model_name.placeholder": "Optional e.g. GPT-4",
@@ -1239,7 +1555,10 @@
       "models.check.enabled": "Enabled",
       "models.check.failed": "Failed",
       "models.check.keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
-      "models.check.model_status_summary": "{{provider}}: {{count_passed}} models passed health checks ({{count_partial}} models had inaccessible keys), {{count_failed}} models completely inaccessible.",
+      "models.check.model_status_failed": "{{count}} models completely inaccessible",
+      "models.check.model_status_partial": "{{count}} models had inaccessible keys",
+      "models.check.model_status_passed": "{{count}} models passed health checks",
+      "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "No API keys found, please add API keys first.",
       "models.check.passed": "Passed",
       "models.check.select_api_key": "Select the API key to use:",
@@ -1247,10 +1566,13 @@
       "models.check.start": "Start",
       "models.check.title": "Model health check",
       "models.check.use_all_keys": "Key(s)",
+      "models.check.disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
       "models.default_assistant_model": "Default Assistant Model",
       "models.default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "models.empty": "No models found",
       "models.enable_topic_naming": "Topic Auto Naming",
+      "models.manage.add_listed": "Add models to the list",
+      "models.manage.remove_listed": "Remove models from the list",
       "models.manage.add_whole_group": "Add the whole group",
       "models.manage.remove_whole_group": "Remove the whole group",
       "models.topic_naming_model": "Topic Naming Model",
@@ -1261,10 +1583,18 @@
       "models.translate_model_description": "Model used for translation service",
       "models.translate_model_prompt_message": "Please enter the translate model prompt",
       "models.translate_model_prompt_title": "Translate Model Prompt",
+      "models.quick_assistant_model": "Quick Assistant Model",
+      "models.quick_assistant_model_description": "Default model used by Quick Assistant",
       "moresetting": "More Settings",
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
       "moresetting.warn": "Risk Warning",
+      "notification": {
+        "title": "Notification Settings",
+        "assistant": "Assistant Message",
+        "backup": "Backup Message",
+        "knowledge_embed": "KnowledgeBase Message"
+      },
       "provider": {
         "add.name": "Provider Name",
         "add.name.placeholder": "Example: OpenAI",
@@ -1293,6 +1623,9 @@
           "description": "This service is provided by <website>{{provider}}</website>",
           "official_website": "Official Website"
         },
+        "openai": {
+          "alert": "OpenAI Provider no longer support the old calling methods. If using a third-party API, please create a new service provider."
+        },
         "copilot": {
           "auth_failed": "Github Copilot authentication failed.",
           "auth_success": "GitHub Copilot authentication successful.",
@@ -1316,6 +1649,9 @@
           "open_verification_first": "Please click the link above to access the verification page.",
           "rate_limit": "Rate limiting",
           "tooltip": "You need to log in to Github before using Github Copilot"
+        },
+        "dmxapi": {
+          "select_platform": "Select the platform"
         },
         "delete.content": "Are you sure you want to delete this provider?",
         "delete.title": "Delete Provider",
@@ -1358,6 +1694,7 @@
         "clear_shortcut": "Clear Shortcut",
         "clear_topic": "Clear Messages",
         "copy_last_message": "Copy Last Message",
+        "exit_fullscreen": "Exit Fullscreen",
         "key": "Key",
         "mini_window": "Quick Assistant",
         "new_topic": "New Topic",
@@ -1366,6 +1703,7 @@
         "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
         "reset_to_default": "Reset to Default",
         "search_message": "Search Message",
+        "search_message_in_chat": "Search Message in Current Chat",
         "show_app": "Show/Hide App",
         "show_settings": "Open Settings",
         "title": "Keyboard Shortcuts",
@@ -1376,10 +1714,11 @@
         "zoom_out": "Zoom Out",
         "zoom_reset": "Reset Zoom"
       },
-      "theme.auto": "Auto",
+      "theme.system": "System",
       "theme.dark": "Dark",
       "theme.light": "Light",
       "theme.title": "Theme",
+      "theme.color_primary": "Primary Color",
       "theme.window.style.opaque": "Opaque Window",
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
@@ -1388,6 +1727,7 @@
       "topic.position.left": "Left",
       "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
+      "topic.pin_to_top": "Pin Topics to Top",
       "tray.onclose": "Minimize to Tray on Close",
       "tray.show": "Show Tray Icon",
       "tray.title": "Tray",
@@ -1436,7 +1776,10 @@
         "titlePlaceholder": "Please enter phrase title",
         "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
-        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?"
+        "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
+        "locationLabel": "Add Location",
+        "global": "Global Phrases",
+        "assistant": "Assistant Phrases"
       },
       "quickPanel": {
         "title": "Quick Menu",
@@ -1451,12 +1794,37 @@
       "privacy": {
         "title": "Privacy Settings",
         "enable_privacy_mode": "Anonymous reporting of errors and statistics"
+      },
+      "zoom": {
+        "title": "Page Zoom",
+        "reset": "Reset"
+      },
+      "openai": {
+        "title": "OpenAI Settings",
+        "summary_text_mode.title": "Summary Mode",
+        "summary_text_mode.tip": "A summary of the reasoning performed by the model",
+        "summary_text_mode.auto": "auto",
+        "summary_text_mode.concise": "concise",
+        "summary_text_mode.detailed": "detailed",
+        "summary_text_mode.off": "off",
+        "service_tier.title": "Service Tier",
+        "service_tier.tip": "Specifies the latency tier to use for processing the request",
+        "service_tier.auto": "auto",
+        "service_tier.default": "default",
+        "service_tier.flex": "flex"
       }
     },
     "translate": {
       "any.language": "Any language",
+      "target_language": "Target Language",
+      "alter_language": "Alternative Language",
       "button.translate": "Translate",
       "close": "Close",
+      "closed": "Translation closed",
+      "copied": "Translation content copied",
+      "detected.language": "Detected Language",
+      "empty": "Translation content is empty",
+      "not.found": "Translation content not found",
       "confirm": {
         "content": "Translation will replace the original text, continue?",
         "title": "Translation Confirmation"
@@ -1473,8 +1841,16 @@
       "input.placeholder": "Enter text to translate",
       "output.placeholder": "Translation",
       "processing": "Translation in progress...",
-      "scroll_sync.disable": "Disable synced scroll",
-      "scroll_sync.enable": "Enable synced scroll",
+      "language.same": "Source and target languages are the same",
+      "language.not_pair": "Source language is different from the set language",
+      "settings": {
+        "title": "Translation Settings",
+        "model": "Model Settings",
+        "model_desc": "Model used for translation service",
+        "bidirectional": "Bidirectional Translation Settings",
+        "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
+        "scroll_sync": "Scroll Sync Settings"
+      },
       "title": "Translation",
       "tooltip.newline": "Newline",
       "menu": {
@@ -1491,6 +1867,174 @@
       "quit": "Quit",
       "show_window": "Show Window",
       "visualization": "Visualization"
+    },
+    "update": {
+      "title": "Update",
+      "message": "New version {{version}} is ready, do you want to install it now?",
+      "later": "Later",
+      "install": "Install",
+      "noReleaseNotes": "No release notes"
+    },
+    "selection": {
+      "name": "Selection Assistant",
+      "action": {
+        "builtin": {
+          "translate": "Translate",
+          "explain": "Explain",
+          "summary": "Summarize",
+          "search": "Search",
+          "refine": "Refine",
+          "copy": "Copy"
+        },
+        "window": {
+          "pin": "Pin",
+          "pinned": "Pinned",
+          "opacity": "Window Opacity",
+          "original_show": "Show Original",
+          "original_hide": "Hide Original",
+          "original_copy": "Copy Original",
+          "esc_close": "Esc: Close",
+          "esc_stop": "Esc: Stop",
+          "c_copy": "C: Copy",
+          "r_regenerate": "R: Regenerate"
+        },
+        "translate": {
+          "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
+        }
+      },
+      "settings": {
+        "experimental": "Experimental Features",
+        "enable": {
+          "title": "Enable",
+          "description": "Currently only supported on Windows systems"
+        },
+        "toolbar": {
+          "title": "Toolbar",
+          "trigger_mode": {
+            "title": "Trigger Mode",
+            "description": "Show toolbar immediately when text is selected, or show only when Ctrl key is held after selection.",
+            "description_note": "The Ctrl key may not work in some apps. If you use AHK or other tools to remap the Ctrl key, it may not work.",
+            "selected": "Selection",
+            "ctrlkey": "Ctrl Key"
+          },
+          "compact_mode": {
+            "title": "Compact Mode",
+            "description": "In compact mode, only icons are displayed without text"
+          }
+        },
+        "window": {
+          "title": "Action Window",
+          "follow_toolbar": {
+            "title": "Follow Toolbar",
+            "description": "Window position will follow the toolbar. When disabled, it will always be centered."
+          },
+          "remember_size": {
+            "title": "Remember Size",
+            "description": "Window will display at the last adjusted size during the application running"
+          },
+          "auto_close": {
+            "title": "Auto Close",
+            "description": "Automatically close the window when it's not pinned and loses focus"
+          },
+          "auto_pin": {
+            "title": "Auto Pin",
+            "description": "Pin the window by default"
+          },
+          "opacity": {
+            "title": "Opacity",
+            "description": "Set the default opacity of the window, 100% is fully opaque"
+          }
+        },
+        "actions": {
+          "title": "Actions",
+          "reset": {
+            "button": "Reset",
+            "tooltip": "Reset to default actions. Custom actions will not be deleted.",
+            "confirm": "Are you sure you want to reset to default actions? Custom actions will not be deleted."
+          },
+          "add_tooltip": {
+            "enabled": "Add Custom Action",
+            "disabled": "Maximum number of custom actions reached ({{max}})"
+          },
+          "delete_confirm": "Are you sure you want to delete this custom action?",
+          "drag_hint": "Drag to reorder. Move above to enable action ({{enabled}}/{{max}})"
+        },
+        "advanced": {
+          "title": "Advanced",
+          "filter_mode": {
+            "title": "Application Filter",
+            "description": "Can limit the selection assistant to only work in specific applications (whitelist) or not work (blacklist)",
+            "default": "Off",
+            "whitelist": "Whitelist",
+            "blacklist": "Blacklist"
+          },
+          "filter_list": {
+            "title": "Filter List",
+            "description": "Advanced feature, recommended for users with experience"
+          }
+        },
+        "user_modal": {
+          "title": {
+            "add": "Add Custom Action",
+            "edit": "Edit Custom Action"
+          },
+          "name": {
+            "label": "Name",
+            "hint": "Please enter action name"
+          },
+          "icon": {
+            "label": "Icon",
+            "placeholder": "Enter Lucide icon name",
+            "error": "Invalid icon name, please check your input",
+            "tooltip": "Lucide icon names are lowercase, e.g. arrow-right",
+            "view_all": "View All Icons",
+            "random": "Random Icon"
+          },
+          "model": {
+            "label": "Model",
+            "tooltip": "Using Assistant: Will use both the assistant's system prompt and model parameters",
+            "default": "Default Model",
+            "assistant": "Use Assistant"
+          },
+          "assistant": {
+            "label": "Select Assistant",
+            "default": "Default"
+          },
+          "prompt": {
+            "label": "User Prompt",
+            "tooltip": "User prompt serves as a supplement to user input and won't override the assistant's system prompt",
+            "placeholder": "Use placeholder {{text}} to represent selected text. When empty, selected text will be appended to this prompt",
+            "placeholder_text": "Placeholder",
+            "copy_placeholder": "Copy Placeholder"
+          }
+        },
+        "search_modal": {
+          "title": "Set Search Engine",
+          "engine": {
+            "label": "Search Engine",
+            "custom": "Custom"
+          },
+          "custom": {
+            "name": {
+              "label": "Custom Name",
+              "hint": "Please enter search engine name",
+              "max_length": "Name cannot exceed 16 characters"
+            },
+            "url": {
+              "label": "Custom Search URL",
+              "hint": "Use {{queryString}} to represent the search term",
+              "required": "Please enter search URL",
+              "invalid_format": "Please enter a valid URL starting with http:// or https://",
+              "missing_placeholder": "URL must contain {{queryString}} placeholder"
+            },
+            "test": "Test"
+          }
+        },
+        "filter_modal": {
+          "title": "Application Filter List",
+          "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
+        }
+      }
     }
   }
 }

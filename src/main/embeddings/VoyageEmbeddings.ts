@@ -11,7 +11,6 @@ export default class VoyageEmbeddings extends BaseEmbeddings {
     if (!this.configuration.outputDimension) {
       throw new Error('You need to pass in the optional dimensions parameter for this model')
     }
-    console.log('VoyageEmbeddings', this.configuration)
     this.model = new _VoyageEmbeddings(this.configuration)
   }
   override async getDimensions(): Promise<number> {

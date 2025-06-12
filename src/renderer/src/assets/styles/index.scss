@@ -1,3 +1,5 @@
+@use './color.scss';
+@use './font.scss';
 @use './markdown.scss';
 @use './ant.scss';
 @use './scrollbar.scss';
@@ -5,132 +7,6 @@
 @use './animation.scss';
 @import '../fonts/icon-fonts/iconfont.css';
 @import '../fonts/ubuntu/ubuntu.css';
-
-:root {
-  --color-white: #ffffff;
-  --color-white-soft: rgba(255, 255, 255, 0.8);
-  --color-white-mute: rgba(255, 255, 255, 0.94);
-
-  --color-black: #181818;
-  --color-black-soft: #222222;
-  --color-black-mute: #333333;
-
-  --color-gray-1: #515c67;
-  --color-gray-2: #414853;
-  --color-gray-3: #32363f;
-
-  --color-text-1: rgba(255, 255, 245, 0.9);
-  --color-text-2: rgba(235, 235, 245, 0.6);
-  --color-text-3: rgba(235, 235, 245, 0.38);
-
-  --color-background: var(--color-black);
-  --color-background-soft: var(--color-black-soft);
-  --color-background-mute: var(--color-black-mute);
-  --color-background-opacity: rgba(34, 34, 34, 0.7);
-  --inner-glow-opacity: 0.3; // For the glassmorphism effect in the dropdown menu
-
-  --color-primary: #00b96b;
-  --color-primary-soft: #00b96b99;
-  --color-primary-mute: #00b96b33;
-
-  --color-text: var(--color-text-1);
-  --color-icon: #ffffff99;
-  --color-icon-white: #ffffff;
-  --color-border: #ffffff19;
-  --color-border-soft: #ffffff10;
-  --color-border-mute: #ffffff05;
-  --color-error: #f44336;
-  --color-link: #338cff;
-  --color-code-background: #323232;
-  --color-hover: rgba(40, 40, 40, 1);
-  --color-active: rgba(55, 55, 55, 1);
-  --color-frame-border: #333;
-  --color-group-background: var(--color-background-soft);
-
-  --color-reference: #404040;
-  --color-reference-text: #ffffff;
-  --color-reference-background: #0b0e12;
-
-  --navbar-background-mac: rgba(20, 20, 20, 0.55);
-  --navbar-background: #1f1f1f;
-
-  --navbar-height: 40px;
-  --sidebar-width: 50px;
-  --status-bar-height: 40px;
-  --input-bar-height: 100px;
-
-  --assistants-width: 275px;
-  --topic-list-width: 275px;
-  --settings-width: 250px;
-
-  --chat-background: #111111;
-  --chat-background-user: #28b561;
-  --chat-background-assistant: #2c2c2c;
-  --chat-text-user: var(--color-black);
-
-  --list-item-border-radius: 16px;
-}
-
-body {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-body[theme-mode='light'] {
-  --color-white: #ffffff;
-  --color-white-soft: rgba(0, 0, 0, 0.04);
-  --color-white-mute: #eee;
-
-  --color-black: #1b1b1f;
-  --color-black-soft: #262626;
-  --color-black-mute: #363636;
-
-  --color-gray-1: #8e8e93;
-  --color-gray-2: #aeaeb2;
-  --color-gray-3: #c7c7cc;
-
-  --color-text-1: rgba(0, 0, 0, 1);
-  --color-text-2: rgba(0, 0, 0, 0.6);
-  --color-text-3: rgba(0, 0, 0, 0.38);
-
-  --color-background: var(--color-white);
-  --color-background-soft: var(--color-white-soft);
-  --color-background-mute: var(--color-white-mute);
-  --color-background-opacity: rgba(235, 235, 235, 0.7);
-  --inner-glow-opacity: 0.1;
-
-  --color-primary: #00b96b;
-  --color-primary-soft: #00b96b99;
-  --color-primary-mute: #00b96b33;
-
-  --color-text: var(--color-text-1);
-  --color-icon: #00000099;
-  --color-icon-white: #000000;
-  --color-border: #00000019;
-  --color-border-soft: #00000010;
-  --color-border-mute: #00000005;
-  --color-error: #f44336;
-  --color-link: #1677ff;
-  --color-code-background: #e3e3e3;
-  --color-hover: var(--color-white-mute);
-  --color-active: var(--color-white-soft);
-  --color-frame-border: #ddd;
-  --color-group-background: var(--color-white);
-
-  --color-reference: #cfe1ff;
-  --color-reference-text: #000000;
-  --color-reference-background: #f1f7ff;
-
-  --navbar-background-mac: rgba(255, 255, 255, 0.55);
-  --navbar-background: rgba(244, 244, 244);
-
-  --chat-background: #f3f3f3;
-  --chat-background-user: #95ec69;
-  --chat-background-assistant: #ffffff;
-  --chat-text-user: var(--color-text);
-}
 
 *,
 *::before,
@@ -148,8 +24,18 @@ body[theme-mode='light'] {
   -webkit-tap-highlight-color: transparent;
 }
 
-ul {
-  list-style: none;
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+#root {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
 }
 
 body {
@@ -159,13 +45,17 @@ body {
   font-size: 14px;
   line-height: 1.6;
   overflow: hidden;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-family);
   text-rendering: optimizeLegibility;
+  transition: background-color 0.3s linear;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s linear;
+
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 input,
@@ -186,20 +76,8 @@ a {
   -webkit-user-drag: none;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-}
-
-#root {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  flex: 1;
+ul {
+  list-style: none;
 }
 
 .loader {
@@ -226,6 +104,7 @@ body,
   display: -webkit-box !important;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
+  line-clamp: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;
@@ -268,11 +147,16 @@ body,
       background-color: var(--color-white-soft);
     }
   }
+  .group-grid-container.horizontal,
+  .group-grid-container.grid {
+    .message-content-container-assistant {
+      padding: 0;
+    }
+  }
   .group-message-wrapper {
     background-color: var(--color-background);
     .message-content-container {
       width: 100%;
-      border: 1px solid var(--color-background-mute);
     }
   }
   .group-menu-bar {
@@ -285,4 +169,13 @@ body,
 
 .lucide {
   color: var(--color-icon);
+}
+
+span.highlight {
+  background-color: var(--color-background-highlight);
+  color: var(--color-highlight);
+}
+
+span.highlight.selected {
+  background-color: var(--color-background-highlight-accent);
 }

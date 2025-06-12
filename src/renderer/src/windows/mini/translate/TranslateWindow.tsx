@@ -5,8 +5,8 @@ import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { fetchTranslate } from '@renderer/services/ApiService'
 import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Message } from '@renderer/types'
-import { runAsyncFunction, uuid } from '@renderer/utils'
+import { Assistant } from '@renderer/types'
+import { runAsyncFunction } from '@renderer/utils'
 import { Select, Space } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
@@ -39,19 +39,19 @@ const Translate: FC<Props> = ({ text }) => {
 
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       const assistant: Assistant = getDefaultTranslateAssistant(targetLang?.value || targetLanguage, text)
-      const message: Message = {
-        id: uuid(),
-        role: 'user',
-        content: '',
-        assistantId: assistant.id,
-        topicId: uuid(),
-        model: translateModel,
-        createdAt: new Date().toISOString(),
-        type: 'text',
-        status: 'sending'
-      }
+      // const message: Message = {
+      //   id: uuid(),
+      //   role: 'user',
+      //   content: '',
+      //   assistantId: assistant.id,
+      //   topicId: uuid(),
+      //   model: translateModel,
+      //   createdAt: new Date().toISOString(),
+      //   type: 'text',
+      //   status: 'sending'
+      // }
 
-      await fetchTranslate({ message, assistant, onResponse: setResult })
+      await fetchTranslate({ content: text, assistant, onResponse: setResult })
 
       translatingRef.current = false
     } catch (error) {

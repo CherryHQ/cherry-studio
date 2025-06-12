@@ -47,6 +47,8 @@ export class ExportService {
       let linkText = ''
       let linkUrl = ''
       let insideLink = false
+      let boldStack = 0 // 跟踪嵌套的粗体标记
+      let italicStack = 0 // 跟踪嵌套的斜体标记
 
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i]
@@ -82,17 +84,37 @@ export class ExportService {
               insideLink = false
             }
             break
+          case 'strong_open':
+            boldStack++
+            break
+          case 'strong_close':
+            boldStack--
+            break
+          case 'em_open':
+            italicStack++
+            break
+          case 'em_close':
+            italicStack--
+            break
           case 'text':
-            runs.push(new TextRun({ text: token.content, bold: isHeaderRow ? true : false }))
-            break
-          case 'strong':
-            runs.push(new TextRun({ text: token.content, bold: true }))
-            break
-          case 'em':
-            runs.push(new TextRun({ text: token.content, italics: true }))
+            runs.push(
+              new TextRun({
+                text: token.content,
+                bold: isHeaderRow || boldStack > 0,
+                italics: italicStack > 0
+              })
+            )
             break
           case 'code_inline':
-            runs.push(new TextRun({ text: token.content, font: 'Consolas', size: 20 }))
+            runs.push(
+              new TextRun({
+                text: token.content,
+                font: 'Consolas',
+                size: 20,
+                bold: isHeaderRow || boldStack > 0,
+                italics: italicStack > 0
+              })
+            )
             break
         }
       }

@@ -1,18 +1,26 @@
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import {
+  findTokenLimit,
   getOpenAIWebSearchParams,
-  isGrokReasoningModel,
+  isClaudeReasoningModel,
   isHunyuanSearchModel,
-  isOpenAIoSeries,
-  isOpenAIWebSearch,
+  isOpenAIReasoningModel,
   isReasoningModel,
   isSupportedModel,
+  isSupportedReasoningEffortGrokModel,
+  isSupportedReasoningEffortModel,
+  isSupportedReasoningEffortOpenAIModel,
+  isSupportedThinkingTokenClaudeModel,
+  isSupportedThinkingTokenGeminiModel,
+  isSupportedThinkingTokenModel,
+  isSupportedThinkingTokenQwenModel,
   isVisionModel,
-  isZhipuModel,
-  OPENAI_NO_SUPPORT_DEV_ROLE_MODELS
+  isWebSearchModel,
+  isZhipuModel
 } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { extractReasoningMiddleware } from '@renderer/middlewares/extractReasoningMiddleware'
 import { getAssistantSettings, getDefaultModel, getTopNamingModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES } from '@renderer/services/EventService'
 import {
@@ -20,38 +28,65 @@ import {
   filterEmptyMessages,
   filterUserRoleStartMessages
 } from '@renderer/services/MessagesService'
-import { processReqMessages } from '@renderer/services/ModelMessageService'
+import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import store from '@renderer/store'
 import {
   Assistant,
+  EFFORT_RATIO,
   FileTypes,
-  GenerateImageParams,
+  MCPCallToolResponse,
+  MCPTool,
   MCPToolResponse,
-  Message,
+  Metrics,
   Model,
   Provider,
-  Suggestion
+  Suggestion,
+  ToolCallResponse,
+  Usage,
+  WebSearchSource
 } from '@renderer/types'
+import { ChunkType, LLMWebSearchCompleteChunk } from '@renderer/types/chunk'
+import { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
-import { mcpToolCallResponseToOpenAIMessage, parseAndCallTools } from '@renderer/utils/mcp-tools'
+import {
+  convertLinks,
+  convertLinksToHunyuan,
+  convertLinksToOpenRouter,
+  convertLinksToZhipu
+} from '@renderer/utils/linkConverter'
+import {
+  isEnabledToolUse,
+  mcpToolCallResponseToOpenAICompatibleMessage,
+  mcpToolsToOpenAIChatTools,
+  openAIToolsToMcpTool,
+  parseAndCallTools
+} from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
+import { asyncGeneratorToReadableStream, readableStreamAsyncIterable } from '@renderer/utils/stream'
 import { isEmpty, takeRight } from 'lodash'
 import OpenAI, { AzureOpenAI } from 'openai'
 import {
   ChatCompletionContentPart,
   ChatCompletionCreateParamsNonStreaming,
-  ChatCompletionMessageParam
+  ChatCompletionMessageParam,
+  ChatCompletionMessageToolCall,
+  ChatCompletionTool,
+  ChatCompletionToolMessageParam
 } from 'openai/resources'
 
 import { CompletionsParams } from '.'
-import BaseProvider from './BaseProvider'
+import { BaseOpenAIProvider } from './OpenAIResponseProvider'
 
-type ReasoningEffort = 'low' | 'medium' | 'high'
+// 1. 定义联合类型
+export type OpenAIStreamChunk =
+  | { type: 'reasoning' | 'text-delta'; textDelta: string }
+  | { type: 'tool-calls'; delta: any }
+  | { type: 'finish'; finishReason: any; usage: any; delta: any; chunk: any }
+  | { type: 'unknown'; chunk: any }
 
-export default class OpenAIProvider extends BaseProvider {
-  private sdk: OpenAI
-
+export default class OpenAIProvider extends BaseOpenAIProvider {
   constructor(provider: Provider) {
     super(provider)
 
@@ -92,48 +127,23 @@ export default class OpenAIProvider extends BaseProvider {
   }
 
   /**
-   * Extract the file content from the message
-   * @param message - The message
-   * @returns The file content
-   */
-  private async extractFileContent(message: Message) {
-    if (message.files && message.files.length > 0) {
-      const textFiles = message.files.filter((file) => [FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type))
-
-      if (textFiles.length > 0) {
-        let text = ''
-        const divider = '\n\n---\n\n'
-
-        for (const file of textFiles) {
-          const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
-          const fileNameRow = 'file: ' + file.origin_name + '\n\n'
-          text = text + fileNameRow + fileContent + divider
-        }
-
-        return text
-      }
-    }
-
-    return ''
-  }
-
-  /**
    * Get the message parameter
    * @param message - The message
    * @param model - The model
    * @returns The message parameter
    */
-  private async getMessageParam(
+  override async getMessageParam(
     message: Message,
     model: Model
   ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
+    const fileBlocks = findFileBlocks(message)
+    const imageBlocks = findImageBlocks(message)
 
-    // If the message does not have files, return the message
-    if (isEmpty(message.files)) {
+    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
       return {
-        role: message.role,
+        role: message.role === 'system' ? 'user' : message.role,
         content
       }
     }
@@ -143,7 +153,7 @@ export default class OpenAIProvider extends BaseProvider {
       const fileContent = await this.extractFileContent(message)
 
       return {
-        role: message.role,
+        role: message.role === 'system' ? 'user' : message.role,
         content: content + '\n\n---\n\n' + fileContent
       }
     }
@@ -155,14 +165,23 @@ export default class OpenAIProvider extends BaseProvider {
       parts.push({ type: 'text', text: content })
     }
 
-    for (const file of message.files || []) {
-      if (file.type === FileTypes.IMAGE && isVision) {
-        const image = await window.api.file.base64Image(file.id + file.ext)
-        parts.push({
-          type: 'image_url',
-          image_url: { url: image.data }
-        })
+    for (const imageBlock of imageBlocks) {
+      if (isVision) {
+        if (imageBlock.file) {
+          const image = await window.api.file.base64Image(imageBlock.file.id + imageBlock.file.ext)
+          parts.push({ type: 'image_url', image_url: { url: image.data } })
+        } else if (imageBlock.url && imageBlock.url.startsWith('data:')) {
+          parts.push({ type: 'image_url', image_url: { url: imageBlock.url } })
+        }
       }
+    }
+
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if (!file) {
+        continue
+      }
+
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = await (await window.api.file.read(file.id + file.ext)).trim()
         parts.push({
@@ -173,19 +192,23 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     return {
-      role: message.role,
+      role: message.role === 'system' ? 'user' : message.role,
       content: parts
     } as ChatCompletionMessageParam
   }
 
-  /**
-   * Get the temperature for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The temperature
-   */
-  private getTemperature(assistant: Assistant, model: Model) {
-    return isReasoningModel(model) || isOpenAIWebSearch(model) ? undefined : assistant?.settings?.temperature
+  override getTemperature(assistant: Assistant, model: Model): number | undefined {
+    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+      return undefined
+    }
+    return assistant.settings?.temperature
+  }
+
+  override getTopP(assistant: Assistant, model: Model): number | undefined {
+    if (isOpenAIReasoningModel(model) || (assistant.settings?.reasoning_effort && isClaudeReasoningModel(model))) {
+      return undefined
+    }
+    return assistant.settings?.topP
   }
 
   /**
@@ -205,7 +228,7 @@ export default class OpenAIProvider extends BaseProvider {
       }
     }
 
-    if (this.isOpenAIReasoning(model)) {
+    if (isOpenAIReasoningModel(model)) {
       return {
         max_tokens: undefined,
         max_completion_tokens: maxTokens
@@ -213,18 +236,6 @@ export default class OpenAIProvider extends BaseProvider {
     }
 
     return {}
-  }
-
-  /**
-   * Get the top P for the assistant
-   * @param assistant - The assistant
-   * @param model - The model
-   * @returns The top P
-   */
-  private getTopP(assistant: Assistant, model: Model) {
-    if (isReasoningModel(model) || isOpenAIWebSearch(model)) return undefined
-
-    return assistant?.settings?.topP
   }
 
   /**
@@ -238,65 +249,102 @@ export default class OpenAIProvider extends BaseProvider {
       return {}
     }
 
-    if (isReasoningModel(model)) {
-      if (model.provider === 'openrouter') {
-        return {
-          reasoning: {
-            effort: assistant?.settings?.reasoning_effort
-          }
-        }
+    if (!isReasoningModel(model)) {
+      return {}
+    }
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (!reasoningEffort) {
+      if (isSupportedThinkingTokenQwenModel(model)) {
+        return { enable_thinking: false }
       }
 
-      if (isGrokReasoningModel(model)) {
-        return {
-          reasoning_effort: assistant?.settings?.reasoning_effort
-        }
+      if (isSupportedThinkingTokenClaudeModel(model)) {
+        return { thinking: { type: 'disabled' } }
       }
 
-      if (isOpenAIoSeries(model)) {
+      if (isSupportedThinkingTokenGeminiModel(model)) {
+        // openrouter没有提供一个不推理的选项，先隐藏
+        if (this.provider.id === 'openrouter') {
+          return { reasoning: { maxTokens: 0, exclude: true } }
+        }
         return {
-          reasoning_effort: assistant?.settings?.reasoning_effort
-        }
-      }
-
-      if (model.id.includes('claude-3.7-sonnet') || model.id.includes('claude-3-7-sonnet')) {
-        const effortRatios: Record<ReasoningEffort, number> = {
-          high: 0.8,
-          medium: 0.5,
-          low: 0.2
-        }
-
-        const effort = assistant?.settings?.reasoning_effort as ReasoningEffort
-        const effortRatio = effortRatios[effort]
-
-        if (!effortRatio) {
-          return {}
-        }
-
-        const maxTokens = assistant?.settings?.maxTokens || DEFAULT_MAX_TOKENS
-        const budgetTokens = Math.trunc(Math.max(Math.min(maxTokens * effortRatio, 32000), 1024))
-
-        return {
-          thinking: {
-            type: 'enabled',
-            budget_tokens: budgetTokens
-          }
+          reasoning_effort: 'none'
         }
       }
 
       return {}
     }
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+    const budgetTokens = Math.floor(
+      (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
+    )
 
+    // OpenRouter models
+    if (model.provider === 'openrouter') {
+      if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
+        return {
+          reasoning: {
+            effort: assistant?.settings?.reasoning_effort === 'auto' ? 'medium' : assistant?.settings?.reasoning_effort
+          }
+        }
+      }
+    }
+
+    // Qwen models
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      return {
+        enable_thinking: true,
+        thinking_budget: budgetTokens
+      }
+    }
+
+    // Grok models
+    if (isSupportedReasoningEffortGrokModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // OpenAI models
+    if (isSupportedReasoningEffortOpenAIModel(model) || isSupportedThinkingTokenGeminiModel(model)) {
+      return {
+        reasoning_effort: assistant?.settings?.reasoning_effort
+      }
+    }
+
+    // Claude models
+    if (isSupportedThinkingTokenClaudeModel(model)) {
+      const maxTokens = assistant.settings?.maxTokens
+      return {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: Math.floor(
+            Math.max(1024, Math.min(budgetTokens, (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio))
+          )
+        }
+      }
+    }
+
+    // Default case: no special thinking settings
     return {}
   }
 
-  /**
-   * Check if the model is an OpenAI reasoning model
-   * @param model - The model
-   * @returns True if the model is an OpenAI reasoning model, false otherwise
-   */
-  private isOpenAIReasoning(model: Model) {
-    return model.id.startsWith('o1') || model.id.startsWith('o3') || model.id.startsWith('o4')
+  public convertMcpTools<T>(mcpTools: MCPTool[]): T[] {
+    return mcpToolsToOpenAIChatTools(mcpTools) as T[]
+  }
+
+  public mcpToolCallResponseToMessage = (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => {
+    if ('toolUseId' in mcpToolResponse && mcpToolResponse.toolUseId) {
+      return mcpToolCallResponseToOpenAICompatibleMessage(mcpToolResponse, resp, isVisionModel(model))
+    } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
+      const toolCallOut: ChatCompletionToolMessageParam = {
+        role: 'tool',
+        tool_call_id: mcpToolResponse.toolCallId,
+        content: JSON.stringify(resp.content)
+      }
+      return toolCallOut
+    }
+    return
   }
 
   /**
@@ -315,17 +363,35 @@ export default class OpenAIProvider extends BaseProvider {
     }
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
+
     const { contextCount, maxTokens, streamOutput } = getAssistantSettings(assistant)
+    const isEnabledBultinWebSearch = assistant.enableWebSearch && isWebSearchModel(model)
     messages = addImageFileToContents(messages)
+    const enableReasoning =
+      ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+        assistant.settings?.reasoning_effort !== undefined) ||
+      (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
     let systemMessage = { role: 'system', content: assistant.prompt || '' }
-    if (isOpenAIoSeries(model) && !OPENAI_NO_SUPPORT_DEV_ROLE_MODELS.includes(model.id)) {
+    if (isSupportedReasoningEffortOpenAIModel(model)) {
       systemMessage = {
         role: 'developer',
         content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
       }
     }
-    if (mcpTools && mcpTools.length > 0) {
-      systemMessage.content = buildSystemPrompt(systemMessage.content || '', mcpTools)
+    if (model.id.includes('o1-preview') || model.id.includes('o1-mini')) {
+      systemMessage = {
+        role: 'assistant',
+        content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
+      }
+    }
+    const { tools } = this.setupToolsConfig<ChatCompletionTool>({
+      mcpTools,
+      model,
+      enableToolUse: isEnabledToolUse(assistant)
+    })
+
+    if (this.useSystemPromptForTools) {
+      systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools)
     }
 
     const userMessages: ChatCompletionMessageParam[] = []
@@ -343,47 +409,24 @@ export default class OpenAIProvider extends BaseProvider {
       return streamOutput
     }
 
-    let hasReasoningContent = false
-    let lastChunk = ''
-    const isReasoningJustDone = (
-      delta: OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
-        reasoning_content?: string
-        reasoning?: string
-        thinking?: string
-      }
-    ) => {
-      if (!delta?.content) return false
-
-      // 检查当前chunk和上一个chunk的组合是否形成###Response标记
-      const combinedChunks = lastChunk + delta.content
-      lastChunk = delta.content
-
-      // 检测思考结束
-      if (combinedChunks.includes('###Response') || delta.content === '</think>') {
-        return true
-      }
-
-      // 如果有reasoning_content或reasoning，说明是在思考中
-      if (delta?.reasoning_content || delta?.reasoning || delta?.thinking) {
-        hasReasoningContent = true
-      }
-
-      // 如果之前有reasoning_content或reasoning，现在有普通content，说明思考结束
-      if (hasReasoningContent && delta.content) {
-        return true
-      }
-
-      return false
-    }
-
-    let time_first_token_millsec = 0
-    let time_first_content_millsec = 0
-    const start_time_millsec = new Date().getTime()
     const lastUserMessage = _messages.findLast((m) => m.role === 'user')
-
     const { abortController, cleanup, signalPromise } = this.createAbortController(lastUserMessage?.id, true)
     const { signal } = abortController
     await this.checkIsCopilot()
+
+    const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+    if (lastUserMsg && isSupportedThinkingTokenQwenModel(model)) {
+      const postsuffix = '/no_think'
+      // qwenThinkMode === true 表示思考模式啓用，此時不應添加 /no_think，如果存在則移除
+      const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+      const currentContent = lastUserMsg.content // content 類型：string | ChatCompletionContentPart[] | null
+
+      lastUserMsg.content = processPostsuffixQwen3Model(
+        currentContent,
+        postsuffix,
+        qwenThinkModeEnabled
+      ) as ChatCompletionContentPart[]
+    }
 
     //当 systemMessage 内容为空时不发送 systemMessage
     let reqMessages: ChatCompletionMessageParam[]
@@ -393,131 +436,449 @@ export default class OpenAIProvider extends BaseProvider {
       reqMessages = [systemMessage, ...userMessages].filter(Boolean) as ChatCompletionMessageParam[]
     }
 
-    const toolResponses: MCPToolResponse[] = []
-    let firstChunk = true
+    let finalUsage: Usage = {
+      completion_tokens: 0,
+      prompt_tokens: 0,
+      total_tokens: 0
+    }
 
-    const processToolUses = async (content: string, idx: number) => {
-      const toolResults = await parseAndCallTools(
+    const finalMetrics: Metrics = {
+      completion_tokens: 0,
+      time_completion_millsec: 0,
+      time_first_token_millsec: 0
+    }
+
+    const toolResponses: MCPToolResponse[] = []
+
+    const processToolResults = async (toolResults: Awaited<ReturnType<typeof parseAndCallTools>>, idx: number) => {
+      if (toolResults.length === 0) return
+
+      toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
+
+      console.debug('[tool] reqMessages before processing', model.id, reqMessages)
+      reqMessages = processReqMessages(model, reqMessages)
+      console.debug('[tool] reqMessages', model.id, reqMessages)
+
+      onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+      const newStream = await this.sdk.chat.completions
+        // @ts-ignore key is not typed
+        .create(
+          {
+            model: model.id,
+            messages: reqMessages,
+            temperature: this.getTemperature(assistant, model),
+            top_p: this.getTopP(assistant, model),
+            max_tokens: maxTokens,
+            keep_alive: this.keepAliveTime,
+            stream: isSupportStreamOutput(),
+            tools: !isEmpty(tools) ? tools : undefined,
+            service_tier: this.getServiceTier(model),
+            ...getOpenAIWebSearchParams(assistant, model),
+            ...this.getReasoningEffort(assistant, model),
+            ...this.getProviderSpecificParameters(assistant, model),
+            ...this.getCustomParameters(assistant)
+          },
+          {
+            signal
+          }
+        )
+      await processStream(newStream, idx + 1)
+    }
+
+    const processToolCalls = async (mcpTools, toolCalls: ChatCompletionMessageToolCall[]) => {
+      const mcpToolResponses = toolCalls
+        .map((toolCall) => {
+          const mcpTool = openAIToolsToMcpTool(mcpTools, toolCall as ChatCompletionMessageToolCall)
+          if (!mcpTool) return undefined
+
+          const parsedArgs = (() => {
+            try {
+              return JSON.parse(toolCall.function.arguments)
+            } catch {
+              return toolCall.function.arguments
+            }
+          })()
+
+          return {
+            id: toolCall.id,
+            toolCallId: toolCall.id,
+            tool: mcpTool,
+            arguments: parsedArgs,
+            status: 'pending'
+          } as ToolCallResponse
+        })
+        .filter((t): t is ToolCallResponse => typeof t !== 'undefined')
+      return await parseAndCallTools(
+        mcpToolResponses,
+        toolResponses,
+        onChunk,
+        this.mcpToolCallResponseToMessage,
+        model,
+        mcpTools
+      )
+    }
+
+    const processToolUses = async (content: string) => {
+      return await parseAndCallTools(
         content,
         toolResponses,
         onChunk,
-        idx,
-        mcpToolCallResponseToOpenAIMessage,
-        mcpTools,
-        isVisionModel(model)
+        this.mcpToolCallResponseToMessage,
+        model,
+        mcpTools
       )
-
-      if (toolResults.length > 0) {
-        reqMessages.push({
-          role: 'assistant',
-          content: content
-        } as ChatCompletionMessageParam)
-        toolResults.forEach((ts) => reqMessages.push(ts as ChatCompletionMessageParam))
-
-        console.debug('[tool] reqMessages before processing', model.id, reqMessages)
-        reqMessages = processReqMessages(model, reqMessages)
-        console.debug('[tool] reqMessages', model.id, reqMessages)
-        const newStream = await this.sdk.chat.completions
-          // @ts-ignore key is not typed
-          .create(
-            {
-              model: model.id,
-              messages: reqMessages,
-              temperature: this.getTemperature(assistant, model),
-              top_p: this.getTopP(assistant, model),
-              max_tokens: maxTokens,
-              keep_alive: this.keepAliveTime,
-              stream: isSupportStreamOutput(),
-              // tools: tools,
-              ...getOpenAIWebSearchParams(assistant, model),
-              ...this.getReasoningEffort(assistant, model),
-              ...this.getProviderSpecificParameters(assistant, model),
-              ...this.getCustomParameters(assistant)
-            },
-            {
-              signal
-            }
-          )
-        await processStream(newStream, idx + 1)
-      }
     }
 
     const processStream = async (stream: any, idx: number) => {
+      const toolCalls: ChatCompletionMessageToolCall[] = []
+      let time_first_token_millsec = 0
+
+      // Handle non-streaming case (already returns early, no change needed here)
       if (!isSupportStreamOutput()) {
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-        return onChunk({
-          text: stream.choices[0].message?.content || '',
-          usage: stream.usage,
-          metrics: {
-            completion_tokens: stream.usage?.completion_tokens,
-            time_completion_millsec,
-            time_first_token_millsec: 0
+        // Calculate final metrics once
+        finalMetrics.completion_tokens = stream.usage?.completion_tokens
+        finalMetrics.time_completion_millsec = new Date().getTime() - start_time_millsec
+
+        // Create a synthetic usage object if stream.usage is undefined
+        finalUsage = { ...stream.usage }
+        // Separate onChunk calls for text and usage/metrics
+        let content = ''
+        stream.choices.forEach((choice) => {
+          const reasoning = choice.message.reasoning || choice.message.reasoning_content
+          // reasoning
+          if (reasoning) {
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: reasoning
+            })
+            onChunk({
+              type: ChunkType.THINKING_COMPLETE,
+              text: reasoning,
+              thinking_millsec: new Date().getTime() - start_time_millsec
+            })
           }
+          // text
+          if (choice.message.content) {
+            content += choice.message.content
+            onChunk({ type: ChunkType.TEXT_DELTA, text: choice.message.content })
+          }
+          // tool call
+          if (choice.message.tool_calls && choice.message.tool_calls.length) {
+            choice.message.tool_calls.forEach((t) => toolCalls.push(t))
+          }
+
+          reqMessages.push({
+            role: choice.message.role,
+            content: choice.message.content,
+            tool_calls: toolCalls.length
+              ? toolCalls.map((toolCall) => ({
+                  id: toolCall.id,
+                  function: {
+                    ...toolCall.function,
+                    arguments:
+                      typeof toolCall.function.arguments === 'string'
+                        ? toolCall.function.arguments
+                        : JSON.stringify(toolCall.function.arguments)
+                  },
+                  type: 'function'
+                }))
+              : undefined
+          })
         })
+
+        if (content.length) {
+          onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+        }
+
+        const toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+        if (toolCalls.length) {
+          toolResults.push(...(await processToolCalls(mcpTools, toolCalls)))
+        }
+        if (stream.choices[0].message?.content) {
+          toolResults.push(...(await processToolUses(stream.choices[0].message?.content)))
+        }
+        await processToolResults(toolResults, idx)
+
+        // Always send usage and metrics data
+        onChunk({ type: ChunkType.BLOCK_COMPLETE, response: { usage: finalUsage, metrics: finalMetrics } })
+        return
       }
 
       let content = ''
-      for await (const chunk of stream) {
-        if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
-          break
+      let thinkingContent = ''
+      let isFirstChunk = true
+
+      // 1. 初始化中间件
+      const reasoningTags = [
+        { openingTag: '<think>', closingTag: '</think>', separator: '\n' },
+        { openingTag: '###Thinking', closingTag: '###Response', separator: '\n' }
+      ]
+      const getAppropriateTag = (model: Model) => {
+        if (model.id.includes('qwen3')) return reasoningTags[0]
+        return reasoningTags[0]
+      }
+      const reasoningTag = getAppropriateTag(model)
+      async function* openAIChunkToTextDelta(stream: any): AsyncGenerator<OpenAIStreamChunk> {
+        for await (const chunk of stream) {
+          if (window.keyv.get(EVENT_NAMES.CHAT_COMPLETION_PAUSED)) {
+            break
+          }
+
+          if (chunk.choices && chunk.choices.length > 0) {
+            const delta = chunk.choices[0]?.delta
+            if (
+              (delta?.reasoning_content && delta?.reasoning_content !== '\n') ||
+              (delta?.reasoning && delta?.reasoning !== '\n')
+            ) {
+              yield { type: 'reasoning', textDelta: delta.reasoning_content || delta.reasoning }
+            }
+            if (delta?.content) {
+              yield { type: 'text-delta', textDelta: delta.content }
+            }
+            if (delta?.tool_calls) {
+              yield { type: 'tool-calls', delta: delta }
+            }
+
+            const finishReason = chunk?.choices[0]?.finish_reason
+            if (!isEmpty(finishReason)) {
+              yield { type: 'finish', finishReason, usage: chunk.usage, delta, chunk }
+              break
+            }
+          }
         }
-
-        const delta = chunk.choices[0]?.delta
-        if (delta?.content) {
-          content += delta.content
-        }
-
-        if (delta?.reasoning_content || delta?.reasoning) {
-          hasReasoningContent = true
-        }
-
-        if (time_first_token_millsec == 0) {
-          time_first_token_millsec = new Date().getTime() - start_time_millsec
-        }
-
-        if (time_first_content_millsec == 0 && isReasoningJustDone(delta)) {
-          time_first_content_millsec = new Date().getTime()
-        }
-
-        const time_completion_millsec = new Date().getTime() - start_time_millsec
-        const time_thinking_millsec = time_first_content_millsec ? time_first_content_millsec - start_time_millsec : 0
-
-        // Extract citations from the raw response if available
-        const citations = (chunk as OpenAI.Chat.Completions.ChatCompletionChunk & { citations?: string[] })?.citations
-
-        const finishReason = chunk.choices[0]?.finish_reason
-
-        let webSearch: any[] | undefined = undefined
-        if (assistant.enableWebSearch && isZhipuModel(model) && finishReason === 'stop') {
-          webSearch = chunk?.web_search
-        }
-        if (firstChunk && assistant.enableWebSearch && isHunyuanSearchModel(model)) {
-          webSearch = chunk?.search_info?.search_results
-          firstChunk = true
-        }
-        onChunk({
-          text: delta?.content || '',
-          reasoning_content: delta?.reasoning_content || delta?.reasoning || '',
-          usage: chunk.usage,
-          metrics: {
-            completion_tokens: chunk.usage?.completion_tokens,
-            time_completion_millsec,
-            time_first_token_millsec,
-            time_thinking_millsec
-          },
-          webSearch,
-          annotations: delta?.annotations,
-          citations,
-          mcpToolResponse: toolResponses
-        })
       }
 
-      await processToolUses(content, idx)
+      // 2. 使用中间件
+      const { stream: processedStream } = await extractReasoningMiddleware<OpenAIStreamChunk>({
+        openingTag: reasoningTag?.openingTag,
+        closingTag: reasoningTag?.closingTag,
+        separator: reasoningTag?.separator,
+        enableReasoning
+      }).wrapStream({
+        doStream: async () => ({
+          stream: asyncGeneratorToReadableStream(openAIChunkToTextDelta(stream))
+        })
+      })
+
+      // 3. 消费 processedStream，分发 onChunk
+      for await (const chunk of readableStreamAsyncIterable(processedStream)) {
+        const delta = chunk.type === 'finish' ? chunk.delta : chunk
+        const rawChunk = chunk.type === 'finish' ? chunk.chunk : chunk
+
+        switch (chunk.type) {
+          case 'reasoning': {
+            if (time_first_token_millsec === 0) {
+              time_first_token_millsec = new Date().getTime()
+            }
+            thinkingContent += chunk.textDelta
+            onChunk({
+              type: ChunkType.THINKING_DELTA,
+              text: chunk.textDelta,
+              thinking_millsec: new Date().getTime() - time_first_token_millsec
+            })
+            break
+          }
+          case 'text-delta': {
+            let textDelta = chunk.textDelta
+            if (assistant.enableWebSearch && delta) {
+              const originalDelta = rawChunk?.choices?.[0]?.delta
+
+              if (originalDelta?.annotations) {
+                textDelta = convertLinks(textDelta, isFirstChunk)
+              } else if (assistant.model?.provider === 'openrouter') {
+                textDelta = convertLinksToOpenRouter(textDelta, isFirstChunk)
+              } else if (isZhipuModel(assistant.model)) {
+                textDelta = convertLinksToZhipu(textDelta, isFirstChunk)
+              } else if (isHunyuanSearchModel(assistant.model)) {
+                const searchResults = rawChunk?.search_info?.search_results || []
+                textDelta = convertLinksToHunyuan(textDelta, searchResults, isFirstChunk)
+              }
+            }
+            if (isFirstChunk) {
+              isFirstChunk = false
+              if (time_first_token_millsec === 0) {
+                time_first_token_millsec = new Date().getTime()
+              } else {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
+            }
+            content += textDelta
+            onChunk({ type: ChunkType.TEXT_DELTA, text: textDelta })
+            break
+          }
+          case 'tool-calls': {
+            if (isFirstChunk) {
+              isFirstChunk = false
+              if (time_first_token_millsec === 0) {
+                time_first_token_millsec = new Date().getTime()
+              } else {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
+            }
+            chunk.delta.tool_calls.forEach((toolCall) => {
+              const { id, index, type, function: fun } = toolCall
+              if (id && type === 'function' && fun) {
+                const { name, arguments: args } = fun
+                toolCalls.push({
+                  id,
+                  function: {
+                    name: name || '',
+                    arguments: args || ''
+                  },
+                  type: 'function'
+                })
+              } else if (fun?.arguments) {
+                toolCalls[index].function.arguments += fun.arguments
+              }
+            })
+            break
+          }
+          case 'finish': {
+            const finishReason = chunk.finishReason
+            const usage = chunk.usage
+            const originalFinishDelta = chunk.delta
+            const originalFinishRawChunk = chunk.chunk
+            if (!isEmpty(finishReason)) {
+              if (content) {
+                onChunk({ type: ChunkType.TEXT_COMPLETE, text: content })
+              }
+              if (thinkingContent) {
+                onChunk({
+                  type: ChunkType.THINKING_COMPLETE,
+                  text: thinkingContent,
+                  thinking_millsec: new Date().getTime() - time_first_token_millsec
+                })
+              }
+              if (usage) {
+                finalUsage.completion_tokens += usage.completion_tokens || 0
+                finalUsage.prompt_tokens += usage.prompt_tokens || 0
+                finalUsage.total_tokens += usage.total_tokens || 0
+                finalMetrics.completion_tokens += usage.completion_tokens || 0
+              }
+              finalMetrics.time_completion_millsec += new Date().getTime() - start_time_millsec
+              finalMetrics.time_first_token_millsec = time_first_token_millsec - start_time_millsec
+              if (originalFinishDelta?.annotations) {
+                if (assistant.model?.provider === 'copilot') return
+
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: originalFinishDelta.annotations,
+                    source: WebSearchSource.OPENAI_RESPONSE
+                  }
+                } as LLMWebSearchCompleteChunk)
+              }
+              if (assistant.model?.provider === 'grok') {
+                const citations = originalFinishRawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.GROK
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
+              }
+              if (assistant.model?.provider === 'perplexity') {
+                const citations = originalFinishRawChunk.citations
+                if (citations) {
+                  onChunk({
+                    type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                    llm_web_search: {
+                      results: citations,
+                      source: WebSearchSource.PERPLEXITY
+                    }
+                  } as LLMWebSearchCompleteChunk)
+                }
+              }
+              if (
+                isEnabledBultinWebSearch &&
+                isZhipuModel(model) &&
+                finishReason === 'stop' &&
+                originalFinishRawChunk?.web_search
+              ) {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: originalFinishRawChunk.web_search,
+                    source: WebSearchSource.ZHIPU
+                  }
+                } as LLMWebSearchCompleteChunk)
+              }
+              if (
+                isEnabledBultinWebSearch &&
+                isHunyuanSearchModel(model) &&
+                originalFinishRawChunk?.search_info?.search_results
+              ) {
+                onChunk({
+                  type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
+                  llm_web_search: {
+                    results: originalFinishRawChunk.search_info.search_results,
+                    source: WebSearchSource.HUNYUAN
+                  }
+                } as LLMWebSearchCompleteChunk)
+              }
+            }
+            break
+          }
+          case 'unknown': {
+            onChunk({
+              type: ChunkType.ERROR,
+              error: chunk.chunk
+            })
+          }
+        }
+      }
+
+      reqMessages.push({
+        role: 'assistant',
+        content: content,
+        tool_calls: toolCalls.length
+          ? toolCalls.map((toolCall) => ({
+              id: toolCall.id,
+              function: {
+                ...toolCall.function,
+                arguments:
+                  typeof toolCall.function.arguments === 'string'
+                    ? toolCall.function.arguments
+                    : JSON.stringify(toolCall.function.arguments)
+              },
+              type: 'function'
+            }))
+          : undefined
+      })
+      let toolResults: Awaited<ReturnType<typeof parseAndCallTools>> = []
+      if (toolCalls.length) {
+        toolResults = await processToolCalls(mcpTools, toolCalls)
+      }
+      if (content.length) {
+        toolResults = toolResults.concat(await processToolUses(content))
+      }
+      if (toolResults.length) {
+        await processToolResults(toolResults, idx)
+      }
+      onChunk({
+        type: ChunkType.BLOCK_COMPLETE,
+        response: {
+          usage: finalUsage,
+          metrics: finalMetrics
+        }
+      })
     }
 
-    console.debug('[completions] reqMessages before processing', model.id, reqMessages)
     reqMessages = processReqMessages(model, reqMessages)
-    console.debug('[completions] reqMessages', model.id, reqMessages)
+    // 等待接口返回流
+    onChunk({ type: ChunkType.LLM_RESPONSE_CREATED })
+    const start_time_millsec = new Date().getTime()
     const stream = await this.sdk.chat.completions
       // @ts-ignore key is not typed
       .create(
@@ -529,18 +890,21 @@ export default class OpenAIProvider extends BaseProvider {
           max_tokens: maxTokens,
           keep_alive: this.keepAliveTime,
           stream: isSupportStreamOutput(),
-          // tools: tools,
+          tools: !isEmpty(tools) ? tools : undefined,
+          service_tier: this.getServiceTier(model),
           ...getOpenAIWebSearchParams(assistant, model),
           ...this.getReasoningEffort(assistant, model),
           ...this.getProviderSpecificParameters(assistant, model),
           ...this.getCustomParameters(assistant)
         },
         {
-          signal
+          signal,
+          timeout: this.getTimeout(model)
         }
       )
 
     await processStream(stream, 0).finally(cleanup)
+
     // 捕获signal的错误
     await signalPromise?.promise?.catch((error) => {
       throw error
@@ -549,28 +913,24 @@ export default class OpenAIProvider extends BaseProvider {
 
   /**
    * Translate a message
-   * @param message - The message
+   * @param content
    * @param assistant - The assistant
    * @param onResponse - The onResponse callback
    * @returns The translated message
    */
-  async translate(message: Message, assistant: Assistant, onResponse?: (text: string) => void) {
+  async translate(content: string, assistant: Assistant, onResponse?: (text: string, isComplete: boolean) => void) {
     const defaultModel = getDefaultModel()
     const model = assistant.model || defaultModel
-    const messages = message.content
+
+    const messagesForApi = content
       ? [
           { role: 'system', content: assistant.prompt },
-          { role: 'user', content: message.content }
+          { role: 'user', content }
         ]
       : [{ role: 'user', content: assistant.prompt }]
 
-    const isOpenAIReasoning = this.isOpenAIReasoning(model)
-
     const isSupportedStreamOutput = () => {
       if (!onResponse) {
-        return false
-      }
-      if (isOpenAIReasoning) {
         return false
       }
       return true
@@ -580,14 +940,16 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
-    console.debug('[translate] reqMessages', model.id, messages)
+    // console.debug('[translate] reqMessages', model.id, message)
     // @ts-ignore key is not typed
     const response = await this.sdk.chat.completions.create({
       model: model.id,
-      messages: messages as ChatCompletionMessageParam[],
+      messages: messagesForApi as ChatCompletionMessageParam[],
       stream,
       keep_alive: this.keepAliveTime,
-      temperature: assistant?.settings?.temperature
+      temperature: this.getTemperature(assistant, model),
+      top_p: this.getTopP(assistant, model),
+      ...this.getReasoningEffort(assistant, model)
     })
 
     if (!stream) {
@@ -608,7 +970,7 @@ export default class OpenAIProvider extends BaseProvider {
 
         if (!isThinking) {
           text += deltaContent
-          onResponse?.(text)
+          onResponse?.(text, false)
         }
 
         if (deltaContent.includes('</think>')) {
@@ -616,9 +978,11 @@ export default class OpenAIProvider extends BaseProvider {
         }
       } else {
         text += deltaContent
-        onResponse?.(text)
+        onResponse?.(text, false)
       }
     }
+
+    onResponse?.(text, true)
 
     return text
   }
@@ -636,7 +1000,7 @@ export default class OpenAIProvider extends BaseProvider {
       .filter((message) => !message.isPreset)
       .map((message) => ({
         role: message.role,
-        content: message.content
+        content: getMainTextContent(message)
       }))
 
     const userMessageContent = userMessages.reduce((prev, curr) => {
@@ -656,15 +1020,20 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
-    console.debug('[summaries] reqMessages', model.id, [systemMessage, userMessage])
-    // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create({
+    const params = {
       model: model.id,
       messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
       stream: false,
       keep_alive: this.keepAliveTime,
       max_tokens: 1000
-    })
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      params['enable_thinking'] = false
+    }
+
+    // @ts-ignore key is not typed
+    const response = await this.sdk.chat.completions.create(params as ChatCompletionCreateParamsNonStreaming)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
@@ -687,24 +1056,35 @@ export default class OpenAIProvider extends BaseProvider {
       content: assistant.prompt
     }
 
+    const messageContents = messages.map((m) => getMainTextContent(m))
+    const userMessageContent = messageContents.join('\n')
+
     const userMessage = {
       role: 'user',
-      content: messages.map((m) => m.content).join('\n')
+      content: userMessageContent
     }
-    console.debug('[summaryForSearch] reqMessages', model.id, [systemMessage, userMessage])
-    // @ts-ignore key is not typed
-    const response = await this.sdk.chat.completions.create(
-      {
-        model: model.id,
-        messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
-        stream: false,
-        keep_alive: this.keepAliveTime,
-        max_tokens: 1000
-      },
-      {
-        timeout: 20 * 1000
-      }
-    )
+
+    const lastUserMessage = messages[messages.length - 1]
+
+    const { abortController, cleanup } = this.createAbortController(lastUserMessage?.id)
+    const { signal } = abortController
+
+    const response = await this.sdk.chat.completions
+      // @ts-ignore key is not typed
+      .create(
+        {
+          model: model.id,
+          messages: [systemMessage, userMessage] as ChatCompletionMessageParam[],
+          stream: false,
+          keep_alive: this.keepAliveTime,
+          max_tokens: 1000
+        },
+        {
+          timeout: 20 * 1000,
+          signal: signal
+        }
+      )
+      .finally(cleanup)
 
     // 针对思考类模型的返回，总结仅截取</think>之后的内容
     let content = response.choices[0].message?.content || ''
@@ -743,7 +1123,7 @@ export default class OpenAIProvider extends BaseProvider {
    * @returns The suggestions
    */
   async suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]> {
-    const model = assistant.model
+    const { model } = assistant
 
     if (!model) {
       return []
@@ -751,11 +1131,18 @@ export default class OpenAIProvider extends BaseProvider {
 
     await this.checkIsCopilot()
 
+    const userMessagesForApi = messages
+      .filter((m) => m.role === 'user')
+      .map((m) => ({
+        role: m.role,
+        content: getMainTextContent(m)
+      }))
+
     const response: any = await this.sdk.request({
       method: 'post',
       path: '/advice_questions',
       body: {
-        messages: messages.filter((m) => m.role === 'user').map((m) => ({ role: m.role, content: m.content })),
+        messages: userMessagesForApi,
         model: model.id,
         max_tokens: 0,
         temperature: 0,
@@ -769,26 +1156,45 @@ export default class OpenAIProvider extends BaseProvider {
   /**
    * Check if the model is valid
    * @param model - The model
+   * @param stream - Whether to use streaming interface
    * @returns The validity of the model
    */
-  public async check(model: Model): Promise<{ valid: boolean; error: Error | null }> {
+  public async check(model: Model, stream: boolean = false): Promise<{ valid: boolean; error: Error | null }> {
     if (!model) {
       return { valid: false, error: new Error('No model found') }
     }
-    const body = {
+
+    const body: any = {
       model: model.id,
       messages: [{ role: 'user', content: 'hi' }],
-      stream: false
+      stream
+    }
+
+    if (isSupportedThinkingTokenQwenModel(model)) {
+      body.enable_thinking = false // qwen3
     }
 
     try {
       await this.checkIsCopilot()
-      console.debug('[checkModel] body', model.id, body)
-      const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
-
-      return {
-        valid: Boolean(response?.choices[0].message),
-        error: null
+      if (!stream) {
+        const response = await this.sdk.chat.completions.create(body as ChatCompletionCreateParamsNonStreaming)
+        if (!response?.choices[0].message) {
+          throw new Error('Empty response')
+        }
+        return { valid: true, error: null }
+      } else {
+        const response: any = await this.sdk.chat.completions.create(body as any)
+        // 等待整个流式响应结束
+        let hasContent = false
+        for await (const chunk of response) {
+          if (chunk.choices?.[0]?.delta?.content) {
+            hasContent = true
+          }
+        }
+        if (hasContent) {
+          return { valid: true, error: null }
+        }
+        throw new Error('Empty streaming response')
       }
     } catch (error: any) {
       return {
@@ -832,49 +1238,15 @@ export default class OpenAIProvider extends BaseProvider {
           .filter(isSupportedModel)
       }
 
-      const models = response?.data || []
+      const models = response.data || []
+      models.forEach((model) => {
+        model.id = model.id.trim()
+      })
 
       return models.filter(isSupportedModel)
     } catch (error) {
       return []
     }
-  }
-
-  /**
-   * Generate an image
-   * @param params - The parameters
-   * @returns The generated image
-   */
-  public async generateImage({
-    model,
-    prompt,
-    negativePrompt,
-    imageSize,
-    batchSize,
-    seed,
-    numInferenceSteps,
-    guidanceScale,
-    signal,
-    promptEnhancement
-  }: GenerateImageParams): Promise<string[]> {
-    const response = (await this.sdk.request({
-      method: 'post',
-      path: '/images/generations',
-      signal,
-      body: {
-        model,
-        prompt,
-        negative_prompt: negativePrompt,
-        image_size: imageSize,
-        batch_size: batchSize,
-        seed: seed ? parseInt(seed) : undefined,
-        num_inference_steps: numInferenceSteps,
-        guidance_scale: guidanceScale,
-        prompt_enhancement: promptEnhancement
-      }
-    })) as { data: Array<{ url: string }> }
-
-    return response.data.map((item) => item.url)
   }
 
   /**
@@ -885,44 +1257,25 @@ export default class OpenAIProvider extends BaseProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     await this.checkIsCopilot()
 
-    const data = await this.sdk.embeddings.create({
-      model: model.id,
-      input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi'
-    })
-    return data.data[0].embedding.length
+    try {
+      const data = await this.sdk.embeddings.create({
+        model: model.id,
+        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+        encoding_format: 'float'
+      })
+      return data.data[0].embedding.length
+    } catch (e) {
+      return 0
+    }
   }
 
   public async checkIsCopilot() {
-    if (this.provider.id !== 'copilot') return
+    if (this.provider.id !== 'copilot') {
+      return
+    }
     const defaultHeaders = store.getState().copilot.defaultHeaders
     // copilot每次请求前需要重新获取token，因为token中附带时间戳
     const { token } = await window.api.copilot.getToken(defaultHeaders)
     this.sdk.apiKey = token
-  }
-
-  public async generateImageByChat({ messages, assistant, onChunk }: CompletionsParams): Promise<void> {
-    const defaultModel = getDefaultModel()
-    const model = assistant.model || defaultModel
-    const lastUserMessage = messages.findLast((m) => m.role === 'user')
-    const { abortController } = this.createAbortController(lastUserMessage?.id, true)
-    const { signal } = abortController
-    const response = await this.sdk.images.generate(
-      {
-        model: model.id,
-        prompt: lastUserMessage?.content || '',
-        response_format: model.id.includes('gpt-image-1') ? undefined : 'b64_json'
-      },
-      {
-        signal
-      }
-    )
-
-    return onChunk({
-      text: '',
-      generateImage: {
-        type: 'base64',
-        images: response.data.map((item) => `data:image/png;base64,${item.b64_json}`)
-      }
-    })
   }
 }

@@ -1,7 +1,14 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
-import type { MinAppType } from '@renderer/types'
+import type { MinAppType, Topic } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
+
+export interface ChatState {
+  isMultiSelectMode: boolean
+  selectedMessageIds: string[]
+  activeTopic: Topic | null
+}
+
 export interface UpdateState {
   info: UpdateInfo | null
   checking: boolean
@@ -27,6 +34,7 @@ export interface RuntimeState {
   resourcesPath: string
   update: UpdateState
   export: ExportState
+  chat: ChatState
 }
 
 export interface ExportState {
@@ -53,6 +61,11 @@ const initialState: RuntimeState = {
   },
   export: {
     isExporting: false
+  },
+  chat: {
+    isMultiSelectMode: false,
+    selectedMessageIds: [],
+    activeTopic: null
   }
 }
 
@@ -92,6 +105,19 @@ const runtimeSlice = createSlice({
     },
     setExportState: (state, action: PayloadAction<Partial<ExportState>>) => {
       state.export = { ...state.export, ...action.payload }
+    },
+    // Chat related actions
+    toggleMultiSelectMode: (state, action: PayloadAction<boolean>) => {
+      state.chat.isMultiSelectMode = action.payload
+      if (!action.payload) {
+        state.chat.selectedMessageIds = []
+      }
+    },
+    setSelectedMessageIds: (state, action: PayloadAction<string[]>) => {
+      state.chat.selectedMessageIds = action.payload
+    },
+    setActiveTopic: (state, action: PayloadAction<Topic>) => {
+      state.chat.activeTopic = action.payload
     }
   }
 })
@@ -107,7 +133,11 @@ export const {
   setFilesPath,
   setResourcesPath,
   setUpdateState,
-  setExportState
+  setExportState,
+  // Chat related actions
+  toggleMultiSelectMode,
+  setSelectedMessageIds,
+  setActiveTopic
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer

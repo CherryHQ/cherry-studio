@@ -1,6 +1,7 @@
 import { WebDavConfig } from '@types'
 import Logger from 'electron-log'
 import Stream from 'stream'
+import https from 'https'
 import {
   BufferLike,
   createClient,
@@ -20,7 +21,8 @@ export default class WebDav {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
-      maxContentLength: Infinity
+      maxContentLength: Infinity,
+      httpsAgent: new https.Agent({ rejectUnauthorized: false })
     })
 
     this.putFileContents = this.putFileContents.bind(this)
@@ -70,6 +72,19 @@ export default class WebDav {
       return await this.instance.getFileContents(remoteFilePath, options)
     } catch (error) {
       Logger.error('[WebDAV] Error getting file contents on WebDAV:', error)
+      throw error
+    }
+  }
+
+  public getDirectoryContents = async () => {
+    if (!this.instance) {
+      throw new Error('WebDAV client not initialized')
+    }
+
+    try {
+      return await this.instance.getDirectoryContents(this.webdavPath)
+    } catch (error) {
+      Logger.error('[WebDAV] Error getting directory contents on WebDAV:', error)
       throw error
     }
   }

@@ -10,8 +10,7 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 export default defineConfig({
   main: {
-    plugins: [
-      externalizeDepsPlugin({
+    plugins: [externalizeDepsPlugin({
         exclude: [
           '@cherrystudio/embedjs',
           '@cherrystudio/embedjs-openai',
@@ -26,9 +25,7 @@ export default defineConfig({
           'p-queue',
           'webdav'
         ]
-      }),
-      ...visualizerPlugin('main')
-    ],
+      }), ...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -38,7 +35,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client'],
+        external: ['@libsql/client', 'bufferutil', 'utf-8-validate'],
         plugins: [
           {
             name: 'inject-windows7-polyfill',
@@ -68,6 +65,9 @@ export default defineConfig({
       alias: {
         '@shared': resolve('packages/shared')
       }
+    },
+    build: {
+      sourcemap: process.env.NODE_ENV === 'development'
     }
   },
   renderer: {
@@ -98,7 +98,20 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: []
+      exclude: ['pyodide']
+    },
+    worker: {
+      format: 'es'
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          miniWindow: resolve(__dirname, 'src/renderer/miniWindow.html'),
+          selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
+          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html')
+        }
+      }
     }
   }
 })

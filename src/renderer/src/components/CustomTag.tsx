@@ -1,6 +1,6 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { FC } from 'react'
+import { FC, memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 interface CustomTagProps {
@@ -14,17 +14,26 @@ interface CustomTagProps {
 }
 
 const CustomTag: FC<CustomTagProps> = ({ children, icon, color, size = 12, tooltip, closable = false, onClose }) => {
-  return (
-    <Tooltip title={tooltip} placement="top">
+  const tagContent = useMemo(
+    () => (
       <Tag $color={color} $size={size} $closable={closable}>
         {icon && icon} {children}
         {closable && <CloseIcon $size={size} $color={color} onClick={onClose} />}
       </Tag>
+    ),
+    [children, closable, color, icon, onClose, size]
+  )
+
+  return tooltip ? (
+    <Tooltip title={tooltip} placement="top" mouseEnterDelay={0.3}>
+      {tagContent}
     </Tooltip>
+  ) : (
+    tagContent
   )
 }
 
-export default CustomTag
+export default memo(CustomTag)
 
 const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
   display: inline-flex;

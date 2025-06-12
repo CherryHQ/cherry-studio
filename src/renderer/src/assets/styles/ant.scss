@@ -17,7 +17,7 @@
 }
 
 .ant-tabs-tab-btn {
-  outline: none;
+  outline: none !important;
 }
 
 .ant-segmented-group {
@@ -206,8 +206,14 @@
 
 .ant-collapse {
   border: 1px solid var(--color-border);
+  .ant-color-picker & {
+    border: none;
+  }
 }
 
 .ant-collapse-content {
   border-top: 1px solid var(--color-border) !important;
+  .ant-color-picker & {
+    border-top: none !important;
+  }
 }

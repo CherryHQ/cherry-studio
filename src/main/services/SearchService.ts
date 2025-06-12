@@ -74,8 +74,7 @@ export class SearchService {
     })
 
     // Get the page content after ensuring it's fully loaded
-    const content = await window.webContents.executeJavaScript('document.documentElement.outerHTML')
-    return content
+    return await window.webContents.executeJavaScript('document.documentElement.outerHTML')
   }
 }
 

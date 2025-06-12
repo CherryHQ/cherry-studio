@@ -47,7 +47,7 @@ const AssistantSettings: FC = () => {
 
   const handleChange =
     (setter: Dispatch<SetStateAction<number>>, updater: (value: number) => void) => (value: number | null) => {
-      if (!!value && !isNaN(value)) {
+      if (value !== null) {
         setter(value)
         updater(value)
       }
@@ -305,6 +305,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
+      transitionName="animation-move-down"
       centered
       width={800}
       footer={null}>

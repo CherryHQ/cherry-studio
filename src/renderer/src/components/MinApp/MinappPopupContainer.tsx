@@ -1,4 +1,6 @@
 import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
   CloseOutlined,
   CodeOutlined,
   CopyOutlined,
@@ -8,7 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isLinux, isMac, isWindows } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -242,6 +244,22 @@ const MinappPopupContainer: React.FC = () => {
     dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
   }
 
+  /** navigate back in webview history */
+  const handleGoBack = (appid: string) => {
+    const webview = webviewRefs.current.get(appid)
+    if (webview && webview.canGoBack()) {
+      webview.goBack()
+    }
+  }
+
+  /** navigate forward in webview history */
+  const handleGoForward = (appid: string) => {
+    const webview = webviewRefs.current.get(appid)
+    if (webview && webview.canGoForward()) {
+      webview.goForward()
+    }
+  }
+
   /** Title bar of the popup */
   const Title = ({ appInfo, url }: { appInfo: AppInfo | null; url: string | null }) => {
     if (!appInfo) return null
@@ -286,7 +304,17 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWindows ? 'windows' : ''}>
+        <ButtonsGroup className={isWindows || isLinux ? 'windows' : ''}>
+          <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
+            <Button onClick={() => handleGoBack(appInfo.id)}>
+              <ArrowLeftOutlined />
+            </Button>
+          </Tooltip>
+          <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
+            <Button onClick={() => handleGoForward(appInfo.id)}>
+              <ArrowRightOutlined />
+            </Button>
+          </Tooltip>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
             <Button onClick={() => handleReload(appInfo.id)}>
               <ReloadOutlined />
@@ -368,7 +396,10 @@ const MinappPopupContainer: React.FC = () => {
       height={'100%'}
       maskClosable={false}
       closeIcon={null}
-      style={{ marginLeft: 'var(--sidebar-width)', backgroundColor: 'var(--color-background)' }}>
+      style={{
+        marginLeft: 'var(--sidebar-width)',
+        backgroundColor: window.root.style.background
+      }}>
       {!isReady && (
         <EmptyView>
           <Avatar
@@ -376,7 +407,7 @@ const MinappPopupContainer: React.FC = () => {
             size={80}
             style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
           />
-          <BeatLoader color="var(--color-text-2)" size="10px" style={{ marginTop: 15 }} />
+          <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />
         </EmptyView>
       )}
       {WebviewContainerGroup}
@@ -422,7 +453,7 @@ const ButtonsGroup = styled.div`
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWindows ? '130px' : 0};
+    margin-right: ${isWindows ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;

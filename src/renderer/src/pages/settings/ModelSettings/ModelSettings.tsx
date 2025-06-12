@@ -13,7 +13,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
-import { FolderPen, Languages, MessageSquareMore, Settings2 } from 'lucide-react'
+import { FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,8 +22,16 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, topicNamingModel, translateModel, setDefaultModel, setTopicNamingModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    topicNamingModel,
+    translateModel,
+    quickAssistantModel,
+    setDefaultModel,
+    setTopicNamingModel,
+    setTranslateModel,
+    setQuickAssistantModel
+  } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
@@ -58,6 +66,11 @@ const ModelSettings: FC = () => {
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
     [translateModel]
+  )
+
+  const defaultQuickAssistantModel = useMemo(
+    () => (hasModel(quickAssistantModel) ? getModelUniqId(quickAssistantModel) : undefined),
+    [quickAssistantModel]
   )
 
   const onUpdateTranslateModel = async () => {
@@ -148,6 +161,26 @@ const ModelSettings: FC = () => {
           )}
         </HStack>
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ marginBottom: 12 }}>
+          <HStack alignItems="center" gap={10}>
+            <Rocket size={18} color="var(--color-text)" />
+            {t('settings.models.quick_assistant_model')}
+          </HStack>
+        </SettingTitle>
+        <HStack alignItems="center">
+          <Select
+            value={defaultQuickAssistantModel}
+            defaultValue={defaultQuickAssistantModel}
+            style={{ width: 360 }}
+            onChange={(value) => setQuickAssistantModel(find(allModels, JSON.parse(value)) as Model)}
+            options={selectOptions}
+            showSearch
+            placeholder={t('settings.models.empty')}
+          />
+        </HStack>
+        <SettingDescription>{t('settings.models.quick_assistant_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )

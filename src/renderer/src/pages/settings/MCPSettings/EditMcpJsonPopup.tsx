@@ -1,9 +1,9 @@
+import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { Modal, Typography } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -118,17 +118,25 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
         </Typography.Text>
       </div>
-      <TextArea
-        value={jsonConfig}
-        onChange={(e) => setJsonConfig(e.target.value)}
-        style={{
-          width: '100%',
-          fontFamily: 'monospace',
-          minHeight: '60vh',
-          marginBottom: '16px'
-        }}
-        onFocus={() => setJsonError('')}
-      />
+      {jsonConfig && (
+        <div style={{ marginBottom: '16px' }}>
+          <CodeEditor
+            value={jsonConfig}
+            language="json"
+            onChange={(value) => setJsonConfig(value)}
+            maxHeight="60vh"
+            options={{
+              lint: true,
+              collapsible: true,
+              wrappable: true,
+              lineNumbers: true,
+              foldGutter: true,
+              highlightActiveLine: true,
+              keymap: true
+            }}
+          />
+        </div>
+      )}
       <Typography.Text type="secondary">{t('settings.mcp.jsonModeHint')}</Typography.Text>
     </Modal>
   )

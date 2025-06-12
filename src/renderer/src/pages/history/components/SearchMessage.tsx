@@ -1,11 +1,13 @@
 import { ArrowRightOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
 import { locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Message, Topic } from '@renderer/types'
+import { Topic } from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
 import { runAsyncFunction } from '@renderer/utils'
 import { Button } from 'antd'
 import { FC, useEffect, useState } from 'react'
@@ -40,23 +42,25 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
   }
 
   return (
-    <MessagesContainer {...props} className={messageStyle}>
-      <ContainerWrapper style={{ paddingTop: 20, paddingBottom: 20, position: 'relative' }}>
-        <MessageItem message={message} topic={topic} />
-        <Button
-          type="text"
-          size="middle"
-          style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 10 }}
-          onClick={() => locateToMessage(navigate, message)}
-          icon={<ArrowRightOutlined />}
-        />
-        <HStack mt="10px" justifyContent="center">
-          <Button onClick={() => locateToMessage(navigate, message)} icon={<ArrowRightOutlined />}>
-            {t('history.locate.message')}
-          </Button>
-        </HStack>
-      </ContainerWrapper>
-    </MessagesContainer>
+    <MessageEditingProvider>
+      <MessagesContainer {...props} className={messageStyle}>
+        <ContainerWrapper style={{ paddingTop: 20, paddingBottom: 20, position: 'relative' }}>
+          <MessageItem message={message} topic={topic} hideMenuBar={true} />
+          <Button
+            type="text"
+            size="middle"
+            style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 10 }}
+            onClick={() => locateToMessage(navigate, message)}
+            icon={<ArrowRightOutlined />}
+          />
+          <HStack mt="10px" justifyContent="center">
+            <Button onClick={() => locateToMessage(navigate, message)} icon={<ArrowRightOutlined />}>
+              {t('history.locate.message')}
+            </Button>
+          </HStack>
+        </ContainerWrapper>
+      </MessagesContainer>
+    </MessageEditingProvider>
   )
 }
 

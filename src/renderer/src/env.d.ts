@@ -19,7 +19,6 @@ declare global {
     message: MessageInstance
     modal: HookAPI
     keyv: KeyvStorage
-    mermaid: any
     store: any
     navigate: NavigateFunction
   }

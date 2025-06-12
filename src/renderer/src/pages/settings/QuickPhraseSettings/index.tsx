@@ -1,5 +1,6 @@
 import { DeleteOutlined, EditOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { QuickPhrase } from '@renderer/types'
@@ -19,6 +20,7 @@ const QuickPhraseSettings: FC = () => {
   const [editingPhrase, setEditingPhrase] = useState<QuickPhrase | null>(null)
   const [formData, setFormData] = useState({ title: '', content: '' })
   const [dragging, setDragging] = useState(false)
+  const { theme } = useTheme()
 
   const loadPhrases = async () => {
     const data = await QuickPhraseService.getAll()
@@ -68,8 +70,8 @@ const QuickPhraseSettings: FC = () => {
   const reversedPhrases = [...phrasesList].reverse()
 
   return (
-    <SettingContainer>
-      <SettingGroup style={{ marginBottom: 0 }}>
+    <SettingContainer theme={theme}>
+      <SettingGroup style={{ marginBottom: 0 }} theme={theme}>
         <SettingTitle>
           {t('settings.quickPhrase.title')}
           <Button type="text" icon={<PlusOutlined />} onClick={handleAdd} />
@@ -117,7 +119,9 @@ const QuickPhraseSettings: FC = () => {
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={() => setIsModalOpen(false)}
-        width={520}>
+        width={520}
+        transitionName="animation-move-down"
+        centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <Label>{t('settings.quickPhrase.titleLabel')}</Label>

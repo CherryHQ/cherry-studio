@@ -97,9 +97,8 @@ afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 releaseInfo:
   releaseNotes: |
-    新增对 grok-2-image 和 gpt-4o-image 图像支持
-    支持 Windows 便携版使用 data 目录存储数据
-    MCP 界面改版，新增描述信息显示
-    Mermaid 渲染逻辑优化
-    支持关闭公示渲染
-    修复 OpenAI 类型渲染错误
+    新增划词助手
+    助手支持分组
+    支持主题颜色切换
+    划词助手支持应用过滤
+    翻译模块功能改进

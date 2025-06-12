@@ -45,9 +45,15 @@ stats.html
 local
 .aider*
 .cursorrules
-.cursor/rules
+.cursor/*
 
-# test
+# vitest
 coverage
 .vitest-cache
 vitest.config.*.timestamp-*
+
+# playwright
+playwright-report
+test-results
+
+YOUR_MEMORY_FILE_PATH

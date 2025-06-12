@@ -152,6 +152,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       afterClose={onClose}
       width={360}
       closable={false}
+      transitionName="animation-move-down"
       centered
       title={t('settings.provider.add.title')}
       okButtonProps={{ disabled: buttonDisabled }}>
@@ -179,7 +180,11 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             value={name}
             onChange={(e) => setName(e.target.value.trim())}
             placeholder={t('settings.provider.add.name.placeholder')}
-            onKeyDown={(e) => e.key === 'Enter' && onOk()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                onOk()
+              }
+            }}
             maxLength={32}
           />
         </Form.Item>
@@ -189,6 +194,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             onChange={setType}
             options={[
               { label: 'OpenAI', value: 'openai' },
+              { label: 'OpenAI-Response', value: 'openai-response' },
               { label: 'Gemini', value: 'gemini' },
               { label: 'Anthropic', value: 'anthropic' },
               { label: 'Azure OpenAI', value: 'azure-openai' }

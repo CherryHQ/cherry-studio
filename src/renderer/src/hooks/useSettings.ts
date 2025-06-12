@@ -6,7 +6,9 @@ import {
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setLaunchOnBoot,
   setLaunchToTray,
+  setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
+  setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
   setTheme,
@@ -68,6 +70,9 @@ export function useSettings() {
     setTopicPosition(topicPosition: 'left' | 'right') {
       dispatch(setTopicPosition(topicPosition))
     },
+    setPinTopicsToTop(pinTopicsToTop: boolean) {
+      dispatch(setPinTopicsToTop(pinTopicsToTop))
+    },
     updateSidebarIcons(icons: { visible: SidebarIcon[]; disabled: SidebarIcon[] }) {
       dispatch(setSidebarIcons(icons))
     },
@@ -79,6 +84,9 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
+    },
+    setShowTokens(showTokens: boolean) {
+      dispatch(setShowTokens(showTokens))
     }
   }
 }

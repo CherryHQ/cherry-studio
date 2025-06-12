@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   QuickPanelCallBackOptions,
@@ -25,7 +25,14 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const [beforeAction, setBeforeAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
   const [afterAction, setAfterAction] = useState<((Options: QuickPanelCallBackOptions) => void) | undefined>()
 
+  const clearTimer = useRef<NodeJS.Timeout | null>(null)
+
   const open = useCallback((options: QuickPanelOpenOptions) => {
+    if (clearTimer.current) {
+      clearTimeout(clearTimer.current)
+      clearTimer.current = null
+    }
+
     setTitle(options.title)
     setList(options.list)
     setDefaultIndex(options.defaultIndex ?? 0)
@@ -45,7 +52,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setIsVisible(false)
       onClose?.({ symbol, action })
 
-      setTimeout(() => {
+      clearTimer.current = setTimeout(() => {
         setList([])
         setOnClose(undefined)
         setBeforeAction(undefined)
@@ -56,6 +63,15 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     },
     [onClose, symbol]
   )
+
+  useEffect(() => {
+    return () => {
+      if (clearTimer.current) {
+        clearTimeout(clearTimer.current)
+        clearTimer.current = null
+      }
+    }
+  }, [])
 
   const value = useMemo(
     () => ({

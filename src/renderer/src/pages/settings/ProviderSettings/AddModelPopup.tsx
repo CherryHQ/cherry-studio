@@ -53,7 +53,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       id,
       provider: provider.id,
       name: values.name ? values.name : id.toUpperCase(),
-      group: getDefaultGroupName(values.group || id)
+      group: values.group ?? getDefaultGroupName(id)
     }
 
     addModel(model)
@@ -85,6 +85,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       maskClosable={false}
       afterClose={onClose}
       footer={null}
+      transitionName="animation-move-down"
       centered>
       <Form
         form={form}
@@ -104,7 +105,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
             maxLength={200}
             onChange={(e) => {
               form.setFieldValue('name', e.target.value)
-              form.setFieldValue('group', getDefaultGroupName(e.target.value))
+              form.setFieldValue('group', getDefaultGroupName(e.target.value, provider.id))
             }}
           />
         </Form.Item>

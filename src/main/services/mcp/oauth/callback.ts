@@ -44,7 +44,7 @@ export class CallBackServer {
       Logger.error('OAuth callback server error:', error)
     })
 
-    const runningServer = new Promise<http.Server>((resolve, reject) => {
+    return new Promise<http.Server>((resolve, reject) => {
       server.listen(port, () => {
         Logger.info(`OAuth callback server listening on port ${port}`)
         resolve(server)
@@ -54,7 +54,6 @@ export class CallBackServer {
         reject(error)
       })
     })
-    return runningServer
   }
 
   get getServer(): Promise<http.Server> {

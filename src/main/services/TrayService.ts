@@ -5,17 +5,17 @@ import { app, Menu, MenuItemConstructorOptions, nativeImage, nativeTheme, Tray }
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import { configManager } from './ConfigManager'
+import { ConfigKeys, configManager } from './ConfigManager'
 import { windowService } from './WindowService'
-import { APP_NAME } from '../../shared/app-meta'
 
 export class TrayService {
   private static instance: TrayService
   private tray: Tray | null = null
+  private contextMenu: Menu | null = null
 
   constructor() {
+    this.watchConfigChanges()
     this.updateTray()
-    this.watchTrayChanges()
     TrayService.instance = this
   }
 
@@ -44,6 +44,30 @@ export class TrayService {
 
     this.tray = tray
 
+    this.updateContextMenu()
+
+    if (process.platform === 'linux') {
+      this.tray.setContextMenu(this.contextMenu)
+    }
+
+    this.tray.setToolTip('Cherry Studio')
+
+    this.tray.on('right-click', () => {
+      if (this.contextMenu) {
+        this.tray?.popUpContextMenu(this.contextMenu)
+      }
+    })
+
+    this.tray.on('click', () => {
+      if (configManager.getEnableQuickAssistant() && configManager.getClickTrayToShowQuickAssistant()) {
+        windowService.showMiniWindow()
+      } else {
+        windowService.showMainWindow()
+      }
+    })
+  }
+
+  private updateContextMenu() {
     const locale = locales[configManager.getLanguage()]
     const { tray: trayLocale } = locale.translation
 
@@ -65,25 +89,7 @@ export class TrayService {
       }
     ].filter(Boolean) as MenuItemConstructorOptions[]
 
-    const contextMenu = Menu.buildFromTemplate(template)
-
-    if (process.platform === 'linux') {
-      this.tray.setContextMenu(contextMenu)
-    }
-
-    this.tray.setToolTip(APP_NAME || 'Cherry Studio')
-
-    this.tray.on('right-click', () => {
-      this.tray?.popUpContextMenu(contextMenu)
-    })
-
-    this.tray.on('click', () => {
-      if (enableQuickAssistant && configManager.getClickTrayToShowQuickAssistant()) {
-        windowService.showMiniWindow()
-      } else {
-        windowService.showMainWindow()
-      }
-    })
+    this.contextMenu = Menu.buildFromTemplate(template)
   }
 
   private updateTray() {
@@ -95,13 +101,6 @@ export class TrayService {
     }
   }
 
-  public restartTray() {
-    if (configManager.getTray()) {
-      this.destroyTray()
-      this.createTray()
-    }
-  }
-
   private destroyTray() {
     if (this.tray) {
       this.tray.destroy()
@@ -109,8 +108,16 @@ export class TrayService {
     }
   }
 
-  private watchTrayChanges() {
-    configManager.subscribe<boolean>('tray', () => this.updateTray())
+  private watchConfigChanges() {
+    configManager.subscribe(ConfigKeys.Tray, () => this.updateTray())
+
+    configManager.subscribe(ConfigKeys.Language, () => {
+      this.updateContextMenu()
+    })
+
+    configManager.subscribe(ConfigKeys.EnableQuickAssistant, () => {
+      this.updateContextMenu()
+    })
   }
 
   private quit() {

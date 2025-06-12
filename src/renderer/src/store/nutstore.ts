@@ -10,6 +10,7 @@ export interface NutstoreState {
   nutstoreAutoSync: boolean
   nutstoreSyncInterval: number
   nutstoreSyncState: NutstoreSyncState
+  nutstoreSkipBackupFile: boolean
 }
 
 const initialState: NutstoreState = {
@@ -21,7 +22,8 @@ const initialState: NutstoreState = {
     lastSyncTime: null,
     syncing: false,
     lastSyncError: null
-  }
+  },
+  nutstoreSkipBackupFile: false
 }
 
 const nutstoreSlice = createSlice({
@@ -32,7 +34,6 @@ const nutstoreSlice = createSlice({
       state.nutstoreToken = action.payload
     },
     setNutstorePath: (state, action: PayloadAction<string>) => {
-      console.log(state, action.payload)
       state.nutstorePath = action.payload
     },
     setNutstoreAutoSync: (state, action: PayloadAction<boolean>) => {
@@ -43,11 +44,20 @@ const nutstoreSlice = createSlice({
     },
     setNutstoreSyncState: (state, action: PayloadAction<Partial<WebDAVSyncState>>) => {
       state.nutstoreSyncState = { ...state.nutstoreSyncState, ...action.payload }
+    },
+    setNutstoreSkipBackupFile: (state, action: PayloadAction<boolean>) => {
+      state.nutstoreSkipBackupFile = action.payload
     }
   }
 })
 
-export const { setNutstoreToken, setNutstorePath, setNutstoreAutoSync, setNutstoreSyncInterval, setNutstoreSyncState } =
-  nutstoreSlice.actions
+export const {
+  setNutstoreToken,
+  setNutstorePath,
+  setNutstoreAutoSync,
+  setNutstoreSyncInterval,
+  setNutstoreSyncState,
+  setNutstoreSkipBackupFile
+} = nutstoreSlice.actions
 
 export default nutstoreSlice.reducer

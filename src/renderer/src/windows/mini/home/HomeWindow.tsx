@@ -1,9 +1,20 @@
 import { isMac } from '@renderer/config/constant'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { uuid } from '@renderer/utils'
+import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
+import store from '@renderer/store'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
+import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import { ThemeMode } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
@@ -30,12 +41,15 @@ const HomeWindow: FC = () => {
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
-  const { defaultModel: model } = useDefaultModel()
-  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
+  const topic = defaultAssistant.topics[0]
+  const { defaultModel, quickAssistantModel } = useDefaultModel()
+  // 如果 quickAssistantModel 未設定，則使用 defaultModel
+  const model = quickAssistantModel || defaultModel
+  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
-
   const referenceText = selectedText || clipboardText || text
 
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
@@ -81,6 +95,9 @@ const HomeWindow: FC = () => {
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
     // 输入法可以`Esc`终止候选词过程
     // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
+    if (e.nativeEvent.isComposing) {
+      return
+    }
     if (e.key === 'Process') {
       return
     }
@@ -147,23 +164,67 @@ const HomeWindow: FC = () => {
         return
       }
 
-      setTimeout(() => {
-        const message = {
-          id: uuid(),
-          role: 'user',
-          content: prompt ? `${prompt}\n\n${content}` : content,
-          assistantId: defaultAssistant.id,
-          topicId: defaultAssistant.topics[0].id || uuid(),
-          createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-          type: 'text',
-          status: 'success'
+      const messageParams = {
+        role: 'user',
+        content: prompt ? `${prompt}\n\n${content}` : content,
+        assistant: defaultAssistant,
+        topic,
+        createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        status: 'success'
+      }
+      const topicId = topic.id
+      const { message: userMessage, blocks } = getUserMessage(messageParams)
+
+      store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+      store.dispatch(upsertManyBlocks(blocks))
+
+      const assistant = getDefaultAssistant()
+      let blockId: string | null = null
+      let blockContent: string = ''
+
+      const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
+      store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+
+      fetchChatCompletion({
+        messages: [userMessage],
+        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
+        onChunkReceived: (chunk: Chunk) => {
+          if (chunk.type === ChunkType.TEXT_DELTA) {
+            blockContent += chunk.text
+            if (!blockId) {
+              const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                status: MessageBlockStatus.STREAMING
+              })
+              blockId = block.id
+              store.dispatch(
+                newMessagesActions.updateMessage({
+                  topicId,
+                  messageId: assistantMessage.id,
+                  updates: { blockInstruction: { id: block.id } }
+                })
+              )
+              store.dispatch(upsertOneBlock(block))
+            } else {
+              store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+            }
+          }
+          if (chunk.type === ChunkType.TEXT_COMPLETE) {
+            blockId && store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
+            store.dispatch(
+              newMessagesActions.updateMessage({
+                topicId,
+                messageId: assistantMessage.id,
+                updates: { status: AssistantMessageStatus.SUCCESS }
+              })
+            )
+          }
         }
-        EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, message)
-        setIsFirstMessage(false)
-        setText('') // ✅ 清除输入框内容
-      }, 0)
+      })
+
+      setIsFirstMessage(false)
+      setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant.id, defaultAssistant.topics]
+    [content, defaultAssistant, topic, quickAssistantModel]
   )
 
   const clearClipboard = () => {
@@ -184,15 +245,9 @@ const HomeWindow: FC = () => {
 
   useEffect(() => {
     window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
-    window.electron.ipcRenderer.on(IpcChannel.SelectionAction, (_, { action, selectedText }) => {
-      selectedText && setSelectedText(selectedText)
-      action && setRoute(action)
-      action === 'chat' && onSendMessage()
-    })
 
     return () => {
       window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.SelectionAction)
     }
   }, [onWindowShow, onSendMessage, setRoute])
 
@@ -206,12 +261,7 @@ const HomeWindow: FC = () => {
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
     // because the dark style under mac's vibrancy effect has not been implemented
-    if (
-      isMac &&
-      windowStyle === 'transparent' &&
-      theme === 'light' &&
-      !window.matchMedia('(prefers-color-scheme: dark)').matches
-    ) {
+    if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
 
@@ -240,7 +290,7 @@ const HomeWindow: FC = () => {
             <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           </div>
         )}
-        <ChatWindow route={route} />
+        <ChatWindow route={route} assistant={defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
       </Container>

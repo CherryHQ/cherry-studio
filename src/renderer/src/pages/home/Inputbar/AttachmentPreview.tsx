@@ -32,7 +32,55 @@ function truncateFileName(name: string, maxLength: number = MAX_FILENAME_DISPLAY
   return name.slice(0, maxLength - 3) + '...'
 }
 
-const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
+export const getFileIcon = (type?: string) => {
+  if (!type) return <FileUnknownFilled />
+
+  const ext = type.toLowerCase()
+
+  if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
+    return <FileImageFilled />
+  }
+
+  if (['.doc', '.docx'].includes(ext)) {
+    return <FileWordFilled />
+  }
+  if (['.xls', '.xlsx'].includes(ext)) {
+    return <FileExcelFilled />
+  }
+  if (['.ppt', '.pptx'].includes(ext)) {
+    return <FilePptFilled />
+  }
+  if (ext === '.pdf') {
+    return <FilePdfFilled />
+  }
+  if (['.md', '.markdown'].includes(ext)) {
+    return <FileMarkdownFilled />
+  }
+
+  if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
+    return <FileZipFilled />
+  }
+
+  if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
+    return <FileTextFilled />
+  }
+
+  if (['.url'].includes(ext)) {
+    return <LinkOutlined />
+  }
+
+  if (['.sitemap'].includes(ext)) {
+    return <GlobalOutlined />
+  }
+
+  if (['.folder'].includes(ext)) {
+    return <FolderOpenFilled />
+  }
+
+  return <FileUnknownFilled />
+}
+
+export const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)
@@ -85,54 +133,6 @@ const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
 }
 
 const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
-  const getFileIcon = (type?: string) => {
-    if (!type) return <FileUnknownFilled />
-
-    const ext = type.toLowerCase()
-
-    if (['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'].includes(ext)) {
-      return <FileImageFilled />
-    }
-
-    if (['.doc', '.docx'].includes(ext)) {
-      return <FileWordFilled />
-    }
-    if (['.xls', '.xlsx'].includes(ext)) {
-      return <FileExcelFilled />
-    }
-    if (['.ppt', '.pptx'].includes(ext)) {
-      return <FilePptFilled />
-    }
-    if (ext === '.pdf') {
-      return <FilePdfFilled />
-    }
-    if (['.md', '.markdown'].includes(ext)) {
-      return <FileMarkdownFilled />
-    }
-
-    if (['.zip', '.rar', '.7z', '.tar', '.gz'].includes(ext)) {
-      return <FileZipFilled />
-    }
-
-    if (['.txt', '.json', '.log', '.yml', '.yaml', '.xml', '.csv'].includes(ext)) {
-      return <FileTextFilled />
-    }
-
-    if (['.url'].includes(ext)) {
-      return <LinkOutlined />
-    }
-
-    if (['.sitemap'].includes(ext)) {
-      return <GlobalOutlined />
-    }
-
-    if (['.folder'].includes(ext)) {
-      return <FolderOpenFilled />
-    }
-
-    return <FileUnknownFilled />
-  }
-
   if (isEmpty(files)) {
     return null
   }

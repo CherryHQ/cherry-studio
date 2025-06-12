@@ -1,10 +1,12 @@
+import '@main/config'
+
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 import Logger from 'electron-log'
 
+import { isDev, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
@@ -14,16 +16,45 @@ import {
   registerProtocolClient,
   setupAppImageDeepLink
 } from './services/ProtocolClient'
+import selectionService, { initSelectionService } from './services/SelectionService'
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import { setUserDataDir } from './utils/file'
+
+Logger.initialize()
+
+/**
+ * Disable chromium's window animations
+ * main purpose for this is to avoid the transparent window flashing when it is shown
+ * (especially on Windows for SelectionAssistant Toolbar)
+ * Know Issue: https://github.com/electron/electron/issues/12130#issuecomment-627198990
+ */
+if (isWin) {
+  app.commandLine.appendSwitch('wm-window-animations-disabled')
+}
+
+// in production mode, handle uncaught exception and unhandled rejection globally
+if (!isDev) {
+  // handle uncaught exception
+  process.on('uncaughtException', (error) => {
+    Logger.error('Uncaught Exception:', error)
+  })
+
+  // handle unhandled rejection
+  process.on('unhandledRejection', (reason, promise) => {
+    Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
+  })
+}
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
+  // Portable dir must be setup before app ready
+  setUserDataDir()
+
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
@@ -56,23 +87,17 @@ if (!app.requestSingleInstanceLock()) {
 
     replaceDevtoolsFont(mainWindow)
 
-    setUserDataDir()
-
     // Setup deep link for AppImage on Linux
     await setupAppImageDeepLink()
 
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       installExtension([REDUX_DEVTOOLS, REACT_DEVELOPER_TOOLS])
         .then((name) => console.log(`Added Extension:  ${name}`))
         .catch((err) => console.log('An error occurred: ', err))
     }
-    ipcMain.handle(IpcChannel.System_GetDeviceType, () => {
-      return process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
-    })
 
-    ipcMain.handle(IpcChannel.System_GetHostname, () => {
-      return require('os').hostname()
-    })
+    //start selection assistant service
+    initSelectionService()
   })
 
   registerProtocolClient(app)
@@ -99,6 +124,11 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', () => {
     app.isQuitting = true
+
+    // quit selection service
+    if (selectionService) {
+      selectionService.quit()
+    }
   })
 
   app.on('will-quit', async () => {

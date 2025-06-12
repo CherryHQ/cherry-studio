@@ -1,7 +1,9 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
 import { Center, VStack } from '@renderer/components/Layout'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
 import { Alert, Button } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -13,8 +15,10 @@ interface Props {
 }
 
 const InstallNpxUv: FC<Props> = ({ mini = false }) => {
-  const [isUvInstalled, setIsUvInstalled] = useState(true)
-  const [isBunInstalled, setIsBunInstalled] = useState(true)
+  const dispatch = useAppDispatch()
+  const isUvInstalled = useAppSelector((state) => state.mcp.isUvInstalled)
+  const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
+
   const [isInstallingUv, setIsInstallingUv] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [uvPath, setUvPath] = useState<string | null>(null)
@@ -22,18 +26,17 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const { t } = useTranslation()
   const navigate = useNavigate()
-
-  const checkBinaries = async () => {
+  const checkBinaries = useCallback(async () => {
     const uvExists = await window.api.isBinaryExist('uv')
     const bunExists = await window.api.isBinaryExist('bun')
     const { uvPath, bunPath, dir } = await window.api.mcp.getInstallInfo()
 
-    setIsUvInstalled(uvExists)
-    setIsBunInstalled(bunExists)
+    dispatch(setIsUvInstalled(uvExists))
+    dispatch(setIsBunInstalled(bunExists))
     setUvPath(uvPath)
     setBunPath(bunPath)
     setBinariesDir(dir)
-  }
+  }, [dispatch])
 
   const installUV = async () => {
     try {
@@ -66,7 +69,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
 
   useEffect(() => {
     checkBinaries()
-  }, [])
+  }, [checkBinaries])
 
   if (mini) {
     const installed = isUvInstalled && isBunInstalled

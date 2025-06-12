@@ -1,49 +1,59 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { TEXT_TO_IMAGES_MODELS } from '@renderer/config/models'
-import { Painting } from '@renderer/types'
-import { uuid } from '@renderer/utils'
-
-export interface PaintingsState {
-  paintings: Painting[]
-}
-
-export const DEFAULT_PAINTING: Painting = {
-  id: uuid(),
-  urls: [],
-  files: [],
-  prompt: '',
-  negativePrompt: '',
-  imageSize: '1024x1024',
-  numImages: 1,
-  seed: '',
-  steps: 25,
-  guidanceScale: 4.5,
-  model: TEXT_TO_IMAGES_MODELS[0].id
-}
+import { PaintingAction, PaintingsState } from '@renderer/types'
 
 const initialState: PaintingsState = {
-  paintings: [DEFAULT_PAINTING]
+  paintings: [],
+  generate: [],
+  remix: [],
+  edit: [],
+  upscale: [],
+  DMXAPIPaintings: [],
+  tokenFluxPaintings: []
 }
 
 const paintingsSlice = createSlice({
   name: 'paintings',
   initialState,
   reducers: {
-    updatePaintings: (state, action: PayloadAction<Painting[]>) => {
-      state.paintings = action.payload
-    },
-    addPainting: (state, action: PayloadAction<Painting>) => {
-      state.paintings.unshift(action.payload)
-    },
-    removePainting: (state, action: PayloadAction<Painting>) => {
-      if (state.paintings.length === 1) {
-        state.paintings = [DEFAULT_PAINTING]
+    addPainting: (
+      state: PaintingsState,
+      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
+    ) => {
+      const { namespace = 'paintings', painting } = action.payload
+      if (state[namespace]) {
+        state[namespace].unshift(painting)
       } else {
-        state.paintings = state.paintings.filter((c) => c.id !== action.payload.id)
+        state[namespace] = [painting]
       }
     },
-    updatePainting: (state, action: PayloadAction<Painting>) => {
-      state.paintings = state.paintings.map((c) => (c.id === action.payload.id ? action.payload : c))
+    removePainting: (
+      state: PaintingsState,
+      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
+    ) => {
+      const { namespace = 'paintings', painting } = action.payload
+      // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
+      state[namespace] = state[namespace].filter((c) => c.id !== painting.id)
+    },
+    updatePainting: (
+      state: PaintingsState,
+      action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
+    ) => {
+      const { namespace = 'paintings', painting } = action.payload
+
+      const existingIndex = state[namespace].findIndex((c) => c.id === painting.id)
+      if (existingIndex !== -1) {
+        state[namespace] = state[namespace].map((c) => (c.id === painting.id ? painting : c))
+      } else {
+        console.error(`Painting with id ${painting.id} not found in ${namespace}`)
+      }
+    },
+    updatePaintings: (
+      state: PaintingsState,
+      action: PayloadAction<{ namespace?: keyof PaintingsState; paintings: PaintingAction[] }>
+    ) => {
+      const { namespace = 'paintings', paintings } = action.payload
+      // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
+      state[namespace] = paintings
     }
   }
 })

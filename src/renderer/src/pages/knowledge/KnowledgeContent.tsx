@@ -5,6 +5,7 @@ import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import Logger from '@renderer/config/logger'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
@@ -92,7 +93,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         .map((file) => ({
           id: file.name,
           name: file.name,
-          path: file.path,
+          path: window.api.file.getPathForFile(file) || '',
           size: file.size,
           ext: `.${file.name.split('.').pop()}`.toLowerCase(),
           count: 1,
@@ -194,7 +195,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
 
     const path = await window.api.file.selectFolder()
-    console.log('[KnowledgeContent] Selected directory:', path)
+    Logger.log('[KnowledgeContent] Selected directory:', path)
     path && addDirectory(path)
   }
 
@@ -244,9 +245,11 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 </Tag>
               </div>
             </Tooltip>
-            <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
-              {t('models.dimensions', { dimensions: base.dimensions || 0 })}
-            </Tag>
+            {base.rerankModel && (
+              <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
+                {base.rerankModel.name}
+              </Tag>
+            )}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">
@@ -325,7 +328,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         key={item.id}
                         fileInfo={{
                           name: (
-                            <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
+                            <ClickableSpan onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
                               <Ellipsis>
                                 <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
                               </Ellipsis>

@@ -1,4 +1,5 @@
 import { DownOutlined } from '@ant-design/icons'
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -7,13 +8,16 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
-import { updateMessageThunk } from '@renderer/store/messages'
-import type { Message } from '@renderer/types'
+import { newMessagesActions } from '@renderer/store/newMessage'
+// import { updateMessageThunk } from '@renderer/store/thunk/messageThunk'
+import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Avatar } from 'antd'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
 interface MessageLineProps {
   messages: Message[]
 }
@@ -99,7 +103,9 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       const groupMessages = messages.filter((m) => m.askId === message.askId)
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
-          dispatch(updateMessageThunk(m.topicId, m.id, { foldSelected: m.id === message.id }))
+          dispatch(
+            newMessagesActions.updateMessage({ topicId: m.topicId, messageId: m.id, updates: { foldSelected: true } })
+          )
         }
 
         setTimeout(() => {
@@ -195,6 +201,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           const size = 10 + calculateValueByDistance(message.id, 20)
           const avatarSource = getAvatarSource(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
+          const content = getMainTextContent(message)
 
           return (
             <MessageItem
@@ -209,7 +216,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               onClick={() => scrollToMessage(message)}>
               <MessageItemContainer style={{ transform: ` scale(${scale})` }}>
                 <MessageItemTitle>{username}</MessageItemTitle>
-                <MessageItemContent>{message.content.substring(0, 50)}</MessageItemContent>
+                <MessageItemContent>{content.substring(0, 50)}</MessageItemContent>
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
@@ -225,7 +232,15 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               ) : (
                 <>
                   {isEmoji(avatar) ? (
-                    <EmojiAvatar size={size}>{avatar}</EmojiAvatar>
+                    <EmojiAvatar
+                      size={size}
+                      fontSize={size * 0.6}
+                      style={{
+                        cursor: 'default',
+                        pointerEvents: 'none'
+                      }}>
+                      {avatar}
+                    </EmojiAvatar>
                   ) : (
                     <Avatar src={avatar} size={size} />
                   )}
@@ -307,18 +322,6 @@ const MessageItemContent = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
-`
-
-const EmojiAvatar = styled.div<{ size: number }>`
-  width: ${(props) => props.size}px;
-  height: ${(props) => props.size}px;
-  background-color: var(--color-background-soft);
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: ${(props) => props.size * 0.6}px;
-  border: 0.5px solid var(--color-border);
 `
 
 export default MessageAnchorLine

@@ -29,7 +29,26 @@
       "tag.default": "Predeterminado",
       "tag.new": "Nuevo",
       "tag.system": "Sistema",
-      "title": "Agente"
+      "title": "Agente",
+      "import": {
+        "type": {
+          "url": "URL",
+          "file": "Archivo"
+        },
+        "error": {
+          "url_required": "Por favor, introduzca la URL",
+          "fetch_failed": "Error al obtener los datos de la URL",
+          "invalid_format": "Formato de proxy no válido: faltan campos obligatorios"
+        },
+        "title": "Importar desde el exterior",
+        "url_placeholder": "Ingrese la URL JSON",
+        "select_file": "Seleccionar archivo",
+        "button": "Importar",
+        "file_filter": "Archivos JSON"
+      },
+      "export": {
+        "agent": "Exportar Agente"
+      }
     },
     "assistants": {
       "abbr": "Asistente",
@@ -52,8 +71,31 @@
       "settings.reasoning_effort.low": "Corto",
       "settings.reasoning_effort.medium": "Medio",
       "settings.reasoning_effort.off": "Apagado",
-      "settings.reasoning_effort.tip": "Solo compatible con modelos de razonamiento OpenAI o-series y Anthropic",
-      "title": "Asistente"
+      "title": "Asistente",
+      "settings.regular_phrases": {
+        "title": "Frases comunes",
+        "add": "Agregar frase",
+        "edit": "Editar frase",
+        "delete": "Eliminar frase",
+        "deleteConfirm": "¿Está seguro de que desea eliminar esta frase?",
+        "titleLabel": "Título",
+        "titlePlaceholder": "Ingrese el título",
+        "contentLabel": "Contenido",
+        "contentPlaceholder": "Por favor, introduzca el contenido de la frase. Puede usar variables y luego presionar Tab para navegar rápidamente a las variables y modificarlas. Por ejemplo: \\nAyúdame a planificar una ruta desde ${from} hasta ${to}, y luego envíala a ${email}."
+      },
+      "settings.title": "Configuración del Asistente",
+      "icon.type": "Ícono del Asistente",
+      "settings.mcp": "Servidor MCP",
+      "settings.mcp.enableFirst": "Habilite este servidor en la configuración de MCP primero",
+      "settings.mcp.title": "Configuración MCP",
+      "settings.mcp.noServersAvailable": "No hay servidores MCP disponibles. Agregue un servidor en la configuración",
+      "settings.mcp.description": "Servidor MCP habilitado por defecto",
+      "settings.knowledge_base.recognition.tip": "El agente utilizará la capacidad del modelo grande para el reconocimiento de intenciones y decidirá si necesita invocar la base de conocimientos para responder. Esta función dependerá de las capacidades del modelo",
+      "settings.knowledge_base.recognition": "Invocar base de conocimientos",
+      "settings.knowledge_base.recognition.off": "Búsqueda forzada",
+      "settings.knowledge_base.recognition.on": "Reconocimiento de intención",
+      "settings.reasoning_effort.default": "Por defecto",
+      "settings.more": "Configuración del Asistente"
     },
     "auth": {
       "error": "Falló la obtención automática de la clave, por favor obténla manualmente",
@@ -65,6 +107,7 @@
     "backup": {
       "confirm": "¿Está seguro de que desea realizar una copia de seguridad de los datos?",
       "confirm.button": "Seleccionar ubicación de copia de seguridad",
+      "confirm.file_checkbox": "El tamaño del archivo es {{size}}, ¿desea elegir el archivo de copia de seguridad?",
       "content": "Realizar una copia de seguridad de todos los datos, incluyendo registros de chat, configuraciones, bases de conocimiento y todos los demás datos. Tenga en cuenta que el proceso de copia de seguridad puede llevar algún tiempo, gracias por su paciencia.",
       "progress": {
         "completed": "Copia de seguridad completada",
@@ -133,7 +176,8 @@
         "prev": "Mensaje anterior",
         "top": "Volver arriba",
         "bottom": "Volver abajo",
-        "close": "Cerrar"
+        "close": "Cerrar",
+        "history": "Historial de chat"
       },
       "resend": "Reenviar",
       "save": "Guardar",
@@ -176,7 +220,6 @@
       "topics.export.obsidian_created_placeholder": "Selecciona la fecha de creación",
       "topics.export.obsidian_export_failed": "Exportación fallida",
       "topics.export.obsidian_export_success": "Exportación exitosa",
-      "topics.export.obsidian_not_configured": "Obsidian no configurado",
       "topics.export.obsidian_operate": "Modo de operación",
       "topics.export.obsidian_operate_append": "Agregar",
       "topics.export.obsidian_operate_new_or_overwrite": "Crear nuevo (si existe, sobrescribir)",
@@ -203,7 +246,54 @@
       "topics.unpinned": "Quitar fijación",
       "translate": "Traducir",
       "input.generate_image": "Generar imagen",
-      "input.generate_image_not_supported": "El modelo no soporta la generación de imágenes"
+      "input.generate_image_not_supported": "El modelo no soporta la generación de imágenes",
+      "history": {
+        "assistant_node": "Asistente",
+        "click_to_navigate": "Haga clic para ir al mensaje correspondiente",
+        "coming_soon": "Próximamente: gráfico del flujo de chat",
+        "no_messages": "No se encontraron mensajes",
+        "start_conversation": "Inicie una conversación para ver el gráfico del flujo de chat",
+        "title": "Historial de chat",
+        "user_node": "Usuario",
+        "view_full_content": "Ver contenido completo"
+      },
+      "input.translating": "Traduciendo...",
+      "input.thinking": "Pensando",
+      "input.thinking.mode.default": "Predeterminado",
+      "input.thinking.mode.default.tip": "El modelo determinará automáticamente la cantidad de tokens a pensar",
+      "input.thinking.mode.custom": "Personalizado",
+      "input.thinking.mode.custom.tip": "Número máximo de tokens que puede procesar el modelo. Debe tenerse en cuenta el límite del contexto del modelo, de lo contrario se generará un error",
+      "input.thinking.budget_exceeds_max": "El presupuesto de pensamiento excede el número máximo de tokens",
+      "input.upload.upload_from_local": "Subir archivo local...",
+      "input.web_search.builtin": "Integrada en el modelo",
+      "input.web_search.builtin.enabled_content": "Usar la función de búsqueda web integrada en el modelo",
+      "input.web_search.builtin.disabled_content": "La búsqueda web no es compatible con este modelo actualmente",
+      "input.web_search.no_web_search": "Sin búsqueda web",
+      "input.web_search.no_web_search.description": "No activar la función de búsqueda web",
+      "settings.code_cacheable": "Almacenamiento en caché de bloques de código",
+      "settings.code_cacheable.tip": "El almacenamiento en caché de bloques de código puede reducir el tiempo de representación de bloques largos, pero aumenta el uso de memoria",
+      "settings.code_cache_max_size": "Límite de caché",
+      "settings.code_cache_max_size.tip": "Límite de caracteres permitidos en caché (en miles), calculado según el código resaltado. La longitud del código resaltado suele ser mucho mayor que el texto plano.",
+      "settings.code_cache_ttl": "Tiempo de vida de la caché",
+      "settings.code_cache_ttl.tip": "Tiempo de expiración de la caché (en minutos)",
+      "settings.code_cache_threshold": "Umbral de la caché",
+      "settings.code_cache_threshold.tip": "Longitud mínima del código permitida para almacenarse en caché (en miles de caracteres), solo los bloques de código por encima de este umbral serán almacenados",
+      "topics.export.md.reason": "Exportar como Markdown (incluye el razonamiento)",
+      "topics.export.obsidian_vault": "Biblioteca",
+      "topics.export.obsidian_vault_placeholder": "Seleccione el nombre de la biblioteca",
+      "topics.export.obsidian_path": "Ruta",
+      "topics.export.obsidian_path_placeholder": "Seleccione una ruta",
+      "topics.export.obsidian_no_vaults": "No se encontró ninguna biblioteca de Obsidian",
+      "topics.export.obsidian_loading": "Cargando...",
+      "topics.export.obsidian_fetch_error": "Error al obtener las bibliotecas de Obsidian",
+      "topics.export.obsidian_fetch_folders_error": "Error al obtener la estructura de carpetas",
+      "topics.export.obsidian_no_vault_selected": "Por favor seleccione primero una biblioteca",
+      "topics.export.obsidian_select_vault_first": "Por favor seleccione una biblioteca primero",
+      "topics.export.obsidian_root_directory": "Directorio raíz",
+      "topics.export.siyuan": "Exportar a SiYuan Notes",
+      "topics.export.wait_for_title_naming": "Generando título...",
+      "topics.export.title_naming_success": "Título generado exitosamente",
+      "topics.export.title_naming_failed": "Fallo al generar el título, usando el título predeterminado"
     },
     "code_block": {
       "collapse": "Replegar",
@@ -254,7 +344,16 @@
       "select": "Seleccionar",
       "topics": "Temas",
       "warning": "Advertencia",
-      "you": "Usuario"
+      "you": "Usuario",
+      "sort": {
+        "pinyin": "Ordenar por pinyin",
+        "pinyin.asc": "Ordenar por pinyin ascendente",
+        "pinyin.desc": "Ordenar por pinyin descendente"
+      },
+      "inspect": "Inspeccionar",
+      "collapse": "Colapsar",
+      "loading": "Cargando...",
+      "reasoning_content": "Pensamiento profundo"
     },
     "docs": {
       "title": "Documentación de Ayuda"
@@ -280,7 +379,9 @@
         "title": "Error de renderizado",
         "description": "Error al renderizar la fórmula, por favor, compruebe si el formato de la fórmula es correcto"
       },
-      "user_message_not_found": "No se pudo encontrar el mensaje original del usuario"
+      "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
+      "unknown": "Error desconocido",
+      "pause_placeholder": "Interrumpido"
     },
     "export": {
       "assistant": "Asistente",
@@ -393,7 +494,11 @@
       "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
       "url_added": "URL agregada",
       "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
-      "urls": "URLs"
+      "urls": "URLs",
+      "dimensions": "Dimensión de incrustación",
+      "dimensions_size_tooltip": "Tamaño de la dimensión de incrustación, cuanto mayor sea el valor, mayor será la dimensión de incrustación, pero también consumirá más Tokens",
+      "dimensions_size_placeholder": "Valor predeterminado (no recomendado modificar)",
+      "dimensions_size_too_large": "La dimensión de incrustación no puede exceder el límite del contexto del modelo ({{max_context}})"
     },
     "languages": {
       "arabic": "Árabe",
@@ -453,6 +558,7 @@
       "error.enter.api.key": "Ingrese su clave API",
       "error.enter.model": "Seleccione un modelo",
       "error.enter.name": "Ingrese el nombre de la base de conocimiento",
+      "error.fetchTopicName": "Error al nombrar el tema",
       "error.get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "error.invalid.api.host": "Dirección API inválida",
       "error.invalid.api.key": "Clave API inválida",
@@ -505,20 +611,63 @@
         "completed": "Completado",
         "invoking": "En llamada",
         "raw": "Crudo",
-        "preview": "Vista previa"
+        "preview": "Vista previa",
+        "error": "Se ha producido un error"
       },
       "topic.added": "Tema agregado con éxito",
       "upgrade.success.button": "Reiniciar",
       "upgrade.success.content": "Reinicie para completar la actualización",
       "upgrade.success.title": "Actualización exitosa",
       "warn.notion.exporting": "Se está exportando a Notion, ¡no solicite nuevamente la exportación!",
-      "warning.rate.limit": "Envío demasiado frecuente, espere {{seconds}} segundos antes de intentarlo de nuevo"
+      "warning.rate.limit": "Envío demasiado frecuente, espere {{seconds}} segundos antes de intentarlo de nuevo",
+      "agents": {
+        "imported": "Importado con éxito",
+        "import.error": "Error al importar"
+      },
+      "citation": "{{count}} contenido citado",
+      "error.invalid.nutstore": "Configuración de Nutstore no válida",
+      "error.invalid.nutstore_token": "Token de Nutstore no válido",
+      "processing": "Procesando...",
+      "error.siyuan.export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
+      "error.siyuan.no_config": "No se ha configurado la dirección API o el token de Siyuan",
+      "success.siyuan.export": "Exportado a Siyuan exitosamente",
+      "warn.yuque.exporting": "Exportando Yuque, ¡no solicite la exportación nuevamente!",
+      "warn.siyuan.exporting": "Exportando a Siyuan, ¡no solicite la exportación nuevamente!",
+      "download.success": "Descarga exitosa",
+      "download.failed": "Descarga fallida"
     },
     "minapp": {
-      "sidebar.add.title": "Agregar al panel lateral",
-      "sidebar.remove.title": "Quitar del panel lateral",
-      "sidebar.hide.title": "Ocultar mini programa",
-      "title": "Mini programa"
+      "title": "Mini programa",
+      "popup": {
+        "refresh": "Actualizar",
+        "close": "Cerrar la aplicación",
+        "minimize": "Minimizar la aplicación",
+        "devtools": "Herramientas de desarrollo",
+        "openExternal": "Abrir en el navegador",
+        "rightclick_copyurl": "Copiar URL con clic derecho",
+        "open_link_external_on": "Actual: Abrir enlaces en el navegador",
+        "open_link_external_off": "Actual: Abrir enlaces en ventana predeterminada"
+      },
+      "sidebar": {
+        "add": {
+          "title": "Agregar a la barra lateral"
+        },
+        "remove": {
+          "title": "Eliminar de la barra lateral"
+        },
+        "remove_custom": {
+          "title": "Eliminar aplicación personalizada"
+        },
+        "hide": {
+          "title": "Ocultar"
+        },
+        "close": {
+          "title": "Cerrar"
+        },
+        "closeall": {
+          "title": "Cerrar todo"
+        }
+      }
     },
     "miniwindow": {
       "clipboard": {
@@ -534,13 +683,17 @@
         "copy_last_message": "Presione C para copiar",
         "esc": "Presione ESC {{action}}",
         "esc_back": "Volver",
-        "esc_close": "Cerrar ventana"
+        "esc_close": "Cerrar ventana",
+        "backspace_clear": "Presione Retroceso para borrar"
       },
       "input": {
         "placeholder": {
           "empty": "Pregunta a {{model}} para obtener ayuda...",
           "title": "¿Qué deseas hacer con el texto de abajo?"
         }
+      },
+      "tooltip": {
+        "pin": "Fijar en la parte superior"
       }
     },
     "models": {
@@ -577,7 +730,9 @@
         "free": "Gratis",
         "rerank": "Reclasificar",
         "websearch": "Búsqueda en línea"
-      }
+      },
+      "rerank_model_not_support_provider": "Actualmente, el modelo de reordenamiento no admite este proveedor ({{provider}})",
+      "enable_tool_use": "Habilitar uso de herramientas"
     },
     "navbar": {
       "expand": "Expandir cuadro de diálogo",
@@ -609,7 +764,59 @@
       "regenerate.confirm": "Esto sobrescribirá las imágenes generadas, ¿desea continuar?",
       "seed": "Semilla aleatoria",
       "seed_tip": "La misma semilla y la misma sugerencia generarán imágenes similares",
-      "title": "Imagen"
+      "title": "Imagen",
+      "mode": {
+        "generate": "Generar imagen",
+        "edit": "Editar",
+        "remix": "Mezclar",
+        "upscale": "Ampliar"
+      },
+      "generate": {
+        "model_tip": "Versión del modelo: V2 es el modelo más reciente de la interfaz, V2A es un modelo rápido, V_1 es el modelo inicial y _TURBO es la versión acelerada",
+        "number_images_tip": "Número de imágenes generadas a la vez",
+        "seed_tip": "Controla la aleatoriedad en la generación de imágenes, útil para reproducir resultados idénticos",
+        "negative_prompt_tip": "Describe elementos que no deseas en la imagen. Solo compatible con las versiones V_1, V_1_TURBO, V_2 y V_2_TURBO",
+        "magic_prompt_option_tip": "Optimización inteligente de indicaciones para mejorar los resultados de generación",
+        "style_type_tip": "Estilo de generación de imágenes, solo aplicable para la versión V_2 y posteriores"
+      },
+      "edit": {
+        "image_file": "Imagen editada",
+        "model_tip": "La edición local solo es compatible con las versiones V_2 y V_2_TURBO",
+        "number_images_tip": "Número de resultados de edición generados",
+        "style_type_tip": "Estilo de la imagen editada, solo aplicable para la versión V_2 y posteriores",
+        "seed_tip": "Controla la aleatoriedad de los resultados de edición",
+        "magic_prompt_option_tip": "Optimización inteligente de las palabras clave de edición"
+      },
+      "remix": {
+        "model_tip": "Seleccione la versión del modelo de inteligencia artificial para usar en el remix",
+        "image_file": "Imagen de referencia",
+        "image_weight": "Peso de la imagen de referencia",
+        "image_weight_tip": "Ajuste el grado de influencia de la imagen de referencia",
+        "number_images_tip": "Número de resultados de remix generados",
+        "seed_tip": "Controla la aleatoriedad de los resultados del remix",
+        "style_type_tip": "Estilo de la imagen tras el remix, solo aplicable a partir de la versión V_2",
+        "negative_prompt_tip": "Describa los elementos que no desea ver en los resultados del remix",
+        "magic_prompt_option_tip": "Optimización inteligente de las palabras clave para el remix"
+      },
+      "upscale": {
+        "image_file": "Imagen que se desea ampliar",
+        "resemblance": "Similitud",
+        "resemblance_tip": "Controla el nivel de similitud entre el resultado ampliado y la imagen original",
+        "detail": "Detalle",
+        "detail_tip": "Controla el grado de realce de los detalles en la imagen ampliada",
+        "number_images_tip": "Número de resultados de ampliación generados",
+        "seed_tip": "Controla la aleatoriedad del resultado de la ampliación",
+        "magic_prompt_option_tip": "Optimización inteligente de las palabras clave para la ampliación"
+      },
+      "magic_prompt_option": "Mejora de indicación",
+      "model": "Versión",
+      "aspect_ratio": "Relación de aspecto",
+      "style_type": "Estilo",
+      "learn_more": "Más información",
+      "prompt_placeholder_edit": "Introduce la descripción de tu imagen, utiliza comillas dobles \" \" para texto a dibujar",
+      "proxy_required": "Actualmente es necesario tener un proxy activo para ver las imágenes generadas, en el futuro se soportará conexión directa desde China",
+      "image_file_required": "Por favor, carga una imagen primero",
+      "image_file_retry": "Vuelve a cargar la imagen"
     },
     "plantuml": {
       "download": {
@@ -630,6 +837,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Antropológico",
       "azure-openai": "Azure OpenAI",
@@ -642,7 +850,7 @@
       "doubao": "Volcán Motor",
       "fireworks": "Fuegos Artificiales",
       "gemini": "Géminis",
-      "gitee-ai": "Gitee IA",
+      "gitee-ai": "Gitee AI",
       "github": "GitHub Modelos",
       "gpustack": "GPUStack",
       "grok": "Grok",
@@ -672,7 +880,9 @@
       "xirang": "Telecom Nube XiRang",
       "yi": "Cero Uno Todo",
       "zhinao": "360 Inteligente",
-      "zhipu": "ZhiPu IA"
+      "zhipu": "ZhiPu IA",
+      "voyageai": "Voyage AI",
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "¿Está seguro de que desea restaurar los datos?",
@@ -714,7 +924,6 @@
       "advanced.title": "Configuración avanzada",
       "assistant": "Asistente predeterminado",
       "assistant.model_params": "Parámetros del modelo",
-      "assistant.show.icon": "Mostrar icono del modelo",
       "assistant.title": "Asistente predeterminado",
       "data": {
         "app_data": "Datos de la aplicación",
@@ -780,13 +989,13 @@
         "notion.split_size_placeholder": "Introduzca el límite de bloques por página (predeterminado 90)",
         "notion.title": "Configuración de Notion",
         "obsidian": {
-          "folder": "Carpeta",
-          "folder_placeholder": "Introduce el nombre de la carpeta",
-          "tags": "Etiquetas globales",
-          "tags_placeholder": "Introduce el nombre de la etiqueta, múltiples etiquetas separadas por comas, Obsidian no admite números puros",
           "title": "Configuración de Obsidian",
-          "vault": "Custodia",
-          "vault_placeholder": "Introduce el nombre de la custodia"
+          "default_vault": "Repositorio Obsidian predeterminado",
+          "default_vault_placeholder": "Seleccione un repositorio Obsidian predeterminado",
+          "default_vault_loading": "Obteniendo repositorios Obsidian...",
+          "default_vault_no_vaults": "No se encontraron repositorios Obsidian",
+          "default_vault_fetch_error": "Error al obtener los repositorios Obsidian",
+          "default_vault_export_failed": "Exportación fallida"
         },
         "title": "Configuración de datos",
         "webdav": {
@@ -818,7 +1027,26 @@
           "title": "WebDAV",
           "user": "Nombre de usuario WebDAV",
           "maxBackups": "Número máximo de copias de seguridad",
-          "maxBackups.unlimited": "Sin límite"
+          "maxBackups.unlimited": "Sin límite",
+          "backup.manager.title": "Gestión de copias de seguridad",
+          "backup.manager.refresh": "Actualizar",
+          "backup.manager.delete.selected": "Eliminar seleccionados",
+          "backup.manager.delete.text": "Eliminar",
+          "backup.manager.restore.text": "Restaurar",
+          "backup.manager.restore.success": "Restauración exitosa, la aplicación se actualizará en unos segundos",
+          "backup.manager.restore.error": "Fallo en la restauración",
+          "backup.manager.delete.confirm.title": "Confirmar eliminación",
+          "backup.manager.delete.confirm.single": "¿Está seguro de que desea eliminar el archivo de copia de seguridad \"{{fileName}}\"? Esta acción no se puede deshacer.",
+          "backup.manager.delete.confirm.multiple": "¿Está seguro de que desea eliminar los {{count}} archivos de copia de seguridad seleccionados? Esta acción no se puede deshacer.",
+          "backup.manager.delete.success.single": "Eliminación exitosa",
+          "backup.manager.delete.success.multiple": "Se eliminaron exitosamente {{count}} archivos de copia de seguridad",
+          "backup.manager.delete.error": "Fallo al eliminar",
+          "backup.manager.fetch.error": "No se pudo obtener el archivo de copia de seguridad",
+          "backup.manager.select.files.delete": "Seleccione los archivos de copia de seguridad a eliminar",
+          "backup.manager.columns.fileName": "Nombre del archivo",
+          "backup.manager.columns.modifiedTime": "Fecha de modificación",
+          "backup.manager.columns.size": "Tamaño",
+          "backup.manager.columns.actions": "Acciones"
         },
         "yuque": {
           "check": {
@@ -834,16 +1062,73 @@
           "title": "Configuración de Yuque",
           "token": "Token de Yuque",
           "token_placeholder": "Ingrese el Token de Yuque"
-        }
+        },
+        "export_menu": {
+          "title": "Exportar configuración del menú",
+          "image": "Exportar como imagen",
+          "markdown": "Exportar a Markdown",
+          "markdown_reason": "Exportar a Markdown (con pensamiento incluido)",
+          "notion": "Exportar a Notion",
+          "yuque": "Exportar a Yuque",
+          "obsidian": "Exportar a Obsidian",
+          "siyuan": "Exportar a Siyuan Notes",
+          "joplin": "Exportar a Joplin",
+          "docx": "Exportar a Word"
+        },
+        "siyuan": {
+          "check": {
+            "title": "Prueba de conexión",
+            "button": "Probar",
+            "empty_config": "Por favor, complete la dirección API y el token",
+            "success": "Conexión exitosa",
+            "fail": "Fallo en la conexión, verifique la dirección API y el token",
+            "error": "Error inesperado, verifique la conexión de red"
+          },
+          "title": "Configuración de Siyuan Notas",
+          "api_url": "Dirección API",
+          "api_url_placeholder": "Ejemplo: http://127.0.0.1:6806",
+          "token": "Token API",
+          "token.help": "Obtener en Siyuan Notas -> Configuración -> Acerca de",
+          "token_placeholder": "Por favor ingrese el token de Siyuan Notas",
+          "box_id": "ID del Cuaderno",
+          "box_id_placeholder": "Por favor ingrese el ID del cuaderno",
+          "root_path": "Ruta raíz del documento",
+          "root_path_placeholder": "Ejemplo: /CherryStudio"
+        },
+        "nutstore": {
+          "title": "Configuración de Nutstore",
+          "isLogin": "Iniciado sesión",
+          "notLogin": "No iniciado sesión",
+          "login.button": "Iniciar Sesión",
+          "logout.button": "Cerrar Sesión",
+          "logout.title": "¿Seguro que quieres cerrar la sesión de Nutstore?",
+          "logout.content": "Después de cerrar sesión no podrás hacer copias de seguridad ni restaurar desde Nutstore",
+          "checkConnection.name": "Verificar conexión",
+          "checkConnection.success": "Conexión con Nutstore establecida",
+          "checkConnection.fail": "Fallo en la conexión con Nutstore",
+          "username": "Nombre de usuario de Nutstore",
+          "path": "Ruta de almacenamiento de Nutstore",
+          "path.placeholder": "Por favor ingrese la ruta de almacenamiento de Nutstore",
+          "backup.button": "Hacer copia de seguridad en Nutstore",
+          "restore.button": "Restaurar desde Nutstore",
+          "pathSelector.title": "Ruta de almacenamiento de Nutstore",
+          "pathSelector.return": "Volver",
+          "pathSelector.currentPath": "Ruta actual",
+          "new_folder.button.confirm": "Aceptar",
+          "new_folder.button.cancel": "Cancelar",
+          "new_folder.button": "Crear carpeta"
+        },
+        "divider.basic": "Configuración básica",
+        "divider.cloud_storage": "Configuración de almacenamiento en la nube",
+        "divider.export_settings": "Configuración de exportación",
+        "divider.third_party": "Conexiones de terceros",
+        "message_title.use_topic_naming.title": "Usar el modelo de nombramiento temático para crear títulos de mensajes exportados",
+        "message_title.use_topic_naming.help": "Al activarlo, se utilizará el modelo de nombramiento temático para generar títulos de mensajes exportados. Esta opción también afectará a todos los métodos de exportación mediante Markdown."
       },
       "display.assistant.title": "Configuración del asistente",
       "display.custom.css": "CSS personalizado",
       "display.custom.css.cherrycss": "Obtener desde cherrycss.com",
       "display.custom.css.placeholder": "/* Escribe tu CSS personalizado aquí */",
-      "display.minApp.disabled": "Miniprogramas ocultos",
-      "display.minApp.empty": "Arrastra los miniprogramas que quieres ocultar desde la izquierda aquí",
-      "display.minApp.title": "Configuración de visualización de miniprogramas",
-      "display.minApp.visible": "Miniprogramas visibles",
       "display.sidebar.chat.hiddenMessage": "El asistente es una función básica y no se puede ocultar",
       "display.sidebar.disabled": "Iconos ocultos",
       "display.sidebar.empty": "Arrastra las funciones que deseas ocultar desde la izquierda aquí",
@@ -855,6 +1140,7 @@
       "display.sidebar.translate.icon": "Mostrar icono de traducción",
       "display.sidebar.visible": "Iconos visibles",
       "display.title": "Configuración de visualización",
+      "display.zoom.title": "Configuración de zoom",
       "display.topic.title": "Configuración de tema",
       "font_size.title": "Tamaño de fuente de mensajes",
       "general": "Configuración general",
@@ -864,7 +1150,6 @@
       "general.display.title": "Configuración de visualización",
       "general.emoji_picker": "Selector de emojis",
       "general.image_upload": "Carga de imágenes",
-      "general.manually_check_update.title": "Desactivar verificación de actualizaciones",
       "general.reset.button": "Restablecer",
       "general.reset.title": "Restablecer datos",
       "general.restore.button": "Restaurar",
@@ -930,11 +1215,94 @@
         "serverPlural": "Servidores",
         "serverSingular": "Servidor",
         "title": "Servidores MCP",
-        "toggleError": "Fallo al cambiar",
         "type": "Tipo",
         "updateError": "Fallo al actualizar servidor",
         "updateSuccess": "Servidor actualizado exitosamente",
-        "url": "URL"
+        "url": "URL",
+        "errors": {
+          "32000": "El servidor MCP no se pudo iniciar, verifique si los parámetros están completos según la guía"
+        },
+        "tabs": {
+          "general": "General",
+          "description": "Descripción",
+          "tools": "Herramientas",
+          "prompts": "Indicaciones",
+          "resources": "Recursos"
+        },
+        "tools": {
+          "inputSchema": "Esquema de entrada",
+          "availableTools": "Herramientas disponibles",
+          "noToolsAvailable": "No hay herramientas disponibles",
+          "loadError": "Error al cargar las herramientas"
+        },
+        "prompts": {
+          "availablePrompts": "Indicaciones disponibles",
+          "noPromptsAvailable": "No hay indicaciones disponibles",
+          "arguments": "Argumentos",
+          "requiredField": "Campo obligatorio",
+          "genericError": "Error al obtener la indicación",
+          "loadError": "Fallo al cargar la indicación"
+        },
+        "resources": {
+          "noResourcesAvailable": "No hay recursos disponibles",
+          "availableResources": "Recursos disponibles",
+          "uri": "URI",
+          "mimeType": "Tipo MIME",
+          "size": "Tamaño",
+          "blob": "Datos binarios",
+          "blobInvisible": "Datos binarios ocultos",
+          "text": "Texto"
+        },
+        "types": {
+          "inMemory": "Integrado",
+          "sse": "SSE",
+          "streamableHttp": "En secuencia",
+          "stdio": "STDIO"
+        },
+        "sync": {
+          "title": "Sincronizar Servidor",
+          "selectProvider": "Seleccionar proveedor:",
+          "discoverMcpServers": "Detectar servidores MCP",
+          "discoverMcpServersDescription": "Acceder a la plataforma para detectar servidores MCP disponibles",
+          "getToken": "Obtener token de API",
+          "getTokenDescription": "Obtener un token de API personal desde su cuenta",
+          "setToken": "Ingrese su token",
+          "tokenRequired": "Se requiere token de API",
+          "tokenPlaceholder": "Introduzca el token de API aquí",
+          "button": "Sincronizar",
+          "error": "Error al sincronizar el servidor MCP",
+          "success": "Servidor MCP sincronizado correctamente",
+          "unauthorized": "Sincronización no autorizada",
+          "noServersAvailable": "No hay servidores MCP disponibles"
+        },
+        "sse": "Eventos enviados por el servidor (sse)",
+        "streamableHttp": "HTTP transmisible (streamableHttp)",
+        "stdio": "Entrada/Salida estándar (stdio)",
+        "inMemory": "En memoria",
+        "headers": "Encabezados",
+        "headersTooltip": "Encabezados personalizados para solicitudes HTTP",
+        "searchNpx": "Buscar MCP",
+        "newServer": "Servidor MCP",
+        "startError": "Inicio fallido",
+        "editMcpJson": "Editar configuración MCP",
+        "installHelp": "Obtener ayuda de instalación",
+        "deleteServer": "Eliminar servidor",
+        "deleteServerConfirm": "¿Está seguro de que desea eliminar este servidor?",
+        "registry": "Repositorio de paquetes",
+        "registryTooltip": "Seleccione un repositorio para instalar paquetes, útil para resolver problemas de red con el repositorio predeterminado.",
+        "registryDefault": "Predeterminado",
+        "not_support": "El modelo no es compatible",
+        "user": "Usuario",
+        "system": "Sistema",
+        "timeout": "Tiempo de espera",
+        "timeoutTooltip": "Tiempo de espera (en segundos) para las solicitudes a este servidor; el valor predeterminado es 60 segundos",
+        "provider": "Proveedor",
+        "providerUrl": "URL del proveedor",
+        "logoUrl": "URL del logotipo",
+        "tags": "Etiquetas",
+        "tagsPlaceholder": "Ingrese etiquetas",
+        "providerPlaceholder": "Nombre del proveedor",
+        "advancedSettings": "Configuración avanzada"
       },
       "messages.divider": "Separador de mensajes",
       "messages.grid_columns": "Número de columnas en la cuadrícula de mensajes",
@@ -1046,13 +1414,29 @@
         "docs_more_details": "Obtener más detalles",
         "get_api_key": "Haga clic aquí para obtener la clave",
         "is_not_support_array_content": "Activar modo compatible",
-        "no_models": "Agregue un modelo primero antes de verificar la conexión API",
         "not_checked": "No verificado",
         "remove_duplicate_keys": "Eliminar claves duplicadas",
         "remove_invalid_keys": "Eliminar claves inválidas",
         "search": "Buscar plataforma de modelos...",
         "search_placeholder": "Buscar ID o nombre del modelo",
-        "title": "Servicio de modelos"
+        "title": "Servicio de modelos",
+        "oauth": {
+          "button": "Iniciar sesión con la cuenta de {{provider}}",
+          "description": "Este servicio es proporcionado por <website>{{provider}}</website>",
+          "official_website": "Sitio web oficial"
+        },
+        "notes": {
+          "title": "Nota del modelo",
+          "placeholder": "Por favor, introduzca el contenido en formato Markdown...",
+          "markdown_editor_default_value": "Área de vista previa"
+        },
+        "basic_auth": "Autenticación HTTP",
+        "basic_auth.tip": "Aplicable para instancias desplegadas a través del servidor (ver documento). Actualmente solo se admite el esquema Basic (RFC7617).",
+        "basic_auth.user_name": "Nombre de usuario",
+        "basic_auth.user_name.tip": "Déjelo vacío para desactivar",
+        "basic_auth.password": "Contraseña",
+        "bills": "Facturas",
+        "no_models_for_check": "No hay modelos disponibles para revisar (por ejemplo, modelos de conversación)"
       },
       "proxy": {
         "mode": {
@@ -1094,7 +1478,7 @@
         "zoom_out": "Reducir interfaz",
         "zoom_reset": "Restablecer zoom"
       },
-      "theme.auto": "Automático",
+      "theme.system": "Sistema",
       "theme.dark": "Oscuro",
       "theme.light": "Claro",
       "theme.title": "Tema",
@@ -1129,8 +1513,111 @@
           "description": "Tavily es un motor de búsqueda diseñado específicamente para agentes de IA, proporcionando resultados en tiempo real, precisos, sugerencias de consulta inteligentes y capacidades de investigación profundas",
           "title": "Tavily"
         },
-        "title": "Búsqueda en la web"
-      }
+        "title": "Búsqueda en la web",
+        "overwrite": "Sobrescribir proveedor de búsqueda",
+        "overwrite_tooltip": "Forzar el uso del proveedor de búsqueda en lugar del modelo de lenguaje grande para realizar búsquedas",
+        "subscribe": "Suscripción a lista negra",
+        "subscribe_update": "Actualizar ahora",
+        "subscribe_add": "Agregar suscripción",
+        "subscribe_url": "Dirección del origen de la suscripción",
+        "subscribe_name": "Nombre alternativo",
+        "subscribe_name.placeholder": "Nombre alternativo que se usará cuando el origen de la suscripción descargado no tenga un nombre",
+        "subscribe_add_success": "¡Origen de la suscripción agregado correctamente!",
+        "subscribe_delete": "Eliminar origen de la suscripción",
+        "apikey": "Clave API",
+        "free": "Gratis",
+        "content_limit": "Límite de longitud del contenido",
+        "content_limit_tooltip": "Limita la longitud del contenido de los resultados de búsqueda; el contenido excedente será truncado"
+      },
+      "miniapps": {
+        "open_link_external": {
+          "title": "Abrir enlace en nueva ventana del navegador"
+        },
+        "custom": {
+          "title": "Aplicación Pequeña Personalizada",
+          "edit_title": "Editar Aplicación Pequeña Personalizada",
+          "save_success": "La aplicación pequeña personalizada se ha guardado correctamente.",
+          "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
+          "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
+          "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
+          "logo_upload_success": "El logo se cargó correctamente.",
+          "logo_upload_error": "No se pudo cargar el logo.",
+          "id": "ID",
+          "id_error": "El campo ID es obligatorio.",
+          "id_placeholder": "Por favor, introduzca el ID",
+          "name": "Nombre",
+          "name_error": "El campo Nombre es obligatorio.",
+          "name_placeholder": "Por favor, introduzca el nombre",
+          "url": "URL",
+          "url_error": "El campo URL es obligatorio.",
+          "url_placeholder": "Por favor, introduzca la URL",
+          "logo": "Logo",
+          "logo_url": "URL del Logo",
+          "logo_file": "Cargar Archivo del Logo",
+          "logo_url_label": "URL del Logo",
+          "logo_url_placeholder": "Por favor, introduzca la URL del logo",
+          "logo_upload_label": "Cargar Logo",
+          "logo_upload_button": "Cargar",
+          "save": "Guardar",
+          "edit_description": "Edite aquí la configuración de su aplicación pequeña personalizada. Cada aplicación debe incluir los campos id, name, url y logo.",
+          "placeholder": "Introduzca la configuración de la aplicación pequeña personalizada (en formato JSON)",
+          "duplicate_ids": "Se encontraron IDs duplicados: {{ids}}",
+          "conflicting_ids": "Conflictos con IDs de aplicaciones predeterminadas: {{ids}}"
+        },
+        "title": "Configuración de miniaplicaciones",
+        "disabled": "Miniaplicaciones ocultas",
+        "empty": "Arrastra aquí las miniaplicaciones que deseas ocultar desde la izquierda",
+        "visible": "Miniaplicaciones visibles",
+        "cache_settings": "Configuración de caché",
+        "cache_title": "Cantidad de miniaplicaciones en caché",
+        "cache_description": "Establece el número máximo de miniaplicaciones que pueden permanecer activas simultáneamente",
+        "reset_tooltip": "Restablecer a los valores predeterminados",
+        "display_title": "Configuración de visualización de miniaplicaciones",
+        "sidebar_title": "Visualización de miniaplicaciones activas en la barra lateral",
+        "sidebar_description": "Configura si se muestra o no en la barra lateral la miniaplicación activa",
+        "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado"
+      },
+      "quickPhrase": {
+        "title": "Frases rápidas",
+        "add": "Agregar frase",
+        "edit": "Editar frase",
+        "titleLabel": "Título",
+        "contentLabel": "Contenido",
+        "titlePlaceholder": "Ingrese el título de la frase",
+        "contentPlaceholder": "Ingrese el contenido de la frase. Se admite el uso de variables, y luego puede presionar Tab para ubicar rápidamente la variable y modificarla. Por ejemplo: \\nAyúdame a planificar la ruta desde ${desde} hasta ${hasta}, y luego envíala a ${correo}.",
+        "delete": "Eliminar frase",
+        "deleteConfirm": "Una vez eliminada, la frase no podrá recuperarse. ¿Desea continuar?",
+        "locationLabel": "Agregar ubicación",
+        "global": "Frase global",
+        "assistant": "Frase de asistente"
+      },
+      "quickPanel": {
+        "title": "Menú de acceso rápido",
+        "close": "Cerrar",
+        "select": "Seleccionar",
+        "page": "Página",
+        "confirm": "Confirmar",
+        "back": "Atrás",
+        "forward": "Adelante",
+        "multiple": "Selección múltiple"
+      },
+      "privacy": {
+        "title": "Configuración de privacidad",
+        "enable_privacy_mode": "Enviar informes de errores y estadísticas de forma anónima"
+      },
+      "assistant.icon.type": "Tipo de ícono del modelo",
+      "assistant.icon.type.model": "Ícono del modelo",
+      "assistant.icon.type.emoji": "Emoji",
+      "assistant.icon.type.none": "No mostrar",
+      "general.auto_check_update.title": "Actualización automática",
+      "input.show_translate_confirm": "Mostrar diálogo de confirmación de traducción",
+      "messages.prompt": "Palabra de indicación",
+      "messages.input.enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
+      "messages.input.enable_delete_model": "Habilitar la eliminación con la tecla de borrado para modelos/archivos adjuntos introducidos",
+      "messages.math_engine.none": "Ninguno",
+      "models.manage.add_listed": "Agregar modelo de la lista",
+      "models.manage.remove_listed": "Eliminar modelo de la lista",
+      "zoom.title": "Zoom de página"
     },
     "translate": {
       "any.language": "cualquier idioma",
@@ -1155,7 +1642,10 @@
       "scroll_sync.disable": "Deshabilitar sincronización de desplazamiento",
       "scroll_sync.enable": "Habilitar sincronización de desplazamiento",
       "title": "Traducción",
-      "tooltip.newline": "Salto de línea"
+      "tooltip.newline": "Salto de línea",
+      "menu": {
+        "description": "Traducir el contenido del campo de entrada actual"
+      }
     },
     "tray": {
       "quit": "Salir",
@@ -1167,6 +1657,13 @@
       "quit": "Salir",
       "show_window": "Mostrar Ventana",
       "visualization": "Visualización"
+    },
+    "update": {
+      "title": "Actualización",
+      "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
+      "later": "Más tarde",
+      "install": "Instalar",
+      "noReleaseNotes": "Sin notas de la versión"
     }
   }
 }

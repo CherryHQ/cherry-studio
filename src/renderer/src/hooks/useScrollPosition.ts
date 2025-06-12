@@ -7,7 +7,9 @@ export default function useScrollPosition(key: string) {
 
   const handleScroll = throttle(() => {
     const position = containerRef.current?.scrollTop ?? 0
-    window.keyv.set(scrollKey, position)
+    window.requestAnimationFrame(() => {
+      window.keyv.set(scrollKey, position)
+    })
   }, 100)
 
   useEffect(() => {

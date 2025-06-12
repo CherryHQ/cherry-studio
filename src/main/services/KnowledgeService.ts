@@ -459,7 +459,7 @@ class KnowledgeService {
     { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
   ): Promise<void> => {
     const ragApplication = await this.getRagApplication(base)
-    console.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
+    Logger.log(`[ KnowledgeService Remove Item UniqueId: ${uniqueId}]`)
     for (const id of uniqueIds) {
       await ragApplication.deleteLoader(id)
     }

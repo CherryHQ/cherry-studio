@@ -3,12 +3,13 @@ import { arch } from 'node:os'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
+import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, nativeTheme, session, shell } from 'electron'
+import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
+import { Notification } from 'src/renderer/src/types/notification'
 
-import { titleBarOverlayDark, titleBarOverlayLight } from './config'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
 import { configManager } from './services/ConfigManager'
@@ -16,20 +17,22 @@ import CopilotService from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
-import { GeminiService } from './services/GeminiService'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ProxyConfig, proxyManager } from './services/ProxyManager'
 import { searchService } from './services/SearchService'
+import { SelectionService } from './services/SelectionService'
 import { registerShortcuts, unregisterAllShortcuts } from './services/ShortcutService'
-import { TrayService } from './services/TrayService'
+import storeSyncService from './services/StoreSyncService'
+import { themeService } from './services/ThemeService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
-import { getResourcePath } from './utils'
+import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -39,6 +42,7 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
+  const notificationService = new NotificationService(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
@@ -108,10 +112,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setAutoUpdate(isActive)
   })
 
-  ipcMain.handle(IpcChannel.App_RestartTray, () => TrayService.getInstance().restartTray())
-
-  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any) => {
-    configManager.set(key, value)
+  ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
+    configManager.set(key, value, isNotify)
   })
 
   ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
@@ -120,41 +122,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // theme
   ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
-    const notifyThemeChange = () => {
-      const windows = BrowserWindow.getAllWindows()
-      windows.forEach((win) =>
-        win.webContents.send(IpcChannel.ThemeChange, nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light)
-      )
-    }
-
-    if (theme === ThemeMode.auto) {
-      nativeTheme.themeSource = 'system'
-      nativeTheme.on('updated', notifyThemeChange)
-    } else {
-      nativeTheme.themeSource = theme
-      nativeTheme.removeAllListeners('updated')
-    }
-
-    mainWindow?.setTitleBarOverlay &&
-      mainWindow.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
-    configManager.setTheme(theme)
-    notifyThemeChange()
+    themeService.setTheme(theme)
   })
 
-  // custom css
-  ipcMain.handle(IpcChannel.App_SetCustomCss, (event, css: string) => {
-    if (css === configManager.getCustomCss()) return
-    configManager.setCustomCss(css)
-
-    // Broadcast to all windows including the mini window
-    const senderWindowId = event.sender.id
+  ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
-    // 向其他窗口广播主题变化
-    windows.forEach((win) => {
-      if (win.webContents.id !== senderWindowId) {
-        win.webContents.send('custom-css:update', css)
-      }
-    })
+    handleZoomFactor(windows, delta, reset)
+    return configManager.getZoomFactor()
   })
 
   // clear cache
@@ -179,14 +153,45 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  // get cache size
+  ipcMain.handle(IpcChannel.App_GetCacheSize, async () => {
+    const cachePath = getCacheDir()
+    log.info(`Calculating cache size for path: ${cachePath}`)
+
+    try {
+      const sizeInBytes = await calculateDirectorySize(cachePath)
+      const sizeInMB = (sizeInBytes / (1024 * 1024)).toFixed(2)
+      return `${sizeInMB}`
+    } catch (error: any) {
+      log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
+      return '0'
+    }
+  })
+
   // check for update
   ipcMain.handle(IpcChannel.App_CheckForUpdate, async () => {
-    await appUpdater.checkForUpdates()
+    return await appUpdater.checkForUpdates()
+  })
+
+  // notification
+  ipcMain.handle(IpcChannel.Notification_Send, async (_, notification: Notification) => {
+    await notificationService.sendNotification(notification)
+  })
+  ipcMain.handle(IpcChannel.Notification_OnClick, (_, notification: Notification) => {
+    mainWindow.webContents.send('notification-click', notification)
   })
 
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
+
+  // system
+  ipcMain.handle(IpcChannel.System_GetDeviceType, () => (isMac ? 'mac' : isWin ? 'windows' : 'linux'))
+  ipcMain.handle(IpcChannel.System_GetHostname, () => require('os').hostname())
+  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    win && win.webContents.toggleDevTools()
+  })
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup)
@@ -211,11 +216,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder)
   ipcMain.handle(IpcChannel.File_Create, fileManager.createTempFile)
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile)
+  ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId)
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage)
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image)
+  ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image)
+  ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File)
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile)
   ipcMain.handle(IpcChannel.File_Copy, fileManager.copyFile)
-  ipcMain.handle(IpcChannel.File_BinaryFile, fileManager.binaryFile)
+  ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage)
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile)
@@ -260,13 +268,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  // gemini
-  ipcMain.handle(IpcChannel.Gemini_UploadFile, GeminiService.uploadFile)
-  ipcMain.handle(IpcChannel.Gemini_Base64File, GeminiService.base64File)
-  ipcMain.handle(IpcChannel.Gemini_RetrieveFile, GeminiService.retrieveFile)
-  ipcMain.handle(IpcChannel.Gemini_ListFiles, GeminiService.listFiles)
-  ipcMain.handle(IpcChannel.Gemini_DeleteFile, GeminiService.deleteFile)
-
   // mini window
   ipcMain.handle(IpcChannel.MiniWindow_Show, () => windowService.showMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Hide, () => windowService.hideMiniWindow())
@@ -293,6 +294,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Mcp_ListResources, mcpService.listResources)
   ipcMain.handle(IpcChannel.Mcp_GetResource, mcpService.getResource)
   ipcMain.handle(IpcChannel.Mcp_GetInstallInfo, mcpService.getInstallInfo)
+  ipcMain.handle(IpcChannel.Mcp_CheckConnectivity, mcpService.checkMcpConnectivity)
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
@@ -338,4 +340,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Webview_SetOpenLinkExternal, (_, webviewId: number, isExternal: boolean) =>
     setOpenLinkExternal(webviewId, isExternal)
   )
+
+  // store sync
+  storeSyncService.registerIpcHandler()
+
+  // selection assistant
+  SelectionService.registerIpcHandler()
 }

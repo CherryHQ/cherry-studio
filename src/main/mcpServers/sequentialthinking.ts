@@ -55,8 +55,8 @@ class SequentialThinkingServer {
     const { thoughtNumber, totalThoughts, thought, isRevision, revisesThought, branchFromThought, branchId } =
       thoughtData
 
-    let prefix = ''
-    let context = ''
+    let prefix: string
+    let context: string
 
     if (isRevision) {
       prefix = chalk.yellow('🔄 Revision')
