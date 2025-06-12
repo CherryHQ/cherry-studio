@@ -359,7 +359,7 @@ export class SelectionService {
       hasShadow: false,
       thickFrame: false,
       roundedCorners: true,
-      backgroundMaterial: 'none',
+      // backgroundMaterial: 'none',
       type: 'toolbar',
       show: false,
       webPreferences: {

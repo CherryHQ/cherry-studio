@@ -1,9 +1,9 @@
 // import { ProxyConfig as _ProxyConfig, session } from 'electron'
 import { session } from 'electron'
 
-declare type _ProxyConfig = any;
+declare type _ProxyConfig = any
 
-import { socksDispatcher } from 'fetch-socks'
+// import { socksDispatcher } from 'fetch-socks'
 import { getSystemProxy } from 'os-proxy-config'
 import { ProxyAgent as GeneralProxyAgent } from 'proxy-agent'
 // import { ProxyAgent, setGlobalDispatcher } from 'undici'
