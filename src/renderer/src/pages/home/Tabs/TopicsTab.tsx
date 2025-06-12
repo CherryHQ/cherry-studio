@@ -555,8 +555,11 @@ const TopicName = styled.div`
   font-size: 13px;
   position: relative;
 
+  --color-shimmer-mid: var(--color-text-1);
+  --color-shimmer-end: color-mix(in srgb, var(--color-text-1) 25%, transparent);
+
   &.shimmer {
-    background: linear-gradient(120deg, var(--color-text-1) 0%, var(--color-text-3) 50%, var(--color-text-1) 100%);
+    background: linear-gradient(to left, var(--color-shimmer-end), var(--color-shimmer-mid), var(--color-shimmer-end));
     background-size: 200% 100%;
     background-clip: text;
     color: transparent;
