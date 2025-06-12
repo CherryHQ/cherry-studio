@@ -2,8 +2,15 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setEnableDataCollection, setLanguage, setNotificationSettings } from '@renderer/store/settings'
-import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
+import {
+  setEnableDataCollection,
+  setEnableSpellCheck,
+  setLanguage,
+  setNotificationSettings,
+  setProxyMode,
+  setProxyUrl as _setProxyUrl,
+  setSpellCheckLanguages
+} from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
@@ -26,7 +33,8 @@ const GeneralSettings: FC = () => {
     trayOnClose,
     tray,
     proxyMode: storeProxyMode,
-    enableDataCollection
+    enableDataCollection,
+    enableSpellCheck
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
@@ -62,11 +70,47 @@ const GeneralSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
+  // Language to spell check language mapping
+  const getSpellCheckLanguagesFromUILanguage = (lang: LanguageVarious): string[] => {
+    const languageMap: Record<LanguageVarious, string[]> = {
+      'zh-CN': ['zh-CN'],
+      'zh-TW': ['zh-TW'],
+      'en-US': ['en-US'],
+      'ja-JP': ['ja'],
+      'ru-RU': ['ru'],
+      'el-GR': ['el'],
+      'es-ES': ['es'],
+      'fr-FR': ['fr'],
+      'pt-PT': ['pt']
+    }
+    return languageMap[lang] || ['en-US']
+  }
+
   const onSelectLanguage = (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
     window.api.setLanguage(value)
     i18n.changeLanguage(value)
+
+    // Update spell check languages based on selected language
+    const newSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(value)
+    dispatch(setSpellCheckLanguages(newSpellCheckLanguages))
+    window.api.setSpellCheckLanguages(newSpellCheckLanguages)
+  }
+
+  const handleSpellCheckChange = (checked: boolean) => {
+    dispatch(setEnableSpellCheck(checked))
+
+    if (checked) {
+      // When enabling spell check, set the languages based on current UI language
+      const currentSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(language || defaultLanguage)
+      dispatch(setSpellCheckLanguages(currentSpellCheckLanguages))
+      window.api.setSpellCheckLanguages(currentSpellCheckLanguages)
+    } else {
+      // When disabling spell check, clear the languages
+      dispatch(setSpellCheckLanguages([]))
+      window.api.setSpellCheckLanguages([])
+    }
   }
 
   const onSetProxyUrl = () => {
@@ -133,6 +177,16 @@ const GeneralSettings: FC = () => {
               </Select.Option>
             ))}
           </Select>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            {t('settings.general.spell_check')}
+            <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+              {t('settings.general.spell_check.description')}
+            </div>
+          </SettingRowTitle>
+          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
