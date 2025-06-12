@@ -634,6 +634,7 @@
       "error.enter.api.key": "Пожалуйста, введите ваш API ключ",
       "error.enter.model": "Пожалуйста, выберите модель",
       "error.enter.name": "Пожалуйста, введите название базы знаний",
+      "error.topic_naming_model_key_missing": "Пожалуйста, проверьте наличие API ключа для соответствующей модели в [Настройки > Модель по умолчанию > Модель именования топиков]",
       "error.get_embedding_dimensions": "Не удалось получить размерность встраивания",
       "error.invalid.api.host": "Неверный API адрес",
       "error.invalid.api.key": "Неверный API ключ",

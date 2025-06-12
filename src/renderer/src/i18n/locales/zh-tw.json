@@ -635,6 +635,7 @@
       "error.enter.model": "請先選擇一個模型",
       "error.enter.name": "請先輸入知識庫名稱",
       "error.fetchTopicName": "話題命名失敗",
+      "error.topic_naming_model_key_missing": "請檢查[設定>預設模型>話題命名模型]對應模型的API金鑰是否存在",
       "error.get_embedding_dimensions": "取得嵌入維度失敗",
       "error.invalid.api.host": "無效的 API 位址",
       "error.invalid.api.key": "無效的 API 金鑰",

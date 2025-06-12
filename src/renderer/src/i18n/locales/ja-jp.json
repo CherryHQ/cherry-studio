@@ -634,6 +634,7 @@
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
       "error.enter.name": "ナレッジベース名を入力してください",
+      "error.topic_naming_model_key_missing": "[設定>デフォルトモデル>トピック命名モデル]に対応するモデルのAPIキーが存在するか確認してください",
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "error.invalid.api.host": "無効なAPIアドレスです",
       "error.invalid.api.key": "無効なAPIキーです",
