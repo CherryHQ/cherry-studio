@@ -2,22 +2,19 @@ import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
+import removeMarkdown from 'remove-markdown'
 
 /**
- * 更彻底的查找方法，递归搜索所有子元素
- * @param {any} children 子元素
- * @returns {string} 找到的 citation 或 ''
+ * 递归搜索所有子元素中的 citation
  */
 export const findCitationInChildren = (children: any): string => {
   if (!children) return ''
 
-  // 直接搜索子元素
   for (const child of Array.isArray(children) ? children : [children]) {
     if (typeof child === 'object' && child?.props?.['data-citation']) {
       return child.props['data-citation']
     }
 
-    // 递归查找更深层次
     if (typeof child === 'object' && child?.props?.children) {
       const found = findCitationInChildren(child.props.children)
       if (found) return found
@@ -28,11 +25,7 @@ export const findCitationInChildren = (children: any): string => {
 }
 
 /**
- * 转换数学公式格式：
- * - 将 LaTeX 格式的 '\\[' 和 '\\]' 转换为 '$$$$'。
- * - 将 LaTeX 格式的 '\\(' 和 '\\)' 转换为 '$$'。
- * @param {string} input 输入字符串
- * @returns {string} 转换后的字符串
+ * 转换数学公式格式
  */
 export function convertMathFormula(input: string): string {
   if (!input) return input
@@ -44,12 +37,9 @@ export function convertMathFormula(input: string): string {
 }
 
 /**
- * 移除 Markdown 文本中每行末尾的两个空格。
- * @param {string} markdown 输入的 Markdown 文本
- * @returns {string} 处理后的文本
+ * 移除 Markdown 文本中每行末尾的两个空格
  */
 export function removeTrailingDoubleSpaces(markdown: string): string {
-  // 使用正则表达式匹配末尾的两个空格，并替换为空字符串
   return markdown.replace(/ {2}$/gm, '')
 }
 
@@ -102,76 +92,16 @@ export function isValidPlantUML(code: string | null): boolean {
 }
 
 /**
- * 将 Markdown 文本转换为纯文本，用于 TTS 播放
- * @param markdown Markdown 格式的文本
- * @returns 纯文本
+ * 将 Markdown 字符串转换为纯文本。
+ * @param markdown Markdown 字符串。
+ * @returns 纯文本字符串。
  */
-export function markdownToPlainText(markdown: string): string {
-  if (!markdown || typeof markdown !== 'string') {
+export const markdownToPlainText = (markdown: string): string => {
+  if (!markdown) {
     return ''
   }
-
-  let text = markdown
-
-  // 移除代码块（三个反引号包围的内容）
-  text = text.replace(/```[\s\S]*?```/g, '[代码块]')
-
-  // 移除行内代码（单个反引号包围的内容）
-  text = text.replace(/`([^`]+)`/g, '$1')
-
-  // 移除图片链接 ![alt](url)
-  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '图片: $1')
-
-  // 移除链接，保留链接文本 [text](url)
-  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-
-  // 移除粗体和斜体标记
-  text = text.replace(/\*\*\*([^*]+)\*\*\*/g, '$1') // 粗斜体
-  text = text.replace(/\*\*([^*]+)\*\*/g, '$1') // 粗体
-  text = text.replace(/\*([^*]+)\*/g, '$1') // 斜体
-  text = text.replace(/___([^_]+)___/g, '$1') // 粗斜体
-  text = text.replace(/__([^_]+)__/g, '$1') // 粗体
-  text = text.replace(/_([^_]+)_/g, '$1') // 斜体
-
-  // 移除删除线
-  text = text.replace(/~~([^~]+)~~/g, '$1')
-
-  // 移除标题标记
-  text = text.replace(/^#{1,6}\s+/gm, '')
-
-  // 移除引用标记
-  text = text.replace(/^>\s*/gm, '')
-
-  // 移除列表标记
-  text = text.replace(/^[\s]*[-*+]\s+/gm, '') // 无序列表
-  text = text.replace(/^[\s]*\d+\.\s+/gm, '') // 有序列表
-
-  // 移除水平分割线
-  text = text.replace(/^[-*_]{3,}$/gm, '')
-
-  // 移除表格分隔符
-  text = text.replace(/^\|.*\|$/gm, (match) => {
-    // 如果是表格分隔符行（包含 - 和 |），则移除
-    if (match.includes('-')) {
-      return ''
-    }
-    // 否则移除表格边框，保留内容
-    return match.replace(/^\||\|$/g, '').replace(/\|/g, ' ')
-  })
-
-  // 移除 HTML 标签
-  text = text.replace(/<[^>]*>/g, '')
-
-  // 移除多余的空行，保留单个换行
-  text = text.replace(/\n{3,}/g, '\n\n')
-
-  // 移除行首行尾的空白字符
-  text = text.replace(/^[ \t]+|[ \t]+$/gm, '')
-
-  // 移除多余的空格
-  text = text.replace(/[ \t]{2,}/g, ' ')
-
-  return text.trim()
+  // 直接用 remove-markdown 库，使用默认的 removeMarkdown 参数
+  return removeMarkdown(markdown)
 }
 
 /**
