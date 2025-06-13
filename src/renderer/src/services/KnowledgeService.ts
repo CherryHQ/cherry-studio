@@ -1,9 +1,8 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import Logger from '@renderer/config/logger'
-import { ONLY_SUPPORTED_DIMENSION_PROVIDERS } from '@renderer/config/providers'
-import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
@@ -40,7 +39,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     id: base.id,
     model: base.model.id,
     provider: base.model.provider,
-    dimensions: ONLY_SUPPORTED_DIMENSION_PROVIDERS.includes(base.model.provider) ? base.dimensions : undefined,
+    dimensions: base.dimensions,
     apiKey: aiProvider.getApiKey() || 'secret',
     apiVersion: provider.apiVersion,
     baseURL: host,

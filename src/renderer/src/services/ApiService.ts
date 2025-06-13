@@ -1,10 +1,21 @@
+import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
 import Logger from '@renderer/config/logger'
-import { getOpenAIWebSearchParams, isOpenAIWebSearch } from '@renderer/config/models'
+import {
+  isEmbeddingModel,
+  isGenerateImageModel,
+  isOpenRouterBuiltInWebSearchModel,
+  isReasoningModel,
+  isSupportedDisableGenerationModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import {
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
 } from '@renderer/config/prompts'
+import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import {
   Assistant,
@@ -13,20 +24,22 @@ import {
   MCPTool,
   Model,
   Provider,
-  Suggestion,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
+import { SdkModel } from '@renderer/types/sdk'
+import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { findLast, isEmpty } from 'lodash'
+import { findLast, isEmpty, takeRight } from 'lodash'
 
-import AiProvider from '../providers/AiProvider'
+import AiProvider from '../aiCore'
 import {
   getAssistantProvider,
+  getAssistantSettings,
   getDefaultModel,
   getProviderByModel,
   getTopNamingModel,
@@ -34,7 +47,13 @@ import {
 } from './AssistantService'
 import { getDefaultAssistant } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
-import { filterContextMessages, filterMessages, filterUsefulMessages } from './MessagesService'
+import {
+  filterContextMessages,
+  filterEmptyMessages,
+  filterMessages,
+  filterUsefulMessages,
+  filterUserRoleStartMessages
+} from './MessagesService'
 import WebSearchService from './WebSearchService'
 
 // TODO：考虑拆开
@@ -50,6 +69,7 @@ async function fetchExternalTool(
   const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
+  // 使用外部搜索工具
   const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
   const shouldKnowledgeSearch = hasKnowledgeBase
 
@@ -83,14 +103,14 @@ async function fetchExternalTool(
     summaryAssistant.prompt = prompt
 
     try {
-      const keywords = await fetchSearchSummary({
+      const result = await fetchSearchSummary({
         messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
         assistant: summaryAssistant
       })
 
-      if (!keywords) return getFallbackResult()
+      if (!result) return getFallbackResult()
 
-      const extracted = extractInfoFromXML(keywords)
+      const extracted = extractInfoFromXML(result.getText())
       // 根据需求过滤结果
       return {
         websearch: needWebExtract ? extracted?.websearch : undefined,
@@ -132,12 +152,6 @@ async function fetchExternalTool(
     if (!assistant.model) {
       console.warn('searchTheWeb called without assistant.model')
       return undefined
-    }
-
-    // Pass the guaranteed model to the check function
-    const webSearchParams = getOpenAIWebSearchParams(assistant, assistant.model)
-    if (!isEmpty(webSearchParams) || isOpenAIWebSearch(assistant.model)) {
-      return
     }
 
     try {
@@ -238,7 +252,7 @@ async function fetchExternalTool(
 
     // Get MCP tools (Fix duplicate declaration)
     let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const enabledMCPs = lastUserMessage?.enabledMCPs
+    const enabledMCPs = assistant.mcpServers
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
         const toolPromises = enabledMCPs.map(async (mcpServer) => {
@@ -301,17 +315,52 @@ export async function fetchChatCompletion({
   // NOTE: The search results are NOT added to the messages sent to the AI here.
   // They will be retrieved and used by the messageThunk later to create CitationBlocks.
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
+  const model = assistant.model || getDefaultModel()
+
+  const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
   const filteredMessages = filterUsefulMessages(messages)
 
+  const _messages = filterUserRoleStartMessages(
+    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+  )
+
+  const enableReasoning =
+    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+      assistant.settings?.reasoning_effort !== undefined) ||
+    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+
+  const enableWebSearch =
+    (assistant.enableWebSearch && isWebSearchModel(model)) ||
+    isOpenRouterBuiltInWebSearchModel(model) ||
+    model.id.includes('sonar') ||
+    false
+
+  const enableGenerateImage =
+    isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
+
   // --- Call AI Completions ---
-  await AI.completions({
-    messages: filteredMessages,
-    assistant,
-    onFilterMessages: () => {},
-    onChunk: onChunkReceived,
-    mcpTools: mcpTools
-  })
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
+  if (enableWebSearch) {
+    onChunkReceived({ type: ChunkType.LLM_WEB_SEARCH_IN_PROGRESS })
+  }
+  await AI.completions(
+    {
+      callType: 'chat',
+      messages: _messages,
+      assistant,
+      onChunk: onChunkReceived,
+      mcpTools: mcpTools,
+      maxTokens,
+      streamOutput: assistant.settings?.streamOutput || false,
+      enableReasoning,
+      enableWebSearch,
+      enableGenerateImage
+    },
+    {
+      streamOutput: assistant.settings?.streamOutput || false
+    }
+  )
 }
 
 interface FetchTranslateProps {
@@ -321,7 +370,7 @@ interface FetchTranslateProps {
 }
 
 export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel()
+  const model = getTranslateModel() || assistant.model || getDefaultModel()
 
   if (!model) {
     throw new Error(i18n.t('error.provider_disabled'))
@@ -333,17 +382,45 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
     throw new Error(i18n.t('error.no_api_key'))
   }
 
+  const isSupportedStreamOutput = () => {
+    if (!onResponse) {
+      return false
+    }
+    return true
+  }
+
+  const stream = isSupportedStreamOutput()
+  const enableReasoning =
+    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
+      assistant.settings?.reasoning_effort !== undefined) ||
+    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+
+  const params: CompletionsParams = {
+    callType: 'translate',
+    messages: content,
+    assistant: { ...assistant, model },
+    streamOutput: stream,
+    enableReasoning,
+    onResponse
+  }
+
   const AI = new AiProvider(provider)
 
   try {
-    return await AI.translate(content, assistant, onResponse)
+    return (await AI.completions(params)).getText() || ''
   } catch (error: any) {
     return ''
   }
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+  const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const userMessages = takeRight(messages, 5).map((message) => ({
+    ...message,
+    content: getMainTextContent(message)
+  }))
+
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -352,9 +429,18 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  const params: CompletionsParams = {
+    callType: 'summary',
+    messages: filterMessages(userMessages),
+    assistant: { ...assistant, prompt, model },
+    maxTokens: 1000,
+    streamOutput: false
+  }
+
   try {
-    const text = await AI.summaries(filterMessages(messages), assistant)
-    return text?.replace(/["']/g, '') || null
+    const { getText } = await AI.completions(params)
+    const text = getText()
+    return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
     return null
   }
@@ -370,7 +456,14 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
 
   const AI = new AiProvider(provider)
 
-  return await AI.summaryForSearch(messages, assistant)
+  const params: CompletionsParams = {
+    callType: 'search',
+    messages: messages,
+    assistant,
+    streamOutput: false
+  }
+
+  return await AI.completions(params)
 }
 
 export async function fetchGenerate({ prompt, content }: { prompt: string; content: string }): Promise<string> {
@@ -383,32 +476,22 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
 
   const AI = new AiProvider(provider)
 
+  const assistant = getDefaultAssistant()
+  assistant.model = model
+  assistant.prompt = prompt
+
+  const params: CompletionsParams = {
+    callType: 'generate',
+    messages: content,
+    assistant,
+    streamOutput: false
+  }
+
   try {
-    return await AI.generateText({ prompt, content })
+    const result = await AI.completions(params)
+    return result.getText() || ''
   } catch (error: any) {
     return ''
-  }
-}
-
-export async function fetchSuggestions({
-  messages,
-  assistant
-}: {
-  messages: Message[]
-  assistant: Assistant
-}): Promise<Suggestion[]> {
-  const model = assistant.model
-  if (!model || model.id.endsWith('global')) {
-    return []
-  }
-
-  const provider = getAssistantProvider(assistant)
-  const AI = new AiProvider(provider)
-
-  try {
-    return await AI.suggestions(filterMessages(messages), assistant)
-  } catch (error: any) {
-    return []
   }
 }
 
@@ -418,7 +501,7 @@ function hasApiKey(provider: Provider) {
   return !isEmpty(provider.apiKey)
 }
 
-export async function fetchModels(provider: Provider) {
+export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
   const AI = new AiProvider(provider)
 
   try {
@@ -432,68 +515,69 @@ export const formatApiKeys = (value: string) => {
   return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
 }
 
-export function checkApiProvider(provider: Provider): {
-  valid: boolean
-  error: Error | null
-} {
+export function checkApiProvider(provider: Provider): void {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
   if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      return {
-        valid: false,
-        error: new Error(i18n.t('message.error.enter.api.key'))
-      }
+      throw new Error(i18n.t('message.error.enter.api.key'))
     }
   }
 
   if (!provider.apiHost) {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
-    return {
-      valid: false,
-      error: new Error(i18n.t('message.error.enter.api.host'))
-    }
+    throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
     window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
-    return {
-      valid: false,
-      error: new Error(i18n.t('message.error.enter.model'))
-    }
-  }
-
-  return {
-    valid: true,
-    error: null
+    throw new Error(i18n.t('message.error.enter.model'))
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<{ valid: boolean; error: Error | null }> {
-  const validation = checkApiProvider(provider)
-  if (!validation.valid) {
-    return {
-      valid: validation.valid,
-      error: validation.error
-    }
-  }
+export async function checkApi(provider: Provider, model: Model): Promise<void> {
+  checkApiProvider(provider)
 
   const ai = new AiProvider(provider)
 
-  // Try streaming check first
-  const result = await ai.check(model, true)
+  const assistant = getDefaultAssistant()
+  assistant.model = model
+  try {
+    if (isEmbeddingModel(model)) {
+      const result = await ai.getEmbeddingDimensions(model)
+      if (result === 0) {
+        throw new Error(i18n.t('message.error.enter.model'))
+      }
+    } else {
+      const params: CompletionsParams = {
+        callType: 'check',
+        messages: 'hi',
+        assistant,
+        streamOutput: true
+      }
 
-  if (result.valid && !result.error) {
-    return result
-  }
-
-  // 不应该假设错误由流式引发。多次发起检测请求可能触发429，掩盖了真正的问题。
-  // 但这里错误类型做的很粗糙，暂时先这样
-  if (result.error && result.error.message.includes('stream')) {
-    return ai.check(model, false)
-  } else {
-    return result
+      // Try streaming check first
+      const result = await ai.completions(params)
+      if (!result.getText()) {
+        throw new Error('No response received')
+      }
+    }
+  } catch (error: any) {
+    if (error.message.includes('stream')) {
+      const params: CompletionsParams = {
+        callType: 'check',
+        messages: 'hi',
+        assistant,
+        streamOutput: false
+      }
+      const result = await ai.completions(params)
+      if (!result.getText()) {
+        throw new Error('No response received')
+      }
+    } else {
+      throw error
+    }
   }
 }

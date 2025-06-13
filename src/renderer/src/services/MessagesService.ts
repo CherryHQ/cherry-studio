@@ -230,8 +230,6 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title
-      } else {
-        window.message?.error(t('message.error.fetchTopicName'))
       }
     } catch (e) {
       window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })

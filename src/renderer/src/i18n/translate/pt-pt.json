@@ -199,6 +199,7 @@
       "topics.clear.title": "Limpar mensagens",
       "topics.copy.image": "Copiar como imagem",
       "topics.copy.md": "Copiar como Markdown",
+      "topics.copy.plain_text": "Copiar como texto simples (remover Markdown)",
       "topics.copy.title": "Copiar",
       "topics.delete.shortcut": "Pressione {{key}} para deletar diretamente",
       "topics.edit.placeholder": "Digite novo nome",
@@ -492,8 +493,12 @@
       "urls": "URLs",
       "dimensions": "Dimensão de incorporação",
       "dimensions_size_tooltip": "Tamanho da dimensão de incorporação, quanto maior o valor, maior a dimensão de incorporação, mas também maior o consumo de tokens",
-      "dimensions_size_placeholder": "Valor padrão (não recomendado alterar)",
-      "dimensions_size_too_large": "A dimensão de incorporação não pode exceder o limite do contexto do modelo ({{max_context}})"
+      "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
+      "dimensions_auto_set": "Definição automática de dimensões de incorporação",
+      "dimensions_error_invalid": "Por favor insira o tamanho da dimensão de incorporação",
+      "dimensions_size_too_large": "A dimensão de incorporação não pode exceder o limite do contexto do modelo ({{max_context}})",
+      "dimensions_set_right": "⚠️ Certifique-se de que o modelo suporta o tamanho da dimensão de incorporação definido",
+      "dimensions_default": "O modelo utilizará as dimensões de incorporação padrão"
     },
     "languages": {
       "arabic": "Árabe",
@@ -553,7 +558,6 @@
       "error.enter.api.key": "Insira sua chave API",
       "error.enter.model": "Selecione um modelo",
       "error.enter.name": "Insira o nome da base de conhecimento",
-      "error.fetchTopicName": "Falha ao nomear o tópico",
       "error.get_embedding_dimensions": "Falha ao obter dimensões de incorporação",
       "error.invalid.api.host": "Endereço API inválido",
       "error.invalid.api.key": "Chave API inválida",
