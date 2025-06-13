@@ -169,7 +169,7 @@ export const PROVIDER_CONFIG = {
       official: 'https://www.siliconflow.cn',
       apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
-      models: 'https://docs.siliconflow.cn/docs/model-names'
+      models: 'https://cloud.siliconflow.cn/models'
     }
   },
   'gitee-ai': {

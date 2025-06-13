@@ -2,6 +2,7 @@ import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
@@ -37,7 +38,7 @@ import {
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { isOnHomePage } from '@renderer/utils/window'
 import { t } from 'i18next'
-import { throttle } from 'lodash'
+import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
 
 import type { AppDispatch, RootState } from '../index'
@@ -193,6 +194,19 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
   blockIds.forEach((id) => {
     cancelThrottledBlockUpdate(id)
   })
+
+  const getBlocksFiles = async (blockIds: string[]) => {
+    const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
+    const files = blocks.filter((block) => block.type === MessageBlockType.FILE).map((block) => block.file)
+    return isEmpty(files) ? [] : files
+  }
+
+  const cleanupFiles = async (files: FileType[]) => {
+    await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
+  }
+
+  getBlocksFiles(blockIds).then(cleanupFiles)
+
   if (blockIds.length > 0) {
     dispatch(removeManyBlocks(blockIds))
   }

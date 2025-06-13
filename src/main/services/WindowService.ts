@@ -116,12 +116,6 @@ export class WindowService {
         app.exit(1)
       }
     })
-
-    mainWindow.webContents.on('unresponsive', () => {
-      // 在升级到electron 34后，可以获取具体js stack trace,目前只打个日志监控下
-      // https://www.electronjs.org/blog/electron-34-0#unresponsive-renderer-javascript-call-stacks
-      Logger.error('Renderer process unresponsive')
-    })
   }
 
   private setupMaximize(mainWindow: BrowserWindow, isMaximized: boolean) {

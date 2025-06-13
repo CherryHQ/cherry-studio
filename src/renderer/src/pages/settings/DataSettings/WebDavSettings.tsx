@@ -165,10 +165,7 @@ const WebDavSettings: FC = () => {
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button
-            onClick={showBackupManager}
-            icon={<FolderOpenOutlined />}
-            disabled={!webdavHost || !webdavUser || !webdavPass || !webdavPath}>
+          <Button onClick={showBackupManager} icon={<FolderOpenOutlined />} disabled={!webdavHost}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>

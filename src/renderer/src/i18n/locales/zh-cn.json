@@ -8,7 +8,10 @@
       "add.name.placeholder": "输入名称",
       "add.prompt": "提示词",
       "add.prompt.placeholder": "输入提示词",
-      "add.prompt.variables.tip": "可用的变量：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "可用的变量",
+        "content": "{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称"
+      },
       "add.title": "创建智能体",
       "import": {
         "title": "从外部导入",
@@ -941,6 +944,9 @@
       },
       "text_desc_required": "请先输入图片描述",
       "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "req_error_token": "请检查令牌有效性",
+      "req_error_no_balance": "请检查令牌有效性",
+      "image_handle_required": "请先上传图片",
       "auto_create_paint": "自动新建图片",
       "auto_create_paint_tip": "在图片生成后，会自动新建图片",
       "select_model": "选择模型",
@@ -1506,6 +1512,7 @@
       "messages.prompt": "显示提示词",
       "messages.tokens": "显示Token用量",
       "messages.divider": "消息分割线",
+      "messages.divider.tooltip": "不适用于气泡样式消息",
       "messages.grid_columns": "消息网格展示列数",
       "messages.grid_popover_trigger": "网格详情触发",
       "messages.grid_popover_trigger.click": "点击显示",
@@ -1923,7 +1930,7 @@
       },
       "title": "翻译",
       "tooltip.newline": "换行",
-      "detected.language": "检测到的语言"
+      "detected.language": "自动检测"
     },
     "tray": {
       "quit": "退出",

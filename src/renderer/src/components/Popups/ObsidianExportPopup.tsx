@@ -1,11 +1,11 @@
-import { PopupContainer } from '@renderer/components/ObsidianExportDialog'
+import { ObsidianProcessingMethod, PopupContainer } from '@renderer/components/ObsidianExportDialog'
 import { TopView } from '@renderer/components/TopView'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 
 interface ObsidianExportOptions {
   title: string
-  processingMethod: string | '3'
+  processingMethod: (typeof ObsidianProcessingMethod)[keyof typeof ObsidianProcessingMethod]
   topic?: Topic
   message?: Message
   messages?: Message[]
