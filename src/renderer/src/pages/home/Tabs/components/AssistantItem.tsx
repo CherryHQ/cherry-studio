@@ -39,11 +39,11 @@ interface AssistantItemProps {
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
-  addAgent: (agent: any) => void
   addAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
   singleLine?: boolean
+  style?: React.CSSProperties
 }
 
 const AssistantItem: FC<AssistantItemProps> = ({
@@ -52,15 +52,15 @@ const AssistantItem: FC<AssistantItemProps> = ({
   sortBy,
   onSwitch,
   onDelete,
-  addAgent,
   addAssistant,
   handleSortByChange,
-  singleLine = false
+  singleLine = false,
+  style
 }) => {
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { assistantIconType, setAssistantIconType } = useSettings()
+  const { assistantIconType, setAssistantIconType, clickAssistantToShowTopic } = useSettings()
   const defaultModel = getDefaultModel()
   const { assistants, updateAssistants } = useAssistants()
 
@@ -95,7 +95,6 @@ const AssistantItem: FC<AssistantItemProps> = ({
         allTags,
         assistants,
         updateAssistants,
-        addAgent,
         addAssistant,
         onSwitch,
         onDelete,
@@ -112,7 +111,6 @@ const AssistantItem: FC<AssistantItemProps> = ({
       allTags,
       assistants,
       updateAssistants,
-      addAgent,
       addAssistant,
       onSwitch,
       onDelete,
@@ -130,9 +128,14 @@ const AssistantItem: FC<AssistantItemProps> = ({
       return
     }
 
-    EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, assistant)
+
+    if (singleLine) {
+      EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR)
+    }
+
     onSwitch(assistant)
-  }, [isMenuOpen, onSwitch, assistant])
+  }, [isMenuOpen, assistant, singleLine, onSwitch])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(
@@ -164,7 +167,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
     return (
       <Container
         onClick={handleSwitch}
-        className={classNames({ active: isActive, 'is-menu-open': isMenuOpen, singleLine })}>
+        className={classNames({ active: isActive, 'is-menu-open': isMenuOpen, singleLine })}
+        style={style}>
         {assistantNave}
         <Button
           className="item-menu-button"
@@ -184,7 +188,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
     <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
       <Container
         onClick={handleSwitch}
-        className={classNames({ active: isActive, 'is-menu-open': isMenuOpen, singleLine })}>
+        className={classNames({ active: isActive, 'is-menu-open': isMenuOpen, singleLine })}
+        style={style}>
         {assistantNave}
         <Dropdown menu={{ items: menuItems }} trigger={['click']} onOpenChange={setIsMenuOpen}>
           <Button
@@ -280,7 +285,6 @@ function getMenuItems({
   allTags,
   assistants,
   updateAssistants,
-  addAgent,
   addAssistant,
   onSwitch,
   onDelete,
@@ -329,8 +333,8 @@ function getMenuItems({
       onClick: async () => {
         const agent = omit(assistant, ['model', 'emoji'])
         agent.id = uuid()
-        agent.type = 'agent'
-        addAgent(agent)
+        agent.isTemplate = true
+        addAssistant(agent)
         window.message.success({
           content: t('assistants.save.success'),
           key: 'save-to-agent'

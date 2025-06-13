@@ -293,6 +293,7 @@ const GridContainer = styled.div<{ $count: number; $layout: MultiModelMessageSty
     $layout === 'horizontal' &&
     css`
       margin-top: 15px;
+      padding-bottom: 4px;
     `}
   ${({ $gridColumns, $layout, $count }) =>
     $layout === 'grid' &&

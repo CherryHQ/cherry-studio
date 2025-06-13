@@ -35,7 +35,7 @@ const Selector = <V extends string | number>({
   const [open, setOpen] = useState(false)
 
   const label = useMemo(() => {
-    if (value) {
+    if (value !== undefined && value !== null) {
       const findLabel = (opts: SelectorOption<V>[]): string | ReactNode | undefined => {
         for (const opt of opts) {
           if (opt.value === value) {

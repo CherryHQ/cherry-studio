@@ -195,10 +195,10 @@ const MessageMenubar: FC<Props> = (props) => {
         }
       },
       {
-        label: t('chat.message.settings'),
+        label: t('common.settings'),
         key: 'message-settings',
         icon: <Settings2 size={16} />,
-        onClick: () => MessageSettingsPopup.show({ title: t('chat.message.settings') })
+        onClick: () => MessageSettingsPopup.show({ title: t('common.settings') })
       },
       {
         label: t('chat.topics.export.title'),
@@ -492,10 +492,10 @@ const MessageMenubar: FC<Props> = (props) => {
       </Popconfirm>
       {!isUserMessage && (
         <Dropdown
+          arrow={false}
           menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
           trigger={['click']}
-          placement="topRight"
-          arrow>
+          placement="topRight">
           <ActionButton className="message-action-button" onClick={(e) => e.stopPropagation()}>
             <Menu size={19} />
           </ActionButton>

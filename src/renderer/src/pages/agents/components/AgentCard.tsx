@@ -7,7 +7,7 @@ import {
   SortAscendingOutlined
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { Agent } from '@renderer/types'
@@ -27,7 +27,7 @@ interface Props {
 }
 
 const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupName }) => {
-  const { removeAgent } = useAgents()
+  const { removeAssistant: removeAgent } = useAssistants()
   const [isVisible, setIsVisible] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 

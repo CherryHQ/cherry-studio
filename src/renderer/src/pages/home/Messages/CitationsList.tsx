@@ -56,13 +56,13 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   const popoverContent = (
     <PopoverContent>
       {citations.map((citation) => (
-        <div key={citation.url || citation.number}>
+        <PopoverContentItem key={citation.url || citation.number}>
           {citation.type === 'websearch' ? (
             <WebSearchCitation citation={citation} />
           ) : (
             <KnowledgeCitation citation={citation} />
           )}
-        </div>
+        </PopoverContentItem>
       ))}
     </PopoverContent>
   )
@@ -72,7 +72,17 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
       <Popover
         arrow={false}
         content={popoverContent}
-        title={<div style={{ padding: '8px 12px 0', fontWeight: 'bold' }}>{t('message.citations')}</div>}
+        title={
+          <div
+            style={{
+              padding: '8px 12px 8px',
+              marginBottom: -8,
+              fontWeight: 'bold',
+              borderBottom: '0.5px solid var(--color-border)'
+            }}>
+            {t('message.citations')}
+          </div>
+        }
         placement="right"
         trigger="hover"
         styles={{
@@ -142,13 +152,14 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
     <WebSearchCard>
       <ContextMenu>
         <WebSearchCardHeader>
-          <CitationIndex>{citation.number}</CitationIndex>
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
             {citation.title || <span className="hostname">{citation.hostname}</span>}
           </CitationLink>
+
+          <CitationIndex>{citation.number}</CitationIndex>
           {fetchedContent && <CopyButton content={fetchedContent} />}
         </WebSearchCardHeader>
         {isLoading ? (
@@ -216,10 +227,19 @@ const PreviewIcon = styled.div`
 `
 
 const CitationIndex = styled.div`
-  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--color-reference);
+  font-size: 10px;
   line-height: 1.6;
-  color: var(--color-text-2);
-  margin-right: 8px;
+  color: var(--color-reference-text);
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 0.3s ease;
 `
 
 const CitationLink = styled.a`
@@ -227,7 +247,7 @@ const CitationLink = styled.a`
   line-height: 1.6;
   color: var(--color-text-1);
   text-decoration: none;
-
+  flex: 1;
   .hostname {
     color: var(--color-link);
   }
@@ -239,10 +259,14 @@ const CopyIconWrapper = styled.div`
   align-items: center;
   justify-content: center;
   color: var(--color-text-2);
-  opacity: 0.6;
-  margin-left: auto;
+  opacity: 0;
   padding: 4px;
   border-radius: 4px;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 0.3s ease;
 
   &:hover {
     opacity: 1;
@@ -254,10 +278,17 @@ const WebSearchCard = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 12px;
-  border-radius: var(--list-item-border-radius);
+  padding: 12px 0;
   transition: all 0.3s ease;
   position: relative;
+  &:hover {
+    ${CopyIconWrapper} {
+      opacity: 1;
+    }
+    ${CitationIndex} {
+      opacity: 0;
+    }
+  }
 `
 
 const WebSearchCardHeader = styled.div`
@@ -267,6 +298,7 @@ const WebSearchCardHeader = styled.div`
   gap: 8px;
   margin-bottom: 6px;
   width: 100%;
+  position: relative;
 `
 
 const WebSearchCardContent = styled.div`
@@ -275,6 +307,7 @@ const WebSearchCardContent = styled.div`
   color: var(--color-text-2);
   user-select: text;
   cursor: text;
+  word-break: break-all;
 
   &.selectable-text {
     -webkit-user-select: text;
@@ -285,8 +318,15 @@ const WebSearchCardContent = styled.div`
 `
 
 const PopoverContent = styled.div`
-  max-width: 300px;
-  max-height: 50vh;
+  max-width: min(300px, 60vw);
+  max-height: 60vh;
+  padding: 0 12px;
+`
+const PopoverContentItem = styled.div`
+  border-bottom: 0.5px solid var(--color-border);
+  &:last-child {
+    border-bottom: none;
+  }
 `
 
 export default CitationsList

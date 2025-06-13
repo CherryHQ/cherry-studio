@@ -3,7 +3,7 @@ import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
 import CustomTag from '@renderer/components/CustomTag'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
@@ -28,7 +28,7 @@ const AgentsPage: FC = () => {
   const [activeGroup, setActiveGroup] = useState('我的')
   const [agentGroups, setAgentGroups] = useState<Record<string, Agent[]>>({})
   const systemAgents = useSystemAgents()
-  const { agents: userAgents } = useAgents()
+  const { templates: userAgents } = useAssistants()
 
   useEffect(() => {
     const systemAgentsGroupList = groupByCategories(systemAgents)

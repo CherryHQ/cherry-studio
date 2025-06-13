@@ -1,5 +1,4 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useSystemAgents } from '@renderer/pages/agents'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
@@ -24,7 +23,7 @@ interface Props {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { agents: userAgents } = useAgents()
+  const { assistants: userAgents } = useAssistants()
   const [searchText, setSearchText] = useState('')
   const { defaultAssistant } = useDefaultAssistant()
   const { assistants, addAssistant } = useAssistants()

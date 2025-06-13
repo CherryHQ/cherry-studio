@@ -1,13 +1,16 @@
 import { SyncOutlined } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { HStack } from '@renderer/components/Layout'
-import { THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
+  AssistantIconType,
   DEFAULT_SIDEBAR_ICONS,
+  setAssistantIconType,
+  setClickAssistantToShowTopic,
   setCustomCss,
   setPinTopicsToTop,
   setShowTopicTime,
@@ -51,7 +54,20 @@ const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
 `
 
 const DisplaySettings: FC = () => {
-  const { showTopicTime, pinTopicsToTop, customCss, sidebarIcons, setTheme, userTheme } = useSettings()
+  const {
+    windowStyle,
+    setWindowStyle,
+    topicPosition,
+    setTopicPosition,
+    clickAssistantToShowTopic,
+    showTopicTime,
+    pinTopicsToTop,
+    customCss,
+    sidebarIcons,
+    setTheme,
+    assistantIconType,
+    userTheme
+  } = useSettings()
   const { theme, settedTheme } = useTheme()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -60,6 +76,13 @@ const DisplaySettings: FC = () => {
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
+
+  const handleWindowStyleChange = useCallback(
+    (checked: boolean) => {
+      setWindowStyle(checked ? 'transparent' : 'opaque')
+    },
+    [setWindowStyle]
+  )
 
   const handleColorPrimaryChange = useCallback(
     (colorHex: string) => {
@@ -135,6 +158,15 @@ const DisplaySettings: FC = () => {
     setCurrentZoom(zoomFactor)
   }
 
+  const assistantIconTypeOptions = useMemo(
+    () => [
+      { value: 'model', label: t('settings.assistant.icon.type.model') },
+      { value: 'emoji', label: t('settings.assistant.icon.type.emoji') },
+      { value: 'none', label: t('settings.assistant.icon.type.none') }
+    ],
+    [t]
+  )
+
   return (
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
@@ -164,7 +196,7 @@ const DisplaySettings: FC = () => {
               value={userTheme.colorPrimary}
               onChange={(color) => handleColorPrimaryChange(color.toHexString())}
               showText
-              size="small"
+              style={{ width: '110px' }}
               presets={[
                 {
                   label: 'Presets',
@@ -174,6 +206,15 @@ const DisplaySettings: FC = () => {
             />
           </HStack>
         </SettingRow>
+        {isMac && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
+              <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
+            </SettingRow>
+          </>
+        )}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.display.zoom.title')}</SettingTitle>
@@ -181,15 +222,13 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
-            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} color="default" variant="text" />
+            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} />
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} color="default" variant="text" />
+            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} />
             <Button
               onClick={() => handleZoomFactor(0, true)}
               style={{ marginLeft: 8 }}
               icon={<RotateCcw size="14" />}
-              color="default"
-              variant="text"
             />
           </ZoomButtonGroup>
         </SettingRow>
@@ -198,6 +237,31 @@ const DisplaySettings: FC = () => {
         <SettingTitle>{t('settings.display.topic.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitle>{t('settings.topic.position')}</SettingRowTitle>
+          <Segmented
+            value={topicPosition || 'right'}
+            shape="round"
+            onChange={setTopicPosition}
+            options={[
+              { value: 'left', label: t('settings.topic.position.left') },
+              { value: 'right', label: t('settings.topic.position.right') }
+            ]}
+          />
+        </SettingRow>
+        <SettingDivider />
+        {topicPosition === 'left' && (
+          <>
+            <SettingRow>
+              <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
+              <Switch
+                checked={clickAssistantToShowTopic}
+                onChange={(checked) => dispatch(setClickAssistantToShowTopic(checked))}
+              />
+            </SettingRow>
+            <SettingDivider />
+          </>
+        )}
+        <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
           <Switch checked={showTopicTime} onChange={(checked) => dispatch(setShowTopicTime(checked))} />
         </SettingRow>
@@ -205,6 +269,19 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
           <Switch checked={pinTopicsToTop} onChange={(checked) => dispatch(setPinTopicsToTop(checked))} />
+        </SettingRow>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('settings.display.assistant.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.assistant.icon.type')}</SettingRowTitle>
+          <Segmented
+            value={assistantIconType}
+            shape="round"
+            onChange={(value) => dispatch(setAssistantIconType(value as AssistantIconType))}
+            options={assistantIconTypeOptions}
+          />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

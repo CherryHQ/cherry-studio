@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent } from '@renderer/types'
@@ -16,7 +16,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const { addAgent } = useAgents()
+  const { addTemplate: addAgent } = useAssistants()
   const [importType, setImportType] = useState<'url' | 'file'>('url')
   const [loading, setLoading] = useState(false)
 

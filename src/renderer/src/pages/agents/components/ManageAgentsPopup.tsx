@@ -2,7 +2,7 @@ import { MenuOutlined } from '@ant-design/icons'
 import DragableList from '@renderer/components/DragableList'
 import { Box, HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { Empty, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,8 @@ import styled from 'styled-components'
 const PopupContainer: React.FC = () => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { agents, updateAgents } = useAgents()
+  const { assistants, updateAssistants: updateAgents } = useAssistants()
+  const agents = assistants.filter((a) => a.isTemplate)
 
   const onOk = () => {
     setOpen(false)

@@ -4,7 +4,7 @@ import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined }
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
@@ -34,7 +34,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const { addAgent } = useAgents()
+  const { addTemplate } = useAssistants()
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
@@ -82,12 +82,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       emoji: _emoji,
       prompt: values.prompt,
       defaultModel: getDefaultModel(),
-      type: 'agent',
       topics: [],
-      messages: []
+      messages: [],
+      isTemplate: true
     }
 
-    addAgent(_agent)
+    addTemplate(_agent)
     resolve(_agent)
     setOpen(false)
   }

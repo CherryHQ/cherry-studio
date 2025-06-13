@@ -60,9 +60,9 @@ const DragableList: FC<Props<any>> = ({
                           {...provided.draggableProps}
                           {...provided.dragHandleProps}
                           style={{
+                            marginBottom: 8,
                             ...listStyle,
-                            ...provided.draggableProps.style,
-                            marginBottom: 8
+                            ...provided.draggableProps.style
                           }}>
                           {children(item, index)}
                         </div>

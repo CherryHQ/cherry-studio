@@ -1,8 +1,9 @@
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { Search } from 'lucide-react'
+import { MessageSquareDiff, Search } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -20,6 +21,11 @@ const HeaderNavbar: FC<Props> = () => {
           </Tooltip>
         )}
       </div>
+      <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+        <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
+          <MessageSquareDiff size={18} />
+        </NavbarIcon>
+      </Tooltip>
     </Container>
   )
 }
@@ -35,8 +41,8 @@ const Container = styled.div`
   min-height: var(--navbar-height);
   background-color: transparent;
   -webkit-app-region: drag;
-  padding: 0 8px;
-  padding-left: ${isMac ? '75px' : '10px'};
+  padding: 0 15px;
+  padding-left: ${isMac ? '75px' : '15px'};
 `
 
 export const NavbarIcon = styled.div`
@@ -52,7 +58,7 @@ export const NavbarIcon = styled.div`
   -webkit-app-region: no-drag;
   cursor: pointer;
   &:hover {
-    background-color: var(--color-background-mute);
+    background-color: var(--color-list-item);
     color: var(--color-icon-white);
   }
 `

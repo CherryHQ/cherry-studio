@@ -98,14 +98,20 @@ export async function checkModelWithMultipleKeys(
   if (isParallel) {
     // Check all API keys in parallel
     const keyPromises = apiKeys.map(async (key) => {
-      const result = await checkModel({ ...provider, apiKey: key }, model)
-
-      return {
-        key,
-        isValid: result.valid,
-        error: result.error?.message,
-        latency: result.latency
-      } as ApiKeyCheckStatus
+      try {
+        const result = await checkModel({ ...provider, apiKey: key }, model)
+        return {
+          key,
+          isValid: true,
+          latency: result.latency
+        } as ApiKeyCheckStatus
+      } catch (error: unknown) {
+        return {
+          key,
+          isValid: false,
+          error: error instanceof Error ? error.message.slice(0, 20) + '...' : String(error).slice(0, 20) + '...'
+        } as ApiKeyCheckStatus
+      }
     })
 
     const results = await Promise.allSettled(keyPromises)
@@ -125,14 +131,20 @@ export async function checkModelWithMultipleKeys(
   } else {
     // Check all API keys serially
     for (const key of apiKeys) {
-      const result = await checkModel({ ...provider, apiKey: key }, model)
-
-      keyResults.push({
-        key,
-        isValid: result.valid,
-        error: result.error?.message,
-        latency: result.latency
-      })
+      try {
+        const result = await checkModel({ ...provider, apiKey: key }, model)
+        keyResults.push({
+          key,
+          isValid: true,
+          latency: result.latency
+        })
+      } catch (error: unknown) {
+        keyResults.push({
+          key,
+          isValid: false,
+          error: error instanceof Error ? error.message.slice(0, 20) + '...' : String(error).slice(0, 20) + '...'
+        })
+      }
     }
   }
 

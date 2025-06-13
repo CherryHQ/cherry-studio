@@ -2,7 +2,10 @@ import { db } from '@renderer/databases'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
+  createAssistantFromTemplate,
   removeAssistant,
+  selectActiveAssistants,
+  selectTemplates,
   setModel,
   updateAssistant,
   updateAssistants,
@@ -15,20 +18,32 @@ import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { useCallback, useMemo } from 'react'
 
 export function useAssistants() {
-  const { assistants } = useAppSelector((state) => state.assistants)
+  const assistants = useAppSelector(selectActiveAssistants)
+  const templates = useAppSelector(selectTemplates)
   const dispatch = useAppDispatch()
+
+  const getAssistantById = useCallback((id: string) => assistants.find((a) => a.id === id), [assistants])
 
   return {
     assistants,
+    templates,
+    getAssistantById,
     updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
     addAssistant: (assistant: Assistant) => {
-      dispatch(addAssistant(assistant))
+      dispatch(addAssistant({ ...assistant, isTemplate: false }))
       dispatch(topicsActions.addDefaultTopic({ assistantId: assistant.id }))
+    },
+    addTemplate: (template: Assistant) => {
+      dispatch(addAssistant({ ...template, isTemplate: true }))
     },
     removeAssistant: (id: string) => {
       dispatch(removeAssistant({ id }))
       // Remove all topics for this assistant
       dispatch(topicsActions.removeAllTopics({ assistantId: id }))
+    },
+    createAssistantFromTemplate: (templateId: string, assistantId: string) => {
+      dispatch(createAssistantFromTemplate({ templateId, assistantId }))
+      dispatch(topicsActions.addDefaultTopic({ assistantId }))
     }
   }
 }

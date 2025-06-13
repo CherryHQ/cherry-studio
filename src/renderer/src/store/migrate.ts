@@ -1662,6 +1662,37 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '114': (state: RootState) => {
+    try {
+      if (
+        state.assistants &&
+        state.assistants.defaultAssistant &&
+        state.assistants.defaultAssistant.isTemplate === undefined
+      ) {
+        state.assistants.defaultAssistant.isTemplate = false
+      }
+      if (state.assistants && state.assistants.assistants.length > 0) {
+        state.assistants.assistants
+          .filter((assistant) => assistant.isTemplate !== undefined)
+          .forEach((assistant) => {
+            assistant.isTemplate = false
+          })
+      }
+
+      if (state.agents && state.agents.agents.length > 0) {
+        state.agents.agents.forEach((agent) => {
+          agent.isTemplate = true
+          state.assistants.assistants.push(agent)
+        })
+      }
+
+      // @ts-ignore eslint-disable-next-line
+      delete state.agents
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

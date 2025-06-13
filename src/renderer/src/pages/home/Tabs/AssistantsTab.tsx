@@ -1,12 +1,14 @@
 import { DownOutlined, PlusOutlined, RightOutlined } from '@ant-design/icons'
 import { Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import DragableList from '@renderer/components/DragableList'
+import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/useAgents'
-import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useChat } from '@renderer/hooks/useChat'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
+import { uuid } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { FC, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,26 +16,27 @@ import styled from 'styled-components'
 
 import AssistantItem from './components/AssistantItem'
 
-interface AssistantsTabProps {
-  activeAssistant: Assistant
-  setActiveAssistant: (assistant: Assistant) => void
-  onCreateAssistant: () => void
-  onCreateDefaultAssistant: () => void
-}
-const Assistants: FC<AssistantsTabProps> = ({
-  activeAssistant,
-  setActiveAssistant,
-  onCreateAssistant,
-  onCreateDefaultAssistant
-}) => {
+const Assistants: FC = () => {
+  const { activeAssistant, setActiveAssistant } = useChat()
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
   const [collapsedTags, setCollapsedTags] = useState<Record<string, boolean>>({})
-  const { addAgent } = useAgents()
   const { t } = useTranslation()
   const { getGroupedAssistants, allTags, updateTagsOrder } = useTags()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const containerRef = useRef<HTMLDivElement>(null)
+  const { defaultAssistant } = useDefaultAssistant()
+
+  const onCreateAssistant = async () => {
+    const assistant = await AddAssistantPopup.show()
+    assistant && setActiveAssistant(assistant)
+  }
+
+  const onCreateDefaultAssistant = useCallback(() => {
+    const assistant = { ...defaultAssistant, id: uuid() }
+    addAssistant(assistant)
+    setActiveAssistant(assistant)
+  }, [addAssistant, defaultAssistant, setActiveAssistant])
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
@@ -161,68 +164,63 @@ const Assistants: FC<AssistantsTabProps> = ({
   if (assistantsTabSortType === 'tags') {
     return (
       <Container className="assistants-tab" ref={containerRef}>
-        <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 4, gap: 10 }}>
-          <DragableList
-            droppableProps={{ type: 'TAG' }}
-            list={getGroupedAssistants.map((_) => ({
-              ..._,
-              disabled: _.tag === t('assistants.tags.untagged')
-            }))}
-            onUpdate={() => {}}
-            onDragEnd={handleGroupDragEnd}
-            style={{ paddingBottom: 0 }}>
-            {(group) => (
-              <Droppable droppableId={group.tag} type="ASSISTANT">
-                {(provided) => (
-                  <TagsContainer key={group.tag} {...provided.droppableProps} ref={provided.innerRef}>
-                    {group.tag !== t('assistants.tags.untagged') && (
-                      <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
-                        <Tooltip title={group.tag}>
-                          <GroupTitleName>
-                            {collapsedTags[group.tag] ? (
-                              <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
-                            ) : (
-                              <DownOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
-                            )}
-                            {group.tag}
-                          </GroupTitleName>
-                        </Tooltip>
-                        <GroupTitleDivider />
-                      </GroupTitle>
-                    )}
-                    {!collapsedTags[group.tag] && (
-                      <div>
-                        {group.assistants.map((assistant, index) => (
-                          <Draggable
-                            key={`draggable_${group.tag}_${assistant?.id}_${index}`}
-                            draggableId={`draggable_${group.tag}_${assistant?.id}_${index}`}
-                            index={index}>
-                            {(provided) => (
-                              <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                                <AssistantItem
-                                  key={assistant?.id}
-                                  assistant={assistant}
-                                  sortBy="tags"
-                                  isActive={assistant?.id === activeAssistant.id}
-                                  onSwitch={setActiveAssistant}
-                                  onDelete={onDelete}
-                                  addAgent={addAgent}
-                                  addAssistant={addAssistant}
-                                  onCreateDefaultAssistant={() => {}}
-                                />
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                      </div>
-                    )}
-                    {provided.placeholder}
-                  </TagsContainer>
-                )}
-              </Droppable>
-            )}
-          </DragableList>
-        </div>
+        <DragableList
+          droppableProps={{ type: 'TAG' }}
+          list={getGroupedAssistants.map((_) => ({ ..._, disabled: _.tag === t('assistants.tags.untagged') }))}
+          onUpdate={() => {}}
+          onDragEnd={handleGroupDragEnd}>
+          {(group) => (
+            <Droppable droppableId={group.tag} type="ASSISTANT">
+              {(provided) => (
+                <TagsContainer key={group.tag} {...provided.droppableProps} ref={provided.innerRef}>
+                  {group.tag !== t('assistants.tags.untagged') && (
+                    <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
+                      <Tooltip title={group.tag}>
+                        <GroupTitleName>
+                          {collapsedTags[group.tag] ? (
+                            <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
+                          ) : (
+                            <DownOutlined style={{ fontSize: '10px', marginRight: '5px' }} />
+                          )}
+                          {group.tag}
+                        </GroupTitleName>
+                      </Tooltip>
+                      <GroupTitleDivider />
+                    </GroupTitle>
+                  )}
+                  {!collapsedTags[group.tag] && (
+                    <>
+                      {group.assistants.map((assistant, index) => (
+                        <Draggable
+                          key={`draggable_${group.tag}_${assistant?.id}_${index}`}
+                          draggableId={`draggable_${group.tag}_${assistant?.id}_${index}`}
+                          index={index}>
+                          {(provided) => (
+                            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+                              <AssistantItem
+                                key={assistant?.id}
+                                assistant={assistant}
+                                sortBy="tags"
+                                isActive={assistant?.id === activeAssistant.id}
+                                onSwitch={setActiveAssistant}
+                                onDelete={onDelete}
+                                addAssistant={addAssistant}
+                                handleSortByChange={handleSortByChange}
+                                onCreateDefaultAssistant={() => {}}
+                                style={{ margin: '4px 0' }}
+                              />
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                    </>
+                  )}
+                  {provided.placeholder}
+                </TagsContainer>
+              )}
+            </Droppable>
+          )}
+        </DragableList>
         <AssistantAddItem onClick={onCreateAssistant}>
           <AssistantName>
             <PlusOutlined style={{ color: 'var(--color-text-2)', marginRight: 4 }} />
@@ -249,7 +247,6 @@ const Assistants: FC<AssistantsTabProps> = ({
             sortBy={assistantsTabSortType}
             onSwitch={setActiveAssistant}
             onDelete={onDelete}
-            addAgent={addAgent}
             addAssistant={addAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
             handleSortByChange={handleSortByChange}
@@ -273,13 +270,12 @@ const Assistants: FC<AssistantsTabProps> = ({
 const Container = styled(Scrollbar)`
   display: flex;
   flex-direction: column;
-  padding: 4px 10px;
+  padding: 0 10px;
 `
 
 const TagsContainer = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
 `
 
 const AssistantAddItem = styled.div`
@@ -308,6 +304,7 @@ const GroupTitle = styled.div`
   justify-content: space-between;
   align-items: center;
   height: 24px;
+  margin: 5px 0;
 `
 
 const GroupTitleName = styled.div`

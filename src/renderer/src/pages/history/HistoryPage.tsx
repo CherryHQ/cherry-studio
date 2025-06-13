@@ -86,7 +86,7 @@ const TopicsPage: FC = () => {
               </SearchIcon>
             )
           }
-          suffix={search.length >= 2 ? <CornerDownLeft size={16} /> : <Search size={16} />}
+          suffix={search.length >= 2 ? <CornerDownLeft size={16} /> : null}
           ref={inputRef}
           placeholder={t('history.search.placeholder')}
           value={search}

@@ -202,7 +202,6 @@
       "message.quote": "Цитата",
       "message.regenerate.model": "Переключить модель",
       "message.useful": "Полезно",
-      "message.settings": "Настройки",
       "multiple.select": "Множественный выбор",
       "multiple.select.empty": "Ничего не выбрано",
       "navigation": {
@@ -425,7 +424,8 @@
         "pinyin.desc": "Сортировать по пиньинь (Я-А)"
       },
       "no_results": "Результатов не найдено",
-      "apps": "Приложения"
+      "apps": "Приложения",
+      "settings": "Настройки"
     },
     "docs": {
       "title": "Документация"
@@ -1061,6 +1061,7 @@
       "about.updateNotAvailable": "Вы используете последнюю версию",
       "about.website.button": "Сайт",
       "about.website.title": "Официальный сайт",
+      "advanced.auto_switch_to_topics": "Автоматически переключаться на топик",
       "advanced.title": "Расширенные настройки",
       "assistant": "Ассистент по умолчанию",
       "assistant.model_params": "Параметры модели",
@@ -1274,6 +1275,7 @@
         "message_title.use_topic_naming.title": "Использовать модель именования тем для создания заголовков сообщений",
         "message_title.use_topic_naming.help": "Этот параметр влияет на все методы экспорта в Markdown, такие как Notion, Yuque и т.д."
       },
+      "display.assistant.title": "Настройки ассистентов",
       "display.custom.css": "Пользовательский CSS",
       "display.custom.css.cherrycss": "Получить из cherrycss.com",
       "display.custom.css.placeholder": "/* Здесь введите пользовательский CSS */",
@@ -1512,7 +1514,9 @@
         "advancedSettings": "Расширенные настройки"
       },
       "messages.prompt": "Показывать подсказки",
+      "messages.tokens": "Показать использование токенов",
       "messages.divider": "Показывать разделитель между сообщениями",
+      "messages.divider.tooltip": "Не применимо к сообщениям в стиле пузырей",
       "messages.grid_columns": "Количество столбцов сетки сообщений",
       "messages.grid_popover_trigger": "Триггер для отображения подробной информации в сетке",
       "messages.grid_popover_trigger.click": "Нажатие для отображения",
@@ -1719,6 +1723,9 @@
       "theme.window.style.title": "Стиль окна",
       "theme.window.style.transparent": "Прозрачное окно",
       "title": "Настройки",
+      "topic.position": "Позиция топиков",
+      "topic.position.left": "Слева",
+      "topic.position.right": "Справа",
       "topic.show.time": "Показывать время топика",
       "topic.pin_to_top": "Закрепленные топики сверху",
       "tray.onclose": "Свернуть в трей при закрытии",

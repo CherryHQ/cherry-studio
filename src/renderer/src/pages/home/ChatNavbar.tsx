@@ -10,12 +10,11 @@ import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants } from '@renderer/hooks/useStore'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, MessageSquareDiff, PanelLeft, PanelRight, Search } from 'lucide-react'
+import { LayoutGrid, PanelLeft, PanelRight, Search } from 'lucide-react'
 import { FC } from 'react'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -43,11 +42,6 @@ const ChatNavbar: FC = () => {
     <Navbar className="home-navbar">
       <NavbarContainer $isFullscreen={isFullscreen} $showSidebar={showAssistants} className="home-navbar-right">
         <HStack alignItems="center" gap={8}>
-          <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
-              <MessageSquareDiff size={18} />
-            </NavbarIcon>
-          </Tooltip>
           <NavbarIcon onClick={() => toggleShowAssistants()}>
             {showAssistants ? <PanelLeft size={18} /> : <PanelRight size={18} />}
           </NavbarIcon>
@@ -89,12 +83,11 @@ const NavbarContainer = styled.div<{ $isFullscreen: boolean; $showSidebar: boole
   max-height: var(--navbar-height);
   min-height: var(--navbar-height);
   justify-content: space-between;
-  margin-left: ${({ $showSidebar }) => ($showSidebar ? '-37px' : isMac ? '75px' : '10px')};
+  margin-left: ${({ $showSidebar }) => ($showSidebar ? '15px' : isMac ? '75px' : '15px')};
   font-weight: bold;
   color: var(--color-text-1);
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '140px' : isLinux ? '120px' : '12px')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '15px' : isWindows ? '140px' : isLinux ? '120px' : '15px')};
   -webkit-app-region: drag;
-  transition: margin-left 0.3s;
 `
 
 export const NavbarIcon = styled.div`

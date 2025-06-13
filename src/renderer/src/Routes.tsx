@@ -95,7 +95,7 @@ const PageContainer = styled(motion.div)`
 
 const pageTransition = {
   type: 'tween',
-  duration: 0.2,
+  duration: 0.25,
   ease: [0.4, 0.0, 0.2, 1]
 }
 

@@ -202,7 +202,6 @@
       "message.quote": "引用",
       "message.regenerate.model": "切換模型",
       "message.useful": "有用",
-      "message.settings": "設定",
       "multiple.select": "多選",
       "multiple.select.empty": "未選中任何訊息",
       "navigation": {
@@ -217,7 +216,7 @@
       },
       "resend": "重新傳送",
       "save": "儲存",
-      "settings.code.title": "程式碼設定",
+      "settings.code.title": "程式碼區塊",
       "settings.code_editor": {
         "title": "程式碼編輯器",
         "highlight_active_line": "高亮當前行",
@@ -425,7 +424,8 @@
         "pinyin.desc": "按拼音降序"
       },
       "no_results": "沒有結果",
-      "apps": "應用"
+      "apps": "應用",
+      "settings": "設定"
     },
     "docs": {
       "title": "說明文件"
@@ -1063,6 +1063,7 @@
       "about.updateNotAvailable": "您正在使用最新版本",
       "about.website.button": "網站",
       "about.website.title": "官方網站",
+      "advanced.auto_switch_to_topics": "自動切換到話題",
       "advanced.title": "進階設定",
       "assistant": "預設助手",
       "assistant.model_params": "模型參數",
@@ -1276,6 +1277,7 @@
         "message_title.use_topic_naming.title": "使用話題命名模型為導出的消息創建標題",
         "message_title.use_topic_naming.help": "此設定會影響所有通過Markdown導出的方式，如Notion、語雀等"
       },
+      "display.assistant.title": "助手設定",
       "display.custom.css": "自訂 CSS",
       "display.custom.css.cherrycss": "從 cherrycss.com 取得",
       "display.custom.css.placeholder": "/* 這裡寫自訂 CSS */",
@@ -1515,7 +1517,9 @@
         "advancedSettings": "高級設定"
       },
       "messages.prompt": "提示詞顯示",
+      "messages.tokens": "Token用量顯示",
       "messages.divider": "訊息間顯示分隔線",
+      "messages.divider.tooltip": "不適用於氣泡樣式消息",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
       "messages.grid_popover_trigger.click": "點選顯示",
@@ -1722,6 +1726,9 @@
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
       "title": "設定",
+      "topic.position": "話題位置",
+      "topic.position.left": "左側",
+      "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
       "topic.pin_to_top": "固定話題置頂",
       "tray.onclose": "關閉時最小化到系统匣",

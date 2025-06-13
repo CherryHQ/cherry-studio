@@ -2,7 +2,6 @@ import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants } from '@renderer/hooks/useAssistant'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChat } from '@renderer/hooks/useChat'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -10,12 +9,11 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants } from '@renderer/hooks/useStore'
 import i18n from '@renderer/i18n'
-import AssistantItem from '@renderer/pages/home/Tabs/components/AssistantItem'
+import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { ThemeMode } from '@renderer/types'
+import { Assistant, ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { Avatar, Dropdown } from 'antd'
-import { AnimatePresence, motion } from 'framer-motion'
 import {
   Blocks,
   ChevronDown,
@@ -39,7 +37,9 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
-import Tabs from '../../../pages/home/Tabs'
+import AssistantsTab from '../Tabs/AssistantsTab'
+import AssistantItem from '../Tabs/components/AssistantItem'
+import TopicsTab from '../Tabs/TopicsTab'
 import MainNavbar from './MainNavbar'
 import {
   Container,
@@ -57,7 +57,6 @@ import PinnedApps from './PinnedApps'
 type Tab = 'assistants' | 'topic'
 
 const MainSidebar: FC = () => {
-  const { assistants } = useAssistants()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('assistants')
   const avatar = useAvatar()
@@ -70,8 +69,8 @@ const MainSidebar: FC = () => {
   const location = useLocation()
   const { pathname } = location
 
-  const { activeAssistant, activeTopic, setActiveAssistant, setActiveTopic } = useChat()
-  const { showTopics } = useSettings()
+  const { activeAssistant, activeTopic, setActiveAssistant } = useChat()
+  const { showTopics, clickAssistantToShowTopic } = useSettings()
 
   const { openMinapp } = useMinappPopup()
 
@@ -80,19 +79,35 @@ const MainSidebar: FC = () => {
 
   useEffect(() => {
     const unsubscribe = [
-      EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, () => setTab('topic')),
+      EventEmitter.on(EVENT_NAMES.SHOW_TOPIC_SIDEBAR, (assistant: Assistant) => {
+        if (clickAssistantToShowTopic) {
+          setTab('topic')
+        } else {
+          if (activeAssistant.id === assistant.id) {
+            setTab('topic')
+          }
+        }
+      }),
       EventEmitter.on(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR, () => {
         setTab(tab === 'topic' ? 'assistants' : 'topic')
         !showAssistants && toggleShowAssistants()
       })
     ]
     return () => unsubscribe.forEach((unsubscribe) => unsubscribe())
-  }, [isAppMenuExpanded, showAssistants, tab, toggleShowAssistants])
+  }, [
+    activeAssistant.id,
+    activeTopic.assistantId,
+    clickAssistantToShowTopic,
+    isAppMenuExpanded,
+    showAssistants,
+    tab,
+    toggleShowAssistants
+  ])
 
   useEffect(() => {
     const unsubscribes = [
       EventEmitter.on(EVENT_NAMES.SWITCH_ASSISTANT, (assistantId: string) => {
-        const newAssistant = assistants.find((a) => a.id === assistantId)
+        const newAssistant = getAssistantById(assistantId)
         if (newAssistant) {
           setActiveAssistant(newAssistant)
         }
@@ -104,7 +119,7 @@ const MainSidebar: FC = () => {
     ]
 
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe())
-  }, [assistants, setActiveAssistant, tab])
+  }, [setActiveAssistant, tab])
 
   useEffect(() => {
     const canMinimize = !showAssistants && !showTopics
@@ -146,6 +161,10 @@ const MainSidebar: FC = () => {
     })
   }
 
+  if (!showAssistants) {
+    return null
+  }
+
   return (
     <Container
       id="main-sidebar"
@@ -171,30 +190,21 @@ const MainSidebar: FC = () => {
             )}
           </MainMenuItemRight>
         </MainMenuItem>
-        <AnimatePresence initial={false}>
-          {isAppMenuExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}>
-              <SubMenu>
-                {appMenuItems.map((item) => (
-                  <MainMenuItem key={item.path} active={isRoutes(item.path)} onClick={() => navigate(item.path)}>
-                    <MainMenuItemLeft>
-                      <MainMenuItemIcon>{item.icon}</MainMenuItemIcon>
-                      <MainMenuItemText>{item.text}</MainMenuItemText>
-                    </MainMenuItemLeft>
-                  </MainMenuItem>
-                ))}
-                <PinnedApps />
-              </SubMenu>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isAppMenuExpanded && (
+          <SubMenu>
+            {appMenuItems.map((item) => (
+              <MainMenuItem key={item.path} active={isRoutes(item.path)} onClick={() => navigate(item.path)}>
+                <MainMenuItemLeft>
+                  <MainMenuItemIcon>{item.icon}</MainMenuItemIcon>
+                  <MainMenuItemText>{item.text}</MainMenuItemText>
+                </MainMenuItemLeft>
+              </MainMenuItem>
+            ))}
+            <PinnedApps />
+          </SubMenu>
+        )}
         <OpenedMinappTabs />
       </MainMenu>
-
       {tab === 'topic' && (
         <AssistantContainer onClick={() => setIsAppMenuExpanded(false)}>
           <AssistantItem
@@ -204,7 +214,6 @@ const MainSidebar: FC = () => {
             sortBy="list"
             onSwitch={() => {}}
             onDelete={() => {}}
-            addAgent={() => {}}
             addAssistant={() => {}}
             onCreateDefaultAssistant={() => {}}
             handleSortByChange={() => {}}
@@ -212,14 +221,10 @@ const MainSidebar: FC = () => {
           />
         </AssistantContainer>
       )}
-
-      <Tabs
-        tab={tab}
-        activeAssistant={activeAssistant}
-        activeTopic={activeTopic}
-        setActiveAssistant={setActiveAssistant}
-        setActiveTopic={setActiveTopic}
-      />
+      <MainContainer>
+        {tab === 'assistants' && <AssistantsTab />}
+        {tab === 'topic' && <TopicsTab style={{ paddingTop: 4 }} />}
+      </MainContainer>
       <UserMenu>
         <UserMenuLeft onClick={() => UserPopup.show()}>
           {isEmoji(avatar) ? (
@@ -231,7 +236,6 @@ const MainSidebar: FC = () => {
           )}
           {userName && <UserMenuText>{userName}</UserMenuText>}
         </UserMenuLeft>
-
         <Dropdown
           placement="topRight"
           trigger={['click']}
@@ -285,9 +289,20 @@ const ThemeIcon = () => {
   )
 }
 
+const MainContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  height: 0;
+  min-height: 0;
+`
+
 const AssistantContainer = styled.div`
   margin: 0 10px;
   margin-top: 4px;
+  margin-bottom: 4px;
+  display: flex;
 `
 
 const UserMenu = styled.div`

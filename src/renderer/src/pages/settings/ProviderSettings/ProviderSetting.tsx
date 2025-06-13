@@ -7,7 +7,7 @@ import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n'
-import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
+import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
@@ -231,22 +231,32 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     } else {
       setApiChecking(true)
 
-      const { valid, error } = await checkApi({ ...provider, apiKey, apiHost }, model)
+      try {
+        await checkApi({ ...provider, apiKey, apiHost }, model)
 
-      const errorMessage = error && error?.message ? ' ' + error?.message : ''
+        window.message.success({
+          key: 'api-check',
+          style: { marginTop: '3vh' },
+          duration: 2,
+          content: i18n.t('message.api.connection.success')
+        })
 
-      window.message[valid ? 'success' : 'error']({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: valid ? 2 : 8,
-        content: valid
-          ? i18n.t('message.api.connection.success')
-          : i18n.t('message.api.connection.failed') + errorMessage
-      })
+        setApiValid(true)
+        setTimeout(() => setApiValid(false), 3000)
+      } catch (error: any) {
+        const errorMessage = error?.message ? ' ' + error.message : ''
 
-      setApiValid(valid)
-      setApiChecking(false)
-      setTimeout(() => setApiValid(false), 3000)
+        window.message.error({
+          key: 'api-check',
+          style: { marginTop: '3vh' },
+          duration: 8,
+          content: i18n.t('message.api.connection.failed') + errorMessage
+        })
+
+        setApiValid(false)
+      } finally {
+        setApiChecking(false)
+      }
     }
   }
 

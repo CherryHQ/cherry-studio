@@ -14,8 +14,8 @@ export function getDefaultAssistant(): Assistant {
     prompt: '',
     topics: [],
     messages: [],
-    type: 'assistant',
-    regularPhrases: [] // Added regularPhrases
+    regularPhrases: [],
+    isTemplate: false
   }
 }
 
@@ -126,8 +126,8 @@ export async function createAssistantFromAgent(agent: Agent) {
     name: agent.name,
     emoji: agent.emoji,
     model: agent.defaultModel,
-    type: 'assistant',
-    regularPhrases: agent.regularPhrases || [] // Ensured regularPhrases
+    isTemplate: false,
+    regularPhrases: agent.regularPhrases || []
   }
 
   store.dispatch(addAssistant(assistant))
@@ -139,4 +139,18 @@ export async function createAssistantFromAgent(agent: Agent) {
   })
 
   return assistant
+}
+
+export function createTemplate(templateData: Partial<Assistant>): Assistant {
+  return {
+    id: uuid(),
+    name: templateData.name || 'New Template',
+    prompt: templateData.prompt || '',
+    topics: [],
+    messages: [],
+    type: 'assistant',
+    isTemplate: true,
+    regularPhrases: [],
+    ...templateData
+  }
 }

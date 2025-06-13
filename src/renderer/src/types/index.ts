@@ -1,5 +1,5 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
@@ -12,7 +12,8 @@ export type Assistant = {
   knowledge_bases?: KnowledgeBase[]
   /** @deprecated 话题现在通过独立的 topics slice 管理，请使用 selectTopicsForAssistant selector */
   topics: Topic[]
-  type: string
+  /** @deprecated 助手类型已废弃，请使用 isTemplate 字段 */
+  type?: string
   emoji?: string
   description?: string
   model?: Model
@@ -27,6 +28,8 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  isTemplate?: boolean
+  group?: string[]
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -66,9 +69,8 @@ export type AssistantSettings = {
   toolUseMode?: 'function' | 'prompt'
 }
 
-export type Agent = Omit<Assistant, 'model'> & {
-  group?: string[]
-}
+// 为了兼容性，保留Agent类型别名
+export type Agent = Assistant
 
 /**
  * @deprecated 旧版消息类型，已废弃
@@ -448,10 +450,11 @@ export type GenerateImageParams = {
   imageSize: string
   batchSize: number
   seed?: string
-  numInferenceSteps: number
-  guidanceScale: number
+  numInferenceSteps?: number
+  guidanceScale?: number
   signal?: AbortSignal
   promptEnhancement?: boolean
+  personGeneration?: PersonGeneration
 }
 
 export type GenerateImageResponse = {
@@ -524,7 +527,7 @@ export enum WebSearchSource {
 }
 
 export type WebSearchResponse = {
-  results: WebSearchResults
+  results?: WebSearchResults
   source: WebSearchSource
 }
 

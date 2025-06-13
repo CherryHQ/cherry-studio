@@ -1,6 +1,5 @@
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { useAgent } from '@renderer/hooks/useAgents'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { Assistant } from '@renderer/types'
@@ -31,13 +30,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   const { t } = useTranslation()
   const [menu, setMenu] = useState<AssistantSettingPopupTab>(tab || 'prompt')
 
-  const _useAssistant = useAssistant(props.assistant.id)
-  const _useAgent = useAgent(props.assistant.id)
-  const isAgent = props.assistant.type === 'agent'
-
-  const assistant = isAgent ? _useAgent.agent : _useAssistant.assistant
-  const updateAssistant = isAgent ? _useAgent.updateAgent : _useAssistant.updateAssistant
-  const updateAssistantSettings = isAgent ? _useAgent.updateAgentSettings : _useAssistant.updateAssistantSettings
+  const { updateAssistant, updateAssistantSettings } = useAssistant(props.assistant.id)
 
   const showKnowledgeIcon = useSidebarIconShow('knowledge')
 
@@ -50,7 +43,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
   }
 
   const afterClose = () => {
-    resolve(assistant)
+    resolve(props.assistant)
   }
 
   const items = [
@@ -84,7 +77,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       onCancel={onCancel}
       afterClose={afterClose}
       footer={null}
-      title={assistant.name}
+      title={props.assistant.name}
       transitionName="animation-move-down"
       styles={{
         content: {
@@ -112,34 +105,34 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
         <Settings>
           {menu === 'prompt' && (
             <AssistantPromptSettings
-              assistant={assistant}
+              assistant={props.assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
           {menu === 'model' && (
             <AssistantModelSettings
-              assistant={assistant}
+              assistant={props.assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
           {menu === 'knowledge_base' && showKnowledgeIcon && (
             <AssistantKnowledgeBaseSettings
-              assistant={assistant}
+              assistant={props.assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
           {menu === 'mcp' && (
             <AssistantMCPSettings
-              assistant={assistant}
+              assistant={props.assistant}
               updateAssistant={updateAssistant}
               updateAssistantSettings={updateAssistantSettings}
             />
           )}
           {menu === 'regular_phrases' && (
-            <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
+            <AssistantRegularPromptsSettings assistant={props.assistant} updateAssistant={updateAssistant} />
           )}
         </Settings>
       </HStack>

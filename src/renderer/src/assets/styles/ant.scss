@@ -202,19 +202,14 @@
   overflow-y: auto;
   overflow-x: hidden;
   border: 0.5px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 .ant-dropdown {
   .ant-dropdown-menu {
     max-height: 50vh;
     overflow-y: auto;
     border: 0.5px solid var(--color-border);
-    border-radius: 12px;
-
-    .ant-dropdown-menu-item,
-    .ant-dropdown-menu-submenu-title {
-      padding: 5px;
-    }
+    border-radius: 10px;
   }
   .ant-dropdown-arrow + .ant-dropdown-menu {
     border: none;
@@ -224,7 +219,7 @@
 .ant-popover {
   .ant-popover-inner {
     border: 0.5px solid var(--color-border);
-    border-radius: 12px;
+    border-radius: 10px;
     .ant-popover-inner-content {
       max-height: 70vh;
       overflow-y: auto;
@@ -242,12 +237,12 @@
     padding: 16px 0 0 0;
   }
   .ant-modal-content {
-    border-radius: 12px;
+    border-radius: 10px;
     border: 0.5px solid var(--color-border);
     padding: 0 0 8px 0;
     .ant-modal-header {
       padding: 16px 16px 0 16px;
-      border-radius: 12px;
+      border-radius: 10px;
     }
     .ant-modal-body {
       max-height: 80vh;

@@ -202,7 +202,6 @@
       "message.quote": "Quote",
       "message.regenerate.model": "Switch Model",
       "message.useful": "Helpful",
-      "message.settings": "Settings",
       "multiple.select": "Multiple Select",
       "multiple.select.empty": "No Messages Selected",
       "navigation": {
@@ -217,7 +216,7 @@
       },
       "resend": "Resend",
       "save": "Save",
-      "settings.code.title": "Code Settings",
+      "settings.code.title": "Code Block Settings",
       "settings.code_editor": {
         "title": "Code Editor",
         "highlight_active_line": "Highlight active line",
@@ -425,7 +424,8 @@
         "pinyin.desc": "Sort by Pinyin (Z-A)"
       },
       "no_results": "No results",
-      "apps": "Apps"
+      "apps": "Apps",
+      "settings": "Settings"
     },
     "docs": {
       "title": "Docs"
@@ -1063,6 +1063,7 @@
       "about.updateNotAvailable": "You are using the latest version",
       "about.website.button": "Website",
       "about.website.title": "Official Website",
+      "advanced.auto_switch_to_topics": "Auto switch to topic",
       "advanced.title": "Advanced Settings",
       "assistant": "Default Assistant",
       "assistant.model_params": "Model Parameters",
@@ -1276,6 +1277,7 @@
         "message_title.use_topic_naming.title": "Use topic naming model to create titles for exported messages",
         "message_title.use_topic_naming.help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods."
       },
+      "display.assistant.title": "Assistant Settings",
       "display.custom.css": "Custom CSS",
       "display.custom.css.cherrycss": "Get from cherrycss.com",
       "display.custom.css.placeholder": "/* Put custom CSS here */",
@@ -1518,7 +1520,9 @@
         "advancedSettings": "Advanced Settings"
       },
       "messages.prompt": "Show prompt",
+      "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",
+      "messages.divider.tooltip": "Not applicable to bubble-style message",
       "messages.grid_columns": "Message grid display columns",
       "messages.grid_popover_trigger": "Grid detail trigger",
       "messages.grid_popover_trigger.click": "Click to display",
@@ -1731,6 +1735,9 @@
       "theme.window.style.title": "Window Style",
       "theme.window.style.transparent": "Transparent Window",
       "title": "Settings",
+      "topic.position": "Topic position",
+      "topic.position.left": "Left",
+      "topic.position.right": "Right",
       "topic.show.time": "Show topic time",
       "topic.pin_to_top": "Pin Topics to Top",
       "tray.onclose": "Minimize to Tray on Close",

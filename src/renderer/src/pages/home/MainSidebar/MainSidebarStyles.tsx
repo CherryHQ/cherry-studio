@@ -48,11 +48,11 @@ export const MainMenuItemText = styled.div`
 export const Container = styled.div`
   display: flex;
   flex-direction: column;
+  flex: 1;
   width: var(--assistants-width);
   max-width: var(--assistants-width);
   border-right: 0.5px solid var(--color-border);
   height: 100vh;
-  transition: all 0.3s;
 `
 
 export const MainMenu = styled.div`

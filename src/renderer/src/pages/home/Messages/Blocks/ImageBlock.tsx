@@ -1,6 +1,6 @@
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import ImageViewer from '@renderer/components/ImageViewer'
-import type { ImageMessageBlock } from '@renderer/types/newMessage'
+import { type ImageMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 import styled from 'styled-components'
 
