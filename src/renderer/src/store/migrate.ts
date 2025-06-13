@@ -1421,6 +1421,7 @@ const migrateConfig = {
       }
       // Quick assistant model
       state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
+      state.llm.useAssistantForQuickAssistant = false
       return state
     } catch (error) {
       return state

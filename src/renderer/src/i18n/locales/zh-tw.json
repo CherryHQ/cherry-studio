@@ -157,6 +157,7 @@
       "default.description": "你好，我是預設助手。你可以立即開始與我聊天",
       "default.name": "預設助手",
       "default.topic.name": "預設話題",
+      "default.quickAssistant.topic.name": "來自快捷助手的話題",
       "history": {
         "assistant_node": "助手",
         "click_to_navigate": "點擊跳轉到對應訊息",
@@ -751,7 +752,8 @@
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
         "esc_close": "關閉視窗",
-        "backspace_clear": "按 Backspace 清空"
+        "backspace_clear": "按 Backspace 清空",
+        "return_to_main": "返回主視窗繼續話題"
       },
       "input": {
         "placeholder": {

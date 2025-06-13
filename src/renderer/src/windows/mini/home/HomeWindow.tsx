@@ -12,13 +12,13 @@ import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, ThemeMode } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
+import log from 'electron-log'
 import { isEmpty } from 'lodash'
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -42,9 +42,8 @@ const HomeWindow: FC = () => {
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
-  const topic = defaultAssistant.topics[0]
   const { defaultModel, quickAssistantModel } = useDefaultModel()
-  const model = currentAssistant.model || defaultModel
+  const model = currentAssistant?.model || defaultModel
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -55,6 +54,7 @@ const HomeWindow: FC = () => {
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const { useAssistantForQuickAssistant, quickAssistantRefersToAssistantId } = useAppSelector((state) => state.llm)
+  const currentTopicMessages = useAppSelector((state) => state.messages)
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -174,7 +174,7 @@ const HomeWindow: FC = () => {
     } else {
       setCurrentAssistant(defaultCurrentAssistant)
     }
-  }, [useAssistantForQuickAssistant, quickAssistantRefersToAssistantId, defaultAssistant, quickAssistantModel])
+  }, [useAssistantForQuickAssistant, quickAssistantRefersToAssistantId, defaultAssistant, currentAssistant.model])
 
   const onSendMessage = useCallback(
     async (prompt?: string) => {
@@ -242,8 +242,63 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, currentAssistant, topic]
+    [content, currentAssistant]
   )
+
+  const onReturnToMain = useCallback(async () => {
+    log.info('[HomeWindow] onReturnToMain is now being called')
+    log.info(`[HomeWindow] useAssistantForQuickAssistant: ${useAssistantForQuickAssistant}`)
+
+    const topicFromHook = currentAssistant.topics[0]
+
+    log.info('[HomeWindow] assistant to be sent to main window:', currentAssistant)
+    log.info('[HomeWindow] currentTopic to be sent to main window:', topicFromHook)
+
+    // 從 store 中獲取當前 topic 的訊息 ID 列表，並取得訊息內容
+    const messageIds = currentTopicMessages.messageIdsByTopic[topicFromHook.id] || []
+    let messagesFromStore = messageIds.map((id) => currentTopicMessages.entities[id]).filter(Boolean)
+
+    // 從 store 中獲取所有 messageBlocks 的實體
+    const allMessageBlocks = store.getState().messageBlocks.entities
+
+    // 為每條 message 填充其完整的 messageBlocks
+    messagesFromStore = messagesFromStore.map((msg) => {
+      if (msg && msg.blocks && Array.isArray(msg.blocks)) {
+        const populatedBlocks = msg.blocks
+          .map((blockId) => allMessageBlocks[blockId])
+          .filter((block): block is MessageBlock => !!block) // 確保 block 存在且類型正確
+        return {
+          ...msg,
+          messageBlocks: populatedBlocks // 附加完整的 MessageBlock 實體
+        }
+      }
+      return msg
+    })
+
+    log.info(
+      `[HomeWindow] Found ${messagesFromStore.length} messages for topic ${topicFromHook.id}, and populated their messageBlocks`
+    )
+
+    // 建立包含完整訊息和 MessageBlock 的 topic 物件
+    const topicToSend = {
+      ...topicFromHook,
+      messages: messagesFromStore
+    }
+
+    log.info('[HomeWindow] topicToSend to be sent to main window:', topicToSend)
+
+    try {
+      await window.api.window.setTopic(currentAssistant.id, topicToSend)
+      log.info('[HomeWindow] setTopic IPC call successful')
+    } catch (error) {
+      log.error('[HomeWindow] Error calling setTopic IPC:', error)
+    }
+  }, [
+    useAssistantForQuickAssistant,
+    currentAssistant,
+    currentTopicMessages.messageIdsByTopic,
+    currentTopicMessages.entities
+  ])
 
   const clearClipboard = () => {
     setClipboardText('')
@@ -267,7 +322,7 @@ const HomeWindow: FC = () => {
     return () => {
       window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
     }
-  }, [onWindowShow, onSendMessage, setRoute])
+  }, [onWindowShow, readClipboard])
 
   // 当路由为home时，初始化isFirstMessage为true
   useEffect(() => {
@@ -314,7 +369,7 @@ const HomeWindow: FC = () => {
         )}
         <ChatWindow route={route} assistant={currentAssistant ?? defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
-        <Footer route={route} onExit={() => setRoute('home')} />
+        <Footer route={route} onExit={() => setRoute('home')} onReturnToMain={onReturnToMain} />
       </Container>
     )
   }
@@ -324,7 +379,7 @@ const HomeWindow: FC = () => {
       <Container style={{ backgroundColor: backgroundColor() }}>
         <TranslateWindow text={referenceText} />
         <Divider style={{ margin: '10px 0' }} />
-        <Footer route={route} onExit={() => setRoute('home')} />
+        <Footer route={route} onExit={() => setRoute('home')} onReturnToMain={onReturnToMain} />
       </Container>
     )
   }
@@ -361,6 +416,7 @@ const HomeWindow: FC = () => {
           setText('')
           onCloseWindow()
         }}
+        onReturnToMain={onReturnToMain}
       />
     </Container>
   )

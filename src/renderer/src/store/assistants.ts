@@ -78,6 +78,19 @@ const assistantsSlice = createSlice({
           : assistant
       )
     },
+    upsertTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
+      const { assistantId, topic } = action.payload
+      const assistant = state.assistants.find((a) => a.id === assistantId)
+      if (assistant) {
+        const existingTopic = assistant.topics.find((t) => t.id === topic.id)
+        if (existingTopic) {
+          existingTopic.messages = topic.messages
+          existingTopic.updatedAt = new Date().toISOString()
+        } else {
+          assistant.topics.push(topic)
+        }
+      }
+    },
     removeTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
       state.assistants = state.assistants.map((assistant) =>
         assistant.id === action.payload.assistantId
@@ -96,9 +109,16 @@ const assistantsSlice = createSlice({
           ? {
               ...assistant,
               topics: assistant.topics.map((topic) => {
-                const _topic = topic.id === newTopic.id ? newTopic : topic
-                _topic.messages = []
-                return _topic
+                // const _topic = topic.id === newTopic.id ? newTopic : topic
+                // _topic.messages = []
+                // return _topic
+
+                // 更新話題時，如果傳入的話題數據中包含 messages ，這些 messages 會被保留，而不是被清空。
+                if (topic.id === newTopic.id) {
+                  // Preserve messages if newTopic has them, otherwise keep existing or set to empty array
+                  return { ...newTopic, messages: newTopic.messages || topic.messages || [] }
+                }
+                return topic
               })
             }
           : assistant
@@ -151,6 +171,7 @@ export const {
   removeAssistant,
   updateAssistant,
   addTopic,
+  upsertTopic,
   removeTopic,
   updateTopic,
   updateTopics,

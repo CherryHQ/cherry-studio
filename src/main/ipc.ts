@@ -6,7 +6,7 @@ import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/pro
 import { handleZoomFactor } from '@main/utils/zoom'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Shortcut, ThemeMode } from '@types'
+import { Shortcut, ThemeMode, Topic } from '@types'
 import { BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
@@ -271,6 +271,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     if (width < 1080) {
       mainWindow?.setSize(1080, height)
     }
+  })
+
+  ipcMain.handle(IpcChannel.QuickAssist_Finalize_Topic, (_, assistantId: string, topic: Topic) => {
+    windowService.miniWindowToMainWindow(assistantId, topic)
   })
 
   // mini window

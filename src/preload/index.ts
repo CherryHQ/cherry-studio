@@ -2,7 +2,16 @@ import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, ThemeMode, WebDavConfig } from '@types'
+import {
+  FileType,
+  KnowledgeBaseParams,
+  KnowledgeItem,
+  MCPServer,
+  Shortcut,
+  ThemeMode,
+  Topic,
+  WebDavConfig
+} from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
@@ -118,7 +127,18 @@ const api = {
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize),
+    setTopic: (assistantId: string, topic: Topic) =>
+      ipcRenderer.invoke(IpcChannel.QuickAssist_Finalize_Topic, assistantId, topic),
+    onReceiveQuickAssistTopic: (callback: (assistantId: string, topic: Topic) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, assistantId: string, topic: Topic) => {
+        callback(assistantId, topic)
+      }
+      ipcRenderer.on(IpcChannel.MainWindow_Receive_QuickAssist_Topic, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.MainWindow_Receive_QuickAssist_Topic, listener)
+      }
+    }
   },
   gemini: {
     uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>
