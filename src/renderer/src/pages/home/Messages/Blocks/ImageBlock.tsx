@@ -10,7 +10,11 @@ interface Props {
 
 const ImageBlock: React.FC<Props> = ({ block }) => {
   if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.PROCESSING)
-    return <SvgSpinners180Ring />
+    return (
+      <SpinnerWrapper>
+        <SvgSpinners180Ring />
+      </SpinnerWrapper>
+    )
   if (block.status === MessageBlockStatus.SUCCESS) {
     const images = block.metadata?.generateImageResponse?.images?.length
       ? block.metadata?.generateImageResponse?.images
@@ -37,6 +41,12 @@ const Container = styled.div`
   flex-direction: row;
   gap: 10px;
   margin-top: 8px;
+`
+
+const SpinnerWrapper = styled.div`
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
 `
 
 export default React.memo(ImageBlock)
