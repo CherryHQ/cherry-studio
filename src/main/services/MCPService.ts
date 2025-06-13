@@ -27,6 +27,7 @@ import { app } from 'electron'
 import Logger from 'electron-log'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
+import { z } from 'zod'
 
 import { CacheService } from './CacheService'
 import { createAuthProvider, isJwtProvider, isOAuthProvider } from './mcp/auth/factory'
@@ -99,10 +100,12 @@ class McpService {
 
   async initClient(server: MCPServer): Promise<Client> {
     const serverKey = this.getServerKey(server)
+    Logger.info(`[MCP] Initializing client for server: ${server.name} (${server.type})`)
 
     // If there's a pending initialization, wait for it
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
+      Logger.info(`[MCP] Using pending client initialization for ${server.name}`)
       return pendingClient
     }
 
@@ -110,14 +113,17 @@ class McpService {
     const existingClient = this.clients.get(serverKey)
     if (existingClient) {
       try {
+        Logger.info(`[MCP] Testing existing client connection for ${server.name}`)
         // Check if the existing client is still connected
         const pingResult = await existingClient.ping()
         Logger.info(`[MCP] Ping result for ${server.name}:`, pingResult)
         // If the ping fails, remove the client from the cache
         // and create a new one
         if (!pingResult) {
+          Logger.warn(`[MCP] Ping failed, removing cached client for ${server.name}`)
           this.clients.delete(serverKey)
         } else {
+          Logger.info(`[MCP] Reusing existing client for ${server.name}`)
           return existingClient
         }
       } catch (error: any) {
@@ -158,13 +164,17 @@ class McpService {
             return clientTransport
           } else if (server.baseUrl) {
             if (server.type === 'streamableHttp') {
+              Logger.info(`[MCP] Creating StreamableHTTP transport for ${server.name} with URL: ${server.baseUrl}`)
               const options: StreamableHTTPClientTransportOptions = {
                 requestInit: {
                   headers: server.headers || {}
                 },
                 ...(isOAuthProvider(authProvider) && { authProvider })
               }
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              Logger.info(`[MCP] StreamableHTTP options:`, JSON.stringify(options, null, 2))
+              const transport = new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              Logger.info(`[MCP] StreamableHTTP transport created successfully for ${server.name}`)
+              return transport
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -275,45 +285,45 @@ class McpService {
             // Create an event emitter for the OAuth callback
             const events = new EventEmitter()
 
-          // Create a callback server (only for OAuth providers)
-          const oauthProvider = authProvider
-          const callbackServer = new CallBackServer({
-            port: oauthProvider.config.callbackPort,
-            path: oauthProvider.config.callbackPath || '/oauth/callback',
-            events
-          })
+            // Create a callback server (only for OAuth providers)
+            const oauthProvider = authProvider
+            const callbackServer = new CallBackServer({
+              port: oauthProvider.config.callbackPort,
+              path: oauthProvider.config.callbackPath || '/oauth/callback',
+              events
+            })
 
-          // Set a timeout to close the callback server
-          const timeoutId = setTimeout(() => {
-            Logger.warn(`[MCP] OAuth flow timed out for server: ${server.name}`)
-            callbackServer.close()
-          }, 300000) // 5 minutes timeout
+            // Set a timeout to close the callback server
+            const timeoutId = setTimeout(() => {
+              Logger.warn(`[MCP] OAuth flow timed out for server: ${server.name}`)
+              callbackServer.close()
+            }, 300000) // 5 minutes timeout
 
-          try {
-            // Wait for the authorization code
-            const authCode = await callbackServer.waitForAuthCode()
-            Logger.info(`[MCP] Received auth code: ${authCode}`)
+            try {
+              // Wait for the authorization code
+              const authCode = await callbackServer.waitForAuthCode()
+              Logger.info(`[MCP] Received auth code: ${authCode}`)
 
-            // Complete the OAuth flow
-            await transport.finishAuth(authCode)
+              // Complete the OAuth flow
+              await transport.finishAuth(authCode)
 
-            Logger.info(`[MCP] OAuth flow completed for server: ${server.name}`)
+              Logger.info(`[MCP] OAuth flow completed for server: ${server.name}`)
 
-            const newTransport = await initTransport()
-            // Try to connect again
-            await client.connect(newTransport)
+              const newTransport = await initTransport()
+              // Try to connect again
+              await client.connect(newTransport)
 
-            Logger.info(`[MCP] Successfully authenticated with server: ${server.name}`)
-          } catch (oauthError) {
-            Logger.error(`[MCP] OAuth authentication failed for server ${server.name}:`, oauthError)
-            throw new Error(
-              `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
-            )
-          } finally {
-            // Clear the timeout and close the callback server
-            clearTimeout(timeoutId)
-            callbackServer.close()
-          }
+              Logger.info(`[MCP] Successfully authenticated with server: ${server.name}`)
+            } catch (oauthError) {
+              Logger.error(`[MCP] OAuth authentication failed for server ${server.name}:`, oauthError)
+              throw new Error(
+                `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
+              )
+            } finally {
+              // Clear the timeout and close the callback server
+              clearTimeout(timeoutId)
+              callbackServer.close()
+            }
           } else {
             Logger.warn(`[MCP] Unknown auth provider type for server: ${server.name}`)
             throw new Error('Unsupported authentication provider type')
@@ -322,8 +332,11 @@ class McpService {
 
         try {
           const transport = await initTransport()
+          Logger.info(`[MCP] Transport initialized for ${server.name}, attempting connection...`)
+
           try {
             await client.connect(transport)
+            Logger.info(`[MCP] Successfully connected to server: ${server.name}`)
           } catch (error: Error | any) {
             if (
               error instanceof Error &&
@@ -332,6 +345,7 @@ class McpService {
               Logger.info(`[MCP] Authentication required for server: ${server.name}`)
               await handleAuth(client, transport as SSEClientTransport | StreamableHTTPClientTransport)
             } else {
+              Logger.error(`[MCP] Connection failed for server: ${server.name}`, error)
               throw error
             }
           }
@@ -459,14 +473,18 @@ class McpService {
   }
 
   /**
-   * Call a tool on an MCP server
+   * Call a tool on an MCP server with progress-aware timeout
    */
   public async callTool(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
   ): Promise<MCPCallToolResponse> {
+    const startTime = Date.now()
     try {
-      Logger.info('[MCP] Calling:', server.name, name, args)
+      Logger.info(`[MCP] Calling tool: ${name} on server: ${server.name}`)
+      Logger.info(`[MCP] Tool args:`, typeof args === 'object' ? JSON.stringify(args, null, 2) : args)
+      Logger.info(`[MCP] Server timeout setting: ${server.timeout ? server.timeout * 1000 : 60000}ms`)
+
       if (typeof args === 'string') {
         try {
           args = JSON.parse(args)
@@ -474,13 +492,93 @@ class McpService {
           Logger.error('[MCP] args parse error', args)
         }
       }
+
       const client = await this.initClient(server)
-      const result = await client.callTool({ name, arguments: args }, undefined, {
-        timeout: server.timeout ? server.timeout * 1000 : 60000 // Default timeout of 1 minute
+      Logger.info(`[MCP] Client initialized for ${server.name}, calling tool...`)
+
+      // Use dynamic timeout that resets on MCP progress updates
+      const timeoutMs = server.timeout ? server.timeout * 1000 : 60000
+      Logger.info(`[MCP] Starting tool call with dynamic ${timeoutMs}ms timeout`)
+
+      let timeoutId: NodeJS.Timeout | null = null
+      let isComplete = false
+
+      const result = await new Promise<MCPCallToolResponse>((resolve, reject) => {
+        const cleanup = () => {
+          isComplete = true
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+            timeoutId = null
+          }
+        }
+
+        const resetTimeout = () => {
+          if (isComplete) return
+
+          if (timeoutId) {
+            clearTimeout(timeoutId)
+          }
+          timeoutId = setTimeout(() => {
+            if (!isComplete) {
+              cleanup()
+              reject(
+                new Error(`Tool call ${name} on ${server.name} timed out after ${timeoutMs}ms of no communication`)
+              )
+            }
+          }, timeoutMs)
+        }
+
+        // Set initial timeout
+        resetTimeout()
+
+        // Use the MCP client's request method with progress tracking and custom timeout
+        client
+          .request(
+            {
+              method: 'tools/call',
+              params: {
+                name,
+                arguments: args
+              }
+            },
+            z.any(), // Accept any valid MCP response
+            {
+              timeout: 30 * 60 * 1000, // 30 minute safety timeout - let our custom timeout handle the real logic
+              onprogress: (progress) => {
+                // Reset timeout whenever we receive progress updates
+                if (!isComplete) {
+                  Logger.debug(`[MCP] Progress update for ${name} on ${server.name}:`, progress)
+                  resetTimeout()
+                }
+              }
+            }
+          )
+          .then((result) => {
+            if (!isComplete) {
+              cleanup()
+              resolve(result as MCPCallToolResponse)
+            }
+          })
+          .catch((error) => {
+            if (!isComplete) {
+              cleanup()
+              reject(error)
+            }
+          })
       })
-      return result as MCPCallToolResponse
+
+      const duration = Date.now() - startTime
+      Logger.info(`[MCP] Tool call completed successfully in ${duration}ms for ${name} on ${server.name}`)
+      return result
     } catch (error) {
-      Logger.error(`[MCP] Error calling tool ${name} on ${server.name}:`, error)
+      const duration = Date.now() - startTime
+      Logger.error(`[MCP] Error calling tool ${name} on ${server.name} after ${duration}ms:`, error)
+      Logger.error(`[MCP] Error details:`, {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        serverType: server.type,
+        serverUrl: server.baseUrl
+      })
       throw error
     }
   }

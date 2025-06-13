@@ -34,6 +34,12 @@ if (isWin) {
   app.commandLine.appendSwitch('wm-window-animations-disabled')
 }
 
+// Disable sandbox to resolve Linux sandbox configuration issues
+if (process.env.ELECTRON_DISABLE_SANDBOX === '1' || isDev) {
+  app.commandLine.appendSwitch('no-sandbox')
+  app.commandLine.appendSwitch('disable-gpu-sandbox')
+}
+
 // Enable features for unresponsive renderer js call stacks
 app.commandLine.appendSwitch('enable-features', 'DocumentPolicyIncludeJSCallStacksInCrashReports')
 app.on('web-contents-created', (_, webContents) => {
