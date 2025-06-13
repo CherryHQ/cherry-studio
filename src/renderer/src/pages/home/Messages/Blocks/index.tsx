@@ -167,9 +167,9 @@ const ImageBlockGroup = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
   max-width: 960px;
-  > * {
+  /* > * {
     min-width: 200px;
-  }
+  } */
   @media (min-width: 1536px) {
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     max-width: 1280px;
