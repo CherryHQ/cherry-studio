@@ -101,42 +101,20 @@ export const markdownToPlainText = (markdown: string): string => {
 }
 
 /**
- * 清理文本中的特殊字符，使其更适合 TTS 播放
+ * Convert Markdown to plain text suitable for TTS playback
+ * Uses remove-markdown library to handle all special characters and formatting
+ * @param markdown Input Markdown text
+ * @returns Clean plain text suitable for TTS
  */
-export function cleanTextForTTS(text: string): string {
-  if (!text || typeof text !== 'string') {
+export function markdownToTTSText(markdown: string): string {
+  if (!markdown) {
     return ''
   }
 
-  let cleanText = text
+  // remove-markdown library already handles all the special characters and formatting
+  // No need for additional manual cleaning
+  const plainText = removeMarkdown(markdown)
 
-  cleanText = cleanText.replace(/\*\*/g, '')
-  cleanText = cleanText.replace(/\*/g, '')
-  cleanText = cleanText.replace(/_/g, '')
-  cleanText = cleanText.replace(/~/g, '')
-  cleanText = cleanText.replace(/`/g, '')
-  cleanText = cleanText.replace(/#/g, '')
-  cleanText = cleanText.replace(/>/g, '')
-  cleanText = cleanText.replace(/\|/g, ' ')
-
-  cleanText = cleanText.replace(/&amp;/g, '和')
-  cleanText = cleanText.replace(/&lt;/g, '小于')
-  cleanText = cleanText.replace(/&gt;/g, '大于')
-  cleanText = cleanText.replace(/&nbsp;/g, ' ')
-
-  cleanText = cleanText.replace(/[()[\]{}]/g, '')
-  cleanText = cleanText.replace(/[""'']/g, '"')
-
-  cleanText = cleanText.replace(/\s+/g, ' ')
-  cleanText = cleanText.replace(/\n+/g, '\n')
-
-  return cleanText.trim()
-}
-
-/**
- * 将 Markdown 转换为适合 TTS 播放的纯文本
- */
-export function markdownToTTSText(markdown: string): string {
-  const plainText = markdownToPlainText(markdown)
-  return cleanTextForTTS(plainText)
+  // Only normalize whitespace for better TTS reading
+  return plainText.replace(/\s+/g, ' ').trim()
 }
