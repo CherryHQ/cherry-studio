@@ -521,7 +521,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-interfaces@npm:0.1.31":
+"@cherrystudio/embedjs-interfaces@npm:0.1.31, @cherrystudio/embedjs-interfaces@npm:^0.1.31":
   version: 0.1.31
   resolution: "@cherrystudio/embedjs-interfaces@npm:0.1.31"
   dependencies:
@@ -687,7 +687,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/embedjs-utils@npm:0.1.31":
+"@cherrystudio/embedjs-utils@npm:0.1.31, @cherrystudio/embedjs-utils@npm:^0.1.31":
   version: 0.1.31
   resolution: "@cherrystudio/embedjs-utils@npm:0.1.31"
   dependencies:
@@ -5732,6 +5732,7 @@ __metadata:
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@cherrystudio/embedjs": "npm:^0.1.31"
+    "@cherrystudio/embedjs-interfaces": "npm:^0.1.31"
     "@cherrystudio/embedjs-libsql": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-csv": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-image": "npm:^0.1.31"
@@ -5743,6 +5744,7 @@ __metadata:
     "@cherrystudio/embedjs-loader-xml": "npm:^0.1.31"
     "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
+    "@cherrystudio/embedjs-utils": "npm:^0.1.31"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
     "@electron-toolkit/preload": "npm:^3.0.0"

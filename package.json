@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@cherrystudio/embedjs": "^0.1.31",
+    "@cherrystudio/embedjs-interfaces": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
     "@cherrystudio/embedjs-loader-csv": "^0.1.31",
     "@cherrystudio/embedjs-loader-image": "^0.1.31",
@@ -70,6 +71,7 @@
     "@cherrystudio/embedjs-loader-xml": "^0.1.31",
     "@cherrystudio/embedjs-ollama": "^0.1.31",
     "@cherrystudio/embedjs-openai": "^0.1.31",
+    "@cherrystudio/embedjs-utils": "^0.1.31",
     "@electron-toolkit/utils": "^3.0.0",
     "@google-cloud/text-to-speech": "^6.1.0",
     "@langchain/community": "^0.3.36",
