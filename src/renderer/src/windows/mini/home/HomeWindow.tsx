@@ -18,7 +18,6 @@ import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import dayjs from 'dayjs'
-import log from 'electron-log'
 import { isEmpty } from 'lodash'
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -246,13 +245,7 @@ const HomeWindow: FC = () => {
   )
 
   const onReturnToMain = useCallback(async () => {
-    log.info('[HomeWindow] onReturnToMain is now being called')
-    log.info(`[HomeWindow] useAssistantForQuickAssistant: ${useAssistantForQuickAssistant}`)
-
     const topicFromHook = currentAssistant.topics[0]
-
-    log.info('[HomeWindow] assistant to be sent to main window:', currentAssistant)
-    log.info('[HomeWindow] currentTopic to be sent to main window:', topicFromHook)
 
     // 從 store 中獲取當前 topic 的訊息 ID 列表，並取得訊息內容
     const messageIds = currentTopicMessages.messageIdsByTopic[topicFromHook.id] || []
@@ -275,23 +268,16 @@ const HomeWindow: FC = () => {
       return msg
     })
 
-    log.info(
-      `[HomeWindow] Found ${messagesFromStore.length} messages for topic ${topicFromHook.id}, and populated their messageBlocks`
-    )
-
     // 建立包含完整訊息和 MessageBlock 的 topic 物件
     const topicToSend = {
       ...topicFromHook,
       messages: messagesFromStore
     }
 
-    log.info('[HomeWindow] topicToSend to be sent to main window:', topicToSend)
-
     try {
       await window.api.window.setTopic(currentAssistant.id, topicToSend)
-      log.info('[HomeWindow] setTopic IPC call successful')
     } catch (error) {
-      log.error('[HomeWindow] Error calling setTopic IPC:', error)
+      // console.error('[HomeWindow] Error calling setTopic IPC:', error)
     }
   }, [
     useAssistantForQuickAssistant,
