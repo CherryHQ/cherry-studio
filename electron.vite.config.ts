@@ -18,6 +18,7 @@ export default defineConfig({
       }
     },
     build: {
+      minify: true,
       rollupOptions: {
         external: ['@libsql/client', 'bufferutil', 'utf-8-validate']
       },
@@ -35,6 +36,7 @@ export default defineConfig({
       }
     },
     build: {
+      minify: true,
       sourcemap: process.env.NODE_ENV === 'development'
     }
   },
@@ -68,6 +70,7 @@ export default defineConfig({
       format: 'es'
     },
     build: {
+      minify: true,
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),
