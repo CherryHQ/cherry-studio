@@ -690,7 +690,10 @@
         "invoking": "调用中",
         "error": "发生错误",
         "raw": "原始",
-        "preview": "预览"
+        "preview": "预览",
+        "progress": {
+          "log": "进度日志"
+        }
       },
       "topic.added": "话题添加成功",
       "upgrade.success.button": "重启",

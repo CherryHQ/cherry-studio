@@ -1,5 +1,5 @@
 import type { ExternalToolResult, GenerateImageResponse, MCPToolResponse, WebSearchResponse } from '@renderer/types'
-import type { Chunk } from '@renderer/types/chunk'
+import type { Chunk, MCPToolProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { Response } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
@@ -18,6 +18,8 @@ export interface StreamProcessorCallbacks {
   // A tool call response chunk (from MCP)
   onToolCallInProgress?: (toolResponse: MCPToolResponse) => void
   onToolCallComplete?: (toolResponse: MCPToolResponse) => void
+  // MCP tool progress updates
+  onToolCallProgress?: (progressChunk: MCPToolProgressChunk) => void
   // External tool call in progress
   onExternalToolInProgress?: () => void
   // Citation data received (e.g., from Internet and  Knowledge Base)
@@ -43,6 +45,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   return (chunk: Chunk) => {
     try {
       const data = chunk
+      console.log('[STREAM_PROCESSOR] Processing chunk type:', data.type, 'Data:', data)
       switch (data.type) {
         case ChunkType.BLOCK_COMPLETE: {
           if (callbacks.onComplete) callbacks.onComplete(AssistantMessageStatus.SUCCESS, data?.response)
@@ -71,6 +74,16 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         case ChunkType.MCP_TOOL_IN_PROGRESS: {
           if (callbacks.onToolCallInProgress)
             data.responses.forEach((toolResp) => callbacks.onToolCallInProgress!(toolResp))
+          break
+        }
+        case ChunkType.MCP_TOOL_PROGRESS: {
+          console.log('[STREAM_PROCESSOR] Received MCP_TOOL_PROGRESS chunk:', data)
+          if (callbacks.onToolCallProgress) {
+            console.log('[STREAM_PROCESSOR] Calling onToolCallProgress callback')
+            callbacks.onToolCallProgress(data)
+          } else {
+            console.warn('[STREAM_PROCESSOR] No onToolCallProgress callback provided')
+          }
           break
         }
         case ChunkType.MCP_TOOL_COMPLETE: {

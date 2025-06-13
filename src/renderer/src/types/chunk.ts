@@ -14,6 +14,7 @@ export enum ChunkType {
   KNOWLEDGE_SEARCH_COMPLETE = 'knowledge_search_complete',
   MCP_TOOL_CREATED = 'mcp_tool_created',
   MCP_TOOL_IN_PROGRESS = 'mcp_tool_in_progress',
+  MCP_TOOL_PROGRESS = 'mcp_tool_progress',
   MCP_TOOL_COMPLETE = 'mcp_tool_complete',
   EXTERNEL_TOOL_COMPLETE = 'externel_tool_complete',
   LLM_RESPONSE_CREATED = 'llm_response_created',
@@ -272,6 +273,33 @@ export interface MCPToolInProgressChunk {
   responses: MCPToolResponse[]
 }
 
+export interface MCPToolProgressChunk {
+  /**
+   * The type of the chunk
+   */
+  type: ChunkType.MCP_TOOL_PROGRESS
+  /**
+   * The tool call ID this progress update belongs to
+   */
+  toolCallId: string
+  /**
+   * The progress token provided by MCP SDK
+   */
+  progressToken: string
+  /**
+   * Current progress value
+   */
+  progress: number
+  /**
+   * Total value when known (for percentage calculation)
+   */
+  total?: number
+  /**
+   * Progress message
+   */
+  message?: string
+}
+
 export interface MCPToolCompleteChunk {
   /**
    * The tool response of the chunk
@@ -355,6 +383,7 @@ export type Chunk =
   | KnowledgeSearchCompleteChunk // 知识库搜索完成
   | MCPToolCreatedChunk // MCP工具被大模型创建
   | MCPToolInProgressChunk // MCP工具调用中
+  | MCPToolProgressChunk // MCP工具进度更新
   | MCPToolCompleteChunk // MCP工具调用完成
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器
   | LLMResponseCreatedChunk // 大模型响应创建，返回即将创建的块类型

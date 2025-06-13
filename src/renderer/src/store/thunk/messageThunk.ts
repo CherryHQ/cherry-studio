@@ -543,6 +543,35 @@ const fetchAndProcessAssistantResponseImpl = async (
           )
         }
       },
+      onToolCallProgress: (progressChunk) => {
+        console.log('[MESSAGE_THUNK] onToolCallProgress called with:', progressChunk)
+        console.log('[MESSAGE_THUNK] toolCallIdToBlockIdMap:', Array.from(toolCallIdToBlockIdMap.entries()))
+        const existingBlockId = toolCallIdToBlockIdMap.get(progressChunk.toolCallId)
+        console.log('[MESSAGE_THUNK] Found block ID for tool call:', existingBlockId)
+        if (existingBlockId) {
+          // Get current block state to append progress chunk
+          const currentState = getState()
+          const currentBlock = currentState.messageBlocks.entities[existingBlockId] as ToolMessageBlock
+          console.log('[MESSAGE_THUNK] Current block:', currentBlock)
+          if (currentBlock) {
+            const currentProgressChunks = currentBlock.metadata?.progressChunks || []
+            const updatedProgressChunks = [...currentProgressChunks, progressChunk]
+            const changes: Partial<ToolMessageBlock> = {
+              metadata: {
+                ...currentBlock.metadata,
+                progressChunks: updatedProgressChunks
+              }
+            }
+            console.log('[MESSAGE_THUNK] Updating block with progress chunks:', changes)
+            dispatch(updateOneBlock({ id: existingBlockId, changes }))
+            // Note: We don't save to DB on every progress update for performance reasons
+          } else {
+            console.warn('[MESSAGE_THUNK] Block not found in state for ID:', existingBlockId)
+          }
+        } else {
+          console.warn('[MESSAGE_THUNK] No block ID found for tool call:', progressChunk.toolCallId)
+        }
+      },
       onToolCallComplete: (toolResponse: MCPToolResponse) => {
         const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
         toolCallIdToBlockIdMap.delete(toolResponse.id)

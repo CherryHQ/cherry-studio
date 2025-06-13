@@ -13,9 +13,8 @@ import {
   Model,
   ToolUseResponse
 } from '@renderer/types'
-import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
+import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
-import { SdkMessageParam } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -31,144 +30,40 @@ import { CompletionsParams } from '../aiCore/middleware/schemas'
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
 
-// const ensureValidSchema = (obj: Record<string, any>) => {
-//   // Filter out unsupported keys for Gemini
-//   const filteredObj = filterUnsupportedKeys(obj)
+// Global map to track progress handlers for tool calls
+const toolProgressHandlers = new Map<string, (chunk: MCPToolProgressChunk) => void>()
 
-//   // Handle base schema properties
-//   const baseSchema = {
-//     description: filteredObj.description,
-//     nullable: filteredObj.nullable
-//   } as BaseSchema
+// Set up global progress listener (only once)
+let progressListenerSetup = false
+const setupProgressListener = () => {
+  if (progressListenerSetup) return
+  console.log('[RENDERER] Setting up MCP progress listener')
+  progressListenerSetup = true
 
-//   // Handle string type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.STRING) {
-//     if (filteredObj.enum && Array.isArray(filteredObj.enum)) {
-//       return {
-//         ...baseSchema,
-//         type: SchemaType.STRING,
-//         format: 'enum',
-//         enum: filteredObj.enum as string[]
-//       } as EnumStringSchema
-//     }
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.STRING,
-//       format: filteredObj.format === 'date-time' ? 'date-time' : undefined
-//     } as SimpleStringSchema
-//   }
+  window.api.mcp.onToolProgress((progressData: any) => {
+    console.log('[RENDERER] Received tool progress data:', progressData)
+    const { toolCallId, ...progress } = progressData
+    console.log('[RENDERER] Tool call ID:', toolCallId, 'Progress:', progress)
+    console.log('[RENDERER] Active progress handlers:', Array.from(toolProgressHandlers.keys()))
 
-//   // Handle number type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.NUMBER,
-//       format: ['float', 'double'].includes(filteredObj.format) ? (filteredObj.format as 'float' | 'double') : undefined
-//     } as NumberSchema
-//   }
-
-//   // Handle integer type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.INTEGER,
-//       format: ['int32', 'int64'].includes(filteredObj.format) ? (filteredObj.format as 'int32' | 'int64') : undefined
-//     } as IntegerSchema
-//   }
-
-//   // Handle boolean type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.BOOLEAN
-//     } as BooleanSchema
-//   }
-
-//   // Handle array type
-//   if (filteredObj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     return {
-//       ...baseSchema,
-//       type: SchemaType.ARRAY,
-//       items: filteredObj.items
-//         ? ensureValidSchema(filteredObj.items as Record<string, any>)
-//         : ({ type: SchemaType.STRING } as SimpleStringSchema),
-//       minItems: filteredObj.minItems,
-//       maxItems: filteredObj.maxItems
-//     } as ArraySchema
-//   }
-
-//   // Handle object type (default)
-//   const properties = filteredObj.properties
-//     ? Object.fromEntries(
-//         Object.entries(filteredObj.properties).map(([key, value]) => [
-//           key,
-//           ensureValidSchema(value as Record<string, any>)
-//         ])
-//       )
-//     : { _empty: { type: SchemaType.STRING } as SimpleStringSchema } // Ensure properties is never empty
-
-//   return {
-//     ...baseSchema,
-//     type: SchemaType.OBJECT,
-//     properties,
-//     required: Array.isArray(filteredObj.required) ? filteredObj.required : undefined
-//   } as ObjectSchema
-// }
-
-// function filterUnsupportedKeys(obj: Record<string, any>): Record<string, any> {
-//   const supportedBaseKeys = ['description', 'nullable']
-//   const supportedStringKeys = [...supportedBaseKeys, 'type', 'format', 'enum']
-//   const supportedNumberKeys = [...supportedBaseKeys, 'type', 'format']
-//   const supportedBooleanKeys = [...supportedBaseKeys, 'type']
-//   const supportedArrayKeys = [...supportedBaseKeys, 'type', 'items', 'minItems', 'maxItems']
-//   const supportedObjectKeys = [...supportedBaseKeys, 'type', 'properties', 'required']
-
-//   const filtered: Record<string, any> = {}
-
-//   let keysToKeep: string[]
-
-//   if (obj.type?.toLowerCase() === SchemaType.STRING) {
-//     keysToKeep = supportedStringKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.NUMBER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.INTEGER) {
-//     keysToKeep = supportedNumberKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.BOOLEAN) {
-//     keysToKeep = supportedBooleanKeys
-//   } else if (obj.type?.toLowerCase() === SchemaType.ARRAY) {
-//     keysToKeep = supportedArrayKeys
-//   } else {
-//     // Default to object type
-//     keysToKeep = supportedObjectKeys
-//   }
-
-//   // copy supported keys
-//   for (const key of keysToKeep) {
-//     if (obj[key] !== undefined) {
-//       filtered[key] = obj[key]
-//     }
-//   }
-
-//   return filtered
-// }
-
-// function filterPropertieAttributes(tool: MCPTool, filterNestedObj: boolean = false): Record<string, object> {
-//   const properties = tool.inputSchema.properties
-//   if (!properties) {
-//     return {}
-//   }
-
-//   // For OpenAI, we don't need to validate as strictly
-//   if (!filterNestedObj) {
-//     return properties
-//   }
-
-//   const processedProperties = Object.fromEntries(
-//     Object.entries(properties).map(([key, value]) => [key, ensureValidSchema(value as Record<string, any>)])
-//   )
-
-//   return processedProperties
-// }
+    if (toolProgressHandlers.has(toolCallId)) {
+      console.log('[RENDERER] Found progress handler for tool call:', toolCallId)
+      const handler = toolProgressHandlers.get(toolCallId)!
+      const chunk: MCPToolProgressChunk = {
+        type: ChunkType.MCP_TOOL_PROGRESS,
+        toolCallId,
+        progressToken: progress.progressToken || '',
+        progress: progress.progress || 0,
+        total: progress.total,
+        message: progress.message
+      }
+      console.log('[RENDERER] Calling progress handler with chunk:', chunk)
+      handler(chunk)
+    } else {
+      console.warn('[RENDERER] No progress handler found for tool call:', toolCallId)
+    }
+  })
+}
 
 export function filterProperties(
   properties: Record<string, any> | string | number | boolean | Array<Record<string, any> | string | number | boolean>,
@@ -265,8 +160,16 @@ export function openAIToolsToMcpTool(
   return tool
 }
 
-export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse> {
+export async function callMCPTool(
+  toolResponse: MCPToolResponse,
+  onChunk?: (chunk: MCPToolProgressChunk) => void
+): Promise<MCPCallToolResponse> {
   Logger.log(`[MCP] Calling Tool: ${toolResponse.tool.serverName} ${toolResponse.tool.name}`, toolResponse.tool)
+
+  // Use the LLM tool call ID that matches the toolCallIdToBlockIdMap key
+  const toolCallId = toolResponse.id
+  console.log(`[RENDERER] Using tool response ID for progress tracking: ${toolCallId}`)
+
   try {
     const server = getMcpServerByTool(toolResponse.tool)
 
@@ -274,26 +177,66 @@ export async function callMCPTool(toolResponse: MCPToolResponse): Promise<MCPCal
       throw new Error(`Server not found: ${toolResponse.tool.serverName}`)
     }
 
-    const resp = await window.api.mcp.callTool({
-      server,
-      name: toolResponse.tool.name,
-      args: toolResponse.arguments
-    })
+    // Set up progress listener for this tool call if onChunk is provided
+    if (onChunk) {
+      console.log('[RENDERER] Setting up progress handler for tool call:', toolCallId)
+      setupProgressListener()
+      toolProgressHandlers.set(toolCallId, onChunk)
+      console.log('[RENDERER] Progress handlers after adding:', Array.from(toolProgressHandlers.keys()))
+    } else {
+      console.log('[RENDERER] No onChunk callback provided for tool call:', toolCallId)
+    }
+
+    let resp: MCPCallToolResponse
+
+    try {
+      // Use streaming API if we have progress handler, otherwise use regular API
+      if (onChunk) {
+        resp = await window.api.mcp.callToolWithProgress({
+          server,
+          name: toolResponse.tool.name,
+          args: toolResponse.arguments,
+          toolCallId
+        })
+      } else {
+        resp = await window.api.mcp.callTool({
+          server,
+          name: toolResponse.tool.name,
+          args: toolResponse.arguments
+        })
+      }
+    } finally {
+      // Clean up progress handler
+      if (onChunk) {
+        toolProgressHandlers.delete(toolCallId)
+        console.log(`[RENDERER] Cleaned up progress handler for: ${toolCallId}`)
+      }
+    }
+
     if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
-      if (resp.data) {
-        const mcpServer: MCPServer = {
-          id: `f${nanoid()}`,
-          name: resp.data.name,
-          description: resp.data.description,
-          baseUrl: resp.data.baseUrl,
-          command: resp.data.command,
-          args: resp.data.args,
-          env: resp.data.env,
-          registryUrl: '',
-          isActive: false,
-          provider: 'CherryAI'
+      // Check if response contains structured data for MCP server installation
+      const textContent = resp.content.find((item) => item.type === 'text')?.text
+      if (textContent) {
+        try {
+          const serverData = JSON.parse(textContent)
+          if (serverData && serverData.name) {
+            const mcpServer: MCPServer = {
+              id: `f${nanoid()}`,
+              name: serverData.name,
+              description: serverData.description,
+              baseUrl: serverData.baseUrl,
+              command: serverData.command,
+              args: serverData.args,
+              env: serverData.env,
+              registryUrl: '',
+              isActive: false,
+              provider: 'CherryAI'
+            }
+            store.dispatch(addMCPServer(mcpServer))
+          }
+        } catch (error) {
+          Logger.warn('[MCP] Failed to parse auto-install server data:', error)
         }
-        store.dispatch(addMCPServer(mcpServer))
       }
     }
 
@@ -399,7 +342,7 @@ export function geminiFunctionCallToMcpTool(
 export function upsertMCPToolResponse(
   results: MCPToolResponse[],
   resp: MCPToolResponse,
-  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
+  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk | MCPToolProgressChunk) => void
 ) {
   const index = results.findIndex((ret) => ret.id === resp.id)
   let result = resp
@@ -498,24 +441,6 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
 }
 
 export async function parseAndCallTools<R>(
-  tools: MCPToolResponse[],
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
-
-export async function parseAndCallTools<R>(
-  content: string,
-  allToolResponses: MCPToolResponse[],
-  onChunk: CompletionsParams['onChunk'],
-  convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
-  model: Model,
-  mcpTools?: MCPTool[]
-): Promise<SdkMessageParam[]>
-
-export async function parseAndCallTools<R>(
   content: string | MCPToolResponse[],
   allToolResponses: MCPToolResponse[],
   onChunk: CompletionsParams['onChunk'],
@@ -548,7 +473,13 @@ export async function parseAndCallTools<R>(
 
   const toolPromises = curToolResponses.map(async (toolResponse) => {
     const images: string[] = []
-    const toolCallResponse = await callMCPTool(toolResponse)
+
+    // Create progress handler for this tool call
+    const progressHandler = (progressChunk: MCPToolProgressChunk) => {
+      onChunk?.(progressChunk)
+    }
+
+    const toolCallResponse = await callMCPTool(toolResponse, progressHandler)
     upsertMCPToolResponse(
       allToolResponses,
       {

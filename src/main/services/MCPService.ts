@@ -33,6 +33,7 @@ import { CacheService } from './CacheService'
 import { createAuthProvider, isJwtProvider, isOAuthProvider } from './mcp/auth/factory'
 import { CallBackServer } from './mcp/oauth/callback'
 import getLoginShellEnvironment from './mcp/shell-env'
+import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -476,8 +477,28 @@ class McpService {
    * Call a tool on an MCP server with progress-aware timeout
    */
   public async callTool(
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args: any }
+  ): Promise<MCPCallToolResponse> {
+    return this.callToolInternal(event, { server, name, args })
+  }
+
+  /**
+   * Call a tool on an MCP server with progress forwarding
+   */
+  public async callToolWithProgress(
+    event: Electron.IpcMainInvokeEvent,
+    { server, name, args, toolCallId }: { server: MCPServer; name: string; args: any; toolCallId: string }
+  ): Promise<MCPCallToolResponse> {
+    return this.callToolInternal(event, { server, name, args, toolCallId })
+  }
+
+  /**
+   * Internal method to call a tool on an MCP server with optional progress forwarding
+   */
+  private async callToolInternal(
+    event: Electron.IpcMainInvokeEvent,
+    { server, name, args, toolCallId }: { server: MCPServer; name: string; args: any; toolCallId?: string }
   ): Promise<MCPCallToolResponse> {
     const startTime = Date.now()
     try {
@@ -502,6 +523,9 @@ class McpService {
 
       let timeoutId: NodeJS.Timeout | null = null
       let isComplete = false
+
+      // Get the main window for sending progress updates
+      const mainWindow = toolCallId ? windowService.getMainWindow() : null
 
       const result = await new Promise<MCPCallToolResponse>((resolve, reject) => {
         const cleanup = () => {
@@ -549,6 +573,22 @@ class McpService {
                 if (!isComplete) {
                   Logger.debug(`[MCP] Progress update for ${name} on ${server.name}:`, progress)
                   resetTimeout()
+
+                  // Forward progress to renderer if toolCallId is provided and we have a main window
+                  if (toolCallId && mainWindow && !mainWindow.isDestroyed()) {
+                    try {
+                      mainWindow.webContents.send('mcp:tool-call-progress', {
+                        type: 'mcp_tool_progress',
+                        toolCallId,
+                        progressToken: progress.progressToken || '',
+                        progress: progress.progress || 0,
+                        total: progress.total,
+                        message: progress.message
+                      })
+                    } catch (error) {
+                      Logger.error(`[MCP] Failed to send progress update:`, error)
+                    }
+                  }
                 }
               }
             }

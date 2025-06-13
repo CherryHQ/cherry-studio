@@ -111,6 +111,7 @@ export interface ToolMessageBlock extends BaseMessageBlock {
   content?: string | object
   metadata?: BaseMessageBlock['metadata'] & {
     rawMcpToolResponse?: MCPToolResponse
+    progressChunks?: any[] // MCPToolProgressChunk[] - using any to avoid circular imports
   }
 }
 

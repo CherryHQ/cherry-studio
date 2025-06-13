@@ -690,7 +690,10 @@
         "invoking": "Invoking",
         "error": "Error occurred",
         "raw": "Raw",
-        "preview": "Preview"
+        "preview": "Preview",
+        "progress": {
+          "log": "Progress Log"
+        }
       },
       "topic.added": "New topic added",
       "upgrade.success.button": "Restart",
