@@ -277,14 +277,10 @@ const HomeWindow: FC = () => {
     try {
       await window.api.window.setTopic(currentAssistant.id, topicToSend)
     } catch (error) {
-      // console.error('[HomeWindow] Error calling setTopic IPC:', error)
+      console.error('[HomeWindow] Error calling setTopic IPC:', error)
+      throw new Error(`[HomeWindow] Error calling setTopic IPC: ${error}`)
     }
-  }, [
-    useAssistantForQuickAssistant,
-    currentAssistant,
-    currentTopicMessages.messageIdsByTopic,
-    currentTopicMessages.entities
-  ])
+  }, [currentAssistant, currentTopicMessages.messageIdsByTopic, currentTopicMessages.entities])
 
   const clearClipboard = () => {
     setClipboardText('')

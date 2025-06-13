@@ -163,12 +163,7 @@ const HomePage: FC = () => {
 
         // 將新的 Topic, Messages, MessageBlocks 儲存到資料庫
         const topicForDb = {
-          id: newMainTopic.id,
-          name: newMainTopic.name,
-          assistantId: newMainTopic.assistantId,
-          createdAt: newMainTopic.createdAt,
-          updatedAt: newMainTopic.updatedAt,
-          pinned: newMainTopic.pinned || false,
+          ...newMainTopic,
           messages: messagesToClone
         }
 
@@ -176,7 +171,8 @@ const HomePage: FC = () => {
           try {
             await saveNewTopicToDB(topicForDb, blocksToClone)
           } catch (error) {
-            // console.error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk:`, error)
+            console.error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk:`, error)
+            throw new Error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk: ${error}`)
           }
         })()
       })
