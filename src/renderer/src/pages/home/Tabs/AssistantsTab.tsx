@@ -9,14 +9,19 @@ import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { includeKeywords } from '@renderer/utils/search'
 import { Tooltip } from 'antd'
-import { FC, useCallback, useRef, useState } from 'react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AssistantItem from './components/AssistantItem'
 
-const Assistants: FC = () => {
+interface AssistantsTabProps {
+  searchValue?: string
+}
+
+const Assistants: FC<AssistantsTabProps> = ({ searchValue }) => {
   const { activeAssistant, setActiveAssistant } = useChat()
   const { assistants, removeAssistant, addAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
@@ -26,6 +31,27 @@ const Assistants: FC = () => {
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const containerRef = useRef<HTMLDivElement>(null)
   const { defaultAssistant } = useDefaultAssistant()
+
+  // 过滤助手 - 根据名称搜索
+  const filteredAssistants = useMemo(() => {
+    if (!searchValue?.trim()) {
+      return assistants
+    }
+    return assistants.filter((assistant) => includeKeywords(assistant.name || '', searchValue))
+  }, [assistants, searchValue])
+
+  // 过滤分组助手 - 根据名称搜索
+  const filteredGroupedAssistants = useMemo(() => {
+    if (!searchValue?.trim()) {
+      return getGroupedAssistants
+    }
+    return getGroupedAssistants
+      .map((group) => ({
+        ...group,
+        assistants: group.assistants.filter((assistant) => includeKeywords(assistant.name || '', searchValue))
+      }))
+      .filter((group) => group.assistants.length > 0)
+  }, [getGroupedAssistants, searchValue])
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
@@ -166,7 +192,7 @@ const Assistants: FC = () => {
       <Container className="assistants-tab" ref={containerRef}>
         <DragableList
           droppableProps={{ type: 'TAG' }}
-          list={getGroupedAssistants.map((_) => ({ ..._, disabled: _.tag === t('assistants.tags.untagged') }))}
+          list={filteredGroupedAssistants.map((_) => ({ ..._, disabled: _.tag === t('assistants.tags.untagged') }))}
           onUpdate={() => {}}
           onDragEnd={handleGroupDragEnd}>
           {(group) => (
@@ -234,7 +260,7 @@ const Assistants: FC = () => {
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <DragableList
-        list={assistants}
+        list={filteredAssistants}
         onUpdate={updateAssistants}
         style={{ paddingBottom: dragging ? '34px' : 0 }}
         onDragStart={() => setDragging(true)}

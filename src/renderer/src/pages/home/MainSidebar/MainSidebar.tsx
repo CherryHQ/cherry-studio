@@ -13,7 +13,7 @@ import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
-import { Avatar, Dropdown } from 'antd'
+import { Avatar, Dropdown, Input } from 'antd'
 import {
   Blocks,
   ChevronDown,
@@ -26,13 +26,14 @@ import {
   LayoutGrid,
   Moon,
   Palette,
+  Search,
   Settings,
   Sparkle,
   SquareTerminal,
   Sun,
   SunMoon
 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -72,6 +73,9 @@ const MainSidebar: FC = () => {
   const { showTopics, clickAssistantToShowTopic } = useSettings()
 
   const { openMinapp } = useMinappPopup()
+
+  const [_searchValue, setSearchValue] = useState('')
+  const searchValue = useDeferredValue(_searchValue)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
   useShortcut('toggle_show_topics', () => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR))
@@ -174,6 +178,20 @@ const MainSidebar: FC = () => {
       }}>
       <MainNavbar />
       <MainMenu>
+        <Input
+          value={_searchValue}
+          placeholder={t('chat.assistant.search.placeholder')}
+          onChange={(e) => setSearchValue(e.target.value)}
+          style={{
+            marginBottom: 5
+          }}
+          prefix={
+            <MainMenuItemIcon style={{ margin: '0 6px 1px -2px' }}>
+              <Search size={18} className="icon" />
+            </MainMenuItemIcon>
+          }
+          spellCheck={false}
+        />
         <MainMenuItem active={isAppMenuExpanded} onClick={() => setIsAppMenuExpanded(!isAppMenuExpanded)}>
           <MainMenuItemLeft>
             <MainMenuItemIcon>
@@ -220,8 +238,8 @@ const MainSidebar: FC = () => {
         </AssistantContainer>
       )}
       <MainContainer>
-        {tab === 'assistants' && <AssistantsTab />}
-        {tab === 'topic' && <TopicsTab style={{ paddingTop: 4 }} />}
+        {tab === 'assistants' && <AssistantsTab searchValue={searchValue} />}
+        {tab === 'topic' && <TopicsTab searchValue={searchValue} style={{ paddingTop: 4 }} />}
       </MainContainer>
       <UserMenu>
         <UserMenuLeft onClick={() => UserPopup.show()}>

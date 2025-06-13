@@ -14,7 +14,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, PanelLeft, PanelRight, Search } from 'lucide-react'
+import { LayoutGrid, PanelRight, Search } from 'lucide-react'
 import { FC } from 'react'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -42,20 +42,20 @@ const ChatNavbar: FC = () => {
     <Navbar className="home-navbar">
       <NavbarContainer $isFullscreen={isFullscreen} $showSidebar={showAssistants} className="home-navbar-right">
         <HStack alignItems="center" gap={8}>
-          <NavbarIcon onClick={() => toggleShowAssistants()}>
-            {showAssistants ? <PanelLeft size={18} /> : <PanelRight size={18} />}
-          </NavbarIcon>
+          {!showAssistants && (
+            <NavbarIcon onClick={() => toggleShowAssistants()}>
+              <PanelRight size={18} />
+            </NavbarIcon>
+          )}
           <SelectModelButton assistant={assistant} />
         </HStack>
         <HStack alignItems="center" gap={8}>
           <UpdateAppButton />
-          {isMac && (
-            <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-              <NarrowIcon onClick={() => SearchPopup.show()}>
-                <Search size={18} />
-              </NarrowIcon>
-            </Tooltip>
-          )}
+          <Tooltip title={t('history.title')} mouseEnterDelay={0.8}>
+            <NarrowIcon onClick={() => SearchPopup.show()}>
+              <Search size={18} />
+            </NarrowIcon>
+          </Tooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <NarrowModeIcon isNarrowMode={narrowMode} />
