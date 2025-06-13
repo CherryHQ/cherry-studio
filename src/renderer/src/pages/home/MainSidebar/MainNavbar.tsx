@@ -3,7 +3,7 @@ import { useShowAssistants } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { MessageSquareDiff, PanelLeft, PanelRight } from 'lucide-react'
+import { MessageSquareDiff, PanelLeft } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -13,13 +13,11 @@ const HeaderNavbar: FC<Props> = () => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   return (
     <Container>
-      <div>
-        {!isMac && (
-          <NavbarIcon onClick={() => toggleShowAssistants()}>
-            {showAssistants ? <PanelLeft size={18} /> : <PanelRight size={18} />}
-          </NavbarIcon>
-        )}
-      </div>
+      {showAssistants && (
+        <NavbarIcon onClick={() => toggleShowAssistants()}>
+          <PanelLeft size={18} />
+        </NavbarIcon>
+      )}
       <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
         <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
           <MessageSquareDiff size={18} />

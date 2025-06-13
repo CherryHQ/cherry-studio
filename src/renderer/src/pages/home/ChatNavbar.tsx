@@ -14,7 +14,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, PanelRight, Search } from 'lucide-react'
+import { LayoutGrid, PanelLeft, Search } from 'lucide-react'
 import { FC } from 'react'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -44,7 +44,7 @@ const ChatNavbar: FC = () => {
         <HStack alignItems="center" gap={8}>
           {!showAssistants && (
             <NavbarIcon onClick={() => toggleShowAssistants()}>
-              <PanelRight size={18} />
+              <PanelLeft size={18} />
             </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
