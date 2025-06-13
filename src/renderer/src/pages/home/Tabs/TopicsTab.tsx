@@ -197,7 +197,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               if (summaryText) {
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
-                topic.id === activeTopic.id && setActiveTopic(updatedTopic)
               } else {
                 window.message?.error(t('message.error.fetchTopicName'))
               }
@@ -221,7 +220,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
           if (name && topic?.name !== name) {
             const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
             updateTopic(updatedTopic)
-            topic.id === activeTopic.id && setActiveTopic(updatedTopic)
           }
         }
       },
