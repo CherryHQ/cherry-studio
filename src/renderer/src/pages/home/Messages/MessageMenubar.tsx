@@ -15,6 +15,7 @@ import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
+import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -23,7 +24,6 @@ import {
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
-import { copyMessageAsPlainText } from '@renderer/utils/copy'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
