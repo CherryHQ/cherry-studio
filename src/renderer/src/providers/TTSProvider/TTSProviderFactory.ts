@@ -74,7 +74,7 @@ export class TTSProviderFactory {
       elevenlabs: 'ElevenLabs',
       siliconflow: '硅基流动',
       tencentcloud: '腾讯云语音合成',
-      googlecloud: 'Google Cloud Text-to-Speech'
+      googlecloud: 'Google Cloud'
     }
     return names[type] || type
   }

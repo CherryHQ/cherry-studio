@@ -27,9 +27,9 @@ class TTSPlaybackManager {
 
   /**
    * 状态机：处理播放状态转移
-   * 状态转移：idle → playing → idle (简化版，播放直接停止)
+   * 状态转移：idle → playing → paused → playing → idle
    */
-  togglePlayback(messageId: string): { action: 'start' | 'stop'; newState: PlaybackState } {
+  togglePlayback(messageId: string): { action: 'start' | 'stop' | 'pause' | 'resume'; newState: PlaybackState } {
     const currentState = this.playbackInfo.state
     const isCurrentMessage = this.playbackInfo.currentMessageId === messageId
 
@@ -88,6 +88,40 @@ class TTSPlaybackManager {
   }
 
   /**
+   * 暂停/恢复播放
+   */
+  togglePause(messageId: string): { action: 'pause' | 'resume'; newState: PlaybackState } {
+    const isCurrentMessage = this.playbackInfo.currentMessageId === messageId
+
+    if (!isCurrentMessage) {
+      throw new Error('Cannot pause/resume a different message')
+    }
+
+    switch (this.playbackInfo.state) {
+      case 'playing':
+        // 播放中 → 暂停
+        this.playbackInfo = {
+          state: 'paused',
+          currentMessageId: messageId
+        }
+        this.notifyListeners()
+        return { action: 'pause', newState: 'paused' }
+
+      case 'paused':
+        // 暂停中 → 恢复播放
+        this.playbackInfo = {
+          state: 'playing',
+          currentMessageId: messageId
+        }
+        this.notifyListeners()
+        return { action: 'resume', newState: 'playing' }
+
+      default:
+        throw new Error(`Cannot pause/resume from state: ${this.playbackInfo.state}`)
+    }
+  }
+
+  /**
    * 直接设置播放状态（用于播放完成等情况）
    */
   setPlaybackState(state: PlaybackState, messageId: string | null = null): void {
@@ -113,7 +147,7 @@ class TTSPlaybackManager {
   }
 
   /**
-   * 检查指定消息是否已暂停
+   * 检查指定消息是否已暂停1
    */
   isMessagePaused(messageId: string): boolean {
     return this.playbackInfo.state === 'paused' && this.playbackInfo.currentMessageId === messageId

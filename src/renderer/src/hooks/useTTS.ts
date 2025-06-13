@@ -1,3 +1,4 @@
+import i18n from '@renderer/i18n'
 import { TTSService } from '@renderer/services/TTSService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
@@ -258,6 +259,14 @@ export const useTTS = () => {
     }, [ttsService])
   }
 
+  // 获取国际化的提供商名称
+  const getTTSProviderName = useCallback((provider: TTSProvider) => {
+    if (provider.isSystem) {
+      return i18n.t(`settings.tts.providers.${provider.type}`, { defaultValue: provider.name })
+    }
+    return provider.name
+  }, [])
+
   return {
     // 状态
     ...ttsState,
@@ -273,7 +282,10 @@ export const useTTS = () => {
     ...ttsOperations,
 
     // TTS 服务实例
-    ttsService
+    ttsService,
+
+    // 工具函数
+    getTTSProviderName
   }
 }
 

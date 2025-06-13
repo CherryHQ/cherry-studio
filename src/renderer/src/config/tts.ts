@@ -52,7 +52,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       autoPlay: false,
       model: 'tts-1',
       format: 'mp3',
-      streaming: false
+      streaming: false,
+      pauseSupport: false
     },
     voices: OPENAI_TTS_VOICES
   },
@@ -70,7 +71,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       region: 'eastus',
       speaking_style: 'general',
       role: 'default',
-      streaming: false
+      streaming: false,
+      pauseSupport: false
     },
     voices: []
   },
@@ -90,7 +92,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       similarity_boost: 0.5,
       style: 0.0,
       use_speaker_boost: true,
-      streaming: false
+      streaming: false,
+      pauseSupport: false
     },
     voices: []
   },
@@ -109,7 +112,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       format: 'mp3',
       sample_rate: 44100,
       voice: 'alex',
-      streaming: false
+      streaming: false,
+      pauseSupport: false
     },
     voices: []
   },
@@ -128,14 +132,15 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       region: 'ap-beijing',
       sampleRate: 16000,
       codec: 'wav',
-      streaming: false
+      streaming: false,
+      pauseSupport: false
     },
     voices: []
   },
   {
     id: 'googlecloud',
     type: 'googlecloud',
-    name: 'Google Cloud Text-to-Speech',
+    name: 'Google Cloud',
     enabled: false,
     isSystem: true,
     settings: {
@@ -146,7 +151,8 @@ export const INITIAL_TTS_PROVIDERS: TTSProvider[] = [
       format: 'mp3',
       sampleRate: 24000,
       autoPlay: false,
-      streaming: false
+      streaming: false,
+      pauseSupport: false
     },
     voices: []
   }
@@ -229,7 +235,7 @@ export const TTS_PROVIDER_CONFIG = {
     }
   },
   googlecloud: {
-    name: 'Google Cloud Text-to-Speech',
+    name: 'Google Cloud',
     description: 'Google Cloud 提供的高质量语音合成服务，支持多种语言和 WaveNet 语音',
     requiresApiKey: true,
     supportedFeatures: ['rate', 'pitch', 'volume', 'voice', 'format', 'sampleRate'],

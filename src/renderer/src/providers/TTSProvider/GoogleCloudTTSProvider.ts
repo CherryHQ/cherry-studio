@@ -188,7 +188,8 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
         const mimeType = this.getMimeType(this.provider.settings.format || 'mp3')
-        await this.audioPlayer.playStream(audioStream, mimeType, volume)
+        const enablePause = this.provider.settings.pauseSupport ?? false
+        await this.audioPlayer.playStream(audioStream, mimeType, volume, { enablePause })
       } else {
         // 非流式合成
         const audioData = await this.synthesizeSpeech(options)
@@ -266,13 +267,7 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       }
     }
 
-    console.log('[GoogleCloudTTSProvider] Synthesizing speech:', {
-      voice: requestBody.voice.name,
-      textLength: options.text.length,
-      speakingRate: requestBody.audioConfig.speakingRate,
-      volumeGainDb: requestBody.audioConfig.volumeGainDb,
-      audioEncoding: requestBody.audioConfig.audioEncoding
-    })
+
 
     try {
       const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
@@ -293,7 +288,7 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       const data = await response.json()
 
       if (data.audioContent) {
-        console.log('[GoogleCloudTTSProvider] Speech synthesis successful')
+
         return data.audioContent
       } else {
         throw new Error('No audio content returned from Google Cloud TTS API')
@@ -329,13 +324,7 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       }
     }
 
-    console.log('[GoogleCloudTTSProvider] Streaming speech synthesis:', {
-      voice: requestBody.voice.name,
-      textLength: options.text.length,
-      speakingRate: requestBody.audioConfig.speakingRate,
-      volumeGainDb: requestBody.audioConfig.volumeGainDb,
-      audioEncoding: requestBody.audioConfig.audioEncoding
-    })
+
 
     try {
       // Google Cloud TTS 目前不支持真正的流式合成，所以我们先获取完整音频然后模拟流式
@@ -357,7 +346,7 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       const data = await response.json()
 
       if (data.audioContent) {
-        console.log('[GoogleCloudTTSProvider] Streaming speech synthesis successful (simulated streaming)')
+
         // 将 Base64 数据转换为 ReadableStream
         return this.createStreamFromBase64(data.audioContent)
       } else {

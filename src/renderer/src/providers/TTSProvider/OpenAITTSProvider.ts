@@ -70,7 +70,8 @@ export class OpenAITTSProvider extends BaseTTSProvider {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
         const mimeType = this.getMimeType(this.provider.settings.format || 'mp3')
-        await this.audioPlayer.playStream(audioStream, mimeType, volume)
+        const enablePause = this.provider.settings.pauseSupport ?? false
+        await this.audioPlayer.playStream(audioStream, mimeType, volume, { enablePause })
       } else {
         // 非流式合成
         const audioBlob = await this.synthesizeSpeech(options)

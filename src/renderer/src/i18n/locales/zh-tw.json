@@ -1868,6 +1868,10 @@
           "not_supported": "您的瀏覽器不支援語音合成功能",
           "playback_failed": "語音播放失敗"
         },
+        "providers": {
+          "siliconflow": "硅基流動",
+          "tencentcloud": "騰訊雲語音合成"
+        },
         "streaming": "[to be translated]:Streaming Synthesis",
         "streaming.description": "[to be translated]:Enable real-time streaming speech synthesis for faster playback with reduced waiting time"
       }

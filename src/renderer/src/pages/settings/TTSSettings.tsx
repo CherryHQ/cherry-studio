@@ -36,8 +36,11 @@ const TTSSettings: FC = () => {
   const filteredProviders = useMemo(() => {
     if (!searchText.trim()) return tts.providers
     const lowerSearchText = searchText.toLowerCase()
-    return tts.providers.filter((provider) => provider.name.toLowerCase().includes(lowerSearchText))
-  }, [tts.providers, searchText])
+    return tts.providers.filter((provider) => {
+      const displayName = tts.getTTSProviderName(provider)
+      return displayName.toLowerCase().includes(lowerSearchText)
+    })
+  }, [tts.providers, searchText, tts])
 
   // 初始化选中的供应商（优化：只在真正需要时初始化）
   useEffect(() => {
@@ -222,7 +225,7 @@ const TTSSettings: FC = () => {
       <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
         <SettingTitle>
           <Flex align="center" gap={5}>
-            <span>{selectedProvider.name}</span>
+            <span>{tts.getTTSProviderName(selectedProvider)}</span>
             {officialWebsite && (
               <a target="_blank" href={officialWebsite} style={{ display: 'flex' }}>
                 <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
@@ -270,6 +273,27 @@ const TTSSettings: FC = () => {
               />
             </SettingRow>
             <SettingHelpText>{t('settings.tts.streaming.description')}</SettingHelpText>
+
+            {/* 暂停功能设置（仅在启用流式时显示） */}
+            {selectedProvider.settings.streaming && (
+              <>
+                <SettingRow>
+                  <SettingRowTitle>{t('settings.tts.pause_support.title')}</SettingRowTitle>
+                  <Switch
+                    checked={selectedProvider.settings.pauseSupport ?? false}
+                    onChange={(pauseSupport) => {
+                      const updatedProvider = {
+                        ...selectedProvider,
+                        settings: { ...selectedProvider.settings, pauseSupport }
+                      } as TTSProvider
+                      updateProvider(updatedProvider)
+                      tts.updateProviderSettings(selectedProvider.id, { pauseSupport })
+                    }}
+                  />
+                </SettingRow>
+                <SettingHelpText>{t('settings.tts.pause_support.description')}</SettingHelpText>
+              </>
+            )}
           </>
         )}
 
@@ -960,7 +984,7 @@ const TTSSettings: FC = () => {
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
             {(config.websites as any)?.docs && (
               <SettingHelpLink target="_blank" href={(config.websites as any).docs}>
-                {selectedProvider.name + ' '}
+                {tts.getTTSProviderName(selectedProvider) + ' '}
                 {t('common.docs')}
               </SettingHelpLink>
             )}
@@ -1002,7 +1026,7 @@ const TTSSettings: FC = () => {
                 className={provider.id === selectedProvider?.id ? 'active' : ''}
                 onClick={() => handleProviderSelect(provider)}>
                 {getProviderAvatar(provider)}
-                <ProviderItemName className="text-nowrap">{provider.name}</ProviderItemName>
+                <ProviderItemName className="text-nowrap">{tts.getTTSProviderName(provider)}</ProviderItemName>
                 {provider.enabled && (
                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
                     ON

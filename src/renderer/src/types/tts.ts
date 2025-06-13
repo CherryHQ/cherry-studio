@@ -35,6 +35,7 @@ export interface TTSProviderSettings {
   autoPlay: boolean
   // 流式合成设置
   streaming?: boolean // 是否启用流式合成
+  pauseSupport?: boolean // 是否启用暂停功能（流式音频缓存模式）
   // OpenAI 特有设置
   model?: string // tts-1, tts-1-hd
   format?: string // mp3, opus, aac, flac, wav, pcm

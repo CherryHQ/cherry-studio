@@ -13,8 +13,7 @@ export class AzureTTSProvider extends BaseTTSProvider {
     const apiHost = this.getApiHost()
     const endpoint = `${apiHost}/cognitiveservices/voices/list`
 
-    console.log('[Azure TTS] Fetching voices from:', endpoint)
-    console.log('[Azure TTS] Region:', this.provider.settings.region || 'eastus')
+
 
     try {
       const response = await fetch(endpoint, {
@@ -24,7 +23,7 @@ export class AzureTTSProvider extends BaseTTSProvider {
         }
       })
 
-      console.log('[Azure TTS] Response status:', response.status, response.statusText)
+
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -39,7 +38,7 @@ export class AzureTTSProvider extends BaseTTSProvider {
       }
 
       const voices = await response.json()
-      console.log(`[Azure TTS] Successfully fetched ${voices.length} voices`)
+
 
       return voices.map((voice: any) => ({
         id: voice.ShortName,
@@ -73,7 +72,8 @@ export class AzureTTSProvider extends BaseTTSProvider {
         // 流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
         const mimeType = this.getMimeType('mp3') // Azure 默认返回 MP3 格式
-        await this.audioPlayer.playStream(audioStream, mimeType, volume)
+        const enablePause = this.provider.settings.pauseSupport ?? false
+        await this.audioPlayer.playStream(audioStream, mimeType, volume, { enablePause })
       } else {
         // 非流式合成
         const audioBlob = await this.synthesizeSpeech(options)
@@ -129,7 +129,7 @@ export class AzureTTSProvider extends BaseTTSProvider {
    * 获取默认语音列表（当 API 调用失败时使用）
    */
   private getDefaultVoices(): TTSVoice[] {
-    console.log('[Azure TTS] Using default voices (API call failed or no API key)')
+
     return AZURE_TTS_DEFAULT_VOICES
   }
 

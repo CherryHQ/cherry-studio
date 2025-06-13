@@ -12,7 +12,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
 
     try {
       // 腾讯云语音合成不提供获取语音列表的 API，使用预定义的语音列表
-      console.log('[Tencent Cloud TTS] Using predefined voice list')
+
       return this.getDefaultVoices()
     } catch (error) {
       console.error('[Tencent Cloud TTS] Error:', error)
@@ -24,7 +24,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
    * 获取默认语音列表（基于腾讯云官方音色列表）
    */
   private getDefaultVoices(): TTSVoice[] {
-    console.log('[Tencent Cloud TTS] Using default voices')
+
     return TENCENT_TTS_VOICES
   }
 
@@ -44,7 +44,8 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
         // 使用真正的流式合成
         const audioStream = await this.synthesizeSpeechStream(options)
         const mimeType = this.getMimeType(this.provider.settings.codec || 'pcm')
-        await this.audioPlayer.playStream(audioStream, mimeType, volume)
+        const enablePause = this.provider.settings.pauseSupport ?? false
+        await this.audioPlayer.playStream(audioStream, mimeType, volume, { enablePause })
       } else {
         // 使用基础语音合成
         const audioData = await this.synthesizeSpeech(options)
@@ -129,20 +130,13 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       codec: this.provider.settings.codec || 'wav'
     }
 
-    console.log('[TencentCloudTTSProvider] Synthesizing speech:', {
-      voiceType: ttsOptions.voice,
-      textLength: options.text.length,
-      speed: ttsOptions.speed,
-      volume: ttsOptions.volume,
-      sampleRate: ttsOptions.sampleRate,
-      codec: ttsOptions.codec
-    })
+
 
     try {
       const result = await window.api.tencentTTS.synthesizeSpeech(ttsOptions)
 
       if (result.success && result.audioData) {
-        console.log('[TencentCloudTTSProvider] Speech synthesis successful')
+
         return result.audioData
       } else {
         throw new Error(result.error || 'No audio data returned from Tencent Cloud TTS API')
@@ -190,7 +184,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
     const secretKey = this.provider.settings.secretKey!
     const region = this.provider.settings.region || 'ap-beijing'
 
-    console.log('[Tencent Cloud TTS] Starting streaming synthesis')
+
 
     return new ReadableStream({
       start: async (controller) => {
@@ -205,11 +199,8 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
               // 文本消息
               try {
                 const message = JSON.parse(event.data)
-                console.log('[Tencent Cloud TTS] Message:', message)
-
                 if (message.final === 1) {
                   // 合成完成
-                  console.log('[Tencent Cloud TTS] Streaming synthesis completed')
                   ws.close()
                   controller.close()
                 } else if (message.code !== 0) {
@@ -230,13 +221,12 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
           }
 
           ws.onclose = () => {
-            console.log('[Tencent Cloud TTS] WebSocket connection closed')
             controller.close()
           }
 
           // 等待 READY 事件后发送文本
           ws.onopen = () => {
-            console.log('[Tencent Cloud TTS] WebSocket connection opened')
+            // WebSocket connection opened
           }
         } catch (error) {
           console.error('[Tencent Cloud TTS] Failed to create streaming connection:', error)
@@ -298,10 +288,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       .join('&')
 
     const wsUrl = `wss://tts.cloud.tencent.com/stream_wsv2?${queryString}`
-    console.log(
-      '[Tencent Cloud TTS] Connecting to:',
-      wsUrl.replace(/SecretId=[^&]*/, 'SecretId=***').replace(/Signature=[^&]*/, 'Signature=***')
-    )
+
 
     const ws = new WebSocket(wsUrl)
 
@@ -309,7 +296,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       let isReady = false
 
       ws.onopen = () => {
-        console.log('[Tencent Cloud TTS] WebSocket opened, waiting for READY event')
+        // WebSocket opened, waiting for READY event
       }
 
       ws.onmessage = (event) => {
@@ -324,7 +311,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
 
             if (message.ready === 1 && !isReady) {
               isReady = true
-              console.log('[Tencent Cloud TTS] Received READY event, sending text')
 
               // 发送合成文本 (需要进行 Unicode 转义)
               const synthesisMessage = {
@@ -382,7 +368,7 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
     // 构建签名原文 (注意格式：GET + 域名 + 路径 + ? + 参数)
     const stringToSign = `GETtts.cloud.tencent.com/stream_wsv2?${sortedParams}`
 
-    console.log('[Tencent Cloud TTS] String to sign:', stringToSign.replace(/SecretId=[^&]*/, 'SecretId=***'))
+
 
     // 使用 HMAC-SHA1 生成签名
     const encoder = new TextEncoder()

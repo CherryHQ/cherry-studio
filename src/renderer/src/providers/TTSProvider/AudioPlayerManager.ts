@@ -62,6 +62,13 @@ export class AudioPlayerManager {
         this.setState(AudioPlayerState.PLAYING)
       }
 
+      this.audioElement.oncanplay = () => {
+        // 当音频可以播放时，如果之前是加载状态，更新为播放状态
+        if (this.state === AudioPlayerState.LOADING) {
+          this.setState(AudioPlayerState.PLAYING)
+        }
+      }
+
       this.audioElement.onerror = () => {
         this.setState(AudioPlayerState.ERROR)
         URL.revokeObjectURL(audioUrl)
@@ -108,6 +115,13 @@ export class AudioPlayerManager {
           this.setState(AudioPlayerState.PLAYING)
         }
 
+        this.audioElement.oncanplay = () => {
+          // 当音频可以播放时，如果之前是加载状态，更新为播放状态
+          if (this.state === AudioPlayerState.LOADING) {
+            this.setState(AudioPlayerState.PLAYING)
+          }
+        }
+
         this.audioElement.onerror = () => {
           this.setState(AudioPlayerState.ERROR)
           this.audioElement = null
@@ -126,9 +140,12 @@ export class AudioPlayerManager {
    * 暂停播放
    */
   pause(): void {
-    if (this.audioElement && this.state === AudioPlayerState.PLAYING) {
-      this.audioElement.pause()
-      this.setState(AudioPlayerState.PAUSED)
+    if (this.audioElement) {
+      // 支持在播放和加载状态下暂停
+      if (this.state === AudioPlayerState.PLAYING || this.state === AudioPlayerState.LOADING) {
+        this.audioElement.pause()
+        this.setState(AudioPlayerState.PAUSED)
+      }
     }
   }
 
@@ -137,8 +154,12 @@ export class AudioPlayerManager {
    */
   resume(): void {
     if (this.audioElement && this.state === AudioPlayerState.PAUSED) {
-      this.audioElement.play()
-      this.setState(AudioPlayerState.PLAYING)
+      this.audioElement.play().then(() => {
+        this.setState(AudioPlayerState.PLAYING)
+      }).catch((error) => {
+        Logger.error('[AudioPlayerManager] Failed to resume audio:', error)
+        this.setState(AudioPlayerState.ERROR)
+      })
     }
   }
 
@@ -155,6 +176,7 @@ export class AudioPlayerManager {
         this.audioElement.onplay = null
         this.audioElement.onloadstart = null
         this.audioElement.onloadeddata = null
+        this.audioElement.oncanplay = null
 
         // 停止播放
         this.audioElement.pause()
@@ -227,8 +249,14 @@ export class AudioPlayerManager {
   async playStream(
     audioStream: ReadableStream<Uint8Array>,
     mimeType: string = 'audio/mpeg',
-    volume?: number
+    volume?: number,
+    options: { enablePause?: boolean } = {}
   ): Promise<void> {
+    // 如果启用暂停功能，强制使用缓存模式以支持完整的暂停/恢复功能
+    if (options.enablePause) {
+      return this.playStreamAsBlob(audioStream, mimeType, volume)
+    }
+
     // 检查 MediaSource 是否支持该 MIME 类型
     if (!MediaSource.isTypeSupported(mimeType)) {
       Logger.warn(`[AudioPlayerManager] MediaSource does not support ${mimeType}, falling back to Blob playback`)
@@ -283,6 +311,12 @@ export class AudioPlayerManager {
     this.audioElement.onloadstart = () => this.setState(AudioPlayerState.LOADING)
     this.audioElement.onpause = () => this.setState(AudioPlayerState.PAUSED)
     this.audioElement.onplay = () => this.setState(AudioPlayerState.PLAYING)
+    this.audioElement.oncanplay = () => {
+      // 当音频可以播放时，如果之前是加载状态，更新为播放状态
+      if (this.state === AudioPlayerState.LOADING) {
+        this.setState(AudioPlayerState.PLAYING)
+      }
+    }
 
     this.audioElement.onended = () => {
       this.setState(AudioPlayerState.IDLE)
@@ -388,7 +422,7 @@ export class AudioPlayerManager {
         return
       }
 
-      Logger.debug(`[AudioPlayerManager] Processing audio chunk: ${value.length} bytes`)
+
 
       // 检查 MediaSource 和 SourceBuffer 状态
       if (mediaSource.readyState !== 'open') {
@@ -410,17 +444,13 @@ export class AudioPlayerManager {
    * 完成 MediaSource 流
    */
   private async finalizeMediaSource(sourceBuffer: SourceBuffer, mediaSource: MediaSource): Promise<void> {
-    Logger.debug('[AudioPlayerManager] Stream reading completed')
-
     // 确保 SourceBuffer 完成所有更新后再结束流
     if (sourceBuffer.updating) {
-      Logger.debug('[AudioPlayerManager] Waiting for final SourceBuffer update to complete')
       await this.waitForSourceBufferUpdate(sourceBuffer)
     }
 
     if (mediaSource.readyState === 'open') {
       try {
-        Logger.debug('[AudioPlayerManager] Ending MediaSource stream')
         mediaSource.endOfStream()
       } catch (error) {
         Logger.warn('[AudioPlayerManager] Failed to end stream:', error)
@@ -435,7 +465,6 @@ export class AudioPlayerManager {
   private async appendBufferToSourceBuffer(sourceBuffer: SourceBuffer, value: Uint8Array): Promise<void> {
     // 等待 SourceBuffer 准备好
     if (sourceBuffer.updating) {
-      Logger.debug('[AudioPlayerManager] SourceBuffer is updating, waiting...')
       await this.waitForSourceBufferUpdate(sourceBuffer)
     }
 
@@ -446,7 +475,6 @@ export class AudioPlayerManager {
     }
 
     // 添加数据到 SourceBuffer
-    Logger.debug('[AudioPlayerManager] Appending buffer to SourceBuffer')
     try {
       sourceBuffer.appendBuffer(value)
     } catch (error) {
@@ -456,7 +484,6 @@ export class AudioPlayerManager {
 
     // 等待 appendBuffer 操作完成
     await this.waitForSourceBufferUpdate(sourceBuffer)
-    Logger.debug('[AudioPlayerManager] Buffer append completed')
   }
 
   /**

@@ -1869,7 +1869,17 @@
         "error": {
           "not_supported": "Your browser does not support speech synthesis",
           "playback_failed": "Speech playback failed"
-        }
+        },
+        "providers": {
+          "siliconflow": "SiliconFlow",
+          "tencentcloud": "Tencent Cloud TTS"
+        },
+        "pause_support": {
+          "title": "Enable Pause Function",
+          "description": "Enable pause/resume for streaming audio (increases memory usage)"
+        },
+        "pause": "Pause",
+        "resume": "Resume"
       }
     },
     "translate": {

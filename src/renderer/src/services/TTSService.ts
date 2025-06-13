@@ -10,7 +10,6 @@ export class TTSService {
   private activeProvider: BaseTTSProvider | null = null // 当前正在播放的供应商
 
   private constructor() {
-    console.log('[TTSService] Constructor called')
     this.initializeProviders()
   }
 
@@ -108,7 +107,7 @@ export class TTSService {
     this.stopAll()
 
     // 等待一小段时间确保停止操作完成
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     const speakOptions: TTSSpeakOptions = {
       text,
@@ -172,7 +171,7 @@ export class TTSService {
         this.currentProvider.stop()
       }
       // 停止所有供应商实例（确保彻底清理）
-      this.providers.forEach(provider => {
+      this.providers.forEach((provider) => {
         try {
           provider.stop()
         } catch (error) {

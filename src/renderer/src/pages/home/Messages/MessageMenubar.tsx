@@ -34,6 +34,8 @@ import {
   Copy,
   Languages,
   Menu,
+  Pause,
+  Play,
   RefreshCw,
   Save,
   Share,
@@ -98,6 +100,8 @@ const MessageMenubar: FC<Props> = (props) => {
 
   // 计算当前消息的播放状态
   const isCurrentMessagePlaying = playbackInfo.state === 'playing' && playbackInfo.currentMessageId === message.id
+  const isCurrentMessagePaused = playbackInfo.state === 'paused' && playbackInfo.currentMessageId === message.id
+  const isCurrentMessageActive = (playbackInfo.state === 'playing' || playbackInfo.state === 'paused') && playbackInfo.currentMessageId === message.id
   // const assistantModel = assistant?.model
   const {
     editMessage,
@@ -368,6 +372,31 @@ const MessageMenubar: FC<Props> = (props) => {
     [message, editMessage]
   )
 
+  // TTS 暂停/恢复处理
+  const handleTTSPause = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+
+      try {
+        const manager = TTSPlaybackManager.getInstance()
+        const { action } = manager.togglePause(message.id)
+
+        switch (action) {
+          case 'pause':
+            tts.pause()
+            break
+          case 'resume':
+            tts.resume()
+            break
+        }
+      } catch (error) {
+        console.error('[MessageMenubar] TTS pause/resume failed:', error)
+        window.message.error({ content: t('settings.tts.pause.failed'), key: 'tts-pause-failed' })
+      }
+    },
+    [tts, message.id, t]
+  )
+
   // TTS 播放处理 - 使用状态机
   const handleTTSToggle = useCallback(
     async (e: React.MouseEvent) => {
@@ -392,16 +421,26 @@ const MessageMenubar: FC<Props> = (props) => {
 
             // 将 Markdown 转换为适合 TTS 播放的纯文本
             const ttsText = markdownToTTSText(mainTextContent)
-            await tts.speak(ttsText)
 
-            // 播放完成，设置为空闲状态
-            manager.setPlaybackState('idle')
+            try {
+              await tts.speak(ttsText)
+              // 播放完成，设置为空闲状态（只有在没有被手动停止的情况下）
+              const currentInfo = manager.getPlaybackInfo()
+              if (currentInfo.currentMessageId === message.id && currentInfo.state !== 'idle') {
+                manager.setPlaybackState('idle')
+              }
+            } catch (error) {
+              // 播放出错，设置为空闲状态
+              manager.setPlaybackState('idle')
+              throw error
+            }
             break
           }
 
           case 'stop':
             // 停止播放
             tts.stop()
+            // 状态已经在 togglePlayback 中设置为 idle，无需重复设置
             break
         }
       } catch (error) {
@@ -467,15 +506,29 @@ const MessageMenubar: FC<Props> = (props) => {
           {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
         </ActionButton>
       </Tooltip>
-      {/* TTS 播放按钮（仅对助手消息显示） - 单按钮设计：播放/停止 */}
+      {/* TTS 播放按钮（仅对助手消息显示） */}
       {isAssistantMessage && tts.isTTSAvailable && (
-        <Tooltip
-          title={isCurrentMessagePlaying ? t('settings.tts.stop') : t('settings.tts.play')}
-          mouseEnterDelay={0.8}>
-          <ActionButton className="message-action-button" onClick={handleTTSToggle}>
-            {isCurrentMessagePlaying ? <Square size={16} /> : <Volume2 size={16} />}
-          </ActionButton>
-        </Tooltip>
+        <>
+          {/* 播放/停止按钮 */}
+          <Tooltip
+            title={isCurrentMessageActive ? t('settings.tts.stop') : t('settings.tts.play')}
+            mouseEnterDelay={0.8}>
+            <ActionButton className="message-action-button" onClick={handleTTSToggle}>
+              {isCurrentMessageActive ? <Square size={16} /> : <Volume2 size={16} />}
+            </ActionButton>
+          </Tooltip>
+
+          {/* 暂停/恢复按钮（仅在播放或暂停时显示） */}
+          {isCurrentMessageActive && (
+            <Tooltip
+              title={isCurrentMessagePaused ? t('settings.tts.resume') : t('settings.tts.pause')}
+              mouseEnterDelay={0.8}>
+              <ActionButton className="message-action-button" onClick={handleTTSPause}>
+                {isCurrentMessagePaused ? <Play size={16} /> : <Pause size={16} />}
+              </ActionButton>
+            </Tooltip>
+          )}
+        </>
       )}
       {isAssistantMessage && (
         <Popconfirm
