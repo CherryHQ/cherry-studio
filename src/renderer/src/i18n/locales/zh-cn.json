@@ -142,9 +142,27 @@
       "select_model": "选择模型",
       "show.all": "显示全部",
       "update_available": "有可用更新",
+      "skip_version": "跳过此版本",
       "includes_user_questions": "包含用户提问",
       "case_sensitive": "区分大小写",
-      "whole_word": "全字匹配"
+      "whole_word": "全字匹配",
+      "cancel": "取消",
+      "save": "保存",
+      "confirm": "确定",
+      "reset": "重置",
+      "edit": "编辑",
+      "delete": "删除",
+      "import": "导入",
+      "export": "导出",
+      "clear": "清空",
+      "close": "关闭",
+      "copy": "复制",
+      "copied": "已复制",
+      "paste": "粘贴",
+      "search": "搜索",
+      "select": "选择",
+      "stop": "停止",
+      "send": "发送"
     },
     "chat": {
       "add.assistant.title": "添加助手",
@@ -853,8 +871,8 @@
       "learn_more": "了解更多",
       "paint_course": "教程",
       "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
-      "prompt_placeholder_en": "输入”英文“图片描述，目前 Imagen 仅支持英文提示词",
-      "proxy_required": "打开代理并开启”TUN模式“查看生成图片或复制到浏览器打开，后续会支持国内直连",
+      "prompt_placeholder_en": "输入\"英文\"图片描述，目前 Imagen 仅支持英文提示词",
+      "proxy_required": "打开代理并开启\"TUN模式\"查看生成图片或复制到浏览器打开，后续会支持国内直连",
       "image_file_required": "请先上传图片",
       "image_file_retry": "请重新上传图片",
       "image_placeholder": "暂无图片",
@@ -950,7 +968,7 @@
         "magic_prompt_option_tip": "智能优化放大提示词"
       },
       "text_desc_required": "请先输入图片描述",
-      "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "req_error_text": "运行失败，请重试。提示词避免\"版权词\"和\"敏感词\"哦。",
       "req_error_token": "请检查令牌有效性",
       "req_error_no_balance": "请检查令牌有效性",
       "image_handle_required": "请先上传图片",
@@ -1873,13 +1891,15 @@
       "visualization": "可视化"
     },
     "update": {
-      "title": "更新提示",
+      "title": "发现新版本",
       "message": "发现新版本 {{version}}，是否立即安装？",
       "later": "稍后",
       "install": "立即安装",
-      "noReleaseNotes": "暂无更新日志"
+      "skip_version": "跳过此版本",
+      "noReleaseNotes": "暂无版本说明"
     },
     "selection": {
+      "title": "划词助手",
       "name": "划词助手",
       "action": {
         "builtin": {

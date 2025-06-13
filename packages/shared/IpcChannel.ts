@@ -5,6 +5,7 @@ export enum IpcChannel {
   App_SetLanguage = 'app:set-language',
   App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
+  App_SkipUpdate = 'app:skip-update',
   App_Reload = 'app:reload',
   App_Info = 'app:info',
   App_Proxy = 'app:proxy',

@@ -141,10 +141,11 @@
       "manage": "管理",
       "select_model": "モデルを選択",
       "show.all": "すべて表示",
-      "update_available": "更新可能",
-      "includes_user_questions": "ユーザーからの質問を含む",
-      "case_sensitive": "大文字と小文字の区別",
-      "whole_word": "全語一致"
+      "update_available": "利用可能なアップデート",
+      "skip_version": "このバージョンをスキップ",
+      "includes_user_questions": "質問を含める",
+      "case_sensitive": "大文字と小文字を区別",
+      "whole_word": "単語全体"
     },
     "chat": {
       "add.assistant.title": "アシスタントを追加",
@@ -853,7 +854,7 @@
       "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
       "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
       "paint_course": "チュートリアル",
-      "proxy_required": "打開代理並開啟”TUN模式“查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
+      "proxy_required": "プロキシを開き、\"TUNモード\"を有効にして生成された画像を表示するか、ブラウザにコピーして開きます。将来的には国内の直接接続がサポートされる予定です",
       "image_file_required": "画像を先にアップロードしてください",
       "image_file_retry": "画像を先にアップロードしてください",
       "image_placeholder": "画像がありません",
@@ -1873,11 +1874,12 @@
       "visualization": "可視化"
     },
     "update": {
-      "title": "更新",
-      "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
+      "title": "新しいバージョンが利用可能です",
+      "message": "新しいバージョン{{version}}が利用可能です。今すぐインストールしますか？",
       "later": "後で",
       "install": "今すぐインストール",
-      "noReleaseNotes": "暫無更新日誌"
+      "skip_version": "このバージョンをスキップ",
+      "noReleaseNotes": "このバージョンのリリースノートはありません"
     },
     "selection": {
       "name": "テキスト選択ツール",

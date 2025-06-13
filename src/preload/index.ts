@@ -16,6 +16,7 @@ const api = {
   setProxy: (proxy: string | undefined) => ipcRenderer.invoke(IpcChannel.App_Proxy, proxy),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
+  skipUpdate: (version: string) => ipcRenderer.invoke(IpcChannel.App_SkipUpdate, version),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
   setLaunchToTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchToTray, isActive),
