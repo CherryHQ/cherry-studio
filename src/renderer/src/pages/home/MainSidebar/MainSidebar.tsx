@@ -182,6 +182,7 @@ const MainSidebar: FC = () => {
           value={_searchValue}
           placeholder={t('chat.assistant.search.placeholder')}
           onChange={(e) => setSearchValue(e.target.value)}
+          allowClear
           style={{
             marginBottom: 5
           }}
