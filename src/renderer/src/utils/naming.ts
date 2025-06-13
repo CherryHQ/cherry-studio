@@ -101,7 +101,7 @@ export function isEmoji(str: string): boolean {
  * @returns {string} 处理后的字符串
  */
 export function removeSpecialCharactersForTopicName(str: string): string {
-  return str.replace(/[\r\n]+/g, ' ').trim()
+  return str.replace(/["'\r\n]+/g, ' ').trim()
 }
 
 /**

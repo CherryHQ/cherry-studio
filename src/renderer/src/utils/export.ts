@@ -7,7 +7,7 @@ import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { convertMathFormula } from '@renderer/utils/markdown'
+import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -124,12 +124,43 @@ export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolea
     .join('\n\n---\n\n')
 }
 
+const formatMessageAsPlainText = (message: Message): string => {
+  const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
+  const content = getMainTextContent(message)
+  const plainTextContent = markdownToPlainText(content).trim()
+  return `${roleText}\n${plainTextContent}`
+}
+
+export const messageToPlainText = (message: Message): string => {
+  const content = getMainTextContent(message)
+  return markdownToPlainText(content).trim()
+}
+
+const messagesToPlainText = (messages: Message[]): string => {
+  return messages.map(formatMessageAsPlainText).join('\n\n')
+}
+
 export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
   if (topicMessages) {
     return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages, exportReasoning)
+  }
+
+  return ''
+}
+
+export const topicToPlainText = async (topic: Topic): Promise<string> => {
+  const topicName = markdownToPlainText(topic.name).trim()
+  const topicMessages = await db.topics.get(topic.id)
+
+  if (topicMessages && topicMessages.messages.length > 0) {
+    return topicName + '\n\n' + messagesToPlainText(topicMessages.messages)
+  }
+
+  if (topicMessages && topicMessages.messages.length === 0) {
+    return topicName
   }
 
   return ''

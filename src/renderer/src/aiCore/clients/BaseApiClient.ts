@@ -1,40 +1,69 @@
-import Logger from '@renderer/config/logger'
-import { isFunctionCallingModel, isNotSupportTemperatureAndTopP } from '@renderer/config/models'
+import {
+  isFunctionCallingModel,
+  isNotSupportTemperatureAndTopP,
+  isOpenAIModel,
+  isSupportedFlexServiceTier
+} from '@renderer/config/models'
 import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
-import type {
+import { getStoreSetting } from '@renderer/hooks/useSettings'
+import { SettingsState } from '@renderer/store/settings'
+import {
   Assistant,
+  FileTypes,
   GenerateImageParams,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
+  OpenAIServiceTier,
   Provider,
-  Suggestion,
+  ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
-import { ChunkType } from '@renderer/types/chunk'
-import type { Message } from '@renderer/types/newMessage'
-import { delay, isJSON, parseJSON } from '@renderer/utils'
+import { Message } from '@renderer/types/newMessage'
+import {
+  RequestOptions,
+  SdkInstance,
+  SdkMessageParam,
+  SdkModel,
+  SdkParams,
+  SdkRawChunk,
+  SdkRawOutput,
+  SdkTool,
+  SdkToolCall
+} from '@renderer/types/sdk'
+import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
-import { formatApiHost } from '@renderer/utils/api'
-import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { defaultTimeout } from '@shared/config/constant'
+import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
-import type OpenAI from 'openai'
 
-import type { CompletionsParams } from '.'
+import { ApiClient, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from './types'
 
-export default abstract class BaseProvider {
-  // Threshold for determining whether to use system prompt for tools
+/**
+ * Abstract base class for API clients.
+ * Provides common functionality and structure for specific client implementations.
+ */
+export abstract class BaseApiClient<
+  TSdkInstance extends SdkInstance = SdkInstance,
+  TSdkParams extends SdkParams = SdkParams,
+  TRawOutput extends SdkRawOutput = SdkRawOutput,
+  TRawChunk extends SdkRawChunk = SdkRawChunk,
+  TMessageParam extends SdkMessageParam = SdkMessageParam,
+  TToolCall extends SdkToolCall = SdkToolCall,
+  TSdkSpecificTool extends SdkTool = SdkTool
+> implements ApiClient<TSdkInstance, TSdkParams, TRawOutput, TRawChunk, TMessageParam, TToolCall, TSdkSpecificTool>
+{
   private static readonly SYSTEM_PROMPT_THRESHOLD: number = 128
-
-  protected provider: Provider
+  public provider: Provider
   protected host: string
   protected apiKey: string
-
-  protected useSystemPromptForTools: boolean = true
+  protected sdkInstance?: TSdkInstance
+  public useSystemPromptForTools: boolean = true
 
   constructor(provider: Provider) {
     this.provider = provider
@@ -42,32 +71,81 @@ export default abstract class BaseProvider {
     this.apiKey = this.getApiKey()
   }
 
-  abstract completions({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
-  abstract translate(
-    content: string,
-    assistant: Assistant,
-    onResponse?: (text: string, isComplete: boolean) => void
-  ): Promise<string>
-  abstract summaries(messages: Message[], assistant: Assistant): Promise<string>
-  abstract summaryForSearch(messages: Message[], assistant: Assistant): Promise<string | null>
-  abstract suggestions(messages: Message[], assistant: Assistant): Promise<Suggestion[]>
-  abstract generateText({ prompt, content }: { prompt: string; content: string }): Promise<string>
-  abstract check(model: Model, stream: boolean): Promise<{ valid: boolean; error: Error | null }>
-  abstract models(): Promise<OpenAI.Models.Model[]>
-  abstract generateImage(params: GenerateImageParams): Promise<string[]>
-  abstract generateImageByChat({ messages, assistant, onChunk, onFilterMessages }: CompletionsParams): Promise<void>
-  // 由于现在出现了一些能够选择嵌入维度的嵌入模型，这个不考虑dimensions参数的方法将只能应用于那些不支持dimensions的模型
-  abstract getEmbeddingDimensions(model: Model): Promise<number>
-  public abstract convertMcpTools<T>(mcpTools: MCPTool[]): T[]
-  public abstract mcpToolCallResponseToMessage(
+  // // 核心的completions方法 - 在中间件架构中，这通常只是一个占位符
+  // abstract completions(params: CompletionsParams, internal?: ProcessingState): Promise<CompletionsResult>
+
+  /**
+   * 核心API Endpoint
+   **/
+
+  abstract createCompletions(payload: TSdkParams, options?: RequestOptions): Promise<TRawOutput>
+
+  abstract generateImage(generateImageParams: GenerateImageParams): Promise<string[]>
+
+  abstract getEmbeddingDimensions(model?: Model): Promise<number>
+
+  abstract listModels(): Promise<SdkModel[]>
+
+  abstract getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
+
+  /**
+   * 中间件
+   **/
+
+  // 在 CoreRequestToSdkParamsMiddleware中使用
+  abstract getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>
+  // 在RawSdkChunkToGenericChunkMiddleware中使用
+  abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
+
+  /**
+   * 工具转换
+   **/
+
+  // Optional tool conversion methods - implement if needed by the specific provider
+  abstract convertMcpToolsToSdkTools(mcpTools: MCPTool[]): TSdkSpecificTool[]
+
+  abstract convertSdkToolCallToMcp(toolCall: TToolCall, mcpTools: MCPTool[]): MCPTool | undefined
+
+  abstract convertSdkToolCallToMcpToolResponse(toolCall: TToolCall, mcpTool: MCPTool): ToolCallResponse
+
+  abstract buildSdkMessages(
+    currentReqMessages: TMessageParam[],
+    output: TRawOutput | string,
+    toolResults: TMessageParam[],
+    toolCalls?: TToolCall[]
+  ): TMessageParam[]
+
+  abstract estimateMessageTokens(message: TMessageParam): number
+
+  abstract convertMcpToolResponseToSdkMessageParam(
     mcpToolResponse: MCPToolResponse,
     resp: MCPCallToolResponse,
     model: Model
-  ): any
+  ): TMessageParam | undefined
+
+  /**
+   * 从SDK载荷中提取消息数组（用于中间件中的类型安全访问）
+   * 不同的提供商可能使用不同的字段名（如messages、history等）
+   */
+  abstract extractMessagesFromSdkPayload(sdkPayload: TSdkParams): TMessageParam[]
+
+  /**
+   * 附加原始流监听器
+   */
+  public attachRawStreamListener<TListener extends RawStreamListener<TRawChunk>>(
+    rawOutput: TRawOutput,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _listener: TListener
+  ): TRawOutput {
+    return rawOutput
+  }
+
+  /**
+   * 通用函数
+   **/
 
   public getBaseURL(): string {
-    const host = this.provider.apiHost
-    return formatApiHost(host)
+    return this.provider.apiHost
   }
 
   public getApiKey() {
@@ -112,14 +190,32 @@ export default abstract class BaseProvider {
     return isNotSupportTemperatureAndTopP(model) ? undefined : assistant.settings?.topP
   }
 
-  public async fakeCompletions({ onChunk }: CompletionsParams) {
-    for (let i = 0; i < 100; i++) {
-      await delay(0.01)
-      onChunk({
-        response: { text: i + '\n', usage: { completion_tokens: 0, prompt_tokens: 0, total_tokens: 0 } },
-        type: ChunkType.BLOCK_COMPLETE
-      })
+  protected getServiceTier(model: Model) {
+    if (!isOpenAIModel(model) || model.provider === 'github' || model.provider === 'copilot') {
+      return undefined
     }
+
+    const openAI = getStoreSetting('openAI') as SettingsState['openAI']
+    let serviceTier = 'auto' as OpenAIServiceTier
+
+    if (openAI && openAI?.serviceTier === 'flex') {
+      if (isSupportedFlexServiceTier(model)) {
+        serviceTier = 'flex'
+      } else {
+        serviceTier = 'auto'
+      }
+    } else {
+      serviceTier = openAI.serviceTier
+    }
+
+    return serviceTier
+  }
+
+  protected getTimeout(model: Model) {
+    if (isSupportedFlexServiceTier(model)) {
+      return 15 * 1000 * 60
+    }
+    return defaultTimeout
   }
 
   public async getMessageContent(message: Message): Promise<string> {
@@ -147,6 +243,36 @@ export default abstract class BaseProvider {
     }
 
     return content
+  }
+
+  /**
+   * Extract the file content from the message
+   * @param message - The message
+   * @returns The file content
+   */
+  protected async extractFileContent(message: Message) {
+    const fileBlocks = findFileBlocks(message)
+    if (fileBlocks.length > 0) {
+      const textFileBlocks = fileBlocks.filter(
+        (fb) => fb.file && [FileTypes.TEXT, FileTypes.DOCUMENT].includes(fb.file.type)
+      )
+
+      if (textFileBlocks.length > 0) {
+        let text = ''
+        const divider = '\n\n---\n\n'
+
+        for (const fileBlock of textFileBlocks) {
+          const file = fileBlock.file
+          const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
+          const fileNameRow = 'file: ' + file.origin_name + '\n\n'
+          text = text + fileNameRow + fileContent + divider
+        }
+
+        return text
+      }
+    }
+
+    return ''
   }
 
   private async getWebSearchReferencesFromCache(message: Message) {
@@ -210,7 +336,7 @@ export default abstract class BaseProvider {
     )
   }
 
-  protected createAbortController(messageId?: string, isAddEventListener?: boolean) {
+  public createAbortController(messageId?: string, isAddEventListener?: boolean) {
     const abortController = new AbortController()
     const abortFn = () => abortController.abort()
 
@@ -256,11 +382,11 @@ export default abstract class BaseProvider {
   }
 
   // Setup tools configuration based on provided parameters
-  protected setupToolsConfig<T>(params: { mcpTools?: MCPTool[]; model: Model; enableToolUse?: boolean }): {
-    tools: T[]
+  public setupToolsConfig(params: { mcpTools?: MCPTool[]; model: Model; enableToolUse?: boolean }): {
+    tools: TSdkSpecificTool[]
   } {
     const { mcpTools, model, enableToolUse } = params
-    let tools: T[] = []
+    let tools: TSdkSpecificTool[] = []
 
     // If there are no tools, return an empty array
     if (!mcpTools?.length) {
@@ -268,14 +394,14 @@ export default abstract class BaseProvider {
     }
 
     // If the number of tools exceeds the threshold, use the system prompt
-    if (mcpTools.length > BaseProvider.SYSTEM_PROMPT_THRESHOLD) {
+    if (mcpTools.length > BaseApiClient.SYSTEM_PROMPT_THRESHOLD) {
       this.useSystemPromptForTools = true
       return { tools }
     }
 
     // If the model supports function calling and tool usage is enabled
     if (isFunctionCallingModel(model) && enableToolUse) {
-      tools = this.convertMcpTools<T>(mcpTools)
+      tools = this.convertMcpToolsToSdkTools(mcpTools)
       this.useSystemPromptForTools = false
     }
 

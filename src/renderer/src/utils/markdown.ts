@@ -78,6 +78,7 @@ export function isValidPlantUML(code: string | null): boolean {
 }
 
 /**
+/**
  * 将 Markdown 字符串转换为纯文本
  */
 export const markdownToPlainText = (markdown: string): string => {

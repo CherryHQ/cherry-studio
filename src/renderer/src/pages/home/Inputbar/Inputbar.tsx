@@ -4,6 +4,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import Logger from '@renderer/config/logger'
 import {
   isGenerateImageModel,
+  isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isVisionModel,
@@ -727,7 +728,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
-    if (isGenerateImageModel(model) && !assistant.enableGenerateImage && model.id !== 'gemini-2.0-flash-exp') {
+    if (isGenerateImageModel(model) && !assistant.enableGenerateImage && !isSupportedDisableGenerationModel(model)) {
       updateAssistant({ ...assistant, enableGenerateImage: true })
     }
   }, [assistant, model, updateAssistant])
