@@ -5,7 +5,9 @@ import { visit } from 'unist-util-visit'
 import removeMarkdown from 'remove-markdown'
 
 /**
- * 递归搜索所有子元素中的 citation
+ * Recursively search for citation in all child elements
+ * @param children Child elements to search
+ * @returns Found citation or empty string
  */
 export const findCitationInChildren = (children: any): string => {
   if (!children) return ''
@@ -25,7 +27,9 @@ export const findCitationInChildren = (children: any): string => {
 }
 
 /**
- * 转换数学公式格式
+ * Convert math formula format from LaTeX to markdown
+ * @param input Input string containing LaTeX formulas
+ * @returns Converted string with markdown math syntax
  */
 export function convertMathFormula(input: string): string {
   if (!input) return input
@@ -37,21 +41,29 @@ export function convertMathFormula(input: string): string {
 }
 
 /**
- * 移除 Markdown 文本中每行末尾的两个空格
+ * Remove trailing double spaces from each line in Markdown text
+ * @param markdown Input Markdown text
+ * @returns Processed text without trailing double spaces
  */
 export function removeTrailingDoubleSpaces(markdown: string): string {
   return markdown.replace(/ {2}$/gm, '')
 }
 
 /**
- * 根据代码块节点的起始位置生成 ID
+ * Generate ID based on code block node's starting position
+ * @param start Starting position of the code block node
+ * @returns Code block ID in the Markdown string
  */
 export function getCodeBlockId(start: any): string | null {
   return start ? `${start.line}:${start.column}:${start.offset}` : null
 }
 
 /**
- * 更新Markdown字符串中的代码块内容
+ * Update code block content in Markdown string
+ * @param raw Original Markdown string
+ * @param id Code block ID to update
+ * @param newContent New content for the code block
+ * @returns Updated Markdown string
  */
 export function updateCodeBlock(raw: string, id: string, newContent: string): string {
   const tree = unified().use(remarkParse).parse(raw)
