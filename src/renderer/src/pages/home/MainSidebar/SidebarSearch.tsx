@@ -1,7 +1,8 @@
 import { Input, InputRef } from 'antd'
 import { Search } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import { MainMenuItem, MainMenuItemIcon, MainMenuItemLeft, MainMenuItemText } from './MainSidebarStyles'
 
@@ -53,8 +54,7 @@ const SidebarSearch: React.FC<SidebarSearchProps> = ({ onSearch }) => {
     }
   }, [isExpanded])
 
-  // 如果已展开，显示输入框
-  if (isExpanded) {
+  const renderInputBox = useMemo(() => {
     return (
       <Input
         ref={inputRef}
@@ -71,9 +71,7 @@ const SidebarSearch: React.FC<SidebarSearchProps> = ({ onSearch }) => {
         onClear={handleClear}
         allowClear
         style={{
-          paddingTop: 4,
-          paddingBottom: 4,
-          marginBottom: 5
+          paddingTop: 4
         }}
         prefix={
           <MainMenuItemIcon style={{ margin: '0 6px 0 -2px' }}>
@@ -83,19 +81,26 @@ const SidebarSearch: React.FC<SidebarSearchProps> = ({ onSearch }) => {
         spellCheck={false}
       />
     )
-  }
+  }, [handleClear, handleCollapse, handleInputKeyDown, handleTextChange, searchText, t])
 
-  // 未展开时，显示普通菜单项
-  return (
-    <MainMenuItem onClick={handleExpand} style={{ marginBottom: 5, cursor: 'pointer' }}>
-      <MainMenuItemLeft>
-        <MainMenuItemIcon>
-          <Search size={18} className="icon" />
-        </MainMenuItemIcon>
-        <MainMenuItemText>{t('chat.assistant.search.placeholder')}</MainMenuItemText>
-      </MainMenuItemLeft>
-    </MainMenuItem>
-  )
+  const renderMenuItem = useMemo(() => {
+    return (
+      <MainMenuItem onClick={handleExpand} style={{ cursor: 'pointer' }}>
+        <MainMenuItemLeft>
+          <MainMenuItemIcon>
+            <Search size={18} className="icon" />
+          </MainMenuItemIcon>
+          <MainMenuItemText>{t('chat.assistant.search.placeholder')}</MainMenuItemText>
+        </MainMenuItemLeft>
+      </MainMenuItem>
+    )
+  }, [handleExpand, t])
+
+  return <SearchBarWrapper>{isExpanded ? renderInputBox : renderMenuItem}</SearchBarWrapper>
 }
+
+const SearchBarWrapper = styled.div`
+  height: 2.2rem;
+`
 
 export default memo(SidebarSearch)
