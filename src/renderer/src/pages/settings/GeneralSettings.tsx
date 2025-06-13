@@ -70,18 +70,19 @@ const GeneralSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
-  // Language to spell check language mapping
+  // Language to spell check language mapping (only for languages that support spell checking)
   const getSpellCheckLanguagesFromUILanguage = (lang: LanguageVarious): string[] => {
     const languageMap: Record<LanguageVarious, string[]> = {
-      'zh-CN': ['zh-CN'],
-      'zh-TW': ['zh-TW'],
       'en-US': ['en-US'],
-      'ja-JP': ['ja'],
-      'ru-RU': ['ru'],
-      'el-GR': ['el'],
       'es-ES': ['es'],
       'fr-FR': ['fr'],
-      'pt-PT': ['pt']
+      'ru-RU': ['ru'],
+      'pt-PT': ['pt'],
+      // For languages without spell check support, default to English
+      'zh-CN': ['en-US'],
+      'zh-TW': ['en-US'],
+      'ja-JP': ['en-US'],
+      'el-GR': ['en-US']
     }
     return languageMap[lang] || ['en-US']
   }
@@ -92,20 +93,24 @@ const GeneralSettings: FC = () => {
     window.api.setLanguage(value)
     i18n.changeLanguage(value)
 
-    // Update spell check languages based on selected language
-    const newSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(value)
-    dispatch(setSpellCheckLanguages(newSpellCheckLanguages))
-    window.api.setSpellCheckLanguages(newSpellCheckLanguages)
+    // Only update spell check languages if spell check is enabled and user hasn't made manual selections
+    if (enableSpellCheck && spellCheckLanguages.length === 0) {
+      const newSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(value)
+      dispatch(setSpellCheckLanguages(newSpellCheckLanguages))
+      window.api.setSpellCheckLanguages(newSpellCheckLanguages)
+    }
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
     dispatch(setEnableSpellCheck(checked))
 
     if (checked) {
-      // When enabling spell check, set the languages based on current UI language
-      const currentSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(language || defaultLanguage)
-      dispatch(setSpellCheckLanguages(currentSpellCheckLanguages))
-      window.api.setSpellCheckLanguages(currentSpellCheckLanguages)
+      // When enabling spell check, only set default languages if no languages are currently selected
+      if (spellCheckLanguages.length === 0) {
+        const currentSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(language || defaultLanguage)
+        dispatch(setSpellCheckLanguages(currentSpellCheckLanguages))
+        window.api.setSpellCheckLanguages(currentSpellCheckLanguages)
+      }
     } else {
       // When disabling spell check, clear the languages
       dispatch(setSpellCheckLanguages([]))
@@ -153,9 +158,28 @@ const GeneralSettings: FC = () => {
   ]
 
   const notificationSettings = useSelector((state: RootState) => state.settings.notification)
+  const spellCheckLanguages = useSelector((state: RootState) => state.settings.spellCheckLanguages)
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
+  }
+
+  // Define available spell check languages with display names (only commonly supported languages)
+  const spellCheckLanguageOptions = [
+    { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+    { value: 'es', label: 'Español', flag: '🇪🇸' },
+    { value: 'fr', label: 'Français', flag: '🇫🇷' },
+    { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+    { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+    { value: 'pt', label: 'Português', flag: '🇵🇹' },
+    { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+    { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
+  ]
+
+  const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
+    dispatch(setSpellCheckLanguages(selectedLanguages))
+    window.api.setSpellCheckLanguages(selectedLanguages)
   }
 
   return (
@@ -188,6 +212,37 @@ const GeneralSettings: FC = () => {
           </SettingRowTitle>
           <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
         </SettingRow>
+        {enableSpellCheck && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>
+                {t('settings.general.spell_check.languages')}
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+                  {t('settings.general.spell_check.languages.description')}
+                </div>
+              </SettingRowTitle>
+              <Select
+                mode="multiple"
+                value={spellCheckLanguages}
+                style={{ width: 280 }}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Space.Compact direction="horizontal" block>
+                      <Space.Compact block>{lang.label}</Space.Compact>
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                    </Space.Compact>
+                  )
+                }))}
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>

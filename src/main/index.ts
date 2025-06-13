@@ -97,18 +97,19 @@ if (!app.requestSingleInstanceLock()) {
     if (enableSpellCheck) {
       const existingSpellCheckLanguages = (configManager.get('spellCheckLanguages') as string[]) || []
       if (existingSpellCheckLanguages.length === 0) {
-        // Set default spell check languages based on UI language
+        // Set default spell check languages based on UI language (only for supported languages)
         const getSpellCheckLanguagesFromUILanguage = (lang: string): string[] => {
           const languageMap: Record<string, string[]> = {
-            'zh-CN': ['zh-CN'],
-            'zh-TW': ['zh-TW'],
             'en-US': ['en-US'],
-            'ja-JP': ['ja'],
-            'ru-RU': ['ru'],
-            'el-GR': ['el'],
             'es-ES': ['es'],
             'fr-FR': ['fr'],
-            'pt-PT': ['pt']
+            'ru-RU': ['ru'],
+            'pt-PT': ['pt'],
+            // For languages without spell check support, default to English
+            'zh-CN': ['en-US'],
+            'zh-TW': ['en-US'],
+            'ja-JP': ['en-US'],
+            'el-GR': ['en-US']
           }
           return languageMap[lang] || ['en-US']
         }
