@@ -1890,7 +1890,11 @@
           "tencentcloud": "Tencent Cloud TTS"
         },
         "streaming": "[to be translated]:Streaming Synthesis",
-        "streaming.description": "[to be translated]:Enable real-time streaming speech synthesis for faster playback with reduced waiting time"
+        "streaming.description": "[to be translated]:Enable real-time streaming speech synthesis for faster playback with reduced waiting time",
+        "pause_support": {
+          "title": "[to be translated]:Enable Pause Function",
+          "description": "[to be translated]:Enable pause/resume for streaming audio (increases memory usage)"
+        }
       }
     },
     "translate": {

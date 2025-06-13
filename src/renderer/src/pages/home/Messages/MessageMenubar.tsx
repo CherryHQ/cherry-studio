@@ -101,7 +101,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [])
 
   // 计算当前消息的播放状态
-  const isCurrentMessagePlaying = playbackInfo.state === 'playing' && playbackInfo.currentMessageId === message.id
+  // const isCurrentMessagePlaying = playbackInfo.state === 'playing' && playbackInfo.currentMessageId === message.id
   const isCurrentMessagePaused = playbackInfo.state === 'paused' && playbackInfo.currentMessageId === message.id
   const isCurrentMessageActive = (playbackInfo.state === 'playing' || playbackInfo.state === 'paused') && playbackInfo.currentMessageId === message.id
   // const assistantModel = assistant?.model
