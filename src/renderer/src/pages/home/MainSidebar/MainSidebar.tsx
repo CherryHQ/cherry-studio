@@ -13,7 +13,7 @@ import { getAssistantById } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
-import { Avatar, Dropdown, Input } from 'antd'
+import { Avatar, Dropdown } from 'antd'
 import {
   Blocks,
   ChevronDown,
@@ -26,7 +26,6 @@ import {
   LayoutGrid,
   Moon,
   Palette,
-  Search,
   Settings,
   Sparkle,
   SquareTerminal,
@@ -53,6 +52,7 @@ import {
   SubMenu
 } from './MainSidebarStyles'
 import OpenedMinappTabs from './OpenedMinapps'
+import SidebarSearch from './SidebarSearch'
 
 type Tab = 'assistants' | 'topic'
 
@@ -178,21 +178,7 @@ const MainSidebar: FC = () => {
       }}>
       <MainNavbar />
       <MainMenu>
-        <Input
-          value={_searchValue}
-          placeholder={t('chat.assistant.search.placeholder')}
-          onChange={(e) => setSearchValue(e.target.value)}
-          allowClear
-          style={{
-            marginBottom: 5
-          }}
-          prefix={
-            <MainMenuItemIcon style={{ margin: '0 6px 1px -2px' }}>
-              <Search size={18} className="icon" />
-            </MainMenuItemIcon>
-          }
-          spellCheck={false}
-        />
+        <SidebarSearch onSearch={setSearchValue} />
         <MainMenuItem active={isAppMenuExpanded} onClick={() => setIsAppMenuExpanded(!isAppMenuExpanded)}>
           <MainMenuItemLeft>
             <MainMenuItemIcon>
