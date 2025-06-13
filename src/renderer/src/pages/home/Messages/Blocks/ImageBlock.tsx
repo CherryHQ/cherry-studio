@@ -1,6 +1,6 @@
-import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { type ImageMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
+import { Skeleton } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
 
@@ -10,11 +10,7 @@ interface Props {
 
 const ImageBlock: React.FC<Props> = ({ block }) => {
   if (block.status === MessageBlockStatus.STREAMING || block.status === MessageBlockStatus.PROCESSING)
-    return (
-      <SpinnerWrapper>
-        <SvgSpinners180Ring />
-      </SpinnerWrapper>
-    )
+    return <Skeleton.Image active style={{ width: 200, height: 200 }} />
   if (block.status === MessageBlockStatus.SUCCESS) {
     const images = block.metadata?.generateImageResponse?.images?.length
       ? block.metadata?.generateImageResponse?.images
@@ -32,9 +28,7 @@ const ImageBlock: React.FC<Props> = ({ block }) => {
         ))}
       </Container>
     )
-  } else {
-    return <></>
-  }
+  } else return null
 }
 const Container = styled.div`
   display: flex;
@@ -42,11 +36,4 @@ const Container = styled.div`
   gap: 10px;
   margin-top: 8px;
 `
-
-const SpinnerWrapper = styled.div`
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-`
-
 export default React.memo(ImageBlock)
