@@ -1,6 +1,8 @@
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
@@ -17,9 +19,10 @@ import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Divider } from 'antd'
+import { Button, Divider, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
+import { CirclePause, SendIcon } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -39,9 +42,12 @@ const HomeWindow: FC = () => {
   const [selectedText, setSelectedText] = useState('')
   const [text, setText] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
+  const [currentAskId, setCurrentAskId] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
+  const { pauseMessages } = useMessageOperations(topic)
+  const { generating } = useRuntime()
   const { defaultModel, quickAssistantModel } = useDefaultModel()
   // 如果 quickAssistantModel 未設定，則使用 defaultModel
   const model = quickAssistantModel || defaultModel
@@ -185,6 +191,8 @@ const HomeWindow: FC = () => {
       const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
       store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
+      setCurrentAskId(assistantMessage.askId || null)
+
       fetchChatCompletion({
         messages: [userMessage],
         assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
@@ -217,6 +225,7 @@ const HomeWindow: FC = () => {
                 updates: { status: AssistantMessageStatus.SUCCESS }
               })
             )
+            setCurrentAskId(null)
           }
         }
       })
@@ -226,6 +235,13 @@ const HomeWindow: FC = () => {
     },
     [content, defaultAssistant, topic, quickAssistantModel]
   )
+
+  const onPause = useCallback(() => {
+    if (currentAskId) {
+      pauseMessages()
+      setCurrentAskId(null)
+    }
+  }, [currentAskId, pauseMessages])
 
   const clearClipboard = () => {
     setClipboardText('')
@@ -273,15 +289,40 @@ const HomeWindow: FC = () => {
       <Container style={{ backgroundColor: backgroundColor() }}>
         {route === 'chat' && (
           <>
-            <InputBar
-              text={text}
-              model={model}
-              referenceText={referenceText}
-              placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
-              handleKeyDown={handleKeyDown}
-              handleChange={handleChange}
-              ref={inputBarRef}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ flex: 1, marginRight: 10 }}>
+                <InputBar
+                  text={text}
+                  model={model}
+                  referenceText={referenceText}
+                  placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
+                  handleKeyDown={handleKeyDown}
+                  handleChange={handleChange}
+                  ref={inputBarRef}
+                />
+              </div>
+              <ToolbarMenu>
+                {generating && (
+                  <Tooltip placement="top" title={t('chat.input.pause')} arrow>
+                    <ToolbarButton type="text" onClick={onPause}>
+                      <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
+                {!generating && (
+                  <Tooltip placement="top" title={t('chat.input.send')} arrow>
+                    <ToolbarButton
+                      type="text"
+                      onClick={() => onSendMessage()}
+                      disabled={generating || isEmpty(content)}>
+                      <SendIcon
+                        style={{ color: 'var(--color-primary)', fontSize: 14, verticalAlign: 'middle', marginLeft: 2 }}
+                      />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
+              </ToolbarMenu>
+            </div>
             <Divider style={{ margin: '10px 0' }} />
           </>
         )}
@@ -341,6 +382,53 @@ const HomeWindow: FC = () => {
     </Container>
   )
 }
+
+const ToolbarMenu = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+`
+const ToolbarButton = styled(Button)`
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  color: var(--color-icon);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  &.anticon,
+  &.iconfont {
+    transition: all 0.3s ease;
+    color: var(--color-icon);
+  }
+  .icon-a-addchat {
+    font-size: 18px;
+    margin-bottom: -2px;
+  }
+  &:hover {
+    background-color: var(--color-background-soft);
+    .anticon,
+    .iconfont {
+      color: var(--color-text-1);
+    }
+  }
+  &.active {
+    background-color: var(--color-primary) !important;
+    .anticon,
+    .iconfont {
+      color: var(--color-white-soft);
+    }
+    &:hover {
+      background-color: var(--color-primary);
+    }
+  }
+`
 
 const Container = styled.div`
   display: flex;
