@@ -55,7 +55,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { t } = useTranslation()
-  const { showTopicTime, pinTopicsToTop, setTopicPosition } = useSettings()
+  const { showTopicTime, pinTopicsToTop, setTopicPosition, topicLayoutType } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
   const newlyRenamedTopics = useSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
@@ -519,7 +519,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
             )
           }}
         </DragableList>
-        <div style={{ minHeight: '10px' }}></div>
+        {topicLayoutType === 'tabs' && <div style={{ minHeight: '10px' }}></div>}
       </Container>
     </Dropdown>
   )
@@ -541,7 +541,6 @@ const TopicListItem = styled.div`
   position: relative;
   cursor: pointer;
   position: relative;
-  width: calc(var(--assistants-width) - 20px);
   .menu {
     opacity: 0;
     color: var(--color-text-3);
