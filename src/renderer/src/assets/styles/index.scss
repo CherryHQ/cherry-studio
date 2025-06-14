@@ -111,6 +111,11 @@ ul {
   word-wrap: break-word;
 }
 
+#chat-main #inputbar {
+  margin: -5px 15px 15px 15px;
+  background: var(--color-background);
+}
+
 .bubble {
   background-color: var(--chat-background);
   #chat-main {
@@ -118,10 +123,6 @@ ul {
   }
   #messages {
     background-color: var(--chat-background);
-  }
-  #inputbar {
-    margin: -5px 15px 15px 15px;
-    background: var(--color-background);
   }
   .system-prompt {
     background-color: var(--chat-background-assistant);

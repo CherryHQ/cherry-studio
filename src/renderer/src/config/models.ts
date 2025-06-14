@@ -2288,8 +2288,10 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-pro-preview',
   'gemini-2.5-pro-preview-03-25',
   'gemini-2.5-pro-preview-05-06',
+  'gemini-2.5-pro-preview-06-05',
   'gemini-2.5-flash-preview',
-  'gemini-2.5-flash-preview-04-17'
+  'gemini-2.5-flash-preview-04-17',
+  'gemini-2.5-flash-preview-05-20'
 ]
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
