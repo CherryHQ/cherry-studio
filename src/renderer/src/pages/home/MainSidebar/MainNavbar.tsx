@@ -1,26 +1,23 @@
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
+import { useShowAssistants } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { MessageSquareDiff, Search } from 'lucide-react'
+import { MessageSquareDiff, PanelLeft } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
 interface Props {}
 
 const HeaderNavbar: FC<Props> = () => {
+  const { showAssistants, toggleShowAssistants } = useShowAssistants()
   return (
     <Container>
-      <div>
-        {!isMac && (
-          <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-            <NarrowIcon onClick={() => SearchPopup.show()}>
-              <Search size={18} />
-            </NarrowIcon>
-          </Tooltip>
-        )}
-      </div>
+      {showAssistants && (
+        <NavbarIcon onClick={() => toggleShowAssistants()}>
+          <PanelLeft size={18} />
+        </NavbarIcon>
+      )}
       <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
         <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>
           <MessageSquareDiff size={18} />
@@ -60,12 +57,6 @@ export const NavbarIcon = styled.div`
   &:hover {
     background-color: var(--color-list-item);
     color: var(--color-icon-white);
-  }
-`
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
   }
 `
 

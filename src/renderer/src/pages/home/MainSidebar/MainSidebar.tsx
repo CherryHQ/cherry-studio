@@ -32,7 +32,7 @@ import {
   Sun,
   SunMoon
 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -52,6 +52,7 @@ import {
   SubMenu
 } from './MainSidebarStyles'
 import OpenedMinappTabs from './OpenedMinapps'
+import SidebarSearch from './SidebarSearch'
 
 type Tab = 'assistants' | 'topic'
 
@@ -72,6 +73,9 @@ const MainSidebar: FC = () => {
   const { showTopics, clickAssistantToShowTopic } = useSettings()
 
   const { openMinapp } = useMinappPopup()
+
+  const [_searchValue, setSearchValue] = useState('')
+  const searchValue = useDeferredValue(_searchValue)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
   useShortcut('toggle_show_topics', () => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR))
@@ -175,6 +179,7 @@ const MainSidebar: FC = () => {
       }}>
       <MainNavbar />
       <MainMenu>
+        <SidebarSearch onSearch={setSearchValue} />
         <MainMenuItem active={isAppMenuExpanded} onClick={() => setIsAppMenuExpanded(!isAppMenuExpanded)}>
           <MainMenuItemLeft>
             <MainMenuItemIcon>
@@ -221,8 +226,8 @@ const MainSidebar: FC = () => {
         </AssistantContainer>
       )}
       <MainContainer>
-        {tab === 'assistants' && <AssistantsTab />}
-        {tab === 'topic' && <TopicsTab style={{ paddingTop: 4 }} />}
+        {tab === 'assistants' && <AssistantsTab searchValue={searchValue} />}
+        {tab === 'topic' && <TopicsTab searchValue={searchValue} style={{ paddingTop: 4 }} />}
       </MainContainer>
       <UserMenu>
         <UserMenuLeft onClick={() => UserPopup.show()}>
