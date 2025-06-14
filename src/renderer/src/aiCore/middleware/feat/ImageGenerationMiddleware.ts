@@ -17,7 +17,6 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
     const { assistant, messages } = params
     const client = context.apiClientInstance as BaseApiClient<OpenAI>
     const signal = context._internal?.flowControl?.abortSignal
-
     if (!assistant.model || !isDedicatedImageGenerationModel(assistant.model) || typeof messages === 'string') {
       return next(context, params)
     }
