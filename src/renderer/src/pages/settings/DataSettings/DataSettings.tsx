@@ -227,6 +227,9 @@ const DataSettings: FC = () => {
     className: string,
     messageKey: string
   ) => {
+    // 复制数据选项状态
+    let shouldCopyData = false
+
     // 创建路径内容组件
     const PathsContent = () => (
       <div>
@@ -237,6 +240,18 @@ const DataSettings: FC = () => {
         <MigrationPathRow style={{ marginTop: '16px' }}>
           <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
           <MigrationPathValue>{newPath}</MigrationPathValue>
+        </MigrationPathRow>
+        <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
+          <Switch
+            defaultChecked={false}
+            onChange={(checked) => {
+              shouldCopyData = checked
+            }}
+            style={{ marginRight: '8px' }}
+          />
+          <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
+            {t('settings.data.app_data.copy_data_option')}
+          </MigrationPathLabel>
         </MigrationPathRow>
       </div>
     )
@@ -269,35 +284,46 @@ const DataSettings: FC = () => {
           // 立即关闭确认对话框
           modal.destroy()
 
-          // 显示进度模态框
-          const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
+          // 设置停止退出应用
+          window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
 
-          try {
-            // 设置停止退出应用
-            window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
+          if (shouldCopyData) {
+            // 如果选择复制数据，显示进度模态框并执行迁移
+            const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
 
-            await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
-
-            // 更新应用数据路径
-            setAppInfo(await window.api.getAppInfo())
-
-            // 通知用户并重启应用
-            setTimeout(() => {
-              window.message.success(t('settings.data.app_data.select_success'))
-              window.api.setStopQuitApp(false, '')
-              window.api.relaunchApp()
-            }, 1000)
-          } catch (error) {
-            if (progressInterval) {
-              clearInterval(progressInterval)
+            try {
+              await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
+            } catch (error) {
+              if (progressInterval) {
+                clearInterval(progressInterval)
+              }
+              loadingModal.destroy()
+              throw error
             }
-            loadingModal.destroy()
-            throw error
+          } else {
+            // 如果不复制数据，直接设置新的应用数据路径
+            await window.api.setAppDataPath(newPath)
+            window.message.success(t('settings.data.app_data.path_changed_without_copy'))
           }
+
+          // 更新应用数据路径
+          setAppInfo(await window.api.getAppInfo())
+
+          // 通知用户并重启应用
+          setTimeout(() => {
+            window.message.success(t('settings.data.app_data.select_success'))
+            window.api.setStopQuitApp(false, '')
+            window.api.relaunchApp()
+          }, 1000)
         } catch (error) {
           window.api.setStopQuitApp(false, '')
           window.message.error({
-            content: t('settings.data.app_data.copy_failed') + ': ' + error,
+            content:
+              (shouldCopyData
+                ? t('settings.data.app_data.copy_failed')
+                : t('settings.data.app_data.path_change_failed')) +
+              ': ' +
+              error,
             duration: 5
           })
         }
@@ -325,6 +351,9 @@ const DataSettings: FC = () => {
             <div style={{ marginTop: '12px' }}>
               <Progress percent={currentProgress} status="active" strokeWidth={8} />
             </div>
+            <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
+              {t('settings.data.app_data.copying_warning')}
+            </p>
           </MigrationNotice>
         </MigrationModalContent>
       ),
@@ -346,6 +375,9 @@ const DataSettings: FC = () => {
               <div style={{ marginTop: '12px' }}>
                 <Progress percent={Math.round(progress)} status={status} strokeWidth={8} />
               </div>
+              <p style={{ color: 'var(--color-warning)', marginTop: '12px', fontSize: '13px' }}>
+                {t('settings.data.app_data.copying_warning')}
+              </p>
             </MigrationNotice>
           </MigrationModalContent>
         )
