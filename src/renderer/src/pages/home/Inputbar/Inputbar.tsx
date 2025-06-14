@@ -802,7 +802,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             autoFocus
             contextMenu="true"
             variant="borderless"
-            spellCheck={false}
+            spellCheck={true}
             rows={textareaRows}
             ref={textareaRef}
             style={{
