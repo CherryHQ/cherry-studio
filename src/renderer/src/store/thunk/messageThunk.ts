@@ -7,7 +7,7 @@ import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
 import store from '@renderer/store'
-import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
+import type { Assistant, ExternalToolResult, FileMetadata, MCPToolResponse, Model, Topic } from '@renderer/types'
 import type {
   CitationMessageBlock,
   FileMessageBlock,
@@ -200,7 +200,7 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
     return isEmpty(files) ? [] : files
   }
 
-  const cleanupFiles = async (files: FileType[]) => {
+  const cleanupFiles = async (files: FileMetadata[]) => {
     await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
   }
 
@@ -1443,7 +1443,7 @@ export const cloneMessagesToNewTopicThunk =
       // 2. Prepare for cloning: Maps and Arrays
       const clonedMessages: Message[] = []
       const clonedBlocks: MessageBlock[] = []
-      const filesToUpdateCount: FileType[] = []
+      const filesToUpdateCount: FileMetadata[] = []
       const originalToNewMsgIdMap = new Map<string, string>() // Map original message ID -> new message ID
 
       // 3. Clone Messages and Blocks with New IDs

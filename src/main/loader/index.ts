@@ -4,7 +4,7 @@ import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherry
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { LoaderReturn } from '@shared/config/types'
-import { FileType, KnowledgeBaseParams } from '@types'
+import { FileMetadata, KnowledgeBaseParams } from '@types'
 import Logger from 'electron-log'
 
 import { DraftsExportLoader } from './draftsExportLoader'
@@ -38,7 +38,7 @@ const FILE_LOADER_MAP: Record<string, string> = {
 
 export async function addOdLoader(
   ragApplication: RAGApplication,
-  file: FileType,
+  file: FileMetadata,
   base: KnowledgeBaseParams,
   forceReload: boolean
 ): Promise<AddLoaderReturn> {
@@ -64,7 +64,7 @@ export async function addOdLoader(
 
 export async function addFileLoader(
   ragApplication: RAGApplication,
-  file: FileType,
+  file: FileMetadata,
   base: KnowledgeBaseParams,
   forceReload: boolean
 ): Promise<LoaderReturn> {

@@ -6,7 +6,7 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileType, MCPServer, Model, Topic, Usage } from '@renderer/types'
+import type { Assistant, FileMetadata, MCPServer, Model, Topic, Usage } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -65,7 +65,7 @@ export function deleteMessageFiles(message: Message) {
   message.blocks?.forEach((blockId) => {
     const block = messageBlocksSelectors.selectById(state, blockId)
     if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
-      const fileData = (block as any).file as FileType | undefined
+      const fileData = (block as any).file as FileMetadata | undefined
       if (fileData) {
         FileManager.deleteFiles([fileData])
       }
@@ -117,7 +117,7 @@ export function getUserMessage({
   topic: Topic
   type?: Message['type']
   content?: string
-  files?: FileType[]
+  files?: FileMetadata[]
   knowledgeBaseIds?: string[]
   mentions?: Model[]
   enabledMCPs?: MCPServer[]

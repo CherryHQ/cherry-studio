@@ -47,8 +47,13 @@ jobs:
       - name: macos-latest dependencies fix
         if: matrix.os == 'macos-latest'
         run: |
-          brew install python-setuptools
+          brew update
+          brew install pkg-config cairo pango libpng jpeg giflib librsvg pixman python-setuptools
 
+      - name: ubuntu-latest dependencies fix
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get install build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
       - name: Install corepack
         run: corepack enable && corepack prepare yarn@4.6.0 --activate
 
@@ -79,6 +84,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_MINERU_API_KEY: ${{ vars.MAIN_VITE_MINERU_API_KEY }}
 
       - name: Build Mac
         if: matrix.os == 'macos-latest'
@@ -95,6 +101,7 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_MINERU_API_KEY: ${{ vars.MAIN_VITE_MINERU_API_KEY }}
 
       - name: Build Windows
         if: matrix.os == 'windows-latest'
@@ -105,6 +112,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_MINERU_API_KEY: ${{ vars.MAIN_VITE_MINERU_API_KEY }}
 
       - name: Release
         uses: ncipollo/release-action@v1

@@ -3,7 +3,7 @@ import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
-import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
+import { Assistant, FileMetadata, KnowledgeBase, Model } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Divider, Dropdown, Tooltip } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
@@ -41,7 +41,7 @@ import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 export interface InputbarToolsRef {
   getQuickPanelMenu: (params: {
     t: (key: string, options?: any) => string
-    files: FileType[]
+    files: FileMetadata[]
     model: Model
     text: string
     openSelectFileMenu: () => void
@@ -55,8 +55,8 @@ export interface InputbarToolsProps {
   assistant: Assistant
   model: Model
 
-  files: FileType[]
-  setFiles: (files: FileType[]) => void
+  files: FileMetadata[]
+  setFiles: (files: FileMetadata[]) => void
   showThinkingButton: boolean
   showKnowledgeIcon: boolean
   selectedKnowledgeBases: KnowledgeBase[]
@@ -152,7 +152,7 @@ const InputbarTools = ({
 
   const getQuickPanelMenuImpl = (params: {
     t: (key: string, options?: any) => string
-    files: FileType[]
+    files: FileMetadata[]
     model: Model
     text: string
     openSelectFileMenu: () => void
