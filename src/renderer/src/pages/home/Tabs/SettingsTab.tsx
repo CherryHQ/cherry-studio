@@ -48,7 +48,8 @@ import {
   setShowPrompt,
   setShowTokens,
   setShowTranslateConfirm,
-  setThoughtAutoCollapse
+  setThoughtAutoCollapse,
+  setUserNativeLanguage
 } from '@renderer/store/settings'
 import {
   Assistant,
@@ -58,6 +59,7 @@ import {
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { TranslateLanguageOption, TranslateLanguageOptions } from '@renderer/config/translate'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, Settings2 } from 'lucide-react'
@@ -97,6 +99,7 @@ const SettingsTab: FC<Props> = (props) => {
     sendMessageShortcut,
     setSendMessageShortcut,
     targetLanguage,
+    userNativeLanguage,
     setTargetLanguage,
     pasteLongTextAsFile,
     renderInputMessageAsMarkdown,
@@ -661,6 +664,35 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={(value) => setTargetLanguage(value as TranslateLanguageVarious)}
               style={{ width: 135 }}
             />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.input.user_native_language')}</SettingRowTitleSmall>
+            <StyledSelect
+              size="small"
+              value={userNativeLanguage?.value || 'unspecified'}
+              menuItemSelectedIcon={<CheckOutlined />}
+              onChange={(value) => {
+                if (value === 'unspecified') {
+                  dispatch(setUserNativeLanguage(undefined));
+                } else {
+                  const selectedOption = TranslateLanguageOptions.find(option => option.value === value);
+                  if (selectedOption) {
+                    dispatch(setUserNativeLanguage(selectedOption));
+                  }
+                }
+              }}
+              style={{ width: 135 }}
+            >
+              <Select.Option key="unspecified" value="unspecified">
+                {t('settings.input.user_native_language.unspecified')}
+              </Select.Option>
+              {TranslateLanguageOptions.map((option: TranslateLanguageOption) => (
+                <Select.Option key={option.value} value={option.value}>
+                  {option.emoji} {option.label}
+                </Select.Option>
+              ))}
+            </StyledSelect>
           </SettingRow>
           <SettingDivider />
           <SettingRow>

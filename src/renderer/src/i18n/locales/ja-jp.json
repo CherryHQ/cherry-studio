@@ -1359,6 +1359,8 @@
       "input.target_language.english": "英語",
       "input.target_language.japanese": "日本語",
       "input.target_language.russian": "ロシア語",
+      "input.user_native_language": "ユーザーの言語",
+      "input.user_native_language.unspecified": "未指定",
       "launch.onboot": "起動時に自動で開始",
       "launch.title": "起動",
       "launch.totray": "起動時にトレイに最小化",

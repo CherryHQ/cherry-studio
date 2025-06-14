@@ -1362,6 +1362,8 @@
       "input.target_language.english": "英文",
       "input.target_language.japanese": "日文",
       "input.target_language.russian": "俄文",
+      "input.user_native_language": "使用者語言",
+      "input.user_native_language.unspecified": "未指定",
       "launch.onboot": "開機自動啟動",
       "launch.title": "啟動",
       "launch.totray": "啟動時最小化到系统匣",
