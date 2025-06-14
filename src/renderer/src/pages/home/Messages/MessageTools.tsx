@@ -17,6 +17,7 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
+  const [userInteracted, setUserInteracted] = useState<Record<string, boolean>>({})
   const { t } = useTranslation()
   const { messageFont, fontSize } = useSettings()
 
@@ -38,7 +39,8 @@ const MessageTools: FC<Props> = ({ blocks }) => {
     }
 
     // Auto-collapse after tool completes (with a small delay to let user see completion)
-    if (isDone && activeKeys.includes(toolId)) {
+    // Only auto-collapse if user hasn't manually interacted with this tool
+    if (isDone && activeKeys.includes(toolId) && !userInteracted[toolId]) {
       console.log(`[MessageTools] Auto-collapsing tool ${toolId} after completion`)
       const timeoutId = setTimeout(() => {
         setActiveKeys((prev) => prev.filter((key) => key !== toolId))
@@ -46,7 +48,10 @@ const MessageTools: FC<Props> = ({ blocks }) => {
 
       return () => clearTimeout(timeoutId)
     }
-  }, [toolResponse?.status, progressChunks.length, toolResponse?.id, activeKeys])
+
+    // Return cleanup function for all cases
+    return undefined
+  }, [toolResponse?.status, progressChunks.length, toolResponse?.id, activeKeys, userInteracted])
 
   const resultString = useMemo(() => {
     try {
@@ -75,7 +80,13 @@ const MessageTools: FC<Props> = ({ blocks }) => {
   }
 
   const handleCollapseChange = (keys: string | string[]) => {
-    setActiveKeys(Array.isArray(keys) ? keys : [keys])
+    const newKeys = Array.isArray(keys) ? keys : [keys]
+    setActiveKeys(newKeys)
+
+    // Mark tool as user-interacted when user manually changes collapse state
+    if (toolResponse?.id) {
+      setUserInteracted((prev) => ({ ...prev, [toolResponse.id]: true }))
+    }
   }
 
   // Format tool responses for collapse items

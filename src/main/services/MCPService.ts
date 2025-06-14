@@ -474,31 +474,13 @@ class McpService {
   }
 
   /**
-   * Call a tool on an MCP server with progress-aware timeout
-   */
-  public async callTool(
-    event: Electron.IpcMainInvokeEvent,
-    { server, name, args }: { server: MCPServer; name: string; args: any }
-  ): Promise<MCPCallToolResponse> {
-    return this.callToolInternal(event, { server, name, args })
-  }
-
-  /**
-   * Call a tool on an MCP server with progress forwarding
-   */
-  public async callToolWithProgress(
-    event: Electron.IpcMainInvokeEvent,
-    { server, name, args, toolCallId }: { server: MCPServer; name: string; args: any; toolCallId: string }
-  ): Promise<MCPCallToolResponse> {
-    return this.callToolInternal(event, { server, name, args, toolCallId })
-  }
-
-  /**
    * Internal method to call a tool on an MCP server with optional progress forwarding
    */
   private async callToolInternal(
-    event: Electron.IpcMainInvokeEvent,
-    { server, name, args, toolCallId }: { server: MCPServer; name: string; args: any; toolCallId?: string }
+    server: MCPServer,
+    name: string,
+    args: any,
+    toolCallId?: string
   ): Promise<MCPCallToolResponse> {
     const startTime = Date.now()
     try {
@@ -517,99 +499,46 @@ class McpService {
       const client = await this.initClient(server)
       Logger.info(`[MCP] Client initialized for ${server.name}, calling tool...`)
 
-      // Use dynamic timeout that resets on MCP progress updates
-      const timeoutMs = server.timeout ? server.timeout * 1000 : 60000
-      Logger.info(`[MCP] Starting tool call with dynamic ${timeoutMs}ms timeout`)
-
-      let timeoutId: NodeJS.Timeout | null = null
-      let isComplete = false
-
-      // Get the main window for sending progress updates
+      // Get the main window for sending progress updates if toolCallId is provided
       const mainWindow = toolCallId ? windowService.getMainWindow() : null
 
-      const result = await new Promise<MCPCallToolResponse>((resolve, reject) => {
-        const cleanup = () => {
-          isComplete = true
-          if (timeoutId) {
-            clearTimeout(timeoutId)
-            timeoutId = null
+      // Always use client.request with progress tracking enabled
+      const result = await client.request(
+        {
+          method: 'tools/call',
+          params: {
+            name,
+            arguments: args
           }
-        }
+        },
+        z.any(), // Accept any valid MCP response
+        {
+          timeout: server.timeout ? server.timeout * 1000 : 60000, // Use server timeout or default
+          onprogress: (progress) => {
+            Logger.debug(`[MCP] Progress update for ${name} on ${server.name}:`, progress)
 
-        const resetTimeout = () => {
-          if (isComplete) return
-
-          if (timeoutId) {
-            clearTimeout(timeoutId)
-          }
-          timeoutId = setTimeout(() => {
-            if (!isComplete) {
-              cleanup()
-              reject(
-                new Error(`Tool call ${name} on ${server.name} timed out after ${timeoutMs}ms of no communication`)
-              )
-            }
-          }, timeoutMs)
-        }
-
-        // Set initial timeout
-        resetTimeout()
-
-        // Use the MCP client's request method with progress tracking and custom timeout
-        client
-          .request(
-            {
-              method: 'tools/call',
-              params: {
-                name,
-                arguments: args
-              }
-            },
-            z.any(), // Accept any valid MCP response
-            {
-              timeout: 30 * 60 * 1000, // 30 minute safety timeout - let our custom timeout handle the real logic
-              onprogress: (progress) => {
-                // Reset timeout whenever we receive progress updates
-                if (!isComplete) {
-                  Logger.debug(`[MCP] Progress update for ${name} on ${server.name}:`, progress)
-                  resetTimeout()
-
-                  // Forward progress to renderer if toolCallId is provided and we have a main window
-                  if (toolCallId && mainWindow && !mainWindow.isDestroyed()) {
-                    try {
-                      mainWindow.webContents.send('mcp:tool-call-progress', {
-                        type: 'mcp_tool_progress',
-                        toolCallId,
-                        progressToken: progress.progressToken || '',
-                        progress: progress.progress || 0,
-                        total: progress.total,
-                        message: progress.message
-                      })
-                    } catch (error) {
-                      Logger.error(`[MCP] Failed to send progress update:`, error)
-                    }
-                  }
-                }
+            // Forward progress to renderer only if toolCallId is provided and we have a main window
+            if (toolCallId && mainWindow && !mainWindow.isDestroyed()) {
+              try {
+                mainWindow.webContents.send('mcp:tool-call-progress', {
+                  type: 'mcp_tool_progress',
+                  toolCallId,
+                  progressToken: progress.progressToken || '',
+                  progress: progress.progress || 0,
+                  total: progress.total,
+                  message: progress.message
+                })
+              } catch (error) {
+                Logger.error(`[MCP] Failed to send progress update:`, error)
               }
             }
-          )
-          .then((result) => {
-            if (!isComplete) {
-              cleanup()
-              resolve(result as MCPCallToolResponse)
-            }
-          })
-          .catch((error) => {
-            if (!isComplete) {
-              cleanup()
-              reject(error)
-            }
-          })
-      })
+          }
+        }
+      )
 
       const duration = Date.now() - startTime
       Logger.info(`[MCP] Tool call completed successfully in ${duration}ms for ${name} on ${server.name}`)
-      return result
+      return result as MCPCallToolResponse
     } catch (error) {
       const duration = Date.now() - startTime
       Logger.error(`[MCP] Error calling tool ${name} on ${server.name} after ${duration}ms:`, error)
@@ -621,6 +550,26 @@ class McpService {
       })
       throw error
     }
+  }
+
+  /**
+   * Call a tool on an MCP server
+   */
+  public async callTool(
+    _: Electron.IpcMainInvokeEvent,
+    { server, name, args }: { server: MCPServer; name: string; args: any }
+  ): Promise<MCPCallToolResponse> {
+    return this.callToolInternal(server, name, args)
+  }
+
+  /**
+   * Call a tool on an MCP server with progress forwarding
+   */
+  public async callToolWithProgress(
+    _: Electron.IpcMainInvokeEvent,
+    { server, name, args, toolCallId }: { server: MCPServer; name: string; args: any; toolCallId: string }
+  ): Promise<MCPCallToolResponse> {
+    return this.callToolInternal(server, name, args, toolCallId)
   }
 
   public async getInstallInfo() {
