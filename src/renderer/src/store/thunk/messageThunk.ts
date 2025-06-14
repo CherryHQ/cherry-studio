@@ -50,6 +50,24 @@ const handleChangeLoadingOfTopic = async (topicId: string) => {
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
+
+export const saveNewTopicToDB = async (topic: Topic, blocks: MessageBlock[]) => {
+  try {
+    await db.transaction('rw', db.topics, db.message_blocks, async () => {
+      await db.topics.put(topic)
+      if (blocks.length > 0) {
+        await db.message_blocks.bulkPut(blocks)
+      }
+    })
+    // Optionally, dispatch an action to update the Redux store if needed
+    // store.dispatch(newMessagesActions.addTopic(topic)); // Example
+    // store.dispatch(newMessagesActions.addMessages({ topicId: topic.id, messages })); // Example
+    // store.dispatch(upsertManyBlocks(blocks)); // Example
+  } catch (error) {
+    console.error(`[saveNewTopicToDB] Failed to save new topic ${topic.id}:`, error)
+    throw new Error(`[saveNewTopicToDB] Failed to save new topic ${topic.id}:`, error!)
+  }
+}
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   try {
     if (blocks.length > 0) {

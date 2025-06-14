@@ -419,7 +419,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
       <Container className="topics-tab">
-        <DragableList list={sortedTopics} onUpdate={updateTopics}>
+        <DragableList list={sortedTopics} onUpdate={updateTopics} key={_assistant.id + '-' + _assistant.topics.length}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id
             const topicName = topic.name.replace('`', '')

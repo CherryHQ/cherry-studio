@@ -157,6 +157,7 @@
       "default.description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "default.name": "Default Assistant",
       "default.topic.name": "Default Topic",
+      "default.quickAssistant.topic.name": "From Quick Assistant",
       "history": {
         "assistant_node": "Assistant",
         "click_to_navigate": "Click to navigate to the message",
@@ -748,10 +749,11 @@
       },
       "footer": {
         "copy_last_message": "Press C to copy",
-        "backspace_clear": "Backspace to clear",
         "esc": "ESC to {{action}}",
         "esc_back": "return",
-        "esc_close": "close"
+        "esc_close": "close",
+        "backspace_clear": "Backspace to clear",
+        "return_to_main": "Return to Main Window"
       },
       "input": {
         "placeholder": {

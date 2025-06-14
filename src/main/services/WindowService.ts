@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
+import { Topic } from '@types'
 import { app, BrowserWindow, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -561,6 +562,22 @@ export class WindowService {
       }
     } catch (error) {
       Logger.error('Failed to quote to main window:', error as Error)
+    }
+  }
+
+  public miniWindowToMainWindow(assistantId: string, topic: Topic) {
+    try {
+      this.showMainWindow()
+
+      // Forward the data to the main window
+      const mainWindow = this.getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        setTimeout(() => {
+          mainWindow.webContents.send(IpcChannel.MainWindow_Receive_QuickAssist_Topic, assistantId, topic)
+        }, 100)
+      }
+    } catch (error) {
+      Logger.error('Failed to miniWindowToMainWindow:', error as Error)
     }
   }
 }

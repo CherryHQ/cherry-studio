@@ -34,9 +34,14 @@ export function useActiveTopic(_assistant: Assistant, topic?: Topic) {
 
   useEffect(() => {
     // activeTopic not in assistant.topics
-    if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
-      setActiveTopic(assistant.topics[0])
-    }
+    // 添加延遲檢查，避免 Redux store 更新時序問題
+    const timeoutId = setTimeout(() => {
+      if (assistant && !find(assistant.topics, { id: activeTopic?.id })) {
+        setActiveTopic(assistant.topics[0])
+      }
+    }, 100) // 100ms 延遲
+
+    return () => clearTimeout(timeoutId)
   }, [activeTopic?.id, assistant])
 
   return { activeTopic, setActiveTopic }

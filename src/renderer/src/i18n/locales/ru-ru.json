@@ -157,6 +157,7 @@
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
+      "default.quickAssistant.topic.name": "От быстрого помощника",
       "history": {
         "assistant_node": "Ассистент",
         "click_to_navigate": "Перейти к сообщению",
@@ -751,7 +752,8 @@
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
         "esc_close": "закрытия окна",
-        "backspace_clear": "Нажмите Backspace, чтобы очистить"
+        "backspace_clear": "Нажмите Backspace, чтобы очистить",
+        "return_to_main": "Вернуться в главное окно"
       },
       "input": {
         "placeholder": {

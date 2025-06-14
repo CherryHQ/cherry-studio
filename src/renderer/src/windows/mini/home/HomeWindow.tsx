@@ -12,8 +12,7 @@ import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, ThemeMode } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -42,7 +41,6 @@ const HomeWindow: FC = () => {
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
-  const topic = defaultAssistant.topics[0]
   const { defaultModel } = useDefaultModel()
   const model = currentAssistant.model || defaultModel
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
@@ -55,6 +53,7 @@ const HomeWindow: FC = () => {
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
   const { useAssistantForQuickAssistant, quickAssistantId } = useAppSelector((state) => state.llm)
+  const currentTopicMessages = useAppSelector((state) => state.messages)
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -246,8 +245,46 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, currentAssistant, topic]
+    [content, currentAssistant]
   )
+
+  const onReturnToMain = useCallback(async () => {
+    const topicFromHook = currentAssistant.topics[0]
+
+    // 從 store 中獲取當前 topic 的訊息 ID 列表，並取得訊息內容
+    const messageIds = currentTopicMessages.messageIdsByTopic[topicFromHook.id] || []
+    let messagesFromStore = messageIds.map((id) => currentTopicMessages.entities[id]).filter(Boolean)
+
+    // 從 store 中獲取所有 messageBlocks 的實體
+    const allMessageBlocks = store.getState().messageBlocks.entities
+
+    // 為每條 message 填充其完整的 messageBlocks
+    messagesFromStore = messagesFromStore.map((msg) => {
+      if (msg && msg.blocks && Array.isArray(msg.blocks)) {
+        const populatedBlocks = msg.blocks
+          .map((blockId) => allMessageBlocks[blockId])
+          .filter((block): block is MessageBlock => !!block) // 確保 block 存在且類型正確
+        return {
+          ...msg,
+          messageBlocks: populatedBlocks // 附加完整的 MessageBlock 實體
+        }
+      }
+      return msg
+    })
+
+    // 建立包含完整訊息和 MessageBlock 的 topic 物件
+    const topicToSend = {
+      ...topicFromHook,
+      messages: messagesFromStore
+    }
+
+    try {
+      await window.api.window.setTopic(currentAssistant.id, topicToSend)
+    } catch (error) {
+      console.error('[HomeWindow] Error calling setTopic IPC:', error)
+      throw new Error(`[HomeWindow] Error calling setTopic IPC: ${error}`)
+    }
+  }, [currentAssistant, currentTopicMessages.messageIdsByTopic, currentTopicMessages.entities])
 
   const clearClipboard = () => {
     setClipboardText('')
@@ -271,7 +308,7 @@ const HomeWindow: FC = () => {
     return () => {
       window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
     }
-  }, [onWindowShow, onSendMessage, setRoute])
+  }, [onWindowShow, readClipboard])
 
   // 当路由为home时，初始化isFirstMessage为true
   useEffect(() => {
@@ -318,7 +355,7 @@ const HomeWindow: FC = () => {
         )}
         <ChatWindow route={route} assistant={currentAssistant ?? defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
-        <Footer route={route} onExit={() => setRoute('home')} />
+        <Footer route={route} onExit={() => setRoute('home')} onReturnToMain={onReturnToMain} />
       </Container>
     )
   }
@@ -328,7 +365,7 @@ const HomeWindow: FC = () => {
       <Container style={{ backgroundColor: backgroundColor() }}>
         <TranslateWindow text={referenceText} />
         <Divider style={{ margin: '10px 0' }} />
-        <Footer route={route} onExit={() => setRoute('home')} />
+        <Footer route={route} onExit={() => setRoute('home')} onReturnToMain={onReturnToMain} />
       </Container>
     )
   }
@@ -365,6 +402,7 @@ const HomeWindow: FC = () => {
           setText('')
           onCloseWindow()
         }}
+        onReturnToMain={onReturnToMain}
       />
     </Container>
   )
