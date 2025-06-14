@@ -3,7 +3,16 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Assistant } from '@renderer/types'
+import store from '@renderer/store'
+import { addTopic } from '@renderer/store/assistants'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import { saveNewTopicToDB } from '@renderer/store/thunk/messageThunk'
+import { Assistant, Topic } from '@renderer/types' // Added Message import
+import { MessageBlock } from '@renderer/types/newMessage'
+import dayjs from 'dayjs'
+import { t } from 'i18next'
+import { nanoid } from 'nanoid'
 import { FC, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -49,6 +58,130 @@ const HomePage: FC = () => {
       unsubscribe()
     }
   }, [assistants, setActiveAssistant])
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.CHANGE_TOPIC, (topic?: Topic) => {
+      if (topic) {
+        setActiveTopic(topic)
+      }
+    })
+    return () => unsubscribe()
+  }, [setActiveTopic])
+
+  // 監聽來自快捷助手的 assistant 和 topic 設定，延續對話
+  useEffect(() => {
+    if (window.api?.window?.onReceiveQuickAssistTopic) {
+      const removeIpcListener = window.api.window.onReceiveQuickAssistTopic((assistantId: string, topic: Topic) => {
+        const quickAssistTopic = topic
+
+        const assistantState = store.getState().assistants
+        if (!assistantState?.assistants || !Array.isArray(assistantState.assistants)) {
+          return
+        }
+
+        const targetAssistant = assistantState.assistants.find((a) => a.id === assistantId)
+        if (!targetAssistant) {
+          return
+        }
+
+        if (!quickAssistTopic.messages?.length) {
+          // Optionally, 可選擇切換到助手和一個空的新主題
+          // const emptyNewTopic: Topic = {
+          //   id: nanoid(),
+          //   name: quickAssistTopic.name || `From Quick Assistant (${dayjs().format('HH:mm')})`,
+          //   messages: [],
+          //   createdAt: new Date().toISOString(),
+          //   updatedAt: new Date().toISOString(),
+          //   assistantId: targetAssistant.id,
+          //   isNameManuallyEdited: false
+          // }
+          // store.dispatch(addTopic({ assistantId: targetAssistant.id, topic: emptyNewTopic }))
+          // setActiveAssistant(targetAssistant)
+          // setActiveTopic(emptyNewTopic)
+          return
+        }
+
+        // Create a new topic in the main application
+        const newMainTopic: Topic = {
+          id: nanoid(),
+          name: t('chat.default.quickAssistant.topic.name') + ` (${dayjs().format('HH:mm')})`,
+          messages: [], // Messages will be cloned by the thunk
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          assistantId: targetAssistant.id,
+          isNameManuallyEdited: false
+        }
+
+        // Add the new topic shell to the store first
+        store.dispatch(addTopic({ assistantId: targetAssistant.id, topic: newMainTopic }))
+
+        const messagesToClone = quickAssistTopic.messages.map((msg) => ({
+          ...msg,
+          id: nanoid(),
+          topicId: newMainTopic.id,
+          assistantId: targetAssistant.id
+        }))
+
+        const blocksToClone: MessageBlock[] = []
+        messagesToClone.forEach((clonedMsg, index) => {
+          const originalMsg = quickAssistTopic.messages[index]
+          if (originalMsg.blocks && Array.isArray(originalMsg.blocks)) {
+            const clonedBlocksForThisMessage = originalMsg.blocks
+              .map((blockId) => {
+                const originalBlock = (originalMsg as any).messageBlocks?.find((b) => b.id === blockId)
+                if (originalBlock) {
+                  return {
+                    ...originalBlock,
+                    id: nanoid(),
+                    messageId: clonedMsg.id
+                  }
+                }
+                return null
+              })
+              .filter(Boolean) as MessageBlock[]
+            clonedMsg.blocks = clonedBlocksForThisMessage.map((b) => b.id) // Update cloned message with new block IDs
+            blocksToClone.push(...clonedBlocksForThisMessage)
+          }
+        })
+
+        if (blocksToClone.length > 0) {
+          store.dispatch(upsertManyBlocks(blocksToClone))
+        }
+
+        if (messagesToClone.length > 0) {
+          store.dispatch(
+            newMessagesActions.messagesReceived({
+              topicId: newMainTopic.id,
+              messages: messagesToClone
+            })
+          )
+        }
+
+        setActiveAssistant(targetAssistant)
+        setActiveTopic(newMainTopic)
+        setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+
+        // 將新的 Topic, Messages, MessageBlocks 儲存到資料庫
+        const topicForDb = {
+          ...newMainTopic,
+          messages: messagesToClone
+        }
+
+        ;(async () => {
+          try {
+            await saveNewTopicToDB(topicForDb, blocksToClone)
+          } catch (error) {
+            console.error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk:`, error)
+            throw new Error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk: ${error}`)
+          }
+        })()
+      })
+
+      return () => removeIpcListener?.()
+    }
+
+    return () => {}
+  }, [activeAssistant, assistants, setActiveAssistant, setActiveTopic])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics

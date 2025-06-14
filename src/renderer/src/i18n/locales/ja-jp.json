@@ -157,6 +157,7 @@
       "default.description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
       "default.name": "デフォルトアシスタント",
       "default.topic.name": "デフォルトトピック",
+      "default.quickAssistant.topic.name": "クイックアシスタントから",
       "history": {
         "assistant_node": "アシスタント",
         "click_to_navigate": "メッセージに移動",
@@ -756,11 +757,13 @@
         "esc": "ESC キーを押して{{action}}",
         "esc_back": "戻る",
         "esc_close": "ウィンドウを閉じる",
-        "backspace_clear": "バックスペースを押してクリアします"
+        "backspace_clear": "バックスペースを押してクリアします",
+        "return_to_main": "メインウィンドウに戻る"
       },
       "input": {
         "placeholder": {
-          "empty": "{{model}} に質問してください...",
+          "model_empty": "{{model}} に質問してください...",
+          "assistant_empty": "{{assistant}} に質問してください...",
           "title": "下のテキストに対して何をしますか？"
         }
       },

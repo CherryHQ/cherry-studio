@@ -43,6 +43,10 @@ export enum IpcChannel {
   MiniWindow_Toggle = 'miniwindow:toggle',
   MiniWindow_SetPin = 'miniwindow:set-pin',
 
+  // QuickAssistant Topic
+  QuickAssist_Finalize_Topic = 'quickassist:topic',
+  MainWindow_Receive_QuickAssist_Topic = 'main-window:receive-quickassist-topic',
+
   // Mcp
   Mcp_AddServer = 'mcp:add-server',
   Mcp_RemoveServer = 'mcp:remove-server',
