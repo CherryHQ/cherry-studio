@@ -1,4 +1,4 @@
-export type TriggerMode = 'selected' | 'ctrlkey'
+export type TriggerMode = 'selected' | 'ctrlkey' | 'shortcut'
 export type FilterMode = 'default' | 'whitelist' | 'blacklist'
 export interface ActionItem {
   id: string

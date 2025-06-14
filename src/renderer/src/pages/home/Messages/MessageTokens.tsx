@@ -1,4 +1,5 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types/newMessage'
 import { Popover } from 'antd'
@@ -11,6 +12,7 @@ interface MessageTokensProps {
 }
 
 const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
+  const { showTokens } = useSettings()
   // const { generating } = useRuntime()
   const locateMessage = () => {
     EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
@@ -23,7 +25,7 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
   if (message.role === 'user') {
     return (
       <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        Tokens: {message?.usage?.total_tokens}
+        {showTokens && `Tokens: ${message?.usage?.total_tokens}`}
       </MessageMetadata>
     )
   }
@@ -51,15 +53,17 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
     )
 
     return (
-      <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        {hasMetrics ? (
-          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
-            {tokensInfo}
-          </Popover>
-        ) : (
-          tokensInfo
-        )}
-      </MessageMetadata>
+      showTokens && (
+        <MessageMetadata className="message-tokens" onClick={locateMessage}>
+          {hasMetrics ? (
+            <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+              {tokensInfo}
+            </Popover>
+          ) : (
+            tokensInfo
+          )}
+        </MessageMetadata>
+      )
     )
   }
 
@@ -67,19 +71,14 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
 }
 
 const MessageMetadata = styled.div`
-  font-size: 11px;
-  color: var(--color-text-2);
+  font-size: 10px;
+  color: var(--color-text-3);
   user-select: text;
-  margin: 2px 0;
   cursor: pointer;
   text-align: right;
 
-  .tokens {
-    display: block;
-
-    span {
-      padding: 0 2px;
-    }
+  .tokens span {
+    padding: 0 2px;
   }
 `
 

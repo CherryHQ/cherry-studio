@@ -145,14 +145,17 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         setListModels(
           models
             .map((model) => ({
-              id: model.id,
+              // @ts-ignore modelId
+              id: model?.id || model?.name,
               // @ts-ignore name
-              name: model.name || model.id,
+              name: model?.display_name || model?.displayName || model?.name || model?.id,
               provider: _provider.id,
-              group: getDefaultGroupName(model.id, _provider.id),
-              // @ts-ignore name
-              description: model?.description,
-              owned_by: model?.owned_by
+              // @ts-ignore group
+              group: getDefaultGroupName(model?.id || model?.name, _provider.id),
+              // @ts-ignore description
+              description: model?.description || '',
+              // @ts-ignore owned_by
+              owned_by: model?.owned_by || ''
             }))
             .filter((model) => !isEmpty(model.name))
         )

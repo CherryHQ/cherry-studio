@@ -8,7 +8,10 @@
       "add.name.placeholder": "輸入名稱",
       "add.prompt": "提示詞",
       "add.prompt.placeholder": "輸入提示詞",
-      "add.prompt.variables.tip": "可用的變數：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "可用的變數",
+        "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱"
+      },
       "add.title": "建立智慧代理人",
       "import": {
         "title": "從外部導入",
@@ -30,16 +33,7 @@
         "agent": "匯出智慧代理人"
       },
       "delete.popup.content": "確定要刪除此智慧代理人嗎？",
-      "edit.message.add.title": "新增",
-      "edit.message.assistant.placeholder": "輸入助手訊息",
-      "edit.message.assistant.title": "助手",
-      "edit.message.empty.content": "會話輸入內容不能為空",
-      "edit.message.group.title": "訊息分組",
-      "edit.message.title": "預設訊息",
-      "edit.message.user.placeholder": "輸入使用者訊息",
-      "edit.message.user.title": "使用者",
       "edit.model.select.title": "選擇模型",
-      "edit.settings.hide_preset_messages": "隱藏預設訊息",
       "edit.title": "編輯智慧代理人",
       "manage.title": "管理智慧代理人",
       "my_agents": "我的智慧代理人",
@@ -76,7 +70,6 @@
       "settings.default_model": "預設模型",
       "settings.knowledge_base": "知識庫設定",
       "settings.model": "模型設定",
-      "settings.preset_messages": "預設訊息",
       "settings.prompt": "提示詞設定",
       "settings.reasoning_effort": "思維鏈長度",
       "settings.reasoning_effort.off": "關閉",
@@ -268,6 +261,7 @@
       "topics.clear.title": "清空訊息",
       "topics.copy.image": "複製為圖片",
       "topics.copy.md": "複製為 Markdown",
+      "topics.copy.plain_text": "複製為純文字（移除 Markdown）",
       "topics.copy.title": "複製",
       "topics.delete.shortcut": "按住 {{key}} 可直接刪除",
       "topics.edit.placeholder": "輸入新名稱",
@@ -322,6 +316,7 @@
       "translate": "翻譯",
       "topics.export.siyuan": "匯出到思源筆記",
       "topics.export.wait_for_title_naming": "正在生成標題...",
+      "topics.export.obsidian_reasoning": "包含思維鏈",
       "topics.export.title_naming_success": "標題生成成功",
       "topics.export.title_naming_failed": "標題生成失敗，使用預設標題",
       "input.translating": "翻譯中...",
@@ -571,8 +566,12 @@
       "urls": "網址",
       "dimensions": "嵌入維度",
       "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
-      "dimensions_size_placeholder": "預設值（不建議修改）",
-      "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）"
+      "dimensions_size_placeholder": " 嵌入維度大小，例如 1024",
+      "dimensions_auto_set": "自動設定嵌入維度",
+      "dimensions_error_invalid": "請輸入嵌入維度大小",
+      "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
+      "dimensions_set_right": "⚠️ 請確保模型支援所設置的嵌入維度大小",
+      "dimensions_default": "模型將使用預設嵌入維度"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -949,9 +948,22 @@
       },
       "rendering_speed": "渲染速度",
       "text_desc_required": "請先輸入圖片描述",
+      "image_handle_required": "請先上傳圖片。",
       "req_error_text": "运行失败，请重试。提示词避免“版权词”和”敏感词”哦。",
+      "req_error_token": "請檢查令牌的有效性",
+      "req_error_no_balance": "請檢查令牌的有效性",
       "auto_create_paint": "自動新增圖片",
-      "auto_create_paint_tip": "圖片生成後，會自動新增圖片"
+      "auto_create_paint_tip": "圖片生成後，會自動新增圖片",
+      "select_model": "選擇模型",
+      "input_parameters": "輸入參數",
+      "input_image": "輸入圖片",
+      "generated_image": "生成圖片",
+      "pricing": "定價",
+      "model_and_pricing": "模型與定價",
+      "per_image": "每張圖片",
+      "per_images": "每張圖片",
+      "required_field": "必填欄位",
+      "uploaded_input": "已上傳輸入"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
@@ -966,6 +978,7 @@
       "azure-openai": "Azure OpenAI",
       "baichuan": "百川",
       "baidu-cloud": "百度雲千帆",
+      "cephalon": "Cephalon",
       "copilot": "GitHub Copilot",
       "dashscope": "阿里雲百鍊",
       "deepseek": "深度求索",
@@ -1006,7 +1019,8 @@
       "zhipu": "智譜 AI",
       "voyageai": "Voyage AI",
       "qiniu": "七牛雲 AI 推理",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "302ai": "302.AI"
     },
     "restore": {
       "confirm": "確定要復原資料嗎？",
@@ -1120,7 +1134,9 @@
           "token": "Joplin 授權Token",
           "token_placeholder": "請輸入 Joplin 授權Token",
           "url": "Joplin 剪輯服務 URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "匯出時包含思維鏈",
+          "export_reasoning.help": "啟用後，匯出內容將包含助手生成的思維鏈（思考過程）。"
         },
         "markdown_export.force_dollar_math.help": "開啟後，匯出Markdown時會強制使用$$來標記LaTeX公式。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等",
         "markdown_export.force_dollar_math.title": "LaTeX公式強制使用$$",
@@ -1129,12 +1145,14 @@
         "markdown_export.path_placeholder": "匯出路徑",
         "markdown_export.select": "選擇",
         "markdown_export.title": "Markdown 匯出",
+        "markdown_export.show_model_name.title": "匯出時使用模型名稱",
+        "markdown_export.show_model_name.help": "啟用後，將以主題命名模型為匯出的訊息建立標題。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
+        "markdown_export.show_model_provider.title": "顯示模型供應商",
+        "markdown_export.show_model_provider.help": "在匯出Markdown時顯示模型供應商，如OpenAI、Gemini等",
         "minute_interval_one": "{{count}} 分鐘",
         "minute_interval_other": "{{count}} 分鐘",
         "notion.api_key": "Notion 金鑰",
         "notion.api_key_placeholder": "請輸入 Notion 金鑰",
-        "notion.auto_split": "匯出對話時自動分頁",
-        "notion.auto_split_tip": "當要匯出的話題過長時自動分頁匯出到 Notion",
         "notion.check": {
           "button": "檢查",
           "empty_api_key": "未設定 API key",
@@ -1148,10 +1166,9 @@
         "notion.help": "Notion 設定文件",
         "notion.page_name_key": "頁面標題欄位名稱",
         "notion.page_name_key_placeholder": "請輸入頁面標題欄位名稱，預設為 Name",
-        "notion.split_size": "自動分頁大小",
-        "notion.split_size_help": "Notion 免費版使用者建議設定為 90，進階版使用者建議設定為 24990，預設值為 90",
-        "notion.split_size_placeholder": "請輸入每頁塊數限制 (預設 90)",
         "notion.title": "Notion 設定",
+        "notion.export_reasoning.title": "匯出時包含思維鏈",
+        "notion.export_reasoning.help": "啟用後，匯出到Notion時會包含思維鏈內容。",
         "title": "資料設定",
         "webdav": {
           "autoSync": "自動備份",
@@ -1513,7 +1530,9 @@
         "advancedSettings": "高級設定"
       },
       "messages.prompt": "提示詞顯示",
+      "messages.tokens": "Token用量顯示",
       "messages.divider": "訊息間顯示分隔線",
+      "messages.divider.tooltip": "不適用於氣泡樣式消息",
       "messages.grid_columns": "訊息網格展示列數",
       "messages.grid_popover_trigger": "網格詳細資訊觸發",
       "messages.grid_popover_trigger.click": "點選顯示",
@@ -1547,6 +1566,7 @@
       "models.add.model_id.tooltip": "例如 gpt-3.5-turbo",
       "models.add.model_name": "模型名稱",
       "models.add.model_name.placeholder": "選填，例如 GPT-4",
+      "models.add.model_name.tooltip": "例如 GPT-4",
       "models.check.all": "所有",
       "models.check.all_models_passed": "所有模型檢查通過",
       "models.check.button_caption": "健康檢查",
@@ -1690,6 +1710,8 @@
         "copy_last_message": "複製上一則訊息",
         "key": "按鍵",
         "mini_window": "快捷助手",
+        "selection_assistant_toggle": "開關劃詞助手",
+        "selection_assistant_select_text": "劃詞助手：取词",
         "new_topic": "新增話題",
         "press_shortcut": "按下快捷鍵",
         "reset_defaults": "重設預設快捷鍵",
@@ -1699,7 +1721,7 @@
         "search_message_in_chat": "在當前對話中搜尋訊息",
         "show_app": "顯示/隱藏應用程式",
         "show_settings": "開啟設定",
-        "title": "快速方式",
+        "title": "快捷鍵",
         "toggle_new_context": "清除上下文",
         "toggle_show_assistants": "切換助手顯示",
         "toggle_show_topics": "切換話題顯示",
@@ -1761,7 +1783,9 @@
         "content_limit": "內容長度限制",
         "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷"
       },
-      "general.auto_check_update.title": "啟用自動更新",
+      "general.auto_check_update.title": "自動更新",
+      "general.early_access.title": "搶先體驗",
+      "general.early_access.tooltip": "開啟後，將使用 GitHub 的最新版本，下載速度可能較慢，請務必提前備份數據",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",
@@ -1856,7 +1880,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "檢測到的語言"
+      "detected.language": "自動檢測"
     },
     "tray": {
       "quit": "結束",
@@ -1885,7 +1909,8 @@
           "summary": "總結",
           "search": "搜尋",
           "refine": "優化",
-          "copy": "複製"
+          "copy": "複製",
+          "quote": "引用"
         },
         "window": {
           "pin": "置頂",
@@ -1912,11 +1937,16 @@
         "toolbar": {
           "title": "工具列",
           "trigger_mode": {
-            "title": "觸發方式",
-            "description": "劃詞立即顯示工具列，或者劃詞後按住 Ctrl 鍵才顯示工具列。",
+            "title": "取詞方式",
+            "description": "劃詞後，觸發取詞並顯示工具列的方式",
             "description_note": "在某些應用中可能無法透過 Ctrl 鍵劃詞。若使用了AHK等工具對Ctrl鍵進行了重新對應，可能導致部分應用程式無法劃詞。",
             "selected": "劃詞",
-            "ctrlkey": "Ctrl 鍵"
+            "selected_note": "劃詞後，立即顯示工具列",
+            "ctrlkey": "Ctrl 鍵",
+            "ctrlkey_note": "劃詞後，再 按住 Ctrl鍵，才顯示工具列",
+            "shortcut": "快捷鍵",
+            "shortcut_note": "劃詞後，使用快捷鍵顯示工具列。請在快捷鍵設定頁面中設置取詞快捷鍵並啟用。",
+            "shortcut_link": "前往快捷鍵設定"
           },
           "compact_mode": {
             "title": "緊湊模式",

@@ -8,7 +8,10 @@
       "add.name.placeholder": "名前を入力",
       "add.prompt": "プロンプト",
       "add.prompt.placeholder": "プロンプトを入力",
-      "add.prompt.variables.tip": "利用可能な変数：{{date}}, {{time}}, {{datetime}}, {{system}}, {{arch}}, {{language}}, {{model_name}}",
+      "add.prompt.variables.tip": {
+        "title": "利用可能な変数",
+        "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名"
+      },
       "add.title": "エージェントを作成",
       "import": {
         "title": "外部からインポート",
@@ -30,16 +33,7 @@
         "agent": "エージェントをエクスポート"
       },
       "delete.popup.content": "このエージェントを削除してもよろしいですか？",
-      "edit.message.add.title": "追加",
-      "edit.message.assistant.placeholder": "アシスタントのメッセージを入力",
-      "edit.message.assistant.title": "アシスタント",
-      "edit.message.empty.content": "会話の入力内容が空です",
-      "edit.message.group.title": "メッセージグループ",
-      "edit.message.title": "プリセットメッセージ",
-      "edit.message.user.placeholder": "ユーザーメッセージを入力",
-      "edit.message.user.title": "ユーザー",
       "edit.model.select.title": "モデルを選択",
-      "edit.settings.hide_preset_messages": "プリセットメッセージを非表示",
       "edit.title": "エージェントを編集",
       "manage.title": "エージェントを管理",
       "my_agents": "マイエージェント",
@@ -76,7 +70,6 @@
       "settings.default_model": "デフォルトモデル",
       "settings.knowledge_base": "ナレッジベース設定",
       "settings.model": "モデル設定",
-      "settings.preset_messages": "プリセットメッセージ",
       "settings.prompt": "プロンプト設定",
       "settings.reasoning_effort": "思考連鎖の長さ",
       "settings.reasoning_effort.off": "オフ",
@@ -268,6 +261,7 @@
       "topics.clear.title": "メッセージをクリア",
       "topics.copy.image": "画像としてコピー",
       "topics.copy.md": "Markdownとしてコピー",
+      "topics.copy.plain_text": "プレーンテキストとしてコピー（Markdownを除去）",
       "topics.copy.title": "コピー",
       "topics.delete.shortcut": "{{key}}キーを押しながらで直接削除",
       "topics.edit.placeholder": "新しい名前を入力",
@@ -322,6 +316,7 @@
       "translate": "翻訳",
       "topics.export.siyuan": "思源笔记にエクスポート",
       "topics.export.wait_for_title_naming": "タイトルを生成中...",
+      "topics.export.obsidian_reasoning": "思考過程を含める",
       "topics.export.title_naming_success": "タイトルの生成に成功しました",
       "topics.export.title_naming_failed": "タイトルの生成に失敗しました。デフォルトのタイトルを使用します",
       "input.translating": "翻訳中...",
@@ -571,8 +566,12 @@
       "urls": "URL",
       "dimensions": "埋め込み次元",
       "dimensions_size_tooltip": "埋め込み次元のサイズは、数値が大きいほど埋め込み次元も大きくなりますが、消費するトークンも増えます。",
-      "dimensions_size_placeholder": "デフォルト値（変更はお勧めしません）",
-      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。"
+      "dimensions_size_placeholder": " 埋め込み次元のサイズ（例：1024）",
+      "dimensions_auto_set": "埋め込み次元を自動設定",
+      "dimensions_error_invalid": "埋め込み次元のサイズを入力してください",
+      "dimensions_size_too_large": "埋め込み次元はモデルのコンテキスト制限（{{max_context}}）を超えてはなりません。",
+      "dimensions_set_right": "⚠️ モデルが設定した埋め込み次元のサイズをサポートしていることを確認してください",
+      "dimensions_default": "モデルはデフォルトの埋め込み次元を使用します"
     },
     "languages": {
       "arabic": "アラビア語",
@@ -634,7 +633,6 @@
       "error.enter.api.key": "APIキーを入力してください",
       "error.enter.model": "モデルを選択してください",
       "error.enter.name": "ナレッジベース名を入力してください",
-      "error.fetchTopicName": "トピックの命名に失敗しました",
       "error.get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "error.invalid.api.host": "無効なAPIアドレスです",
       "error.invalid.api.key": "無効なAPIキーです",
@@ -705,7 +703,8 @@
       "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
       "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません",
       "download.success": "ダウンロードに成功しました",
-      "download.failed": "ダウンロードに失敗しました"
+      "download.failed": "ダウンロードに失敗しました",
+      "error.fetchTopicName": "トピック名の取得に失敗しました"
     },
     "minapp": {
       "popup": {
@@ -949,9 +948,22 @@
       "rendering_speed": "レンダリング速度",
       "translating": "翻訳中...",
       "text_desc_required": "画像の説明を先に入力してください",
+      "image_handle_required": "最初に画像をアップロードしてください。",
       "req_error_text": "実行に失敗しました。もう一度お試しください。プロンプトに「著作権用語」や「センシティブな用語」を含めないでください。",
+      "req_error_token": "トークンの有効性を確認してください",
+      "req_error_no_balance": "トークンの有効性を確認してください",
       "auto_create_paint": "画像を自動作成",
-      "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。"
+      "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。",
+      "select_model": "モデルを選択",
+      "input_parameters": "パラメータ入力",
+      "input_image": "入力画像",
+      "generated_image": "生成画像",
+      "pricing": "料金",
+      "model_and_pricing": "モデルと料金",
+      "per_image": "1枚あたり",
+      "per_images": "複数枚あたり",
+      "required_field": "必須項目",
+      "uploaded_input": "アップロード済みの入力"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
@@ -1006,7 +1018,9 @@
       "zhipu": "智譜AI",
       "voyageai": "Voyage AI",
       "qiniu": "七牛云 AI 推理",
-      "tokenflux": "TokenFlux"
+      "tokenflux": "TokenFlux",
+      "302ai": "302.AI",
+      "cephalon": "Cephalon"
     },
     "restore": {
       "confirm": "データを復元しますか？",
@@ -1118,7 +1132,9 @@
           "token": "Joplin 認証トークン",
           "token_placeholder": "Joplin 認証トークンを入力してください",
           "url": "Joplin 剪輯服務 URL",
-          "url_placeholder": "http://127.0.0.1:41184/"
+          "url_placeholder": "http://127.0.0.1:41184/",
+          "export_reasoning.title": "エクスポート時に思考過程を含める",
+          "export_reasoning.help": "有効にすると、エクスポートされる内容にアシスタントが生成した思考過程（リースニングチェーン）が含まれます。"
         },
         "markdown_export.force_dollar_math.help": "有効にすると、Markdownにエクスポートする際にLaTeX数式を$$で強制的にマークします。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "markdown_export.force_dollar_math.title": "LaTeX数式に$$を強制使用",
@@ -1127,29 +1143,12 @@
         "markdown_export.path_placeholder": "エクスポートパス",
         "markdown_export.select": "選択",
         "markdown_export.title": "Markdown エクスポート",
+        "markdown_export.show_model_name.title": "エクスポート時にモデル名を使用",
+        "markdown_export.show_model_name.help": "有効にすると、トピック命名モデルがエクスポートされたメッセージのタイトル作成に使用されます。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
+        "markdown_export.show_model_provider.title": "モデルプロバイダーを表示",
+        "markdown_export.show_model_provider.help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
         "minute_interval_one": "{{count}} 分",
         "minute_interval_other": "{{count}} 分",
-        "notion.api_key": "Notion APIキー",
-        "notion.api_key_placeholder": "Notion APIキーを入力してください",
-        "notion.auto_split": "ダイアログをエクスポートすると自動ページ分割",
-        "notion.auto_split_tip": "ダイアログが長い場合、Notionに自動的にページ分割してエクスポートします",
-        "notion.check": {
-          "button": "確認",
-          "empty_api_key": "Api_keyが設定されていません",
-          "empty_database_id": "Database_idが設定されていません",
-          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
-          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
-          "success": "接続に成功しました。"
-        },
-        "notion.database_id": "Notion データベースID",
-        "notion.database_id_placeholder": "Notion データベースIDを入力してください",
-        "notion.help": "Notion 設定ドキュメント",
-        "notion.page_name_key": "ページタイトルフィールド名",
-        "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
-        "notion.split_size": "自動ページ分割サイズ",
-        "notion.split_size_help": "Notion無料版ユーザーは90、有料版ユーザーは24990、デフォルトは90",
-        "notion.split_size_placeholder": "ページごとのブロック数制限を入力してください(デフォルト90)",
-        "notion.title": "Notion 設定",
         "title": "データ設定",
         "webdav": {
           "autoSync": "自動バックアップ",
@@ -1269,7 +1268,25 @@
           "new_folder.button": "新しいフォルダー"
         },
         "message_title.use_topic_naming.title": "トピック命名モデルを使用してメッセージのタイトルを作成",
-        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。"
+        "message_title.use_topic_naming.help": "この設定は、すべてのMarkdownエクスポート方法に影響します。",
+        "notion.api_key": "Notion APIキー",
+        "notion.api_key_placeholder": "Notion APIキーを入力してください",
+        "notion.check": {
+          "button": "確認",
+          "empty_api_key": "Api_keyが設定されていません",
+          "empty_database_id": "Database_idが設定されていません",
+          "error": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "fail": "接続エラー、ネットワーク設定とApi_keyとDatabase_idを確認してください",
+          "success": "接続に成功しました。"
+        },
+        "notion.database_id": "Notion データベースID",
+        "notion.database_id_placeholder": "Notion データベースIDを入力してください",
+        "notion.help": "Notion 設定ドキュメント",
+        "notion.page_name_key": "ページタイトルフィールド名",
+        "notion.page_name_key_placeholder": "ページタイトルフィールド名を入力してください。デフォルトは Name です",
+        "notion.title": "Notion 設定",
+        "notion.export_reasoning.title": "エクスポート時に思考チェーンを含める",
+        "notion.export_reasoning.help": "有効にすると、Notionにエクスポートする際に思考チェーンの内容が含まれます。"
       },
       "display.assistant.title": "アシスタント設定",
       "display.custom.css": "カスタムCSS",
@@ -1510,7 +1527,9 @@
         "advancedSettings": "詳細設定"
       },
       "messages.prompt": "プロンプト表示",
+      "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
+      "messages.divider.tooltip": "バブルスタイルのメッセージには適用されません",
       "messages.grid_columns": "メッセージグリッドの表示列数",
       "messages.grid_popover_trigger": "グリッド詳細トリガー",
       "messages.grid_popover_trigger.click": "クリックで表示",
@@ -1543,7 +1562,8 @@
       "models.add.model_id.select.placeholder": "モデルを選択",
       "models.add.model_id.tooltip": "例：gpt-3.5-turbo",
       "models.add.model_name": "モデル名",
-      "models.add.model_name.placeholder": "例：GPT-3.5",
+      "models.add.model_name.tooltip": "例：GPT-4",
+      "models.add.model_name.placeholder": "例：GPT-4",
       "models.check.all": "すべて",
       "models.check.all_models_passed": "すべてのモデルチェックが成功しました",
       "models.check.button_caption": "健康チェック",
@@ -1688,6 +1708,8 @@
         "exit_fullscreen": "フルスクリーンを終了",
         "key": "キー",
         "mini_window": "クイックアシスタント",
+        "selection_assistant_toggle": "選択アシスタントを切り替え",
+        "selection_assistant_select_text": "選択アシスタント：テキストを選択",
         "new_topic": "新しいトピック",
         "press_shortcut": "ショートカットを押す",
         "reset_defaults": "デフォルトのショートカットをリセット",
@@ -1759,6 +1781,8 @@
         "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
       },
       "general.auto_check_update.title": "自動更新",
+      "general.early_access.title": "早期アクセス",
+      "general.early_access.tooltip": "有効にすると、GitHub の最新バージョンを使用します。ダウンロード速度が遅く、不安定な場合があります。データを事前にバックアップしてください。",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",
@@ -1856,7 +1880,7 @@
       "menu": {
         "description": "對當前輸入框內容進行翻譯"
       },
-      "detected.language": "検出された言語"
+      "detected.language": "自動検出"
     },
     "tray": {
       "quit": "終了",
@@ -1885,7 +1909,8 @@
           "summary": "要約",
           "search": "検索",
           "refine": "最適化",
-          "copy": "コピー"
+          "copy": "コピー",
+          "quote": "引用"
         },
         "window": {
           "pin": "最前面に固定",
@@ -1912,11 +1937,16 @@
         "toolbar": {
           "title": "ツールバー",
           "trigger_mode": {
-            "title": "表示方法",
-            "description": "テキスト選択時に即時表示、またはCtrlキー押下時のみ表示",
-            "description_note": "一部のアプリはCtrlキーでのテキスト選択に対応していません。AHKなどでCtrlキーをリマップすると、選択できなくなる場合があります。",
+            "title": "単語の取り出し方",
+            "description": "テキスト選択後、取詞ツールバーを表示する方法",
+            "description_note": "一部のアプリケーションでは、Ctrl キーでテキストを選択できません。AHK などのツールを使用して Ctrl キーを再マップした場合、一部のアプリケーションでテキスト選択が失敗する可能性があります。",
             "selected": "選択時",
-            "ctrlkey": "Ctrlキー"
+            "selected_note": "テキスト選択時に即時表示",
+            "ctrlkey": "Ctrlキー",
+            "ctrlkey_note": "テキスト選択後、Ctrlキーを押下して表示",
+            "shortcut": "ショートカットキー",
+            "shortcut_note": "テキスト選択後、ショートカットキーを押下して表示。ショートカットキーを設定するには、ショートカット設定ページで有効にしてください。",
+            "shortcut_link": "ショートカット設定ページに移動"
           },
           "compact_mode": {
             "title": "コンパクトモード",

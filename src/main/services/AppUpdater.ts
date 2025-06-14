@@ -1,10 +1,12 @@
 import { isWin } from '@main/constant'
+import { locales } from '@main/utils/locales'
 import { IpcChannel } from '@shared/IpcChannel'
+import { FeedUrl } from '@shared/config/constant'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
-import { locales } from '@main/utils/locales'
+import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
+import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
@@ -20,6 +22,7 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.setFeedURL(configManager.getFeedUrl())
 
     // 检测下载错误
     autoUpdater.on('error', (error) => {
@@ -54,12 +57,21 @@ export default class AppUpdater {
       logger.info('下载完成', releaseInfo)
     })
 
+    if (isWin) {
+      ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
+    }
+
     this.autoUpdater = autoUpdater
   }
 
   public setAutoUpdate(isActive: boolean) {
     autoUpdater.autoDownload = isActive
     autoUpdater.autoInstallOnAppQuit = isActive
+  }
+
+  public setFeedUrl(feedUrl: FeedUrl) {
+    autoUpdater.setFeedURL(feedUrl)
+    configManager.setFeedUrl(feedUrl)
   }
 
   public async checkForUpdates() {

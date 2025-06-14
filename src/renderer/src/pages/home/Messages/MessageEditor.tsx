@@ -45,16 +45,6 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
 
-  useEffect(() => {
-    setTimeout(() => {
-      resizeTextArea()
-      if (textareaRef.current) {
-        textareaRef.current.focus({ cursor: 'end' })
-      }
-    }, 0)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   const resizeTextArea = useCallback(() => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (textArea) {
@@ -62,6 +52,15 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
       textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
     }
   }, [])
+
+  useEffect(() => {
+    setTimeout(() => {
+      resizeTextArea()
+      if (textareaRef.current) {
+        textareaRef.current.focus({ cursor: 'end' })
+      }
+    }, 0)
+  }, [resizeTextArea])
 
   const onPaste = useCallback(
     async (event: ClipboardEvent) => {
@@ -84,13 +83,9 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
 
   // 添加全局粘贴事件处理
   useEffect(() => {
-    // 注册当前组件的粘贴处理函数
     PasteService.registerHandler('messageEditor', onPaste)
-
-    // 在组件加载时将焦点设置为当前组件
     PasteService.setLastFocusedComponent('messageEditor')
 
-    // 卸载时取消注册
     return () => {
       PasteService.unregisterHandler('messageEditor')
     }
@@ -165,12 +160,6 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     }
   }
 
-  const autoResizeTextArea = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const textarea = e.target
-    textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight}px`
-  }
-
   return (
     <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       {editedBlocks
@@ -184,7 +173,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             value={block.content}
             onChange={(e) => {
               handleTextChange(block.id, e.target.value)
-              autoResizeTextArea(e)
+              resizeTextArea()
             }}
             autoFocus
             contextMenu="true"

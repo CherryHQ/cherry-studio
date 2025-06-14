@@ -179,3 +179,12 @@ export function addImageFileToContents(messages: Message[]) {
 
   return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
 }
+
+export function formatQuotedText(text: string) {
+  return (
+    text
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n') + '\n-------------'
+  )
+}

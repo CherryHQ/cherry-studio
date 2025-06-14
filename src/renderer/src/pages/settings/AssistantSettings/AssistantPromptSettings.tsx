@@ -6,12 +6,14 @@ import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Input, Popover, Tooltip } from 'antd'
+import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
+
+import { SettingDivider } from '..'
 
 interface Props {
   assistant: Assistant
@@ -53,13 +55,15 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateAssistant(_assistant)
   }
 
+  const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+
   return (
     <Container>
       <Box mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.name')}
       </Box>
       <HStack gap={8} alignItems="center">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
             {emoji && (
@@ -90,11 +94,12 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           style={{ flex: 1 }}
         />
       </HStack>
-      <HStack mt={8} mb={8} alignItems="center" gap={4}>
+      <SettingDivider />
+      <HStack mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Tooltip title={t('agents.add.prompt.variables.tip')}>
+        <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
           <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
-        </Tooltip>
+        </Popover>
       </HStack>
       <TextAreaContainer>
         {showMarkdown ? (
@@ -139,7 +144,6 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  padding: 5px;
 `
 
 const EmojiButtonWrapper = styled.div`

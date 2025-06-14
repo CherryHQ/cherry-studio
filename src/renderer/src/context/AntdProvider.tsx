@@ -48,6 +48,10 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           },
           ColorPicker: {
             fontFamily: 'var(--code-font-family)'
+          },
+          Segmented: {
+            itemActiveBg: 'var(--color-background-mute)',
+            itemHoverBg: 'var(--color-background-mute)'
           }
         },
         token: {

@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css'
 import 'katex/dist/contrib/copy-tex'
 import 'katex/dist/contrib/mhchem'
 
+import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -12,7 +13,7 @@ import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown, { type Components } from 'react-markdown'
+import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 // @ts-ignore rehype-mathjax is not typed
 import rehypeMathjax from 'rehype-mathjax'
@@ -22,8 +23,8 @@ import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 
 import CodeBlock from './CodeBlock'
-import ImagePreview from './ImagePreview'
 import Link from './Link'
+import Table from './Table'
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
@@ -83,18 +84,25 @@ const Markdown: FC<Props> = ({ block }) => {
       code: (props: any) => (
         <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
       ),
-      img: ImagePreview,
-      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />
+      table: (props: any) => <Table {...props} blockId={block.id} />,
+      img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
+      pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
+      p: (props) => {
+        const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
+        if (hasImage) return <div {...props} />
+        return <p {...props} />
+      }
     } as Partial<Components>
-  }, [onSaveCodeBlock])
-
-  // if (role === 'user' && !renderInputMessageAsMarkdown) {
-  //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
-  // }
+  }, [onSaveCodeBlock, block.id])
 
   if (messageContent.includes('<style>')) {
     components.style = MarkdownShadowDOMRenderer as any
   }
+
+  const urlTransform = useCallback((value: string) => {
+    if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
+    return defaultUrlTransform(value)
+  }, [])
 
   return (
     <ReactMarkdown
@@ -103,6 +111,7 @@ const Markdown: FC<Props> = ({ block }) => {
       className="markdown"
       components={components}
       disallowedElements={DISALLOWED_ELEMENTS}
+      urlTransform={urlTransform}
       remarkRehypeOptions={{
         footnoteLabel: t('common.footnotes'),
         footnoteLabelTagName: 'h4',

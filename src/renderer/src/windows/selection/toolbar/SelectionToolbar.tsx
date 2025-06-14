@@ -147,10 +147,12 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [demo, isCompact, actionItems])
 
   useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
-  }, [language])
+    !demo && i18n.changeLanguage(language || navigator.language || defaultLanguage)
+  }, [language, demo])
 
   useEffect(() => {
+    if (demo) return
+
     let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
     if (customCssElement) {
       customCssElement.remove()
@@ -164,7 +166,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
       customCssElement.textContent = newCustomCss
       document.head.appendChild(customCssElement)
     }
-  }, [customCss])
+  }, [customCss, demo])
 
   const onHideCleanUp = () => {
     setCopyIconStatus('normal')
@@ -185,6 +187,9 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
         case 'search':
           handleSearch(newAction)
+          break
+        case 'quote':
+          handleQuote(newAction)
           break
         default:
           handleDefaultAction(newAction)
@@ -218,6 +223,16 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     window.api?.selection.hideToolbar()
   }
 
+  /**
+   * Quote the selected text to the inputbar of the main window
+   */
+  const handleQuote = (action: ActionItem) => {
+    if (action.selectedText) {
+      window.api?.quoteToMainWindow(action.selectedText)
+      window.api?.selection.hideToolbar()
+    }
+  }
+
   const handleDefaultAction = (action: ActionItem) => {
     window.api?.selection.processAction(action)
     window.api?.selection.hideToolbar()
@@ -225,7 +240,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
 
   return (
     <Container>
-      <LogoWrapper>
+      <LogoWrapper $draggable={!demo}>
         <Logo src={AppLogo} key={animateKey} className="animate" draggable={false} />
       </LogoWrapper>
       <ActionWrapper>
@@ -259,12 +274,13 @@ const Container = styled.div`
   box-sizing: border-box;
 `
 
-const LogoWrapper = styled.div`
+const LogoWrapper = styled.div<{ $draggable: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  -webkit-app-region: drag;
   margin-left: 5px;
+  background-color: transparent;
+  ${({ $draggable }) => $draggable && ' -webkit-app-region: drag;'}
 `
 
 const Logo = styled(Avatar)`
@@ -295,6 +311,7 @@ const ActionWrapper = styled.div`
   align-items: center;
   justify-content: center;
   margin-left: 3px;
+  background-color: transparent;
 `
 const ActionButton = styled.div`
   display: flex;
@@ -302,17 +319,26 @@ const ActionButton = styled.div`
   align-items: center;
   justify-content: center;
   margin: 0 2px;
+  background-color: transparent;
   cursor: pointer;
   border-radius: 4px;
   padding: 4px 6px;
+  transition: all 0.1s ease-in-out;
+  will-change: color, background-color;
+
   .btn-icon {
     width: 16px;
     height: 16px;
     color: var(--color-selection-toolbar-text);
+    background-color: transparent;
+    transition: color 0.1s ease-in-out;
+    will-change: color;
   }
   .btn-title {
     color: var(--color-selection-toolbar-text);
     --font-size: 14px;
+    transition: color 0.1s ease-in-out;
+    will-change: color;
   }
   &:hover {
     color: var(--color-primary);
@@ -329,10 +355,10 @@ const ActionIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  /* margin-right: 3px; */
   position: relative;
   height: 16px;
   width: 16px;
+  background-color: transparent;
 
   .btn-icon {
     position: absolute;
@@ -416,6 +442,7 @@ const ActionTitle = styled.span`
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-left: 3px;
+  background-color: transparent;
 `
 
 export default SelectionToolbar
