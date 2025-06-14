@@ -1,10 +1,12 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { CodeTool, usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
+import { usePreviewToolHandlers, usePreviewTools } from '@renderer/components/CodeToolbar'
 import { Spin } from 'antd'
 import pako from 'pako'
 import React, { memo, useCallback, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { BasicPreviewProps } from './types'
 
 const PlantUMLServer = 'https://www.plantuml.com/plantuml'
 function encode64(data: Uint8Array) {
@@ -132,12 +134,7 @@ const PlantUMLServerImage: React.FC<PlantUMLServerImageProps> = ({ format, diagr
   )
 }
 
-interface PlantUMLProps {
-  children: string
-  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
-}
-
-const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children, setTools }) => {
+const PlantUmlPreview: React.FC<BasicPreviewProps> = ({ children, setTools }) => {
   const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -174,7 +171,7 @@ const PlantUmlPreview: React.FC<PlantUMLProps> = ({ children, setTools }) => {
 
   return (
     <div ref={containerRef}>
-      <PlantUMLServerImage format="svg" diagram={children} className="plantuml-preview" />
+      <PlantUMLServerImage format="svg" diagram={children} className="plantuml-preview special-preview" />
     </div>
   )
 }
