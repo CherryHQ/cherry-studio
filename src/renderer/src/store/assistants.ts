@@ -7,12 +7,19 @@ import { isEmpty, uniqBy } from 'lodash'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
+  quickAssistant: Assistant
   assistants: Assistant[]
   tagsOrder: string[]
 }
 
 const initialState: AssistantsState = {
   defaultAssistant: getDefaultAssistant(),
+  quickAssistant: {
+    ...getDefaultAssistant(),
+    id: 'quick-assistant',
+    name: 'Quick Assistant',
+    emoji: '🚀'
+  },
   assistants: [getDefaultAssistant()],
   tagsOrder: []
 }
