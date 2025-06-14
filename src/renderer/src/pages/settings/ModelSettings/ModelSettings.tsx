@@ -11,7 +11,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppSelector } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
-import { setQuickAssistantRefersToAssistantId, setUseAssistantForQuickAssistant } from '@renderer/store/llm'
+import { setQuickAssistantId, setUseAssistantForQuickAssistant } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
@@ -26,16 +26,8 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
 const ModelSettings: FC = () => {
-  const {
-    defaultModel,
-    topicNamingModel,
-    translateModel,
-    quickAssistantModel,
-    setDefaultModel,
-    setTopicNamingModel,
-    setTranslateModel,
-    setQuickAssistantModel
-  } = useDefaultModel()
+  const { defaultModel, topicNamingModel, translateModel, setDefaultModel, setTopicNamingModel, setTranslateModel } =
+    useDefaultModel()
   const { defaultAssistant } = useDefaultAssistant()
   const { assistants } = useAssistants()
   const { providers } = useProviders()
@@ -45,7 +37,7 @@ const ModelSettings: FC = () => {
   const { translateModelPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
-  const { quickAssistantRefersToAssistantId, useAssistantForQuickAssistant } = useAppSelector((state) => state.llm)
+  const { quickAssistantId, useAssistantForQuickAssistant } = useAppSelector((state) => state.llm)
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
@@ -73,11 +65,6 @@ const ModelSettings: FC = () => {
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
     [translateModel]
-  )
-
-  const defaultQuickAssistantModel = useMemo(
-    () => (hasModel(quickAssistantModel) ? getModelUniqId(quickAssistantModel) : undefined),
-    [quickAssistantModel]
   )
 
   const onUpdateTranslateModel = async () => {
@@ -192,8 +179,8 @@ const ModelSettings: FC = () => {
                 onClick={() => {
                   dispatch(setUseAssistantForQuickAssistant(true))
                   const firstAssistant = assistants.find((a) => a.type !== 'system' && a.id !== defaultAssistant.id)
-                  if (firstAssistant && !quickAssistantRefersToAssistantId) {
-                    dispatch(setQuickAssistantRefersToAssistantId(firstAssistant.id))
+                  if (firstAssistant && !quickAssistantId) {
+                    dispatch(setQuickAssistantId(firstAssistant.id))
                   }
                 }}
                 selected={useAssistantForQuickAssistant}>
@@ -202,25 +189,13 @@ const ModelSettings: FC = () => {
             </HStack>
           </SettingTitle>
         </HStack>
-        {!useAssistantForQuickAssistant ? (
+        {!useAssistantForQuickAssistant ? null : (
           <HStack alignItems="center" style={{ marginTop: 12 }}>
             <Select
-              value={defaultQuickAssistantModel}
-              defaultValue={defaultQuickAssistantModel}
+              value={quickAssistantId}
               style={{ width: 360 }}
-              onChange={(value) => setQuickAssistantModel(find(allModels, JSON.parse(value)) as Model)}
-              options={selectOptions}
-              showSearch
-              placeholder={t('settings.models.empty')}
-            />
-          </HStack>
-        ) : (
-          <HStack alignItems="center" style={{ marginTop: 12 }}>
-            <Select
-              value={quickAssistantRefersToAssistantId}
-              style={{ width: 360 }}
-              onChange={(value) => dispatch(setQuickAssistantRefersToAssistantId(value))}
-              placeholder={t('settings.quickAssistant.selectAssistant')}>
+              onChange={(value) => dispatch(setQuickAssistantId(value))}
+              placeholder={t('settings.models.quick_assistant_selection')}>
               {assistants
                 .filter((a) => a.id !== defaultAssistant.id)
                 .map((a) => (

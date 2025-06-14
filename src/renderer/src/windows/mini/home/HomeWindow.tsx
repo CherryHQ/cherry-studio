@@ -4,7 +4,7 @@ import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssista
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getAssistantById, getDefaultModel } from '@renderer/services/AssistantService'
+import { getAssistantById } from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store, { useAppSelector } from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
@@ -43,7 +43,7 @@ const HomeWindow: FC = () => {
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
-  const { defaultModel, quickAssistantModel } = useDefaultModel()
+  const { defaultModel } = useDefaultModel()
   const model = currentAssistant.model || defaultModel
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
   const { theme } = useTheme()
@@ -54,7 +54,7 @@ const HomeWindow: FC = () => {
 
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
-  const { useAssistantForQuickAssistant, quickAssistantRefersToAssistantId } = useAppSelector((state) => state.llm)
+  const { useAssistantForQuickAssistant, quickAssistantId } = useAppSelector((state) => state.llm)
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -163,18 +163,22 @@ const HomeWindow: FC = () => {
   useEffect(() => {
     const defaultCurrentAssistant = {
       ...defaultAssistant,
-      model: quickAssistantModel || getDefaultModel()
+      model: defaultModel
     }
 
-    if (useAssistantForQuickAssistant && quickAssistantRefersToAssistantId) {
+    if (useAssistantForQuickAssistant && quickAssistantId) {
       // 獲取指定助手，如果不存在則使用默認助手
-      const assistantFromId = getAssistantById(quickAssistantRefersToAssistantId)
+      const assistantFromId = getAssistantById(quickAssistantId)
       const currentAssistant = assistantFromId || defaultCurrentAssistant
+      // 如果助手本身沒有設定模型，則使用預設模型
+      if (!currentAssistant.model) {
+        currentAssistant.model = defaultModel
+      }
       setCurrentAssistant(currentAssistant)
     } else {
       setCurrentAssistant(defaultCurrentAssistant)
     }
-  }, [useAssistantForQuickAssistant, quickAssistantRefersToAssistantId, defaultAssistant, quickAssistantModel])
+  }, [useAssistantForQuickAssistant, quickAssistantId, defaultAssistant, defaultModel])
 
   const onSendMessage = useCallback(
     async (prompt?: string) => {

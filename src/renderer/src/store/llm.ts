@@ -21,8 +21,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
-  quickAssistantModel: Model
-  quickAssistantRefersToAssistantId: string | null
+  quickAssistantId: string | null
   useAssistantForQuickAssistant: boolean
   settings: LlmSettings
 }
@@ -496,8 +495,7 @@ const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.defaultModel[0],
   topicNamingModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
-  quickAssistantModel: SYSTEM_MODELS.defaultModel[3],
-  quickAssistantRefersToAssistantId: '',
+  quickAssistantId: '',
   useAssistantForQuickAssistant: false,
   providers: INITIAL_PROVIDERS,
   settings: {
@@ -605,11 +603,9 @@ const llmSlice = createSlice({
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
     },
-    setQuickAssistantModel: (state, action: PayloadAction<{ model: Model }>) => {
-      state.quickAssistantModel = action.payload.model
-    },
-    setQuickAssistantRefersToAssistantId: (state, action: PayloadAction<string | null>) => {
-      state.quickAssistantRefersToAssistantId = action.payload
+
+    setQuickAssistantId: (state, action: PayloadAction<string | null>) => {
+      state.quickAssistantId = action.payload
     },
     setUseAssistantForQuickAssistant: (state, action: PayloadAction<boolean>) => {
       state.useAssistantForQuickAssistant = action.payload
@@ -651,8 +647,7 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
-  setQuickAssistantModel,
-  setQuickAssistantRefersToAssistantId,
+  setQuickAssistantId,
   setUseAssistantForQuickAssistant,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
