@@ -21,10 +21,13 @@ export default abstract class BaseReranker {
       return 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'
     }
 
-    let baseURL = this.base?.rerankBaseURL?.endsWith('/')
-      ? this.base.rerankBaseURL.slice(0, -1)
-      : this.base.rerankBaseURL
-    // 必须携带/v1，否则会404
+    let baseURL = this.base.rerankBaseURL
+
+    if (baseURL && baseURL.endsWith('/')) {
+      // `/` 结尾强制使用rerankBaseURL
+      return `${baseURL}rerank`
+    }
+
     if (baseURL && !baseURL.endsWith('/v1')) {
       baseURL = `${baseURL}/v1`
     }

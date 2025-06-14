@@ -309,7 +309,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.keyCode == 13
+    const isEnterPressed = event.key === 'Enter'
 
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {

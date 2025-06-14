@@ -40,7 +40,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -137,9 +137,8 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     }
   }
 
-  const handleClick = async (withResend?: boolean) => {
-    if (isProcessing) return
-    setIsProcessing(true)
+  // 处理编辑区块并上传文件
+  const processEditedBlocks = async () => {
     const updatedBlocks = [...editedBlocks]
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -153,10 +152,48 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
         }
       })
     }
-    if (withResend) {
-      onResend(updatedBlocks)
-    } else {
-      onSave(updatedBlocks)
+    return updatedBlocks
+  }
+
+  const handleSave = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    const updatedBlocks = await processEditedBlocks()
+    onSave(updatedBlocks)
+  }
+
+  const handleResend = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    const updatedBlocks = await processEditedBlocks()
+    onResend(updatedBlocks)
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (message.role !== 'user') {
+      return
+    }
+
+    const isEnterPressed = event.key === 'Enter'
+
+    if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
+      handleResend()
+      return event.preventDefault()
+    }
+
+    if (sendMessageShortcut === 'Shift+Enter' && isEnterPressed && event.shiftKey) {
+      handleResend()
+      return event.preventDefault()
+    }
+
+    if (sendMessageShortcut === 'Ctrl+Enter' && isEnterPressed && event.ctrlKey) {
+      handleResend()
+      return event.preventDefault()
+    }
+
+    if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
+      handleResend()
+      return event.preventDefault()
     }
   }
 
@@ -175,6 +212,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               handleTextChange(block.id, e.target.value)
               resizeTextArea()
             }}
+            onKeyDown={handleKeyDown}
             autoFocus
             contextMenu="true"
             spellCheck={false}
@@ -240,13 +278,13 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             </ToolbarButton>
           </Tooltip>
           <Tooltip title={t('common.save')}>
-            <ToolbarButton type="text" onClick={() => handleClick()}>
+            <ToolbarButton type="text" onClick={handleSave}>
               <Save size={16} />
             </ToolbarButton>
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
-              <ToolbarButton type="text" onClick={() => handleClick(true)}>
+              <ToolbarButton type="text" onClick={handleResend}>
                 <Send size={16} />
               </ToolbarButton>
             </Tooltip>
