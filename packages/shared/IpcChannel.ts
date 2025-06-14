@@ -37,6 +37,8 @@ export enum IpcChannel {
   Config_Set = 'config:set',
   Config_Get = 'config:get',
 
+  MainWindow_SetPin = 'mainwindow:set-pin',
+
   MiniWindow_Show = 'miniwindow:show',
   MiniWindow_Hide = 'miniwindow:hide',
   MiniWindow_Close = 'miniwindow:close',

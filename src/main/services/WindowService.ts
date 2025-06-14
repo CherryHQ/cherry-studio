@@ -21,6 +21,7 @@ export class WindowService {
   private mainWindow: BrowserWindow | null = null
   private miniWindow: BrowserWindow | null = null
   private isPinnedMiniWindow: boolean = false
+  private isMainWindowPinned: boolean = false
   //hacky-fix: store the focused status of mainWindow before miniWindow shows
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
@@ -408,6 +409,23 @@ export class WindowService {
     }
 
     this.showMainWindow()
+  }
+
+  public setMainWindowPin(isPinned: boolean): Promise<boolean> {
+    try {
+      this.isMainWindowPinned = isPinned
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.setAlwaysOnTop(isPinned, 'floating')
+      }
+      return Promise.resolve(isPinned)
+    } catch (error) {
+      Logger.error('Failed to set main window pin:', error as Error)
+      return Promise.reject(error)
+    }
+  }
+
+  public getMainWindowPin(): boolean {
+    return this.isMainWindowPinned
   }
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
