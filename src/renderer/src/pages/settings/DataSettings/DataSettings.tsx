@@ -228,7 +228,7 @@ const DataSettings: FC = () => {
     messageKey: string
   ) => {
     // 复制数据选项状态
-    let shouldCopyData = false
+    let shouldCopyData = true
 
     // 创建路径内容组件
     const PathsContent = () => (
@@ -241,9 +241,14 @@ const DataSettings: FC = () => {
           <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
           <MigrationPathValue>{newPath}</MigrationPathValue>
         </MigrationPathRow>
+      </div>
+    )
+
+    const CopyDataContent = () => (
+      <div>
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
-            defaultChecked={false}
+            defaultChecked={true}
             onChange={(checked) => {
               shouldCopyData = checked
             }}
@@ -265,6 +270,7 @@ const DataSettings: FC = () => {
       content: (
         <MigrationModalContent>
           <PathsContent />
+          <CopyDataContent />
           <MigrationNotice>
             <p style={{ color: 'var(--color-warning)' }}>{t('settings.data.app_data.restart_notice')}</p>
             <p style={{ color: 'var(--color-text-3)', marginTop: '8px' }}>
