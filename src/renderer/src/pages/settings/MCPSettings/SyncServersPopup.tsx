@@ -8,6 +8,7 @@ import styled from 'styled-components'
 
 import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
+import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
 
 // Provider configuration interface
 interface ProviderConfig {
@@ -45,6 +46,17 @@ const providers: ProviderConfig[] = [
     getToken: getTokenFluxToken,
     saveToken: saveTokenFluxToken,
     syncServers: syncTokenFluxServers
+  },
+  {
+    key: 'lanyun',
+    name: '蓝耘科技',
+    description: '蓝耘科技云平台 MCP 服务',
+    discoverUrl: 'https://mcp.lanyun.net',
+    apiKeyUrl: LANYUN_KEY_HOST,
+    tokenFieldName: 'tokenLanyunToken',
+    getToken: getTokenLanYunToken,
+    saveToken: saveTokenLanYunToken,
+    syncServers: syncTokenLanYunServers
   }
 ]
 
