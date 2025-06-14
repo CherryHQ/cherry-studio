@@ -16,12 +16,17 @@ class NotificationService {
     const electronNotification = new ElectronNotification({
       title: notification.title,
       body: notification.message,
-      icon: icon
+      icon: icon,
+      actions: notification.actions
     })
 
     electronNotification.on('click', () => {
       this.window.show()
       this.window.webContents.send('notification-click', notification)
+    })
+
+    electronNotification.on('action', (_event, index) => {
+      this.window.webContents.send('notification-action', notification, index)
     })
 
     electronNotification.show()

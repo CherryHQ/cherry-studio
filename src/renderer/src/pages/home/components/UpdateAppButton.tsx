@@ -6,30 +6,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
-  const { update } = useRuntime()
-  const { t } = useTranslation()
-
-  if (!update) {
-    return null
-  }
-
-  if (!update.downloaded) {
-    return null
-  }
-
-  return (
-    <Container>
-      <UpdateButton
-        className="nodrag"
-        onClick={() => window.api.showUpdateDialog()}
-        icon={<SyncOutlined />}
-        color="orange"
-        variant="outlined"
-        size="small">
-        {t('button.update_available')}
-      </UpdateButton>
-    </Container>
-  )
+  return null
 }
 
 const Container = styled.div``
