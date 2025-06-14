@@ -1927,7 +1927,7 @@
             "selected": "划词",
             "selected_note": "划词后立即显示工具栏",
             "ctrlkey": "Ctrl 键",
-            "ctrlkey_note": "划词后，再 按住 Ctrl键，才显示工具栏",
+            "ctrlkey_note": "划词后，再 长按 Ctrl键，才显示工具栏",
             "shortcut": "快捷键",
             "shortcut_note": "划词后，使用快捷键显示工具栏。请在快捷键设置页面中设置取词快捷键并启用。",
             "shortcut_link": "前往快捷键设置"
@@ -1962,6 +1962,7 @@
         },
         "actions": {
           "title": "功能",
+          "custom": "自定义功能",
           "reset": {
             "button": "重置",
             "tooltip": "重置为默认功能，自定义功能不会被删除",

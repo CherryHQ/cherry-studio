@@ -1962,6 +1962,7 @@
         },
         "actions": {
           "title": "功能",
+          "custom": "自訂功能",
           "reset": {
             "button": "重設",
             "tooltip": "重設為預設功能，自訂功能不會被刪除",

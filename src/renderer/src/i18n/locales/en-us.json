@@ -1962,6 +1962,7 @@
         },
         "actions": {
           "title": "Actions",
+          "custom": "Custom Action",
           "reset": {
             "button": "Reset",
             "tooltip": "Reset to default actions. Custom actions will not be deleted.",
