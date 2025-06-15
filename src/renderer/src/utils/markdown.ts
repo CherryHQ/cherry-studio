@@ -39,8 +39,8 @@ export function convertMathFormula(input: string): string {
   if (!input) return input
 
   let result = input
-  result = result.replaceAll('\\\\[', '$$$$').replaceAll('\\\\]', '$$$$')
-  result = result.replaceAll('\\\\(', '$$').replaceAll('\\\\)', '$$')
+  result = result.replaceAll('\\[', '$$$$').replaceAll('\\]', '$$$$')
+  result = result.replaceAll('\\(', '$$').replaceAll('\\)', '$$')
   return result
 }
 
