@@ -118,6 +118,7 @@ export enum IpcChannel {
   File_Copy = 'file:copy',
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
+  File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
 
   Export_Word = 'export:word',

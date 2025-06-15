@@ -6,6 +6,7 @@ import {
 } from '@renderer/config/models'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
+  FileType,
   FileTypes,
   MCPCallToolResponse,
   MCPTool,
@@ -34,6 +35,7 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
+import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import OpenAI from 'openai'
 
@@ -90,6 +92,23 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     return await sdk.responses.create(payload, options)
   }
 
+  private async handlePdfFile(file: FileType): Promise<OpenAI.Responses.ResponseInputFile | undefined> {
+    if (file.size > 32 * MB) return undefined
+    try {
+      const pageCount = await window.api.file.pdfInfo(file.id + file.ext)
+      if (pageCount > 100) return undefined
+    } catch {
+      return undefined
+    }
+
+    const { data } = await window.api.file.base64File(file.id + file.ext)
+    return {
+      type: 'input_file',
+      filename: file.origin_name,
+      file_data: `data:application/pdf;base64,${data}`
+    } as OpenAI.Responses.ResponseInputFile
+  }
+
   public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAIResponseSdkMessageParam> {
     const isVision = isVisionModel(model)
     const content = await this.getMessageContent(message)
@@ -140,6 +159,14 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     for (const fileBlock of fileBlocks) {
       const file = fileBlock.file
       if (!file) continue
+
+      if (isVision && file.ext === '.pdf') {
+        const pdfPart = await this.handlePdfFile(file)
+        if (pdfPart) {
+          parts.push(pdfPart)
+          continue
+        }
+      }
 
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         const fileContent = (await window.api.file.read(file.id + file.ext)).trim()
