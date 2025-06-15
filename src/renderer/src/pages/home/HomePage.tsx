@@ -40,6 +40,11 @@ const HomePage: FC = () => {
     NavigationService.setNavigate(navigate)
   }, [navigate])
 
+  // Signal that the main window's renderer is ready for topics
+  useEffect(() => {
+    window.api?.window?.sendRendererReadyForTopic?.('main')
+  }, [])
+
   useEffect(() => {
     state?.assistant && setActiveAssistant(state?.assistant)
     state?.topic && setActiveTopic(state?.topic)
@@ -68,114 +73,113 @@ const HomePage: FC = () => {
     return () => unsubscribe()
   }, [setActiveTopic])
 
-  // 監聽來自快捷助手的 assistant 和 topic 設定，延續對話
+  // Listen for topics transferred from other sources (e.g., quick assistant)
   useEffect(() => {
-    if (window.api?.window?.onReceiveQuickAssistTopic) {
-      const removeIpcListener = window.api.window.onReceiveQuickAssistTopic((assistantId: string, topic: Topic) => {
-        const quickAssistTopic = topic
+    if (window.api?.window?.onAppTransferTopicToMain) {
+      const removeIpcListener = window.api?.window?.onAppTransferTopicToMain?.(
+        (payload: { assistantId: string; topic: Topic; sourceInfo?: string }) => {
+          const { assistantId, topic: receivedTopic, sourceInfo } = payload
+          console.log(`[HomePage] Received topic from ${sourceInfo || 'unknown source'}`, {
+            assistantId,
+            receivedTopic
+          })
 
-        const assistantState = store.getState().assistants
-        if (!assistantState?.assistants || !Array.isArray(assistantState.assistants)) {
-          return
-        }
+          const assistantState = store.getState().assistants
+          if (!assistantState?.assistants || !Array.isArray(assistantState.assistants)) {
+            return
+          }
 
-        const targetAssistant = assistantState.assistants.find((a) => a.id === assistantId)
-        if (!targetAssistant) {
-          return
-        }
+          const targetAssistant = assistantState.assistants.find((a) => a.id === assistantId)
+          if (!targetAssistant) {
+            return
+          }
 
-        if (!quickAssistTopic.messages?.length) {
-          // Optionally, 可選擇切換到助手和一個空的新主題
-          // const emptyNewTopic: Topic = {
-          //   id: nanoid(),
-          //   name: quickAssistTopic.name || `From Quick Assistant (${dayjs().format('HH:mm')})`,
-          //   messages: [],
-          //   createdAt: new Date().toISOString(),
-          //   updatedAt: new Date().toISOString(),
-          //   assistantId: targetAssistant.id,
-          //   isNameManuallyEdited: false
-          // }
-          // store.dispatch(addTopic({ assistantId: targetAssistant.id, topic: emptyNewTopic }))
-          // setActiveAssistant(targetAssistant)
-          // setActiveTopic(emptyNewTopic)
-          return
-        }
+          if (!receivedTopic.messages?.length) {
+            return
+          }
 
-        // Create a new topic in the main application
-        const newMainTopic: Topic = {
-          id: nanoid(),
-          name: t('chat.default.quickAssistant.topic.name') + ` (${dayjs().format('HH:mm')})`,
-          messages: [], // Messages will be cloned by the thunk
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          assistantId: targetAssistant.id,
-          isNameManuallyEdited: false
-        }
+          // Create a new topic in the main application
+          const newMainTopic: Topic = {
+            id: nanoid(),
+            name: t('chat.default.quickAssistant.topic.name') + ` (${dayjs().format('HH:mm')})`,
+            messages: [], // Messages will be cloned by the thunk
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            assistantId: targetAssistant.id,
+            isNameManuallyEdited: false
+          }
 
-        // Add the new topic shell to the store first
-        store.dispatch(addTopic({ assistantId: targetAssistant.id, topic: newMainTopic }))
+          // Add the new topic shell to the store first
+          store.dispatch(addTopic({ assistantId: targetAssistant.id, topic: newMainTopic }))
 
-        const messagesToClone = quickAssistTopic.messages.map((msg) => ({
-          ...msg,
-          id: nanoid(),
-          topicId: newMainTopic.id,
-          assistantId: targetAssistant.id
-        }))
+          const messagesToClone = receivedTopic.messages.map((msg) => ({
+            ...msg,
+            id: nanoid(),
+            topicId: newMainTopic.id,
+            assistantId: targetAssistant.id
+          }))
 
-        const blocksToClone: MessageBlock[] = []
-        messagesToClone.forEach((clonedMsg, index) => {
-          const originalMsg = quickAssistTopic.messages[index]
-          if (originalMsg.blocks && Array.isArray(originalMsg.blocks)) {
-            const clonedBlocksForThisMessage = originalMsg.blocks
-              .map((blockId) => {
-                const originalBlock = (originalMsg as any).messageBlocks?.find((b) => b.id === blockId)
-                if (originalBlock) {
-                  return {
-                    ...originalBlock,
-                    id: nanoid(),
-                    messageId: clonedMsg.id
+          const blocksToClone: MessageBlock[] = []
+          messagesToClone.forEach((clonedMsg, index) => {
+            const originalMsg = receivedTopic.messages[index]
+            if (originalMsg.blocks && Array.isArray(originalMsg.blocks)) {
+              const clonedBlocksForThisMessage = originalMsg.blocks
+                .map((blockId) => {
+                  const originalBlock = (originalMsg as any).messageBlocks?.find((b) => b.id === blockId)
+                  if (originalBlock) {
+                    return {
+                      ...originalBlock,
+                      id: nanoid(),
+                      messageId: clonedMsg.id
+                    }
                   }
-                }
-                return null
+                  return null
+                })
+                .filter(Boolean) as MessageBlock[]
+              clonedMsg.blocks = clonedBlocksForThisMessage.map((b) => b.id) // Update cloned message with new block IDs
+              blocksToClone.push(...clonedBlocksForThisMessage)
+            }
+          })
+
+          if (blocksToClone.length > 0) {
+            store.dispatch(upsertManyBlocks(blocksToClone))
+          }
+
+          if (messagesToClone.length > 0) {
+            store.dispatch(
+              newMessagesActions.messagesReceived({
+                topicId: newMainTopic.id,
+                messages: messagesToClone
               })
-              .filter(Boolean) as MessageBlock[]
-            clonedMsg.blocks = clonedBlocksForThisMessage.map((b) => b.id) // Update cloned message with new block IDs
-            blocksToClone.push(...clonedBlocksForThisMessage)
+            )
           }
-        })
 
-        if (blocksToClone.length > 0) {
-          store.dispatch(upsertManyBlocks(blocksToClone))
-        }
+          setActiveAssistant(targetAssistant)
+          setActiveTopic(newMainTopic)
+          setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
 
-        if (messagesToClone.length > 0) {
-          store.dispatch(
-            newMessagesActions.messagesReceived({
-              topicId: newMainTopic.id,
-              messages: messagesToClone
-            })
-          )
-        }
-
-        setActiveAssistant(targetAssistant)
-        setActiveTopic(newMainTopic)
-        setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-
-        // 將新的 Topic, Messages, MessageBlocks 儲存到資料庫
-        const topicForDb = {
-          ...newMainTopic,
-          messages: messagesToClone
-        }
-
-        ;(async () => {
-          try {
-            await saveNewTopicToDB(topicForDb, blocksToClone)
-          } catch (error) {
-            console.error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk:`, error)
-            throw new Error(`[HomePage] Error saving new topic ${topicForDb.id} via thunk: ${error}`)
+          // Add a new Topic with Messages, MessageBlocks to the DB
+          const topicForDb = {
+            ...newMainTopic,
+            messages: messagesToClone
           }
-        })()
-      })
+
+          ;(async () => {
+            try {
+              await saveNewTopicToDB(topicForDb, blocksToClone)
+              console.log(
+                `[HomePage] Successfully saved new topic ${topicForDb.id} from ${sourceInfo || 'unknown source'} to DB.`
+              )
+            } catch (error) {
+              console.error(
+                `[HomePage] Error saving new topic ${topicForDb.id} from ${sourceInfo || 'unknown source'} via thunk:`,
+                error
+              )
+              // Consider how to handle this error, e.g., notify user or retry
+            }
+          })()
+        }
+      )
 
       return () => removeIpcListener?.()
     }

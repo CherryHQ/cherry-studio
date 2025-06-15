@@ -21,6 +21,10 @@ export enum IpcChannel {
   App_InstallUvBinary = 'app:install-uv-binary',
   App_InstallBunBinary = 'app:install-bun-binary',
 
+  // Window Service
+  Renderer_Ready_For_Topic = 'renderer:ready-for-topic',
+  App_Transfer_Topic_To_Main = 'app:transfer-topic-to-main',
+  MiniWindow_Transfer_Topic_To_Main = 'miniwindow:transfer-topic-to-main',
   App_QuoteToMain = 'app:quote-to-main',
 
   Notification_Send = 'notification:send',
@@ -42,10 +46,6 @@ export enum IpcChannel {
   MiniWindow_Close = 'miniwindow:close',
   MiniWindow_Toggle = 'miniwindow:toggle',
   MiniWindow_SetPin = 'miniwindow:set-pin',
-
-  // QuickAssistant Topic
-  QuickAssist_Finalize_Topic = 'quickassist:topic',
-  MainWindow_Receive_QuickAssist_Topic = 'main-window:receive-quickassist-topic',
 
   // Mcp
   Mcp_AddServer = 'mcp:add-server',

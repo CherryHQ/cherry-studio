@@ -279,10 +279,11 @@ const HomeWindow: FC = () => {
     }
 
     try {
-      await window.api.window.setTopic(currentAssistant.id, topicToSend)
+      await window.api.window.transferTopicFromMiniWindowToMain(currentAssistant.id, topicToSend)
+      window.api.miniWindow.hide()
     } catch (error) {
-      console.error('[HomeWindow] Error calling setTopic IPC:', error)
-      throw new Error(`[HomeWindow] Error calling setTopic IPC: ${error}`)
+      console.error('[HomeWindow] Error calling transferTopicFromMiniWindowToMain IPC:', error)
+      // Optionally, provide user feedback about the error
     }
   }, [currentAssistant, currentTopicMessages.messageIdsByTopic, currentTopicMessages.entities])
 

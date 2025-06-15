@@ -128,17 +128,26 @@ const api = {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize),
-    setTopic: (assistantId: string, topic: Topic) =>
-      ipcRenderer.invoke(IpcChannel.QuickAssist_Finalize_Topic, assistantId, topic),
-    onReceiveQuickAssistTopic: (callback: (assistantId: string, topic: Topic) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, assistantId: string, topic: Topic) => {
-        callback(assistantId, topic)
+    onAppTransferTopicToMain: (
+      callback: (payload: { assistantId: string; topic: Topic; sourceInfo?: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { assistantId: string; topic: Topic; sourceInfo?: string }
+      ): void => {
+        callback(payload)
       }
-      ipcRenderer.on(IpcChannel.MainWindow_Receive_QuickAssist_Topic, listener)
+      ipcRenderer.on(IpcChannel.App_Transfer_Topic_To_Main, listener)
       return () => {
-        ipcRenderer.removeListener(IpcChannel.MainWindow_Receive_QuickAssist_Topic, listener)
+        ipcRenderer.removeListener(IpcChannel.App_Transfer_Topic_To_Main, listener)
       }
-    }
+    },
+    // Send a signal to the main process indicating the renderer is ready for a topic
+    sendRendererReadyForTopic: (windowName: 'main' | 'mini'): void => {
+      ipcRenderer.send(IpcChannel.Renderer_Ready_For_Topic, { windowName })
+    },
+    transferTopicFromMiniWindowToMain: (assistantId: string, topic: Topic) =>
+      ipcRenderer.invoke(IpcChannel.MiniWindow_Transfer_Topic_To_Main, assistantId, topic)
   },
   gemini: {
     uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>

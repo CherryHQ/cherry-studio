@@ -6,7 +6,7 @@ import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Topic } from '@types'
-import { app, BrowserWindow, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
 import Logger from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -26,6 +26,7 @@ export class WindowService {
   //to restore the focus status when miniWindow hides
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
+  private mainWindowReadyForTopic: boolean = false
 
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
@@ -100,6 +101,7 @@ export class WindowService {
     this.setupWebContentsHandlers(mainWindow)
     this.setupWindowLifecycleEvents(mainWindow)
     this.setupMainWindowMonitor(mainWindow)
+    this.setupTopicContextListeners()
     this.loadMainWindowContent(mainWindow)
   }
 
@@ -293,6 +295,16 @@ export class WindowService {
     } else {
       mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
     }
+  }
+
+  private setupTopicContextListeners(): void {
+    ipcMain.on(IpcChannel.Renderer_Ready_For_Topic, (event, args) => {
+      if (args.windowName === 'main' && this.mainWindow && event.sender === this.mainWindow.webContents) {
+        this.mainWindowReadyForTopic = true
+        Logger.info('Main window is ready to receive topics.')
+        // 在這裡可以添加邏輯來處理任何已排隊等待發送的 topic
+      }
+    })
   }
 
   public getMainWindow(): BrowserWindow | null {
@@ -542,8 +554,81 @@ export class WindowService {
     this.showMiniWindow()
   }
 
-  public setPinMiniWindow(isPinned) {
+  public setPinMiniWindow(isPinned: boolean): void {
     this.isPinnedMiniWindow = isPinned
+  }
+
+  public async sendTopicToMainWindow(
+    assistantId: string,
+    topic: Topic,
+    sourceInfo: string = 'unknownSource'
+  ): Promise<void> {
+    try {
+      await this.showMainWindow()
+      const mainWindow = this.getMainWindow()
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        const payload = { assistantId, topic, sourceInfo }
+
+        const sendMessage = () => {
+          if (!mainWindow.isDestroyed()) {
+            mainWindow.webContents.send(IpcChannel.App_Transfer_Topic_To_Main, payload)
+            Logger.info(`Topic from ${sourceInfo} (assistant: ${assistantId}) sent to main window.`)
+          } else {
+            Logger.warn(`Main window was destroyed before sending topic from ${sourceInfo}.`)
+          }
+        }
+
+        if (this.mainWindowReadyForTopic || !mainWindow.webContents.isLoading()) {
+          sendMessage()
+        } else {
+          Logger.warn(
+            `Main window not ready for topic from ${sourceInfo}, attempting delayed send / waiting for ready signal.`
+          )
+          const timeoutDuration = 100
+          let readyListener: ((event: Electron.IpcMainEvent, args: any) => void) | null = null
+
+          const timeoutId = setTimeout(() => {
+            if (readyListener) {
+              ipcMain.removeListener(IpcChannel.Renderer_Ready_For_Topic, readyListener)
+            }
+            Logger.error(
+              `Timeout waiting for main window to be ready for topic from ${sourceInfo}. Attempting to send.`
+            )
+            // Attempt to send even if timeout, if window seems usable
+            if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
+              sendMessage()
+            } else {
+              Logger.error(`Failed to send topic from ${sourceInfo} after timeout: Main window not ready or destroyed.`)
+            }
+          }, timeoutDuration)
+
+          readyListener = (event, args) => {
+            if (args.windowName === 'main' && event.sender === mainWindow.webContents) {
+              clearTimeout(timeoutId)
+              if (readyListener) {
+                ipcMain.removeListener(IpcChannel.Renderer_Ready_For_Topic, readyListener)
+              }
+              this.mainWindowReadyForTopic = true
+              Logger.info(`Main window became ready, sending topic from ${sourceInfo} now.`)
+              sendMessage()
+            }
+          }
+          ipcMain.on(IpcChannel.Renderer_Ready_For_Topic, readyListener)
+          // 如果視窗已經加載完畢但 mainWindowReadyForTopic 標誌還沒更新，直接嘗試發送
+          if (!mainWindow.webContents.isLoading() && !this.mainWindowReadyForTopic) {
+            Logger.info('Main window seems loaded but ready flag not set, attempting to send topic directly.')
+            // 這是一種備用情況，理想情況是 Renderer_Ready_For_Topic 會被觸發
+            // 但為避免死鎖，如果webContents看起來沒在加載，也嘗試發送
+            // 最好是依賴 Renderer_Ready_For_Topic
+          }
+        }
+      } else {
+        Logger.warn(`Main window not available to send topic from ${sourceInfo}.`)
+      }
+    } catch (error) {
+      Logger.error(`Failed to send topic to main window from ${sourceInfo}:`, error as Error)
+    }
   }
 
   /**
@@ -565,20 +650,10 @@ export class WindowService {
     }
   }
 
-  public miniWindowToMainWindow(assistantId: string, topic: Topic) {
-    try {
-      this.showMainWindow()
-
-      // Forward the data to the main window
-      const mainWindow = this.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        setTimeout(() => {
-          mainWindow.webContents.send(IpcChannel.MainWindow_Receive_QuickAssist_Topic, assistantId, topic)
-        }, 100)
-      }
-    } catch (error) {
-      Logger.error('Failed to miniWindowToMainWindow:', error as Error)
-    }
+  public miniWindowToMainWindow(assistantId: string, topic: Topic): void {
+    this.sendTopicToMainWindow(assistantId, topic, 'miniWindow').catch((error) => {
+      Logger.error('Failed to send topic from miniWindowToMainWindow:', error)
+    })
   }
 }
 

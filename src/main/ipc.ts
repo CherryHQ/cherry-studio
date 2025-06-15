@@ -273,8 +273,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  ipcMain.handle(IpcChannel.QuickAssist_Finalize_Topic, (_, assistantId: string, topic: Topic) => {
-    windowService.miniWindowToMainWindow(assistantId, topic)
+  ipcMain.handle(IpcChannel.MiniWindow_Transfer_Topic_To_Main, async (_event, assistantId: string, topic: Topic) => {
+    try {
+      await windowService.miniWindowToMainWindow(assistantId, topic)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
   })
 
   // mini window
