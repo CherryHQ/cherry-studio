@@ -1,6 +1,6 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
 import { Tag as AntdTag, Tooltip } from 'antd'
-import { CircleArrowLeft, Copy, Pin } from 'lucide-react'
+import { ArrowUpRight, CircleArrowLeft, Copy, Pin } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -10,9 +10,10 @@ interface FooterProps {
   canUseBackspace?: boolean
   clearClipboard?: () => void
   onExit: () => void
+  onReturnToMain?: () => void
 }
 
-const Footer: FC<FooterProps> = ({ route, canUseBackspace, clearClipboard, onExit }) => {
+const Footer: FC<FooterProps> = ({ route, canUseBackspace, clearClipboard, onExit, onReturnToMain }) => {
   const { t } = useTranslation()
   const [isPinned, setIsPinned] = useState(false)
 
@@ -45,13 +46,25 @@ const Footer: FC<FooterProps> = ({ route, canUseBackspace, clearClipboard, onExi
           </Tag>
         )}
         {route !== 'home' && (
-          <Tag
-            bordered={false}
-            icon={<Copy size={14} color="var(--color-text)" />}
-            style={{ cursor: 'pointer' }}
-            className="nodrag">
-            {t('miniwindow.footer.copy_last_message')}
-          </Tag>
+          <>
+            <Tag
+              bordered={false}
+              icon={<Copy size={14} color="var(--color-text)" />}
+              style={{ cursor: 'pointer' }}
+              className="nodrag">
+              {t('miniwindow.footer.copy_last_message')}
+            </Tag>
+            {onReturnToMain && (
+              <Tag
+                bordered={false}
+                icon={<ArrowUpRight size={14} color="var(--color-text)" />}
+                style={{ cursor: 'pointer' }}
+                className="nodrag"
+                onClick={onReturnToMain}>
+                {t('miniwindow.footer.return_to_main')}
+              </Tag>
+            )}
+          </>
         )}
       </FooterText>
       <PinButtonArea onClick={() => onClickPin()} className="nodrag">
