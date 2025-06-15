@@ -6,8 +6,8 @@ import {
 } from '@renderer/config/models'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
-  FileTypes,
   FileType,
+  FileTypes,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
