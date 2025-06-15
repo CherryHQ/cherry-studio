@@ -35,9 +35,9 @@ import {
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
+import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import OpenAI from 'openai'
-import { MB } from '@shared/config/constant'
 
 import { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
