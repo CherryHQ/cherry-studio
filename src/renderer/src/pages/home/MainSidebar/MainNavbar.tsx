@@ -1,9 +1,10 @@
+import { PanelLeftIcon } from '@renderer/components/Icons/PanelIcons'
 import { isMac } from '@renderer/config/constant'
 import { useShowAssistants } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { MessageSquareDiff, PanelLeft } from 'lucide-react'
+import { MessageSquareDiff } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -15,7 +16,7 @@ const HeaderNavbar: FC<Props> = () => {
     <Container>
       {showAssistants && (
         <NavbarIcon onClick={() => toggleShowAssistants()}>
-          <PanelLeft size={18} />
+          <PanelLeftIcon size={18} expanded={true} />
         </NavbarIcon>
       )}
       <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>

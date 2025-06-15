@@ -1,5 +1,6 @@
 import { Navbar } from '@renderer/components/app/Navbar'
 import NarrowModeIcon from '@renderer/components/Icons/NarrowModeIcon'
+import { PanelLeftIcon } from '@renderer/components/Icons/PanelIcons'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isLinux, isMac, isWindows } from '@renderer/config/constant'
@@ -14,7 +15,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, PanelLeft, Search } from 'lucide-react'
+import { LayoutGrid, Search } from 'lucide-react'
 import { FC } from 'react'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -44,7 +45,7 @@ const ChatNavbar: FC = () => {
         <HStack alignItems="center" gap={8}>
           {!showAssistants && (
             <NavbarIcon onClick={() => toggleShowAssistants()}>
-              <PanelLeft size={18} />
+              <PanelLeftIcon size={18} expanded={false} />
             </NavbarIcon>
           )}
           <SelectModelButton assistant={assistant} />
