@@ -22,7 +22,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType, Painting } from '@renderer/types'
+import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -229,7 +229,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
         )
 
-        const validFiles = downloadedFiles.filter((file): file is FileType => file !== null)
+        const validFiles = downloadedFiles.filter((file): file is FileMetadata => file !== null)
 
         await FileManager.addFiles(validFiles)
 

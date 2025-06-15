@@ -1,5 +1,5 @@
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
-import { FileType, Model } from '@renderer/types'
+import { FileMetadata, Model } from '@renderer/types'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Tooltip } from 'antd'
 import { Paperclip } from 'lucide-react'
@@ -13,8 +13,8 @@ export interface AttachmentButtonRef {
 interface Props {
   ref?: React.RefObject<AttachmentButtonRef | null>
   model: Model
-  files: FileType[]
-  setFiles: (files: FileType[]) => void
+  files: FileMetadata[]
+  setFiles: (files: FileMetadata[]) => void
   ToolbarButton: any
   disabled?: boolean
 }

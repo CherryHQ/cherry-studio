@@ -4,7 +4,7 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import Logger from '@renderer/config/logger'
 import store from '@renderer/store'
-import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
+import { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -48,12 +48,15 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankBaseURL: rerankHost,
     rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
-    rerankModelProvider: base.rerankModel?.provider
-    // topN: base.topN
+    rerankModelProvider: base.rerankModel?.provider,
+    // topN: base.topN,
+    // preprocessing: base.preprocessing,
+    preprocessOrOcrProvider: base.preprocessOrOcrProvider
   }
 }
 
-export const getFileFromUrl = async (url: string): Promise<FileType | null> => {
+export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> => {
+  console.log('getFileFromUrl', url)
   let fileName = ''
 
   if (url && url.includes('CherryStudio')) {
@@ -65,9 +68,11 @@ export const getFileFromUrl = async (url: string): Promise<FileType | null> => {
       fileName = url.split('\\Data\\Files\\')[1]
     }
   }
-
+  console.log('fileName', fileName)
   if (fileName) {
-    const fileId = fileName.split('.')[0]
+    const actualFileName = fileName.split(/[/\\]/).pop() || fileName
+    console.log('actualFileName', actualFileName)
+    const fileId = actualFileName.split('.')[0]
     const file = await FileManager.getFile(fileId)
     if (file) {
       return file
@@ -77,7 +82,7 @@ export const getFileFromUrl = async (url: string): Promise<FileType | null> => {
   return null
 }
 
-export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: FileType | null }) => {
+export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: FileMetadata | null }) => {
   if (item.metadata.source.startsWith('http')) {
     return item.metadata.source
   }
@@ -93,7 +98,7 @@ export const searchKnowledgeBase = async (
   query: string,
   base: KnowledgeBase,
   rewrite?: string
-): Promise<Array<ExtractChunkData & { file: FileType | null }>> => {
+): Promise<Array<ExtractChunkData & { file: FileMetadata | null }>> => {
   try {
     const baseParams = getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
@@ -125,6 +130,7 @@ export const searchKnowledgeBase = async (
     return await Promise.all(
       limitedResults.map(async (item) => {
         const file = await getFileFromUrl(item.metadata.source)
+        console.log('Knowledge search item:', item, 'File:', file)
         return { ...item, file }
       })
     )

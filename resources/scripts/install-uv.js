@@ -3,8 +3,8 @@ const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
 const tar = require('tar')
-const AdmZip = require('adm-zip')
 const { downloadWithRedirects } = require('./download')
+const { StreamZipAsync } = require('node-stream-zip')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/uv/releases/download'
@@ -68,9 +68,13 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
 
     // 根据文件扩展名选择解压方法
     if (packageName.endsWith('.zip')) {
-      // 使用 adm-zip 处理 zip 文件
-      const zip = new AdmZip(tempFilename)
-      zip.extractAllTo(binDir, true)
+      // 使用 node-stream-zip 处理 zip 文件
+      const zip = new StreamZipAsync(tempFilename)
+      zip.extract(null, binDir, (err) => {
+        if (err) {
+          throw new Error(`Failed to extract file: ${err}`)
+        }
+      })
       fs.unlinkSync(tempFilename)
       console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
       return true

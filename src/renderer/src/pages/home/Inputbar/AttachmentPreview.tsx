@@ -14,7 +14,7 @@ import {
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/CustomTag'
 import FileManager from '@renderer/services/FileManager'
-import { FileType } from '@renderer/types'
+import { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
@@ -22,8 +22,8 @@ import { FC, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {
-  files: FileType[]
-  setFiles: (files: FileType[]) => void
+  files: FileMetadata[]
+  setFiles: (files: FileMetadata[]) => void
 }
 
 const MAX_FILENAME_DISPLAY_LENGTH = 20
@@ -80,7 +80,7 @@ export const getFileIcon = (type?: string) => {
   return <FileUnknownFilled />
 }
 
-export const FileNameRender: FC<{ file: FileType }> = ({ file }) => {
+export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)

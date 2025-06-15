@@ -31,7 +31,7 @@ import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
-  FileType,
+  FileMetadata,
   FileTypes,
   GenerateImageParams,
   MCPCallToolResponse,
@@ -187,7 +187,7 @@ export class GeminiAPIClient extends BaseApiClient<
    * @param file - The file
    * @returns The part
    */
-  private async handlePdfFile(file: FileType): Promise<Part> {
+  private async handlePdfFile(file: FileMetadata): Promise<Part> {
     const smallFileSize = 20 * MB
     const isSmallFile = file.size < smallFileSize
 
@@ -726,7 +726,7 @@ export class GeminiAPIClient extends BaseApiClient<
     return sdkPayload.history || []
   }
 
-  private async uploadFile(file: FileType): Promise<File> {
+  private async uploadFile(file: FileMetadata): Promise<File> {
     return await this.sdkInstance!.files.upload({
       file: file.path,
       config: {
@@ -737,7 +737,7 @@ export class GeminiAPIClient extends BaseApiClient<
     })
   }
 
-  private async base64File(file: FileType) {
+  private async base64File(file: FileMetadata) {
     const { data } = await window.api.file.base64File(file.id + file.ext)
     return {
       data,
@@ -745,7 +745,7 @@ export class GeminiAPIClient extends BaseApiClient<
     }
   }
 
-  private async retrieveFile(file: FileType): Promise<File | undefined> {
+  private async retrieveFile(file: FileMetadata): Promise<File | undefined> {
     const cachedResponse = CacheService.get<any>('gemini_file_list')
 
     if (cachedResponse) {
@@ -758,7 +758,7 @@ export class GeminiAPIClient extends BaseApiClient<
     return this.processResponse(response, file)
   }
 
-  private async processResponse(response: Pager<File>, file: FileType) {
+  private async processResponse(response: Pager<File>, file: FileMetadata) {
     for await (const f of response) {
       if (f.state === FileState.ACTIVE) {
         if (f.displayName === file.origin_name && Number(f.sizeBytes) === file.size) {
