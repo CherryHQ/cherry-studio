@@ -16,7 +16,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { LayoutGrid, MessageSquareDiff, PanelLeftClose, PanelRightClose, Pin, PinOff, Search } from 'lucide-react'
 import { FC, useCallback, useState } from 'react'
 import styled from 'styled-components'
 
@@ -39,6 +39,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
   const [sidebarHideCooldown, setSidebarHideCooldown] = useState(false)
+  const [isPinned, setIsPinned] = useState(false)
+
+  const handlePinWindow = useCallback(() => {
+    window.api.mainWindow.setPin(!isPinned).then(() => {
+      setIsPinned(!isPinned)
+    })
+  }, [isPinned])
 
   // Function to toggle assistants with cooldown
   const handleToggleShowAssistants = useCallback(() => {
@@ -140,6 +147,11 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <Search size={18} />
             </NarrowIcon>
           </Tooltip>
+          <Tooltip title={t('miniwindow.tooltip.pin')} mouseEnterDelay={0.8}>
+            <PinButtonArea onClick={handlePinWindow}>
+              {isPinned ? <Pin size={18} color="var(--color-primary)" /> : <PinOff size={18} />}
+            </PinButtonArea>
+          </Tooltip>
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
@@ -220,6 +232,12 @@ export const NavbarIcon = styled.div`
     background-color: var(--color-background-mute);
     color: var(--color-icon-white);
   }
+`
+
+const PinButtonArea = styled(NavbarIcon)`
+  cursor: pointer;
+  display: flex;
+  align-items: center;
 `
 
 const NarrowIcon = styled(NavbarIcon)`
