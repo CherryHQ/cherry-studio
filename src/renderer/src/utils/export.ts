@@ -11,8 +11,7 @@ import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdow
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
-
-import { NotionBlockExporter } from './notionBlockExporter'
+import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -232,29 +231,6 @@ const convertMarkdownToNotionBlocks = async (markdown: string) => {
   return markdownToBlocks(markdown)
 }
 
-const splitNotionBlocks = (blocks: any[]) => {
-  // Notion API限制单次传输100块
-  const notionSplitSize = 95
-
-  const pages: any[][] = []
-  let currentPage: any[] = []
-
-  blocks.forEach((block) => {
-    if (currentPage.length >= notionSplitSize) {
-      window.message.info({ content: i18n.t('message.info.notion.block_reach_limit'), key: 'notion-block-reach-limit' })
-      pages.push(currentPage)
-      currentPage = []
-    }
-    currentPage.push(block)
-  })
-
-  if (currentPage.length > 0) {
-    pages.push(currentPage)
-  }
-
-  return pages
-}
-
 const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<any[]> => {
   if (!thinkingContent.trim()) {
     return []
@@ -320,127 +296,50 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
   try {
     const notion = new Client({ auth: notionApiKey })
 
-    // 检查是否有深层嵌套的内容
-    const hasDeepNesting = checkForDeepNesting(allBlocks)
-
-    if (hasDeepNesting) {
-      // 使用新的扁平化导出器
-      const exporter = new NotionBlockExporter(notion)
-
-      window.message.loading({
-        content: i18n.t('message.loading.notion.preparing'),
-        key: 'notion-export-progress'
-      })
-
-      // 创建主页面
-      const response = await notion.pages.create({
-        parent: { database_id: notionDatabaseID },
-        properties: {
-          [store.getState().settings.notionPageNameKey || 'Name']: {
-            title: [{ text: { content: title } }]
-          }
-        }
-      })
-
-      // 使用扁平化导出器添加所有块
-      await exporter.exportBlocks(allBlocks, response.id)
-
-      window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-export-progress' })
-      return response
-    } else {
-      // 使用原有的分页导出方式
-      const blockPages = splitNotionBlocks(allBlocks)
-
-      if (blockPages.length === 0) {
-        throw new Error('No content to export')
-      }
-
-      // 创建主页面和子页面
-      let mainPageResponse: any = null
-      let parentBlockId: string | null = null
-
-      for (let i = 0; i < blockPages.length; i++) {
-        const pageBlocks = blockPages[i]
-
-        // 导出进度提示
-        if (blockPages.length > 1) {
-          window.message.loading({
-            content: i18n.t('message.loading.notion.exporting_progress', {
-              current: i + 1,
-              total: blockPages.length
-            }),
-            key: 'notion-export-progress'
-          })
-        } else {
-          window.message.loading({
-            content: i18n.t('message.loading.notion.preparing'),
-            key: 'notion-export-progress'
-          })
-        }
-
-        if (i === 0) {
-          // 创建主页面
-          const response = await notion.pages.create({
-            parent: { database_id: notionDatabaseID },
-            properties: {
-              [store.getState().settings.notionPageNameKey || 'Name']: {
-                title: [{ text: { content: title } }]
-              }
-            },
-            children: pageBlocks
-          })
-          mainPageResponse = response
-          parentBlockId = response.id
-        } else {
-          // 追加后续页面的块到主页面
-          if (!parentBlockId) {
-            throw new Error('Parent block ID is null')
-          }
-          await notion.blocks.children.append({
-            block_id: parentBlockId,
-            children: pageBlocks
-          })
-        }
-      }
-
-      const messageKey = blockPages.length > 1 ? 'notion-export-progress' : 'notion-success'
-      window.message.success({ content: i18n.t('message.success.notion.export'), key: messageKey })
-      return mainPageResponse
+    if (allBlocks.length === 0) {
+      throw new Error('No content to export')
     }
+
+    window.message.loading({
+      content: i18n.t('message.loading.notion.preparing'),
+      key: 'notion-preparing',
+      duration: 0
+    })
+    let mainPageResponse: any = null
+    let parentBlockId: string | null = null
+
+    const response = await notion.pages.create({
+      parent: { database_id: notionDatabaseID },
+      properties: {
+        [store.getState().settings.notionPageNameKey || 'Name']: {
+          title: [{ text: { content: title } }]
+        }
+      }
+    })
+    mainPageResponse = response
+    parentBlockId = response.id
+    window.message.destroy('notion-preparing')
+    window.message.loading({
+      content: i18n.t('message.loading.notion.exporting_progress'),
+      key: 'notion-exporting',
+      duration: 0
+    })
+    if (allBlocks.length > 0) {
+      await appendBlocks({
+        block_id: parentBlockId,
+        children: allBlocks,
+        client: notion
+      })
+    }
+    window.message.destroy('notion-exporting')
+    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
+    return mainPageResponse
   } catch (error: any) {
     window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-progress' })
     return null
   } finally {
     setExportState({ isExporting: false })
   }
-}
-
-/**
- * 检查块是否有超过两层的嵌套
- */
-function checkForDeepNesting(blocks: any[], level: number = 0): boolean {
-  for (const block of blocks) {
-    // 获取子块数组，可能在不同位置
-    let children: any[] = []
-
-    if (block.children) {
-      children = block.children
-    } else if (block[block.type]?.children) {
-      children = block[block.type].children
-    }
-
-    if (children && children.length > 0) {
-      // 如果当前是第二层，且还有子元素，说明有第三层，超过了两层限制
-      if (level >= 2) {
-        return true
-      }
-      // 递归检查子块
-      if (checkForDeepNesting(children, level + 1)) {
-        return true
-      }
-    }
-  }
-  return false
 }
 
 export const exportMessageToNotion = async (title: string, content: string, message?: Message) => {

@@ -5682,6 +5682,7 @@ __metadata:
     mime: "npm:^4.0.4"
     motion: "npm:^12.10.5"
     node-stream-zip: "npm:^1.15.0"
+    notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
@@ -13858,6 +13859,18 @@ __metadata:
   version: 8.0.1
   resolution: "normalize-url@npm:8.0.1"
   checksum: 10c0/eb439231c4b84430f187530e6fdac605c5048ef4ec556447a10c00a91fc69b52d8d8298d9d608e68d3e0f7dc2d812d3455edf425e0f215993667c3183bcab1ef
+  languageName: node
+  linkType: hard
+
+"notion-helper@npm:^1.3.22":
+  version: 1.3.22
+  resolution: "notion-helper@npm:1.3.22"
+  peerDependencies:
+    "@notionhq/client": ^2.0.0
+  peerDependenciesMeta:
+    "@notionhq/client":
+      optional: true
+  checksum: 10c0/4afad1d6610ec910fe3fba0cb204431a1e5f3b45b5294c5ac3c0108611859a5919597e0400f500550fad709d291b7931cfe2766a49eb59638305584b90c02463
   languageName: node
   linkType: hard
 
