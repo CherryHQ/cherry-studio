@@ -26,7 +26,7 @@ const Container = styled.div<{ $isNarrowMode: boolean }>`
 `
 
 const Line = styled.div`
-  width: 1.5px;
+  width: 2px;
   height: 10px;
   background-color: var(--color-text-2);
   border-radius: 5px;

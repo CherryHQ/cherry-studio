@@ -36,6 +36,7 @@ import {
   topicToMarkdown
 } from '@renderer/utils/export'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
+import { includeKeywords } from '@renderer/utils/search'
 import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
@@ -46,10 +47,11 @@ import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 interface TopicsTabProps {
+  searchValue?: string
   style?: React.CSSProperties
 }
 
-const Topics: FC<TopicsTabProps> = ({ style }) => {
+const Topics: FC<TopicsTabProps> = ({ searchValue, style }) => {
   const { activeAssistant, activeTopic, setActiveTopic } = useChat()
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(activeAssistant.id)
@@ -429,10 +431,18 @@ const Topics: FC<TopicsTabProps> = ({ style }) => {
     return topics
   }, [topics, pinTopicsToTop])
 
+  // 过滤话题 - 根据名称搜索
+  const filteredTopics = useMemo(() => {
+    if (!searchValue?.trim()) {
+      return sortedTopics
+    }
+    return sortedTopics.filter((topic) => includeKeywords(topic.name || '', searchValue))
+  }, [sortedTopics, searchValue])
+
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
       <Container className={`topics-tab ${topicPosition === 'right' ? 'right' : ''}`} style={style}>
-        <DragableList list={sortedTopics} onUpdate={updateTopics}>
+        <DragableList list={filteredTopics} onUpdate={updateTopics}>
           {(topic) => {
             const isActive = topic.id === activeTopic?.id
             const topicName = topic.name.replace('`', '')
