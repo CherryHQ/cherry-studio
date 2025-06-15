@@ -7,8 +7,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
-import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
+import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
 // Provider configuration interface
 interface ProviderConfig {
