@@ -759,7 +759,8 @@
       },
       "input": {
         "placeholder": {
-          "empty": "Ask {{model}} for help...",
+          "model_empty": "Ask {{model}} for help...",
+          "assistant_empty": "Ask {{assistant}} for help...",
           "title": "What do you want to do with this text?"
         }
       },
@@ -1591,6 +1592,10 @@
       "models.translate_model_prompt_title": "Translate Model Prompt",
       "models.quick_assistant_model": "Quick Assistant Model",
       "models.quick_assistant_model_description": "Default model used by Quick Assistant",
+      "models.quick_assistant_selection": "Select Assistant",
+      "models.quick_assistant_default_tag": "Default",
+      "models.use_model": "Default Model",
+      "models.use_assistant": "Use Assistant",
       "moresetting": "More Settings",
       "moresetting.check.confirm": "Confirm Selection",
       "moresetting.check.warn": "Please be cautious when selecting this option. Incorrect selection may cause the model to malfunction!",
