@@ -4,6 +4,7 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
+  setAutoLocalizeImages,
   setEarlyAccess as _setEarlyAccess,
   setLaunchOnBoot,
   setLaunchToTray,
@@ -94,6 +95,9 @@ export function useSettings() {
     },
     setShowTokens(showTokens: boolean) {
       dispatch(setShowTokens(showTokens))
+    },
+    setAutoLocalizeImages(enabled: boolean) {
+      dispatch(setAutoLocalizeImages(enabled))
     }
   }
 }

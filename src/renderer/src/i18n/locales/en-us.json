@@ -1515,6 +1515,8 @@
         "providerPlaceholder": "Provider name",
         "advancedSettings": "Advanced Settings"
       },
+      "messages.auto_localize_images": "Localize remote images",
+      "messages.auto_localize_images.tooltip": "Saves remote images to your device, replacing their original URLs with local file paths. Enables offline viewing and ensures access if the source becomes unavailable",
       "messages.prompt": "Show prompt",
       "messages.tokens": "Show token usage",
       "messages.divider": "Show divider between messages",

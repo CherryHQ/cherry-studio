@@ -25,6 +25,7 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
+  setAutoLocalizeImages,
   setAutoTranslateWithSpace,
   setCodeCollapsible,
   setCodeEditor,
@@ -115,7 +116,8 @@ const SettingsTab: FC<Props> = (props) => {
     enableQuickPanelTriggers,
     enableBackspaceDeleteModel,
     showTranslateConfirm,
-    showTokens
+    showTokens,
+    autoLocalizeImages
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -351,6 +353,20 @@ const SettingsTab: FC<Props> = (props) => {
               size="small"
               checked={thoughtAutoCollapse}
               onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('settings.messages.auto_localize_images')}
+              <Tooltip title={t('settings.messages.auto_localize_images.tooltip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={autoLocalizeImages}
+              onChange={(checked) => dispatch(setAutoLocalizeImages(checked))}
             />
           </SettingRow>
           <SettingDivider />

@@ -1509,6 +1509,8 @@
         "providerPlaceholder": "プロバイダー名",
         "advancedSettings": "詳細設定"
       },
+      "messages.auto_localize_images": "リモート画像のローカル化",
+      "messages.auto_localize_images.tooltip": "リモート画像をデバイスに保存し、元のURLをローカルファイルパスに置き換えます。オフライン表示を可能にし、元のソースが利用不可の場合もアクセスを確保します",
       "messages.prompt": "プロンプト表示",
       "messages.tokens": "トークン使用量を表示",
       "messages.divider": "メッセージ間に区切り線を表示",
