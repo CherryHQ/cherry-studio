@@ -12,7 +12,7 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
-import { t } from 'i18next'
+import { Flex } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
@@ -21,15 +21,10 @@ interface FileItemProps {
     icon?: React.ReactNode
     name: React.ReactNode | string
     ext: string
-    size: string
-    created_at: string
-    count?: number
-    checkbox?: React.ReactNode
+    extra?: React.ReactNode | string
     actions: React.ReactNode
   }
   style?: React.CSSProperties
-  gridTemplate?: string
-  isSelected?: boolean
 }
 
 const getFileIcon = (type?: string) => {
@@ -80,34 +75,19 @@ const getFileIcon = (type?: string) => {
   return <FileUnknownFilled />
 }
 
-const FileItem: React.FC<FileItemProps> = ({ fileInfo, style, gridTemplate = '', isSelected = false }) => {
-  const { name, ext, size, created_at, count, actions, icon, checkbox } = fileInfo
+const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {
+  const { name, ext, extra, actions, icon } = fileInfo
 
   return (
-    <FileItemCard style={style} className={isSelected ? 'selected' : ''}>
-      <FileGrid style={{ gridTemplateColumns: gridTemplate }}>
-        {checkbox && (
-          <FileCell>
-            <CheckboxContainer className="file-checkbox">{checkbox}</CheckboxContainer>
-          </FileCell>
-        )}
-        <FileCell>
-          <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
-        </FileCell>
-        <FileCell>
-          <FileNameColumn>
-            <FileName>{name}</FileName>
-            {count && (
-              <FileCount>
-                {count} {t('files.count')}
-              </FileCount>
-            )}
-          </FileNameColumn>
-        </FileCell>
-        <FileCell style={{ textAlign: 'right' }}>{size}</FileCell>
-        <FileCell style={{ textAlign: 'right' }}>{created_at}</FileCell>
-        <FileCell style={{ justifyContent: 'center' }}>{actions}</FileCell>
-      </FileGrid>
+    <FileItemCard style={style}>
+      <CardContent>
+        <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
+        <Flex vertical justify="center" gap={0} flex={1} style={{ width: '0px' }}>
+          <FileName>{name}</FileName>
+          {extra && <FileInfo>{extra}</FileInfo>}
+        </Flex>
+        <FileActions>{actions}</FileActions>
+      </CardContent>
     </FileItemCard>
   )
 }
@@ -121,61 +101,30 @@ const FileItemCard = styled.div`
     box-shadow 0.2s ease,
     background-color 0.2s ease;
   --shadow-color: rgba(0, 0, 0, 0.05);
-
   &:hover {
     box-shadow:
       0 10px 15px -3px var(--shadow-color),
       0 4px 6px -4px var(--shadow-color);
   }
-
-  .file-checkbox {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-
-  &:hover .file-checkbox {
-    opacity: 1;
-  }
-
-  &.selected .file-checkbox {
-    opacity: 1;
-  }
-
   body[theme-mode='dark'] & {
     --shadow-color: rgba(255, 255, 255, 0.02);
   }
 `
 
-const FileGrid = styled.div`
-  display: grid;
-  gap: 8px;
+const CardContent = styled.div`
   padding: 8px 8px 8px 16px;
-  align-items: center;
-`
-
-const FileCell = styled.div`
   display: flex;
-  align-items: center;
-  min-width: 0;
+  align-items: stretch;
+  gap: 16px;
 `
 
 const FileIcon = styled.div`
   max-height: 44px;
-  width: 100%;
   color: var(--color-text-3);
   font-size: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-`
-
-const FileNameColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  width: 100%;
 `
 
 const FileName = styled.div`
@@ -193,12 +142,13 @@ const FileName = styled.div`
   }
 `
 
-const FileCount = styled.div`
+const FileInfo = styled.div`
   font-size: 13px;
   color: var(--color-text-2);
 `
 
-const CheckboxContainer = styled.div`
+const FileActions = styled.div`
+  max-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;

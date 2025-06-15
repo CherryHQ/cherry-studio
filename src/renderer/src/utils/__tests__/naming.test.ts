@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   firstLetter,
   generateColorFromChar,
+  getBaseModelName,
   getBriefInfo,
   getDefaultGroupName,
   getFirstCharacter,
@@ -154,6 +155,38 @@ describe('naming', () => {
         expect(getDefaultGroupName('o3', provider)).toBe('o3')
       })
       expect(getDefaultGroupName('o3', 'openai')).toBe('o3')
+    })
+  })
+
+  describe('getBaseModelName', () => {
+    it('should extract base model name with single delimiter', () => {
+      expect(getBaseModelName('DeepSeek/DeepSeek-R1')).toBe('DeepSeek-R1')
+      expect(getBaseModelName('openai/gpt-4.1')).toBe('gpt-4.1')
+      expect(getBaseModelName('anthropic/claude-3.5-sonnet')).toBe('claude-3.5-sonnet')
+    })
+
+    it('should extract base model name with multiple levels', () => {
+      expect(getBaseModelName('Pro/deepseek-ai/DeepSeek-R1')).toBe('DeepSeek-R1')
+      expect(getBaseModelName('org/team/group/model')).toBe('model')
+    })
+
+    it('should return original id if no delimiter found', () => {
+      expect(getBaseModelName('deepseek-r1')).toBe('deepseek-r1')
+      expect(getBaseModelName('deepseek-r1:free')).toBe('deepseek-r1:free')
+    })
+
+    it('should handle edge cases', () => {
+      // 验证空字符串的情况
+      expect(getBaseModelName('')).toBe('')
+      // 验证以分隔符结尾的字符串
+      expect(getBaseModelName('model/')).toBe('')
+      expect(getBaseModelName('model/name/')).toBe('')
+      // 验证以分隔符开头的字符串
+      expect(getBaseModelName('/model')).toBe('model')
+      expect(getBaseModelName('/path/to/model')).toBe('model')
+      // 验证连续分隔符的情况
+      expect(getBaseModelName('model//name')).toBe('name')
+      expect(getBaseModelName('model///name')).toBe('name')
     })
   })
 

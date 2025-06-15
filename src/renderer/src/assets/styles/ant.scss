@@ -215,6 +215,9 @@
     border: none;
   }
 }
+.ant-select-dropdown {
+  border: 0.5px solid var(--color-border);
+}
 
 .ant-popover {
   .ant-popover-inner {
@@ -232,7 +235,7 @@
   }
 }
 
-.ant-modal {
+.ant-modal:not(.ant-modal-confirm) {
   .ant-modal-confirm-body-has-title {
     padding: 16px 0 0 0;
   }
@@ -255,6 +258,11 @@
     .ant-modal-confirm-btns {
       margin-bottom: 8px;
     }
+  }
+}
+.ant-modal.ant-modal-confirm.ant-modal-confirm-confirm {
+  .ant-modal-content {
+    padding: 16px;
   }
 }
 

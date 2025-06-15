@@ -119,9 +119,23 @@ ul {
     margin: 5px 0;
     border-radius: 8px;
   }
+
+  .block-wrapper {
+    display: flow-root;
+  }
+
+  .block-wrapper:last-child > *:last-child {
+    margin-bottom: 0;
+  }
+
+  .message-content-container > *:last-child {
+    margin-bottom: 0;
+  }
+
   .message-thought-container {
     margin-top: 8px;
   }
+
   .message-user {
     .message-content-container {
       margin: 5px 0;
@@ -146,6 +160,12 @@ ul {
   }
   code {
     color: var(--color-text);
+  }
+  .markdown {
+    display: flow-root;
+    *:last-child {
+      margin-bottom: 0;
+    }
   }
 }
 

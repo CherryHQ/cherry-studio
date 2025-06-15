@@ -420,7 +420,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         })
 
         if (this.useSystemPromptForTools) {
-          systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools)
+          systemMessage.content = await buildSystemPrompt(systemMessage.content || '', mcpTools, assistant)
         }
 
         // 3. 处理用户消息

@@ -416,7 +416,10 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
-  const userMessages = takeRight(messages, 5)
+  const userMessages = takeRight(messages, 5).map((message) => ({
+    ...message,
+    content: getMainTextContent(message)
+  }))
 
   const provider = getProviderByModel(model)
 

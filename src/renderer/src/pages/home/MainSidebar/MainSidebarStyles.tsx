@@ -45,7 +45,7 @@ export const MainMenuItemText = styled.div`
   font-weight: 500;
 `
 
-export const Container = styled.div`
+export const Container = styled.div<{ transparent?: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;

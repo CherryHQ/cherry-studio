@@ -13,6 +13,7 @@ import { KnowledgeBase, Model } from '@renderer/types'
 import { getErrorMessage } from '@renderer/utils/error'
 import { Flex, Form, Input, InputNumber, Modal, Select, Slider, Switch } from 'antd'
 import { find, sortBy } from 'lodash'
+import { ChevronDown } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -182,7 +183,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           label={t('models.embedding_model')}
           tooltip={{ title: t('models.embedding_model_tooltip'), placement: 'right' }}
           rules={[{ required: true, message: t('message.error.enter.model') }]}>
-          <Select style={{ width: '100%' }} options={embeddingSelectOptions} placeholder={t('settings.models.empty')} />
+          <Select
+            style={{ width: '100%' }}
+            options={embeddingSelectOptions}
+            placeholder={t('settings.models.empty')}
+            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
+          />
         </Form.Item>
 
         <Form.Item
@@ -190,7 +196,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           label={t('models.rerank_model')}
           tooltip={{ title: t('models.rerank_model_tooltip'), placement: 'right' }}
           rules={[{ required: false, message: t('message.error.enter.model') }]}>
-          <Select style={{ width: '100%' }} options={rerankSelectOptions} placeholder={t('settings.models.empty')} />
+          <Select
+            style={{ width: '100%' }}
+            options={rerankSelectOptions}
+            placeholder={t('settings.models.empty')}
+            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
+          />
         </Form.Item>
         <SettingHelpText style={{ marginTop: -15, marginBottom: 20 }}>
           {t('models.rerank_model_not_support_provider', {
@@ -202,13 +213,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           label={t('knowledge.document_count')}
           initialValue={DEFAULT_KNOWLEDGE_DOCUMENT_COUNT} // 设置初始值
           tooltip={{ title: t('knowledge.document_count_help') }}>
-          <Slider
-            style={{ width: '100%' }}
-            min={1}
-            max={30}
-            step={1}
-            marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }}
-          />
+          <Slider min={1} max={30} step={1} marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30' }} />
         </Form.Item>
         <Form.Item
           name="autoDims"

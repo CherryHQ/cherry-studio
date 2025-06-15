@@ -452,7 +452,7 @@ export class GeminiAPIClient extends BaseApiClient<
         })
 
         if (this.useSystemPromptForTools) {
-          systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools)
+          systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools, assistant)
         }
 
         let messageContents: Content

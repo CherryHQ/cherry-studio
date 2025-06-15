@@ -91,6 +91,9 @@ const PageContainer = styled(motion.div)`
   z-index: 10;
   will-change: transform;
   backface-visibility: hidden;
+  transform-style: preserve-3d;
+  perspective: 1000px;
+  -webkit-font-smoothing: subpixel-antialiased;
 `
 
 const pageTransition = {

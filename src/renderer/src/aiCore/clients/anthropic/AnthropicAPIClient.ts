@@ -453,7 +453,7 @@ export class AnthropicAPIClient extends BaseApiClient<
         })
 
         if (this.useSystemPromptForTools) {
-          systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools)
+          systemPrompt = await buildSystemPrompt(systemPrompt, mcpTools, assistant)
         }
 
         const systemMessage: TextBlockParam | undefined = systemPrompt

@@ -1,11 +1,12 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
-import { IpcChannel } from '@shared/IpcChannel'
 import { FeedUrl } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
+import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
@@ -55,6 +56,10 @@ export default class AppUpdater {
       this.releaseInfo = releaseInfo
       logger.info('下载完成', releaseInfo)
     })
+
+    if (isWin) {
+      ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
+    }
 
     this.autoUpdater = autoUpdater
   }

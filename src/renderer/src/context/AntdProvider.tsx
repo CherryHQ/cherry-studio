@@ -63,11 +63,12 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
             fontFamily: 'var(--code-font-family)'
           },
           Segmented: {
-            itemActiveBg: 'var(--color-background-mute)',
-            itemHoverBg: 'var(--color-background-mute)'
+            itemActiveBg: 'var(--color-background-soft)',
+            itemHoverBg: 'var(--color-background-soft)',
+            trackBg: 'rgba(153,153,153,0.15)'
           },
           Switch: {
-            colorTextQuaternary: 'rgba(153,153,153,0.25)'
+            colorTextQuaternary: 'rgba(153,153,153,0.15)'
           }
         },
         token: {

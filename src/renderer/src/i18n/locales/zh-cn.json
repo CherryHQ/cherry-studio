@@ -10,7 +10,7 @@
       "add.prompt.placeholder": "输入提示词",
       "add.prompt.variables.tip": {
         "title": "可用的变量",
-        "content": "{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称"
+        "content": "{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称\n{{username}}:\t用户名"
       },
       "add.title": "创建智能体",
       "import": {
@@ -482,7 +482,9 @@
       "size": "大小",
       "text": "文本",
       "title": "文件",
-      "type": "类型"
+      "type": "类型",
+      "batch_operation": "批量操作",
+      "batch_delete": "批量删除"
     },
     "gpustack": {
       "keep_alive_time.description": "模型在内存中保持的时间（默认：5分钟）",
@@ -1929,7 +1931,7 @@
             "selected": "划词",
             "selected_note": "划词后立即显示工具栏",
             "ctrlkey": "Ctrl 键",
-            "ctrlkey_note": "划词后，再 按住 Ctrl键，才显示工具栏",
+            "ctrlkey_note": "划词后，再 长按 Ctrl键，才显示工具栏",
             "shortcut": "快捷键",
             "shortcut_note": "划词后，使用快捷键显示工具栏。请在快捷键设置页面中设置取词快捷键并启用。",
             "shortcut_link": "前往快捷键设置"
@@ -1964,6 +1966,7 @@
         },
         "actions": {
           "title": "功能",
+          "custom": "自定义功能",
           "reset": {
             "button": "重置",
             "tooltip": "重置为默认功能，自定义功能不会被删除",

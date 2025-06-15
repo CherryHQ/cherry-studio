@@ -60,7 +60,7 @@ const MainSidebar: FC = () => {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('assistants')
   const avatar = useAvatar()
-  const { userName, defaultPaintingProvider } = useSettings()
+  const { userName, defaultPaintingProvider, transparentWindow } = useSettings()
   const { t } = useTranslation()
   const { theme, settedTheme, toggleTheme } = useTheme()
   const [isAppMenuExpanded, setIsAppMenuExpanded] = useState(false)
@@ -98,8 +98,8 @@ const MainSidebar: FC = () => {
     ]
     return () => unsubscribe.forEach((unsubscribe) => unsubscribe())
   }, [
-    activeAssistant.id,
-    activeTopic.assistantId,
+    activeAssistant?.id,
+    activeTopic?.assistantId,
     clickAssistantToShowTopic,
     isAppMenuExpanded,
     showAssistants,
@@ -171,6 +171,7 @@ const MainSidebar: FC = () => {
   return (
     <Container
       id="main-sidebar"
+      transparent={transparentWindow}
       style={{
         width: showAssistants ? 'var(--assistants-width)' : '0px',
         opacity: showAssistants ? 1 : 0,
@@ -359,7 +360,7 @@ const Icon = styled.div<{ theme: string }>`
     height: 34px;
   }
   &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: var(--color-list-item);
     opacity: 0.8;
     cursor: pointer;
     .icon {
@@ -367,7 +368,7 @@ const Icon = styled.div<{ theme: string }>`
     }
   }
   &.active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: var(--color-list-item);
     border: 0.5px solid var(--color-border);
     .icon {
       color: var(--color-primary);

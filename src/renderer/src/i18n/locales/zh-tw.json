@@ -10,7 +10,7 @@
       "add.prompt.placeholder": "輸入提示詞",
       "add.prompt.variables.tip": {
         "title": "可用的變數",
-        "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱"
+        "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱"
       },
       "add.title": "建立智慧代理人",
       "import": {
@@ -482,7 +482,9 @@
       "size": "大小",
       "text": "文字",
       "title": "檔案",
-      "type": "類型"
+      "type": "類型",
+      "batch_operation": "批量操作",
+      "batch_delete": "批量刪除"
     },
     "gpustack": {
       "keep_alive_time.description": "模型在記憶體中保持的時間（預設為 5 分鐘）",
@@ -1721,7 +1723,6 @@
       "theme.light": "淺色",
       "theme.title": "主題",
       "theme.color_primary": "主題顏色",
-      "theme.window.style.opaque": "不透明視窗",
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
       "title": "設定",
@@ -1964,6 +1965,7 @@
         },
         "actions": {
           "title": "功能",
+          "custom": "自訂功能",
           "reset": {
             "button": "重設",
             "tooltip": "重設為預設功能，自訂功能不會被刪除",

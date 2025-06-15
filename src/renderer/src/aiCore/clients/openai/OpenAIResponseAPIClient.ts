@@ -290,7 +290,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         })
 
         if (this.useSystemPromptForTools) {
-          systemMessageInput.text = await buildSystemPrompt(systemMessageInput.text || '', mcpTools)
+          systemMessageInput.text = await buildSystemPrompt(systemMessageInput.text || '', mcpTools, assistant)
         }
         systemMessageContent.push(systemMessageInput)
         systemMessage.content = systemMessageContent

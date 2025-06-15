@@ -10,7 +10,7 @@
       "add.prompt.placeholder": "Entrer le mot-clé",
       "add.prompt.variables.tip": {
         "title": "Variables disponibles",
-        "content": "{{date}}:\tDate\n{{time}}:\tHeure\n{{datetime}}:\tDate et heure\n{{system}}:\tSystème d'exploitation\n{{arch}}:\tArchitecture du processeur\n{{language}}:\tLangue\n{{model_name}}:\tNom du modèle"
+        "content": "{{date}}:\tDate\n{{time}}:\tHeure\n{{datetime}}:\tDate et heure\n{{system}}:\tSystème d'exploitation\n{{arch}}:\tArchitecture du processeur\n{{language}}:\tLangue\n{{model_name}}:\tNom du modèle\n{{username}}:\tNom d'utilisateur"
       },
       "add.title": "Créer un agent intelligent",
       "delete.popup.content": "Êtes-vous sûr de vouloir supprimer cet agent intelligent ?",
@@ -1483,7 +1483,6 @@
       "theme.dark": "Sombre",
       "theme.light": "Clair",
       "theme.title": "Thème",
-      "theme.window.style.opaque": "Fenêtre opaque",
       "theme.window.style.title": "Style de fenêtre",
       "theme.window.style.transparent": "Fenêtre transparente",
       "title": "Paramètres",

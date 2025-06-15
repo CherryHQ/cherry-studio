@@ -21,8 +21,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import CustomCollapse from '../../components/CustomCollapse'
+import FileItem from '../files/FileItem'
 import { NavbarIcon } from '../home/ChatNavbar'
-import KnowledgeFileItem from './components/KnowledgeFileItem'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
 import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
 import StatusIcon from './components/StatusIcon'
@@ -323,8 +323,8 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 {(item) => {
                   const file = item.content as FileType
                   return (
-                    <div style={{ height: '75px', marginTop: '12px' }}>
-                      <KnowledgeFileItem
+                    <div style={{ height: '75px', paddingTop: '12px' }}>
+                      <FileItem
                         key={item.id}
                         fileInfo={{
                           name: (
@@ -381,7 +381,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <FlexColumn>
             {directoryItems.length === 0 && <EmptyView />}
             {directoryItems.reverse().map((item) => (
-              <KnowledgeFileItem
+              <FileItem
                 key={item.id}
                 fileInfo={{
                   name: (
@@ -433,7 +433,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <FlexColumn>
             {urlItems.length === 0 && <EmptyView />}
             {urlItems.reverse().map((item) => (
-              <KnowledgeFileItem
+              <FileItem
                 key={item.id}
                 fileInfo={{
                   name: (
@@ -510,7 +510,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <FlexColumn>
             {sitemapItems.length === 0 && <EmptyView />}
             {sitemapItems.reverse().map((item) => (
-              <KnowledgeFileItem
+              <FileItem
                 key={item.id}
                 fileInfo={{
                   name: (
@@ -565,7 +565,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <FlexColumn>
             {noteItems.length === 0 && <EmptyView />}
             {noteItems.reverse().map((note) => (
-              <KnowledgeFileItem
+              <FileItem
                 key={note.id}
                 fileInfo={{
                   name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,

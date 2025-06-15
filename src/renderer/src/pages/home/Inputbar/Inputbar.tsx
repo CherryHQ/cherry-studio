@@ -191,16 +191,16 @@ const Inputbar: FC = () => {
         )
       }
 
-      if (topic.prompt) {
-        assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
-      }
+      const assistantWithTopicPrompt = topic.prompt
+        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+        : assistant
 
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
 
       // Clear input
       setText('')
@@ -309,7 +309,7 @@ const Inputbar: FC = () => {
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.keyCode == 13
+    const isEnterPressed = event.key === 'Enter'
 
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {

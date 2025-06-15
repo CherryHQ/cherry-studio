@@ -145,6 +145,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
+import { getBaseModelName } from '@renderer/utils'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -2484,9 +2485,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+
   return (
-    model.id.toLowerCase().startsWith('qwen3') ||
-    model.id.toLowerCase().startsWith('qwen/qwen3') ||
+    baseName.startsWith('qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2494,7 +2496,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
-    ].includes(model.id.toLowerCase())
+    ].includes(baseName)
   )
 }
 

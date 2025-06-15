@@ -42,6 +42,7 @@ const blockWrapperVariants = {
 const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, enableAnimation }) => {
   return (
     <motion.div
+      className="block-wrapper"
       variants={blockWrapperVariants}
       initial={enableAnimation ? 'hidden' : 'static'}
       animate={enableAnimation ? 'visible' : 'static'}>
@@ -85,7 +86,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           const groupKey = block.map((imageBlock) => imageBlock.id).join('-')
           return (
             <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
-              <ImageBlockGroup $columns={block.length}>
+              <ImageBlockGroup>
                 {block.map((imageBlock) => (
                   <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
                 ))}
@@ -161,17 +162,16 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
 export default React.memo(MessageBlockRenderer)
 
-const ImageBlockGroup = styled.div<{ $columns: number }>`
+const ImageBlockGroup = styled.div`
   display: grid;
-  grid-template-columns: repeat(${({ $columns }) => Math.min(3, $columns)}, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 8px;
-  width: 100%;
   max-width: 960px;
-  > * {
+  /* > * {
     min-width: 200px;
-  }
+  } */
   @media (min-width: 1536px) {
-    grid-template-columns: repeat(4, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     max-width: 1280px;
     > * {
       min-width: 250px;

@@ -10,7 +10,7 @@
       "add.prompt.placeholder": "プロンプトを入力",
       "add.prompt.variables.tip": {
         "title": "利用可能な変数",
-        "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名"
+        "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名\n{{username}}:\tユーザー名"
       },
       "add.title": "エージェントを作成",
       "import": {
@@ -482,7 +482,9 @@
       "size": "サイズ",
       "text": "テキスト",
       "title": "ファイル",
-      "type": "タイプ"
+      "type": "タイプ",
+      "batch_operation": "一括操作",
+      "batch_delete": "一括削除"
     },
     "gpustack": {
       "keep_alive_time.description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -1964,6 +1966,7 @@
         },
         "actions": {
           "title": "機能設定",
+          "custom": "カスタム機能",
           "reset": {
             "button": "リセット",
             "tooltip": "デフォルト機能にリセット（カスタム機能は保持）",

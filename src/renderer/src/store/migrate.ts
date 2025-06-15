@@ -1674,7 +1674,7 @@ const migrateConfig = {
       }
       if (state.assistants && state.assistants.assistants.length > 0) {
         state.assistants.assistants
-          .filter((assistant) => assistant.isTemplate !== undefined)
+          .filter((assistant) => assistant.isTemplate === undefined)
           .forEach((assistant) => {
             assistant.isTemplate = false
           })

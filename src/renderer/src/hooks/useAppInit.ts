@@ -62,14 +62,12 @@ export function useAppInit() {
   }, [language])
 
   useEffect(() => {
-    const transparentWindow = !minappShow
-
     if (minappShow) {
       window.root.style.background = 'var(--color-background)'
       return
     }
 
-    window.root.style.background = transparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
+    window.root.style.background = !minappShow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
   }, [minappShow, theme])
 
   useEffect(() => {

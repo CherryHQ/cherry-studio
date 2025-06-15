@@ -10,7 +10,7 @@
       "add.prompt.placeholder": "Digite o Prompt",
       "add.prompt.variables.tip": {
         "title": "Variáveis disponíveis",
-        "content": "{{date}}:\tData\n{{time}}:\tHora\n{{datetime}}:\tData e hora\n{{system}}:\tSistema operativo\n{{arch}}:\tArquitetura da CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNome do modelo"
+        "content": "{{date}}:\tData\n{{time}}:\tHora\n{{datetime}}:\tData e hora\n{{system}}:\tSistema operativo\n{{arch}}:\tArquitetura da CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNome do modelo\n{{username}}:\tNome de utilizador"
       },
       "add.title": "Criar Agente Inteligente",
       "delete.popup.content": "Tem certeza de que deseja excluir este agente inteligente?",
@@ -1484,7 +1484,6 @@
       "theme.dark": "Escuro",
       "theme.light": "Claro",
       "theme.title": "Tema",
-      "theme.window.style.opaque": "Janela opaca",
       "theme.window.style.title": "Estilo de janela",
       "theme.window.style.transparent": "Janela transparente",
       "title": "Configurações",
