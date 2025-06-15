@@ -28,11 +28,12 @@ import {
   WebSearchSource
 } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
+import { Message, MessageBlockStatus } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
@@ -47,6 +48,7 @@ import {
 } from './AssistantService'
 import { getDefaultAssistant } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
+import MemoryService from './MemoryService'
 import {
   filterContextMessages,
   filterEmptyMessages,
@@ -338,6 +340,27 @@ export async function fetchChatCompletion({
 
   const enableGenerateImage =
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
+
+  if (assistant.enableMemory) {
+    const memoryService = MemoryService.getInstance()
+    if (memoryService) {
+      const content = getMainTextContent(lastUserMessage)
+      const searchResults = await memoryService.search(content, {})
+      if (searchResults.results.length > 0) {
+        console.log('Search results:', searchResults.results)
+        const memoryContent = `Here are some relevant facts and context about user. Use this information to provide more personalized and contextually aware responses.
+
+<user_memory>
+${JSON.stringify(searchResults.results)}
+</user_memory>`
+
+        const mainTextBlock = createMainTextBlock(lastUserMessage.id, memoryContent, {
+          status: MessageBlockStatus.SUCCESS
+        })
+        lastUserMessage.blocks.push(mainTextBlock.id)
+      }
+    }
+  }
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })

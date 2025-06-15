@@ -197,5 +197,14 @@ export enum IpcChannel {
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data'
+  Selection_UpdateActionData = 'selection:update-action-data',
+
+  // Memory
+  Memory_Add = 'memory:add',
+  Memory_Search = 'memory:search',
+  Memory_List = 'memory:list',
+  Memory_Delete = 'memory:delete',
+  Memory_Update = 'memory:update',
+  Memory_GetHistory = 'memory:get-history',
+  Memory_Reset = 'memory:reset'
 }

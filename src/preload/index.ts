@@ -115,6 +115,16 @@ const api = {
     rerank: ({ search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }) =>
       ipcRenderer.invoke(IpcChannel.KnowledgeBase_Rerank, { search, base, results })
   },
+  memory: {
+    add: (messages: string | any[], config: any) => ipcRenderer.invoke(IpcChannel.Memory_Add, messages, config),
+    search: (query: string, config: any) => ipcRenderer.invoke(IpcChannel.Memory_Search, query, config),
+    list: (config?: any) => ipcRenderer.invoke(IpcChannel.Memory_List, config),
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.Memory_Delete, id),
+    update: (id: string, memory: string, metadata?: Record<string, any>) =>
+      ipcRenderer.invoke(IpcChannel.Memory_Update, id, memory, metadata),
+    getHistory: (memoryId: string) => ipcRenderer.invoke(IpcChannel.Memory_GetHistory, memoryId),
+    reset: () => ipcRenderer.invoke(IpcChannel.Memory_Reset)
+  },
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),

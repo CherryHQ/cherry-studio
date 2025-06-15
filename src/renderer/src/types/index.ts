@@ -26,6 +26,7 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  enableMemory?: boolean
 }
 
 export type AssistantsSortType = 'tags' | 'list'
