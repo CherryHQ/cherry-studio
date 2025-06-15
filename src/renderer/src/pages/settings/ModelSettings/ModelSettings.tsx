@@ -11,7 +11,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppSelector } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
-import { setQuickAssistantId, setUseAssistantForQuickAssistant } from '@renderer/store/llm'
+import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
@@ -37,7 +37,7 @@ const ModelSettings: FC = () => {
   const { translateModelPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
-  const { quickAssistantId, useAssistantForQuickAssistant } = useAppSelector((state) => state.llm)
+  const { quickAssistantId } = useAppSelector((state) => state.llm)
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
@@ -169,27 +169,26 @@ const ModelSettings: FC = () => {
             </HStack>
             <HStack alignItems="center" gap={0}>
               <StyledButton
-                type={!useAssistantForQuickAssistant ? 'primary' : 'default'}
-                onClick={() => dispatch(setUseAssistantForQuickAssistant(false))}
-                selected={!useAssistantForQuickAssistant}>
+                type={!quickAssistantId ? 'primary' : 'default'}
+                onClick={() => dispatch(setQuickAssistantId(null))}
+                selected={!quickAssistantId}>
                 {t('settings.models.use_model')}
               </StyledButton>
               <StyledButton
-                type={useAssistantForQuickAssistant ? 'primary' : 'default'}
+                type={quickAssistantId ? 'primary' : 'default'}
                 onClick={() => {
-                  dispatch(setUseAssistantForQuickAssistant(true))
                   const firstAssistant = assistants.find((a) => a.type !== 'system' && a.id !== defaultAssistant.id)
-                  if (firstAssistant && !quickAssistantId) {
+                  if (firstAssistant) {
                     dispatch(setQuickAssistantId(firstAssistant.id))
                   }
                 }}
-                selected={useAssistantForQuickAssistant}>
+                selected={!!quickAssistantId}>
                 {t('settings.models.use_assistant')}
               </StyledButton>
             </HStack>
           </SettingTitle>
         </HStack>
-        {!useAssistantForQuickAssistant ? null : (
+        {!quickAssistantId ? null : (
           <HStack alignItems="center" style={{ marginTop: 12 }}>
             <Select
               value={quickAssistantId}
@@ -204,6 +203,9 @@ const ModelSettings: FC = () => {
                       <ModelAvatar model={a.model || defaultModel} size={18} />
                       <AssistantName>{a.name}</AssistantName>
                       <Spacer />
+                      {a.id === quickAssistantId && (
+                        <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
+                      )}
                     </AssistantItem>
                   </Select.Option>
                 ))}
@@ -265,6 +267,13 @@ const AssistantName = styled.span`
 
 const Spacer = styled.div`
   flex: 1;
+`
+
+const DefaultTag = styled.span<{ isCurrent: boolean }>`
+  color: ${(props) => (props.isCurrent ? 'var(--color-primary)' : 'var(--color-text-3)')};
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
 `
 
 export default ModelSettings
