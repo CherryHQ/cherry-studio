@@ -1,11 +1,13 @@
 import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import { TraceService } from '@renderer/services/TraceService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import type {
@@ -331,6 +333,8 @@ const fetchAndProcessAssistantResponseImpl = async (
 ) => {
   const assistantMsgId = assistantMessage.id
   let callbacks: StreamProcessorCallbacks = {}
+  const traceProvider = TraceService.getTraceProvider()
+
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -403,6 +407,12 @@ const fetchAndProcessAssistantResponseImpl = async (
     } else {
       const contextSlice = allMessagesForTopic.slice(0, userMessageIndex + 1)
       messagesForContext = contextSlice.filter((m) => m && !m.status?.includes('ing'))
+    }
+
+    if (traceProvider) {
+      const model = assistantMessage.model || getDefaultModel()
+      await traceProvider.createTrace(messagesForContext, { id: userMessageId, sessionId: topicId })
+      await traceProvider.startObservation(messagesForContext, { model: model.id })
     }
 
     callbacks = {
@@ -739,6 +749,11 @@ const fetchAndProcessAssistantResponseImpl = async (
 
         saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, [])
 
+        // 以最后的助手消息结束观察本次对话
+        if (traceProvider) {
+          await traceProvider.stopObservation(assistantMsgId)
+        }
+
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
           id: assistantMsgId,
           topicId,
@@ -817,7 +832,13 @@ const fetchAndProcessAssistantResponseImpl = async (
             updates: messageUpdates
           })
         )
+
         saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+
+        // 以最后的助手消息结束观察本次对话
+        if (traceProvider) {
+          await traceProvider.stopObservation(assistantMsgId)
+        }
 
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       }
