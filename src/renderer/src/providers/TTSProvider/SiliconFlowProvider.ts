@@ -119,8 +119,6 @@ export class SiliconFlowProvider extends BaseTTSProvider {
       requestBody.sample_rate = this.provider.settings.sample_rate
     }
 
-
-
     const response = await fetch(`${this.getApiHost()}/audio/speech`, {
       method: 'POST',
       headers: {
@@ -173,8 +171,6 @@ export class SiliconFlowProvider extends BaseTTSProvider {
       requestBody.sample_rate = this.provider.settings.sample_rate
     }
 
-
-
     const response = await fetch(`${this.getApiHost()}/audio/speech`, {
       method: 'POST',
       headers: {
@@ -192,7 +188,6 @@ export class SiliconFlowProvider extends BaseTTSProvider {
     if (!response.body) {
       throw new Error('No response body received from SiliconFlow streaming API')
     }
-
 
     return response.body
   }

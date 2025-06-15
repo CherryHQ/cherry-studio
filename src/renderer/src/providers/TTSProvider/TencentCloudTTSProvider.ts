@@ -24,7 +24,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
    * 获取默认语音列表（基于腾讯云官方音色列表）
    */
   private getDefaultVoices(): TTSVoice[] {
-
     return TENCENT_TTS_VOICES
   }
 
@@ -130,13 +129,10 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
       codec: this.provider.settings.codec || 'wav'
     }
 
-
-
     try {
       const result = await window.api.tencentTTS.synthesizeSpeech(ttsOptions)
 
       if (result.success && result.audioData) {
-
         return result.audioData
       } else {
         throw new Error(result.error || 'No audio data returned from Tencent Cloud TTS API')
@@ -183,8 +179,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
     const secretId = this.provider.apiKey!
     const secretKey = this.provider.settings.secretKey!
     const region = this.provider.settings.region || 'ap-beijing'
-
-
 
     return new ReadableStream({
       start: async (controller) => {
@@ -289,7 +283,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
 
     const wsUrl = `wss://tts.cloud.tencent.com/stream_wsv2?${queryString}`
 
-
     const ws = new WebSocket(wsUrl)
 
     return new Promise((resolve, reject) => {
@@ -367,8 +360,6 @@ export class TencentCloudTTSProvider extends BaseTTSProvider {
 
     // 构建签名原文 (注意格式：GET + 域名 + 路径 + ? + 参数)
     const stringToSign = `GETtts.cloud.tencent.com/stream_wsv2?${sortedParams}`
-
-
 
     // 使用 HMAC-SHA1 生成签名
     const encoder = new TextEncoder()

@@ -267,8 +267,6 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       }
     }
 
-
-
     try {
       const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
         method: 'POST',
@@ -288,7 +286,6 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       const data = await response.json()
 
       if (data.audioContent) {
-
         return data.audioContent
       } else {
         throw new Error('No audio content returned from Google Cloud TTS API')
@@ -324,8 +321,6 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       }
     }
 
-
-
     try {
       // Google Cloud TTS 目前不支持真正的流式合成，所以我们先获取完整音频然后模拟流式
       const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
@@ -346,7 +341,6 @@ export class GoogleCloudTTSProvider extends BaseTTSProvider {
       const data = await response.json()
 
       if (data.audioContent) {
-
         // 将 Base64 数据转换为 ReadableStream
         return this.createStreamFromBase64(data.audioContent)
       } else {

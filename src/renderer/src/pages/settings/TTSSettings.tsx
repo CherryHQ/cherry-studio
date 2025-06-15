@@ -40,7 +40,7 @@ const TTSSettings: FC = () => {
       const displayName = tts.getTTSProviderName(provider)
       return displayName.toLowerCase().includes(lowerSearchText)
     })
-  }, [tts.providers, searchText, tts])
+  }, [searchText, tts])
 
   // 初始化选中的供应商（优化：只在真正需要时初始化）
   useEffect(() => {

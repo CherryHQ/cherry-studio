@@ -5,17 +5,17 @@ import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { useTTS } from '@renderer/hooks/useTTS'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useTTS } from '@renderer/hooks/useTTS'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { Model } from '@renderer/types'
-import type { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
+import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -24,7 +24,6 @@ import {
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
-import { copyMessageAsPlainText } from '@renderer/utils/copy'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { markdownToTTSText, removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
@@ -34,6 +33,7 @@ import dayjs from 'dayjs'
 import {
   AtSign,
   Copy,
+  FilePenLine,
   Languages,
   Menu,
   Pause,
@@ -47,7 +47,6 @@ import {
   Trash,
   Volume2
 } from 'lucide-react'
-import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -103,7 +102,9 @@ const MessageMenubar: FC<Props> = (props) => {
   // 计算当前消息的播放状态
   // const isCurrentMessagePlaying = playbackInfo.state === 'playing' && playbackInfo.currentMessageId === message.id
   const isCurrentMessagePaused = playbackInfo.state === 'paused' && playbackInfo.currentMessageId === message.id
-  const isCurrentMessageActive = (playbackInfo.state === 'playing' || playbackInfo.state === 'paused') && playbackInfo.currentMessageId === message.id
+  const isCurrentMessageActive =
+    (playbackInfo.state === 'playing' || playbackInfo.state === 'paused') &&
+    playbackInfo.currentMessageId === message.id
   // const assistantModel = assistant?.model
   const {
     editMessage,

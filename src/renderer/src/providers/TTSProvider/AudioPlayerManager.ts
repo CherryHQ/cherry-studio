@@ -154,12 +154,15 @@ export class AudioPlayerManager {
    */
   resume(): void {
     if (this.audioElement && this.state === AudioPlayerState.PAUSED) {
-      this.audioElement.play().then(() => {
-        this.setState(AudioPlayerState.PLAYING)
-      }).catch((error) => {
-        Logger.error('[AudioPlayerManager] Failed to resume audio:', error)
-        this.setState(AudioPlayerState.ERROR)
-      })
+      this.audioElement
+        .play()
+        .then(() => {
+          this.setState(AudioPlayerState.PLAYING)
+        })
+        .catch((error) => {
+          Logger.error('[AudioPlayerManager] Failed to resume audio:', error)
+          this.setState(AudioPlayerState.ERROR)
+        })
     }
   }
 
@@ -421,8 +424,6 @@ export class AudioPlayerManager {
         await this.finalizeMediaSource(sourceBuffer, mediaSource)
         return
       }
-
-
 
       // 检查 MediaSource 和 SourceBuffer 状态
       if (mediaSource.readyState !== 'open') {

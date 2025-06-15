@@ -13,8 +13,6 @@ export class AzureTTSProvider extends BaseTTSProvider {
     const apiHost = this.getApiHost()
     const endpoint = `${apiHost}/cognitiveservices/voices/list`
 
-
-
     try {
       const response = await fetch(endpoint, {
         method: 'GET',
@@ -22,8 +20,6 @@ export class AzureTTSProvider extends BaseTTSProvider {
           'Ocp-Apim-Subscription-Key': this.provider.apiKey!
         }
       })
-
-
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -38,7 +34,6 @@ export class AzureTTSProvider extends BaseTTSProvider {
       }
 
       const voices = await response.json()
-
 
       return voices.map((voice: any) => ({
         id: voice.ShortName,
@@ -129,7 +124,6 @@ export class AzureTTSProvider extends BaseTTSProvider {
    * 获取默认语音列表（当 API 调用失败时使用）
    */
   private getDefaultVoices(): TTSVoice[] {
-
     return AZURE_TTS_DEFAULT_VOICES
   }
 
