@@ -214,7 +214,11 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
-      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
+      window.message.loading({
+        content: t('chat.topics.export.wait_for_title_naming'),
+        key: 'message-title-naming',
+        duration: 0
+      })
 
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
@@ -226,7 +230,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 
       // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
-
+      window.message.destroy('message-title-naming')
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title
