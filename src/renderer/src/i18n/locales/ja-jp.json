@@ -964,6 +964,17 @@
       "required_field": "必須項目",
       "uploaded_input": "アップロード済みの入力"
     },
+    "price": {
+      "cost": "コスト",
+      "currency": "通貨",
+      "custom": "カスタム",
+      "custom_currency": "カスタム通貨",
+      "custom_currency_placeholder": "カスタム通貨を入力してください",
+      "input": "入力価格",
+      "million_tokens": "百万トークン",
+      "output": "出力価格",
+      "price": "価格"
+    },
     "prompts": {
       "explanation": "この概念を説明してください",
       "summarize": "このテキストを要約してください",

@@ -964,6 +964,17 @@
       "required_field": "必填欄位",
       "uploaded_input": "已上傳輸入"
     },
+    "price": {
+      "cost": "花費",
+      "currency": "幣種",
+      "custom": "自訂",
+      "custom_currency": "自訂幣種",
+      "custom_currency_placeholder": "請輸入自訂幣種",
+      "input": "輸入價格",
+      "million_tokens": "M Tokens",
+      "output": "輸出價格",
+      "price": "價格"
+    },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",
       "summarize": "幫我總結一下這段話",
