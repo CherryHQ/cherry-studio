@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { isMac } from '@main/constant'
+import { isPortable } from '@main/constant'
 import { audioExts, documentExts, imageExts, textExts, videoExts } from '@shared/config/constant'
 import { FileType, FileTypes } from '@types'
 import { app } from 'electron'
@@ -22,6 +22,61 @@ function initFileTypeMap() {
 
 // 初始化映射表
 initFileTypeMap()
+
+export function hasWritePermission(path: string) {
+  try {
+    fs.accessSync(path, fs.constants.W_OK)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+function getAppDataPathFromConfig() {
+  try {
+    const configPath = path.join(getConfigDir(), 'config.json')
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      if (config.appDataPath && fs.existsSync(config.appDataPath) && hasWritePermission(config.appDataPath)) {
+        return config.appDataPath
+      }
+    }
+  } catch (error) {
+    return null
+  }
+  return null
+}
+
+export function initAppDataDir() {
+  const appDataPath = getAppDataPathFromConfig()
+  if (appDataPath) {
+    app.setPath('userData', appDataPath)
+    return
+  }
+
+  if (isPortable) {
+    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
+    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
+    return
+  }
+}
+
+export function updateConfig(appDataPath: string) {
+  const configDir = getConfigDir()
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true })
+  }
+
+  const configPath = path.join(getConfigDir(), 'config.json')
+  if (!fs.existsSync(configPath)) {
+    fs.writeFileSync(configPath, JSON.stringify({ appDataPath }, null, 2))
+    return
+  }
+
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+  config.appDataPath = appDataPath
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+}
 
 export function getFileType(ext: string): FileTypes {
   ext = ext.toLowerCase()
@@ -87,13 +142,4 @@ export function getCacheDir() {
 
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
-}
-
-export function setUserDataDir() {
-  if (!isMac) {
-    const dir = path.join(path.dirname(app.getPath('exe')), 'data')
-    if (fs.existsSync(dir) && fs.statSync(dir).isDirectory()) {
-      app.setPath('userData', dir)
-    }
-  }
 }

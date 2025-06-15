@@ -1,6 +1,7 @@
 import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { initAppDataDir } from '@main/utils/file'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
@@ -20,8 +21,8 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { setUserDataDir } from './utils/file'
 
+initAppDataDir()
 Logger.initialize()
 
 /**
@@ -72,9 +73,6 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
-  // Portable dir must be setup before app ready
-  setUserDataDir()
-
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
