@@ -1,4 +1,4 @@
-import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
+import { TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
@@ -9,10 +9,10 @@ import { useTranslation } from 'react-i18next'
 import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
-interface CodePreviewProps {
-  children: string
+import { BasicPreviewProps } from './types'
+
+interface CodePreviewProps extends BasicPreviewProps {
   language: string
-  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
 }
 
 /**
