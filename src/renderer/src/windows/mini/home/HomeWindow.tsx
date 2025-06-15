@@ -52,7 +52,7 @@ const HomeWindow: FC = () => {
 
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
 
-  const { useAssistantForQuickAssistant, quickAssistantId } = useAppSelector((state) => state.llm)
+  const { quickAssistantId } = useAppSelector((state) => state.llm)
   const currentTopicMessages = useAppSelector((state) => state.messages)
 
   const readClipboard = useCallback(async () => {
@@ -165,7 +165,7 @@ const HomeWindow: FC = () => {
       model: defaultModel
     }
 
-    if (useAssistantForQuickAssistant && quickAssistantId) {
+    if (quickAssistantId) {
       // 獲取指定助手，如果不存在則使用默認助手
       const assistantFromId = getAssistantById(quickAssistantId)
       const currentAssistant = assistantFromId || defaultCurrentAssistant
@@ -177,7 +177,7 @@ const HomeWindow: FC = () => {
     } else {
       setCurrentAssistant(defaultCurrentAssistant)
     }
-  }, [useAssistantForQuickAssistant, quickAssistantId, defaultAssistant, defaultModel])
+  }, [quickAssistantId, defaultAssistant, defaultModel])
 
   const onSendMessage = useCallback(
     async (prompt?: string) => {
@@ -338,7 +338,7 @@ const HomeWindow: FC = () => {
               model={model}
               referenceText={referenceText}
               placeholder={
-                useAssistantForQuickAssistant
+                quickAssistantId
                   ? t('miniwindow.input.placeholder.assistant_empty', { assistant: currentAssistant.name })
                   : t('miniwindow.input.placeholder.model_empty', { model: model.name })
               }
@@ -380,7 +380,7 @@ const HomeWindow: FC = () => {
         placeholder={
           referenceText && route === 'home'
             ? t('miniwindow.input.placeholder.title')
-            : useAssistantForQuickAssistant
+            : quickAssistantId
               ? t('miniwindow.input.placeholder.assistant_empty', { assistant: currentAssistant.name })
               : t('miniwindow.input.placeholder.model_empty', { model: model.name })
         }
