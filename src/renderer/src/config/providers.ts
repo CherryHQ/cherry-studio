@@ -22,6 +22,7 @@ import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
+import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
@@ -100,6 +101,7 @@ const PROVIDER_LOGO_MAP = {
   qiniu: QiniuProviderLogo,
   tokenflux: TokenFluxProviderLogo,
   cephalon: CephalonProviderLogo,
+  lanyun: LanyunProviderLogo,
   vertexai: VertexAIProviderLogo
 } as const
 
@@ -639,6 +641,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://cephalon.cloud/api',
       docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
       models: 'https://cephalon.cloud/model'
+    }
+  },
+  lanyun: {
+    api: {
+      url: 'https://maas-api.lanyun.net'
+    },
+    websites: {
+      official: 'https://lanyun.net',
+      apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
+      docs: 'https://archive.lanyun.net/maas/doc/',
+      models: 'https://maas.lanyun.net/api/#/model/modelSquare'
     }
   },
   vertexai: {

@@ -1020,6 +1020,7 @@
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
       "cephalon": "Cephalon",
+      "lanyun": "LANYUN",
       "vertexai": "Vertex AI"
     },
     "restore": {
@@ -1586,6 +1587,10 @@
       "models.translate_model_prompt_title": "翻訳モデルのプロンプト",
       "models.quick_assistant_model": "クイックアシスタントモデル",
       "models.quick_assistant_model_description": "クイックアシスタントで使用されるデフォルトモデル",
+      "models.quick_assistant_selection": "アシスタントを選択します",
+      "models.quick_assistant_default_tag": "デフォルト",
+      "models.use_model": "デフォルトモデル",
+      "models.use_assistant": "アシスタントの活用",
       "moresetting": "詳細設定",
       "moresetting.check.confirm": "選択を確認",
       "moresetting.check.warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！",

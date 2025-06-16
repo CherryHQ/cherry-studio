@@ -1019,6 +1019,7 @@
       "qiniu": "Qiniu AI",
       "tokenflux": "TokenFlux",
       "302ai": "302.AI",
+      "lanyun": "LANYUN",
       "vertexai": "Vertex AI"
     },
     "restore": {
@@ -1585,6 +1586,10 @@
       "models.translate_model_prompt_title": "Модель перевода",
       "models.quick_assistant_model": "Модель быстрого помощника",
       "models.quick_assistant_model_description": "Модель по умолчанию, используемая быстрым помощником",
+      "models.quick_assistant_selection": "Выберите помощника",
+      "models.quick_assistant_default_tag": "умолчанию",
+      "models.use_model": "модель по умолчанию",
+      "models.use_assistant": "Использование ассистентов",
       "moresetting": "Дополнительные настройки",
       "moresetting.check.confirm": "Подтвердить выбор",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",

@@ -1471,8 +1471,6 @@ const migrateConfig = {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
         }
       }
-      // Quick assistant model
-      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
       return state
     } catch (error) {
       return state
@@ -1572,8 +1570,10 @@ const migrateConfig = {
     try {
       addProvider(state, 'cephalon')
       addProvider(state, '302ai')
+      addProvider(state, 'lanyun')
       state.llm.providers = moveProvider(state.llm.providers, 'cephalon', 13)
       state.llm.providers = moveProvider(state.llm.providers, '302ai', 14)
+      state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
       return state
     } catch (error) {
       return state
