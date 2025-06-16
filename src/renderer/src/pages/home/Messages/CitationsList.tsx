@@ -139,6 +139,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
     <WebSearchCard>
       <ContextMenu>
         <WebSearchCardHeader>
+          <CitationIndex>{citation.number}</CitationIndex>
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
@@ -162,6 +163,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
     <WebSearchCard>
       <ContextMenu>
         <WebSearchCardHeader>
+          <CitationIndex>{citation.number}</CitationIndex>
           {citation.showFavicon && <FileSearch width={16} />}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
             {citation.title}
@@ -208,6 +210,13 @@ const PreviewIcon = styled.div`
   &:first-child {
     margin-left: 0;
   }
+`
+
+const CitationIndex = styled.div`
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text-2);
+  margin-right: 8px;
 `
 
 const CitationLink = styled.a`

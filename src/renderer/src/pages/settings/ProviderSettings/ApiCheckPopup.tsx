@@ -51,8 +51,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
         try {
           let valid = false
           if (type === 'provider' && model) {
-            const result = await checkApi({ ...(provider as Provider), apiKey: status.key }, model)
-            valid = result.valid
+            await checkApi({ ...(provider as Provider), apiKey: status.key }, model)
+            valid = true
           } else {
             const result = await WebSearchService.checkSearch({
               ...(provider as WebSearchProvider),
@@ -65,7 +65,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
           setKeyStatuses((prev) => prev.map((s, idx) => (idx === i ? { ...s, checking: false, isValid: valid } : s)))
 
           return { index: i, valid }
-        } catch (error) {
+        } catch (error: unknown) {
           // 处理错误情况
           setKeyStatuses((prev) => prev.map((s, idx) => (idx === i ? { ...s, checking: false, isValid: false } : s)))
           return { index: i, valid: false }
@@ -90,8 +90,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
     try {
       let valid = false
       if (type === 'provider' && model) {
-        const result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
-        valid = result.valid
+        await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
+        valid = true
       } else {
         const result = await WebSearchService.checkSearch({
           ...(provider as WebSearchProvider),
@@ -103,7 +103,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, model, apiKeys, type
       setKeyStatuses((prev) =>
         prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: valid } : status))
       )
-    } catch (error) {
+    } catch (error: unknown) {
       setKeyStatuses((prev) =>
         prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: false, isValid: false } : status))
       )
