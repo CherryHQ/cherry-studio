@@ -285,7 +285,7 @@ export class SelectionService {
         this.processTriggerMode()
 
         this.started = true
-        this.logInfo('SelectionService Started')
+        this.logInfo('SelectionService Started', true)
         return true
       }
 
@@ -319,7 +319,7 @@ export class SelectionService {
     this.closePreloadedActionWindows()
 
     this.started = false
-    this.logInfo('SelectionService Stopped')
+    this.logInfo('SelectionService Stopped', true)
     return true
   }
 
@@ -335,7 +335,7 @@ export class SelectionService {
     this.selectionHook = null
     this.initStatus = false
     SelectionService.instance = null
-    this.logInfo('SelectionService Quitted')
+    this.logInfo('SelectionService Quitted', true)
   }
 
   /**
@@ -456,8 +456,18 @@ export class SelectionService {
       x: posX,
       y: posY
     })
+
+    //set the window to always on top (highest level)
+    //should set every time the window is shown
+    this.toolbarWindow!.setAlwaysOnTop(true, 'screen-saver')
     this.toolbarWindow!.show()
-    this.toolbarWindow!.setOpacity(1)
+
+    /**
+     * In Windows 10, setOpacity(1) will make the window completely transparent
+     * It's a strange behavior, so we don't use it for compatibility
+     */
+    // this.toolbarWindow!.setOpacity(1)
+
     this.startHideByMouseKeyListener()
   }
 
@@ -467,7 +477,7 @@ export class SelectionService {
   public hideToolbar(): void {
     if (!this.isToolbarAlive()) return
 
-    this.toolbarWindow!.setOpacity(0)
+    // this.toolbarWindow!.setOpacity(0)
     this.toolbarWindow!.hide()
 
     this.stopHideByMouseKeyListener()
@@ -1264,8 +1274,10 @@ export class SelectionService {
     this.isIpcHandlerRegistered = true
   }
 
-  private logInfo(message: string) {
-    isDev && Logger.info('[SelectionService] Info: ', message)
+  private logInfo(message: string, forceShow: boolean = false) {
+    if (isDev || forceShow) {
+      Logger.info('[SelectionService] Info: ', message)
+    }
   }
 
   private logError(...args: [...string[], Error]) {
