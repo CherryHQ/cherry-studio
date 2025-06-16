@@ -2,7 +2,16 @@ import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileType, KnowledgeBaseParams, KnowledgeItem, MCPServer, Shortcut, ThemeMode, WebDavConfig } from '@types'
+import {
+  FileType,
+  KnowledgeBaseParams,
+  KnowledgeItem,
+  MCPServer,
+  Shortcut,
+  ThemeMode,
+  Topic,
+  WebDavConfig
+} from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
@@ -119,7 +128,27 @@ const api = {
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.Windows_SetMinimumSize, width, height),
-    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize)
+    resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.Windows_ResetMinimumSize),
+    onAppTransferTopicToMain: (
+      callback: (payload: { assistantId: string; topic: Topic; sourceInfo?: string }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { assistantId: string; topic: Topic; sourceInfo?: string }
+      ): void => {
+        callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.App_Transfer_Topic_To_Main, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.App_Transfer_Topic_To_Main, listener)
+      }
+    },
+    // Send a signal to the main process indicating the renderer is ready for a topic
+    sendRendererReadyForTopic: (windowName: 'main' | 'mini'): void => {
+      ipcRenderer.send(IpcChannel.Renderer_Ready_For_Topic, { windowName })
+    },
+    transferTopicFromMiniWindowToMain: (assistantId: string, topic: Topic) =>
+      ipcRenderer.invoke(IpcChannel.MiniWindow_Transfer_Topic_To_Main, assistantId, topic)
   },
   gemini: {
     uploadFile: (file: FileType, { apiKey, baseURL }: { apiKey: string; baseURL: string }) =>

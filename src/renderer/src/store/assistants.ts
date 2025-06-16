@@ -89,9 +89,16 @@ const assistantsSlice = createSlice({
           ? {
               ...assistant,
               topics: assistant.topics.map((topic) => {
-                const _topic = topic.id === newTopic.id ? newTopic : topic
-                _topic.messages = []
-                return _topic
+                // const _topic = topic.id === newTopic.id ? newTopic : topic
+                // _topic.messages = []
+                // return _topic
+
+                // 更新話題時，如果傳入的話題數據中包含 messages ，這些 messages 會被保留，而不是被清空。
+                if (topic.id === newTopic.id) {
+                  // Preserve messages if newTopic has them, otherwise keep existing or set to empty array
+                  return { ...newTopic, messages: newTopic.messages || topic.messages || [] }
+                }
+                return topic
               })
             }
           : assistant

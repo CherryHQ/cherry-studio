@@ -157,6 +157,7 @@
       "default.description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
       "default.name": "Ассистент по умолчанию",
       "default.topic.name": "Топик по умолчанию",
+      "default.quickAssistant.topic.name": "От быстрого помощника",
       "history": {
         "assistant_node": "Ассистент",
         "click_to_navigate": "Перейти к сообщению",
@@ -755,7 +756,8 @@
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
         "esc_close": "закрытия окна",
-        "backspace_clear": "Нажмите Backspace, чтобы очистить"
+        "backspace_clear": "Нажмите Backspace, чтобы очистить",
+        "return_to_main": "Вернуться в главное окно"
       },
       "input": {
         "placeholder": {
@@ -1585,6 +1587,10 @@
       "models.translate_model_prompt_title": "Модель перевода",
       "models.quick_assistant_model": "Модель быстрого помощника",
       "models.quick_assistant_model_description": "Модель по умолчанию, используемая быстрым помощником",
+      "models.quick_assistant_selection": "Выберите помощника",
+      "models.quick_assistant_default_tag": "умолчанию",
+      "models.use_model": "модель по умолчанию",
+      "models.use_assistant": "Использование ассистентов",
       "moresetting": "Дополнительные настройки",
       "moresetting.check.confirm": "Подтвердить выбор",
       "moresetting.check.warn": "Пожалуйста, будьте осторожны при выборе этой опции. Неправильный выбор может привести к сбою в работе модели!",

@@ -3,7 +3,16 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Assistant } from '@renderer/types'
+import store from '@renderer/store'
+import { addTopic } from '@renderer/store/assistants'
+import { upsertManyBlocks } from '@renderer/store/messageBlock'
+import { newMessagesActions } from '@renderer/store/newMessage'
+import { saveNewTopicToDB } from '@renderer/store/thunk/messageThunk'
+import { Assistant, Topic } from '@renderer/types' // Added Message import
+import { MessageBlock } from '@renderer/types/newMessage'
+import dayjs from 'dayjs'
+import { t } from 'i18next'
+import { nanoid } from 'nanoid'
 import { FC, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -31,6 +40,11 @@ const HomePage: FC = () => {
     NavigationService.setNavigate(navigate)
   }, [navigate])
 
+  // Signal that the main window's renderer is ready for topics
+  useEffect(() => {
+    window.api?.window?.sendRendererReadyForTopic?.('main')
+  }, [])
+
   useEffect(() => {
     state?.assistant && setActiveAssistant(state?.assistant)
     state?.topic && setActiveTopic(state?.topic)
@@ -49,6 +63,129 @@ const HomePage: FC = () => {
       unsubscribe()
     }
   }, [assistants, setActiveAssistant])
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.CHANGE_TOPIC, (topic?: Topic) => {
+      if (topic) {
+        setActiveTopic(topic)
+      }
+    })
+    return () => unsubscribe()
+  }, [setActiveTopic])
+
+  // Listen for topics transferred from other sources (e.g., quick assistant)
+  useEffect(() => {
+    if (window.api?.window?.onAppTransferTopicToMain) {
+      const removeIpcListener = window.api?.window?.onAppTransferTopicToMain?.(
+        (payload: { assistantId: string; topic: Topic; sourceInfo?: string }) => {
+          const { assistantId, topic: receivedTopic, sourceInfo } = payload
+          console.log(`[HomePage] Received topic from ${sourceInfo || 'unknown source'}`, {
+            assistantId,
+            receivedTopic
+          })
+
+          const assistantState = store.getState().assistants
+          if (!assistantState?.assistants || !Array.isArray(assistantState.assistants)) {
+            return
+          }
+
+          const targetAssistant = assistantState.assistants.find((a) => a.id === assistantId)
+          if (!targetAssistant) {
+            return
+          }
+
+          if (!receivedTopic.messages?.length) {
+            return
+          }
+
+          // Create a new topic in the main application
+          const newMainTopic: Topic = {
+            id: nanoid(),
+            name: t('chat.default.quickAssistant.topic.name') + ` (${dayjs().format('HH:mm')})`,
+            messages: [], // Messages will be cloned by the thunk
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            assistantId: targetAssistant.id,
+            isNameManuallyEdited: false
+          }
+
+          // Add the new topic shell to the store first
+          store.dispatch(addTopic({ assistantId: targetAssistant.id, topic: newMainTopic }))
+
+          const messagesToClone = receivedTopic.messages.map((msg) => ({
+            ...msg,
+            id: nanoid(),
+            topicId: newMainTopic.id,
+            assistantId: targetAssistant.id
+          }))
+
+          const blocksToClone: MessageBlock[] = []
+          messagesToClone.forEach((clonedMsg, index) => {
+            const originalMsg = receivedTopic.messages[index]
+            if (originalMsg.blocks && Array.isArray(originalMsg.blocks)) {
+              const clonedBlocksForThisMessage = originalMsg.blocks
+                .map((blockId) => {
+                  const originalBlock = (originalMsg as any).messageBlocks?.find((b) => b.id === blockId)
+                  if (originalBlock) {
+                    return {
+                      ...originalBlock,
+                      id: nanoid(),
+                      messageId: clonedMsg.id
+                    }
+                  }
+                  return null
+                })
+                .filter(Boolean) as MessageBlock[]
+              clonedMsg.blocks = clonedBlocksForThisMessage.map((b) => b.id) // Update cloned message with new block IDs
+              blocksToClone.push(...clonedBlocksForThisMessage)
+            }
+          })
+
+          if (blocksToClone.length > 0) {
+            store.dispatch(upsertManyBlocks(blocksToClone))
+          }
+
+          if (messagesToClone.length > 0) {
+            store.dispatch(
+              newMessagesActions.messagesReceived({
+                topicId: newMainTopic.id,
+                messages: messagesToClone
+              })
+            )
+          }
+
+          setActiveAssistant(targetAssistant)
+          setActiveTopic(newMainTopic)
+          setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+
+          // Add a new Topic with Messages, MessageBlocks to the DB
+          const topicForDb = {
+            ...newMainTopic,
+            messages: messagesToClone
+          }
+
+          ;(async () => {
+            try {
+              await saveNewTopicToDB(topicForDb, blocksToClone)
+              console.log(
+                `[HomePage] Successfully saved new topic ${topicForDb.id} from ${sourceInfo || 'unknown source'} to DB.`
+              )
+            } catch (error) {
+              console.error(
+                `[HomePage] Error saving new topic ${topicForDb.id} from ${sourceInfo || 'unknown source'} via thunk:`,
+                error
+              )
+              // Consider how to handle this error, e.g., notify user or retry
+            }
+          })()
+        }
+      )
+
+      return () => removeIpcListener?.()
+    }
+
+    return () => {}
+  }, [activeAssistant, assistants, setActiveAssistant, setActiveTopic])
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
