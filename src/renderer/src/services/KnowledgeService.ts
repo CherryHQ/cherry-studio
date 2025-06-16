@@ -48,7 +48,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankBaseURL: rerankHost,
     rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
-    rerankModelProvider: base.rerankModel?.provider
+    rerankModelProvider: rerankProvider.name.toLowerCase()
     // topN: base.topN
   }
 }
