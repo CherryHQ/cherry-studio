@@ -180,7 +180,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     setAbortController(controller)
     setIsLoading(true)
     dispatch(setGenerating(true))
-    const AI = await AiProvider.create(provider)
+    const AI = new AiProvider(provider)
 
     if (!painting.model) {
       return

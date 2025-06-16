@@ -14,8 +14,8 @@ import FileManager from './FileManager'
 export const getKnowledgeBaseParams = async (base: KnowledgeBase): Promise<KnowledgeBaseParams> => {
   const provider = getProviderByModel(base.model)
   const rerankProvider = getProviderByModel(base.rerankModel)
-  const aiProvider = await AiProvider.create(provider)
-  const rerankAiProvider = await AiProvider.create(rerankProvider)
+  const aiProvider = new AiProvider(provider)
+  const rerankAiProvider = new AiProvider(rerankProvider)
 
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
