@@ -5687,7 +5687,6 @@ __metadata:
     openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
-    pdf-parse: "npm:^1.1.1"
     playwright: "npm:^1.52.0"
     prettier: "npm:^3.5.3"
     proxy-agent: "npm:^6.5.0"
@@ -14462,7 +14461,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pdf-parse@npm:1.1.1, pdf-parse@npm:^1.1.1":
+"pdf-parse@npm:1.1.1":
   version: 1.1.1
   resolution: "pdf-parse@npm:1.1.1"
   dependencies:
