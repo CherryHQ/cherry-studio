@@ -142,7 +142,7 @@ export const useKnowledge = (baseId: string) => {
         await window.api.knowledgeBase.remove({
           uniqueId: item.uniqueId,
           uniqueIds: item.uniqueIds,
-          base: await getKnowledgeBaseParams(base)
+          base: getKnowledgeBaseParams(base)
         })
       }
     }
@@ -162,7 +162,7 @@ export const useKnowledge = (baseId: string) => {
       await window.api.knowledgeBase.remove({
         uniqueId: item.uniqueId,
         uniqueIds: item.uniqueIds,
-        base: await getKnowledgeBaseParams(base)
+        base: getKnowledgeBaseParams(base)
       })
       updateItem({
         ...item,

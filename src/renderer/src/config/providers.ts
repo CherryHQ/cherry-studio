@@ -629,5 +629,27 @@ export const PROVIDER_CONFIG = {
       docs: `${TOKENFLUX_HOST}/docs`,
       models: `${TOKENFLUX_HOST}/models`
     }
+  },
+  cephalon: {
+    api: {
+      url: 'https://cephalon.cloud/user-center/v1/model'
+    },
+    websites: {
+      official: 'https://cephalon.cloud/share/register-landing?invite_id=jSdOYA',
+      apiKey: 'https://cephalon.cloud/api',
+      docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
+      models: 'https://cephalon.cloud/model'
+    }
+  },
+  vertexai: {
+    api: {
+      url: 'https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/overview'
+    },
+    websites: {
+      official: 'https://cloud.google.com/vertex-ai',
+      apiKey: 'https://console.cloud.google.com/apis/credentials',
+      docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
+      models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
+    }
   }
 }

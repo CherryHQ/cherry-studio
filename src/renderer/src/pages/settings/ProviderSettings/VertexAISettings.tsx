@@ -1,9 +1,11 @@
+import { HStack } from '@renderer/components/Layout'
+import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
 import { Alert, Input } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
 const VertexAISettings: FC = () => {
   const { t } = useTranslation()
@@ -16,6 +18,9 @@ const VertexAISettings: FC = () => {
     setServiceAccountPrivateKey,
     setServiceAccountClientEmail
   } = useVertexAISettings()
+
+  const providerConfig = PROVIDER_CONFIG['vertexai']
+  const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const [localProjectId, setLocalProjectId] = useState(projectId)
   const [localLocation, setLocalLocation] = useState(location)
@@ -91,10 +96,16 @@ const VertexAISettings: FC = () => {
         spellCheck={false}
         autoSize={{ minRows: 4, maxRows: 4 }}
       />
-      <SettingHelpTextRow>
-        <SettingHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</SettingHelpText>
-      </SettingHelpTextRow>
-
+      {apiKeyWebsite && (
+        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+          <HStack>
+            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+              {t('settings.provider.get_api_key')}
+            </SettingHelpLink>
+          </HStack>
+          <SettingHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</SettingHelpText>
+        </SettingHelpTextRow>
+      )}
       <>
         <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.vertex_ai.project_id')}</SettingSubtitle>
         <Input.Password
