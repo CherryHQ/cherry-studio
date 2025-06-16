@@ -1101,7 +1101,8 @@
           "obsidian": "Экспорт в Obsidian",
           "siyuan": "Экспорт в SiYuan Note",
           "joplin": "Экспорт в Joplin",
-          "docx": "Экспорт в Word"
+          "docx": "Экспорт в Word",
+          "plain_text": "Копировать как чистый текст"
         },
         "joplin": {
           "check": {

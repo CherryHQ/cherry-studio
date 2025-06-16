@@ -1104,7 +1104,8 @@
           "obsidian": "导出到Obsidian",
           "siyuan": "导出到思源笔记",
           "joplin": "导出到Joplin",
-          "docx": "导出为Word"
+          "docx": "导出为Word",
+          "plain_text": "复制为纯文本"
         },
         "joplin": {
           "check": {

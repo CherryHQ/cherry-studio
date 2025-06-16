@@ -1104,7 +1104,8 @@
           "obsidian": "Export to Obsidian",
           "siyuan": "Export to SiYuan Note",
           "joplin": "Export to Joplin",
-          "docx": "Export as Word"
+          "docx": "Export as Word",
+          "plain_text": "Copy as Plain Text"
         },
         "joplin": {
           "check": {

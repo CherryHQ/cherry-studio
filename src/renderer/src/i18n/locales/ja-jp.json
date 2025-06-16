@@ -1102,7 +1102,8 @@
           "obsidian": "Obsidianにエクスポート",
           "siyuan": "思源ノートにエクスポート",
           "joplin": "Joplinにエクスポート",
-          "docx": "Wordとしてエクスポート"
+          "docx": "Wordとしてエクスポート",
+          "plain_text": "プレーンテキストとしてコピー"
         },
         "joplin": {
           "check": {

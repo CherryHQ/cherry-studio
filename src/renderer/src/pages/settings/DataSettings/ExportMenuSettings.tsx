@@ -84,6 +84,16 @@ const ExportMenuOptions: FC = () => {
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.docx} onChange={(checked) => handleToggleOption('docx', checked)} />
       </SettingRow>
+
+      <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.plain_text')}</SettingRowTitle>
+        <Switch
+          checked={exportMenuOptions.plain_text}
+          onChange={(checked) => handleToggleOption('plain_text', checked)}
+        />
+      </SettingRow>
     </SettingGroup>
   )
 }
