@@ -755,8 +755,7 @@
       },
       "input": {
         "placeholder": {
-          "model_empty": "Ask {{model}} for help...",
-          "assistant_empty": "Ask {{assistant}} for help...",
+          "empty": "Ask {{model}} for help...",
           "title": "What do you want to do with this text?"
         }
       },

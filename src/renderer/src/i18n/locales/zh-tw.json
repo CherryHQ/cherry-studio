@@ -755,8 +755,7 @@
       },
       "input": {
         "placeholder": {
-          "model_empty": "詢問 {{model}} 取得幫助...",
-          "assistant_empty": "詢問 {{assistant}} 取得幫助...",
+          "empty": "詢問 {{model}} 取得幫助...",
           "title": "你想對下方文字做什麼"
         }
       },

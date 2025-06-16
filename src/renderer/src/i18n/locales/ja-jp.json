@@ -755,8 +755,7 @@
       },
       "input": {
         "placeholder": {
-          "model_empty": "{{model}} に質問してください...",
-          "assistant_empty": "{{assistant}} に質問してください...",
+          "empty": "{{model}} に質問してください...",
           "title": "下のテキストに対して何をしますか？"
         }
       },
