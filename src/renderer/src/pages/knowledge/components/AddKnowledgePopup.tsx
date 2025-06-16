@@ -139,7 +139,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           version: 1
         }
 
-        await window.api.knowledgeBase.create(await getKnowledgeBaseParams(newBase))
+        await window.api.knowledgeBase.create(getKnowledgeBaseParams(newBase))
 
         addKnowledgeBase(newBase)
         setOpen(false)
