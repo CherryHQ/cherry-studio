@@ -4,7 +4,7 @@ import { AihubmixAPIClient } from './AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
-import VertexAPIClient from './gemini/VertexAPIClient'
+import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 

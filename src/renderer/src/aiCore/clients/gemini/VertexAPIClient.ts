@@ -4,7 +4,7 @@ import { Provider } from '@renderer/types'
 
 import { GeminiAPIClient } from './GeminiAPIClient'
 
-export default class VertexProvider extends GeminiAPIClient {
+export class VertexAPIClient extends GeminiAPIClient {
   private authHeaders?: Record<string, string>
   private authHeadersExpiry?: number
 
