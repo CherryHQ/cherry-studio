@@ -1570,6 +1570,17 @@ const migrateConfig = {
   },
   '112': (state: RootState) => {
     try {
+      addProvider(state, 'cephalon')
+      addProvider(state, '302ai')
+      state.llm.providers = moveProvider(state.llm.providers, 'cephalon', 13)
+      state.llm.providers = moveProvider(state.llm.providers, '302ai', 14)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '113': (state: RootState) => {
+    try {
       addProvider(state, 'vertexai')
       state.llm.providers = moveProvider(state.llm.providers, 'vertexai', 10)
       if (!state.llm.settings.vertexai) {

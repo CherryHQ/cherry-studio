@@ -2,18 +2,21 @@ import { GoogleGenAI } from '@google/genai'
 import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
 import { Provider } from '@renderer/types'
 
-import { BaseGeminiProvider } from './GeminiProvider'
+import { GeminiAPIClient } from './GeminiAPIClient'
 
-export default class VertexProvider extends BaseGeminiProvider {
+export default class VertexProvider extends GeminiAPIClient {
   private authHeaders?: Record<string, string>
   private authHeadersExpiry?: number
 
-  private constructor(provider: Provider) {
+  constructor(provider: Provider) {
     super(provider)
   }
 
-  public static async create(provider: Provider): Promise<VertexProvider> {
-    const instance = new VertexProvider(provider)
+  override async getSdkInstance() {
+    if (this.sdkInstance) {
+      return this.sdkInstance
+    }
+
     const serviceAccount = getVertexAIServiceAccount()
     const projectId = getVertexAIProjectId()
     const location = getVertexAILocation()
@@ -22,19 +25,19 @@ export default class VertexProvider extends BaseGeminiProvider {
       throw new Error('Vertex AI settings are not configured')
     }
 
-    const authHeaders = await instance.getServiceAccountAuthHeaders()
+    const authHeaders = await this.getServiceAccountAuthHeaders()
 
-    instance.sdk = new GoogleGenAI({
+    this.sdkInstance = new GoogleGenAI({
       vertexai: true,
       project: projectId,
       location: location,
       httpOptions: {
-        apiVersion: instance.getApiVersion(),
+        apiVersion: this.getApiVersion(),
         headers: authHeaders
       }
     })
 
-    return instance
+    return this.sdkInstance
   }
 
   /**

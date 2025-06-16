@@ -44,4 +44,4 @@ jobs:
         run: yarn build:check
 
       - name: Lint Check
-        run: yarn lint
+        run: yarn test:lint

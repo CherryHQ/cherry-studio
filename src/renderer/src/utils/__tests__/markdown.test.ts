@@ -7,9 +7,9 @@ import {
   convertMathFormula,
   findCitationInChildren,
   getCodeBlockId,
+  markdownToPlainText,
   removeTrailingDoubleSpaces,
-  updateCodeBlock,
-  markdownToPlainText
+  updateCodeBlock
 } from '../markdown'
 
 describe('markdown', () => {

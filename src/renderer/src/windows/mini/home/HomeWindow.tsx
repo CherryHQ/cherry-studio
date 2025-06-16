@@ -187,7 +187,7 @@ const HomeWindow: FC = () => {
 
       fetchChatCompletion({
         messages: [userMessage],
-        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel() },
+        assistant: { ...assistant, model: quickAssistantModel || getDefaultModel(), settings: { streamOutput: true } },
         onChunkReceived: (chunk: Chunk) => {
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text

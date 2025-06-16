@@ -1,6 +1,7 @@
 import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
+import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
@@ -8,6 +9,7 @@ import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
+import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -49,6 +51,7 @@ import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import { TOKENFLUX_HOST } from './constant'
 
 const PROVIDER_LOGO_MAP = {
+  '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
   silicon: SiliconFlowProviderLogo,
   deepseek: DeepSeekProviderLogo,
@@ -96,6 +99,7 @@ const PROVIDER_LOGO_MAP = {
   voyageai: VoyageAIProviderLogo,
   qiniu: QiniuProviderLogo,
   tokenflux: TokenFluxProviderLogo,
+  cephalon: CephalonProviderLogo,
   vertexai: VertexAIProviderLogo
 } as const
 
@@ -108,6 +112,17 @@ export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama']
 export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini']
 
 export const PROVIDER_CONFIG = {
+  '302ai': {
+    api: {
+      url: 'https://api.302.ai'
+    },
+    websites: {
+      official: 'https://302.ai',
+      apiKey: 'https://dash.302.ai/apis/list',
+      docs: 'https://302ai.apifox.cn/api-147522039',
+      models: 'https://302.ai/pricing/'
+    }
+  },
   openai: {
     api: {
       url: 'https://api.openai.com'
@@ -613,17 +628,6 @@ export const PROVIDER_CONFIG = {
       apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
       docs: `${TOKENFLUX_HOST}/docs`,
       models: `${TOKENFLUX_HOST}/models`
-    }
-  },
-  vertexai: {
-    api: {
-      url: 'https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/overview'
-    },
-    websites: {
-      official: 'https://cloud.google.com/vertex-ai',
-      apiKey: 'https://console.cloud.google.com/apis/credentials',
-      docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
-      models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
     }
   }
 }

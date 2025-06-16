@@ -30,6 +30,24 @@ This is **bold** text.
       </button>
     </div>
   </div>
+  <div
+    data-testid="has-table-component"
+  >
+    <div
+      data-block-id="test-block-1"
+      data-testid="table-component"
+    >
+      <table>
+        test table
+      </table>
+      <button
+        data-testid="copy-table-button"
+        type="button"
+      >
+        Copy Table
+      </button>
+    </div>
+  </div>
   <span
     data-testid="has-img-component"
   >
