@@ -13,8 +13,7 @@ import {
   updateAssistantSettings,
   updateDefaultAssistant,
   updateTopic,
-  updateTopics,
-  upsertTopic
+  updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setTopicNamingModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
@@ -55,9 +54,7 @@ export function useAssistant(id: string) {
     assistant: assistantWithModel,
     model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
-    upsertTopic: (topic: Topic) => {
-      dispatch(upsertTopic({ assistantId: assistant.id, topic }))
-    },
+
     removeTopic: (topic: Topic) => {
       TopicManager.removeTopic(topic.id)
       dispatch(removeTopic({ assistantId: assistant.id, topic }))

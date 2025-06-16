@@ -71,19 +71,6 @@ const assistantsSlice = createSlice({
           : assistant
       )
     },
-    upsertTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
-      const { assistantId, topic } = action.payload
-      const assistant = state.assistants.find((a) => a.id === assistantId)
-      if (assistant) {
-        const existingTopic = assistant.topics.find((t) => t.id === topic.id)
-        if (existingTopic) {
-          existingTopic.messages = topic.messages
-          existingTopic.updatedAt = new Date().toISOString()
-        } else {
-          assistant.topics.push(topic)
-        }
-      }
-    },
     removeTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
       state.assistants = state.assistants.map((assistant) =>
         assistant.id === action.payload.assistantId
@@ -164,7 +151,6 @@ export const {
   removeAssistant,
   updateAssistant,
   addTopic,
-  upsertTopic,
   removeTopic,
   updateTopic,
   updateTopics,
