@@ -95,7 +95,7 @@ export const searchKnowledgeBase = async (
   rewrite?: string
 ): Promise<Array<ExtractChunkData & { file: FileType | null }>> => {
   try {
-    const baseParams = await getKnowledgeBaseParams(base)
+    const baseParams = getKnowledgeBaseParams(base)
     const documentCount = base.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT
     const threshold = base.threshold || DEFAULT_KNOWLEDGE_THRESHOLD
 
