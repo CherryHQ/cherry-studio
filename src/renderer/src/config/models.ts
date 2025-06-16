@@ -2685,7 +2685,9 @@ export function isGenerateImageModel(model: Model): boolean {
   if (isEmbedding) {
     return false
   }
-  if (GENERATE_IMAGE_MODELS.includes(model.id)) {
+
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  if (GENERATE_IMAGE_MODELS.includes(baseName)) {
     return true
   }
   return false
