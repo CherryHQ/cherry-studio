@@ -22,6 +22,7 @@ import runtime from './runtime'
 import selectionStore from './selectionStore'
 import settings from './settings'
 import shortcuts from './shortcuts'
+import tts from './tts'
 import websearch from './websearch'
 
 const rootReducer = combineReducers({
@@ -40,6 +41,7 @@ const rootReducer = combineReducers({
   mcp,
   copilot,
   selectionStore,
+  tts,
   // messages: messagesReducer,
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
@@ -69,7 +71,7 @@ const persistedReducer = persistReducer(
  * Call storeSyncService.subscribe() in the window's entryPoint.tsx
  */
 storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/']
+  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'tts/']
 })
 
 const store = configureStore({
