@@ -68,7 +68,7 @@ export default class AppUpdater {
     try {
       // add timeout using AbortController
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
 
       const ipinfo = await fetch('https://ipinfo.io/json', {
         signal: controller.signal,
