@@ -1,8 +1,9 @@
+import { QuestionCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
-import { Button, Divider, Input, Modal, Switch } from 'antd'
+import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,6 +37,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   TopicNamingModalPopup.hide = onCancel
 
+  const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+
   return (
     <Modal
       title={t('settings.models.topic_naming_model_setting_title')}
@@ -53,7 +56,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </HStack>
       <Divider style={{ margin: '10px 0' }} />
       <div style={{ marginBottom: 20 }}>
-        <div style={{ marginBottom: 10 }}>{t('settings.models.topic_naming_prompt')}</div>
+        <Flex align="center" style={{ marginBottom: 10, gap: 5 }}>
+          <div>{t('settings.models.topic_naming_prompt')}</div>
+          <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+            <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
+          </Popover>
+        </Flex>
         <Input.TextArea
           rows={4}
           value={topicNamingPrompt || t('prompts.title')}

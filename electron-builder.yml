@@ -107,8 +107,7 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增划词助手
-    助手支持分组
-    支持主题颜色切换
-    划词助手支持应用过滤
-    翻译模块功能改进
+    服务商：新增端脑云（Cephalon Cloud）、302.AI 服务商
+    MCP: 新增蓝耘 MCP 服务器
+    实现话题重命名动画效果
+    错误修复

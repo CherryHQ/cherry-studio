@@ -190,16 +190,16 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         )
       }
 
-      if (topic.prompt) {
-        assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
-      }
+      const assistantWithTopicPrompt = topic.prompt
+        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+        : assistant
 
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
 
       // Clear input
       setText('')

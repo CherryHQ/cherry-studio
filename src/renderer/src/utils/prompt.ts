@@ -204,6 +204,16 @@ export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPToo
         userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
       }
     }
+
+    if (userSystemPrompt.includes('{{username}}')) {
+      try {
+        const username = store.getState().settings.userName || 'Unknown Username'
+        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
+      } catch (error) {
+        console.error('Failed to get username:', error)
+        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
+      }
+    }
   }
 
   if (tools && tools.length > 0) {
