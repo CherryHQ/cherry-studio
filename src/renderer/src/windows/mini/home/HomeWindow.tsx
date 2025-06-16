@@ -339,8 +339,8 @@ const HomeWindow: FC = () => {
               referenceText={referenceText}
               placeholder={
                 quickAssistantId
-                  ? t('miniwindow.input.placeholder.assistant_empty', { assistant: currentAssistant.name })
-                  : t('miniwindow.input.placeholder.model_empty', { model: model.name })
+                  ? t('miniwindow.input.placeholder.empty', { model: currentAssistant.name })
+                  : t('miniwindow.input.placeholder.empty', { model: model.name })
               }
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
@@ -381,8 +381,8 @@ const HomeWindow: FC = () => {
           referenceText && route === 'home'
             ? t('miniwindow.input.placeholder.title')
             : quickAssistantId
-              ? t('miniwindow.input.placeholder.assistant_empty', { assistant: currentAssistant.name })
-              : t('miniwindow.input.placeholder.model_empty', { model: model.name })
+              ? t('miniwindow.input.placeholder.empty', { model: currentAssistant.name })
+              : t('miniwindow.input.placeholder.empty', { model: model.name })
         }
         handleKeyDown={handleKeyDown}
         handleChange={handleChange}

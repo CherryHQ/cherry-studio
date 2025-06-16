@@ -177,10 +177,7 @@ const ModelSettings: FC = () => {
               <StyledButton
                 type={quickAssistantId ? 'primary' : 'default'}
                 onClick={() => {
-                  const firstAssistant = assistants.find((a) => a.type !== 'system' && a.id !== defaultAssistant.id)
-                  if (firstAssistant) {
-                    dispatch(setQuickAssistantId(firstAssistant.id))
-                  }
+                  dispatch(setQuickAssistantId(defaultAssistant.id))
                 }}
                 selected={!!quickAssistantId}>
                 {t('settings.models.use_assistant')}
@@ -195,20 +192,18 @@ const ModelSettings: FC = () => {
               style={{ width: 360 }}
               onChange={(value) => dispatch(setQuickAssistantId(value))}
               placeholder={t('settings.models.quick_assistant_selection')}>
-              {assistants
-                .filter((a) => a.id !== defaultAssistant.id)
-                .map((a) => (
-                  <Select.Option key={a.id} value={a.id}>
-                    <AssistantItem>
-                      <ModelAvatar model={a.model || defaultModel} size={18} />
-                      <AssistantName>{a.name}</AssistantName>
-                      <Spacer />
-                      {a.id === quickAssistantId && (
-                        <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
-                      )}
-                    </AssistantItem>
-                  </Select.Option>
-                ))}
+              {assistants.map((a) => (
+                <Select.Option key={a.id} value={a.id}>
+                  <AssistantItem>
+                    <ModelAvatar model={a.model || defaultModel} size={18} />
+                    <AssistantName>{a.name}</AssistantName>
+                    <Spacer />
+                    {a.id === defaultAssistant.id && (
+                      <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
+                    )}
+                  </AssistantItem>
+                </Select.Option>
+              ))}
             </Select>
           </HStack>
         )}

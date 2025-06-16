@@ -757,8 +757,7 @@
       },
       "input": {
         "placeholder": {
-          "model_empty": "詢問 {{model}} 取得幫助...",
-          "assistant_empty": "詢問 {{assistant}} 取得幫助...",
+          "empty": "詢問 {{model}} 取得幫助...",
           "title": "你想對下方文字做什麼"
         }
       },
@@ -1584,8 +1583,8 @@
       "models.quick_assistant_model": "快捷助手模型",
       "models.quick_assistant_model_description": "快捷助手使用的預設模型",
       "models.quick_assistant_selection": "選擇助手",
-      "models.quick_assistant_default_tag": "默認",
-      "models.use_model": "默認模型",
+      "models.quick_assistant_default_tag": "預設",
+      "models.use_model": "預設模型",
       "models.use_assistant": "使用助手",
       "moresetting": "更多設定",
       "moresetting.check.confirm": "確認勾選",
@@ -1948,7 +1947,7 @@
           },
           "opacity": {
             "title": "透明度",
-            "description": "設置視窗的默認透明度，100%為完全不透明"
+            "description": "設置視窗的預設透明度，100%為完全不透明"
           }
         },
         "actions": {

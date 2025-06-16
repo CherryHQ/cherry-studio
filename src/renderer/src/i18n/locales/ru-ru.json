@@ -757,8 +757,7 @@
       },
       "input": {
         "placeholder": {
-          "model_empty": "Задайте вопрос {{model}}...",
-          "assistant_empty": "Задайте вопрос {{assistant}}...",
+          "empty": "Задайте вопрос {{model}}...",
           "title": "Что вы хотите сделать с этим текстом?"
         }
       },
