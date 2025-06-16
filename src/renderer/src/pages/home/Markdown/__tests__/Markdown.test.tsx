@@ -78,6 +78,18 @@ vi.mock('../Link', () => ({
   )
 }))
 
+vi.mock('../Table', () => ({
+  __esModule: true,
+  default: ({ children, blockId }: any) => (
+    <div data-testid="table-component" data-block-id={blockId}>
+      <table>{children}</table>
+      <button type="button" data-testid="copy-table-button">
+        Copy Table
+      </button>
+    </div>
+  )
+}))
+
 vi.mock('@renderer/components/MarkdownShadowDOMRenderer', () => ({
   __esModule: true,
   default: ({ children }: any) => <div data-testid="shadow-dom">{children}</div>
@@ -102,6 +114,11 @@ vi.mock('react-markdown', () => ({
       {components?.code && (
         <div data-testid="has-code-component">
           {components.code({ children: 'test code', node: { position: { start: { line: 1 } } } })}
+        </div>
+      )}
+      {components?.table && (
+        <div data-testid="has-table-component">
+          {components.table({ children: 'test table', node: { position: { start: { line: 1 } } } })}
         </div>
       )}
       {components?.img && <span data-testid="has-img-component">img</span>}
@@ -298,6 +315,16 @@ describe('Markdown', () => {
         codeBlockId: 'code-block-1',
         newContent: 'new content'
       })
+    })
+
+    it('should integrate Table component with copy functionality', () => {
+      const block = createMainTextBlock({ id: 'test-block-456' })
+      render(<Markdown block={block} />)
+
+      expect(screen.getByTestId('has-table-component')).toBeInTheDocument()
+
+      const tableComponent = screen.getByTestId('table-component')
+      expect(tableComponent).toHaveAttribute('data-block-id', 'test-block-456')
     })
 
     it('should integrate ImagePreview component', () => {

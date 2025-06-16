@@ -1,5 +1,6 @@
 import store from '@renderer/store'
-import { MCPTool } from '@renderer/types'
+import { Assistant, MCPTool } from '@renderer/types'
+
 export const SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
 You can use one tool per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
@@ -147,7 +148,11 @@ ${availableTools}
 </tools>`
 }
 
-export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPTool[]): Promise<string> => {
+export const buildSystemPrompt = async (
+  userSystemPrompt: string,
+  tools?: MCPTool[],
+  assistant?: Assistant
+): Promise<string> => {
   if (typeof userSystemPrompt === 'string') {
     const now = new Date()
     if (userSystemPrompt.includes('{{date}}')) {
@@ -197,11 +202,20 @@ export const buildSystemPrompt = async (userSystemPrompt: string, tools?: MCPToo
 
     if (userSystemPrompt.includes('{{model_name}}')) {
       try {
-        const modelName = store.getState().llm.defaultModel.name
-        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, modelName)
+        userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, assistant?.model?.name || 'Unknown Model')
       } catch (error) {
         console.error('Failed to get model name:', error)
         userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
+      }
+    }
+
+    if (userSystemPrompt.includes('{{username}}')) {
+      try {
+        const username = store.getState().settings.userName || 'Unknown Username'
+        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
+      } catch (error) {
+        console.error('Failed to get username:', error)
+        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
       }
     }
   }

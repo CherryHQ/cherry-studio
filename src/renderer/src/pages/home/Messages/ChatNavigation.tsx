@@ -24,7 +24,8 @@ const EXCLUDED_SELECTORS = [
   '.ant-collapse-header',
   '.group-menu-bar',
   '.code-block',
-  '.message-editor'
+  '.message-editor',
+  '.table-wrapper'
 ]
 
 // Gap between the navigation bar and the right element
