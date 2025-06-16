@@ -421,7 +421,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider) && provider.type !== 'vertexai') {
+  if (!hasApiKey(provider)) {
     return null
   }
 
@@ -469,7 +469,7 @@ export async function fetchSearchSummary({ messages, assistant }: { messages: Me
   const model = assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider) && provider.type !== 'vertexai') {
+  if (!hasApiKey(provider)) {
     return null
   }
 
@@ -489,7 +489,7 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
   const model = getDefaultModel()
   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider) && provider.type !== 'vertexai') {
+  if (!hasApiKey(provider)) {
     return ''
   }
 
@@ -516,7 +516,7 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
 
 function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)
 }
 

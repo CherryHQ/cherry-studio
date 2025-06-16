@@ -11,7 +11,7 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 
-export const getKnowledgeBaseParams = async (base: KnowledgeBase): Promise<KnowledgeBaseParams> => {
+export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
   const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(provider)
