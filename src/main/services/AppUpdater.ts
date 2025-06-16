@@ -1,7 +1,7 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
-import { IpcChannel } from '@shared/IpcChannel'
 import { FeedUrl } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
@@ -68,13 +68,14 @@ export default class AppUpdater {
     try {
       // add timeout using AbortController
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
 
       const ipinfo = await fetch('https://ipinfo.io/json', {
         signal: controller.signal,
         headers: {
           'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9'
         }
       })
 
@@ -106,6 +107,7 @@ export default class AppUpdater {
     }
 
     const ipCountry = await this._getIpCountry()
+    logger.info('ipCountry', ipCountry)
     if (ipCountry !== 'CN') {
       this.autoUpdater.setFeedURL(FeedUrl.EARLY_ACCESS)
     }
