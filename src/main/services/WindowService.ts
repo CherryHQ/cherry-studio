@@ -232,7 +232,10 @@ export class WindowService {
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
         'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics'
+        'https://aihubmix.com/statistics',
+        'https://api.nuwaflux.com/oauth/client',
+        'https://api.nuwaflux.com/console/topup',
+        'https://api.nuwaflux.com/console/log'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {

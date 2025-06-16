@@ -971,6 +971,7 @@
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "nuwa": "NUWA",
       "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",

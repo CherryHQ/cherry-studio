@@ -28,6 +28,7 @@ import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
 import MoonshotProviderLogo from '@renderer/assets/images/providers/moonshot.png'
+import NUWAProviderLogo from '@renderer/assets/images/providers/nuwa.png'
 import NvidiaProviderLogo from '@renderer/assets/images/providers/nvidia.png'
 import O3ProviderLogo from '@renderer/assets/images/providers/o3.png'
 import OcoolAiProviderLogo from '@renderer/assets/images/providers/ocoolai.png'
@@ -100,7 +101,8 @@ const PROVIDER_LOGO_MAP = {
   qiniu: QiniuProviderLogo,
   tokenflux: TokenFluxProviderLogo,
   cephalon: CephalonProviderLogo,
-  lanyun: LanyunProviderLogo
+  lanyun: LanyunProviderLogo,
+  nuwa: NUWAProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -187,6 +189,17 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://cloud.siliconflow.cn/models'
+    }
+  },
+  nuwa: {
+    api: {
+      url: 'https://api.nuwaflux.com'
+    },
+    websites: {
+      official: 'https://api.nuwaflux.com',
+      apiKey: 'https://api.nuwaflux.com/oauth/client',
+      docs: 'https://docs.nuwaflux.com',
+      models: 'https://api.nuwaflux.com/console/personal'
     }
   },
   'gitee-ai': {

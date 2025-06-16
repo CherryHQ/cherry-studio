@@ -737,6 +737,152 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'Qwen'
     }
   ],
+  nuwa: [
+    {
+      id: 'gpt-4o',
+      name: 'gpt-4o',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'o1',
+      name: 'o1',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'o1-preview',
+      name: 'o1-preview',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'o3',
+      name: 'o3',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'o3-mini',
+      name: 'o3-mini',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'o4-mini',
+      name: 'o4-mini',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'gpt-4.1',
+      name: 'gpt-4.1',
+      provider: 'nuwa',
+      group: 'Chatgpt'
+    },
+    {
+      id: 'claude-3-5-sonnet-20241022',
+      name: 'claude-3-5-sonnet-20241022',
+      provider: 'nuwa',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-3-7-sonnet-20250219',
+      name: 'claude-3-7-sonnet-20250219',
+      provider: 'nuwa',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-3-7-sonnet-20250219-thinking',
+      name: 'claude-3-7-sonnet-20250219-thinking',
+      provider: 'nuwa',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-sonnet-4-20250514',
+      name: 'claude-sonnet-4-20250514',
+      provider: 'nuwa',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-sonnet-4-20250514-thinking',
+      name: 'claude-sonnet-4-20250514-thinking',
+      provider: 'nuwa',
+      group: 'Claude'
+    },
+    {
+      id: 'deepseek-r1',
+      name: 'deepseek-r1',
+      provider: 'nuwa',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3',
+      name: 'deepseek-v3',
+      provider: 'nuwa',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-v3-0324',
+      name: 'deepseek-v3-0324',
+      provider: 'nuwa',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-reasoner',
+      name: 'deepseek-reasoner',
+      provider: 'nuwa',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-chat',
+      name: 'deepseek-chat',
+      provider: 'nuwa',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'gemini-2.0-flash',
+      name: 'gemini-2.0-flash',
+      provider: 'nuwa',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.0-flash-exp-image-generation',
+      name: 'gemini-2.0-flash-exp-image-generation',
+      provider: 'nuwa',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      name: 'gemini-2.5-flash',
+      provider: 'nuwa',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.5-pro-preview-05-06',
+      name: 'gemini-2.5-pro-preview-05-06',
+      provider: 'nuwa',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.5-pro-preview-06-05',
+      name: 'gemini-2.5-pro-preview-06-05',
+      provider: 'nuwa',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.5-pro-preview-06-05-thinking',
+      name: 'gemini-2.5-pro-preview-06-05-thinking',
+      provider: 'nuwa',
+      group: 'Gemini'
+    },
+    {
+      id: 'grok-3',
+      name: 'grok-3',
+      provider: 'nuwa',
+      group: 'Grok'
+    }
+  ],
   ppio: [
     {
       id: 'deepseek/deepseek-r1/community',

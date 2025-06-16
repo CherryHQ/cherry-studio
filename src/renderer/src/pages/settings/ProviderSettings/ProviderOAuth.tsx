@@ -1,4 +1,5 @@
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import NUWAProviderLogo from '@renderer/assets/images/providers/nuwa.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import { HStack } from '@renderer/components/Layout'
@@ -20,6 +21,7 @@ interface Props {
 
 const PROVIDER_LOGO_MAP = {
   silicon: SiliconFlowProviderLogo,
+  nuwa: NUWAProviderLogo,
   aihubmix: AiHubMixProviderLogo,
   tokenflux: TokenFluxProviderLogo
 }
@@ -52,7 +54,12 @@ const ProviderOAuth: FC<Props> = ({ provider, setApiKey }) => {
           i18nKey="settings.provider.oauth.description"
           components={{
             website: (
-              <OfficialWebsite href={PROVIDER_CONFIG[provider.id].websites.official} target="_blank" rel="noreferrer" />
+              <OfficialWebsite
+                key="provider-website"
+                href={PROVIDER_CONFIG[provider.id].websites.official}
+                target="_blank"
+                rel="noreferrer"
+              />
             )
           }}
           values={{ provider: providerWebsite }}

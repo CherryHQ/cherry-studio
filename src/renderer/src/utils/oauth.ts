@@ -74,6 +74,35 @@ export const oauthWithTokenFlux = async () => {
   )
 }
 
+export const oauthWithNUWA = async (setKey) => {
+  const authUrl = `https://api.nuwaflux.com/oauth/client`
+
+  const popup = window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    // // 确保检查origin以确保安全性
+    if (event.origin !== 'https://api.nuwaflux.com') return
+    if (event.data.data?.length > 0) {
+      const keys = event.data.data
+      setKey('sk-' + keys[0])
+      // keys.forEach((item, index, array) => {
+      //   array[index] = 'sk-' + item
+      // })
+
+      // setKey(keys.join(','))
+      popup?.close()
+    }
+    window.removeEventListener('message', messageHandler)
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
 export const providerCharge = async (provider: string) => {
   const chargeUrlMap = {
     silicon: {
@@ -83,6 +112,11 @@ export const providerCharge = async (provider: string) => {
     },
     aihubmix: {
       url: `https://aihubmix.com/topup?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      width: 720,
+      height: 900
+    },
+    nuwa: {
+      url: `https://api.nuwaflux.com/console/topup`,
       width: 720,
       height: 900
     },
@@ -111,6 +145,11 @@ export const providerBills = async (provider: string) => {
     },
     aihubmix: {
       url: `https://aihubmix.com/statistics?client_id=cherry_studio_oauth&lang=${getLanguageCode()}&aff=SJyh`,
+      width: 900,
+      height: 700
+    },
+    nuwa: {
+      url: `https://api.nuwaflux.com/console/log`,
       width: 900,
       height: 700
     },

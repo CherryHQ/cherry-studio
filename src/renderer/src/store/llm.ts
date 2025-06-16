@@ -47,6 +47,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'nuwa',
+    name: 'NUWA',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.nuwaflux.com',
+    models: SYSTEM_MODELS.nuwa,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'ocoolai',
     name: 'ocoolAI',
     type: 'openai',
