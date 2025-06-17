@@ -2367,7 +2367,7 @@ export function isVisionModel(model: Model): boolean {
   // }
 
   if (model.provider === 'doubao') {
-    return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
+    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
