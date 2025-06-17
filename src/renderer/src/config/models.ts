@@ -184,7 +184,7 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-1.6-seed(?:-[\\w-]+)'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)'
 ]
 
 const visionExcludedModels = [
@@ -238,7 +238,8 @@ export const FUNCTION_CALLING_MODELS = [
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
-  'grok-3(?:-[\\w-]+)?'
+  'grok-3(?:-[\\w-]+)?',
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -2320,7 +2321,8 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-pro-preview-03-25',
   'gemini-2.5-pro-preview-05-06',
   'gemini-2.5-flash-preview',
-  'gemini-2.5-flash-preview-04-17'
+  'gemini-2.5-flash-preview-04-17',
+  'gemini-2.5-flash-preview-05-20'
 ]
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
@@ -2365,7 +2367,7 @@ export function isVisionModel(model: Model): boolean {
   // }
 
   if (model.provider === 'doubao') {
-    return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false
+    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
