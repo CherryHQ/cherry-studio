@@ -1596,6 +1596,18 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '114': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.exportMenuOptions) {
+        if (typeof state.settings.exportMenuOptions.plain_text === 'undefined') {
+          state.settings.exportMenuOptions.plain_text = true
+        }
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
