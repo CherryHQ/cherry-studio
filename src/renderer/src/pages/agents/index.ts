@@ -3,6 +3,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
 import { Agent } from '@renderer/types'
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 let _agents: Agent[] = []
 
@@ -22,6 +23,8 @@ export function useSystemAgents() {
   const [agents, setAgents] = useState<Agent[]>([])
   const { resourcesPath } = useRuntime()
   const { agentssubscribeUrl } = store.getState().settings
+  const { i18n } = useTranslation()
+  const currentLanguage = i18n.language
 
   useEffect(() => {
     const loadAgents = async () => {
@@ -44,9 +47,21 @@ export function useSystemAgents() {
         }
 
         // 如果没有远程配置或获取失败，加载本地代理
-        if (resourcesPath && _agents.length === 0) {
-          const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json', 'utf-8')
-          _agents = JSON.parse(localAgentsData) as Agent[]
+        if (resourcesPath) {
+          try {
+            let fileName = 'agents.json'
+            if (currentLanguage === 'zh-CN') {
+              fileName = 'agents-zh.json'
+            } else {
+              fileName = 'agents-en.json'
+            }
+
+            const localAgentsData = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
+            _agents = JSON.parse(localAgentsData) as Agent[]
+          } catch (error) {
+            const localAgentsData = await window.api.fs.read(resourcesPath + '/data/agents.json', 'utf-8')
+            _agents = JSON.parse(localAgentsData) as Agent[]
+          }
         }
 
         setAgents(_agents)
@@ -58,7 +73,7 @@ export function useSystemAgents() {
     }
 
     loadAgents()
-  }, [defaultAgent, resourcesPath, agentssubscribeUrl])
+  }, [defaultAgent, resourcesPath, agentssubscribeUrl, currentLanguage])
 
   return agents
 }
