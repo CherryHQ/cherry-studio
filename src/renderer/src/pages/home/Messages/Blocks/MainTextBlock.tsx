@@ -5,24 +5,13 @@ import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model, WebSearchSource } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
+import { cleanMarkdownContent, encodeHTML } from '@renderer/utils/formats'
 import { Flex } from 'antd'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import Markdown from '../../Markdown/Markdown'
-
-// HTML实体编码辅助函数
-const encodeHTML = (str: string): string => {
-  const entities: { [key: string]: string } = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&apos;'
-  }
-  return str.replace(/[&<>"']/g, (match) => entities[match])
-}
 
 interface Props {
   block: MainTextMessageBlock
@@ -37,9 +26,14 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
   // Use the passed citationBlockId directly in the selector
   const { renderInputMessageAsMarkdown } = useSettings()
 
-  const formattedCitations = useSelector((state: RootState) =>
-    selectFormattedCitationsByBlockId(state, citationBlockId)
-  )
+  const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
+
+  const formattedCitations = useMemo(() => {
+    return rawCitations.map((citation) => ({
+      ...citation,
+      content: citation.content ? cleanMarkdownContent(citation.content) : citation.content
+    }))
+  }, [rawCitations])
 
   const processedContent = useMemo(() => {
     let content = block.content
@@ -157,7 +151,9 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
         </Flex>
       )}
       {role === 'user' && !renderInputMessageAsMarkdown ? (
-        <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{block.content}</p>
+        <p className="markdown" style={{ whiteSpace: 'pre-wrap' }}>
+          {block.content}
+        </p>
       ) : (
         <Markdown block={{ ...block, content: ignoreToolUse }} />
       )}

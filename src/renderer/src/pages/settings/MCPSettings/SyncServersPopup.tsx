@@ -1,12 +1,14 @@
 import { TopView } from '@renderer/components/TopView'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
+import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
+import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
 // Provider configuration interface
 interface ProviderConfig {
@@ -33,6 +35,28 @@ const providers: ProviderConfig[] = [
     getToken: getModelScopeToken,
     saveToken: saveModelScopeToken,
     syncServers: syncModelScopeServers
+  },
+  {
+    key: 'tokenflux',
+    name: 'TokenFlux',
+    description: 'TokenFlux 平台 MCP 服务',
+    discoverUrl: `${TOKENFLUX_HOST}/mcps`,
+    apiKeyUrl: `${TOKENFLUX_HOST}/dashboard/api-keys`,
+    tokenFieldName: 'tokenfluxToken',
+    getToken: getTokenFluxToken,
+    saveToken: saveTokenFluxToken,
+    syncServers: syncTokenFluxServers
+  },
+  {
+    key: 'lanyun',
+    name: '蓝耘科技',
+    description: '蓝耘科技云平台 MCP 服务',
+    discoverUrl: 'https://mcp.lanyun.net',
+    apiKeyUrl: LANYUN_KEY_HOST,
+    tokenFieldName: 'tokenLanyunToken',
+    getToken: getTokenLanYunToken,
+    saveToken: saveTokenLanYunToken,
+    syncServers: syncTokenLanYunServers
   }
 ]
 
@@ -83,7 +107,10 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       // Save token if present
       if (token) {
         selectedProvider.saveToken(token)
-        setTokens((prev) => ({ ...prev, [selectedProvider.tokenFieldName]: token }))
+        setTokens((prev) => ({
+          ...prev,
+          [selectedProvider.tokenFieldName]: token
+        }))
       }
 
       // Sync servers
@@ -196,11 +223,19 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
                 <StepTitle>{t('settings.mcp.sync.setToken', 'Enter Your Token')}</StepTitle>
                 <Form.Item
                   name={selectedProvider.tokenFieldName}
-                  rules={[{ required: true, message: t('settings.mcp.sync.tokenRequired', 'API Token is required') }]}>
+                  rules={[
+                    {
+                      required: true,
+                      message: t('settings.mcp.sync.tokenRequired', 'API Token is required')
+                    }
+                  ]}>
                   <Input.Password
                     placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
                     onChange={(e) => {
-                      setTokens((prev) => ({ ...prev, [selectedProvider.tokenFieldName]: e.target.value }))
+                      setTokens((prev) => ({
+                        ...prev,
+                        [selectedProvider.tokenFieldName]: e.target.value
+                      }))
                     }}
                   />
                 </Form.Item>

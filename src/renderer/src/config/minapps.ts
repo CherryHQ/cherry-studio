@@ -18,6 +18,7 @@ import FlowithAppLogo from '@renderer/assets/images/apps/flowith.svg?url'
 import GeminiAppLogo from '@renderer/assets/images/apps/gemini.png?url'
 import GensparkLogo from '@renderer/assets/images/apps/genspark.jpg?url'
 import GithubCopilotLogo from '@renderer/assets/images/apps/github-copilot.webp?url'
+import GoogleAppLogo from '@renderer/assets/images/apps/google.svg?url'
 import GrokAppLogo from '@renderer/assets/images/apps/grok.png?url'
 import GrokXAppLogo from '@renderer/assets/images/apps/grok-x.png?url'
 import HikaLogo from '@renderer/assets/images/apps/hika.webp?url'
@@ -163,8 +164,9 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   {
     id: 'minimax',
     name: '海螺',
-    url: 'https://hailuoai.com/',
-    logo: HailuoModelLogo
+    url: 'https://chat.minimaxi.com/',
+    logo: HailuoModelLogo,
+    bodered: true
   },
   {
     id: 'groq',
@@ -177,6 +179,16 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Claude',
     url: 'https://claude.ai/',
     logo: ClaudeAppLogo
+  },
+  {
+    id: 'google',
+    name: 'Google',
+    url: 'https://google.com/',
+    logo: GoogleAppLogo,
+    bodered: true,
+    style: {
+      padding: 5
+    }
   },
   {
     id: 'baidu-ai-chat',

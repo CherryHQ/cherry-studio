@@ -32,6 +32,22 @@ const initialState: ShortcutsState = {
       system: true
     },
     {
+      //enable/disable selection assistant
+      key: 'selection_assistant_toggle',
+      shortcut: [],
+      editable: true,
+      enabled: false,
+      system: true
+    },
+    {
+      //to select text with selection assistant
+      key: 'selection_assistant_select_text',
+      shortcut: [],
+      editable: true,
+      enabled: false,
+      system: true
+    },
+    {
       key: 'new_topic',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'N'],
       editable: true,
@@ -45,6 +61,7 @@ const initialState: ShortcutsState = {
       enabled: true,
       system: false
     },
+
     {
       key: 'toggle_show_topics',
       shortcut: [isMac ? 'Command' : 'Ctrl', ']'],
@@ -60,8 +77,15 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
-      key: 'search_message',
+      key: 'search_message_in_chat',
       shortcut: [isMac ? 'Command' : 'Ctrl', 'F'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'search_message',
+      shortcut: [isMac ? 'Command' : 'Ctrl', 'Shift', 'F'],
       editable: true,
       enabled: true,
       system: false
@@ -79,6 +103,13 @@ const initialState: ShortcutsState = {
       editable: true,
       enabled: true,
       system: false
+    },
+    {
+      key: 'exit_fullscreen',
+      shortcut: ['Escape'],
+      editable: false,
+      enabled: true,
+      system: true
     }
   ]
 }

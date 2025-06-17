@@ -37,6 +37,14 @@ yarn install
 yarn dev
 ```
 
+### Debug
+
+```bash
+yarn debug
+```
+
+Then input chrome://inspect in browser
+
 ### Test
 
 ```bash

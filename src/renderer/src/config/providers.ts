@@ -1,12 +1,15 @@
 import ZhinaoProviderLogo from '@renderer/assets/images/models/360.png'
 import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
+import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import BaichuanProviderLogo from '@renderer/assets/images/providers/baichuan.png'
 import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-cloud.svg'
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
+import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
+import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -19,6 +22,7 @@ import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
+import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
@@ -37,13 +41,18 @@ import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.p
 import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
+import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 
+import { TOKENFLUX_HOST } from './constant'
+
 const PROVIDER_LOGO_MAP = {
+  '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
   silicon: SiliconFlowProviderLogo,
   deepseek: DeepSeekProviderLogo,
@@ -61,6 +70,7 @@ const PROVIDER_LOGO_MAP = {
   xirang: XirangProviderLogo,
   anthropic: AnthropicProviderLogo,
   aihubmix: AiHubMixProviderLogo,
+  burncloud: BurnCloudProviderLogo,
   gemini: GoogleProviderLogo,
   stepfun: StepProviderLogo,
   doubao: BytedanceProviderLogo,
@@ -88,7 +98,11 @@ const PROVIDER_LOGO_MAP = {
   gpustack: GPUStackProviderLogo,
   alayanew: AlayaNewProviderLogo,
   voyageai: VoyageAIProviderLogo,
-  qiniu: QiniuProviderLogo
+  qiniu: QiniuProviderLogo,
+  tokenflux: TokenFluxProviderLogo,
+  cephalon: CephalonProviderLogo,
+  lanyun: LanyunProviderLogo,
+  vertexai: VertexAIProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -97,8 +111,20 @@ export function getProviderLogo(providerId: string) {
 
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
 export const NOT_SUPPORTED_REANK_PROVIDERS = ['ollama']
+export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini']
 
 export const PROVIDER_CONFIG = {
+  '302ai': {
+    api: {
+      url: 'https://api.302.ai'
+    },
+    websites: {
+      official: 'https://302.ai',
+      apiKey: 'https://dash.302.ai/apis/list',
+      docs: 'https://302ai.apifox.cn/api-147522039',
+      models: 'https://302.ai/pricing/'
+    }
+  },
   openai: {
     api: {
       url: 'https://api.openai.com'
@@ -117,8 +143,19 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://o3.fan',
       apiKey: 'https://o3.fan/token',
-      docs: 'https://docs.o3.fan',
-      models: 'https://docs.o3.fan/models'
+      docs: '',
+      models: 'https://o3.fan/info/models/'
+    }
+  },
+  burncloud: {
+    api: {
+      url: 'https://ai.burncloud.com'
+    },
+    websites: {
+      official: 'https://ai.burncloud.com/',
+      apiKey: 'https://ai.burncloud.com/token',
+      docs: 'https://ai.burncloud.com/docs',
+      models: 'https://ai.burncloud.com/pricing'
     }
   },
   ppio: {
@@ -126,11 +163,10 @@ export const PROVIDER_CONFIG = {
       url: 'https://api.ppinfra.com/v3/openai'
     },
     websites: {
-      official: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      apiKey: 'https://ppinfra.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      official: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
+      apiKey: 'https://ppio.cn/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio',
       docs: 'https://docs.cherry-ai.com/pre-basic/providers/ppio?invited_by=JYT9GD&utm_source=github_cherry-studio',
-      models:
-        'https://ppinfra.com/model-api/product/llm-api?utm_source=github_cherry-studio&utm_medium=github_readme&utm_campaign=link'
+      models: 'https://ppio.cn/model-api/product/llm-api?invited_by=JYT9GD&utm_source=github_cherry-studio'
     }
   },
   gemini: {
@@ -152,7 +188,7 @@ export const PROVIDER_CONFIG = {
       official: 'https://www.siliconflow.cn',
       apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
       docs: 'https://docs.siliconflow.cn/',
-      models: 'https://docs.siliconflow.cn/docs/model-names'
+      models: 'https://cloud.siliconflow.cn/models'
     }
   },
   'gitee-ai': {
@@ -377,7 +413,7 @@ export const PROVIDER_CONFIG = {
       official: 'https://openrouter.ai/',
       apiKey: 'https://openrouter.ai/settings/keys',
       docs: 'https://openrouter.ai/docs/quick-start',
-      models: 'https://openrouter.ai/docs/models'
+      models: 'https://openrouter.ai/models'
     }
   },
   groq: {
@@ -429,7 +465,7 @@ export const PROVIDER_CONFIG = {
     websites: {
       official: 'https://x.ai/',
       docs: 'https://docs.x.ai/',
-      models: 'https://docs.x.ai/docs#getting-started'
+      models: 'https://docs.x.ai/docs/models'
     }
   },
   hyperbolic: {
@@ -583,6 +619,50 @@ export const PROVIDER_CONFIG = {
       apiKey: 'https://portal.qiniu.com/ai-inference/api-key?cps_key=1h4vzfbkxobiq',
       docs: 'https://developer.qiniu.com/aitokenapi',
       models: 'https://developer.qiniu.com/aitokenapi/12883/model-list'
+    }
+  },
+  tokenflux: {
+    api: {
+      url: TOKENFLUX_HOST
+    },
+    websites: {
+      official: TOKENFLUX_HOST,
+      apiKey: `${TOKENFLUX_HOST}/dashboard/api-keys`,
+      docs: `${TOKENFLUX_HOST}/docs`,
+      models: `${TOKENFLUX_HOST}/models`
+    }
+  },
+  cephalon: {
+    api: {
+      url: 'https://cephalon.cloud/user-center/v1/model'
+    },
+    websites: {
+      official: 'https://cephalon.cloud/share/register-landing?invite_id=jSdOYA',
+      apiKey: 'https://cephalon.cloud/api',
+      docs: 'https://cephalon.cloud/apitoken/1864244127731589124',
+      models: 'https://cephalon.cloud/model'
+    }
+  },
+  lanyun: {
+    api: {
+      url: 'https://maas-api.lanyun.net'
+    },
+    websites: {
+      official: 'https://lanyun.net',
+      apiKey: 'https://maas.lanyun.net/api/#/system/apiKey',
+      docs: 'https://archive.lanyun.net/maas/doc/',
+      models: 'https://maas.lanyun.net/api/#/model/modelSquare'
+    }
+  },
+  vertexai: {
+    api: {
+      url: 'https://console.cloud.google.com/apis/api/aiplatform.googleapis.com/overview'
+    },
+    websites: {
+      official: 'https://cloud.google.com/vertex-ai',
+      apiKey: 'https://console.cloud.google.com/apis/credentials',
+      docs: 'https://cloud.google.com/vertex-ai/generative-ai/docs',
+      models: 'https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models'
     }
   }
 }

@@ -1,14 +1,15 @@
+import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
+import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
-import { isOpenAIProvider } from '@renderer/providers/AiProvider/ProviderFactory'
 import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/HealthCheckService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
-import { formatApiHost } from '@renderer/utils/api'
+import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
@@ -28,6 +29,7 @@ import {
   SettingTitle
 } from '..'
 import ApiKeyList from './ApiKeyList'
+import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import HealthCheckPopup from './HealthCheckPopup'
@@ -36,6 +38,7 @@ import ModelList, { ModelStatus } from './ModelList'
 import ModelListSearchBar from './ModelListSearchBar'
 import ProviderOAuth from './ProviderOAuth'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
+import VertexAISettings from './VertexAISettings'
 
 interface Props {
   provider: Provider
@@ -55,6 +58,8 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const { theme } = useTheme()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
+
+  const isDmxapi = provider.id === 'dmxapi'
 
   const providerConfig = PROVIDER_CONFIG[provider.id]
   const officialWebsite = providerConfig?.websites?.official
@@ -107,10 +112,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       return
     }
 
-    const keys = apiKey
-      .split(',')
-      .map((k) => k.trim())
-      .filter((k) => k)
+    const keys = splitApiKeyString(apiKey)
 
     // Add an empty key to enable health checks for local models.
     // Error messages will be shown for each model if a valid key is needed.
@@ -237,44 +239,67 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
         />
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {isProviderSupportAuth(provider) && <ProviderOAuth provider={provider} setApiKey={handleApiKeyChange} />}
-      <SettingSubtitle style={{ marginBottom: 5 }}>
-        <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-        </Space>
-      </SettingSubtitle>
-      <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
-      {apiKeyWebsite && (
-        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.provider.get_api_key')}
-            </SettingHelpLink>
-          </HStack>
-        </SettingHelpTextRow>
-      )}
-      <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input
-          value={apiHost}
-          placeholder={t('settings.provider.api_host')}
-          onChange={(e) => setApiHost(e.target.value)}
-          onBlur={onUpdateApiHost}
+      {isProviderSupportAuth(provider) && (
+        <ProviderOAuth
+          provider={provider}
+          setApiKey={(v) => {
+            setApiKey(v)
+            updateProvider({ ...provider, apiKey: v })
+          }}
         />
-        {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-          <Button danger onClick={onReset}>
-            {t('settings.provider.api.url.reset')}
-          </Button>
-        )}
-      </Space.Compact>
-      {isOpenAIProvider(provider) && (
-        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <SettingHelpText
-            style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
-            {hostPreview()}
-          </SettingHelpText>
-          <SettingHelpText style={{ minWidth: 'fit-content' }}>{t('settings.provider.api.url.tip')}</SettingHelpText>
-        </SettingHelpTextRow>
+      )}
+      {provider.id === 'openai' && <OpenAIAlert />}
+      {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
+      {provider.id !== 'vertexai' && (
+        <>
+          <SettingSubtitle style={{ marginBottom: 5 }}>
+            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+              <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+            </Space>
+          </SettingSubtitle>
+          <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
+          {apiKeyWebsite && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+              <HStack>
+                {!isDmxapi && (
+                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                    {t('settings.provider.get_api_key')}
+                  </SettingHelpLink>
+                )}
+              </HStack>
+              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+            </SettingHelpTextRow>
+          )}
+          {!isDmxapi && (
+            <>
+              <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+              <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                <Input
+                  value={apiHost}
+                  placeholder={t('settings.provider.api_host')}
+                  onChange={(e) => setApiHost(e.target.value)}
+                  onBlur={onUpdateApiHost}
+                />
+                {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
+                  <Button danger onClick={onReset}>
+                    {t('settings.provider.api.url.reset')}
+                  </Button>
+                )}
+              </Space.Compact>
+              {isOpenAIProvider(provider) && (
+                <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                  <SettingHelpText
+                    style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                    {hostPreview()}
+                  </SettingHelpText>
+                  <SettingHelpText style={{ minWidth: 'fit-content' }}>
+                    {t('settings.provider.api.url.tip')}
+                  </SettingHelpText>
+                </SettingHelpTextRow>
+              )}
+            </>
+          )}
+        </>
       )}
       {isAzureOpenAI && (
         <>
@@ -292,9 +317,10 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
+      {provider.id === 'vertexai' && <VertexAISettings />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <HStack alignItems="center" gap={5}>
+          <HStack alignItems="center" gap={8} mb={5}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {!isEmpty(models) && <ModelListSearchBar onSearch={setModelSearchText} />}
           </HStack>

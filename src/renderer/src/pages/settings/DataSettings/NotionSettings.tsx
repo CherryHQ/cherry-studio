@@ -6,12 +6,11 @@ import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
   setNotionApiKey,
-  setNotionAutoSplit,
   setNotionDatabaseID,
-  setNotionPageNameKey,
-  setNotionSplitSize
+  setNotionExportReasoning,
+  setNotionPageNameKey
 } from '@renderer/store/settings'
-import { Button, InputNumber, Switch, Tooltip } from 'antd'
+import { Button, Switch, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,8 +26,7 @@ const NotionSettings: FC = () => {
   const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
   const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
   const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
-  const notionAutoSplit = useSelector((state: RootState) => state.settings.notionAutoSplit)
-  const notionSplitSize = useSelector((state: RootState) => state.settings.notionSplitSize)
+  const notionExportReasoning = useSelector((state: RootState) => state.settings.notionExportReasoning)
 
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     dispatch(setNotionApiKey(e.target.value))
@@ -76,14 +74,8 @@ const NotionSettings: FC = () => {
     })
   }
 
-  const handleNotionAutoSplitChange = (checked: boolean) => {
-    dispatch(setNotionAutoSplit(checked))
-  }
-
-  const handleNotionSplitSizeChange = (value: number | null) => {
-    if (value !== null) {
-      dispatch(setNotionSplitSize(value))
-    }
+  const handleNotionExportReasoningChange = (checked: boolean) => {
+    dispatch(setNotionExportReasoning(checked))
   }
 
   return (
@@ -140,38 +132,14 @@ const NotionSettings: FC = () => {
           <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
         </HStack>
       </SettingRow>
-      <SettingDivider /> {/* 添加分割线 */}
+      <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>
-          <Tooltip title={t('settings.data.notion.auto_split_tip')} placement="right">
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {t('settings.data.notion.auto_split')}
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </span>
-          </Tooltip>
-        </SettingRowTitle>
-        <Switch checked={notionAutoSplit} onChange={handleNotionAutoSplitChange} />
+        <SettingRowTitle>{t('settings.data.notion.export_reasoning.title')}</SettingRowTitle>
+        <Switch checked={notionExportReasoning} onChange={handleNotionExportReasoningChange} />
       </SettingRow>
-      {notionAutoSplit && (
-        <>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.notion.split_size')}</SettingRowTitle>
-            <InputNumber
-              min={30}
-              max={25000}
-              value={notionSplitSize}
-              onChange={handleNotionSplitSizeChange}
-              keyboard={true}
-              controls={true}
-              style={{ width: 120 }}
-            />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText style={{ marginLeft: 10 }}>{t('settings.data.notion.split_size_help')}</SettingHelpText>
-          </SettingRow>
-        </>
-      )}
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.notion.export_reasoning.help')}</SettingHelpText>
+      </SettingRow>
     </SettingGroup>
   )
 }

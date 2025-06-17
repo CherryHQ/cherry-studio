@@ -14,7 +14,7 @@ import { checkApi, formatApiKeys } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
-import { maskApiKey } from '@renderer/utils/api'
+import { maskApiKey, splitApiKeyString } from '@renderer/utils/api'
 import { Button, Card, Flex, Input, List, message, Space, Tooltip, Typography } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -48,11 +48,7 @@ const STATUS_COLORS = {
 const formatAndConvertKeysToArray = (apiKeys: string): KeyStatus[] => {
   const formattedApiKeys = formatApiKeys(apiKeys)
   if (formattedApiKeys.includes(',')) {
-    const keys = formattedApiKeys
-      .split(/(?<!\\),/)
-      .map((k) => k.trim())
-      .map((k) => k.replace(/\\,/g, ','))
-      .filter((k) => k)
+    const keys = splitApiKeyString(formattedApiKeys)
     const uniqueKeys = new Set(keys)
     return Array.from(uniqueKeys).map((key) => ({ key }))
   } else {
@@ -164,7 +160,6 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
 
     try {
       let latency: number
-      let result: { valid: boolean; error?: any }
       let model: Model | undefined
 
       if (type === 'provider') {
@@ -179,27 +174,24 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         model = selectedModelForCheck
 
         const startTime = Date.now()
-        result = await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
+        await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
         latency = Date.now() - startTime
       } else {
         const startTime = Date.now()
-        result = await WebSearchService.checkSearch({
+        await WebSearchService.checkSearch({
           ...(provider as WebSearchProvider),
           apiKey: keyStatuses[keyIndex].key
         })
         latency = Date.now() - startTime
       }
 
-      const { valid, error } = result
-      const errorMessage = error?.message ? ' ' + error.message : ''
-
       // Only show notification when checking a single key
       if (!isCheckingAll) {
-        window.message[valid ? 'success' : 'error']({
+        window.message.success({
           key: 'api-check',
           style: { marginTop: '3vh' },
-          duration: valid ? 2 : 8,
-          content: valid ? t('settings.websearch.check_success') : t('settings.websearch.check_failed') + errorMessage
+          duration: 2,
+          content: t('message.api.connection.success')
         })
       }
 
@@ -209,15 +201,25 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
             ? {
                 ...status,
                 checking: false,
-                isValid: valid,
-                error: error?.message,
+                isValid: true,
                 model: selectedModel || model,
                 latency
               }
             : status
         )
       )
-    } catch (error) {
+    } catch (error: any) {
+      // Only show notification when checking a single key
+      if (!isCheckingAll) {
+        const errorMessage = error?.message ? ' ' + error.message : ''
+        window.message.error({
+          key: 'api-check',
+          style: { marginTop: '3vh' },
+          duration: 8,
+          content: t('message.api.connection.failed') + errorMessage
+        })
+      }
+
       setKeyStatuses((prev) =>
         prev.map((status, idx) =>
           idx === keyIndex

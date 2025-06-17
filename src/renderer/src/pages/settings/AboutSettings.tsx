@@ -10,9 +10,9 @@ import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Progress, Row, Switch, Tag } from 'antd'
+import { Avatar, Button, Progress, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
-import { FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
+import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
@@ -25,7 +25,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -69,6 +69,10 @@ const AboutSettings: FC = () => {
     onOpenWebsite(url)
   }
 
+  const debug = async () => {
+    await window.api.devTools.toggle()
+  }
+
   const showLicense = async () => {
     const { appPath } = await window.api.getAppInfo()
     openMinapp({
@@ -97,7 +101,9 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-  }, [])
+    setEarlyAccess(earlyAccess)
+    setAutoCheckUpdate(autoCheckUpdate)
+  }, [autoCheckUpdate, earlyAccess, setAutoCheckUpdate, setEarlyAccess])
 
   return (
     <SettingContainer theme={theme}>
@@ -156,6 +162,13 @@ const AboutSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
               <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+            </SettingRow>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
+              <Tooltip title={t('settings.general.early_access.tooltip')} trigger={['hover', 'focus']}>
+                <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
+              </Tooltip>
             </SettingRow>
           </>
         )}
@@ -218,6 +231,14 @@ const AboutSettings: FC = () => {
             {t('settings.about.contact.title')}
           </SettingRowTitle>
           <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>
+            <Bug size={18} />
+            {t('settings.about.debug.title')}
+          </SettingRowTitle>
+          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

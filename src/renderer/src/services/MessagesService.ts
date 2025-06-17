@@ -41,9 +41,9 @@ export {
 
 export function getContextCount(assistant: Assistant, messages: Message[]) {
   const rawContextCount = assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT
-  const maxContextCount = rawContextCount === 20 ? 100000 : rawContextCount
+  const maxContextCount = rawContextCount === 100 ? 100000 : rawContextCount
 
-  const _messages = rawContextCount === 20 ? takeRight(messages, 1000) : takeRight(messages, maxContextCount)
+  const _messages = takeRight(messages, maxContextCount)
 
   const clearIndex = _messages.findLastIndex((message) => message.type === 'clear')
 
@@ -129,7 +129,8 @@ export function getUserMessage({
   const blocks: MessageBlock[] = []
   const blockIds: string[] = []
 
-  if (content?.trim()) {
+  // 内容为空也应该创建空文本块
+  if (content !== undefined) {
     // Pass messageId when creating blocks
     const textBlock = createMainTextBlock(messageId, content, {
       status: MessageBlockStatus.SUCCESS,
@@ -213,12 +214,15 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
-      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
+      window.message.loading({
+        content: t('chat.topics.export.wait_for_title_naming'),
+        key: 'message-title-naming',
+        duration: 0
+      })
 
-      const tempTextBlock = createMainTextBlock(message.id, content, { status: MessageBlockStatus.SUCCESS })
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
-        blocks: [tempTextBlock.id]
+        blocks: message.blocks
       })
 
       const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
@@ -226,7 +230,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 
       // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
-
+      window.message.destroy('message-title-naming')
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title

@@ -1,3 +1,4 @@
+import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -16,10 +17,13 @@ import { CSSProperties, FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import MessageTokens from './MessageTokens'
+
 interface Props {
   message: Message
   assistant: Assistant
   model?: Model
+  index: number | undefined
 }
 
 const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
@@ -27,7 +31,7 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
   return modelId ? getModelLogo(modelId) : undefined
 }
 
-const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
+const MessageHeader: FC<Props> = memo(({ assistant, model, message, index }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const { userName, sidebarIcons } = useSettings()
@@ -51,9 +55,11 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
 
   const isAssistantMessage = message.role === 'assistant'
   const showMinappIcon = sidebarIcons.visible.includes('minapp')
+  const { showTokens } = useSettings()
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
+  const isLastMessage = index === 0
 
   const showMiniApp = useCallback(() => {
     showMinappIcon && model?.provider && openMinappById(model.provider)
@@ -68,8 +74,14 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
       }
     : undefined
 
+  const containerStyle = isBubbleStyle
+    ? {
+        justifyContent: isAssistantMessage ? 'flex-start' : 'flex-end'
+      }
+    : undefined
+
   return (
-    <Container className="message-header">
+    <Container className="message-header" style={containerStyle}>
       <AvatarWrapper style={avatarStyle}>
         {isAssistantMessage ? (
           <Avatar
@@ -87,7 +99,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
         ) : (
           <>
             {isEmoji(avatar) ? (
-              <EmojiAvatar onClick={() => UserPopup.show()}>{avatar}</EmojiAvatar>
+              <EmojiAvatar onClick={() => UserPopup.show()} size={35} fontSize={20}>
+                {avatar}
+              </EmojiAvatar>
             ) : (
               <Avatar
                 src={avatar}
@@ -102,7 +116,14 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>
-          <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+          <InfoWrap
+            style={{
+              flexDirection: !isAssistantMessage && isBubbleStyle ? 'row-reverse' : undefined
+            }}>
+            <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+            {showTokens && <DividerContainer style={{ color: 'var(--color-text-3)' }}> | </DividerContainer>}
+            <MessageTokens message={message} isLastMessage={isLastMessage} />
+          </InfoWrap>
         </UserWrap>
       </AvatarWrapper>
     </Container>
@@ -110,20 +131,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message }) => {
 })
 
 MessageHeader.displayName = 'MessageHeader'
-
-const EmojiAvatar = styled.div`
-  width: 35px;
-  height: 35px;
-  background-color: var(--color-background-soft);
-  border-radius: 20%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  cursor: pointer;
-  border: 0.5px solid var(--color-border);
-  font-size: 20px;
-`
 
 const Container = styled.div`
   display: flex;
@@ -145,6 +152,19 @@ const UserWrap = styled.div`
   justify-content: space-between;
 `
 
+const InfoWrap = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+`
+
+const DividerContainer = styled.div`
+  font-size: 10px;
+  color: var(--color-text-3);
+  margin: 0 2px;
+`
+
 const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
   font-size: 14px;
   font-weight: 600;
@@ -154,7 +174,6 @@ const UserName = styled.div<{ isBubbleStyle?: boolean; theme?: string }>`
 const MessageTime = styled.div`
   font-size: 10px;
   color: var(--color-text-3);
-  font-family: 'Ubuntu';
 `
 
 export default MessageHeader

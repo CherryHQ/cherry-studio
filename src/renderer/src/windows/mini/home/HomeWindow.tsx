@@ -1,14 +1,16 @@
 import { isMac } from '@renderer/config/constant'
+import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getDefaultAssistant, getDefaultModel } from '@renderer/services/AssistantService'
+import { getAssistantById } from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store from '@renderer/store'
+import store, { useAppSelector } from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
+import { Assistant, ThemeMode } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
@@ -35,19 +37,24 @@ const HomeWindow: FC = () => {
   const [isFirstMessage, setIsFirstMessage] = useState(true)
   const [clipboardText, setClipboardText] = useState('')
   const [selectedText, setSelectedText] = useState('')
+  const [currentAssistant, setCurrentAssistant] = useState<Assistant>({} as Assistant)
   const [text, setText] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
   const { defaultAssistant } = useDefaultAssistant()
   const topic = defaultAssistant.topics[0]
-  const { defaultModel: model } = useDefaultModel()
-  const { language, readClipboardAtStartup, windowStyle, theme } = useSettings()
+  const { defaultModel } = useDefaultModel()
+  const model = currentAssistant.model || defaultModel
+  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { theme } = useTheme()
   const { t } = useTranslation()
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
   const referenceText = selectedText || clipboardText || text
 
   const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
+
+  const { quickAssistantId } = useAppSelector((state) => state.llm)
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -90,6 +97,9 @@ const HomeWindow: FC = () => {
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
     // 输入法可以`Esc`终止候选词过程
     // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
+    if (e.nativeEvent.isComposing) {
+      return
+    }
     if (e.key === 'Process') {
       return
     }
@@ -150,16 +160,36 @@ const HomeWindow: FC = () => {
     setText(e.target.value)
   }
 
+  useEffect(() => {
+    const defaultCurrentAssistant = {
+      ...defaultAssistant,
+      model: defaultModel
+    }
+
+    if (quickAssistantId) {
+      // 獲取指定助手，如果不存在則使用默認助手
+      const assistantFromId = getAssistantById(quickAssistantId)
+      const currentAssistant = assistantFromId || defaultCurrentAssistant
+      // 如果助手本身沒有設定模型，則使用預設模型
+      if (!currentAssistant.model) {
+        currentAssistant.model = defaultModel
+      }
+      setCurrentAssistant(currentAssistant)
+    } else {
+      setCurrentAssistant(defaultCurrentAssistant)
+    }
+  }, [quickAssistantId, defaultAssistant, defaultModel])
+
   const onSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(content)) {
         return
       }
-
+      const topic = currentAssistant.topics[0]
       const messageParams = {
         role: 'user',
-        content: prompt ? `${prompt}\n\n${content}` : content,
-        assistant: defaultAssistant,
+        content: [prompt, content].filter(Boolean).join('\n\n'),
+        assistant: currentAssistant,
         topic,
         createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
         status: 'success'
@@ -170,7 +200,7 @@ const HomeWindow: FC = () => {
       store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
       store.dispatch(upsertManyBlocks(blocks))
 
-      const assistant = getDefaultAssistant()
+      const assistant = currentAssistant
       let blockId: string | null = null
       let blockContent: string = ''
 
@@ -179,7 +209,7 @@ const HomeWindow: FC = () => {
 
       fetchChatCompletion({
         messages: [userMessage],
-        assistant: { ...assistant, model: getDefaultModel() },
+        assistant: { ...assistant, settings: { streamOutput: true } },
         onChunkReceived: (chunk: Chunk) => {
           if (chunk.type === ChunkType.TEXT_DELTA) {
             blockContent += chunk.text
@@ -216,7 +246,7 @@ const HomeWindow: FC = () => {
       setIsFirstMessage(false)
       setText('') // ✅ 清除输入框内容
     },
-    [content, defaultAssistant, topic]
+    [content, currentAssistant, topic]
   )
 
   const clearClipboard = () => {
@@ -253,12 +283,7 @@ const HomeWindow: FC = () => {
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
     // because the dark style under mac's vibrancy effect has not been implemented
-    if (
-      isMac &&
-      windowStyle === 'transparent' &&
-      theme === 'light' &&
-      !window.matchMedia('(prefers-color-scheme: dark)').matches
-    ) {
+    if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
 
@@ -274,7 +299,11 @@ const HomeWindow: FC = () => {
               text={text}
               model={model}
               referenceText={referenceText}
-              placeholder={t('miniwindow.input.placeholder.empty', { model: model.name })}
+              placeholder={
+                quickAssistantId
+                  ? t('miniwindow.input.placeholder.empty', { model: currentAssistant.name })
+                  : t('miniwindow.input.placeholder.empty', { model: model.name })
+              }
               handleKeyDown={handleKeyDown}
               handleChange={handleChange}
               ref={inputBarRef}
@@ -287,7 +316,7 @@ const HomeWindow: FC = () => {
             <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
           </div>
         )}
-        <ChatWindow route={route} assistant={defaultAssistant} />
+        <ChatWindow route={route} assistant={currentAssistant ?? defaultAssistant} />
         <Divider style={{ margin: '10px 0' }} />
         <Footer route={route} onExit={() => setRoute('home')} />
       </Container>
@@ -313,7 +342,9 @@ const HomeWindow: FC = () => {
         placeholder={
           referenceText && route === 'home'
             ? t('miniwindow.input.placeholder.title')
-            : t('miniwindow.input.placeholder.empty', { model: model.name })
+            : quickAssistantId
+              ? t('miniwindow.input.placeholder.empty', { model: currentAssistant.name })
+              : t('miniwindow.input.placeholder.empty', { model: model.name })
         }
         handleKeyDown={handleKeyDown}
         handleChange={handleChange}

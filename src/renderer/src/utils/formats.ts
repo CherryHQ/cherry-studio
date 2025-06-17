@@ -2,6 +2,40 @@ import type { Message } from '@renderer/types/newMessage'
 
 import { findImageBlocks, getMainTextContent } from './messageUtils/find'
 
+/**
+ * HTML实体编码辅助函数
+ * @param str 输入字符串
+ * @returns string 编码后的字符串
+ */
+export const encodeHTML = (str: string) => {
+  return str.replace(/[&<>"']/g, (match) => {
+    const entities: { [key: string]: string } = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&apos;'
+    }
+    return entities[match]
+  })
+}
+
+/**
+ * 清理Markdown内容
+ * @param text 要清理的文本
+ * @returns 清理后的文本
+ */
+export function cleanMarkdownContent(text: string): string {
+  if (!text) return ''
+  let cleaned = text.replace(/!\[.*?]\(.*?\)/g, '') // 移除图片
+  cleaned = cleaned.replace(/\[(.*?)]\(.*?\)/g, '$1') // 替换链接为纯文本
+  cleaned = cleaned.replace(/https?:\/\/\S+/g, '') // 移除URL
+  cleaned = cleaned.replace(/[-—–_=+]{3,}/g, ' ') // 替换分隔符为空格
+  cleaned = cleaned.replace(/[￥$€£¥%@#&*^()[\]{}<>~`'"\\|/_.]+/g, '') // 移除特殊字符
+  cleaned = cleaned.replace(/\s+/g, ' ').trim() // 规范化空白
+  return cleaned
+}
+
 export function escapeDollarNumber(text: string) {
   let escapedText = ''
 
@@ -20,7 +54,7 @@ export function escapeDollarNumber(text: string) {
 }
 
 export function escapeBrackets(text: string) {
-  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\\]|\\\((.*?)\\\)/g
+  const pattern = /(```[\s\S]*?```|`.*?`)|\\\[([\s\S]*?[^\\])\\]|\\\((.*?)\\\)/g
   return text.replace(pattern, (match, codeBlock, squareBracket, roundBracket) => {
     if (codeBlock) {
       return codeBlock
@@ -38,6 +72,8 @@ $$
 }
 
 export function extractTitle(html: string): string | null {
+  if (!html) return null
+
   // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
   const match = html.match(titleRegex)
@@ -102,7 +138,7 @@ export function withGenerateImage(message: Message): { content: string; images?:
   const originalContent = getMainTextContent(message)
   const imagePattern = new RegExp(`!\\[[^\\]]*\\]\\((.*?)\\s*("(?:.*[^"])")?\\s*\\)`)
   const images: string[] = []
-  let processedContent = originalContent
+  let processedContent: string
 
   processedContent = originalContent.replace(imagePattern, (_, url) => {
     if (url) {
@@ -142,4 +178,13 @@ export function addImageFileToContents(messages: Message[]) {
   }
 
   return messages.map((message) => (message.id === lastAssistantMessage.id ? updatedAssistantMessage : message))
+}
+
+export function formatQuotedText(text: string) {
+  return (
+    text
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n') + '\n-------------'
+  )
 }

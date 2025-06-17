@@ -1,54 +1,76 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { EventEmitter } from '@renderer/services/EventService'
 import { ThemeMode } from '@renderer/types'
-import { loadScript, runAsyncFunction } from '@renderer/utils'
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
+
+// 跟踪 mermaid 模块状态，单例模式
+let mermaidModule: any = null
+let mermaidLoading = false
+let mermaidLoadPromise: Promise<any> | null = null
+
+/**
+ * 导入 mermaid 库
+ */
+const loadMermaidModule = async () => {
+  if (mermaidModule) return mermaidModule
+  if (mermaidLoading && mermaidLoadPromise) return mermaidLoadPromise
+
+  mermaidLoading = true
+  mermaidLoadPromise = import('mermaid')
+    .then((module) => {
+      mermaidModule = module.default || module
+      mermaidLoading = false
+      return mermaidModule
+    })
+    .catch((error) => {
+      mermaidLoading = false
+      throw error
+    })
+
+  return mermaidLoadPromise
+}
 
 export const useMermaid = () => {
   const { theme } = useTheme()
-  const mermaidLoaded = useRef(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
+  // 初始化 mermaid 并监听主题变化
   useEffect(() => {
-    runAsyncFunction(async () => {
-      if (!window.mermaid) {
-        await loadScript('https://unpkg.com/mermaid@11.6.0/dist/mermaid.min.js')
-      }
+    let mounted = true
 
-      if (!mermaidLoaded.current) {
-        await window.mermaid.initialize({
-          startOnLoad: false,
+    const initialize = async () => {
+      try {
+        setIsLoading(true)
+
+        const mermaid = await loadMermaidModule()
+
+        if (!mounted) return
+
+        mermaid.initialize({
+          startOnLoad: false, // 禁用自动启动
           theme: theme === ThemeMode.dark ? 'dark' : 'default'
         })
-        mermaidLoaded.current = true
-        EventEmitter.emit('mermaid-loaded')
-      }
-    })
-  }, [theme])
 
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        const mermaidElement = (e.target as HTMLElement).closest('.mermaid')
-        if (!mermaidElement) return
-
-        const svg = mermaidElement.querySelector('svg')
-        if (!svg) return
-
-        const currentScale = parseFloat(svg.style.transform?.match(/scale\((.*?)\)/)?.[1] || '1')
-        const delta = e.deltaY < 0 ? 0.1 : -0.1
-        const newScale = Math.max(0.1, Math.min(3, currentScale + delta))
-
-        const container = svg.parentElement
-        if (container) {
-          container.style.overflow = 'auto'
-          container.style.position = 'relative'
-          svg.style.transformOrigin = 'top left'
-          svg.style.transform = `scale(${newScale})`
+        setError(null)
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to initialize Mermaid')
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
         }
       }
     }
 
-    document.addEventListener('wheel', handleWheel, { passive: true })
-    return () => document.removeEventListener('wheel', handleWheel)
-  }, [])
+    initialize()
+
+    return () => {
+      mounted = false
+    }
+  }, [theme])
+
+  return {
+    mermaid: mermaidModule,
+    isLoading,
+    error
+  }
 }

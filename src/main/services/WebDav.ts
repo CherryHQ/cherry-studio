@@ -1,5 +1,7 @@
 import { WebDavConfig } from '@types'
 import Logger from 'electron-log'
+import https from 'https'
+import path from 'path'
 import Stream from 'stream'
 import {
   BufferLike,
@@ -14,13 +16,14 @@ export default class WebDav {
   private webdavPath: string
 
   constructor(params: WebDavConfig) {
-    this.webdavPath = params.webdavPath
+    this.webdavPath = params.webdavPath || '/'
 
     this.instance = createClient(params.webdavHost, {
       username: params.webdavUser,
       password: params.webdavPass,
       maxBodyLength: Infinity,
-      maxContentLength: Infinity
+      maxContentLength: Infinity,
+      httpsAgent: new https.Agent({ rejectUnauthorized: false })
     })
 
     this.putFileContents = this.putFileContents.bind(this)
@@ -49,7 +52,7 @@ export default class WebDav {
       throw error
     }
 
-    const remoteFilePath = `${this.webdavPath}/${filename}`
+    const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
       return await this.instance.putFileContents(remoteFilePath, data, options)
@@ -64,12 +67,25 @@ export default class WebDav {
       throw new Error('WebDAV client not initialized')
     }
 
-    const remoteFilePath = `${this.webdavPath}/${filename}`
+    const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
       return await this.instance.getFileContents(remoteFilePath, options)
     } catch (error) {
       Logger.error('[WebDAV] Error getting file contents on WebDAV:', error)
+      throw error
+    }
+  }
+
+  public getDirectoryContents = async () => {
+    if (!this.instance) {
+      throw new Error('WebDAV client not initialized')
+    }
+
+    try {
+      return await this.instance.getDirectoryContents(this.webdavPath)
+    } catch (error) {
+      Logger.error('[WebDAV] Error getting directory contents on WebDAV:', error)
       throw error
     }
   }
@@ -105,7 +121,7 @@ export default class WebDav {
       throw new Error('WebDAV client not initialized')
     }
 
-    const remoteFilePath = `${this.webdavPath}/${filename}`
+    const remoteFilePath = path.posix.join(this.webdavPath, filename)
 
     try {
       return await this.instance.deleteFile(remoteFilePath)

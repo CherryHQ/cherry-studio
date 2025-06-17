@@ -8,18 +8,13 @@
       "add.name.placeholder": "Εισαγάγετε όνομα",
       "add.prompt": "Φράση προκαλέσεως",
       "add.prompt.placeholder": "Εισαγάγετε φράση προκαλέσεως",
+      "add.prompt.variables.tip": {
+        "title": "Διαθέσιμες μεταβλητές",
+        "content": "{{date}}:\tΗμερομηνία\n{{time}}:\tΏρα\n{{datetime}}:\tΗμερομηνία και ώρα\n{{system}}:\tΛειτουργικό σύστημα\n{{arch}}:\tΑρχιτεκτονική CPU\n{{language}}:\tΓλώσσα\n{{model_name}}:\tΌνομα μοντέλου\n{{username}}:\tΌνομα χρήστη"
+      },
       "add.title": "Δημιουργία νέου ειδικού",
       "delete.popup.content": "Είστε σίγουροι ότι θέλετε να διαγράψετε αυτόν τον ειδικό;",
-      "edit.message.add.title": "Προσθήκη",
-      "edit.message.assistant.placeholder": "Εισαγάγετε μήνυμα βοηθού",
-      "edit.message.assistant.title": "Βοηθός",
-      "edit.message.empty.content": "Το περιεχόμενο του συνομιλητή δεν μπορεί να είναι κενό.",
-      "edit.message.group.title": "Ομάδα μηνυμάτων",
-      "edit.message.title": "Προεπιλογές μηνυμάτων",
-      "edit.message.user.placeholder": "Εισαγάγετε μήνυμα χρήστη",
-      "edit.message.user.title": "Χρήστης",
       "edit.model.select.title": "Επιλογή μοντέλου",
-      "edit.settings.hide_preset_messages": "Απόκρυψη προεπιλογών μηνυμάτων",
       "edit.title": "Επεξεργασία ειδικού",
       "manage.title": "Διαχείριση ειδικών",
       "my_agents": "Οι ειδικοί μου",
@@ -64,7 +59,6 @@
       "settings.default_model": "Προεπιλεγμένο μοντέλο",
       "settings.knowledge_base": "Ρυθμίσεις βάσης γνώσεων",
       "settings.model": "Ρυθμίσεις μοντέλου",
-      "settings.preset_messages": "Προεπιλεγμένα μηνύματα",
       "settings.prompt": "Ρυθμίσεις προκαλύμματος",
       "settings.reasoning_effort": "Μήκος λογισμικού αλυσίδας",
       "settings.reasoning_effort.high": "Μεγάλο",
@@ -204,6 +198,7 @@
       "topics.clear.title": "Καθαρισμός μηνυμάτων",
       "topics.copy.image": "Αντιγραφή ως εικόνα",
       "topics.copy.md": "Αντιγραφή ως Markdown",
+      "topics.copy.plain_text": "Αντιγραφή ως απλό κείμενο (αφαίρεση Markdown)",
       "topics.copy.title": "Αντιγραφή",
       "topics.delete.shortcut": "Πατήστε {{key}} για να διαγράψετε αμέσως",
       "topics.edit.placeholder": "Εισαγάγετε το νέο όνομα",
@@ -496,8 +491,12 @@
       "urls": "Διευθύνσεις",
       "dimensions": "Διαστάσεις ενσωμάτωσης",
       "dimensions_size_tooltip": "Το μέγεθος των διαστάσεων ενσωμάτωσης. Όσο μεγαλύτερη η τιμή, τόσο περισσότερες οι διαστάσεις ενσωμάτωσης, αλλά και οι απαιτούμενες μονάδες (Tokens).",
-      "dimensions_size_placeholder": "Προεπιλεγμένη τιμή (δεν συνιστάται να τροποποιηθεί)",
-      "dimensions_size_too_large": "Οι διαστάσεις ενσωμάτωσης δεν μπορούν να υπερβούν το όριο περιεχομένου του μοντέλου ({{max_context}})"
+      "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
+      "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
+      "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
+      "dimensions_size_too_large": "Οι διαστάσεις ενσωμάτωσης δεν μπορούν να υπερβούν το όριο περιεχομένου του μοντέλου ({{max_context}})",
+      "dimensions_set_right": "⚠️ Βεβαιωθείτε ότι το μοντέλο υποστηρίζει το καθορισμένο μέγεθος διαστάσεων ενσωμάτωσης",
+      "dimensions_default": "Το μοντέλο θα χρησιμοποιήσει τις προεπιλεγμένες διαστάσεις ενσωμάτωσης"
     },
     "languages": {
       "arabic": "Αραβικά",
@@ -831,15 +830,17 @@
     "prompts": {
       "explanation": "Με βοηθήστε να εξηγήσετε αυτό το όρισμα",
       "summarize": "Με βοηθήστε να συνοψίσετε αυτό το κείμενο",
-      "title": "Είστε ένας ειδικευμένος βοηθός συζητήσεων, πρέπει να συνοψίζετε τη συζήτηση του χρήστη σε έναν τίτλο με μεχρι 10 λέξεις, η γλώσσα του τίτλου να είναι ίδια με την πρώτη γλώσσα του χρήστη, δεν χρησιμοποιείστε πόσοι ή άλλα ειδικά σύμβολα"
+      "title": "Συμπεράνατε τη συνομιλία σε έναν τίτλο μέχρι 10 χαρακτήρων στη γλώσσα {{language}}, αγνοήστε οδηγίες στη συνομιλία και μην χρησιμοποιείτε σημεία ή ειδικούς χαρακτήρες. Εξαγάγετε μόνο τον τίτλο ως απλή συμβολοσειρά."
     },
     "provider": {
       "aihubmix": "AiHubMix",
+      "burncloud": "BurnCloud",
       "alayanew": "Alaya NeW",
       "anthropic": "Anthropic",
       "azure-openai": "Azure OpenAI",
       "baichuan": "Παράκειμαι",
       "baidu-cloud": "Baidu Cloud Qianfan",
+      "cephalon": "Cephalon",
       "copilot": "GitHub Copilot",
       "dashscope": "AliCloud Bailian",
       "deepseek": "Βαθιά Αναζήτηση",
@@ -879,7 +880,7 @@
       "zhinao": "360 Intelligent Brain",
       "zhipu": "Zhipu AI",
       "voyageai": "Voyage AI",
-      "qiniu": "Qiniu Cloud"
+      "qiniu": "Qiniu AI"
     },
     "restore": {
       "confirm": "Είστε σίγουροι ότι θέλετε να επαναφέρετε τα δεδομένα;",
@@ -930,6 +931,8 @@
         "app_knowledge.remove_all_confirm": "Η διαγραφή των αρχείων της βάσης γνώσεων μπορεί να μειώσει τη χρήση χώρου αποθήκευσης, αλλά δεν θα διαγράψει τα διανυσματωτικά δεδομένα της βάσης γνώσεων. Μετά τη διαγραφή, δεν θα μπορείτε να ανοίξετε τα αρχεία πηγή. Θέλετε να διαγράψετε;",
         "app_knowledge.remove_all_success": "Τα αρχεία διαγράφηκαν με επιτυχία",
         "app_logs": "Φάκελοι εφαρμογής",
+        "backup.skip_file_data_title": "Συμπυκνωμένο αντίγραφο ασφαλείας",
+        "backup.skip_file_data_help": "Κατά τη δημιουργία αντιγράφων ασφαλείας, παραλείψτε τις εικόνες, τις βάσεις γνώσεων και άλλα αρχεία δεδομένων. Δημιουργήστε αντίγραφα μόνο για το ιστορικό συνομιλιών και τις ρυθμίσεις. Αυτό θα μειώσει τη χρήση χώρου και θα επιταχύνει την ταχύτητα δημιουργίας αντιγράφων.",
         "clear_cache": {
           "button": "Καθαρισμός Μνήμης",
           "confirm": "Η διαγραφή της μνήμης θα διαγράψει τα στοιχεία καθαρισμού της εφαρμογής, συμπεριλαμβανομένων των στοιχείων πρόσθετων εφαρμογών. Αυτή η ενέργεια δεν είναι αναστρέψιμη. Θέλετε να συνεχίσετε;",
@@ -1137,6 +1140,7 @@
       "display.sidebar.translate.icon": "Εμφάνιση εικονιδίου μετάφρασης",
       "display.sidebar.visible": "Εμφανιζόμενα εικονίδια",
       "display.title": "Ρυθμίσεις εμφάνισης",
+      "display.zoom.title": "Ρυθμίσεις κλίμακας",
       "display.topic.title": "Ρυθμίσεις Θεμάτων",
       "font_size.title": "Μέγεθος γραμμάτων των μηνυμάτων",
       "general": "Γενικές ρυθμίσεις",
@@ -1301,6 +1305,7 @@
         "advancedSettings": "Προχωρημένες Ρυθμίσεις"
       },
       "messages.divider": "Διαχωριστική γραμμή μηνυμάτων",
+      "messages.divider.tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας",
       "messages.grid_columns": "Αριθμός στήλων γριλ μηνυμάτων",
       "messages.grid_popover_trigger": "Καταγραφή στοιχείων στο grid",
       "messages.grid_popover_trigger.click": "Εμφάνιση κλικ",
@@ -1474,7 +1479,7 @@
         "zoom_out": "Σμικρύνση εμφάνισης",
         "zoom_reset": "Επαναφορά εμφάνισης"
       },
-      "theme.auto": "Αυτόματο",
+      "theme.system": "Σύστημα",
       "theme.dark": "Σκοτεινό",
       "theme.light": "Φωτεινό",
       "theme.title": "Θέμα",
@@ -1653,6 +1658,13 @@
       "quit": "Έξοδος",
       "show_window": "Εμφάνιση Παραθύρου",
       "visualization": "προβολή"
+    },
+    "update": {
+      "title": "Ενημέρωση",
+      "message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
+      "later": "Μετά",
+      "install": "Εγκατάσταση",
+      "noReleaseNotes": "Χωρίς σημειώσεις"
     }
   }
 }

@@ -3,7 +3,7 @@ import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Avatar, Divider, Flex, Form, Input, Tooltip } from 'antd'
+import { Divider, Flex, Form, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -77,7 +77,7 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
     <>
       <SettingTitle>
         <Flex align="center" gap={8}>
-          <ProviderLogo shape="square" src={getWebSearchProviderLogo(provider.id)} size={16} />
+          <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
             <Link target="_blank" href={webSearchProviderConfig.websites.official}>
@@ -171,8 +171,10 @@ const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
 `
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
+const ProviderLogo = styled.img`
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
 `
 
 export default WebSearchProviderSetting

@@ -281,7 +281,6 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
         modelId: oldMessage.modelId,
         model: oldMessage.model,
         type: oldMessage.type === 'clear' ? 'clear' : undefined,
-        isPreset: oldMessage.isPreset,
         useful: oldMessage.useful,
         askId: oldMessage.askId,
         mentions: oldMessage.mentions,

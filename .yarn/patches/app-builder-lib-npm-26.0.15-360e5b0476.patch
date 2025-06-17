@@ -1,0 +1,276 @@
+diff --git a/out/macPackager.js b/out/macPackager.js
+index 852f6c4d16f86a7bb8a78bf1ed5a14647a279aa1..60e7f5f16a844541eb1909b215fcda1811e924b8 100644
+--- a/out/macPackager.js
++++ b/out/macPackager.js
+@@ -423,7 +423,7 @@ class MacPackager extends platformPackager_1.PlatformPackager {
+         }
+         appPlist.CFBundleName = appInfo.productName;
+         appPlist.CFBundleDisplayName = appInfo.productName;
+-        const minimumSystemVersion = this.platformSpecificBuildOptions.minimumSystemVersion;
++        const minimumSystemVersion = this.platformSpecificBuildOptions.LSMinimumSystemVersion;
+         if (minimumSystemVersion != null) {
+             appPlist.LSMinimumSystemVersion = minimumSystemVersion;
+         }
+diff --git a/out/publish/updateInfoBuilder.js b/out/publish/updateInfoBuilder.js
+index 7924c5b47d01f8dfccccb8f46658015fa66da1f7..1a1588923c3939ae1297b87931ba83f0ebc052d8 100644
+--- a/out/publish/updateInfoBuilder.js
++++ b/out/publish/updateInfoBuilder.js
+@@ -133,6 +133,7 @@ async function createUpdateInfo(version, event, releaseInfo) {
+     const customUpdateInfo = event.updateInfo;
+     const url = path.basename(event.file);
+     const sha512 = (customUpdateInfo == null ? null : customUpdateInfo.sha512) || (await (0, hash_1.hashFile)(event.file));
++    const minimumSystemVersion = customUpdateInfo == null ? null : customUpdateInfo.minimumSystemVersion;
+     const files = [{ url, sha512 }];
+     const result = {
+         // @ts-ignore
+@@ -143,9 +144,13 @@ async function createUpdateInfo(version, event, releaseInfo) {
+         path: url /* backward compatibility, electron-updater 1.x - electron-updater 2.15.0 */,
+         // @ts-ignore
+         sha512 /* backward compatibility, electron-updater 1.x - electron-updater 2.15.0 */,
++        minimumSystemVersion,
+         ...releaseInfo,
+     };
+     if (customUpdateInfo != null) {
++        if (customUpdateInfo.minimumSystemVersion) {
++            delete customUpdateInfo.minimumSystemVersion;
++        }
+         // file info or nsis web installer packages info
+         Object.assign("sha512" in customUpdateInfo ? files[0] : result, customUpdateInfo);
+     }
+diff --git a/out/targets/ArchiveTarget.js b/out/targets/ArchiveTarget.js
+index e1f52a5fa86fff6643b2e57eaf2af318d541f865..47cc347f154a24b365e70ae5e1f6d309f3582ed0 100644
+--- a/out/targets/ArchiveTarget.js
++++ b/out/targets/ArchiveTarget.js
+@@ -69,6 +69,9 @@ class ArchiveTarget extends core_1.Target {
+                     }
+                 }
+             }
++            if (updateInfo != null && this.packager.platformSpecificBuildOptions.minimumSystemVersion) {
++                updateInfo.minimumSystemVersion = this.packager.platformSpecificBuildOptions.minimumSystemVersion;
++            }
+             await packager.info.emitArtifactBuildCompleted({
+                 updateInfo,
+                 file: artifactPath,
+diff --git a/out/targets/nsis/NsisTarget.js b/out/targets/nsis/NsisTarget.js
+index e8bd7bb46c8a54b3f55cf3a853ef924195271e01..f956e9f3fe9eb903c78aef3502553b01de4b89b1 100644
+--- a/out/targets/nsis/NsisTarget.js
++++ b/out/targets/nsis/NsisTarget.js
+@@ -305,6 +305,9 @@ class NsisTarget extends core_1.Target {
+             if (updateInfo != null && isPerMachine && (oneClick || options.packElevateHelper)) {
+                 updateInfo.isAdminRightsRequired = true;
+             }
++            if (updateInfo != null && this.packager.platformSpecificBuildOptions.minimumSystemVersion) {
++                updateInfo.minimumSystemVersion = this.packager.platformSpecificBuildOptions.minimumSystemVersion;
++            }
+             await packager.info.emitArtifactBuildCompleted({
+                 file: installerPath,
+                 updateInfo,
+diff --git a/out/util/yarn.js b/out/util/yarn.js
+index 1ee20f8b252a8f28d0c7b103789cf0a9a427aec1..c2878ec54d57da50bf14225e0c70c9c88664eb8a 100644
+--- a/out/util/yarn.js
++++ b/out/util/yarn.js
+@@ -140,6 +140,7 @@ async function rebuild(config, { appDir, projectDir }, options) {
+         arch,
+         platform,
+         buildFromSource,
++        ignoreModules: config.excludeReBuildModules || undefined,
+         projectRootPath: projectDir,
+         mode: config.nativeRebuilder || "sequential",
+         disablePreGypCopy: true,
+diff --git a/scheme.json b/scheme.json
+index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..0167441bf928a92f59b5dbe70b2317a74dda74c9 100644
+--- a/scheme.json
++++ b/scheme.json
+@@ -1825,6 +1825,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableArgs": {
+           "anyOf": [
+             {
+@@ -1975,6 +1989,13 @@
+           ],
+           "description": "The mime types in addition to specified in the file associations. Use it if you don't want to register a new mime type, but reuse existing."
+         },
++        "minimumSystemVersion": {
++          "description": "The minimum os kernel version required to install the application.",
++          "type": [
++            "null",
++            "string"
++          ]
++        },
+         "packageCategory": {
+           "description": "backward compatibility + to allow specify fpm-only category for all possible fpm targets in one place",
+           "type": [
+@@ -2327,6 +2348,13 @@
+     "MacConfiguration": {
+       "additionalProperties": false,
+       "properties": {
++        "LSMinimumSystemVersion": {
++          "description": "The minimum version of macOS required for the app to run. Corresponds to `LSMinimumSystemVersion`.",
++          "type": [
++            "null",
++            "string"
++          ]
++        },
+         "additionalArguments": {
+           "anyOf": [
+             {
+@@ -2527,6 +2555,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableName": {
+           "description": "The executable name. Defaults to `productName`.",
+           "type": [
+@@ -2737,7 +2779,7 @@
+           "type": "boolean"
+         },
+         "minimumSystemVersion": {
+-          "description": "The minimum version of macOS required for the app to run. Corresponds to `LSMinimumSystemVersion`.",
++          "description": "The minimum os kernel version required to install the application.",
+           "type": [
+             "null",
+             "string"
+@@ -2959,6 +3001,13 @@
+     "MasConfiguration": {
+       "additionalProperties": false,
+       "properties": {
++        "LSMinimumSystemVersion": {
++          "description": "The minimum version of macOS required for the app to run. Corresponds to `LSMinimumSystemVersion`.",
++          "type": [
++            "null",
++            "string"
++          ]
++        },
+         "additionalArguments": {
+           "anyOf": [
+             {
+@@ -3159,6 +3208,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableName": {
+           "description": "The executable name. Defaults to `productName`.",
+           "type": [
+@@ -3369,7 +3432,7 @@
+           "type": "boolean"
+         },
+         "minimumSystemVersion": {
+-          "description": "The minimum version of macOS required for the app to run. Corresponds to `LSMinimumSystemVersion`.",
++          "description": "The minimum os kernel version required to install the application.",
+           "type": [
+             "null",
+             "string"
+@@ -6381,6 +6444,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableName": {
+           "description": "The executable name. Defaults to `productName`.",
+           "type": [
+@@ -6507,6 +6584,13 @@
+             "string"
+           ]
+         },
++        "minimumSystemVersion": {
++          "description": "The minimum os kernel version required to install the application.",
++          "type": [
++            "null",
++            "string"
++          ]
++        },
+         "protocols": {
+           "anyOf": [
+             {
+@@ -7153,6 +7237,20 @@
+         "string"
+       ]
+     },
++    "excludeReBuildModules": {
++      "anyOf": [
++        {
++          "items": {
++            "type": "string"
++          },
++          "type": "array"
++        },
++        {
++          "type": "null"
++        }
++      ],
++      "description": "The modules to exclude from the rebuild."
++    },
+     "executableName": {
+       "description": "The executable name. Defaults to `productName`.",
+       "type": [
+@@ -7376,6 +7474,13 @@
+       ],
+       "description": "MAS (Mac Application Store) development options (`mas-dev` target)."
+     },
++    "minimumSystemVersion": {
++      "description": "The minimum os kernel version required to install the application.",
++      "type": [
++        "null",
++        "string"
++      ]
++    },
+     "msi": {
+       "anyOf": [
+         {

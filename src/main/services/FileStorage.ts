@@ -15,6 +15,7 @@ import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
 import officeParser from 'officeparser'
+import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
@@ -268,12 +269,67 @@ class FileStorage {
     }
   }
 
+  public saveBase64Image = async (_: Electron.IpcMainInvokeEvent, base64Data: string): Promise<FileType> => {
+    try {
+      if (!base64Data) {
+        throw new Error('Base64 data is required')
+      }
+
+      // 移除 base64 头部信息（如果存在）
+      const base64String = base64Data.replace(/^data:.*;base64,/, '')
+      const buffer = Buffer.from(base64String, 'base64')
+      const uuid = uuidv4()
+      const ext = '.png'
+      const destPath = path.join(this.storageDir, uuid + ext)
+
+      logger.info('[FileStorage] Saving base64 image:', {
+        storageDir: this.storageDir,
+        destPath,
+        bufferSize: buffer.length
+      })
+
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+
+      await fs.promises.writeFile(destPath, buffer)
+
+      const fileMetadata: FileType = {
+        id: uuid,
+        origin_name: uuid + ext,
+        name: uuid + ext,
+        path: destPath,
+        created_at: new Date().toISOString(),
+        size: buffer.length,
+        ext: ext.slice(1),
+        type: getFileType(ext),
+        count: 1
+      }
+
+      return fileMetadata
+    } catch (error) {
+      logger.error('[FileStorage] Failed to save base64 image:', error)
+      throw error
+    }
+  }
+
   public base64File = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: string; mime: string }> => {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
     const base64 = buffer.toString('base64')
     const mime = `application/${path.extname(filePath).slice(1)}`
     return { data: base64, mime }
+  }
+
+  public pdfPageCount = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<number> => {
+    const filePath = path.join(this.storageDir, id)
+    const buffer = await fs.promises.readFile(filePath)
+
+    const doc = await getDocument({ data: buffer }).promise
+    const pages = doc.numPages
+    await doc.destroy()
+    return pages
   }
 
   public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
@@ -328,7 +384,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string | null> => {
+  ): Promise<string> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: '保存文件',
@@ -336,14 +392,18 @@ class FileStorage {
         ...options
       })
 
+      if (result.canceled) {
+        return Promise.reject(new Error('User canceled the save dialog'))
+      }
+
       if (!result.canceled && result.filePath) {
         await writeFileSync(result.filePath, content, { encoding: 'utf-8' })
       }
 
       return result.filePath
-    } catch (err) {
+    } catch (err: any) {
       logger.error('[IPC - Error]', 'An error occurred saving the file:', err)
-      return null
+      return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
 
@@ -382,7 +442,11 @@ class FileStorage {
     }
   }
 
-  public downloadFile = async (_: Electron.IpcMainInvokeEvent, url: string): Promise<FileType> => {
+  public downloadFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    url: string,
+    isUseContentType?: boolean
+  ): Promise<FileType> => {
     try {
       const response = await fetch(url)
       if (!response.ok) {
@@ -407,7 +471,7 @@ class FileStorage {
       }
 
       // 如果文件名没有后缀，根据Content-Type添加后缀
-      if (!filename.includes('.')) {
+      if (isUseContentType || !filename.includes('.')) {
         const contentType = response.headers.get('Content-Type')
         const ext = this.getExtensionFromMimeType(contentType)
         filename += ext

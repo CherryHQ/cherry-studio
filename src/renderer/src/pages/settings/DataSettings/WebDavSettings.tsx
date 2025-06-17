@@ -12,15 +12,16 @@ import {
   setWebdavMaxBackups as _setWebdavMaxBackups,
   setWebdavPass as _setWebdavPass,
   setWebdavPath as _setWebdavPath,
+  setWebdavSkipBackupFile as _setWebdavSkipBackupFile,
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input, Select, Tooltip } from 'antd'
+import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const WebDavSettings: FC = () => {
   const {
@@ -29,13 +30,15 @@ const WebDavSettings: FC = () => {
     webdavPass: webDAVPass,
     webdavPath: webDAVPath,
     webdavSyncInterval: webDAVSyncInterval,
-    webdavMaxBackups: webDAVMaxBackups
+    webdavMaxBackups: webDAVMaxBackups,
+    webdavSkipBackupFile: webdDAVSkipBackupFile
   } = useSettings()
 
   const [webdavHost, setWebdavHost] = useState<string | undefined>(webDAVHost)
   const [webdavUser, setWebdavUser] = useState<string | undefined>(webDAVUser)
   const [webdavPass, setWebdavPass] = useState<string | undefined>(webDAVPass)
   const [webdavPath, setWebdavPath] = useState<string | undefined>(webDAVPath)
+  const [webdavSkipBackupFile, setWebdavSkipBackupFile] = useState<boolean>(webdDAVSkipBackupFile)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [syncInterval, setSyncInterval] = useState<number>(webDAVSyncInterval)
@@ -65,6 +68,11 @@ const WebDavSettings: FC = () => {
   const onMaxBackupsChange = (value: number) => {
     setMaxBackups(value)
     dispatch(_setWebdavMaxBackups(value))
+  }
+
+  const onSkipBackupFilesChange = (value: boolean) => {
+    setWebdavSkipBackupFile(value)
+    dispatch(_setWebdavSkipBackupFile(value))
   }
 
   const renderSyncStatus = () => {
@@ -157,10 +165,7 @@ const WebDavSettings: FC = () => {
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button
-            onClick={showBackupManager}
-            icon={<FolderOpenOutlined />}
-            disabled={!webdavHost || !webdavUser || !webdavPass || !webdavPath}>
+          <Button onClick={showBackupManager} icon={<FolderOpenOutlined />} disabled={!webdavHost}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </HStack>
@@ -193,6 +198,14 @@ const WebDavSettings: FC = () => {
           <Select.Option value={20}>20</Select.Option>
           <Select.Option value={50}>50</Select.Option>
         </Select>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+        <Switch checked={webdavSkipBackupFile} onChange={onSkipBackupFilesChange} />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
       </SettingRow>
       {webdavSync && syncInterval > 0 && (
         <>

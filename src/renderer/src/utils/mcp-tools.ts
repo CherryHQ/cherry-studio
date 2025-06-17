@@ -1,18 +1,21 @@
-import {
-  ContentBlockParam,
-  MessageParam,
-  ToolResultBlockParam,
-  ToolUnion,
-  ToolUseBlock
-} from '@anthropic-ai/sdk/resources'
+import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
 import Logger from '@renderer/config/logger'
-import { isVisionModel } from '@renderer/config/models'
+import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
-import { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse, Model, ToolUseResponse } from '@renderer/types'
+import {
+  Assistant,
+  MCPCallToolResponse,
+  MCPServer,
+  MCPTool,
+  MCPToolResponse,
+  Model,
+  ToolUseResponse
+} from '@renderer/types'
 import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
+import { SdkMessageParam } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
 import { nanoid } from 'nanoid'
 import OpenAI from 'openai'
@@ -23,7 +26,7 @@ import {
   ChatCompletionTool
 } from 'openai/resources'
 
-import { CompletionsParams } from '../providers/AiProvider'
+import { CompletionsParams } from '../aiCore/middleware/schemas'
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -404,6 +407,7 @@ export function upsertMCPToolResponse(
     const cur = {
       ...results[index],
       response: resp.response,
+      arguments: resp.arguments,
       status: resp.status
     }
     results[index] = cur
@@ -440,13 +444,25 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
   }
+
+  // 支持两种格式：
+  // 1. 完整的 <tool_use></tool_use> 标签包围的内容
+  // 2. 只有内部内容（从 TagExtractor 提取出来的）
+
+  let contentToProcess = content
+
+  // 如果内容不包含 <tool_use> 标签，说明是从 TagExtractor 提取的内部内容，需要包装
+  if (!content.includes('<tool_use>')) {
+    contentToProcess = `<tool_use>\n${content}\n</tool_use>`
+  }
+
   const toolUsePattern =
     /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
   const tools: ToolUseResponse[] = []
   let match
   let idx = 0
   // Find all tool use blocks
-  while ((match = toolUsePattern.exec(content)) !== null) {
+  while ((match = toolUsePattern.exec(contentToProcess)) !== null) {
     // const fullMatch = match[0]
     const toolName = match[2].trim()
     const toolArgs = match[4].trim()
@@ -488,9 +504,7 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[]
-): Promise<
-  (ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.ResponseInputItem | ToolResultBlockParam)[]
->
+): Promise<SdkMessageParam[]>
 
 export async function parseAndCallTools<R>(
   content: string,
@@ -499,9 +513,7 @@ export async function parseAndCallTools<R>(
   convertToMessage: (mcpToolResponse: MCPToolResponse, resp: MCPCallToolResponse, model: Model) => R | undefined,
   model: Model,
   mcpTools?: MCPTool[]
-): Promise<
-  (ChatCompletionMessageParam | MessageParam | Content | OpenAI.Responses.ResponseInputItem | ToolResultBlockParam)[]
->
+): Promise<SdkMessageParam[]>
 
 export async function parseAndCallTools<R>(
   content: string | MCPToolResponse[],
@@ -530,7 +542,7 @@ export async function parseAndCallTools<R>(
         ...toolResponse,
         status: 'invoking'
       },
-      onChunk
+      onChunk!
     )
   }
 
@@ -544,7 +556,7 @@ export async function parseAndCallTools<R>(
         status: 'done',
         response: toolCallResponse
       },
-      onChunk
+      onChunk!
     )
 
     for (const content of toolCallResponse.content) {
@@ -554,10 +566,10 @@ export async function parseAndCallTools<R>(
     }
 
     if (images.length) {
-      onChunk({
+      onChunk?.({
         type: ChunkType.IMAGE_CREATED
       })
-      onChunk({
+      onChunk?.({
         type: ChunkType.IMAGE_COMPLETE,
         image: {
           type: 'base64',
@@ -823,4 +835,14 @@ export function mcpToolCallResponseToGeminiMessage(
   }
 
   return message
+}
+
+export function isEnabledToolUse(assistant: Assistant) {
+  if (assistant.model) {
+    if (isFunctionCallingModel(assistant.model)) {
+      return assistant.settings?.toolUseMode === 'function'
+    }
+  }
+
+  return false
 }
