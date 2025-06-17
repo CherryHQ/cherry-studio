@@ -70,52 +70,16 @@ const GeneralSettings: FC = () => {
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
-  // Language to spell check language mapping (only for languages that support spell checking)
-  const getSpellCheckLanguagesFromUILanguage = (lang: LanguageVarious): string[] => {
-    const languageMap: Record<LanguageVarious, string[]> = {
-      'en-US': ['en-US'],
-      'es-ES': ['es'],
-      'fr-FR': ['fr'],
-      'ru-RU': ['ru'],
-      'pt-PT': ['pt'],
-      // For languages without spell check support, default to English
-      'zh-CN': ['en-US'],
-      'zh-TW': ['en-US'],
-      'ja-JP': ['en-US'],
-      'el-GR': ['en-US']
-    }
-    return languageMap[lang] || ['en-US']
-  }
-
   const onSelectLanguage = (value: LanguageVarious) => {
     dispatch(setLanguage(value))
     localStorage.setItem('language', value)
     window.api.setLanguage(value)
     i18n.changeLanguage(value)
-
-    // Only update spell check languages if spell check is enabled and user hasn't made manual selections
-    if (enableSpellCheck && spellCheckLanguages.length === 0) {
-      const newSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(value)
-      dispatch(setSpellCheckLanguages(newSpellCheckLanguages))
-      window.api.setSpellCheckLanguages(newSpellCheckLanguages)
-    }
   }
 
   const handleSpellCheckChange = (checked: boolean) => {
     dispatch(setEnableSpellCheck(checked))
-
-    if (checked) {
-      // When enabling spell check, only set default languages if no languages are currently selected
-      if (spellCheckLanguages.length === 0) {
-        const currentSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(language || defaultLanguage)
-        dispatch(setSpellCheckLanguages(currentSpellCheckLanguages))
-        window.api.setSpellCheckLanguages(currentSpellCheckLanguages)
-      }
-    } else {
-      // When disabling spell check, clear the languages
-      dispatch(setSpellCheckLanguages([]))
-      window.api.setSpellCheckLanguages([])
-    }
+    window.api.setEnableSpellCheck(checked)
   }
 
   const onSetProxyUrl = () => {
