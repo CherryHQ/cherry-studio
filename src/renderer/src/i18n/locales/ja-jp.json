@@ -183,7 +183,7 @@
       "input.new.context": "コンテキストをクリア {{Command}}",
       "input.new_topic": "新しいトピック {{Command}}",
       "input.pause": "一時停止",
-      "input.placeholder": "ここにメッセージを入力...",
+      "input.placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "input.send": "送信",
       "input.settings": "設定",
       "input.topics": " トピック ",
