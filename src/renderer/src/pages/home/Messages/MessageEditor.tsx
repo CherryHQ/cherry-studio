@@ -174,7 +174,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
       return
     }
 
-    const isEnterPressed = event.key === 'Enter'
+    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
 
     if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
       handleResend()
