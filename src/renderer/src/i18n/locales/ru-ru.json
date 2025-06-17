@@ -964,6 +964,29 @@
       "required_field": "Обязательное поле",
       "uploaded_input": "Загруженный ввод"
     },
+    "plantuml": {
+      "download": {
+        "failed": "下载失败，请检查网络",
+        "png": "下载 PNG",
+        "svg": "下载 SVG"
+      },
+      "tabs": {
+        "preview": "Предпросмотр",
+        "source": "Исходный код"
+      },
+      "title": "PlantUML 图表"
+    },
+    "price": {
+      "cost": "Стоимость",
+      "currency": "Валюта",
+      "custom": "Пользовательский",
+      "custom_currency": "Пользовательская валюта",
+      "custom_currency_placeholder": "Введите пользовательскую валюту",
+      "input": "Цена ввода",
+      "million_tokens": "M Tokens",
+      "output": "Цена вывода",
+      "price": "Цена"
+    },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
       "summarize": "Суммируйте этот текст",

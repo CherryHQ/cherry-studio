@@ -787,6 +787,18 @@
         "string": "Text"
       },
       "pinned": "Pinned",
+      "price": {
+        "cost": "Cost",
+        "currency": "Currency",
+        "custom": "Custom",
+        "custom_currency": "Custom Currency",
+        "custom_currency_placeholder": "Enter Custom Currency",
+        "input": "Input Price",
+        "million_tokens": "M Tokens",
+        "output": "Output Price",
+        "price": "Price"
+      },
+      "reasoning": "Reasoning",
       "rerank_model": "Reranker",
       "rerank_model_support_provider": "Currently, the reranker model only supports some providers ({{provider}})",
       "rerank_model_not_support_provider": "Currently, the reranker model does not support this provider ({{provider}})",
