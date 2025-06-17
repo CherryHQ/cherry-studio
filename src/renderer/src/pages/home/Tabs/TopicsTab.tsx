@@ -40,7 +40,7 @@ import { Dropdown, MenuProps, Tooltip } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
-import { FC, startTransition, useCallback, useDeferredValue, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -416,6 +416,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
     return assistant.topics
   }, [assistant.topics, pinTopicsToTop])
 
+  const activeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!activeRef.current) return
+    activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' })
+  }, [activeTopic])
+
   return (
     <Dropdown menu={{ items: getTopicMenuItems }} trigger={['contextMenu']}>
       <Container className="topics-tab">
@@ -429,6 +436,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               <TopicListItem
                 onContextMenu={() => setTargetTopic(topic)}
                 className={isActive ? 'active' : ''}
+                ref={isActive ? activeRef : null}
                 onClick={() => onSwitchTopic(topic)}
                 style={{ borderRadius }}>
                 {isPending(topic.id) && !isActive && <PendingIndicator />}
