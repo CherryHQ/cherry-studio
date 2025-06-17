@@ -110,7 +110,7 @@ export abstract class BaseApiClient<
 
   abstract buildSdkMessages(
     currentReqMessages: TMessageParam[],
-    output: TRawOutput | string,
+    output: TRawOutput | string | undefined,
     toolResults: TMessageParam[],
     toolCalls?: TToolCall[]
   ): TMessageParam[]

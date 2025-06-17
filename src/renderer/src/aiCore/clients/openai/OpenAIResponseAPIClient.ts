@@ -227,10 +227,18 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   public buildSdkMessages(
     currentReqMessages: OpenAIResponseSdkMessageParam[],
-    output: string,
+    output: string | undefined,
     toolResults: OpenAIResponseSdkMessageParam[],
     toolCalls: OpenAIResponseSdkToolCall[]
   ): OpenAIResponseSdkMessageParam[] {
+    if (!output && toolCalls.length === 0) {
+      return [...currentReqMessages, ...toolResults]
+    }
+
+    if (!output) {
+      return [...currentReqMessages, ...(toolCalls || []), ...(toolResults || [])]
+    }
+
     const assistantMessage: OpenAIResponseSdkMessageParam = {
       role: 'assistant',
       content: [{ type: 'input_text', text: output }]

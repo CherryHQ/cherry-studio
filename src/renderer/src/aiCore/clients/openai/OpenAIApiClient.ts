@@ -337,10 +337,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
   public buildSdkMessages(
     currentReqMessages: OpenAISdkMessageParam[],
-    output: string,
+    output: string | undefined,
     toolResults: OpenAISdkMessageParam[],
     toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[]
   ): OpenAISdkMessageParam[] {
+    if (!output && toolCalls.length === 0) {
+      return [...currentReqMessages, ...toolResults]
+    }
+
     const assistantMessage: OpenAISdkMessageParam = {
       role: 'assistant',
       content: output,
