@@ -5,17 +5,18 @@ import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, WebSearchProvider } from '@renderer/types'
+import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
-import { INITIAL_PROVIDERS, moveProvider } from './llm'
+import { INITIAL_PROVIDERS, initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
@@ -55,6 +56,15 @@ function addProvider(state: RootState, id: string) {
   }
 }
 
+function updateProvider(state: RootState, id: string, provider: Partial<Provider>) {
+  if (state.llm.providers) {
+    const index = state.llm.providers.findIndex((p) => p.id === id)
+    if (index !== -1) {
+      state.llm.providers[index] = { ...state.llm.providers[index], ...provider }
+    }
+  }
+}
+
 function addWebSearchProvider(state: RootState, id: string) {
   if (state.websearch && state.websearch.providers) {
     if (!state.websearch.providers.find((p) => p.id === id)) {
@@ -85,6 +95,48 @@ function addSelectionAction(state: RootState, id: string) {
       if (action) {
         state.selectionStore.actionItems.push(action)
       }
+    }
+  }
+}
+
+/**
+ * Add shortcuts(ids from shortcutsInitialState) after the shortcut(afterId)
+ * if afterId is 'first', add to the first
+ * if afterId is 'last', add to the last
+ */
+function addShortcuts(state: RootState, ids: string[], afterId: string) {
+  const defaultShortcuts = shortcutsInitialState.shortcuts
+
+  // 确保 state.shortcuts 存在
+  if (!state.shortcuts) {
+    return
+  }
+
+  // 从 defaultShortcuts 中找到要添加的快捷键
+  const shortcutsToAdd = defaultShortcuts.filter((shortcut) => ids.includes(shortcut.key))
+
+  // 过滤掉已经存在的快捷键
+  const existingKeys = state.shortcuts.shortcuts.map((s) => s.key)
+  const newShortcuts = shortcutsToAdd.filter((shortcut) => !existingKeys.includes(shortcut.key))
+
+  if (newShortcuts.length === 0) {
+    return
+  }
+
+  if (afterId === 'first') {
+    // 添加到最前面
+    state.shortcuts.shortcuts.unshift(...newShortcuts)
+  } else if (afterId === 'last') {
+    // 添加到最后面
+    state.shortcuts.shortcuts.push(...newShortcuts)
+  } else {
+    // 添加到指定快捷键后面
+    const afterIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === afterId)
+    if (afterIndex !== -1) {
+      state.shortcuts.shortcuts.splice(afterIndex + 1, 0, ...newShortcuts)
+    } else {
+      // 如果找不到指定的快捷键，则添加到最后
+      state.shortcuts.shortcuts.push(...newShortcuts)
     }
   }
 }
@@ -1419,8 +1471,6 @@ const migrateConfig = {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
         }
       }
-      // Quick assistant model
-      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
       return state
     } catch (error) {
       return state
@@ -1508,6 +1558,52 @@ const migrateConfig = {
         state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
       }
 
+      // add selection_assistant_toggle and selection_assistant_select_text shortcuts after mini_window
+      addShortcuts(state, ['selection_assistant_toggle', 'selection_assistant_select_text'], 'mini_window')
+
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '112': (state: RootState) => {
+    try {
+      addProvider(state, 'cephalon')
+      addProvider(state, '302ai')
+      addProvider(state, 'lanyun')
+      state.llm.providers = moveProvider(state.llm.providers, 'cephalon', 13)
+      state.llm.providers = moveProvider(state.llm.providers, '302ai', 14)
+      state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '113': (state: RootState) => {
+    try {
+      addProvider(state, 'vertexai')
+      state.llm.providers = moveProvider(state.llm.providers, 'vertexai', 10)
+      if (!state.llm.settings.vertexai) {
+        state.llm.settings.vertexai = llmInitialState.settings.vertexai
+      }
+      updateProvider(state, 'gemini', {
+        isVertex: false
+      })
+      updateProvider(state, 'vertexai', {
+        isVertex: true
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '114': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.exportMenuOptions) {
+        if (typeof state.settings.exportMenuOptions.plain_text === 'undefined') {
+          state.settings.exportMenuOptions.plain_text = true
+        }
+      }
       return state
     } catch (error) {
       return state

@@ -7,6 +7,7 @@ import { Button, Radio, Row, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
@@ -111,8 +112,25 @@ const SelectionAssistantSettings: FC = () => {
                 value={triggerMode}
                 onChange={(e) => setTriggerMode(e.target.value as TriggerMode)}
                 buttonStyle="solid">
-                <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
-                <Radio.Button value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio.Button>
+                <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.selected_note')} arrow>
+                  <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
+                </Tooltip>
+                <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')} arrow>
+                  <Radio.Button value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio.Button>
+                </Tooltip>
+                <Tooltip
+                  placement="topRight"
+                  title={
+                    <div>
+                      {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
+                      <Link to="/settings/shortcut" style={{ color: 'var(--color-primary)' }}>
+                        {t('selection.settings.toolbar.trigger_mode.shortcut_link')}
+                      </Link>
+                    </div>
+                  }
+                  arrow>
+                  <Radio.Button value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio.Button>
+                </Tooltip>
               </Radio.Group>
             </SettingRow>
 

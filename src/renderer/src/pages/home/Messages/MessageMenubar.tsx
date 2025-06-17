@@ -15,6 +15,7 @@ import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
+import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -123,10 +124,13 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
       if (!loading) {
-        await resendMessage(messageUpdate ?? message, assistant)
+        const assistantWithTopicPrompt = topic.prompt
+          ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+          : assistant
+        await resendMessage(messageUpdate ?? message, assistantWithTopicPrompt)
       }
     },
-    [assistant, loading, message, resendMessage]
+    [assistant, loading, message, resendMessage, topic.prompt]
   )
 
   const { startEditing } = useMessageEditing()
@@ -201,6 +205,11 @@ const MessageMenubar: FC<Props> = (props) => {
         key: 'export',
         icon: <Share size={16} color="var(--color-icon)" style={{ marginTop: 3 }} />,
         children: [
+          exportMenuOptions.plain_text && {
+            label: t('chat.topics.copy.plain_text'),
+            key: 'copy_message_plain_text',
+            onClick: () => copyMessageAsPlainText(message)
+          },
           exportMenuOptions.image && {
             label: t('chat.topics.copy.image'),
             key: 'img',
@@ -310,8 +319,12 @@ const MessageMenubar: FC<Props> = (props) => {
     // const _message = resetAssistantMessage(message, selectedModel)
     // editMessage(message.id, { ..._message }) // REMOVED
 
+    const assistantWithTopicPrompt = topic.prompt
+      ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+      : assistant
+
     // Call the function from the hook
-    regenerateAssistantMessage(message, assistant)
+    regenerateAssistantMessage(message, assistantWithTopicPrompt)
   }
 
   const onMentionModel = async (e: React.MouseEvent) => {
@@ -393,7 +406,8 @@ const MessageMenubar: FC<Props> = (props) => {
           menu={{
             style: {
               maxHeight: 250,
-              overflowY: 'auto'
+              overflowY: 'auto',
+              backgroundClip: 'border-box'
             },
             items: [
               ...TranslateLanguageOptions.map((item) => ({

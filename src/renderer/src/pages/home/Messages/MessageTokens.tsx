@@ -53,15 +53,17 @@ const MessgeTokens: React.FC<MessageTokensProps> = ({ message }) => {
     )
 
     return (
-      <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        {hasMetrics ? (
-          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
-            {showTokens && tokensInfo}
-          </Popover>
-        ) : (
-          tokensInfo
-        )}
-      </MessageMetadata>
+      showTokens && (
+        <MessageMetadata className="message-tokens" onClick={locateMessage}>
+          {hasMetrics ? (
+            <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+              {tokensInfo}
+            </Popover>
+          ) : (
+            tokensInfo
+          )}
+        </MessageMetadata>
+      )
     )
   }
 

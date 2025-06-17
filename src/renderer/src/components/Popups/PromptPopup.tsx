@@ -72,6 +72,11 @@ const PromptPopupContainer: React.FC<Props> = ({
         placeholder={inputPlaceholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        styles={{
+          textarea: {
+            maxHeight: '80vh'
+          }
+        }}
         allowClear
         onKeyDown={(e) => {
           const isEnterPressed = e.keyCode === 13

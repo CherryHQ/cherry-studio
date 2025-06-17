@@ -7,10 +7,11 @@ import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
-import { convertMathFormula } from '@renderer/utils/markdown'
+import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
+import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -124,12 +125,43 @@ export const messagesToMarkdown = (messages: Message[], exportReasoning?: boolea
     .join('\n\n---\n\n')
 }
 
+const formatMessageAsPlainText = (message: Message): string => {
+  const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
+  const content = getMainTextContent(message)
+  const plainTextContent = markdownToPlainText(content).trim()
+  return `${roleText}\n${plainTextContent}`
+}
+
+export const messageToPlainText = (message: Message): string => {
+  const content = getMainTextContent(message)
+  return markdownToPlainText(content).trim()
+}
+
+const messagesToPlainText = (messages: Message[]): string => {
+  return messages.map(formatMessageAsPlainText).join('\n\n')
+}
+
 export const topicToMarkdown = async (topic: Topic, exportReasoning?: boolean) => {
   const topicName = `# ${topic.name}`
   const topicMessages = await db.topics.get(topic.id)
 
   if (topicMessages) {
     return topicName + '\n\n' + messagesToMarkdown(topicMessages.messages, exportReasoning)
+  }
+
+  return ''
+}
+
+export const topicToPlainText = async (topic: Topic): Promise<string> => {
+  const topicName = markdownToPlainText(topic.name).trim()
+  const topicMessages = await db.topics.get(topic.id)
+
+  if (topicMessages && topicMessages.messages.length > 0) {
+    return topicName + '\n\n' + messagesToPlainText(topicMessages.messages)
+  }
+
+  if (topicMessages && topicMessages.messages.length === 0) {
+    return topicName
   }
 
   return ''
@@ -199,29 +231,6 @@ const convertMarkdownToNotionBlocks = async (markdown: string) => {
   return markdownToBlocks(markdown)
 }
 
-const splitNotionBlocks = (blocks: any[]) => {
-  // Notion API限制单次传输100块
-  const notionSplitSize = 95
-
-  const pages: any[][] = []
-  let currentPage: any[] = []
-
-  blocks.forEach((block) => {
-    if (currentPage.length >= notionSplitSize) {
-      window.message.info({ content: i18n.t('message.info.notion.block_reach_limit'), key: 'notion-block-reach-limit' })
-      pages.push(currentPage)
-      currentPage = []
-    }
-    currentPage.push(block)
-  })
-
-  if (currentPage.length > 0) {
-    pages.push(currentPage)
-  }
-
-  return pages
-}
-
 const convertThinkingToNotionBlocks = async (thinkingContent: string): Promise<any[]> => {
   if (!thinkingContent.trim()) {
     return []
@@ -275,6 +284,8 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
 
   setExportState({ isExporting: true })
 
+  title = title.slice(0, 29) + '...'
+
   const { notionDatabaseID, notionApiKey } = store.getState().settings
   if (!notionApiKey || !notionDatabaseID) {
     window.message.error({ content: i18n.t('message.error.notion.no_api_key'), key: 'notion-no-apikey-error' })
@@ -284,62 +295,44 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<any
 
   try {
     const notion = new Client({ auth: notionApiKey })
-    const blockPages = splitNotionBlocks(allBlocks)
 
-    if (blockPages.length === 0) {
+    if (allBlocks.length === 0) {
       throw new Error('No content to export')
     }
 
-    // 创建主页面和子页面
+    window.message.loading({
+      content: i18n.t('message.loading.notion.preparing'),
+      key: 'notion-preparing',
+      duration: 0
+    })
     let mainPageResponse: any = null
     let parentBlockId: string | null = null
 
-    for (let i = 0; i < blockPages.length; i++) {
-      const pageBlocks = blockPages[i]
-
-      // 导出进度提示
-      if (blockPages.length > 1) {
-        window.message.loading({
-          content: i18n.t('message.loading.notion.exporting_progress', {
-            current: i + 1,
-            total: blockPages.length
-          }),
-          key: 'notion-export-progress'
-        })
-      } else {
-        window.message.loading({
-          content: i18n.t('message.loading.notion.preparing'),
-          key: 'notion-export-progress'
-        })
-      }
-
-      if (i === 0) {
-        // 创建主页面
-        const response = await notion.pages.create({
-          parent: { database_id: notionDatabaseID },
-          properties: {
-            [store.getState().settings.notionPageNameKey || 'Name']: {
-              title: [{ text: { content: title } }]
-            }
-          },
-          children: pageBlocks
-        })
-        mainPageResponse = response
-        parentBlockId = response.id
-      } else {
-        // 追加后续页面的块到主页面
-        if (!parentBlockId) {
-          throw new Error('Parent block ID is null')
+    const response = await notion.pages.create({
+      parent: { database_id: notionDatabaseID },
+      properties: {
+        [store.getState().settings.notionPageNameKey || 'Name']: {
+          title: [{ text: { content: title } }]
         }
-        await notion.blocks.children.append({
-          block_id: parentBlockId,
-          children: pageBlocks
-        })
       }
+    })
+    mainPageResponse = response
+    parentBlockId = response.id
+    window.message.destroy('notion-preparing')
+    window.message.loading({
+      content: i18n.t('message.loading.notion.exporting_progress'),
+      key: 'notion-exporting',
+      duration: 0
+    })
+    if (allBlocks.length > 0) {
+      await appendBlocks({
+        block_id: parentBlockId,
+        children: allBlocks,
+        client: notion
+      })
     }
-
-    const messageKey = blockPages.length > 1 ? 'notion-export-progress' : 'notion-success'
-    window.message.success({ content: i18n.t('message.success.notion.export'), key: messageKey })
+    window.message.destroy('notion-exporting')
+    window.message.success({ content: i18n.t('message.success.notion.export'), key: 'notion-success' })
     return mainPageResponse
   } catch (error: any) {
     window.message.error({ content: i18n.t('message.error.notion.export'), key: 'notion-export-progress' })
