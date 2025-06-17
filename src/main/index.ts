@@ -89,36 +89,6 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.hide()
     }
 
-    // Initialize spell check languages based on current language setting
-    const currentLanguage = configManager.getLanguage()
-    const enableSpellCheck = configManager.get('enableSpellCheck')
-
-    // Only initialize spell check languages if spell check is enabled but no languages are set
-    if (enableSpellCheck) {
-      const existingSpellCheckLanguages = (configManager.get('spellCheckLanguages') as string[]) || []
-      if (existingSpellCheckLanguages.length === 0) {
-        // Set default spell check languages based on UI language (only for supported languages)
-        const getSpellCheckLanguagesFromUILanguage = (lang: string): string[] => {
-          const languageMap: Record<string, string[]> = {
-            'en-US': ['en-US'],
-            'es-ES': ['es'],
-            'fr-FR': ['fr'],
-            'ru-RU': ['ru'],
-            'pt-PT': ['pt'],
-            // For languages without spell check support, default to English
-            'zh-CN': ['en-US'],
-            'zh-TW': ['en-US'],
-            'ja-JP': ['en-US'],
-            'el-GR': ['en-US']
-          }
-          return languageMap[lang] || ['en-US']
-        }
-
-        const defaultSpellCheckLanguages = getSpellCheckLanguagesFromUILanguage(currentLanguage)
-        configManager.set('spellCheckLanguages', defaultSpellCheckLanguages)
-      }
-    }
-
     const mainWindow = windowService.createMainWindow()
     new TrayService()
 
