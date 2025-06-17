@@ -103,6 +103,12 @@ vi.mock('rehype-katex', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-mathjax', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
 
+// Mock custom plugins
+vi.mock('../plugins/remarkDisableConstructs', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
+
 // Mock ReactMarkdown with realistic rendering
 vi.mock('react-markdown', () => ({
   __esModule: true,

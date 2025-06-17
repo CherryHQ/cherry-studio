@@ -24,6 +24,7 @@ import remarkMath from 'remark-math'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
 
 const ALLOWED_ELEMENTS =
@@ -40,7 +41,7 @@ const Markdown: FC<Props> = ({ block }) => {
   const { mathEngine } = useSettings()
 
   const remarkPlugins = useMemo(() => {
-    const plugins = [remarkGfm, remarkCjkFriendly]
+    const plugins = [remarkGfm, remarkCjkFriendly, remarkDisableConstructs(['codeIndented'])]
     if (mathEngine !== 'none') {
       plugins.push(remarkMath)
     }
