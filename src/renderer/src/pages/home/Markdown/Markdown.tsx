@@ -106,20 +106,21 @@ const Markdown: FC<Props> = ({ block }) => {
   }, [])
 
   return (
-    <ReactMarkdown
-      rehypePlugins={rehypePlugins}
-      remarkPlugins={remarkPlugins}
-      className="markdown"
-      components={components}
-      disallowedElements={DISALLOWED_ELEMENTS}
-      urlTransform={urlTransform}
-      remarkRehypeOptions={{
-        footnoteLabel: t('common.footnotes'),
-        footnoteLabelTagName: 'h4',
-        footnoteBackContent: ' '
-      }}>
-      {messageContent}
-    </ReactMarkdown>
+    <div className="markdown">
+      <ReactMarkdown
+        rehypePlugins={rehypePlugins}
+        remarkPlugins={remarkPlugins}
+        components={components}
+        disallowedElements={DISALLOWED_ELEMENTS}
+        urlTransform={urlTransform}
+        remarkRehypeOptions={{
+          footnoteLabel: t('common.footnotes'),
+          footnoteLabelTagName: 'h4',
+          footnoteBackContent: ' '
+        }}>
+        {messageContent}
+      </ReactMarkdown>
+    </div>
   )
 }
 
