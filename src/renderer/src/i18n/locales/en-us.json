@@ -1886,7 +1886,8 @@
         "model_desc": "Model used for translation service",
         "bidirectional": "Bidirectional Translation Settings",
         "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
-        "scroll_sync": "Scroll Sync Settings"
+        "scroll_sync": "Scroll Sync Settings",
+        "preview": "Markdown Preview"
       },
       "title": "Translation",
       "tooltip.newline": "Newline",

@@ -1888,7 +1888,8 @@
         "model_desc": "翻译服务使用的模型",
         "bidirectional": "双向翻译设置",
         "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
-        "scroll_sync": "滚动同步设置"
+        "scroll_sync": "滚动同步设置",
+        "preview": "Markdown 预览"
       },
       "title": "翻译",
       "tooltip.newline": "换行",

@@ -1885,7 +1885,8 @@
         "model_desc": "翻訳サービスで使用されるモデル",
         "bidirectional": "双方向翻訳設定",
         "bidirectional_tip": "有効にすると、ソース言語と目標言語間の双方向翻訳のみがサポートされます",
-        "scroll_sync": "スクロール同期設定"
+        "scroll_sync": "スクロール同期設定",
+        "preview": "Markdown プレビュー"
       },
       "title": "翻訳",
       "tooltip.newline": "改行",
