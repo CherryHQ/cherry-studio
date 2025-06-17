@@ -1512,6 +1512,15 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '112': (state: RootState) => {
+    try {
+      state.settings.enableSpellCheck = false
+      state.settings.spellCheckLanguages = []
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
