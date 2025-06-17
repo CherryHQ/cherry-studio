@@ -1604,15 +1604,10 @@ const migrateConfig = {
           state.settings.exportMenuOptions.plain_text = true
         }
       }
-      return state
-    } catch (error) {
-      return state
-    }
-  },
-  '112': (state: RootState) => {
-    try {
-      state.settings.enableSpellCheck = false
-      state.settings.spellCheckLanguages = []
+      if (state.settings) {
+        state.settings.enableSpellCheck = false
+        state.settings.spellCheckLanguages = []
+      }
       return state
     } catch (error) {
       return state
