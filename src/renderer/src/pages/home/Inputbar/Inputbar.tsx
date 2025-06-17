@@ -309,7 +309,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    console.log('handleKeyDown', event)
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
 
     // 按下Tab键，自动选中${xxx}
