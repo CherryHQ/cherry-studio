@@ -36,6 +36,7 @@ import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
+import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -309,8 +310,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
-
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {
       event.preventDefault()
@@ -366,32 +365,37 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
-      if (quickPanel.isVisible) return event.preventDefault()
+    //to check if the SendMessage key is pressed
+    //other keys should be ignored
+    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
+    if (isEnterPressed) {
+      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+        if (quickPanel.isVisible) return event.preventDefault()
+        sendMessage()
+        return event.preventDefault()
+      } else {
+        //shift+enter's default behavior is to add a new line, ignore it
+        if (!event.shiftKey) {
+          event.preventDefault()
 
-      sendMessage()
-      return event.preventDefault()
-    }
+          const textArea = textareaRef.current?.resizableTextArea?.textArea
+          if (textArea) {
+            const start = textArea.selectionStart
+            const end = textArea.selectionEnd
+            const text = textArea.value
+            const newText = text.substring(0, start) + '\n' + text.substring(end)
 
-    if (sendMessageShortcut === 'Shift+Enter' && isEnterPressed && event.shiftKey) {
-      if (quickPanel.isVisible) return event.preventDefault()
+            // update text by setState, not directly modify textarea.value
+            setText(newText)
 
-      sendMessage()
-      return event.preventDefault()
-    }
-
-    if (sendMessageShortcut === 'Ctrl+Enter' && isEnterPressed && event.ctrlKey) {
-      if (quickPanel.isVisible) return event.preventDefault()
-
-      sendMessage()
-      return event.preventDefault()
-    }
-
-    if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
-      if (quickPanel.isVisible) return event.preventDefault()
-
-      sendMessage()
-      return event.preventDefault()
+            // set cursor position in the next render cycle
+            setTimeout(() => {
+              textArea.selectionStart = textArea.selectionEnd = start + 1
+              onInput() // trigger resizeTextArea
+            }, 0)
+          }
+        }
+      }
     }
 
     if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
@@ -798,7 +802,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={isTranslating ? t('chat.input.translating') : t('chat.input.placeholder')}
+            placeholder={
+              isTranslating
+                ? t('chat.input.translating')
+                : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
+            }
             autoFocus
             contextMenu="true"
             variant="borderless"

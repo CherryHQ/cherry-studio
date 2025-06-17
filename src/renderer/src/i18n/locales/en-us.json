@@ -183,7 +183,7 @@
       "input.new.context": "Clear Context {{Command}}",
       "input.new_topic": "New Topic {{Command}}",
       "input.pause": "Pause",
-      "input.placeholder": "Type your message here...",
+      "input.placeholder": "Type your message here, press {{key}} to send...",
       "input.send": "Send",
       "input.settings": "Settings",
       "input.topics": " Topics ",

@@ -183,7 +183,7 @@
       "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新話題 {{Command}}",
       "input.pause": "暫停",
-      "input.placeholder": "在此輸入您的訊息...",
+      "input.placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
       "input.send": "傳送",
       "input.settings": "設定",
       "input.topics": " 話題 ",

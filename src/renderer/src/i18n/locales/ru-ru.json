@@ -183,7 +183,7 @@
       "input.new.context": "Очистить контекст {{Command}}",
       "input.new_topic": "Новый топик {{Command}}",
       "input.pause": "Остановить",
-      "input.placeholder": "Введите ваше сообщение здесь...",
+      "input.placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
       "input.send": "Отправить",
       "input.settings": "Настройки",
       "input.topics": " Топики ",
