@@ -2863,10 +2863,10 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1(\.|-5)-thinking-vision-pro|1(\.|-)5-thinking-pro-m|seed-1\.6|seed-1\.6-flash)(?:-[\\w-]+)?/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-[\w-]+)?/i
 
-// 支持 auto 的 Doubao 模型
-export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(?:1-5-thinking-pro-m|seed-1.6)(?:-[\\w-]+)?/i
+// 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
+export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(1-5-thinking-pro-m|seed-1\.6|seed-1-6-[\w-]+)(?:-[\w-]+)*/i
 
 export function isDoubaoThinkingAutoModel(model: Model): boolean {
   return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id)
