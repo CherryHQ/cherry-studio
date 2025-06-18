@@ -87,7 +87,14 @@ const Footer: FC<FooterProps> = ({
       </FooterText>
       <PinButtonArea onClick={() => setIsPinned(!isPinned)} className="nodrag">
         <Tooltip title={t('miniwindow.tooltip.pin')} mouseEnterDelay={0.8} placement="left">
-          <Pin size={14} stroke={isPinned ? 'var(--color-primary)' : 'var(--color-text)'} />
+          <Pin
+            size={14}
+            stroke={isPinned ? 'var(--color-primary)' : 'var(--color-text)'}
+            style={{
+              transform: isPinned ? 'rotate(40deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease-in-out'
+            }}
+          />
         </Tooltip>
       </PinButtonArea>
     </WindowFooter>
@@ -115,6 +122,7 @@ const PinButtonArea = styled.div`
   cursor: pointer;
   display: flex;
   align-items: center;
+  margin-right: 5px;
 `
 
 const Tag = styled(AntdTag)`
