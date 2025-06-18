@@ -416,8 +416,9 @@ export class GeminiAPIClient extends BaseApiClient<
         }
       }
 
-      const { max } = findTokenLimit(model.id) || { max: 0 }
-      const budget = Math.floor(max * effortRatio)
+      const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
+      // 计算 budgetTokens，确保不低于 min
+      const budget = Math.floor((max - min) * effortRatio + min)
 
       return {
         thinkingConfig: {
