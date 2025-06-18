@@ -521,13 +521,7 @@ export class GeminiAPIClient extends BaseApiClient<
 
         const newMessageContents =
           isRecursiveCall && recursiveSdkMessages && recursiveSdkMessages.length > 0
-            ? {
-                ...messageContents,
-                parts: [
-                  ...(messageContents.parts || []),
-                  ...(recursiveSdkMessages[recursiveSdkMessages.length - 1].parts || [])
-                ]
-              }
+            ? recursiveSdkMessages[recursiveSdkMessages.length - 1]
             : messageContents
 
         const generateContentConfig: GenerateContentConfig = {
@@ -561,7 +555,7 @@ export class GeminiAPIClient extends BaseApiClient<
   getResponseChunkTransformer(): ResponseChunkTransformer<GeminiSdkRawChunk> {
     return () => ({
       async transform(chunk: GeminiSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        let toolCalls: FunctionCall[] = []
+        const toolCalls: FunctionCall[] = []
         if (chunk.candidates && chunk.candidates.length > 0) {
           for (const candidate of chunk.candidates) {
             if (candidate.content) {
@@ -589,6 +583,8 @@ export class GeminiAPIClient extends BaseApiClient<
                       ]
                     }
                   })
+                } else if (part.functionCall) {
+                  toolCalls.push(part.functionCall)
                 }
               })
             }
@@ -602,9 +598,6 @@ export class GeminiAPIClient extends BaseApiClient<
                     source: WebSearchSource.GEMINI
                   }
                 } as LLMWebSearchCompleteChunk)
-              }
-              if (chunk.functionCalls) {
-                toolCalls = toolCalls.concat(chunk.functionCalls)
               }
               controller.enqueue({
                 type: ChunkType.LLM_RESPONSE_COMPLETE,
@@ -708,12 +701,11 @@ export class GeminiAPIClient extends BaseApiClient<
         .filter((p) => p !== undefined)
     )
 
-    const userMessage: Content = {
-      role: 'user',
-      parts: parts
+    const lastMessage = currentReqMessages[currentReqMessages.length - 1]
+    if (lastMessage) {
+      lastMessage.parts?.push(...parts)
     }
-
-    return [...currentReqMessages, userMessage]
+    return currentReqMessages
   }
 
   override estimateMessageTokens(message: GeminiSdkMessageParam): number {
@@ -740,7 +732,20 @@ export class GeminiAPIClient extends BaseApiClient<
   }
 
   public extractMessagesFromSdkPayload(sdkPayload: GeminiSdkParams): GeminiSdkMessageParam[] {
-    return sdkPayload.history || []
+    const messageParam: GeminiSdkMessageParam = {
+      role: 'user',
+      parts: []
+    }
+    if (Array.isArray(sdkPayload.message)) {
+      sdkPayload.message.forEach((part) => {
+        if (typeof part === 'string') {
+          messageParam.parts?.push({ text: part })
+        } else if (typeof part === 'object') {
+          messageParam.parts?.push(part)
+        }
+      })
+    }
+    return [messageParam, ...(sdkPayload.history || [])]
   }
 
   private async uploadFile(file: FileType): Promise<File> {
