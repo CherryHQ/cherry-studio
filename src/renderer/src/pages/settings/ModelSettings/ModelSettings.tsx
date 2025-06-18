@@ -170,7 +170,7 @@ const ModelSettings: FC = () => {
             <HStack alignItems="center" gap={0}>
               <StyledButton
                 type={!quickAssistantId ? 'primary' : 'default'}
-                onClick={() => dispatch(setQuickAssistantId(null))}
+                onClick={() => dispatch(setQuickAssistantId(''))}
                 selected={!quickAssistantId}>
                 {t('settings.models.use_model')}
               </StyledButton>

@@ -29,7 +29,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
-  quickAssistantId: string | null
+  quickAssistantId: string
   settings: LlmSettings
 }
 
@@ -534,7 +534,7 @@ export const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.defaultModel[0],
   topicNamingModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
-  quickAssistantId: null,
+  quickAssistantId: '',
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {
@@ -650,7 +650,7 @@ const llmSlice = createSlice({
       state.translateModel = action.payload.model
     },
 
-    setQuickAssistantId: (state, action: PayloadAction<string | null>) => {
+    setQuickAssistantId: (state, action: PayloadAction<string>) => {
       state.quickAssistantId = action.payload
     },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {

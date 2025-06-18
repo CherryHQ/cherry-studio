@@ -56,6 +56,8 @@ const HomeWindow: FC = () => {
   //indicator for wether the first message is outputted
   const [isOutputted, setIsOutputted] = useState(false)
 
+  const [error, setError] = useState<string | null>(null)
+
   const { quickAssistantId } = useAppSelector((state) => state.llm)
   const currentAssistant = useRef<Assistant | null>(null)
   const currentTopic = useRef<Topic | null>(null)
@@ -206,6 +208,11 @@ const HomeWindow: FC = () => {
     setUserInputText(e.target.value)
   }
 
+  const handleError = (error: Error) => {
+    setIsLoading(false)
+    setError(error.message)
+  }
+
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(content) || !currentAssistant.current || !currentTopic.current) {
@@ -247,6 +254,7 @@ const HomeWindow: FC = () => {
 
         setIsLoading(true)
         setIsOutputted(false)
+        setError(null)
 
         setIsFirstMessage(false)
         setUserInputText('')
@@ -332,8 +340,12 @@ const HomeWindow: FC = () => {
                   )
                 }
                 break
-              case ChunkType.BLOCK_COMPLETE:
               case ChunkType.ERROR:
+                if (!isAbortError(chunk.error)) {
+                  throw new Error(chunk.error.message)
+                }
+              //fall through
+              case ChunkType.BLOCK_COMPLETE:
                 setIsLoading(false)
                 setIsOutputted(true)
                 currentAskId.current = ''
@@ -343,7 +355,7 @@ const HomeWindow: FC = () => {
         })
       } catch (err) {
         if (isAbortError(err)) return
-        // onError(err instanceof Error ? err : new Error('An error occurred'))
+        handleError(err instanceof Error ? err : new Error('An error occurred'))
         console.error('Error fetching result:', err)
       } finally {
         setIsLoading(false)
@@ -371,6 +383,7 @@ const HomeWindow: FC = () => {
           currentTopic.current = getDefaultTopic(currentAssistant.current.id)
         }
 
+        setError(null)
         setRoute('home')
         setUserInputText('')
       }
@@ -443,6 +456,8 @@ const HomeWindow: FC = () => {
             topic={currentTopic.current!}
             isOutputted={isOutputted}
           />
+          {error && <ErrorMsg>{error}</ErrorMsg>}
+
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" route={route} loading={isLoading} onEsc={handleEsc} />
         </Container>
@@ -512,6 +527,17 @@ const Main = styled.main`
 
   flex: 1;
   overflow: hidden;
+`
+
+const ErrorMsg = styled.div`
+  color: var(--color-error);
+  background: rgba(255, 0, 0, 0.15);
+  border: 1px solid var(--color-error);
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  word-break: break-all;
 `
 
 export default HomeWindow
