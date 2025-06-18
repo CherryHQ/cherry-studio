@@ -1814,12 +1814,6 @@
         "assistant": "助手訊息",
         "backup": "備份訊息",
         "knowledge_embed": "知識庫訊息"
-      },
-      "prompt": {
-        "title": "提示詞設定",
-        "show_replacement": "顯示變數替換",
-        "auto_refresh": "自動刷新變數",
-        "refresh_interval": "刷新間隔"
       }
     },
     "translate": {

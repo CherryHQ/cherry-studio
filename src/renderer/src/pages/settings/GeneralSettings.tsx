@@ -2,14 +2,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
-import {
-  setEnableDataCollection,
-  setLanguage,
-  setNotificationSettings,
-  setPromptAutoRefresh,
-  setPromptRefreshInterval,
-  setPromptShowVariableReplacement
-} from '@renderer/store/settings'
+import { setEnableDataCollection, setLanguage, setNotificationSettings } from '@renderer/store/settings'
 import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
@@ -33,10 +26,7 @@ const GeneralSettings: FC = () => {
     trayOnClose,
     tray,
     proxyMode: storeProxyMode,
-    enableDataCollection,
-    promptShowVariableReplacement,
-    promptAutoRefresh,
-    promptRefreshInterval
+    enableDataCollection
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
@@ -166,58 +156,6 @@ const GeneralSettings: FC = () => {
                 style={{ width: 180 }}
                 onBlur={() => onSetProxyUrl()}
                 type="url"
-              />
-            </SettingRow>
-          </>
-        )}
-      </SettingGroup>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.prompt.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.prompt.show_replacement')}</SettingRowTitle>
-          <Switch
-            checked={promptShowVariableReplacement}
-            onChange={(v) => {
-              dispatch(setPromptShowVariableReplacement(v))
-              window.api.config.set('promptShowVariableReplacement', v)
-            }}
-          />
-        </SettingRow>
-        {promptShowVariableReplacement && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.prompt.auto_refresh')}</SettingRowTitle>
-              <Switch
-                checked={promptAutoRefresh}
-                onChange={(v) => {
-                  dispatch(setPromptAutoRefresh(v))
-                  window.api.config.set('promptAutoRefresh', v)
-                }}
-              />
-            </SettingRow>
-          </>
-        )}
-        {promptAutoRefresh && promptShowVariableReplacement && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.prompt.refresh_interval')}</SettingRowTitle>
-              <Select
-                value={promptRefreshInterval || 60}
-                style={{ width: 180 }}
-                onChange={(v) => {
-                  dispatch(setPromptRefreshInterval(v))
-                  window.api.config.set('promptRefreshInterval', v)
-                }}
-                options={[
-                  { value: 5, label: '5s' },
-                  { value: 30, label: '30s' },
-                  { value: 60, label: '60s' },
-                  { value: 300, label: '5m' },
-                  { value: 600, label: '10m' }
-                ]}
               />
             </SettingRow>
           </>

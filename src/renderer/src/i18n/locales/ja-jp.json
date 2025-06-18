@@ -1814,12 +1814,6 @@
         "assistant": "アシスタントメッセージ",
         "backup": "バックアップメッセージ",
         "knowledge_embed": "ナレッジベースメッセージ"
-      },
-      "prompt": {
-        "title": "プロンプト設定",
-        "show_replacement": "変数置換を表示",
-        "auto_refresh": "変数の自動更新",
-        "refresh_interval": "更新間隔"
       }
     },
     "translate": {

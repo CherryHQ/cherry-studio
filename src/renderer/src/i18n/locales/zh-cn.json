@@ -1814,12 +1814,6 @@
         "service_tier.auto": "自动",
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
-      },
-      "prompt": {
-        "title": "提示词设置",
-        "show_replacement": "展示变量替换",
-        "auto_refresh": "自动刷新变量",
-        "refresh_interval": "刷新间隔"
       }
     },
     "translate": {

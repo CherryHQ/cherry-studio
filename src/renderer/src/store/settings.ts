@@ -180,11 +180,6 @@ export interface SettingsState {
     knowledgeEmbed: boolean
   }
   defaultPaintingProvider: PaintingProvider
-
-  // 用户界面自动刷新提示词变量设置
-  promptShowVariableReplacement: boolean
-  promptAutoRefresh: boolean
-  promptRefreshInterval: number
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -325,11 +320,7 @@ export const initialState: SettingsState = {
     backup: false,
     knowledgeEmbed: false
   },
-  defaultPaintingProvider: 'aihubmix',
-
-  promptShowVariableReplacement: false,
-  promptAutoRefresh: false,
-  promptRefreshInterval: 60
+  defaultPaintingProvider: 'aihubmix'
 }
 
 const settingsSlice = createSlice({
@@ -684,16 +675,6 @@ const settingsSlice = createSlice({
     },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
-    },
-    // 用户界面自动刷新提示词变量
-    setPromptShowVariableReplacement: (state, action: PayloadAction<boolean>) => {
-      state.promptShowVariableReplacement = action.payload
-    },
-    setPromptAutoRefresh: (state, action: PayloadAction<boolean>) => {
-      state.promptAutoRefresh = action.payload
-    },
-    setPromptRefreshInterval: (state, action: PayloadAction<number>) => {
-      state.promptRefreshInterval = action.payload
     }
   }
 })
@@ -799,10 +780,7 @@ export const {
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
-  setDefaultPaintingProvider,
-  setPromptShowVariableReplacement,
-  setPromptAutoRefresh,
-  setPromptRefreshInterval
+  setDefaultPaintingProvider
 } = settingsSlice.actions
 
 export default settingsSlice.reducer
