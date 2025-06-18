@@ -26,4 +26,9 @@ export interface Notification<T = any> {
   onClick?: () => void
   /** 通知源 */
   source: NotificationSource
+  /** a list of actions */
+  actions?: {
+    type: 'button'
+    text: string
+  }[]
 }

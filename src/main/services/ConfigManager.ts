@@ -23,7 +23,8 @@ export enum ConfigKeys {
   SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
   SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
   SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
-  SelectionAssistantFilterList = 'selectionAssistantFilterList'
+  SelectionAssistantFilterList = 'selectionAssistantFilterList',
+  SkippedVersions = 'skippedVersions'
 }
 
 export class ConfigManager {
@@ -156,6 +157,18 @@ export class ConfigManager {
 
   setEnableDataCollection(value: boolean) {
     this.set(ConfigKeys.EnableDataCollection, value)
+  }
+
+  getSkippedVersions(): string[] {
+    return this.get<string[]>(ConfigKeys.SkippedVersions, [])
+  }
+
+  addSkippedVersion(version: string) {
+    const versions = this.getSkippedVersions()
+    if (!versions.includes(version)) {
+      versions.push(version)
+      this.set(ConfigKeys.SkippedVersions, versions)
+    }
   }
 
   // Selection Assistant: is enabled the selection assistant
