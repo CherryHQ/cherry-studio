@@ -1,4 +1,5 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { Assistant } from '@renderer/types'
 import { Input as AntdInput } from 'antd'
 import { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'
@@ -6,7 +7,7 @@ import styled from 'styled-components'
 
 interface InputBarProps {
   text: string
-  model: any
+  assistant: Assistant
   referenceText: string
   placeholder: string
   loading: boolean
@@ -17,7 +18,7 @@ interface InputBarProps {
 const InputBar = ({
   ref,
   text,
-  model,
+  assistant,
   placeholder,
   loading,
   handleKeyDown,
@@ -29,7 +30,7 @@ const InputBar = ({
   }
   return (
     <InputWrapper ref={ref}>
-      <ModelAvatar model={model} size={30} />
+      {assistant.model && <ModelAvatar model={assistant.model} size={30} />}
       <Input
         value={text}
         placeholder={placeholder}
@@ -37,7 +38,6 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        disabled={loading}
         ref={inputRef}
       />
     </InputWrapper>
