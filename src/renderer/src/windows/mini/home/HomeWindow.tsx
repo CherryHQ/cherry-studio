@@ -95,7 +95,7 @@ const HomeWindow: FC = () => {
 
   // Use useCallback with stable dependencies to avoid infinite loops
   const readClipboard = useCallback(async () => {
-    if (!readClipboardAtStartup) return
+    if (!readClipboardAtStartup || !document.hasFocus()) return
 
     try {
       const text = await navigator.clipboard.readText()
@@ -145,10 +145,7 @@ const HomeWindow: FC = () => {
     // 例子，中文输入法候选词过程使用`Enter`直接上屏字母，日文输入法候选词过程使用`Enter`输入假名
     // 输入法可以`Esc`终止候选词过程
     // 这两个例子的`Enter`和`Esc`快捷助手都不应该响应
-    if (e.nativeEvent.isComposing) {
-      return
-    }
-    if (e.key === 'Process') {
+    if (e.nativeEvent.isComposing || e.key === 'Process') {
       return
     }
 
@@ -437,9 +434,9 @@ const HomeWindow: FC = () => {
       return t('miniwindow.input.placeholder.title')
     }
     return t('miniwindow.input.placeholder.empty', {
-      model: currentAssistant.model.name || ''
+      model: quickAssistantId ? currentAssistant.name : currentAssistant.model.name
     })
-  }, [referenceText, route, t, currentAssistant.model.name])
+  }, [referenceText, route, t, quickAssistantId, currentAssistant])
 
   // Memoize footer props
   const baseFooterProps = useMemo(
@@ -465,9 +462,7 @@ const HomeWindow: FC = () => {
                 text={userInputText}
                 assistant={currentAssistant}
                 referenceText={referenceText}
-                placeholder={t('miniwindow.input.placeholder.empty', {
-                  model: currentAssistant.model.name || ''
-                })}
+                placeholder={inputPlaceholder}
                 loading={isLoading}
                 handleKeyDown={handleKeyDown}
                 handleChange={handleChange}
