@@ -24,6 +24,7 @@ export type Assistant = {
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   attachedDocument?: FileType & { disabled?: boolean }
+  reader?: ReaderSettings
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
@@ -714,3 +715,7 @@ export interface StoreSyncAction {
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
 export type { Message } from './newMessage'
+
+export interface ReaderSettings {
+  position: 'left' | 'right'
+}

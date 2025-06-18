@@ -174,21 +174,30 @@ const Chat: FC<Props> = (props) => {
   }, [dynamicStyles, sidePageWidth])
 
   const CollapseIcon = useMemo(() => {
-    if (isCollapse) return ChevronRight
+    let CollapsedIcon = ChevronRight
+    let UnCollapsedIcon = ChevronLeft
+    if (currentAssistant.reader?.position === 'right') {
+      CollapsedIcon = ChevronLeft
+      UnCollapsedIcon = ChevronRight
+    }
 
-    return ChevronLeft
-  }, [isCollapse])
+    if (isCollapse) return CollapsedIcon
+
+    return UnCollapsedIcon
+  }, [isCollapse, currentAssistant.reader?.position])
 
   return (
     <Container id="chat" className={messageStyle}>
-      <Wrapper ref={wrapperRef}>
+      <Wrapper ref={wrapperRef} data-position={currentAssistant.reader?.position}>
         {currentAssistant.attachedDocument && (
           <ReaderContainer
+            data-position={currentAssistant.reader?.position}
             style={{
               width: isCollapse ? 0 : pageWidth + 24
             }}>
             <CollapseButton
               $isCollapse={isCollapse}
+              $position={currentAssistant.reader?.position}
               onClick={() => {
                 setIsCollapse(!isCollapse)
               }}>
@@ -260,36 +269,53 @@ const collapseButtonBaseStyles = `
   transition: transform 0.5s ease-in-out;
 `
 
-const getCollapseButtonPositionStyles = (isCollapse: boolean) => {
+const getCollapseButtonPositionStyles = (isCollapse: boolean, position: 'left' | 'right' = 'right') => {
+  let unCollapsedRight = '0'
+  let unCollapsedLeftRadius = '12px'
+  let unCollapsedRightRadius = '0'
+
+  let collapsedRight = '0'
+  let collapsedLeftRadius = '0'
+  let collapsedRightRadius = '12px'
+
+  if (position === 'right') {
+    unCollapsedRight = 'calc(100% - 16px)'
+    unCollapsedLeftRadius = '0'
+    unCollapsedRightRadius = '12px'
+    collapsedRight = '16px'
+    collapsedLeftRadius = '12px'
+    collapsedRightRadius = '0'
+  }
+
   if (!isCollapse) {
     return `
-      right: 0;
+      right: ${unCollapsedRight};
       transform: translateY(-50%) translateX(0);
-      border-top-left-radius: 12px;
-      border-bottom-left-radius: 12px;
-      border-top-right-radius: 0;
-      border-bottom-right-radius: 0;
+      border-top-left-radius: ${unCollapsedLeftRadius};
+      border-bottom-left-radius: ${unCollapsedLeftRadius};
+      border-top-right-radius: ${unCollapsedRightRadius};
+      border-bottom-right-radius: ${unCollapsedRightRadius};
     `
   } else {
     return `
-      right: 0;
+      right: ${collapsedRight};
       transform: translateY(-50%) translateX(16px);
-      border-top-left-radius: 0;
-      border-bottom-left-radius: 0;
-      border-top-right-radius: 12px;
-      border-bottom-right-radius: 12px;
+      border-top-left-radius: ${collapsedLeftRadius};
+      border-bottom-left-radius: ${collapsedLeftRadius};
+      border-top-right-radius: ${collapsedRightRadius};
+      border-bottom-right-radius: ${collapsedRightRadius};
     `
   }
 }
 
-const CollapseButton = styled.div<{ $isCollapse: boolean }>`
+const CollapseButton = styled.div<{ $isCollapse: boolean; $position?: 'left' | 'right' }>`
   ${collapseButtonBaseStyles}
-  ${({ $isCollapse }) => getCollapseButtonPositionStyles($isCollapse)}
+  ${({ $isCollapse, $position }) => getCollapseButtonPositionStyles($isCollapse, $position)}
 `
 
 const Wrapper = styled(Flex)`
   width: 100%;
-  &[data-layout='right'] {
+  &[data-position='right'] {
     flex-direction: row-reverse;
   }
 `
@@ -299,7 +325,7 @@ const ReaderContainer = styled.div`
   width: 50%;
   transition: width 0.3s ease-in-out;
 
-  &[data-layout='right'] {
+  &[data-position='right'] {
     border-left: 1px solid var(--color-border);
   }
 `

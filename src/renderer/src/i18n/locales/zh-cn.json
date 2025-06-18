@@ -2059,6 +2059,13 @@
       "outlineEmpty": "无可读目录",
       "reference": "参考资料",
       "close": "关闭阅读器",
+      "switchPosition": "切换位置",
+      "selectReference": "选择参考资料",
+      "showSelect": "页面选择",
+      "showOutline": "目录",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "move": "拖动",
       "attaching": "正在关联",
       "pageIndex": "第{{index}}页"
     }

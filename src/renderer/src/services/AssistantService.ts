@@ -14,7 +14,10 @@ export function getDefaultAssistant(): Assistant {
     topics: [getDefaultTopic('default')],
     messages: [],
     type: 'assistant',
-    regularPhrases: [] // Added regularPhrases
+    regularPhrases: [], // Added regularPhrases
+    reader: {
+      position: 'left'
+    }
   }
 }
 

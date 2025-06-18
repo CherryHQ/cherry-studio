@@ -1,10 +1,9 @@
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { Assistant, FileType } from '@renderer/types'
-import { Button, Flex, List, Tooltip } from 'antd'
+import { Flex, List } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { noop } from 'lodash'
-import { LogOut } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -27,17 +26,10 @@ const FilePicker: React.FC<IProps> = (props) => {
     updateAssistant({ ...assistant, attachedDocument: file })
   }
 
-  const onCloseAttachedDocument = () => {
-    updateAssistant({ ...assistant, attachedDocument: undefined })
-  }
-
   return (
     <Container>
       <Flex className="title" justify="space-between" align="center">
         {t('reader.reference')}
-        <Tooltip title={t('reader.close')}>
-          <Button type="text" onClick={onCloseAttachedDocument} icon={<LogOut size={18} />} />
-        </Tooltip>
       </Flex>
 
       <List

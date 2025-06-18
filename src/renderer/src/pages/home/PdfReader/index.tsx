@@ -4,9 +4,9 @@ import 'react-pdf/dist/esm/Page/TextLayer.css'
 import { SelectOutlined, UnorderedListOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { Assistant, AttachedPage, Topic } from '@renderer/types'
-import { Button, Checkbox, Empty, Flex, InputNumber, Popover, Space, Spin } from 'antd'
+import { Button, Checkbox, Divider, Empty, Flex, InputNumber, Popover, Space, Spin, Tooltip } from 'antd'
 import { debounce, filter, find } from 'lodash'
-import { PanelRight } from 'lucide-react'
+import { BookCopy, LogOut, PanelLeft, PanelRight } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Document, Outline, Page, pdfjs } from 'react-pdf'
@@ -38,13 +38,13 @@ const PdfReader: React.FC<Props> = (props) => {
   const { attachedPages = [] } = topic
 
   const { t } = useTranslation()
-  const { updateTopic } = useAssistant(assistant.id)
+  const { updateTopic, updateAssistant } = useAssistant(assistant.id)
 
   const [file, setFile] = useState<File | null>(null)
   const [pageTotal, setPageTotal] = useState(0)
   const [pageCurrent, setPageCurrent] = useState(1)
   const [pageContents, setPageContents] = useState<Map<number, string>>(new Map())
-  const [showIndex, setShowIndex] = useState(false)
+  const [showOutline, setShowOutline] = useState(false)
   const [showSelect, setShowSelect] = useState(false)
   const [scale, setScale] = useState(1)
   const [pageRefs, setPageRefs] = useState<React.RefObject<HTMLDivElement>[]>([])
@@ -74,6 +74,20 @@ const PdfReader: React.FC<Props> = (props) => {
     }
     updateTopic(data)
     setActiveTopic(data)
+  }
+
+  const onCloseReader = () => {
+    updateAssistant({ ...assistant, attachedDocument: undefined })
+  }
+
+  const onSwitchReaderPosition = () => {
+    updateAssistant({
+      ...assistant,
+      reader: {
+        ...assistant.reader,
+        position: assistant.reader?.position === 'right' ? 'left' : 'right'
+      }
+    })
   }
 
   const handleTriggerSelectedPages = (checked, page) => {
@@ -122,25 +136,65 @@ const PdfReader: React.FC<Props> = (props) => {
           error={PdfStatueRender.ERROR}
           noData={PdfStatueRender.NO_DATA}>
           <OperationBar>
-            <Flex gap={8} align="center" justify="space-between">
+            {/* 阅读器操作 */}
+            <OperateRow gap={8} align="center" justify="space-between">
               <Space>
-                <OperateButton
-                  onClick={() => setShowIndex((state) => !state)}
-                  data-active={showIndex}
-                  icon={<UnorderedListOutlined />}
-                />
-                <OperateButton
-                  icon={<SelectOutlined />}
-                  data-active={showSelect}
-                  onClick={() => {
-                    setShowSelect((state) => !state)
-                  }}
-                />
+                <Tooltip title={t('reader.switchPosition')}>
+                  <OperateButton
+                    icon={assistant.reader?.position === 'right' ? <PanelLeft size={16} /> : <PanelRight size={16} />}
+                    onClick={onSwitchReaderPosition}
+                  />
+                </Tooltip>
               </Space>
               <Space>
-                <OperateButton icon={<ZoomInOutlined />} onClick={onZoomIn} />
+                <Popover
+                  arrow={false}
+                  trigger={['click']}
+                  content={<FilePicker assistant={assistant} />}
+                  placement="bottomRight"
+                  destroyTooltipOnHide>
+                  <Tooltip title={t('reader.selectReference')}>
+                    <OperateButton icon={<BookCopy size={16} />} />
+                  </Tooltip>
+                </Popover>
+                <Tooltip title={t('reader.close')}>
+                  <Button onClick={onCloseReader} icon={<LogOut size={16} />} />
+                </Tooltip>
+              </Space>
+            </OperateRow>
+            <Divider
+              style={{
+                margin: '8px 0'
+              }}
+            />
+            {/* 参考资料操作 */}
+            <OperateRow gap={8} align="center" justify="space-between">
+              <Space>
+                <Tooltip title={t('reader.showOutline')}>
+                  <OperateButton
+                    onClick={() => setShowOutline((state) => !state)}
+                    data-active={showOutline}
+                    icon={<UnorderedListOutlined size={14} />}
+                  />
+                </Tooltip>
+                <Tooltip title={t('reader.showSelect')}>
+                  <OperateButton
+                    icon={<SelectOutlined size={14} />}
+                    data-active={showSelect}
+                    onClick={() => {
+                      setShowSelect((state) => !state)
+                    }}
+                  />
+                </Tooltip>
+              </Space>
+              <Space>
+                <Tooltip title={t('reader.zoomIn')}>
+                  <OperateButton icon={<ZoomInOutlined size={14} />} onClick={onZoomIn} />
+                </Tooltip>
                 <span>{`${scale * 100}%`}</span>
-                <OperateButton icon={<ZoomOutOutlined />} onClick={onZoomOut} />
+                <Tooltip title={t('reader.zoomOut')}>
+                  <OperateButton icon={<ZoomOutOutlined size={14} />} onClick={onZoomOut} />
+                </Tooltip>
               </Space>
               <Space size={12}>
                 <Pagination align="center">
@@ -160,21 +214,13 @@ const PdfReader: React.FC<Props> = (props) => {
                   />
                   /<span className="page-total">{pageTotal}</span>
                 </Pagination>
-                <Popover
-                  arrow={false}
-                  trigger={['click']}
-                  content={<FilePicker assistant={assistant} />}
-                  placement="bottomRight"
-                  destroyTooltipOnHide>
-                  <OperateButton icon={<PanelRight size={16} />} />
-                </Popover>
               </Space>
-            </Flex>
-            <OutlineWrapper className={showIndex ? 'visible' : ''}>
+            </OperateRow>
+            <OutlineWrapper className={showOutline ? 'visible' : ''}>
               <Outline
                 onItemClick={({ pageNumber }) => {
                   handleLocatePage(pageNumber)
-                  setShowIndex(false)
+                  setShowOutline(false)
                 }}
                 onLoadSuccess={(outline) => {
                   if (!outline) {
@@ -278,10 +324,15 @@ const OperationBar = styled.div`
   right: 0;
   left: 0;
   width: 100%;
-  padding: 12px 12px 16px 12px;
+  padding: 12px 0;
 
   background-color: var(--color-background);
   border-bottom: 1px solid var(--color-border);
+`
+
+const OperateRow = styled(Flex)`
+  padding: 0 12px;
+  width: 100%;
 `
 
 const OperateButton = styled(Button)`
