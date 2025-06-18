@@ -34,8 +34,8 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { findLast, isEmpty, takeRight } from 'lodash'
 import { containsSupportedVariables, promptVariableReplacer } from '@renderer/utils/prompt'
+import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
 import {
