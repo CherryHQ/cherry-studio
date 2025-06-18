@@ -66,19 +66,24 @@ export default class AppUpdater {
   }
 
   private async _getLatestNotDraftVersionFromGithub() {
-    const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=5', {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9'
-      }
-    })
-    const data = await responses.json()
-    const latestRelease = data.find((item: any) => !item.draft)
-    logger.info('latestRelease', latestRelease.tag_name)
-    return `https://github.com/CherryHQ/cherry-studio/releases/download/${latestRelease.tag_name}`
+    try {
+      const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=5', {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      })
+      const data = await responses.json()
+      const latestRelease = data.find((item: any) => !item.draft)
+      logger.info('latestRelease', latestRelease.tag_name)
+      return `https://github.com/CherryHQ/cherry-studio/releases/download/${latestRelease.tag_name}`
+    } catch (error) {
+      logger.error('Failed to get latest not draft version from github:', error)
+      return FeedUrl.GITHUB_LATEST
+    }
   }
 
   private async _getIpCountry() {
