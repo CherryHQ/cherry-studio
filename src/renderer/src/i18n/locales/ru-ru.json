@@ -112,12 +112,14 @@
           "title": "Настройки тегов"
         }
       },
-      "settings.reader": "[to be translated]:阅读器设置",
-      "settings.reader.reference": "[to be translated]:选择参考资料",
-      "settings.reader.upload": "[to be translated]:点击选择",
-      "settings.reader.reupload": "[to be translated]:重新上传",
-      "settings.reader.pickFromFiles": "[to be translated]:从文件中选择",
-      "settings.reader.pickFromFiles.confirm": "[to be translated]:确认选择该文档吗？"
+      "settings": {
+        "reader": "Настройки читалки",
+        "reader.reference": "Выбрать справочные материалы",
+        "reader.upload": "Нажмите для выбора",
+        "reader.reupload": "Перезагрузить",
+        "reader.pickFromFiles": "Выбрать из файлов",
+        "reader.pickFromFiles.confirm": "Вы уверены, что хотите выбрать этот документ?"
+      }
     },
     "auth": {
       "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -2056,11 +2058,18 @@
       }
     },
     "reader": {
-      "outlineEmpty": "[to be translated]:无可读目录",
-      "reference": "[to be translated]:参考资料",
-      "close": "[to be translated]:关闭阅读器",
-      "attaching": "[to be translated]:正在关联",
-      "pageIndex": "[to be translated]:第{{index}}页"
+      "outlineEmpty": "Нет доступного оглавления",
+      "reference": "Справочные материалы",
+      "close": "Закрыть читалку",
+      "attaching": "Выполняется связывание",
+      "pageIndex": "Страница {{index}}",
+      "switchPosition": "Сменить положение",
+      "selectReference": "Выбрать справочные материалы",
+      "showSelect": "Выбор страницы",
+      "showOutline": "Оглавление",
+      "zoomIn": "Приблизить",
+      "zoomOut": "Отдалить",
+      "move": "Перетащить"
     }
   }
 }

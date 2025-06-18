@@ -112,12 +112,12 @@
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "関数",
       "settings.tool_use_mode.prompt": "提示詞",
-      "settings.reader": "[to be translated]:阅读器设置",
-      "settings.reader.reference": "[to be translated]:选择参考资料",
-      "settings.reader.upload": "[to be translated]:点击选择",
-      "settings.reader.reupload": "[to be translated]:重新上传",
-      "settings.reader.pickFromFiles": "[to be translated]:从文件中选择",
-      "settings.reader.pickFromFiles.confirm": "[to be translated]:确认选择该文档吗？"
+      "settings.reader": "リーダー設定",
+        "settings.reader.reference": "参照資料を選択",
+        "settings.reader.upload": "クリックして選択",
+        "settings.reader.reupload": "再アップロード",
+        "settings.reader.pickFromFiles": "ファイルから選択",
+        "settings.reader.pickFromFiles.confirm": "このドキュメントを選択してもよろしいですか？"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -2056,11 +2056,18 @@
       }
     },
     "reader": {
-      "outlineEmpty": "[to be translated]:无可读目录",
-      "reference": "[to be translated]:参考资料",
-      "close": "[to be translated]:关闭阅读器",
-      "attaching": "[to be translated]:正在关联",
-      "pageIndex": "[to be translated]:第{{index}}页"
+      "outlineEmpty": "読み取り可能な目次がありません",
+      "reference": "参照資料",
+      "close": "リーダーを閉じる",
+      "attaching": "関連付け中",
+      "pageIndex": "{{index}} ページ目",
+      "switchPosition": "位置を切り替える",
+      "selectReference": "参照資料を選択",
+      "showSelect": "ページ選択",
+      "showOutline": "目次",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "move": "ドラッグ"
     }
   }
 }

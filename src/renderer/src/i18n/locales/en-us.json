@@ -112,12 +112,12 @@
           "title": "Tag Settings"
         }
       },
-      "settings.reader": "[to be translated]:阅读器设置",
-      "settings.reader.reference": "[to be translated]:选择参考资料",
-      "settings.reader.upload": "[to be translated]:点击选择",
-      "settings.reader.reupload": "[to be translated]:重新上传",
-      "settings.reader.pickFromFiles": "[to be translated]:从文件中选择",
-      "settings.reader.pickFromFiles.confirm": "[to be translated]:确认选择该文档吗？"
+      "settings.reader": "Reader Settings",
+      "settings.reader.reference": "Select Reference Materials",
+      "settings.reader.upload": "Click to Select",
+      "settings.reader.reupload": "Re-upload",
+      "settings.reader.pickFromFiles": "Select from Files",
+      "settings.reader.pickFromFiles.confirm": "Are you sure you want to select this document?"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -2056,11 +2056,18 @@
       }
     },
     "reader": {
-      "outlineEmpty": "[to be translated]:无可读目录",
-      "reference": "[to be translated]:参考资料",
-      "close": "[to be translated]:关闭阅读器",
-      "attaching": "[to be translated]:正在关联",
-      "pageIndex": "[to be translated]:第{{index}}页"
+      "outlineEmpty": "No readable table of contents",
+      "reference": "Reference Materials",
+      "close": "Close Reader",
+      "attaching": "Associating...",
+      "pageIndex": "Page {{index}}",
+      "switchPosition": "Switch Position",
+      "selectReference": "Select Reference Materials",
+      "showSelect": "Page Selection",
+      "showOutline": "Table of Contents",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "move": "Drag"
     }
   }
 }

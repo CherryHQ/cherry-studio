@@ -112,12 +112,12 @@
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "函數",
       "settings.tool_use_mode.prompt": "提示詞",
-      "settings.reader": "[to be translated]:阅读器设置",
-      "settings.reader.reference": "[to be translated]:选择参考资料",
-      "settings.reader.upload": "[to be translated]:点击选择",
-      "settings.reader.reupload": "[to be translated]:重新上传",
-      "settings.reader.pickFromFiles": "[to be translated]:从文件中选择",
-      "settings.reader.pickFromFiles.confirm": "[to be translated]:确认选择该文档吗？"
+      "settings.reader": "閱讀器設定",
+      "settings.reader.reference": "選擇參考資料",
+      "settings.reader.upload": "點擊選擇",
+      "settings.reader.reupload": "重新上傳",
+      "settings.reader.pickFromFiles": "從檔案中選擇",
+      "settings.reader.pickFromFiles.confirm": "確認選擇該文件嗎？"
     },
     "auth": {
       "error": "自動取得金鑰失敗，請手動取得",
@@ -2056,11 +2056,18 @@
       }
     },
     "reader": {
-      "outlineEmpty": "[to be translated]:无可读目录",
-      "reference": "[to be translated]:参考资料",
-      "close": "[to be translated]:关闭阅读器",
-      "attaching": "[to be translated]:正在关联",
-      "pageIndex": "[to be translated]:第{{index}}页"
+      "outlineEmpty": "無可讀目錄",
+      "reference": "參考資料",
+      "close": "關閉閱讀器",
+      "attaching": "正在關聯",
+      "pageIndex": "第{{index}}頁",
+      "switchPosition": "切換位置",
+      "selectReference": "選擇參考資料",
+      "showSelect": "頁面選擇",
+      "showOutline": "目錄",
+      "zoomIn": "放大",
+      "zoomOut": "縮小",
+      "move": "拖動"
     }
   }
 }
