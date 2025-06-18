@@ -236,21 +236,27 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
   public async attachRawStreamListener(
     rawOutput: OpenAIResponseSdkRawOutput,
     listener: OpenAIResponseStreamListener<OpenAIResponseSdkRawChunk>
-  ): Promise<OpenAIResponseSdkRawOutput> {
+  ): Promise<OpenAIResponseSdkRawOutput | ReadableStream<OpenAIResponseSdkRawChunk>> {
     if ('output' in rawOutput) {
       if (listener.onMessage) {
         listener.onMessage(rawOutput)
       }
     } else if (rawOutput instanceof Stream) {
-      const [monitoredOutput, teeOutput] = rawOutput.tee()
-      for await (const chunk of monitoredOutput) {
-        if (chunk.type === 'response.completed') {
-          if (listener.onMessage) {
-            listener.onMessage(chunk.response)
+      const readableStream = rawOutput.toReadableStream()
+      const transformedStream = readableStream.pipeThrough(
+        new TransformStream({
+          transform(
+            chunk: OpenAI.Responses.ResponseStreamEvent,
+            controller: TransformStreamDefaultController<OpenAI.Responses.ResponseStreamEvent>
+          ) {
+            if (chunk.type === 'response.completed' && listener.onMessage) {
+              listener.onMessage(chunk.response)
+            }
+            controller.enqueue(chunk)
           }
-        }
-      }
-      return teeOutput
+        })
+      )
+      return transformedStream
     }
     return rawOutput
   }

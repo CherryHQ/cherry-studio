@@ -55,13 +55,19 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
           }
         }
         const specificApiClient = ctx.apiClientInstance as OpenAIResponseAPIClient
-        const monitoredOutput = await specificApiClient.attachRawStreamListener(
+        const transformedStream = await specificApiClient.attachRawStreamListener(
           result.rawOutput as OpenAIResponseSdkRawOutput,
           openaiListener
         )
+        if (transformedStream instanceof ReadableStream) {
+          return {
+            ...result,
+            stream: transformedStream // 相当于承担了StreamAdapterMiddleware的职责
+          }
+        }
         return {
           ...result,
-          rawOutput: monitoredOutput
+          rawOutput: transformedStream
         }
       }
     }
