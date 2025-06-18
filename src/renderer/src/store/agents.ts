@@ -40,8 +40,7 @@ const assistantsSlice = createSlice({
                 contextCount: DEFAULT_CONTEXTCOUNT,
                 enableMaxTokens: false,
                 maxTokens: 0,
-                streamOutput: true,
-                hideMessages: false
+                streamOutput: true
               }
             }
             agent.settings[key] = settings[key]

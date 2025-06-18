@@ -1,5 +1,4 @@
 import Scrollbar from '@renderer/components/Scrollbar'
-import { getDefaultModel } from '@renderer/services/AssistantService'
 import { Assistant } from '@renderer/types'
 import { FC } from 'react'
 import styled from 'styled-components'
@@ -11,11 +10,9 @@ interface Props {
 }
 
 const ChatWindow: FC<Props> = ({ route, assistant }) => {
-  // const { defaultAssistant } = useDefaultAssistant()
-
   return (
     <Main className="bubble">
-      <Messages assistant={{ ...assistant, model: getDefaultModel() }} route={route} />
+      <Messages assistant={{ ...assistant }} route={route} />
     </Main>
   )
 }

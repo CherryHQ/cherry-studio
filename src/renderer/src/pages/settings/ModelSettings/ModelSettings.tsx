@@ -1,37 +1,35 @@
 import { RedoOutlined } from '@ant-design/icons'
+import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isEmbeddingModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
+import { useAppSelector } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
+import { setQuickAssistantId } from '@renderer/store/llm'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
-import { FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
+import { CircleHelp, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './TopicNamingModalPopup'
 
 const ModelSettings: FC = () => {
-  const {
-    defaultModel,
-    topicNamingModel,
-    translateModel,
-    quickAssistantModel,
-    setDefaultModel,
-    setTopicNamingModel,
-    setTranslateModel,
-    setQuickAssistantModel
-  } = useDefaultModel()
+  const { defaultModel, topicNamingModel, translateModel, setDefaultModel, setTopicNamingModel, setTranslateModel } =
+    useDefaultModel()
+  const { defaultAssistant } = useDefaultAssistant()
+  const { assistants } = useAssistants()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
@@ -39,6 +37,7 @@ const ModelSettings: FC = () => {
   const { translateModelPrompt } = useSettings()
 
   const dispatch = useAppDispatch()
+  const { quickAssistantId } = useAppSelector((state) => state.llm)
 
   const selectOptions = providers
     .filter((p) => p.models.length > 0)
@@ -66,11 +65,6 @@ const ModelSettings: FC = () => {
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
     [translateModel]
-  )
-
-  const defaultQuickAssistantModel = useMemo(
-    () => (hasModel(quickAssistantModel) ? getModelUniqId(quickAssistantModel) : undefined),
-    [quickAssistantModel]
   )
 
   const onUpdateTranslateModel = async () => {
@@ -163,27 +157,118 @@ const ModelSettings: FC = () => {
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
-        <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
-            <Rocket size={18} color="var(--color-text)" />
-            {t('settings.models.quick_assistant_model')}
-          </HStack>
-        </SettingTitle>
-        <HStack alignItems="center">
-          <Select
-            value={defaultQuickAssistantModel}
-            defaultValue={defaultQuickAssistantModel}
-            style={{ width: 360 }}
-            onChange={(value) => setQuickAssistantModel(find(allModels, JSON.parse(value)) as Model)}
-            options={selectOptions}
-            showSearch
-            placeholder={t('settings.models.empty')}
-          />
+        <HStack alignItems="center" style={{ marginBottom: 12 }}>
+          <SettingTitle>
+            <HStack alignItems="center" gap={10}>
+              <Rocket size={18} color="var(--color-text)" />
+              {t('settings.models.quick_assistant_model')}
+              <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
+                <QuestionIcon size={12} />
+              </Tooltip>
+              <Spacer />
+            </HStack>
+            <HStack alignItems="center" gap={0}>
+              <StyledButton
+                type={!quickAssistantId ? 'primary' : 'default'}
+                onClick={() => dispatch(setQuickAssistantId(null))}
+                selected={!quickAssistantId}>
+                {t('settings.models.use_model')}
+              </StyledButton>
+              <StyledButton
+                type={quickAssistantId ? 'primary' : 'default'}
+                onClick={() => {
+                  dispatch(setQuickAssistantId(defaultAssistant.id))
+                }}
+                selected={!!quickAssistantId}>
+                {t('settings.models.use_assistant')}
+              </StyledButton>
+            </HStack>
+          </SettingTitle>
         </HStack>
+        {!quickAssistantId ? null : (
+          <HStack alignItems="center" style={{ marginTop: 12 }}>
+            <Select
+              value={quickAssistantId}
+              style={{ width: 360 }}
+              onChange={(value) => dispatch(setQuickAssistantId(value))}
+              placeholder={t('settings.models.quick_assistant_selection')}>
+              {assistants.map((a) => (
+                <Select.Option key={a.id} value={a.id}>
+                  <AssistantItem>
+                    <ModelAvatar model={a.model || defaultModel} size={18} />
+                    <AssistantName>{a.name}</AssistantName>
+                    <Spacer />
+                    {a.id === defaultAssistant.id && (
+                      <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
+                    )}
+                  </AssistantItem>
+                </Select.Option>
+              ))}
+            </Select>
+          </HStack>
+        )}
         <SettingDescription>{t('settings.models.quick_assistant_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )
 }
+
+const QuestionIcon = styled(CircleHelp)`
+  cursor: pointer;
+  color: var(--color-text-3);
+`
+
+const StyledButton = styled(Button)<{ selected: boolean }>`
+  border-radius: ${(props) => (props.selected ? '6px' : '6px')};
+  z-index: ${(props) => (props.selected ? 1 : 0)};
+  min-width: 80px;
+
+  &:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right-width: 0px; // No right border for the first button when not selected
+  }
+
+  &:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left-width: 1px; // Ensure left border for the last button
+  }
+
+  // Override Ant Design's default hover and focus styles for a cleaner look
+  &:hover,
+  &:focus {
+    z-index: 1;
+    border-color: ${(props) => (props.selected ? 'var(--ant-primary-color)' : 'var(--ant-primary-color-hover)')};
+    box-shadow: ${(props) =>
+      props.selected ? '0 0 0 2px var(--ant-primary-color-outline)' : '0 0 0 2px var(--ant-primary-color-outline)'};
+  }
+`
+
+const AssistantItem = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+`
+
+const AssistantName = styled.span`
+  max-width: calc(100% - 60px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const Spacer = styled.div`
+  flex: 1;
+`
+
+const DefaultTag = styled.span<{ isCurrent: boolean }>`
+  color: ${(props) => (props.isCurrent ? 'var(--color-primary)' : 'var(--color-text-3)')};
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+`
 
 export default ModelSettings

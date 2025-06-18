@@ -1,18 +1,22 @@
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { Input } from 'antd'
-import { Search } from 'lucide-react'
-import React, { FC, useState } from 'react'
+import { Button, Input } from 'antd'
+import { Search, SettingsIcon, X } from 'lucide-react'
+import React, { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router'
 import styled from 'styled-components'
 
 import App from './App'
+import MiniAppSettings from './MiniappSettings/MiniAppSettings'
 import NewAppButton from './NewAppButton'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const { minapps } = useMinapps()
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const location = useLocation()
 
   const filteredApps = search
     ? minapps.filter(
@@ -31,31 +35,51 @@ const AppsPage: FC = () => {
     e.preventDefault()
   }
 
+  useEffect(() => {
+    setIsSettingsOpen(false)
+  }, [location.key])
+
   return (
     <Container onContextMenu={handleContextMenu}>
       <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', justifyContent: 'space-between' }}>
+        <NavbarMain>
           {t('minapp.title')}
           <Input
             placeholder={t('common.search')}
             className="nodrag"
-            style={{ width: '30%', height: 28, borderRadius: 15 }}
+            style={{
+              width: '30%',
+              height: 28,
+              borderRadius: 15,
+              position: 'absolute',
+              left: '50vw',
+              transform: 'translateX(-50%)'
+            }}
             size="small"
             variant="filled"
             suffix={<Search size={18} />}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            disabled={isSettingsOpen}
           />
-          <div style={{ width: 80 }} />
-        </NavbarCenter>
+          <Button
+            type="text"
+            className="nodrag"
+            icon={isSettingsOpen ? <X size={18} /> : <SettingsIcon size={18} color="var(--color-text-2)" />}
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+          />
+        </NavbarMain>
       </Navbar>
       <ContentContainer id="content-container">
-        <AppsContainer style={{ height: containerHeight }}>
-          {filteredApps.map((app) => (
-            <App key={app.id} app={app} />
-          ))}
-          <NewAppButton />
-        </AppsContainer>
+        {isSettingsOpen && <MiniAppSettings />}
+        {!isSettingsOpen && (
+          <AppsContainer style={{ height: containerHeight }}>
+            {filteredApps.map((app) => (
+              <App key={app.id} app={app} />
+            ))}
+            <NewAppButton />
+          </AppsContainer>
+        )}
       </ContentContainer>
     </Container>
   )

@@ -22,6 +22,7 @@ const MermaidPreview: React.FC<Props> = ({ children, setTools }) => {
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [error, setError] = useState<string | null>(null)
   const [isRendering, setIsRendering] = useState(false)
+  const [isVisible, setIsVisible] = useState(true)
 
   // 使用通用图像工具
   const { handleZoom, handleCopyImage, handleDownload } = usePreviewToolHandlers(mermaidRef, {
@@ -75,9 +76,54 @@ const MermaidPreview: React.FC<Props> = ({ children, setTools }) => {
     [renderMermaid]
   )
 
+  /**
+   * 监听可见性变化，用于触发重新渲染。
+   * 这是为了解决 `MessageGroup` 组件的 `fold` 布局中被 `display: none` 隐藏的图标无法正确渲染的问题。
+   * 监听时向上遍历到第一个有 `fold` className 的父节点为止（也就是目前的 `MessageWrapper`）。
+   * FIXME: 将来 mermaid-js 修复此问题后可以移除这里的相关逻辑。
+   */
+  useEffect(() => {
+    if (!mermaidRef.current) return
+
+    const checkVisibility = () => {
+      const element = mermaidRef.current
+      if (!element) return
+
+      const currentlyVisible = element.offsetParent !== null
+      setIsVisible(currentlyVisible)
+    }
+
+    // 初始检查
+    checkVisibility()
+
+    const observer = new MutationObserver(() => {
+      checkVisibility()
+    })
+
+    let targetElement = mermaidRef.current.parentElement
+    while (targetElement) {
+      observer.observe(targetElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      })
+
+      if (targetElement.className?.includes('fold')) {
+        break
+      }
+
+      targetElement = targetElement.parentElement
+    }
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
   // 触发渲染
   useEffect(() => {
     if (isLoadingMermaid) return
+
+    if (mermaidRef.current?.offsetParent === null) return
 
     if (children) {
       setIsRendering(true)
@@ -90,7 +136,7 @@ const MermaidPreview: React.FC<Props> = ({ children, setTools }) => {
     return () => {
       debouncedRender.cancel()
     }
-  }, [children, isLoadingMermaid, debouncedRender])
+  }, [children, isLoadingMermaid, debouncedRender, isVisible])
 
   const isLoading = isLoadingMermaid || isRendering
 
