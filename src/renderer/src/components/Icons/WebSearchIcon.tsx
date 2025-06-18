@@ -23,7 +23,7 @@ const Container = styled.div`
 `
 
 const Icon = styled(GlobalOutlined)`
-  color: var(--color-link);
+  color: var(--color-primary);
   font-size: 15px;
   margin-right: 6px;
 `

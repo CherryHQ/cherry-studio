@@ -22,7 +22,7 @@ const Container = styled.div`
 `
 
 const Icon = styled.i`
-  color: var(--color-link);
+  color: var(--color-primary);
   font-size: 16px;
   margin-right: 6px;
 `

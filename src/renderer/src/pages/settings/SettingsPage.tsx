@@ -1,4 +1,3 @@
-import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
 import { Spin } from 'antd'
 import {
@@ -38,9 +37,6 @@ const SettingsPage: FC = () => {
 
   return (
     <Container>
-      <NavbarMain>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-      </NavbarMain>
       <ContentContainer id="content-container">
         <SettingMenus>
           <MenuItemLink to="/settings/provider">

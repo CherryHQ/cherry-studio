@@ -1,22 +1,43 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setActiveAssistant, setActiveTopic } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant } from '@renderer/types'
 import { Topic } from '@renderer/types'
-import { useEffect } from 'react'
+import { use, useEffect, useMemo, useState } from 'react'
+import { createContext } from 'react'
 
-import { useAssistants, useTopicsForAssistant } from './useAssistant'
+import { useTopicsForAssistant } from './useAssistant'
 import { useSettings } from './useSettings'
 
-export const useChat = () => {
-  const { assistants } = useAssistants()
-  const activeAssistant = useAppSelector((state) => state.runtime.chat.activeAssistant) || assistants[0]
+interface ChatContextType {
+  activeAssistant: Assistant
+  activeTopic: Topic
+  setActiveAssistant: (assistant: Assistant) => void
+  setActiveTopic: (topic: Topic) => void
+}
+
+const ChatContext = createContext<ChatContextType | null>(null)
+
+export const ChatProvider = ({ children }) => {
+  const assistants = useAppSelector((state) => state.assistants.assistants)
+  const [activeAssistant, setActiveAssistant] = useState<Assistant>(assistants[0])
   const topics = useTopicsForAssistant(activeAssistant.id)
-  const activeTopic = useAppSelector((state) => state.runtime.chat.activeTopic) || topics[0]
+  const [activeTopic, setActiveTopic] = useState<Topic>(topics[0])
   const { clickAssistantToShowTopic } = useSettings()
   const dispatch = useAppDispatch()
 
+  console.log('activeAssistant', activeAssistant)
+  console.log('activeTopic', activeTopic)
+
+  // 当 topics 变化时，如果当前 activeTopic 不在 topics 中，设置第一个 topic
+  useEffect(() => {
+    if (!topics.find((topic) => topic.id === activeTopic?.id)) {
+      const firstTopic = topics[0]
+      firstTopic && setActiveTopic(firstTopic)
+    }
+  }, [topics, activeTopic?.id])
+
+  // 当 activeTopic 变化时加载消息
   useEffect(() => {
     if (activeTopic) {
       dispatch(loadTopicMessagesThunk(activeTopic.id))
@@ -24,28 +45,38 @@ export const useChat = () => {
     }
   }, [activeTopic, dispatch])
 
-  useEffect(() => {
-    if (topics.find((topic) => topic.id === activeTopic?.id)) {
-      return
-    }
-    const firstTopic = topics[0]
-    firstTopic && dispatch(setActiveTopic(firstTopic))
-  }, [activeAssistant, activeTopic?.id, dispatch, topics])
-
+  // 处理点击助手显示话题侧边栏
   useEffect(() => {
     if (clickAssistantToShowTopic) {
       EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
   }, [clickAssistantToShowTopic, activeAssistant])
 
-  return {
-    activeAssistant,
-    activeTopic,
-    setActiveAssistant: (assistant: Assistant) => {
-      dispatch(setActiveAssistant(assistant))
-    },
-    setActiveTopic: (topic: Topic) => {
-      dispatch(setActiveTopic(topic))
-    }
+  useEffect(() => {
+    const subscriptions = [
+      EventEmitter.on(EVENT_NAMES.SET_ASSISTANT, setActiveAssistant),
+      EventEmitter.on(EVENT_NAMES.SET_TOPIC, setActiveTopic)
+    ]
+    return () => subscriptions.forEach((subscription) => subscription())
+  }, [])
+
+  const value = useMemo(
+    () => ({
+      activeAssistant,
+      activeTopic,
+      setActiveAssistant,
+      setActiveTopic
+    }),
+    [activeAssistant, activeTopic]
+  )
+
+  return <ChatContext value={value}>{children}</ChatContext>
+}
+
+export const useChat = () => {
+  const context = use(ChatContext)
+  if (!context) {
+    throw new Error('useChat must be used within ChatProvider')
   }
+  return context
 }

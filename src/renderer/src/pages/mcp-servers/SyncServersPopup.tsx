@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getModelScopeToken, saveModelScopeToken, syncModelScopeServers } from './modelscopeSyncUtils'
+import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
 // Provider configuration interface
@@ -45,6 +46,17 @@ const providers: ProviderConfig[] = [
     getToken: getTokenFluxToken,
     saveToken: saveTokenFluxToken,
     syncServers: syncTokenFluxServers
+  },
+  {
+    key: 'lanyun',
+    name: '蓝耘科技',
+    description: '蓝耘科技云平台 MCP 服务',
+    discoverUrl: 'https://mcp.lanyun.net',
+    apiKeyUrl: LANYUN_KEY_HOST,
+    tokenFieldName: 'tokenLanyunToken',
+    getToken: getTokenLanYunToken,
+    saveToken: saveTokenLanYunToken,
+    syncServers: syncTokenLanYunServers
   }
 ]
 

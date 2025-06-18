@@ -1,13 +1,11 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
-import type { Assistant, MinAppType, Topic } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface ChatState {
   isMultiSelectMode: boolean
   selectedMessageIds: string[]
-  activeTopic: Topic | null
-  activeAssistant: Assistant | null
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
@@ -70,8 +68,6 @@ const initialState: RuntimeState = {
   chat: {
     isMultiSelectMode: false,
     selectedMessageIds: [],
-    activeTopic: null,
-    activeAssistant: null,
     renamingTopics: [],
     newlyRenamedTopics: []
   }
@@ -124,12 +120,6 @@ const runtimeSlice = createSlice({
     setSelectedMessageIds: (state, action: PayloadAction<string[]>) => {
       state.chat.selectedMessageIds = action.payload
     },
-    setActiveTopic: (state, action: PayloadAction<Topic>) => {
-      state.chat.activeTopic = action.payload
-    },
-    setActiveAssistant: (state, action: PayloadAction<Assistant>) => {
-      state.chat.activeAssistant = action.payload
-    },
     setRenamingTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.renamingTopics = action.payload
     },
@@ -154,8 +144,6 @@ export const {
   // Chat related actions
   toggleMultiSelectMode,
   setSelectedMessageIds,
-  setActiveTopic,
-  setActiveAssistant,
   setRenamingTopics,
   setNewlyRenamedTopics
 } = runtimeSlice.actions

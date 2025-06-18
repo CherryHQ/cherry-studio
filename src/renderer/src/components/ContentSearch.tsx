@@ -568,20 +568,23 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               <ToolBar>
                 <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
                   <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
-                    <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                    <User size={18} style={{ color: includeUser ? 'var(--color-primary)' : 'var(--color-icon)' }} />
                   </ToolbarButton>
                 </Tooltip>
                 <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
                   <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
                     <CaseSensitive
                       size={18}
-                      style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
+                      style={{ color: isCaseSensitive ? 'var(--color-primary)' : 'var(--color-icon)' }}
                     />
                   </ToolbarButton>
                 </Tooltip>
                 <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
                   <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
-                    <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                    <WholeWord
+                      size={18}
+                      style={{ color: isWholeWord ? 'var(--color-primary)' : 'var(--color-icon)' }}
+                    />
                   </ToolbarButton>
                 </Tooltip>
               </ToolBar>
@@ -630,7 +633,6 @@ const Container = styled.div`
 `
 
 const SearchBarContainer = styled.div`
-  border: 1px solid var(--color-primary);
   border-radius: 10px;
   transition: all 0.2s ease;
   position: fixed;
@@ -644,6 +646,7 @@ const SearchBarContainer = styled.div`
   justify-content: center;
   background-color: var(--color-background);
   flex: 1 1 auto; /* Take up input's previous space */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 `
 
 const Placeholder = styled.div`

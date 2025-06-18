@@ -55,8 +55,8 @@ const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
 
 const DisplaySettings: FC = () => {
   const {
-    windowStyle,
-    setWindowStyle,
+    transparentWindow,
+    setTransparentWindow,
     topicPosition,
     setTopicPosition,
     clickAssistantToShowTopic,
@@ -76,13 +76,6 @@ const DisplaySettings: FC = () => {
 
   const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
-
-  const handleWindowStyleChange = useCallback(
-    (checked: boolean) => {
-      setWindowStyle(checked ? 'transparent' : 'opaque')
-    },
-    [setWindowStyle]
-  )
 
   const handleColorPrimaryChange = useCallback(
     (colorHex: string) => {
@@ -196,7 +189,7 @@ const DisplaySettings: FC = () => {
               value={userTheme.colorPrimary}
               onChange={(color) => handleColorPrimaryChange(color.toHexString())}
               showText
-              style={{ width: '110px' }}
+              size="small"
               presets={[
                 {
                   label: 'Presets',
@@ -206,12 +199,12 @@ const DisplaySettings: FC = () => {
             />
           </HStack>
         </SettingRow>
-        {isMac && (
+        {!isMac && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
+              <Switch checked={transparentWindow} onChange={setTransparentWindow} />
             </SettingRow>
           </>
         )}
@@ -222,13 +215,15 @@ const DisplaySettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.zoom.title')}</SettingRowTitle>
           <ZoomButtonGroup>
-            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} />
+            <Button onClick={() => handleZoomFactor(-0.1)} icon={<Minus size="14" />} color="default" variant="text" />
             <ZoomValue>{Math.round(currentZoom * 100)}%</ZoomValue>
-            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} />
+            <Button onClick={() => handleZoomFactor(0.1)} icon={<Plus size="14" />} color="default" variant="text" />
             <Button
               onClick={() => handleZoomFactor(0, true)}
               style={{ marginLeft: 8 }}
               icon={<RotateCcw size="14" />}
+              color="default"
+              variant="text"
             />
           </ZoomButtonGroup>
         </SettingRow>

@@ -145,6 +145,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
+import { getBaseModelName } from '@renderer/utils'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -2178,7 +2179,8 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'DeepSeek-R1满血版',
       group: 'DeepSeek'
     }
-  ]
+  ],
+  lanyun: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
@@ -2484,9 +2486,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+
   return (
-    model.id.toLowerCase().startsWith('qwen3') ||
-    model.id.toLowerCase().startsWith('qwen/qwen3') ||
+    baseName.startsWith('qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2494,7 +2497,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
-    ].includes(model.id.toLowerCase())
+    ].includes(baseName)
   )
 }
 
@@ -2592,9 +2595,11 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+
   // 不管哪个供应商都判断了
   if (model.id.includes('claude')) {
-    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
+    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(baseName)
   }
 
   if (provider.type === 'openai-response') {
@@ -2606,7 +2611,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'perplexity') {
-    return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
+    return PERPLEXITY_SEARCH_MODELS.includes(baseName)
   }
 
   if (provider.id === 'aihubmix') {
@@ -2615,31 +2620,31 @@ export function isWebSearchModel(model: Model): boolean {
     }
 
     const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-    return models.includes(model?.id)
+    return models.includes(baseName)
   }
 
   if (provider?.type === 'openai') {
-    if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearchModel(model)) {
+    if (GEMINI_SEARCH_MODELS.includes(baseName) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
-    return GEMINI_SEARCH_MODELS.includes(model?.id)
+    return GEMINI_SEARCH_MODELS.includes(baseName)
   }
 
   if (provider.id === 'hunyuan') {
-    return model?.id !== 'hunyuan-lite'
+    return baseName !== 'hunyuan-lite'
   }
 
   if (provider.id === 'zhipu') {
-    return model?.id?.startsWith('glm-4-')
+    return baseName?.startsWith('glm-4-')
   }
 
   if (provider.id === 'dashscope') {
     const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
     // matches id like qwen-max-0919, qwen-max-latest
-    return models.some((i) => model.id.startsWith(i))
+    return models.some((i) => baseName.startsWith(i))
   }
 
   if (provider.id === 'openrouter') {
@@ -2683,7 +2688,9 @@ export function isGenerateImageModel(model: Model): boolean {
   if (isEmbedding) {
     return false
   }
-  if (GENERATE_IMAGE_MODELS.includes(model.id)) {
+
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  if (GENERATE_IMAGE_MODELS.includes(baseName)) {
     return true
   }
   return false

@@ -98,7 +98,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   }, [currentReasoningEffort, supportedOptions, updateAssistantSettings, model.id])
 
   const createThinkingIcon = useCallback((option?: ThinkingOption, isActive: boolean = false) => {
-    const iconColor = isActive ? 'var(--color-link)' : 'var(--color-icon)'
+    const iconColor = isActive ? 'var(--color-primary)' : 'var(--color-icon)'
 
     switch (true) {
       case option === 'low':

@@ -1,7 +1,6 @@
 import { ArrowRightOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
-import { useChat } from '@renderer/hooks/useChat'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
@@ -22,7 +21,6 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
   const { messageStyle } = useSettings()
   const { t } = useTranslation()
   const [topic, setTopic] = useState<Topic | null>(null)
-  const { setActiveAssistant, setActiveTopic } = useChat()
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -50,13 +48,11 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
             type="text"
             size="middle"
             style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 10 }}
-            onClick={() => locateToMessage({ message, setActiveAssistant, setActiveTopic })}
+            onClick={() => locateToMessage(message)}
             icon={<ArrowRightOutlined />}
           />
           <HStack mt="10px" justifyContent="center">
-            <Button
-              onClick={() => locateToMessage({ message, setActiveAssistant, setActiveTopic })}
-              icon={<ArrowRightOutlined />}>
+            <Button onClick={() => locateToMessage(message)} icon={<ArrowRightOutlined />}>
               {t('history.locate.message')}
             </Button>
           </HStack>

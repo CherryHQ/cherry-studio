@@ -178,6 +178,7 @@ export interface SettingsState {
     knowledgeEmbed: boolean
   }
   defaultPaintingProvider: PaintingProvider
+  transparentWindow: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -316,7 +317,8 @@ export const initialState: SettingsState = {
     backup: false,
     knowledgeEmbed: false
   },
-  defaultPaintingProvider: 'aihubmix'
+  defaultPaintingProvider: 'aihubmix',
+  transparentWindow: true
 }
 
 const settingsSlice = createSlice({
@@ -665,6 +667,9 @@ const settingsSlice = createSlice({
     },
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
+    },
+    setTransparentWindow: (state, action: PayloadAction<boolean>) => {
+      state.transparentWindow = action.payload
     }
   }
 })
@@ -768,7 +773,8 @@ export const {
   setOpenAISummaryText,
   setOpenAIServiceTier,
   setNotificationSettings,
-  setDefaultPaintingProvider
+  setDefaultPaintingProvider,
+  setTransparentWindow
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

@@ -15,11 +15,11 @@ import store from '@renderer/store'
 import { FileType, FileTypes } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Empty, Flex, Popconfirm } from 'antd'
+import { Button, Checkbox, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { File as FileIcon, FileImage, FileText, FileType as FileTypeIcon } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,6 +33,11 @@ const FilesPage: FC = () => {
   const [fileType, setFileType] = useState<string>('document')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
+
+  useEffect(() => {
+    setSelectedFileIds([])
+  }, [fileType])
 
   const tempFilesSort = (files: FileType[]) => {
     return files.sort((a, b) => {
@@ -153,6 +158,8 @@ const FilesPage: FC = () => {
       })
 
       Logger.log(`Deleted ${blockIdsToDelete.length} blocks and updated relevant topic messages for file ${fileId}.`)
+
+      setSelectedFileIds((prev) => prev.filter((id) => id !== fileId))
     } catch (error) {
       Logger.error(`Error updating topics or deleting blocks for file ${fileId}:`, error)
       window.modal.error({ content: t('files.delete.db_error'), centered: true }) // 提示数据库操作失败
@@ -167,6 +174,46 @@ const FilesPage: FC = () => {
       if (newName) {
         FileManager.updateFile({ ...file, origin_name: newName })
       }
+    }
+  }
+
+  const handleBatchDelete = async () => {
+    const selectedFiles = await Promise.all(selectedFileIds.map((id) => FileManager.getFile(id)))
+    const validFiles = selectedFiles.filter((file): file is FileType => file !== null && file !== undefined)
+
+    const paintings = await store.getState().paintings.paintings
+    const paintingsFiles = paintings.flatMap((p) => p.files)
+
+    const filesInPaintings = validFiles.filter((file) => paintingsFiles.some((p) => p.id === file.id))
+
+    if (filesInPaintings.length > 0) {
+      window.modal.warning({
+        content: t('files.delete.paintings.warning', { count: filesInPaintings.length }),
+        centered: true
+      })
+      return
+    }
+
+    for (const fileId of selectedFileIds) {
+      await handleDelete(fileId)
+    }
+
+    setSelectedFileIds([])
+  }
+
+  const handleSelectFile = (fileId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedFileIds((prev) => [...prev, fileId])
+    } else {
+      setSelectedFileIds((prev) => prev.filter((id) => id !== fileId))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedFileIds(sortedFiles.map((file) => file.id))
+    } else {
+      setSelectedFileIds([])
     }
   }
 
@@ -186,13 +233,20 @@ const FilesPage: FC = () => {
           <Button type="text" icon={<EditOutlined />} onClick={() => handleRename(file.id)} />
           <Popconfirm
             title={t('files.delete.title')}
-            description={t('files.delete.content')}
+            description={t('files.delete.content', { count: 1 })}
             okText={t('common.confirm')}
             cancelText={t('common.cancel')}
             onConfirm={() => handleDelete(file.id)}
             icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
             <Button type="text" danger icon={<DeleteOutlined />} />
           </Popconfirm>
+          {fileType !== 'image' && (
+            <Checkbox
+              checked={selectedFileIds.includes(file.id)}
+              onChange={(e) => handleSelectFile(file.id, e.target.checked)}
+              style={{ margin: '0 8px' }}
+            />
+          )}
         </Flex>
       )
     }
@@ -224,22 +278,59 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            {['created_at', 'size', 'name'].map((field) => (
-              <SortButton
-                key={field}
-                active={sortField === field}
-                onClick={() => {
-                  if (sortField === field) {
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                  } else {
-                    setSortField(field as 'created_at' | 'size' | 'name')
-                    setSortOrder('desc')
-                  }
-                }}>
-                {t(`files.${field}`)}
-                {sortField === field && (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
-              </SortButton>
-            ))}
+            <Flex gap={8} align="center">
+              {['created_at', 'size', 'name'].map((field) => (
+                <Button
+                  color="default"
+                  key={field}
+                  variant={sortField === field ? 'filled' : 'text'}
+                  onClick={() => {
+                    if (sortField === field) {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortField(field as 'created_at' | 'size' | 'name')
+                      setSortOrder('desc')
+                    }
+                  }}>
+                  {t(`files.${field}`)}
+                  {sortField === field &&
+                    (sortOrder === 'desc' ? <SortDescendingOutlined /> : <SortAscendingOutlined />)}
+                </Button>
+              ))}
+            </Flex>
+            {fileType !== 'image' && (
+              <Dropdown.Button
+                style={{ width: 'auto' }}
+                menu={{
+                  items: [
+                    {
+                      key: 'delete',
+                      disabled: selectedFileIds.length === 0,
+                      danger: true,
+                      label: (
+                        <Popconfirm
+                          disabled={selectedFileIds.length === 0}
+                          title={t('files.delete.title')}
+                          description={t('files.delete.content', { count: selectedFileIds.length })}
+                          okText={t('common.confirm')}
+                          cancelText={t('common.cancel')}
+                          onConfirm={handleBatchDelete}
+                          icon={<ExclamationCircleOutlined />}>
+                          {t('files.batch_delete')} ({selectedFileIds.length})
+                        </Popconfirm>
+                      )
+                    }
+                  ]
+                }}
+                trigger={['click']}>
+                <Checkbox
+                  indeterminate={selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length}
+                  checked={selectedFileIds.length === sortedFiles.length}
+                  onChange={(e) => handleSelectAll(e.target.checked)}>
+                  {t('files.batch_operation')}
+                </Checkbox>
+              </Dropdown.Button>
+            )}
           </SortContainer>
           {dataSource && dataSource?.length > 0 ? (
             <FileList id={fileType} list={dataSource} files={sortedFiles} />
@@ -268,6 +359,7 @@ const MainContent = styled.div`
 const SortContainer = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 8px 16px;
   border-bottom: 0.5px solid var(--color-border);
@@ -312,27 +404,6 @@ const SideNav = styled.div`
       border: 0.5px solid var(--color-border);
       color: var(--color-text);
     }
-  }
-`
-
-const SortButton = styled(Button)<{ active?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  height: 30px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
-  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
-  color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
-  }
-
-  .anticon {
-    font-size: 12px;
   }
 `
 

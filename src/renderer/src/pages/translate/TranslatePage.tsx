@@ -23,7 +23,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { find, isEmpty, sortBy } from 'lodash'
-import { HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
+import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -120,6 +120,7 @@ const TranslateSettings: FC<{
               }}
               options={selectOptions}
               showSearch
+              suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
             />
           </HStack>
           {!translateModel && (
@@ -174,6 +175,7 @@ const TranslateSettings: FC<{
                       </Space.Compact>
                     )
                   }))}
+                  suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
                 />
                 <span>⇆</span>
                 <Select
@@ -191,6 +193,7 @@ const TranslateSettings: FC<{
                       </Space.Compact>
                     )
                   }))}
+                  suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
                 />
               </Flex>
             )}
@@ -433,6 +436,7 @@ const TranslatePage: FC = () => {
             </Space.Compact>
           )
         }))}
+        suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
       />
     )
   }
@@ -529,6 +533,7 @@ const TranslatePage: FC = () => {
                     )
                   }))
                 ]}
+                suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
               />
               <Button
                 type="text"

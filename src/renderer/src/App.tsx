@@ -5,6 +5,7 @@ import { Provider } from 'react-redux'
 import { HashRouter } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
 
+import TabsContainer from './components/Tabs/TabsContainer'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
@@ -26,7 +27,9 @@ function App(): React.ReactElement {
                   <TopViewContainer>
                     <HashRouter>
                       <NavigationHandler />
-                      <Routes />
+                      <TabsContainer>
+                        <Routes />
+                      </TabsContainer>
                     </HashRouter>
                   </TopViewContainer>
                 </PersistGate>

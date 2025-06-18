@@ -147,6 +147,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'lanyun',
+    name: 'LANYUN',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://maas-api.lanyun.net',
+    models: SYSTEM_MODELS.lanyun,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'openrouter',
     name: 'OpenRouter',
     type: 'openai',

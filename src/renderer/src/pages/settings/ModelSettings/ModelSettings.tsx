@@ -13,7 +13,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Select, Tooltip } from 'antd'
 import { find, sortBy } from 'lodash'
-import { FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
+import { ChevronDown, FolderPen, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -110,6 +110,7 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
+            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
         </HStack>
@@ -131,6 +132,7 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
+            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
         </HStack>
@@ -152,6 +154,7 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
+            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={onUpdateTranslateModel} />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
@@ -178,6 +181,7 @@ const ModelSettings: FC = () => {
             options={selectOptions}
             showSearch
             placeholder={t('settings.models.empty')}
+            suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
           />
         </HStack>
         <SettingDescription>{t('settings.models.quick_assistant_model_description')}</SettingDescription>

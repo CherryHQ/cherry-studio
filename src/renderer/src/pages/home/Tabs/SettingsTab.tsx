@@ -200,12 +200,7 @@ const SettingRowTitleSmall = styled(SettingRowTitle)`
 `
 
 const SettingGroup = styled.div<{ theme?: ThemeMode }>`
-  padding: 0 5px;
   width: 100%;
-  margin-top: 0;
-  border-radius: 8px;
-  margin-bottom: 10px;
-  margin-top: 10px;
 `
 
 export default SettingsTab

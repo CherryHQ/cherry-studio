@@ -51,7 +51,7 @@ export const processMessages = async (
 
     await fetchChatCompletion({
       messages: [userMessage],
-      assistant,
+      assistant: { ...assistant, settings: { streamOutput: true } },
       onChunkReceived: (chunk: Chunk) => {
         switch (chunk.type) {
           case ChunkType.THINKING_DELTA:

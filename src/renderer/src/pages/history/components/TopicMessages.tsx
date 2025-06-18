@@ -59,7 +59,7 @@ const TopicMessages: FC<Props> = ({ topic, ...props }) => {
                 type="text"
                 size="middle"
                 style={{ color: 'var(--color-text-3)', position: 'absolute', right: 0, top: 5 }}
-                onClick={() => locateToMessage({ message, setActiveAssistant, setActiveTopic })}
+                onClick={() => locateToMessage(message)}
                 icon={<ArrowRightOutlined />}
               />
               <Divider style={{ margin: '8px auto 15px' }} variant="dashed" />

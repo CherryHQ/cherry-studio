@@ -1,8 +1,8 @@
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
+import removeMarkdown from 'remove-markdown'
 import { unified } from 'unified'
 import { visit } from 'unist-util-visit'
-import removeMarkdown from 'remove-markdown'
 
 /**
  * 更彻底的查找方法，递归搜索所有子元素

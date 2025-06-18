@@ -7,7 +7,6 @@ import type { MenuProps } from 'antd'
 import { Dropdown, message } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 interface Props {
@@ -23,15 +22,8 @@ const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
-  const location = useLocation()
-  const navigate = useNavigate()
-  const isHome = location.pathname === '/'
 
   const handleClick = () => {
-    if (!isHome) {
-      navigate('/')
-    }
-
     openMinappKeepAlive(app)
     onClick?.()
   }

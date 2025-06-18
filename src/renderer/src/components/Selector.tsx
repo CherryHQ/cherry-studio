@@ -1,4 +1,4 @@
-import { ConfigProvider, Dropdown } from 'antd'
+import { Dropdown } from 'antd'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { ReactNode, useMemo, useState } from 'react'
 import styled, { css } from 'styled-components'
@@ -73,27 +73,18 @@ const Selector = <V extends string | number>({
   }
 
   return (
-    <ConfigProvider
-      theme={{
-        components: {
-          Dropdown: {
-            controlPaddingHorizontal: 5
-          }
-        }
-      }}>
-      <Dropdown
-        overlayClassName="selector-dropdown"
-        menu={{ items, onClick }}
-        trigger={disabled ? [] : ['click']}
-        placement={placement}
-        open={open && !disabled}
-        onOpenChange={disabled ? undefined : setOpen}>
-        <Label $size={size} $open={open} $disabled={disabled}>
-          {label}
-          <LabelIcon size={size + 3} />
-        </Label>
-      </Dropdown>
-    </ConfigProvider>
+    <Dropdown
+      overlayClassName="selector-dropdown"
+      menu={{ items, onClick }}
+      trigger={disabled ? [] : ['click']}
+      placement={placement}
+      open={open && !disabled}
+      onOpenChange={disabled ? undefined : setOpen}>
+      <Label $size={size} $open={open} $disabled={disabled}>
+        {label}
+        <LabelIcon size={size + 3} />
+      </Label>
+    </Dropdown>
   )
 }
 

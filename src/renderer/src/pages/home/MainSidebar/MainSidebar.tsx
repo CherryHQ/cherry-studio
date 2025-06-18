@@ -32,7 +32,7 @@ import {
   Sun,
   SunMoon
 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -40,7 +40,6 @@ import styled from 'styled-components'
 import AssistantsTab from '../Tabs/AssistantsTab'
 import AssistantItem from '../Tabs/components/AssistantItem'
 import TopicsTab from '../Tabs/TopicsTab'
-import MainNavbar from './MainNavbar'
 import {
   Container,
   MainMenu,
@@ -52,7 +51,7 @@ import {
   SubMenu
 } from './MainSidebarStyles'
 import OpenedMinappTabs from './OpenedMinapps'
-import PinnedApps from './PinnedApps'
+import SidebarSearch from './SidebarSearch'
 
 type Tab = 'assistants' | 'topic'
 
@@ -60,7 +59,7 @@ const MainSidebar: FC = () => {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('assistants')
   const avatar = useAvatar()
-  const { userName, defaultPaintingProvider } = useSettings()
+  const { userName, defaultPaintingProvider, transparentWindow } = useSettings()
   const { t } = useTranslation()
   const { theme, settedTheme, toggleTheme } = useTheme()
   const [isAppMenuExpanded, setIsAppMenuExpanded] = useState(false)
@@ -73,6 +72,9 @@ const MainSidebar: FC = () => {
   const { showTopics, clickAssistantToShowTopic } = useSettings()
 
   const { openMinapp } = useMinappPopup()
+
+  const [_searchValue, setSearchValue] = useState('')
+  const searchValue = useDeferredValue(_searchValue)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
   useShortcut('toggle_show_topics', () => EventEmitter.emit(EVENT_NAMES.SWITCH_TOPIC_SIDEBAR))
@@ -95,8 +97,8 @@ const MainSidebar: FC = () => {
     ]
     return () => unsubscribe.forEach((unsubscribe) => unsubscribe())
   }, [
-    activeAssistant.id,
-    activeTopic.assistantId,
+    activeAssistant?.id,
+    activeTopic?.assistantId,
     clickAssistantToShowTopic,
     isAppMenuExpanded,
     showAssistants,
@@ -168,13 +170,14 @@ const MainSidebar: FC = () => {
   return (
     <Container
       id="main-sidebar"
+      transparent={transparentWindow}
       style={{
         width: showAssistants ? 'var(--assistants-width)' : '0px',
         opacity: showAssistants ? 1 : 0,
         overflow: showAssistants ? 'initial' : 'hidden'
       }}>
-      <MainNavbar />
       <MainMenu>
+        <SidebarSearch onSearch={setSearchValue} />
         <MainMenuItem active={isAppMenuExpanded} onClick={() => setIsAppMenuExpanded(!isAppMenuExpanded)}>
           <MainMenuItemLeft>
             <MainMenuItemIcon>
@@ -200,7 +203,6 @@ const MainSidebar: FC = () => {
                 </MainMenuItemLeft>
               </MainMenuItem>
             ))}
-            <PinnedApps />
           </SubMenu>
         )}
         <OpenedMinappTabs />
@@ -222,8 +224,8 @@ const MainSidebar: FC = () => {
         </AssistantContainer>
       )}
       <MainContainer>
-        {tab === 'assistants' && <AssistantsTab />}
-        {tab === 'topic' && <TopicsTab style={{ paddingTop: 4 }} />}
+        {tab === 'assistants' && <AssistantsTab searchValue={searchValue} />}
+        {tab === 'topic' && <TopicsTab searchValue={searchValue} style={{ paddingTop: 4 }} />}
       </MainContainer>
       <UserMenu>
         <UserMenuLeft onClick={() => UserPopup.show()}>
@@ -299,10 +301,9 @@ const MainContainer = styled.div`
 `
 
 const AssistantContainer = styled.div`
-  margin: 0 10px;
-  margin-top: 4px;
-  margin-bottom: 4px;
+  margin: 4px 10px;
   display: flex;
+  margin-top: 0;
 `
 
 const UserMenu = styled.div`
@@ -358,7 +359,7 @@ const Icon = styled.div<{ theme: string }>`
     height: 34px;
   }
   &:hover {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: var(--color-list-item);
     opacity: 0.8;
     cursor: pointer;
     .icon {
@@ -366,7 +367,7 @@ const Icon = styled.div<{ theme: string }>`
     }
   }
   &.active {
-    background-color: ${({ theme }) => (theme === 'dark' ? 'var(--color-black)' : 'var(--color-white)')};
+    background-color: var(--color-list-item);
     border: 0.5px solid var(--color-border);
     .icon {
       color: var(--color-primary);

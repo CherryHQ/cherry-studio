@@ -14,6 +14,7 @@ import {
   setTheme,
   SettingsState,
   setTopicPosition,
+  setTransparentWindow,
   setTray as _setTray,
   setTrayOnClose
 } from '@renderer/store/settings'
@@ -86,6 +87,9 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
+    },
+    setTransparentWindow(transparentWindow: boolean) {
+      dispatch(setTransparentWindow(transparentWindow))
     }
   }
 }

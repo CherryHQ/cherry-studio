@@ -81,15 +81,7 @@ export function isGenerating() {
   })
 }
 
-export async function locateToMessage({
-  message,
-  setActiveAssistant,
-  setActiveTopic
-}: {
-  message: Message
-  setActiveAssistant: (assistant: Assistant) => void
-  setActiveTopic: (topic: Topic) => void
-}) {
+export async function locateToMessage(message: Message) {
   await isGenerating()
 
   SearchPopup.hide()
@@ -100,11 +92,11 @@ export async function locateToMessage({
     return
   }
 
-  setActiveAssistant(assistant)
-  setActiveTopic(topic)
+  EventEmitter.emit(EVENT_NAMES.SET_ASSISTANT, assistant)
+  EventEmitter.emit(EVENT_NAMES.SET_TOPIC, topic)
 
   setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 500)
+  setTimeout(() => EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id), 200)
 }
 
 /**
@@ -227,7 +219,11 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
-      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
+      window.message.loading({
+        content: t('chat.topics.export.wait_for_title_naming'),
+        key: 'message-title-naming',
+        duration: 0
+      })
 
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
@@ -239,7 +235,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 
       // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
-
+      window.message.destroy('message-title-naming')
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title

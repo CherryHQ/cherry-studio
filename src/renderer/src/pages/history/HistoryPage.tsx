@@ -1,4 +1,5 @@
 import { HStack } from '@renderer/components/Layout'
+import { ChatProvider } from '@renderer/hooks/useChat'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
@@ -72,51 +73,53 @@ const TopicsPage: FC = () => {
   }, [])
 
   return (
-    <Container>
-      <HStack style={{ padding: '0 12px', marginTop: 8 }}>
-        <Input
-          prefix={
-            stack.length > 1 ? (
-              <SearchIcon className="back-icon" onClick={goBack}>
-                <ChevronLeft size={16} />
-              </SearchIcon>
-            ) : (
-              <SearchIcon>
-                <Search size={15} />
-              </SearchIcon>
-            )
-          }
-          suffix={search.length >= 2 ? <CornerDownLeft size={16} /> : null}
-          ref={inputRef}
-          placeholder={t('history.search.placeholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value.trimStart())}
-          allowClear
-          autoFocus
-          spellCheck={false}
-          style={{ paddingLeft: 0 }}
-          variant="borderless"
-          size="middle"
-          onPressEnter={onSearch}
-        />
-      </HStack>
-      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+    <ChatProvider>
+      <Container>
+        <HStack style={{ padding: '0 12px', marginTop: 8 }}>
+          <Input
+            prefix={
+              stack.length > 1 ? (
+                <SearchIcon className="back-icon" onClick={goBack}>
+                  <ChevronLeft size={16} />
+                </SearchIcon>
+              ) : (
+                <SearchIcon>
+                  <Search size={15} />
+                </SearchIcon>
+              )
+            }
+            suffix={search.length >= 2 ? <CornerDownLeft size={16} /> : null}
+            ref={inputRef}
+            placeholder={t('history.search.placeholder')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value.trimStart())}
+            allowClear
+            autoFocus
+            spellCheck={false}
+            style={{ paddingLeft: 0 }}
+            variant="borderless"
+            size="middle"
+            onPressEnter={onSearch}
+          />
+        </HStack>
+        <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
-      <TopicsHistory
-        keywords={search}
-        onClick={onTopicClick as any}
-        onSearch={onSearch}
-        style={{ display: isShow('topics') }}
-      />
-      <TopicMessages topic={topic} style={{ display: isShow('topic') }} />
-      <SearchResults
-        keywords={isShow('search') ? searchKeywords : ''}
-        onMessageClick={onMessageClick}
-        onTopicClick={onTopicClick}
-        style={{ display: isShow('search') }}
-      />
-      <SearchMessage message={message} style={{ display: isShow('message') }} />
-    </Container>
+        <TopicsHistory
+          keywords={search}
+          onClick={onTopicClick as any}
+          onSearch={onSearch}
+          style={{ display: isShow('topics') }}
+        />
+        <TopicMessages topic={topic} style={{ display: isShow('topic') }} />
+        <SearchResults
+          keywords={isShow('search') ? searchKeywords : ''}
+          onMessageClick={onMessageClick}
+          onTopicClick={onTopicClick}
+          style={{ display: isShow('search') }}
+        />
+        <SearchMessage message={message} style={{ display: isShow('message') }} />
+      </Container>
+    </ChatProvider>
   )
 }
 

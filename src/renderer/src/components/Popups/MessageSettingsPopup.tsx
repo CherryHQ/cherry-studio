@@ -115,7 +115,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       footer={null}
-      centered>
+      centered
+      styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}>
       <SettingGroup>
         <SettingRow>
           <SettingRowTitleSmall>{t('settings.messages.divider')}</SettingRowTitleSmall>

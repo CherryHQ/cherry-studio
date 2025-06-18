@@ -1,10 +1,8 @@
-import { isLinux, isMac, isWindows } from '@renderer/config/constant'
+import { isLinux, isWindows } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { Button } from 'antd'
-import { CircleArrowLeft, X } from 'lucide-react'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
-import { useNavigate } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
@@ -31,38 +29,8 @@ export const NavbarMain: FC<Props> = ({ children, ...props }) => {
 
   return (
     <NavbarMainContainer {...props} $isFullscreen={isFullscreen}>
-      <CloseIcon />
       {children}
-      <MacCloseIcon />
     </NavbarMainContainer>
-  )
-}
-
-const MacCloseIcon = () => {
-  const navigate = useNavigate()
-
-  if (!isMac) {
-    return null
-  }
-
-  return <AnimatedButton type="text" icon={<X size={18} />} onClick={() => navigate('/')} className="nodrag" />
-}
-
-const CloseIcon = () => {
-  const navigate = useNavigate()
-
-  if (isMac) {
-    return null
-  }
-
-  return (
-    <Button
-      type="text"
-      onClick={() => navigate('/')}
-      className="nodrag"
-      style={{ marginRight: 2, marginLeft: 5 }}
-      icon={<CircleArrowLeft size={20} color="var(--color-icon)" style={{ marginTop: 2 }} />}
-    />
   )
 }
 
@@ -95,11 +63,10 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   max-height: var(--navbar-height);
   min-height: var(--navbar-height);
   justify-content: space-between;
-  padding-left: ${({ $isFullscreen }) => ($isFullscreen ? '10px' : isMac ? '70px' : '10px')};
   font-weight: bold;
   color: var(--color-text-1);
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWindows ? '135px' : isLinux ? '120px' : '12px')};
   -webkit-app-region: drag;
+  padding: 0 12px;
 `
 
 const NavbarCenterContainer = styled.div`

@@ -196,7 +196,10 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
 
   const getBlocksFiles = async (blockIds: string[]) => {
     const blocks = await db.message_blocks.where('id').anyOf(blockIds).toArray()
-    const files = blocks.filter((block) => block.type === MessageBlockType.FILE).map((block) => block.file)
+    const files = blocks
+      .filter((block) => block.type === MessageBlockType.FILE || block.type === MessageBlockType.IMAGE)
+      .map((block) => block.file)
+      .filter((file): file is FileType => file !== undefined)
     return isEmpty(files) ? [] : files
   }
 

@@ -113,7 +113,7 @@ const Chat: FC = () => {
 }
 
 const Main = styled(Flex)`
-  height: calc(100vh - var(--navbar-height));
+  height: calc(100vh - var(--navbar-height) - 50px);
   transform: translateZ(0);
   position: relative;
 `

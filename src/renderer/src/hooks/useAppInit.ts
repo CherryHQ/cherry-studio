@@ -1,5 +1,4 @@
 import { isLocalAi } from '@renderer/config/env'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
@@ -12,17 +11,14 @@ import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
-import { useRuntime } from './useRuntime'
 import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
   const { proxyUrl, language, autoCheckUpdate, proxyMode, customCss, enableDataCollection } = useSettings()
-  const { minappShow } = useRuntime()
   const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
-  const { theme } = useTheme()
 
   useEffect(() => {
     document.getElementById('spinner')?.remove()
@@ -60,17 +56,6 @@ export function useAppInit() {
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
-
-  useEffect(() => {
-    const transparentWindow = !minappShow
-
-    if (minappShow) {
-      window.root.style.background = 'var(--color-background)'
-      return
-    }
-
-    window.root.style.background = transparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [minappShow, theme])
 
   useEffect(() => {
     if (isLocalAi) {

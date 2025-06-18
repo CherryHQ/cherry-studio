@@ -54,25 +54,13 @@
   --color-background-highlight-accent: rgba(255, 150, 50, 0.9);
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
+  --navbar-background-win: rgba(20, 20, 20, 0.75);
   --navbar-background: #1f1f1f;
-
-  --navbar-height: 42px;
-  --sidebar-width: 50px;
-  --status-bar-height: 40px;
-  --input-bar-height: 100px;
-
-  --assistants-width: 275px;
-  --topic-list-width: 275px;
-  --settings-width: 250px;
-  --scrollbar-width: 5px;
 
   --chat-background: transparent;
   --chat-background-user: rgba(255, 255, 255, 0.08);
   --chat-background-assistant: transparent;
   --chat-text-user: var(--color-black);
-
-  --list-item-border-radius: 8px;
-  --border-width: 0.5px;
 }
 
 [theme-mode='light'] {
@@ -121,8 +109,8 @@
   --color-reference-text: #000000;
   --color-reference-background: #f1f7ff;
 
-  --color-list-item: rgba(255, 255, 255, 0.9);
-  --color-list-item-hover: rgba(255, 255, 255, 0.5);
+  --color-list-item: rgba(0, 0, 0, 0.05);
+  --color-list-item-hover: rgba(0, 0, 0, 0.03);
 
   --modal-background: var(--color-white);
 
@@ -131,12 +119,11 @@
   --color-background-highlight-accent: rgba(255, 150, 50, 0.5);
 
   --navbar-background-mac: rgba(255, 255, 255, 0.55);
+  --navbar-background-win: rgba(255, 255, 255, 0.75);
   --navbar-background: rgba(244, 244, 244);
 
   --chat-background: transparent;
   --chat-background-user: rgba(0, 0, 0, 0.045);
   --chat-background-assistant: transparent;
   --chat-text-user: var(--color-text);
-
-  --border-width: 0.5px;
 }

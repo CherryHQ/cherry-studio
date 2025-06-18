@@ -45,14 +45,17 @@ export const MainMenuItemText = styled.div`
   font-weight: 500;
 `
 
-export const Container = styled.div`
+export const Container = styled.div<{ transparent?: boolean }>`
   display: flex;
   flex-direction: column;
   flex: 1;
   width: var(--assistants-width);
   max-width: var(--assistants-width);
   border-right: 0.5px solid var(--color-border);
-  height: 100vh;
+  height: var(--main-height);
+  min-height: var(--main-height);
+  background: var(--color-background);
+  padding-top: 10px;
 `
 
 export const MainMenu = styled.div`
@@ -85,7 +88,6 @@ export const TabsContainer = styled.div`
 
 export const TabsWrapper = styled(Scrollbar as any)`
   width: 100%;
-  padding: 5px 0;
   max-height: 50vh;
 `
 

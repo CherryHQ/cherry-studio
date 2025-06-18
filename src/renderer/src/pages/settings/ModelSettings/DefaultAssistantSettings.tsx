@@ -101,7 +101,7 @@ const AssistantSettings: FC = () => {
       <HStack gap={8} alignItems="center" style={{ margin: '10px 0' }}>
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
           <EmojiButtonWrapper>
-            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
+            <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
             {emoji && (
               <CloseCircleFilled
                 className="delete-icon"
