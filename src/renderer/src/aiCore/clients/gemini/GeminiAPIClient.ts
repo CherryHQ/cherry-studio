@@ -466,7 +466,7 @@ export class GeminiAPIClient extends BaseApiClient<
           systemInstruction = await buildSystemPrompt(assistant.prompt || '', mcpTools, assistant)
         }
 
-        let messageContents: Content
+        let messageContents: Content = { role: 'user', parts: [] } // Initialize messageContents
         const history: Content[] = []
         // 3. 处理用户消息
         if (typeof messages === 'string') {
@@ -475,10 +475,12 @@ export class GeminiAPIClient extends BaseApiClient<
             parts: [{ text: messages }]
           }
         } else {
-          const userLastMessage = messages.pop()!
-          messageContents = await this.convertMessageToSdkParam(userLastMessage)
-          for (const message of messages) {
-            history.push(await this.convertMessageToSdkParam(message))
+          const userLastMessage = messages.pop()
+          if (userLastMessage) {
+            messageContents = await this.convertMessageToSdkParam(userLastMessage)
+            for (const message of messages) {
+              history.push(await this.convertMessageToSdkParam(message))
+            }
           }
         }
 
@@ -491,6 +493,10 @@ export class GeminiAPIClient extends BaseApiClient<
         if (isGemmaModel(model) && assistant.prompt) {
           const isFirstMessage = history.length === 0
           if (isFirstMessage && messageContents) {
+            const userMessageText =
+              messageContents.parts && messageContents.parts.length > 0
+                ? (messageContents.parts[0] as Part).text || ''
+                : ''
             const systemMessage = [
               {
                 text:
@@ -498,7 +504,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   systemInstruction +
                   '<end_of_turn>\n' +
                   '<start_of_turn>user\n' +
-                  (messageContents?.parts?.[0] as Part).text +
+                  userMessageText +
                   '<end_of_turn>'
               }
             ] as Part[]

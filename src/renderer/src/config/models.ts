@@ -2313,6 +2313,7 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.0-flash-lite',
   'gemini-2.0-flash-exp',
   'gemini-2.0-flash-001',
+  'gemini-2.5-pro',
   'gemini-2.0-pro-exp-02-05',
   'gemini-2.0-pro-exp',
   'gemini-2.5-pro-exp',
@@ -2322,7 +2323,8 @@ export const GEMINI_SEARCH_MODELS = [
   'gemini-2.5-pro-preview-05-06',
   'gemini-2.5-flash-preview',
   'gemini-2.5-flash-preview-04-17',
-  'gemini-2.5-flash-preview-05-20'
+  'gemini-2.5-flash-preview-05-20',
+  'gemini-2.5-flash-lite-preview-06-17'
 ]
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
