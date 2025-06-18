@@ -3,6 +3,8 @@ import { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@r
 import { Provider } from '@renderer/types'
 import {
   AnthropicSdkRawChunk,
+  OpenAIResponseSdkRawChunk,
+  OpenAIResponseSdkRawOutput,
   OpenAISdkRawChunk,
   SdkMessageParam,
   SdkParams,
@@ -31,6 +33,14 @@ export interface RawStreamListener<TRawChunk = SdkRawChunk> {
 export interface OpenAIStreamListener extends RawStreamListener<OpenAISdkRawChunk> {
   onChoice?: (choice: OpenAI.Chat.Completions.ChatCompletionChunk.Choice) => void
   onFinishReason?: (reason: string) => void
+}
+
+/**
+ * OpenAI Response 专用的流监听器
+ */
+export interface OpenAIResponseStreamListener<TChunk extends OpenAIResponseSdkRawChunk = OpenAIResponseSdkRawChunk>
+  extends RawStreamListener<TChunk> {
+  onMessage?: (response: OpenAIResponseSdkRawOutput) => void
 }
 
 /**

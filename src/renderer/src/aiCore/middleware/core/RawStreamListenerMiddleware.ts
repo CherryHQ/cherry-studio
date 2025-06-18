@@ -1,7 +1,13 @@
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
-import { AnthropicSdkRawChunk, AnthropicSdkRawOutput } from '@renderer/types/sdk'
+import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
+import {
+  AnthropicSdkRawChunk,
+  AnthropicSdkRawOutput,
+  OpenAIResponseSdkRawChunk,
+  OpenAIResponseSdkRawOutput
+} from '@renderer/types/sdk'
 
-import { AnthropicStreamListener } from '../../clients/types'
+import { AnthropicStreamListener, OpenAIResponseStreamListener } from '../../clients/types'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
@@ -15,8 +21,6 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
 
     // 在这里可以监听到从SDK返回的最原始流
     if (result.rawOutput) {
-      console.log(`[${MIDDLEWARE_NAME}] 检测到原始SDK输出，准备附加监听器`)
-
       const providerType = ctx.apiClientInstance.provider.type
       // TODO: 后面下放到AnthropicAPIClient
       if (providerType === 'anthropic') {
@@ -36,6 +40,24 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
         const monitoredOutput = specificApiClient.attachRawStreamListener(
           result.rawOutput as AnthropicSdkRawOutput,
           anthropicListener
+        )
+        return {
+          ...result,
+          rawOutput: monitoredOutput
+        }
+      }
+      if (providerType === 'openai-response') {
+        const openaiListener: OpenAIResponseStreamListener<OpenAIResponseSdkRawChunk> = {
+          onMessage: (output) => {
+            if (ctx._internal?.toolProcessingState) {
+              ctx._internal.toolProcessingState.output = output
+            }
+          }
+        }
+        const specificApiClient = ctx.apiClientInstance as OpenAIResponseAPIClient
+        const monitoredOutput = specificApiClient.attachRawStreamListener(
+          result.rawOutput as OpenAIResponseSdkRawOutput,
+          openaiListener
         )
         return {
           ...result,
