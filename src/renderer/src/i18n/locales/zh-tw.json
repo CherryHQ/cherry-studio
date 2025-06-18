@@ -752,10 +752,11 @@
       },
       "footer": {
         "copy_last_message": "按 C 鍵複製",
+        "backspace_clear": "按 Backspace 清空",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
         "esc_close": "關閉視窗",
-        "backspace_clear": "按 Backspace 清空"
+        "esc_pause": "暫停"
       },
       "input": {
         "placeholder": {

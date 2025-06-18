@@ -1,27 +1,32 @@
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
-import { getAssistantById } from '@renderer/services/AssistantService'
+import {
+  getAssistantById,
+  getDefaultAssistant,
+  getDefaultModel,
+  getDefaultTopic
+} from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store, { useAppSelector } from '@renderer/store'
 import { upsertManyBlocks } from '@renderer/store/messageBlock'
 import { updateOneBlock, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { Assistant, ThemeMode } from '@renderer/types'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { Assistant, ThemeMode, Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
+import { abortCompletion } from '@renderer/utils/abortController'
+import { isAbortError } from '@renderer/utils/error'
+import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import dayjs from 'dayjs'
 import { isEmpty } from 'lodash'
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react'
-import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,28 +38,61 @@ import Footer from './components/Footer'
 import InputBar from './components/InputBar'
 
 const HomeWindow: FC = () => {
+  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const { theme } = useTheme()
+  const { t } = useTranslation()
+
   const [route, setRoute] = useState<'home' | 'chat' | 'translate' | 'summary' | 'explanation'>('home')
   const [isFirstMessage, setIsFirstMessage] = useState(true)
   const [clipboardText, setClipboardText] = useState('')
   const [selectedText, setSelectedText] = useState('')
-  const [currentAssistant, setCurrentAssistant] = useState<Assistant>({} as Assistant)
-  const [text, setText] = useState('')
+
+  const [userInputText, setUserInputText] = useState('')
   const [lastClipboardText, setLastClipboardText] = useState<string | null>(null)
   const textChange = useState(() => {})[1]
-  const { defaultAssistant } = useDefaultAssistant()
-  const topic = defaultAssistant.topics[0]
-  const { defaultModel } = useDefaultModel()
-  const model = currentAssistant.model || defaultModel
-  const { language, readClipboardAtStartup, windowStyle } = useSettings()
-  const { theme } = useTheme()
-  const { t } = useTranslation()
-  const inputBarRef = useRef<HTMLDivElement>(null)
-  const featureMenusRef = useRef<FeatureMenusRef>(null)
-  const referenceText = selectedText || clipboardText || text
 
-  const content = isFirstMessage ? (referenceText === text ? text : `${referenceText}\n\n${text}`).trim() : text.trim()
+  //indicator for loading(thinking/streaming)
+  const [isLoading, setIsLoading] = useState(false)
+  //indicator for wether the first message is outputted
+  const [isOutputted, setIsOutputted] = useState(false)
 
   const { quickAssistantId } = useAppSelector((state) => state.llm)
+  const currentAssistant = useRef<Assistant | null>(null)
+  const currentTopic = useRef<Topic | null>(null)
+  const currentAskId = useRef('')
+
+  const inputBarRef = useRef<HTMLDivElement>(null)
+  const featureMenusRef = useRef<FeatureMenusRef>(null)
+  const referenceText = selectedText || clipboardText || userInputText
+
+  const content = isFirstMessage
+    ? (referenceText === userInputText ? userInputText : `${referenceText}\n\n${userInputText}`).trim()
+    : userInputText.trim()
+
+  //init the assistant and topic
+  useEffect(() => {
+    if (quickAssistantId) {
+      currentAssistant.current = getAssistantById(quickAssistantId) || getDefaultAssistant()
+    } else {
+      currentAssistant.current = getDefaultAssistant()
+    }
+
+    if (!currentAssistant.current?.model) {
+      currentAssistant.current.model = getDefaultModel()
+    }
+    currentTopic.current = getDefaultTopic(currentAssistant.current?.id)
+  }, [quickAssistantId])
+
+  useEffect(() => {
+    i18n.changeLanguage(language || navigator.language || defaultLanguage)
+  }, [language])
+
+  // 当路由为home时，初始化isFirstMessage为true
+  useEffect(() => {
+    if (route === 'home') {
+      setIsFirstMessage(true)
+    }
+  }, [route])
 
   const readClipboard = useCallback(async () => {
     if (!readClipboardAtStartup) return
@@ -65,6 +103,12 @@ const HomeWindow: FC = () => {
       setClipboardText(text.trim())
     }
   }, [readClipboardAtStartup, lastClipboardText])
+
+  const clearClipboard = () => {
+    setClipboardText('')
+    setSelectedText('')
+    focusInput()
+  }
 
   const focusInput = () => {
     if (inputBarRef.current) {
@@ -82,14 +126,18 @@ const HomeWindow: FC = () => {
   }, [readClipboard])
 
   useEffect(() => {
+    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+
+    return () => {
+      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
+    }
+  }, [onWindowShow])
+
+  useEffect(() => {
     readClipboard()
   }, [readClipboard])
 
-  useEffect(() => {
-    i18n.changeLanguage(language || navigator.language || defaultLanguage)
-  }, [language])
-
-  const onCloseWindow = () => window.api.miniWindow.hide()
+  const handleCloseWindow = () => window.api.miniWindow.hide()
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
@@ -115,7 +163,7 @@ const HomeWindow: FC = () => {
             } else {
               // 目前文本框只在'chat'时可以继续输入，这里相当于 route === 'chat'
               setRoute('chat')
-              onSendMessage().then()
+              handleSendMessage().then()
               focusInput()
             }
           }
@@ -124,7 +172,7 @@ const HomeWindow: FC = () => {
       case 'Backspace':
         {
           textChange(() => {
-            if (text.length === 0) {
+            if (userInputText.length === 0) {
               clearClipboard()
             }
           })
@@ -148,137 +196,209 @@ const HomeWindow: FC = () => {
         break
       case 'Escape':
         {
-          setText('')
-          setRoute('home')
-          route === 'home' && onCloseWindow()
+          handleEsc()
         }
         break
     }
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setText(e.target.value)
+    setUserInputText(e.target.value)
   }
 
-  useEffect(() => {
-    const defaultCurrentAssistant = {
-      ...defaultAssistant,
-      model: defaultModel
-    }
-
-    if (quickAssistantId) {
-      // 獲取指定助手，如果不存在則使用默認助手
-      const assistantFromId = getAssistantById(quickAssistantId)
-      const currentAssistant = assistantFromId || defaultCurrentAssistant
-      // 如果助手本身沒有設定模型，則使用預設模型
-      if (!currentAssistant.model) {
-        currentAssistant.model = defaultModel
-      }
-      setCurrentAssistant(currentAssistant)
-    } else {
-      setCurrentAssistant(defaultCurrentAssistant)
-    }
-  }, [quickAssistantId, defaultAssistant, defaultModel])
-
-  const onSendMessage = useCallback(
+  const handleSendMessage = useCallback(
     async (prompt?: string) => {
-      if (isEmpty(content)) {
+      if (isEmpty(content) || !currentAssistant.current || !currentTopic.current) {
         return
       }
-      const topic = currentAssistant.topics[0]
-      const messageParams = {
-        role: 'user',
-        content: [prompt, content].filter(Boolean).join('\n\n'),
-        assistant: currentAssistant,
-        topic,
-        createdAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-        status: 'success'
-      }
-      const topicId = topic.id
-      const { message: userMessage, blocks } = getUserMessage(messageParams)
 
-      store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
-      store.dispatch(upsertManyBlocks(blocks))
+      try {
+        const topicId = currentTopic.current.id
 
-      const assistant = currentAssistant
-      let blockId: string | null = null
-      let blockContent: string = ''
+        const { message: userMessage, blocks } = getUserMessage({
+          content: [prompt, content].filter(Boolean).join('\n\n'),
+          assistant: currentAssistant.current,
+          topic: currentTopic.current
+        })
 
-      const assistantMessage = getAssistantMessage({ assistant, topic: assistant.topics[0] })
-      store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+        store.dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
+        store.dispatch(upsertManyBlocks(blocks))
 
-      fetchChatCompletion({
-        messages: [userMessage],
-        assistant: { ...assistant, settings: { streamOutput: true } },
-        onChunkReceived: (chunk: Chunk) => {
-          if (chunk.type === ChunkType.TEXT_DELTA) {
-            blockContent += chunk.text
-            if (!blockId) {
-              const block = createMainTextBlock(assistantMessage.id, chunk.text, {
-                status: MessageBlockStatus.STREAMING
-              })
-              blockId = block.id
-              store.dispatch(
-                newMessagesActions.updateMessage({
-                  topicId,
-                  messageId: assistantMessage.id,
-                  updates: { blockInstruction: { id: block.id } }
-                })
-              )
-              store.dispatch(upsertOneBlock(block))
-            } else {
-              store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+        const assistantMessage = getAssistantMessage({
+          assistant: currentAssistant.current,
+          topic: currentTopic.current
+        })
+        assistantMessage.askId = userMessage.id
+        currentAskId.current = userMessage.id
+
+        store.dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+
+        const allMessagesForTopic = selectMessagesForTopic(store.getState(), topicId)
+        const userMessageIndex = allMessagesForTopic.findIndex((m) => m?.id === userMessage.id)
+
+        const messagesForContext = allMessagesForTopic
+          .slice(0, userMessageIndex + 1)
+          .filter((m) => m && !m.status?.includes('ing'))
+
+        let blockId: string | null = null
+        let blockContent: string = ''
+        let thinkingBlockId: string | null = null
+        let thinkingBlockContent: string = ''
+
+        setIsLoading(true)
+        setIsOutputted(false)
+
+        setIsFirstMessage(false)
+        setUserInputText('')
+
+        await fetchChatCompletion({
+          messages: messagesForContext,
+          assistant: { ...currentAssistant.current, settings: { streamOutput: true } },
+          onChunkReceived: (chunk: Chunk) => {
+            switch (chunk.type) {
+              case ChunkType.THINKING_DELTA:
+                {
+                  thinkingBlockContent += chunk.text
+                  setIsOutputted(true)
+                  if (!thinkingBlockId) {
+                    const block = createThinkingBlock(assistantMessage.id, chunk.text, {
+                      status: MessageBlockStatus.STREAMING,
+                      thinking_millsec: chunk.thinking_millsec
+                    })
+                    thinkingBlockId = block.id
+                    store.dispatch(
+                      newMessagesActions.updateMessage({
+                        topicId,
+                        messageId: assistantMessage.id,
+                        updates: { blockInstruction: { id: block.id } }
+                      })
+                    )
+                    store.dispatch(upsertOneBlock(block))
+                  } else {
+                    store.dispatch(
+                      updateOneBlock({
+                        id: thinkingBlockId,
+                        changes: { content: thinkingBlockContent, thinking_millsec: chunk.thinking_millsec }
+                      })
+                    )
+                  }
+                }
+                break
+              case ChunkType.THINKING_COMPLETE:
+                {
+                  if (thinkingBlockId) {
+                    store.dispatch(
+                      updateOneBlock({
+                        id: thinkingBlockId,
+                        changes: { status: MessageBlockStatus.SUCCESS, thinking_millsec: chunk.thinking_millsec }
+                      })
+                    )
+                  }
+                }
+                break
+              case ChunkType.TEXT_DELTA:
+                {
+                  blockContent += chunk.text
+                  setIsOutputted(true)
+                  if (!blockId) {
+                    const block = createMainTextBlock(assistantMessage.id, chunk.text, {
+                      status: MessageBlockStatus.STREAMING
+                    })
+                    blockId = block.id
+                    store.dispatch(
+                      newMessagesActions.updateMessage({
+                        topicId,
+                        messageId: assistantMessage.id,
+                        updates: { blockInstruction: { id: block.id } }
+                      })
+                    )
+                    store.dispatch(upsertOneBlock(block))
+                  } else {
+                    store.dispatch(updateOneBlock({ id: blockId, changes: { content: blockContent } }))
+                  }
+                }
+                break
+
+              case ChunkType.TEXT_COMPLETE:
+                {
+                  blockId &&
+                    store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
+                  store.dispatch(
+                    newMessagesActions.updateMessage({
+                      topicId,
+                      messageId: assistantMessage.id,
+                      updates: { status: AssistantMessageStatus.SUCCESS }
+                    })
+                  )
+                }
+                break
+              case ChunkType.BLOCK_COMPLETE:
+              case ChunkType.ERROR:
+                setIsLoading(false)
+                setIsOutputted(true)
+                currentAskId.current = ''
+                break
             }
           }
-          if (chunk.type === ChunkType.TEXT_COMPLETE) {
-            blockId && store.dispatch(updateOneBlock({ id: blockId, changes: { status: MessageBlockStatus.SUCCESS } }))
-            store.dispatch(
-              newMessagesActions.updateMessage({
-                topicId,
-                messageId: assistantMessage.id,
-                updates: { status: AssistantMessageStatus.SUCCESS }
-              })
-            )
-          }
-        }
-      })
-
-      setIsFirstMessage(false)
-      setText('') // ✅ 清除输入框内容
+        })
+      } catch (err) {
+        if (isAbortError(err)) return
+        // onError(err instanceof Error ? err : new Error('An error occurred'))
+        console.error('Error fetching result:', err)
+      } finally {
+        setIsLoading(false)
+        setIsOutputted(true)
+        currentAskId.current = ''
+      }
     },
-    [content, currentAssistant, topic]
+    [content, currentAssistant]
   )
 
-  const clearClipboard = () => {
-    setClipboardText('')
-    setSelectedText('')
-    focusInput()
+  const handleEsc = () => {
+    if (isLoading) {
+      handlePause()
+    } else {
+      if (route === 'home') {
+        handleCloseWindow()
+      } else {
+        //if we go back to home, we should clear the topic
+
+        //clear the topic messages in order to reduce memory usage
+        store.dispatch(newMessagesActions.clearTopicMessages(currentTopic.current!.id))
+
+        //reset the topic
+        if (currentAssistant.current?.id) {
+          currentTopic.current = getDefaultTopic(currentAssistant.current.id)
+        }
+
+        setRoute('home')
+        setUserInputText('')
+      }
+    }
   }
 
-  // If the input is focused, the `Esc` callback will not be triggered here.
-  useHotkeys('esc', () => {
-    if (route === 'home') {
-      onCloseWindow()
-    } else {
-      setRoute('home')
-      setText('')
-    }
-  })
+  const handlePause = () => {
+    if (currentAskId.current) {
+      // const topicId = currentTopic.current!.id
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on(IpcChannel.ShowMiniWindow, onWindowShow)
+      // const topicMessages = selectMessagesForTopic(store.getState(), topicId)
+      // if (!topicMessages) return
 
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners(IpcChannel.ShowMiniWindow)
-    }
-  }, [onWindowShow, onSendMessage, setRoute])
+      // const streamingMessages = topicMessages.filter((m) => m.status === 'processing' || m.status === 'pending')
+      // const askIds = [...new Set(streamingMessages?.map((m) => m.askId).filter((id) => !!id) as string[])]
 
-  // 当路由为home时，初始化isFirstMessage为true
-  useEffect(() => {
-    if (route === 'home') {
-      setIsFirstMessage(true)
+      // for (const askId of askIds) {
+      //   abortCompletion(askId)
+      // }
+      // store.dispatch(newMessagesActions.setTopicLoading({ topicId: topicId, loading: false }))
+
+      abortCompletion(currentAskId.current)
+      // store.dispatch(newMessagesActions.setTopicLoading({ topicId: currentTopic.current!.id, loading: false }))
+      setIsLoading(false)
+      setIsOutputted(true)
+      currentAskId.current = ''
     }
-  }, [route])
+  }
 
   const backgroundColor = () => {
     // ONLY MAC: when transparent style + light theme: use vibrancy effect
@@ -286,88 +406,94 @@ const HomeWindow: FC = () => {
     if (isMac && windowStyle === 'transparent' && theme === ThemeMode.light) {
       return 'transparent'
     }
-
     return 'var(--color-background)'
   }
 
-  if (['chat', 'summary', 'explanation'].includes(route)) {
-    return (
-      <Container style={{ backgroundColor: backgroundColor() }}>
-        {route === 'chat' && (
-          <>
-            <InputBar
-              text={text}
-              model={model}
-              referenceText={referenceText}
-              placeholder={
-                quickAssistantId
-                  ? t('miniwindow.input.placeholder.empty', { model: currentAssistant.name })
-                  : t('miniwindow.input.placeholder.empty', { model: model.name })
-              }
-              handleKeyDown={handleKeyDown}
-              handleChange={handleChange}
-              ref={inputBarRef}
-            />
-            <Divider style={{ margin: '10px 0' }} />
-          </>
-        )}
-        {['summary', 'explanation'].includes(route) && (
-          <div style={{ marginTop: 10 }}>
-            <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
-          </div>
-        )}
-        <ChatWindow route={route} assistant={currentAssistant ?? defaultAssistant} />
-        <Divider style={{ margin: '10px 0' }} />
-        <Footer route={route} onExit={() => setRoute('home')} />
-      </Container>
-    )
-  }
+  switch (route) {
+    case 'chat':
+    case 'summary':
+    case 'explanation':
+      return (
+        <Container style={{ backgroundColor: backgroundColor() }}>
+          {route === 'chat' && (
+            <>
+              <InputBar
+                text={userInputText}
+                model={currentAssistant.current?.model}
+                referenceText={referenceText}
+                placeholder={t('miniwindow.input.placeholder.empty', {
+                  model: quickAssistantId ? currentAssistant.current?.name : getDefaultModel().name
+                })}
+                loading={isLoading}
+                handleKeyDown={handleKeyDown}
+                handleChange={handleChange}
+                ref={inputBarRef}
+              />
+              <Divider style={{ margin: '10px 0' }} />
+            </>
+          )}
+          {['summary', 'explanation'].includes(route) && (
+            <div style={{ marginTop: 10 }}>
+              <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+            </div>
+          )}
+          <ChatWindow
+            route={route}
+            assistant={currentAssistant.current!}
+            topic={currentTopic.current!}
+            isOutputted={isOutputted}
+          />
+          <Divider style={{ margin: '10px 0' }} />
+          <Footer key="footer" route={route} loading={isLoading} onEsc={handleEsc} />
+        </Container>
+      )
 
-  if (route === 'translate') {
-    return (
-      <Container style={{ backgroundColor: backgroundColor() }}>
-        <TranslateWindow text={referenceText} />
-        <Divider style={{ margin: '10px 0' }} />
-        <Footer route={route} onExit={() => setRoute('home')} />
-      </Container>
-    )
-  }
+    case 'translate':
+      return (
+        <Container style={{ backgroundColor: backgroundColor() }}>
+          <TranslateWindow text={referenceText} />
+          <Divider style={{ margin: '10px 0' }} />
+          <Footer key="footer" route={route} onEsc={handleEsc} />
+        </Container>
+      )
 
-  return (
-    <Container style={{ backgroundColor: backgroundColor() }}>
-      <InputBar
-        text={text}
-        model={model}
-        referenceText={referenceText}
-        placeholder={
-          referenceText && route === 'home'
-            ? t('miniwindow.input.placeholder.title')
-            : quickAssistantId
-              ? t('miniwindow.input.placeholder.empty', { model: currentAssistant.name })
-              : t('miniwindow.input.placeholder.empty', { model: model.name })
-        }
-        handleKeyDown={handleKeyDown}
-        handleChange={handleChange}
-        ref={inputBarRef}
-      />
-      <Divider style={{ margin: '10px 0' }} />
-      <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
-      <Main>
-        <FeatureMenus setRoute={setRoute} onSendMessage={onSendMessage} text={content} ref={featureMenusRef} />
-      </Main>
-      <Divider style={{ margin: '10px 0' }} />
-      <Footer
-        route={route}
-        canUseBackspace={text.length > 0 || clipboardText.length == 0}
-        clearClipboard={clearClipboard}
-        onExit={() => {
-          setRoute('home')
-          setText('')
-          onCloseWindow()
-        }}
-      />
-    </Container>
-  )
+    //Home
+    default:
+      return (
+        <Container style={{ backgroundColor: backgroundColor() }}>
+          <InputBar
+            text={userInputText}
+            model={currentAssistant.current?.model}
+            referenceText={referenceText}
+            placeholder={
+              referenceText && route === 'home'
+                ? t('miniwindow.input.placeholder.title')
+                : t('miniwindow.input.placeholder.empty', {
+                    model: quickAssistantId ? currentAssistant.current?.name : getDefaultModel().name
+                  })
+            }
+            loading={isLoading}
+            handleKeyDown={handleKeyDown}
+            handleChange={handleChange}
+            ref={inputBarRef}
+          />
+          <Divider style={{ margin: '10px 0' }} />
+          <ClipboardPreview referenceText={referenceText} clearClipboard={clearClipboard} t={t} />
+          <Main>
+            <FeatureMenus setRoute={setRoute} onSendMessage={handleSendMessage} text={content} ref={featureMenusRef} />
+          </Main>
+          <Divider style={{ margin: '10px 0' }} />
+          <Footer
+            key="footer"
+            route={route}
+            canUseBackspace={userInputText.length > 0 || clipboardText.length == 0}
+            loading={isLoading}
+            clearClipboard={clearClipboard}
+            onEsc={handleEsc}
+          />
+        </Container>
+      )
+  }
 }
 
 const Container = styled.div`

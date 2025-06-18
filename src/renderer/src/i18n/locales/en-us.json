@@ -755,7 +755,8 @@
         "backspace_clear": "Backspace to clear",
         "esc": "ESC to {{action}}",
         "esc_back": "return",
-        "esc_close": "close"
+        "esc_close": "close",
+        "esc_pause": "pause"
       },
       "input": {
         "placeholder": {

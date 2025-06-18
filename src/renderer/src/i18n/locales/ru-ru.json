@@ -752,10 +752,11 @@
       },
       "footer": {
         "copy_last_message": "Нажмите C для копирования",
+        "backspace_clear": "Нажмите Backspace, чтобы очистить",
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
         "esc_close": "закрытия окна",
-        "backspace_clear": "Нажмите Backspace, чтобы очистить"
+        "esc_pause": "пауза"
       },
       "input": {
         "placeholder": {

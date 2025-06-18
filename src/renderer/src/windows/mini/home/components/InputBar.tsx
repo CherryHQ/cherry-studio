@@ -1,5 +1,4 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { Input as AntdInput } from 'antd'
 import { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'
@@ -10,6 +9,7 @@ interface InputBarProps {
   model: any
   referenceText: string
   placeholder: string
+  loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
   handleChange: (e: React.ChangeEvent<HTMLInputElement>) => void
 }
@@ -19,12 +19,12 @@ const InputBar = ({
   text,
   model,
   placeholder,
+  loading,
   handleKeyDown,
   handleChange
 }: InputBarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => {
-  const { generating } = useRuntime()
   const inputRef = useRef<InputRef>(null)
-  if (!generating) {
+  if (!loading) {
     setTimeout(() => inputRef.current?.input?.focus(), 0)
   }
   return (
@@ -37,7 +37,7 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        disabled={generating}
+        disabled={loading}
         ref={inputRef}
       />
     </InputWrapper>

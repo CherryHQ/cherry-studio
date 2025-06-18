@@ -188,22 +188,29 @@ const ModelSettings: FC = () => {
         {!quickAssistantId ? null : (
           <HStack alignItems="center" style={{ marginTop: 12 }}>
             <Select
-              value={quickAssistantId}
+              value={quickAssistantId || defaultAssistant.id}
               style={{ width: 360 }}
               onChange={(value) => dispatch(setQuickAssistantId(value))}
               placeholder={t('settings.models.quick_assistant_selection')}>
-              {assistants.map((a) => (
-                <Select.Option key={a.id} value={a.id}>
-                  <AssistantItem>
-                    <ModelAvatar model={a.model || defaultModel} size={18} />
-                    <AssistantName>{a.name}</AssistantName>
-                    <Spacer />
-                    {a.id === defaultAssistant.id && (
-                      <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
-                    )}
-                  </AssistantItem>
-                </Select.Option>
-              ))}
+              <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
+                <AssistantItem>
+                  <ModelAvatar model={defaultAssistant.model || defaultModel} size={18} />
+                  <AssistantName>{defaultAssistant.name}</AssistantName>
+                  <Spacer />
+                  <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>
+                </AssistantItem>
+              </Select.Option>
+              {assistants
+                .filter((a) => a.id !== defaultAssistant.id)
+                .map((a) => (
+                  <Select.Option key={a.id} value={a.id}>
+                    <AssistantItem>
+                      <ModelAvatar model={a.model || defaultModel} size={18} />
+                      <AssistantName>{a.name}</AssistantName>
+                      <Spacer />
+                    </AssistantItem>
+                  </Select.Option>
+                ))}
             </Select>
           </HStack>
         )}

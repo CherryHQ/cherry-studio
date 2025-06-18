@@ -1,37 +1,53 @@
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Tag as AntdTag, Tooltip } from 'antd'
 import { CircleArrowLeft, Copy, Pin } from 'lucide-react'
 import { FC, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface FooterProps {
   route: string
   canUseBackspace?: boolean
+  loading?: boolean
   clearClipboard?: () => void
-  onExit: () => void
+  onEsc: () => void
 }
 
-const Footer: FC<FooterProps> = ({ route, canUseBackspace, clearClipboard, onExit }) => {
+const Footer: FC<FooterProps> = ({ route, canUseBackspace, loading, clearClipboard, onEsc }) => {
   const { t } = useTranslation()
   const [isPinned, setIsPinned] = useState(false)
 
-  const onClickPin = () => {
+  const handlePin = () => {
     window.api.miniWindow.setPin(!isPinned).then(() => {
       setIsPinned(!isPinned)
     })
   }
+
+  useHotkeys('esc', () => {
+    onEsc()
+  })
 
   return (
     <WindowFooter className="drag">
       <FooterText>
         <Tag
           bordered={false}
-          icon={<CircleArrowLeft size={14} color="var(--color-text)" />}
+          icon={
+            loading ? (
+              <LoadingOutlined style={{ fontSize: 12, color: 'var(--color-error)', padding: 0 }} spin />
+            ) : (
+              <CircleArrowLeft size={14} color="var(--color-text)" />
+            )
+          }
           className="nodrag"
-          onClick={() => onExit()}>
+          onClick={onEsc}>
           {t('miniwindow.footer.esc', {
-            action: route === 'home' ? t('miniwindow.footer.esc_close') : t('miniwindow.footer.esc_back')
+            action: loading
+              ? t('miniwindow.footer.esc_pause')
+              : route === 'home'
+                ? t('miniwindow.footer.esc_close')
+                : t('miniwindow.footer.esc_back')
           })}
         </Tag>
         {route === 'home' && !canUseBackspace && (
@@ -54,7 +70,7 @@ const Footer: FC<FooterProps> = ({ route, canUseBackspace, clearClipboard, onExi
           </Tag>
         )}
       </FooterText>
-      <PinButtonArea onClick={() => onClickPin()} className="nodrag">
+      <PinButtonArea onClick={() => handlePin()} className="nodrag">
         <Tooltip title={t('miniwindow.tooltip.pin')} mouseEnterDelay={0.8} placement="left">
           <Pin size={14} stroke={isPinned ? 'var(--color-primary)' : 'var(--color-text)'} />
         </Tooltip>

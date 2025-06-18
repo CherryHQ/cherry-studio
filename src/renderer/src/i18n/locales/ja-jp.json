@@ -752,10 +752,11 @@
       },
       "footer": {
         "copy_last_message": "C キーを押してコピー",
+        "backspace_clear": "バックスペースを押してクリアします",
         "esc": "ESC キーを押して{{action}}",
         "esc_back": "戻る",
         "esc_close": "ウィンドウを閉じる",
-        "backspace_clear": "バックスペースを押してクリアします"
+        "esc_pause": "一時停止"
       },
       "input": {
         "placeholder": {

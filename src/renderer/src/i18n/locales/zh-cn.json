@@ -755,7 +755,8 @@
         "backspace_clear": "按 Backspace 清空",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
-        "esc_close": "关闭"
+        "esc_close": "关闭",
+        "esc_pause": "暂停"
       },
       "input": {
         "placeholder": {
