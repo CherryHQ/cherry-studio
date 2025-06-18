@@ -22,9 +22,10 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
-    autoUpdater.setFeedURL(configManager.getFeedUrl())
 
-    // 检测下载错误
+    const enableEarlyAccess = configManager.getEnableEarlyAccess()
+    enableEarlyAccess && this._getLatestNotDraftVersionFromGithub().then((url) => url && autoUpdater.setFeedURL(url))
+
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳
       logger.error('更新异常', {
@@ -64,6 +65,22 @@ export default class AppUpdater {
     this.autoUpdater = autoUpdater
   }
 
+  private async _getLatestNotDraftVersionFromGithub() {
+    const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=5', {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
+    })
+    const data = await responses.json()
+    const latestRelease = data.find((item: any) => !item.draft)
+    logger.info('latestRelease', latestRelease.tag_name)
+    return `https://github.com/CherryHQ/cherry-studio/releases/download/${latestRelease.tag_name}`
+  }
+
   private async _getIpCountry() {
     try {
       // add timeout using AbortController
@@ -93,9 +110,17 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  public setFeedUrl(feedUrl: FeedUrl) {
-    autoUpdater.setFeedURL(feedUrl)
-    configManager.setFeedUrl(feedUrl)
+  public async setEnableEarlyAccess(isActive: boolean) {
+    if (isActive) {
+      const url = await this._getLatestNotDraftVersionFromGithub()
+      logger.info('setEnableEarlyAccess', url)
+      if (url) {
+        this.autoUpdater.setFeedURL(url)
+      }
+      return
+    }
+
+    this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
   }
 
   public async checkForUpdates() {
@@ -106,10 +131,12 @@ export default class AppUpdater {
       }
     }
 
-    const ipCountry = await this._getIpCountry()
-    logger.info('ipCountry', ipCountry)
-    if (ipCountry !== 'CN') {
-      this.autoUpdater.setFeedURL(FeedUrl.EARLY_ACCESS)
+    if (!configManager.getEnableEarlyAccess()) {
+      const ipCountry = await this._getIpCountry()
+      logger.info('ipCountry', ipCountry)
+      if (ipCountry.toLowerCase() !== 'cn') {
+        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
+      }
     }
 
     try {

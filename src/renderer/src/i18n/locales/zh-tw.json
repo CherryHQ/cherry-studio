@@ -1807,7 +1807,7 @@
       },
       "general.auto_check_update.title": "自動更新",
       "general.early_access.title": "搶先體驗",
-      "general.early_access.tooltip": "開啟後，將使用 GitHub 的最新版本，下載速度可能較慢，請務必提前備份數據",
+      "general.early_access.tooltip": "開啟後，將使用 GitHub 的最新版本(包含pre-release)，下載速度可能較慢，請務必提前備份數據",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",

@@ -101,9 +101,8 @@ const AboutSettings: FC = () => {
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })
-    setEarlyAccess(earlyAccess)
     setAutoCheckUpdate(autoCheckUpdate)
-  }, [autoCheckUpdate, earlyAccess, setAutoCheckUpdate, setEarlyAccess])
+  }, [autoCheckUpdate, setAutoCheckUpdate, setEarlyAccess])
 
   return (
     <SettingContainer theme={theme}>
