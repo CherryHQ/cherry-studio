@@ -7,7 +7,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { dialog, BrowserWindow, ipcMain, session, shell } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
