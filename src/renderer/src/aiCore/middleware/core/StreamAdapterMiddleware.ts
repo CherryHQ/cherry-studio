@@ -1,4 +1,3 @@
-import Logger from '@renderer/config/logger'
 import { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream, createSingleChunkReadableStream } from '@renderer/utils/stream'
 
@@ -26,7 +25,6 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
     // 但是这个中间件的职责是流适配，是否在这调用优待商榷
     // 调用下游中间件
     const result = await next(ctx, params)
-    Logger.info('[StreamAdapterMiddleware] result', result)
     if (
       result.rawOutput &&
       !(result.rawOutput instanceof ReadableStream) &&
