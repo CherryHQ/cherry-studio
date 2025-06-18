@@ -233,25 +233,23 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     return content
   }
 
-  public attachRawStreamListener(
+  public async attachRawStreamListener(
     rawOutput: OpenAIResponseSdkRawOutput,
     listener: OpenAIResponseStreamListener<OpenAIResponseSdkRawChunk>
-  ): OpenAIResponseSdkRawOutput {
+  ): Promise<OpenAIResponseSdkRawOutput> {
     if ('output' in rawOutput) {
       if (listener.onMessage) {
         listener.onMessage(rawOutput)
       }
     } else if (rawOutput instanceof Stream) {
       const [monitoredOutput, teeOutput] = rawOutput.tee()
-      ;(async () => {
-        for await (const chunk of monitoredOutput) {
-          if (chunk.type === 'response.completed') {
-            if (listener.onMessage) {
-              listener.onMessage(chunk.response)
-            }
+      for await (const chunk of monitoredOutput) {
+        if (chunk.type === 'response.completed') {
+          if (listener.onMessage) {
+            listener.onMessage(chunk.response)
           }
         }
-      })()
+      }
       return teeOutput
     }
     return rawOutput

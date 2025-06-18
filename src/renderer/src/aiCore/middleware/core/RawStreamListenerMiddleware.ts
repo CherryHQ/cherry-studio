@@ -55,7 +55,7 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
           }
         }
         const specificApiClient = ctx.apiClientInstance as OpenAIResponseAPIClient
-        const monitoredOutput = specificApiClient.attachRawStreamListener(
+        const monitoredOutput = await specificApiClient.attachRawStreamListener(
           result.rawOutput as OpenAIResponseSdkRawOutput,
           openaiListener
         )
