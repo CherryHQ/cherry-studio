@@ -139,7 +139,7 @@ const PdfReader: React.FC<Props> = (props) => {
             {/* 阅读器操作 */}
             <OperateRow gap={8} align="center" justify="space-between">
               <Space>
-                <Tooltip title={t('reader.switchPosition')}>
+                <Tooltip title={t('reader.switchPosition')} placement="bottomRight">
                   <OperateButton
                     icon={assistant.reader?.position === 'right' ? <PanelLeft size={16} /> : <PanelRight size={16} />}
                     onClick={onSwitchReaderPosition}
