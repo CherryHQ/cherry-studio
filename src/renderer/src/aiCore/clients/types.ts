@@ -16,6 +16,7 @@ import {
 import OpenAI from 'openai'
 
 import { CompletionsParams, GenericChunk } from '../middleware/schemas'
+import { CompletionsContext } from '../middleware/types'
 
 /**
  * 原始流监听器接口
@@ -111,7 +112,7 @@ export interface ApiClient<
   // SDK相关方法
   getSdkInstance(): Promise<TSdkInstance> | TSdkInstance
   getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>
-  getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
+  getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<TRawChunk>
 
   // 原始流监听方法
   attachRawStreamListener?(rawOutput: TRawOutput, listener: RawStreamListener<TRawChunk>): TRawOutput

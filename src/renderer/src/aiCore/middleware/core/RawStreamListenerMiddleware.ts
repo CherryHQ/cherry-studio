@@ -1,13 +1,7 @@
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
-import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
-import {
-  AnthropicSdkRawChunk,
-  AnthropicSdkRawOutput,
-  OpenAIResponseSdkRawChunk,
-  OpenAIResponseSdkRawOutput
-} from '@renderer/types/sdk'
+import { AnthropicSdkRawChunk, AnthropicSdkRawOutput } from '@renderer/types/sdk'
 
-import { AnthropicStreamListener, OpenAIResponseStreamListener } from '../../clients/types'
+import { AnthropicStreamListener } from '../../clients/types'
 import { CompletionsParams, CompletionsResult } from '../schemas'
 import { CompletionsContext, CompletionsMiddleware } from '../types'
 
@@ -44,30 +38,6 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
         return {
           ...result,
           rawOutput: monitoredOutput
-        }
-      }
-      if (providerType === 'openai-response') {
-        const openaiListener: OpenAIResponseStreamListener<OpenAIResponseSdkRawChunk> = {
-          onMessage: (output) => {
-            if (ctx._internal?.toolProcessingState) {
-              ctx._internal.toolProcessingState.output = output
-            }
-          }
-        }
-        const specificApiClient = ctx.apiClientInstance as OpenAIResponseAPIClient
-        const transformedStream = await specificApiClient.attachRawStreamListener(
-          result.rawOutput as OpenAIResponseSdkRawOutput,
-          openaiListener
-        )
-        if (transformedStream instanceof ReadableStream) {
-          return {
-            ...result,
-            stream: transformedStream // 相当于承担了StreamAdapterMiddleware的职责
-          }
-        }
-        return {
-          ...result,
-          rawOutput: transformedStream
         }
       }
     }

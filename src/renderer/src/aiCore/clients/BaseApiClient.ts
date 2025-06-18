@@ -42,6 +42,7 @@ import { defaultTimeout } from '@shared/config/constant'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
+import { CompletionsContext } from '../middleware/types'
 import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
 
 /**
@@ -95,7 +96,7 @@ export abstract class BaseApiClient<
   // 在 CoreRequestToSdkParamsMiddleware中使用
   abstract getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>
   // 在RawSdkChunkToGenericChunkMiddleware中使用
-  abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
+  abstract getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<TRawChunk>
 
   /**
    * 工具转换

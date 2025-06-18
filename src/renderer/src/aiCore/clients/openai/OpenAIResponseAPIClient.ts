@@ -1,4 +1,5 @@
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import { CompletionsContext } from '@renderer/aiCore/middleware/types'
 import {
   isOpenAIChatCompletionOnlyModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -39,9 +40,8 @@ import { MB } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import OpenAI from 'openai'
 import { ResponseInput } from 'openai/resources/responses/responses'
-import { Stream } from 'openai/streaming'
 
-import { OpenAIResponseStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
+import { RequestTransformer, ResponseChunkTransformer } from '../types'
 import { OpenAIAPIClient } from './OpenAIApiClient'
 import { OpenAIBaseClient } from './OpenAIBaseClient'
 
@@ -233,34 +233,6 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     return content
   }
 
-  public async attachRawStreamListener(
-    rawOutput: OpenAIResponseSdkRawOutput,
-    listener: OpenAIResponseStreamListener<OpenAIResponseSdkRawChunk>
-  ): Promise<OpenAIResponseSdkRawOutput | ReadableStream<OpenAIResponseSdkRawChunk>> {
-    if ('output' in rawOutput) {
-      if (listener.onMessage) {
-        listener.onMessage(rawOutput)
-      }
-    } else if (rawOutput instanceof Stream) {
-      const readableStream = rawOutput.toReadableStream()
-      const transformedStream = readableStream.pipeThrough(
-        new TransformStream({
-          transform(
-            chunk: OpenAI.Responses.ResponseStreamEvent,
-            controller: TransformStreamDefaultController<OpenAI.Responses.ResponseStreamEvent>
-          ) {
-            if (chunk.type === 'response.completed' && listener.onMessage) {
-              listener.onMessage(chunk.response)
-            }
-            controller.enqueue(chunk)
-          }
-        })
-      )
-      return transformedStream
-    }
-    return rawOutput
-  }
-
   public buildSdkMessages(
     currentReqMessages: OpenAIResponseSdkMessageParam[],
     output: OpenAI.Responses.Response | undefined,
@@ -449,7 +421,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     }
   }
 
-  getResponseChunkTransformer(): ResponseChunkTransformer<OpenAIResponseSdkRawChunk> {
+  getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<OpenAIResponseSdkRawChunk> {
     const toolCalls: OpenAIResponseSdkToolCall[] = []
     const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
     let hasBeenCollectedToolCalls = false
@@ -457,6 +429,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       async transform(chunk: OpenAIResponseSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 处理chunk
         if ('output' in chunk) {
+          if (ctx._internal?.toolProcessingState) {
+            ctx._internal.toolProcessingState.output = chunk
+          }
           for (const output of chunk.output) {
             switch (output.type) {
               case 'message':
@@ -588,6 +563,9 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               break
             }
             case 'response.completed': {
+              if (ctx._internal?.toolProcessingState) {
+                ctx._internal.toolProcessingState.output = chunk.response
+              }
               if (toolCalls.length > 0 && !hasBeenCollectedToolCalls) {
                 controller.enqueue({
                   type: ChunkType.MCP_TOOL_CREATED,

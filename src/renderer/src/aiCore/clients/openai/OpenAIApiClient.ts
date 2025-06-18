@@ -494,7 +494,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
   }
 
   // 在RawSdkChunkToGenericChunkMiddleware中使用
-  getResponseChunkTransformer = (): ResponseChunkTransformer<OpenAISdkRawChunk> => {
+  getResponseChunkTransformer(): ResponseChunkTransformer<OpenAISdkRawChunk> {
     let hasBeenCollectedWebSearch = false
     const collectWebSearchData = (
       chunk: OpenAISdkRawChunk,
