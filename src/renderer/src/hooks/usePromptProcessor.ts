@@ -10,8 +10,6 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
   const [processedPrompt, setProcessedPrompt] = useState('')
 
   useEffect(() => {
-    const intervalId: NodeJS.Timeout | null = null
-
     const processPrompt = async () => {
       try {
         if (containsSupportedVariables(prompt)) {
@@ -27,13 +25,6 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
     }
 
     processPrompt()
-
-    // 清理，确保在跳转到其他组件时清理该定时器
-    return () => {
-      if (intervalId !== null) {
-        clearInterval(intervalId)
-      }
-    }
   }, [prompt, modelName])
 
   return processedPrompt
