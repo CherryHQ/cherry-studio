@@ -23,9 +23,6 @@ export default class AppUpdater {
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
 
-    const enableEarlyAccess = configManager.getEnableEarlyAccess()
-    enableEarlyAccess && this._getLatestNotDraftVersionFromGithub().then((url) => url && autoUpdater.setFeedURL(url))
-
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳
       logger.error('更新异常', {
@@ -71,8 +68,6 @@ export default class AppUpdater {
         headers: {
           Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           'Accept-Language': 'en-US,en;q=0.9'
         }
       })
@@ -142,6 +137,8 @@ export default class AppUpdater {
       if (ipCountry.toLowerCase() !== 'cn') {
         this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
       }
+    } else {
+      this._getLatestNotDraftVersionFromGithub().then((url) => this.autoUpdater.setFeedURL(url))
     }
 
     try {
