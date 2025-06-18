@@ -13,7 +13,6 @@ import {
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
@@ -105,7 +104,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
 
@@ -176,20 +174,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (uploadedFiles) {
         baseUserMessage.files = uploadedFiles
       }
-      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
-
-      if (knowledgeBaseIds) {
-        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
-      }
 
       if (mentionModels) {
         baseUserMessage.mentions = mentionModels
-      }
-
-      if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
-          assistant.mcpServers?.some((s) => s.id === server.id)
-        )
       }
 
       const assistantWithTopicPrompt = topic.prompt
@@ -212,19 +199,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [
-    activedMcpServers,
-    assistant,
-    dispatch,
-    files,
-    inputEmpty,
-    loading,
-    mentionModels,
-    resizeTextArea,
-    selectedKnowledgeBases,
-    text,
-    topic
-  ])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionModels, resizeTextArea, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {

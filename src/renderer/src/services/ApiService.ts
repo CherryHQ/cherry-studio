@@ -33,10 +33,11 @@ import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
-import { findFileBlocks, getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
+import store from '../store'
 import {
   getAssistantProvider,
   getAssistantSettings,
@@ -63,7 +64,7 @@ async function fetchExternalTool(
   lastAnswer?: Message
 ): Promise<ExternalToolResult> {
   // 可能会有重复？
-  const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
+  const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
   const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
@@ -251,7 +252,12 @@ async function fetchExternalTool(
 
     // Get MCP tools (Fix duplicate declaration)
     let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const enabledMCPs = assistant.mcpServers
+    const allMcpServers = store.getState().mcp.servers || []
+    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+    const assistantMcpServers = assistant.mcpServers || []
+
+    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
         const toolPromises = enabledMCPs.map(async (mcpServer) => {
