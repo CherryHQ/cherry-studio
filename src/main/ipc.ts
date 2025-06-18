@@ -7,7 +7,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { FeedUrl } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
-import { BrowserWindow, ipcMain, session, shell } from 'electron'
+import { dialog, BrowserWindow, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -34,7 +34,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -173,6 +173,70 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       log.error(`Failed to calculate cache size for ${cachePath}: ${error.message}`)
       return '0'
     }
+  })
+
+  let preventQuitListener: ((event: Electron.Event) => void) | null = null
+  ipcMain.handle(IpcChannel.App_SetStopQuitApp, (_, stop: boolean = false, reason: string = '') => {
+    if (stop) {
+      // Only add listener if not already added
+      if (!preventQuitListener) {
+        preventQuitListener = (event: Electron.Event) => {
+          event.preventDefault()
+          notificationService.sendNotification({
+            title: reason,
+            message: reason
+          } as Notification)
+        }
+        app.on('before-quit', preventQuitListener)
+      }
+    } else {
+      // Remove listener if it exists
+      if (preventQuitListener) {
+        app.removeListener('before-quit', preventQuitListener)
+        preventQuitListener = null
+      }
+    }
+  })
+
+  // Select app data path
+  ipcMain.handle(IpcChannel.App_Select, async (_, options: Electron.OpenDialogOptions) => {
+    try {
+      const { canceled, filePaths } = await dialog.showOpenDialog(options)
+      if (canceled || filePaths.length === 0) {
+        return null
+      }
+      return filePaths[0]
+    } catch (error: any) {
+      log.error('Failed to select app data path:', error)
+      return null
+    }
+  })
+
+  ipcMain.handle(IpcChannel.App_HasWritePermission, async (_, filePath: string) => {
+    return hasWritePermission(filePath)
+  })
+
+  // Set app data path
+  ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
+    updateConfig(filePath)
+    app.setPath('userData', filePath)
+  })
+
+  // Copy user data to new location
+  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string) => {
+    try {
+      await fs.promises.cp(oldPath, newPath, { recursive: true })
+      return { success: true }
+    } catch (error: any) {
+      log.error('Failed to copy user data:', error)
+      return { success: false, error: error.message }
+    }
+  })
+
+  // Relaunch app
+  ipcMain.handle(IpcChannel.App_RelaunchApp, () => {
+    app.relaunch()
+    app.exit(0)
   })
 
   // check for update
