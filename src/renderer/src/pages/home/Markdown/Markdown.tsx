@@ -6,6 +6,9 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import store, { useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
@@ -38,6 +41,7 @@ interface Props {
 const Markdown: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
   const { mathEngine } = useSettings()
+  const dispatch = useAppDispatch()
 
   const remarkPlugins = useMemo(() => {
     const plugins = [remarkGfm, remarkCjkFriendly]
@@ -77,6 +81,26 @@ const Markdown: FC<Props> = ({ block }) => {
     },
     [block.id]
   )
+  const onImageLocalized = useCallback(
+    async (localizedUrl: string, originalUrl: string) => {
+      const state = store.getState()
+      const originalBlock = messageBlocksSelectors.selectById(state, block.id) as
+        | MainTextMessageBlock
+        | TranslationMessageBlock
+        | ThinkingMessageBlock
+      const updatedBlock = {
+        ...originalBlock,
+        content: originalBlock.content.replaceAll(originalUrl, localizedUrl),
+        updatedAt: new Date().toISOString()
+      }
+      const updatedMessage = {
+        ...state.messages.entities[originalBlock.messageId],
+        updatedAt: new Date().toISOString()
+      }
+      await dispatch(updateMessageAndBlocksThunk(updatedMessage.topicId, updatedMessage, [updatedBlock]))
+    },
+    [block.id, dispatch]
+  )
 
   const components = useMemo(() => {
     return {
@@ -85,7 +109,9 @@ const Markdown: FC<Props> = ({ block }) => {
         <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
       ),
       table: (props: any) => <Table {...props} blockId={block.id} />,
-      img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
+      img: (props: any) => (
+        <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} onImageLocalized={onImageLocalized} {...props} />
+      ),
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
       p: (props) => {
         const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
@@ -93,7 +119,7 @@ const Markdown: FC<Props> = ({ block }) => {
         return <p {...props} />
       }
     } as Partial<Components>
-  }, [onSaveCodeBlock, block.id])
+  }, [onSaveCodeBlock, block.id, onImageLocalized])
 
   if (messageContent.includes('<style>')) {
     components.style = MarkdownShadowDOMRenderer as any
@@ -101,6 +127,7 @@ const Markdown: FC<Props> = ({ block }) => {
 
   const urlTransform = useCallback((value: string) => {
     if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
+    if (value.startsWith('file://')) return value
     return defaultUrlTransform(value)
   }, [])
 

@@ -1,4 +1,6 @@
-export const download = (url: string, filename?: string) => {
+import { FileType } from '@renderer/types'
+
+export const triggerDownloadDialog = (url: string, filename?: string) => {
   // 处理可直接通过 <a> 标签下载的 URL:
   // - 本地文件 ( file:// )
   // - 对象 URL ( blob: )
@@ -94,4 +96,27 @@ function getExtensionFromMimeType(mimeType: string | null): string {
   }
 
   return mimeToExtension[mimeType] || '.bin'
+}
+
+export const downloadImagesToFileStorage = async (urls: string[]) => {
+  const downloadedFiles = await Promise.all(
+    urls.map(async (url) => {
+      const trimmedUrl = url.trim()
+      if (!trimmedUrl) {
+        console.error('Image URL is empty')
+        window.message.warning({
+          content: 'Image URL is empty',
+          key: 'empty-url-warning'
+        })
+        return null
+      }
+      try {
+        return await window.api.file.download(trimmedUrl)
+      } catch (error) {
+        console.error(`Download failed for ${trimmedUrl}:`, error)
+        return null
+      }
+    })
+  )
+  return downloadedFiles.filter((file): file is FileType => file !== null)
 }

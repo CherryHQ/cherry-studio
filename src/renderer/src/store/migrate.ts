@@ -1608,6 +1608,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '113': (state: RootState) => {
+    try {
+      state.settings.autoLocalizeImages = settingsInitialState.autoLocalizeImages
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

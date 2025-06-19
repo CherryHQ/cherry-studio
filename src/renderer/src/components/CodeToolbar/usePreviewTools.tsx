@@ -1,4 +1,4 @@
-import { download } from '@renderer/utils/download'
+import { triggerDownloadDialog } from '@renderer/utils/download'
 import { FileImage, ZoomIn, ZoomOut } from 'lucide-react'
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -229,7 +229,7 @@ export const usePreviewToolHandlers = (
           const svgData = new XMLSerializer().serializeToString(imgElement)
           const blob = new Blob([svgData], { type: 'image/svg+xml' })
           const url = URL.createObjectURL(blob)
-          download(url, `${prefix}-${timestamp}.svg`)
+          triggerDownloadDialog(url, `${prefix}-${timestamp}.svg`)
           URL.revokeObjectURL(url)
         } else if (format === 'png') {
           const canvas = document.createElement('canvas')
@@ -257,7 +257,7 @@ export const usePreviewToolHandlers = (
             canvas.toBlob((blob) => {
               if (blob) {
                 const pngUrl = URL.createObjectURL(blob)
-                download(pngUrl, `${prefix}-${timestamp}.png`)
+                triggerDownloadDialog(pngUrl, `${prefix}-${timestamp}.png`)
                 URL.revokeObjectURL(pngUrl)
               }
             }, 'image/png')

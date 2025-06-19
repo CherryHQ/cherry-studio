@@ -1545,6 +1545,8 @@
         "providerPlaceholder": "提供者名稱",
         "advancedSettings": "高級設定"
       },
+      "messages.auto_localize_images": "本地化遠端圖片",
+      "messages.auto_localize_images.tooltip": "儲存遠端圖片到裝置，將其原始連結替換為本機檔案路徑。支援離線檢視，並確保來源連結失效後圖片仍可存取",
       "messages.prompt": "提示詞顯示",
       "messages.tokens": "Token用量顯示",
       "messages.divider": "訊息間顯示分隔線",

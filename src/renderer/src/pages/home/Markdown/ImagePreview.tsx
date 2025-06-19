@@ -7,7 +7,7 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined
 } from '@ant-design/icons'
-import { download } from '@renderer/utils/download'
+import { triggerDownloadDialog } from '@renderer/utils/download'
 import { Image as AntImage, ImageProps as AntImageProps, Space } from 'antd'
 import React from 'react'
 import styled from 'styled-components'
@@ -38,7 +38,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({ src, ...props }) => {
             <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
             <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
             <UndoOutlined onClick={onReset} />
-            <DownloadOutlined onClick={() => download(src)} />
+            <DownloadOutlined onClick={() => triggerDownloadDialog(src)} />
           </ToobarWrapper>
         )
       }}
