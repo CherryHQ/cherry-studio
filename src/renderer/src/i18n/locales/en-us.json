@@ -1227,8 +1227,6 @@
           "restore.confirm.content": "Restoring from WebDAV will overwrite current data. Do you want to continue?",
           "restore.confirm.title": "Confirm Restore",
           "restore.content": "Restore from WebDAV will overwrite the current data, continue?",
-          "restore.modal.select.placeholder": "Please select a backup file to restore",
-          "restore.modal.title": "Restore from WebDAV",
           "restore.title": "Restore from WebDAV",
           "syncError": "Backup Error",
           "syncStatus": "Backup Status",

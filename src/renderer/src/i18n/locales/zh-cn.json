@@ -1229,8 +1229,6 @@
           "restore.confirm.content": "从 WebDAV 恢复将会覆盖当前数据，是否继续？",
           "restore.confirm.title": "确认恢复",
           "restore.content": "从 WebDAV 恢复将覆盖当前数据，是否继续？",
-          "restore.modal.select.placeholder": "请选择要恢复的备份文件",
-          "restore.modal.title": "从 WebDAV 恢复",
           "restore.title": "从 WebDAV 恢复",
           "syncError": "备份错误",
           "syncStatus": "备份状态",
