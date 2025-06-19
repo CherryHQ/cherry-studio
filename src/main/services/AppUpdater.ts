@@ -22,6 +22,8 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    // github and gitcode don't support multiple range download
+    autoUpdater.disableDifferentialDownload = true
 
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳
@@ -123,6 +125,22 @@ export default class AppUpdater {
     this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
   }
 
+  private async _setFeedUrl() {
+    if (configManager.getEnableEarlyAccess()) {
+      const url = await this._getLatestNotDraftVersionFromGithub()
+      this.autoUpdater.setFeedURL(url)
+      return
+    }
+
+    const ipCountry = await this._getIpCountry()
+    logger.info('ipCountry', ipCountry)
+    if (ipCountry.toLowerCase() !== 'cn') {
+      this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
+      return
+    }
+    this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
+  }
+
   public async checkForUpdates() {
     if (isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env) {
       return {
@@ -131,15 +149,7 @@ export default class AppUpdater {
       }
     }
 
-    if (!configManager.getEnableEarlyAccess()) {
-      const ipCountry = await this._getIpCountry()
-      logger.info('ipCountry', ipCountry)
-      if (ipCountry.toLowerCase() !== 'cn') {
-        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
-      }
-    } else {
-      this._getLatestNotDraftVersionFromGithub().then((url) => this.autoUpdater.setFeedURL(url))
-    }
+    await this._setFeedUrl()
 
     try {
       const update = await this.autoUpdater.checkForUpdates()
