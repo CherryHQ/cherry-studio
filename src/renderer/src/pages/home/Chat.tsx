@@ -16,7 +16,7 @@ import styled from 'styled-components'
 
 import Inputbar from './Inputbar/Inputbar'
 import Messages from './Messages/Messages'
-import PdfReader from './PdfReader'
+import Reader from './Reader'
 import Tabs from './Tabs'
 
 interface Props {
@@ -203,7 +203,7 @@ const Chat: FC<Props> = (props) => {
               }}>
               <CollapseIcon size={14} />
             </CollapseButton>
-            <PdfReader
+            <Reader
               assistant={currentAssistant}
               topic={activeTopic}
               pageWidth={pageWidth}
