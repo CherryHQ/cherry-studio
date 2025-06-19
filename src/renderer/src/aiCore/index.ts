@@ -114,7 +114,7 @@ export default class AiProvider {
       return dimensions
     } catch (error) {
       console.error('Error getting embedding dimensions:', error)
-      return 0
+      throw error
     }
   }
 

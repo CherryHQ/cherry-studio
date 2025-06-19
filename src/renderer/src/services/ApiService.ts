@@ -570,10 +570,7 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      const result = await ai.getEmbeddingDimensions(model)
-      if (result === 0) {
-        throw new Error(i18n.t('message.error.enter.model'))
-      }
+      await ai.getEmbeddingDimensions(model)
     } else {
       const params: CompletionsParams = {
         callType: 'check',
