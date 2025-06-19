@@ -34,6 +34,7 @@ import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { findFileBlocks, getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { containsSupportedVariables, promptVariableReplacer } from '@renderer/utils/prompt'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -308,9 +309,18 @@ export async function fetchChatCompletion({
 
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
-
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
   messages = filterContextMessages(messages)
+
+  // 替换 assistant 系统提示词中的变量
+  if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
+    // 预处理 assistant 的系统提示词
+    const processedPrompt = (await promptVariableReplacer(assistant.prompt, assistant.model?.name)) || assistant.prompt
+    assistant = {
+      ...assistant,
+      prompt: processedPrompt
+    }
+  }
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
