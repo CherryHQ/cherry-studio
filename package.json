@@ -65,7 +65,8 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "selection-hook": "^0.9.23",
-    "turndown": "7.2.0"
+    "turndown": "7.2.0",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -123,6 +124,7 @@
     "@types/react-infinite-scroll-component": "^5.0.0",
     "@types/react-window": "^1",
     "@types/tinycolor2": "^1",
+    "@types/word-extractor": "^1",
     "@uiw/codemirror-extensions-langs": "^4.23.12",
     "@uiw/codemirror-themes-all": "^4.23.12",
     "@uiw/react-codemirror": "^4.23.12",
