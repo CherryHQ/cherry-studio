@@ -24,6 +24,7 @@ import remarkMath from 'remark-math'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
 
 const ALLOWED_ELEMENTS =
@@ -40,7 +41,7 @@ const Markdown: FC<Props> = ({ block }) => {
   const { mathEngine } = useSettings()
 
   const remarkPlugins = useMemo(() => {
-    const plugins = [remarkGfm, remarkCjkFriendly]
+    const plugins = [remarkGfm, remarkCjkFriendly, remarkDisableConstructs(['codeIndented'])]
     if (mathEngine !== 'none') {
       plugins.push(remarkMath)
     }
@@ -105,20 +106,21 @@ const Markdown: FC<Props> = ({ block }) => {
   }, [])
 
   return (
-    <ReactMarkdown
-      rehypePlugins={rehypePlugins}
-      remarkPlugins={remarkPlugins}
-      className="markdown"
-      components={components}
-      disallowedElements={DISALLOWED_ELEMENTS}
-      urlTransform={urlTransform}
-      remarkRehypeOptions={{
-        footnoteLabel: t('common.footnotes'),
-        footnoteLabelTagName: 'h4',
-        footnoteBackContent: ' '
-      }}>
-      {messageContent}
-    </ReactMarkdown>
+    <div className="markdown">
+      <ReactMarkdown
+        rehypePlugins={rehypePlugins}
+        remarkPlugins={remarkPlugins}
+        components={components}
+        disallowedElements={DISALLOWED_ELEMENTS}
+        urlTransform={urlTransform}
+        remarkRehypeOptions={{
+          footnoteLabel: t('common.footnotes'),
+          footnoteLabelTagName: 'h4',
+          footnoteBackContent: ' '
+        }}>
+        {messageContent}
+      </ReactMarkdown>
+    </div>
   )
 }
 

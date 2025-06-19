@@ -15,7 +15,7 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -87,7 +87,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
-  const { isBubbleStyle } = useMessageStyle()
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
@@ -673,8 +672,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
-
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
     updateAssistant({ ...assistant, knowledge_bases: bases })
     setSelectedKnowledgeBases(bases ?? [])
@@ -786,7 +783,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             contextMenu="true"
             variant="borderless"
             spellCheck={false}
-            rows={textareaRows}
+            rows={2}
             ref={textareaRef}
             style={{
               fontSize,
@@ -933,7 +930,7 @@ const Textarea = styled(TextArea)`
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
-  transition: height 0.2s ease;
+  transition: none !important;
   &.ant-input {
     line-height: 1.4;
   }

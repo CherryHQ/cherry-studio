@@ -157,7 +157,7 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
-  background-color: transparent;
+  background-color: var(--color-background);
   overflow: hidden;
   .collapsed {
     width: 0;
