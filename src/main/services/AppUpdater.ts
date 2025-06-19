@@ -113,16 +113,7 @@ export default class AppUpdater {
   }
 
   public async setEnableEarlyAccess(isActive: boolean) {
-    if (isActive) {
-      const url = await this._getLatestNotDraftVersionFromGithub()
-      logger.info('setEnableEarlyAccess', url)
-      if (url) {
-        this.autoUpdater.setFeedURL(url)
-      }
-      return
-    }
-
-    this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
+    this.autoUpdater.setFeedURL(isActive ? await this._getLatestNotDraftVersionFromGithub() : FeedUrl.PRODUCTION)
   }
 
   private async _setFeedUrl() {
