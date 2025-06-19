@@ -111,7 +111,13 @@
       },
       "settings.tool_use_mode": "工具調用方式",
       "settings.tool_use_mode.function": "関数",
-      "settings.tool_use_mode.prompt": "提示詞"
+      "settings.tool_use_mode.prompt": "提示詞",
+      "settings.reader": "リーダー設定",
+      "settings.reader.reference": "参照資料を選択",
+      "settings.reader.upload": "クリックしてアップロード",
+      "settings.reader.reupload": "再アップロード",
+      "settings.reader.pickFromFiles": "ファイルから選択",
+      "settings.reader.pickFromFiles.confirm": "このドキュメントを選択してもよろしいですか？"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -2108,6 +2114,20 @@
           "user_tips": "アプリケーションの実行ファイル名を1行ずつ入力してください。大文字小文字は区別しません。例: chrome.exe, weixin.exe, Cherry Studio.exe, など。"
         }
       }
+    },
+    "reader": {
+      "outlineEmpty": "読み取り可能な目次がありません",
+      "reference": "参照資料",
+      "close": "リーダーを閉じる",
+      "attaching": "関連付け中",
+      "pageIndex": "{{index}} ページ目",
+      "switchPosition": "位置を切り替える",
+      "selectReference": "参照資料を選択",
+      "showSelect": "ページ選択",
+      "showOutline": "目次",
+      "zoomIn": "拡大",
+      "zoomOut": "縮小",
+      "move": "ドラッグ"
     }
   }
 }
