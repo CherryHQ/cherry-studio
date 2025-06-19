@@ -168,7 +168,6 @@
     "husky": "^9.1.7",
     "i18next": "^23.11.5",
     "jest-styled-components": "^7.2.0",
-    "linguist-languages": "^8.0.0",
     "lint-staged": "^15.5.0",
     "lodash": "^4.17.21",
     "lru-cache": "^11.1.0",

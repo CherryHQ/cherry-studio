@@ -1,3 +1,4 @@
+import { languages } from '@shared/config/languages'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
@@ -54,16 +55,6 @@ export function removeTrailingDoubleSpaces(markdown: string): string {
   return markdown.replace(/ {2}$/gm, '')
 }
 
-const predefinedExtensionMap: Record<string, string> = {
-  html: '.html',
-  javascript: '.js',
-  typescript: '.ts',
-  python: '.py',
-  json: '.json',
-  markdown: '.md',
-  text: '.txt'
-}
-
 /**
  * 根据语言名称获取文件扩展名
  * - 先精确匹配，再忽略大小写，最后匹配别名
@@ -71,36 +62,26 @@ const predefinedExtensionMap: Record<string, string> = {
  * @param language 语言名称
  * @returns 文件扩展名
  */
-export async function getExtensionByLanguage(language: string): Promise<string> {
+export function getExtensionByLanguage(language: string): string {
   const lowerLanguage = language.toLowerCase()
 
-  // 常用的扩展名
-  const predefined = predefinedExtensionMap[lowerLanguage]
-  if (predefined) {
-    return predefined
-  }
-
-  const languages = await import('linguist-languages')
-
   // 精确匹配语言名称
-  const directMatch = languages[language as keyof typeof languages] as any
+  const directMatch = languages[language]
   if (directMatch?.extensions?.[0]) {
     return directMatch.extensions[0]
   }
 
   // 大小写不敏感的语言名称匹配
   for (const [langName, data] of Object.entries(languages)) {
-    const languageData = data as any
-    if (langName.toLowerCase() === lowerLanguage && languageData.extensions?.[0]) {
-      return languageData.extensions[0]
+    if (langName.toLowerCase() === lowerLanguage && data.extensions?.[0]) {
+      return data.extensions[0]
     }
   }
 
   // 通过别名匹配
   for (const [, data] of Object.entries(languages)) {
-    const languageData = data as any
-    if (languageData.aliases?.includes(lowerLanguage)) {
-      return languageData.extensions?.[0] || `.${language}`
+    if (data.aliases?.some((alias) => alias.toLowerCase() === lowerLanguage)) {
+      return data.extensions?.[0] || `.${language}`
     }
   }
 

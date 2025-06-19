@@ -146,15 +146,15 @@ describe('markdown', () => {
 
   describe('getExtensionByLanguage', () => {
     // 批量测试语言名称到扩展名的映射
-    const testLanguageExtensions = async (testCases: Record<string, string>) => {
+    const testLanguageExtensions = (testCases: Record<string, string>) => {
       for (const [language, expectedExtension] of Object.entries(testCases)) {
-        const result = await getExtensionByLanguage(language)
+        const result = getExtensionByLanguage(language)
         expect(result).toBe(expectedExtension)
       }
     }
 
-    it('should return extension for exact language name match', async () => {
-      await testLanguageExtensions({
+    it('should return extension for exact language name match', () => {
+      testLanguageExtensions({
         '4D': '.4dm',
         'C#': '.cs',
         JavaScript: '.js',
@@ -166,8 +166,8 @@ describe('markdown', () => {
       })
     })
 
-    it('should return extension for case-insensitive language name match', async () => {
-      await testLanguageExtensions({
+    it('should return extension for case-insensitive language name match', () => {
+      testLanguageExtensions({
         '4d': '.4dm',
         'c#': '.cs',
         javascript: '.js',
@@ -179,8 +179,8 @@ describe('markdown', () => {
       })
     })
 
-    it('should return extension for language aliases', async () => {
-      await testLanguageExtensions({
+    it('should return extension for language aliases', () => {
+      testLanguageExtensions({
         js: '.js',
         node: '.js',
         'obj-c++': '.mm',
@@ -191,15 +191,15 @@ describe('markdown', () => {
       })
     })
 
-    it('should return fallback extension for unknown languages', async () => {
-      await testLanguageExtensions({
+    it('should return fallback extension for unknown languages', () => {
+      testLanguageExtensions({
         'unknown-language': '.unknown-language',
         custom: '.custom'
       })
     })
 
-    it('should handle empty string input', async () => {
-      await testLanguageExtensions({
+    it('should handle empty string input', () => {
+      testLanguageExtensions({
         '': '.'
       })
     })

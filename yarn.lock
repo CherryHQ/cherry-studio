@@ -5688,7 +5688,6 @@ __metadata:
     i18next: "npm:^23.11.5"
     jest-styled-components: "npm:^7.2.0"
     jsdom: "npm:26.1.0"
-    linguist-languages: "npm:^8.0.0"
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
@@ -11872,13 +11871,6 @@ __metadata:
   version: 3.1.3
   resolution: "lilconfig@npm:3.1.3"
   checksum: 10c0/f5604e7240c5c275743561442fbc5abf2a84ad94da0f5adc71d25e31fa8483048de3dcedcb7a44112a942fed305fd75841cdf6c9681c7f640c63f1049e9a5dcc
-  languageName: node
-  linkType: hard
-
-"linguist-languages@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "linguist-languages@npm:8.0.0"
-  checksum: 10c0/eaae46254247b9aa5b287ac98e062e7fe859314328ce305e34e152bc7bb172d69633999320cb47dc2a710388179712a76bb1ddd6e39e249af2684a4f0a66256c
   languageName: node
   linkType: hard
 
