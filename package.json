@@ -191,6 +191,7 @@
     "react-i18next": "^14.1.2",
     "react-infinite-scroll-component": "^6.1.0",
     "react-markdown": "^9.0.1",
+    "react-pdf": "^9.2.1",
     "react-redux": "^9.1.2",
     "react-router": "6",
     "react-router-dom": "6",
