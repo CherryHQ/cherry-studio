@@ -114,7 +114,7 @@
       },
       "settings.reader": "Reader Settings",
       "settings.reader.reference": "Select Reference Materials",
-      "settings.reader.upload": "Click to Select",
+      "settings.reader.upload": "Click to Upload",
       "settings.reader.reupload": "Re-upload",
       "settings.reader.pickFromFiles": "Select from Files",
       "settings.reader.pickFromFiles.confirm": "Are you sure you want to select this document?"

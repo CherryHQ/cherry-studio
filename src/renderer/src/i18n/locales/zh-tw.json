@@ -114,7 +114,7 @@
       "settings.tool_use_mode.prompt": "提示詞",
       "settings.reader": "閱讀器設定",
       "settings.reader.reference": "選擇參考資料",
-      "settings.reader.upload": "點擊選擇",
+      "settings.reader.upload": "點擊上傳",
       "settings.reader.reupload": "重新上傳",
       "settings.reader.pickFromFiles": "從檔案中選擇",
       "settings.reader.pickFromFiles.confirm": "確認選擇該文件嗎？"

@@ -115,7 +115,7 @@
       "settings": {
         "reader": "Настройки читалки",
         "reader.reference": "Выбрать справочные материалы",
-        "reader.upload": "Нажмите для выбора",
+        "reader.upload": "Нажмите для загрузки",
         "reader.reupload": "Перезагрузить",
         "reader.pickFromFiles": "Выбрать из файлов",
         "reader.pickFromFiles.confirm": "Вы уверены, что хотите выбрать этот документ?"

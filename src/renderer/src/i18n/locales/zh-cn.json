@@ -86,7 +86,7 @@
       "settings.reasoning_effort.default": "默认",
       "settings.reader": "阅读器设置",
       "settings.reader.reference": "选择参考资料",
-      "settings.reader.upload": "点击选择",
+      "settings.reader.upload": "点击上传",
       "settings.reader.reupload": "重新上传",
       "settings.reader.pickFromFiles": "从文件中选择",
       "settings.reader.pickFromFiles.confirm": "确认选择该文档吗？",

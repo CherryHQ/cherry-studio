@@ -113,11 +113,11 @@
       "settings.tool_use_mode.function": "関数",
       "settings.tool_use_mode.prompt": "提示詞",
       "settings.reader": "リーダー設定",
-        "settings.reader.reference": "参照資料を選択",
-        "settings.reader.upload": "クリックして選択",
-        "settings.reader.reupload": "再アップロード",
-        "settings.reader.pickFromFiles": "ファイルから選択",
-        "settings.reader.pickFromFiles.confirm": "このドキュメントを選択してもよろしいですか？"
+      "settings.reader.reference": "参照資料を選択",
+      "settings.reader.upload": "クリックしてアップロード",
+      "settings.reader.reupload": "再アップロード",
+      "settings.reader.pickFromFiles": "ファイルから選択",
+      "settings.reader.pickFromFiles.confirm": "このドキュメントを選択してもよろしいですか？"
     },
     "auth": {
       "error": "APIキーの自動取得に失敗しました。手動で取得してください",
