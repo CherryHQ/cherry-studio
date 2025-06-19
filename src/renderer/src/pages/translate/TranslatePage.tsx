@@ -1,9 +1,10 @@
 import { CheckOutlined, DeleteOutlined, HistoryOutlined, SendOutlined } from '@ant-design/icons'
 import { NavbarCenter, NavbarMain } from '@renderer/components/app/Navbar'
+import CustomSelect from '@renderer/components/CustomSelect'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isEmbeddingModel } from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
+import { TranslateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -114,7 +115,7 @@ const TranslateSettings: FC<{
         <div>
           <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('translate.settings.model')}</div>
           <HStack alignItems="center" gap={5}>
-            <Select
+            <CustomSelect
               style={{ width: '100%' }}
               placeholder={t('translate.settings.model_placeholder')}
               value={defaultTranslateModel}
@@ -174,38 +175,38 @@ const TranslateSettings: FC<{
             {isBidirectional && (
               <Flex align="center" justify="space-between" gap={10}>
                 <Select
+                  showSearch
                   style={{ flex: 1 }}
                   value={localPair[0]}
+                  optionFilterProp="label"
                   onChange={(value) => setLocalPair([value, localPair[1]])}
-                  options={translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label}</Space.Compact>
-                      </Space.Compact>
-                    )
-                  }))}
+                  options={TranslateLanguageOptions}
+                  optionRender={(option) => (
+                    <Space>
+                      <span role="img" aria-label={(option.data as any).emoji}>
+                        {(option.data as any).emoji}
+                      </span>
+                      {option.label}
+                    </Space>
+                  )}
                   suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
                 />
                 <span>⇆</span>
                 <Select
+                  showSearch
                   style={{ flex: 1 }}
                   value={localPair[1]}
+                  optionFilterProp="label"
                   onChange={(value) => setLocalPair([localPair[0], value])}
-                  options={translateLanguageOptions().map((lang) => ({
-                    value: lang.value,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <div style={{ textAlign: 'left', flex: 1 }}>{lang.label}</div>
-                      </Space.Compact>
-                    )
-                  }))}
+                  options={TranslateLanguageOptions}
+                  optionRender={(option) => (
+                    <Space>
+                      <span role="img" aria-label={(option.data as any).emoji}>
+                        {(option.data as any).emoji}
+                      </span>
+                      {option.label}
+                    </Space>
+                  )}
                   suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
                 />
               </Flex>
@@ -436,23 +437,23 @@ const TranslatePage: FC = () => {
 
     return (
       <Select
+        showSearch
         style={{ width: 160 }}
         value={targetLanguage}
+        optionFilterProp="label"
         onChange={(value) => {
           setTargetLanguage(value)
           db.settings.put({ id: 'translate:target:language', value })
         }}
-        options={translateLanguageOptions().map((lang) => ({
-          value: lang.value,
-          label: (
-            <Space.Compact direction="horizontal" block>
-              <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                {lang.emoji}
-              </span>
-              <Space.Compact block>{lang.label}</Space.Compact>
-            </Space.Compact>
-          )
-        }))}
+        options={TranslateLanguageOptions}
+        optionRender={(option) => (
+          <Space>
+            <span role="img" aria-label={(option.data as any).emoji}>
+              {(option.data as any).emoji}
+            </span>
+            {option.label}
+          </Space>
+        )}
         suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
       />
     )
@@ -538,18 +539,25 @@ const TranslatePage: FC = () => {
                       ? `${t('translate.detected.language')}(${t(`languages.${detectedLanguage.toLowerCase()}`)})`
                       : t('translate.detected.language')
                   },
-                  ...translateLanguageOptions().map((lang) => ({
+                  ...TranslateLanguageOptions.map((lang) => ({
                     value: lang.value,
-                    label: (
-                      <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
-                          {lang.emoji}
-                        </span>
-                        <Space.Compact block>{lang.label}</Space.Compact>
-                      </Space.Compact>
-                    )
+                    label: lang.label,
+                    emoji: lang.emoji
                   }))
                 ]}
+                optionRender={(option) => {
+                  if (option.value === 'auto') {
+                    return option.label
+                  }
+                  return (
+                    <Space>
+                      <span role="img" aria-label={(option.data as any).emoji}>
+                        {(option.data as any).emoji}
+                      </span>
+                      {option.label}
+                    </Space>
+                  )
+                }}
                 suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
               />
               <Button

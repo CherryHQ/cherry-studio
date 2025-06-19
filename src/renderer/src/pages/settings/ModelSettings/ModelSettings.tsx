@@ -1,5 +1,6 @@
 import { RedoOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import CustomSelect from '@renderer/components/CustomSelect'
 import { HStack } from '@renderer/components/Layout'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { isEmbeddingModel } from '@renderer/config/models'
@@ -96,7 +97,7 @@ const ModelSettings: FC = () => {
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
-          <Select
+          <CustomSelect
             value={defaultModelValue}
             defaultValue={defaultModelValue}
             style={{ width: 360 }}
@@ -118,7 +119,7 @@ const ModelSettings: FC = () => {
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
-          <Select
+          <CustomSelect
             value={defaultTopicNamingModel}
             defaultValue={defaultTopicNamingModel}
             style={{ width: 360 }}
@@ -140,7 +141,7 @@ const ModelSettings: FC = () => {
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
-          <Select
+          <CustomSelect
             value={defaultTranslateModel}
             defaultValue={defaultTranslateModel}
             style={{ width: 360 }}
