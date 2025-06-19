@@ -1161,7 +1161,7 @@
         "markdown_export.select": "Выбрать",
         "markdown_export.title": "Экспорт в Markdown",
         "markdown_export.show_model_name.title": "Использовать имя модели при экспорте",
-        "markdown_export.show_model_name.help": "Если включено, для создания заголовков экспортируемых сообщений будет использоваться модель именования темы. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
+        "markdown_export.show_model_name.help": "Если включено, при экспорте в Markdown будет отображаться имя модели. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "markdown_export.show_model_provider.title": "Показать поставщика модели",
         "markdown_export.show_model_provider.help": "Показывать поставщика модели (например, OpenAI, Gemini) при экспорте в Markdown",
         "minute_interval_one": "{{count}} минута",

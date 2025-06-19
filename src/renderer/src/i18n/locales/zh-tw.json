@@ -1163,7 +1163,7 @@
         "markdown_export.select": "選擇",
         "markdown_export.title": "Markdown 匯出",
         "markdown_export.show_model_name.title": "匯出時使用模型名稱",
-        "markdown_export.show_model_name.help": "啟用後，將以主題命名模型為匯出的訊息建立標題。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
+        "markdown_export.show_model_name.help": "啟用後，匯出Markdown時會顯示模型名稱。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
         "markdown_export.show_model_provider.title": "顯示模型供應商",
         "markdown_export.show_model_provider.help": "在匯出Markdown時顯示模型供應商，如OpenAI、Gemini等",
         "minute_interval_one": "{{count}} 分鐘",

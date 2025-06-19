@@ -1163,7 +1163,7 @@
         "markdown_export.select": "Select",
         "markdown_export.title": "Markdown Export",
         "markdown_export.show_model_name.title": "Use Model Name on Export",
-        "markdown_export.show_model_name.help": "When enabled, the topic-naming model will be used to create titles for exported messages. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
+        "markdown_export.show_model_name.help": "When enabled, the model name will be displayed when exporting to Markdown. Note: This option also affects all export methods through Markdown, such as Notion, Yuque, etc.",
         "markdown_export.show_model_provider.title": "Show Model Provider",
         "markdown_export.show_model_provider.help": "Display the model provider (e.g., OpenAI, Gemini) when exporting to Markdown",
         "minute_interval_one": "{{count}} minute",

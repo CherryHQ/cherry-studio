@@ -1161,7 +1161,7 @@
         "markdown_export.select": "選択",
         "markdown_export.title": "Markdown エクスポート",
         "markdown_export.show_model_name.title": "エクスポート時にモデル名を使用",
-        "markdown_export.show_model_name.help": "有効にすると、トピック命名モデルがエクスポートされたメッセージのタイトル作成に使用されます。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
+        "markdown_export.show_model_name.help": "有効にすると、Markdownエクスポート時にモデル名を表示します。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "markdown_export.show_model_provider.title": "モデルプロバイダーを表示",
         "markdown_export.show_model_provider.help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
         "minute_interval_one": "{{count}} 分",

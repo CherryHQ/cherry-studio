@@ -1163,7 +1163,7 @@
         "markdown_export.select": "选择",
         "markdown_export.title": "Markdown 导出",
         "markdown_export.show_model_name.title": "导出时使用模型名称",
-        "markdown_export.show_model_name.help": "开启后，使用话题命名模型为导出的消息创建标题。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
+        "markdown_export.show_model_name.help": "开启后，导出Markdown时会显示模型名称。注意：该项也会影响所有通过Markdown导出的方式，如Notion、语雀等。",
         "markdown_export.show_model_provider.title": "显示模型供应商",
         "markdown_export.show_model_provider.help": "在导出Markdown时显示模型供应商，如OpenAI、Gemini等",
         "message_title.use_topic_naming.title": "使用话题命名模型为导出的消息创建标题",
