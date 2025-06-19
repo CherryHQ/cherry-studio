@@ -127,7 +127,6 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
     (message: Message) => {
       const messageElement = document.getElementById(`message-${message.id}`)
 
-      console.log('🌟TEO🌟 ~ messageElement:', message)
       if (!messageElement) return
 
       const display = messageElement ? window.getComputedStyle(messageElement).display : null
