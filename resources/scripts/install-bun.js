@@ -2,8 +2,8 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const AdmZip = require('adm-zip')
 const { downloadWithRedirects } = require('./download')
+const { StreamZipAsync } = require('node-stream-zip')
 
 // Base URL for downloading bun binaries
 const BUN_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/bun/releases/download'
@@ -64,10 +64,14 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
     // Use the new download function
     await downloadWithRedirects(downloadUrl, tempFilename)
 
-    // Extract the zip file using adm-zip
+    // Extract the zip file using node-stream-zip
     console.log(`Extracting ${packageName} to ${binDir}...`)
-    const zip = new AdmZip(tempFilename)
-    zip.extractAllTo(tempdir, true)
+    const zip = new StreamZipAsync(tempFilename)
+    zip.extract(null, tempdir, (err) => {
+      if (err) {
+        throw new Error(`Failed to extract file: ${err}`)
+      }
+    })
 
     // Move files using Node.js fs
     const sourceDir = path.join(tempdir, packageName.split('.')[0])

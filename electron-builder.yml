@@ -49,6 +49,8 @@ files:
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
   - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters}' # filter .node build files
+  - '!node_modules/pdfjs-dist/web/**/*'
+  - '!node_modules/pdfjs-dist/legacy/web/*'
 asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'

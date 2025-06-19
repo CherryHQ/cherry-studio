@@ -11,6 +11,54 @@ index 852f6c4d16f86a7bb8a78bf1ed5a14647a279aa1..60e7f5f16a844541eb1909b215fcda18
          if (minimumSystemVersion != null) {
              appPlist.LSMinimumSystemVersion = minimumSystemVersion;
          }
+diff --git a/out/packager.js b/out/packager.js
+index 579f7f4b62f61037234098ba378ab30efb64c7a9..02df1dd38f83a57a60258a51b2ee9f0b4020dab4 100644
+--- a/out/packager.js
++++ b/out/packager.js
+@@ -426,12 +426,12 @@ class Packager {
+                 throw new Error(`Unknown platform: ${platform}`);
+         }
+     }
+-    async installAppDependencies(platform, arch) {
++    async installAppDependencies(platform, arch, excludeReBuildModules) {
+         if (this.options.prepackaged != null || !this.framework.isNpmRebuildRequired) {
+             return;
+         }
+         const frameworkInfo = { version: this.framework.version, useCustomDist: true };
+-        const config = this.config;
++        const config= this.config;
+         if (config.nodeGypRebuild === true) {
+             await (0, yarn_1.nodeGypRebuild)(platform.nodeName, builder_util_1.Arch[arch], frameworkInfo);
+         }
+@@ -462,6 +462,7 @@ class Packager {
+                 platform: platform.nodeName,
+                 arch: builder_util_1.Arch[arch],
+                 productionDeps: this.getNodeDependencyInfo(null, false),
++                excludeReBuildModules,
+             });
+         }
+     }
+diff --git a/out/platformPackager.js b/out/platformPackager.js
+index 05c740ead5e1e16dd77d5e523309c8b2c3bd581e..38f730d148ddda2e1bae64371658d7917e8ff05a 100644
+--- a/out/platformPackager.js
++++ b/out/platformPackager.js
+@@ -148,6 +148,7 @@ class PlatformPackager {
+         // Due to node-gyp rewriting GYP_MSVS_VERSION when reused across the same session, we must reset the env var: https://github.com/electron-userland/electron-builder/issues/7256
+         delete process.env.GYP_MSVS_VERSION;
+         const { outDir, appOutDir, platformName, arch, platformSpecificBuildOptions, targets, options } = packOptions;
++        builder_util_1.log.info(platformSpecificBuildOptions,"platformSpecificBuildOptions");
+         await this.info.emitBeforePack({
+             appOutDir,
+             outDir,
+@@ -156,7 +157,7 @@ class PlatformPackager {
+             packager: this,
+             electronPlatformName: platformName,
+         });
+-        await this.info.installAppDependencies(this.platform, arch);
++        await this.info.installAppDependencies(this.platform, arch, platformSpecificBuildOptions.excludeReBuildModules);
+         if (this.info.cancellationToken.cancelled) {
+             return;
+         }
 diff --git a/out/publish/updateInfoBuilder.js b/out/publish/updateInfoBuilder.js
 index 7924c5b47d01f8dfccccb8f46658015fa66da1f7..1a1588923c3939ae1297b87931ba83f0ebc052d8 100644
 --- a/out/publish/updateInfoBuilder.js
@@ -66,14 +114,14 @@ index e8bd7bb46c8a54b3f55cf3a853ef924195271e01..f956e9f3fe9eb903c78aef3502553b01
                  file: installerPath,
                  updateInfo,
 diff --git a/out/util/yarn.js b/out/util/yarn.js
-index 1ee20f8b252a8f28d0c7b103789cf0a9a427aec1..c2878ec54d57da50bf14225e0c70c9c88664eb8a 100644
+index 1ee20f8b252a8f28d0c7b103789cf0a9a427aec1..74177e6f230d9b7176bdaddd3007922cc99ccdb9 100644
 --- a/out/util/yarn.js
 +++ b/out/util/yarn.js
 @@ -140,6 +140,7 @@ async function rebuild(config, { appDir, projectDir }, options) {
          arch,
          platform,
          buildFromSource,
-+        ignoreModules: config.excludeReBuildModules || undefined,
++        ignoreModules: options.excludeReBuildModules || undefined,
          projectRootPath: projectDir,
          mode: config.nativeRebuilder || "sequential",
          disablePreGypCopy: true,
