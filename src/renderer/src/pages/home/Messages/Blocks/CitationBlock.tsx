@@ -40,7 +40,18 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
                 __html:
                   (block.response?.results as GroundingMetadata)?.searchEntryPoint?.renderedContent
                     ?.replace(/@media \(prefers-color-scheme: light\)/g, 'body[theme-mode="light"]')
-                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]') || ''
+                    .replace(/@media \(prefers-color-scheme: dark\)/g, 'body[theme-mode="dark"]')
+                    .replace(
+                      /background-color\s*:\s*#[0-9a-fA-F]{3,6}\b|\bbackground-color\s*:\s*[a-zA-Z-]+\b/g,
+                      'background-color: var(--color-background-soft)'
+                    )
+                    .replace(/\.gradient\s*{[^}]*background\s*:\s*[^};]+[;}]/g, (match) => {
+                      // Remove the background property while preserving the rest
+                      return match.replace(/background\s*:\s*[^};]+;?\s*/g, '')
+                    })
+                    .replace(/\.chip {\n/g, '.chip {\n background-color: var(--color-background)!important;\n')
+                    .replace(/border-color\s*:\s*[^};]+;?\s*/g, '')
+                    .replace(/border\s*:\s*[^};]+;?\s*/g, '') || ''
               }}
             />
           </>

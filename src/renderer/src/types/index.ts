@@ -1,5 +1,5 @@
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
-import type { GenerateImagesConfig, GroundingMetadata } from '@google/genai'
+import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
 
@@ -168,12 +168,26 @@ export type Provider = {
   isAuthed?: boolean
   rateLimit?: number
   isNotSupportArrayContent?: boolean
+  isVertex?: boolean
   notes?: string
 }
 
-export type ProviderType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'qwenlm' | 'azure-openai'
+export type ProviderType =
+  | 'openai'
+  | 'openai-response'
+  | 'anthropic'
+  | 'gemini'
+  | 'qwenlm'
+  | 'azure-openai'
+  | 'vertexai'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
+
+export type ModelPricing = {
+  input_per_million_tokens: number
+  output_per_million_tokens: number
+  currencySymbol?: string
+}
 
 export type Model = {
   id: string
@@ -183,6 +197,7 @@ export type Model = {
   owned_by?: string
   description?: string
   type?: ModelType[]
+  pricing?: ModelPricing
 }
 
 export type Suggestion = {
@@ -453,10 +468,11 @@ export type GenerateImageParams = {
   imageSize: string
   batchSize: number
   seed?: string
-  numInferenceSteps: number
-  guidanceScale: number
+  numInferenceSteps?: number
+  guidanceScale?: number
   signal?: AbortSignal
   promptEnhancement?: boolean
+  personGeneration?: PersonGeneration
 }
 
 export type GenerateImageResponse = {
@@ -529,7 +545,7 @@ export enum WebSearchSource {
 }
 
 export type WebSearchResponse = {
-  results: WebSearchResults
+  results?: WebSearchResults
   source: WebSearchSource
 }
 

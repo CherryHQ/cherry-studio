@@ -173,6 +173,9 @@ export type Message = {
   useful?: boolean
   askId?: string // 关联的问题消息ID
   mentions?: Model[]
+  /**
+   * @deprecated
+   */
   enabledMCPs?: MCPServer[]
 
   usage?: Usage
@@ -204,8 +207,14 @@ export interface MessageInputBaseParams {
   topic: Topic
   content?: string
   files?: FileType[]
+  /**
+   * @deprecated
+   */
   knowledgeBaseIds?: string[]
   mentions?: Model[]
+  /**
+   * @deprecated
+   */
   enabledMCPs?: MCPServer[]
   usage?: CompletionUsage
 }

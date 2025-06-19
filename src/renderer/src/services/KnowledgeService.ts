@@ -1,8 +1,8 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import Logger from '@renderer/config/logger'
-import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { FileType, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
@@ -48,7 +48,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankBaseURL: rerankHost,
     rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
-    rerankModelProvider: base.rerankModel?.provider
+    rerankModelProvider: rerankProvider.name.toLowerCase()
     // topN: base.topN
   }
 }
@@ -101,7 +101,7 @@ export const searchKnowledgeBase = async (
 
     // 执行搜索
     const searchResults = await window.api.knowledgeBase.search({
-      search: query,
+      search: rewrite || query,
       base: baseParams
     })
 

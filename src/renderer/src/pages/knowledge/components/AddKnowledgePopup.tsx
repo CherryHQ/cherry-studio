@@ -1,3 +1,4 @@
+import AiProvider from '@renderer/aiCore'
 import { TopView } from '@renderer/components/TopView'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -6,7 +7,6 @@ import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { SettingHelpText } from '@renderer/pages/settings'
-import AiProvider from '@renderer/providers/AiProvider'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, Model } from '@renderer/types'
@@ -116,7 +116,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             const aiProvider = new AiProvider(provider)
             values.dimensions = await aiProvider.getEmbeddingDimensions(selectedEmbeddingModel)
           } catch (error) {
-            console.error('Error getting embedding dimensions:', error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return
