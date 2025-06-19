@@ -688,7 +688,9 @@
         "invoking": "Вызов",
         "error": "Произошла ошибка",
         "raw": "Исходный",
-        "preview": "Предпросмотр"
+        "preview": "Предпросмотр",
+        "pending": "Ожидание",
+        "cancelled": "Отменено"
       },
       "topic.added": "Новый топик добавлен",
       "upgrade.success.button": "Перезапустить",
@@ -804,7 +806,19 @@
         "vision": "Визуальные",
         "websearch": "Веб-поисковые"
       },
-      "rerank_model_not_support_provider": "В настоящее время модель переупорядочивания не поддерживает этого провайдера ({{provider}})"
+      "rerank_model_not_support_provider": "В настоящее время модель переупорядочивания не поддерживает этого провайдера ({{provider}})",
+      "price": {
+        "cost": "Стоимость",
+        "currency": "Валюта",
+        "custom": "Пользовательский",
+        "custom_currency": "Пользовательский валюта",
+        "custom_currency_placeholder": "Введите пользовательскую валюту",
+        "input": "Входная цена",
+        "million_tokens": "Миллион токенов",
+        "output": "Выходная цена",
+        "price": "Цена"
+      },
+      "reasoning": "Рассуждение"
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
@@ -962,30 +976,8 @@
       "per_image": "за изображение",
       "per_images": "за изображения",
       "required_field": "Обязательное поле",
-      "uploaded_input": "Загруженный ввод"
-    },
-    "plantuml": {
-      "download": {
-        "failed": "下载失败，请检查网络",
-        "png": "下载 PNG",
-        "svg": "下载 SVG"
-      },
-      "tabs": {
-        "preview": "Предпросмотр",
-        "source": "Исходный код"
-      },
-      "title": "PlantUML 图表"
-    },
-    "price": {
-      "cost": "Стоимость",
-      "currency": "Валюта",
-      "custom": "Пользовательский",
-      "custom_currency": "Пользовательская валюта",
-      "custom_currency_placeholder": "Введите пользовательскую валюту",
-      "input": "Цена ввода",
-      "million_tokens": "M Tokens",
-      "output": "Цена вывода",
-      "price": "Цена"
+      "uploaded_input": "Загруженный ввод",
+      "prompt_placeholder_en": "Введите описание изображения, в настоящее время Imagen поддерживает только английские промпты"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",

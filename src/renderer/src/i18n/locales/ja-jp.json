@@ -687,7 +687,9 @@
         "invoking": "呼び出し中",
         "error": "エラーが発生しました",
         "raw": "生データ",
-        "preview": "プレビュー"
+        "preview": "プレビュー",
+        "pending": "保留中",
+        "cancelled": "キャンセル"
       },
       "topic.added": "新しいトピックが追加されました",
       "upgrade.success.button": "再起動",
@@ -804,7 +806,19 @@
         "vision": "画像",
         "websearch": "ウェブ検索"
       },
-      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。"
+      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。",
+      "price": {
+        "cost": "コスト",
+        "currency": "通貨",
+        "custom": "カスタム",
+        "custom_currency": "カスタム通貨",
+        "custom_currency_placeholder": "カスタム通貨を入力",
+        "input": "入力価格",
+        "million_tokens": "Mトークン",
+        "output": "出力価格",
+        "price": "価格"
+      },
+      "reasoning": "推論"
     },
     "navbar": {
       "expand": "ダイアログを展開",
@@ -964,17 +978,6 @@
       "per_images": "複数枚あたり",
       "required_field": "必須項目",
       "uploaded_input": "アップロード済みの入力"
-    },
-    "price": {
-      "cost": "コスト",
-      "currency": "通貨",
-      "custom": "カスタム",
-      "custom_currency": "カスタム通貨",
-      "custom_currency_placeholder": "カスタム通貨を入力してください",
-      "input": "入力価格",
-      "million_tokens": "百万トークン",
-      "output": "出力価格",
-      "price": "価格"
     },
     "prompts": {
       "explanation": "この概念を説明してください",

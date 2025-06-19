@@ -519,12 +519,13 @@ const fetchAndProcessAssistantResponseImpl = async (
         }
         thinkingBlockId = null
       },
-      onToolCallInProgress: (toolResponse: MCPToolResponse) => {
+      onToolCallPending: (toolResponse: MCPToolResponse) => {
         if (initialPlaceholderBlockId) {
           lastBlockType = MessageBlockType.TOOL
           const changes = {
             type: MessageBlockType.TOOL,
-            status: MessageBlockStatus.PROCESSING,
+            status: MessageBlockStatus.PENDING,
+            toolName: toolResponse.tool.name,
             metadata: { rawMcpToolResponse: toolResponse }
           }
           toolBlockId = initialPlaceholderBlockId
@@ -532,14 +533,29 @@ const fetchAndProcessAssistantResponseImpl = async (
           dispatch(updateOneBlock({ id: toolBlockId, changes }))
           saveUpdatedBlockToDB(toolBlockId, assistantMsgId, topicId, getState)
           toolCallIdToBlockIdMap.set(toolResponse.id, toolBlockId)
-        } else if (toolResponse.status === 'invoking') {
+        } else if (toolResponse.status === 'pending') {
           const toolBlock = createToolBlock(assistantMsgId, toolResponse.id, {
             toolName: toolResponse.tool.name,
-            status: MessageBlockStatus.PROCESSING,
+            status: MessageBlockStatus.PENDING,
             metadata: { rawMcpToolResponse: toolResponse }
           })
+          toolBlockId = toolBlock.id
           handleBlockTransition(toolBlock, MessageBlockType.TOOL)
           toolCallIdToBlockIdMap.set(toolResponse.id, toolBlock.id)
+        } else {
+          console.warn(
+            `[onToolCallPending] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
+          )
+        }
+      },
+      onToolCallInProgress: (toolResponse: MCPToolResponse) => {
+        if (toolBlockId && toolResponse.status === 'invoking') {
+          const changes = {
+            status: MessageBlockStatus.PROCESSING,
+            metadata: { rawMcpToolResponse: toolResponse }
+          }
+          dispatch(updateOneBlock({ id: toolBlockId, changes }))
+          saveUpdatedBlockToDB(toolBlockId, assistantMsgId, topicId, getState)
         } else {
           console.warn(
             `[onToolCallInProgress] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
@@ -549,14 +565,17 @@ const fetchAndProcessAssistantResponseImpl = async (
       onToolCallComplete: (toolResponse: MCPToolResponse) => {
         const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
         toolCallIdToBlockIdMap.delete(toolResponse.id)
-        if (toolResponse.status === 'done' || toolResponse.status === 'error') {
+        if (toolResponse.status === 'done' || toolResponse.status === 'error' || toolResponse.status === 'cancelled') {
           if (!existingBlockId) {
             console.error(
               `[onToolCallComplete] No existing block found for completed/error tool call ID: ${toolResponse.id}. Cannot update.`
             )
             return
           }
-          const finalStatus = toolResponse.status === 'done' ? MessageBlockStatus.SUCCESS : MessageBlockStatus.ERROR
+          const finalStatus =
+            toolResponse.status === 'done' || toolResponse.status === 'cancelled'
+              ? MessageBlockStatus.SUCCESS
+              : MessageBlockStatus.ERROR
           const changes: Partial<ToolMessageBlock> = {
             content: toolResponse.response,
             status: finalStatus,

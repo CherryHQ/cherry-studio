@@ -13,7 +13,7 @@ import {
   Model,
   ToolUseResponse
 } from '@renderer/types'
-import type { MCPToolCompleteChunk, MCPToolInProgressChunk } from '@renderer/types/chunk'
+import type { MCPToolCompleteChunk, MCPToolInProgressChunk, MCPToolPendingChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import { SdkMessageParam } from '@renderer/types/sdk'
 import { isArray, isObject, pull, transform } from 'lodash'
@@ -27,6 +27,7 @@ import {
 } from 'openai/resources'
 
 import { CompletionsParams } from '../aiCore/middleware/schemas'
+import { requestUserConfirmation } from './userConfirmation'
 
 const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 const EXTRA_SCHEMA_KEYS = ['schema', 'headers']
@@ -399,7 +400,7 @@ export function geminiFunctionCallToMcpTool(
 export function upsertMCPToolResponse(
   results: MCPToolResponse[],
   resp: MCPToolResponse,
-  onChunk: (chunk: MCPToolInProgressChunk | MCPToolCompleteChunk) => void
+  onChunk: (chunk: MCPToolPendingChunk | MCPToolInProgressChunk | MCPToolCompleteChunk) => void
 ) {
   const index = results.findIndex((ret) => ret.id === resp.id)
   let result = resp
@@ -415,10 +416,29 @@ export function upsertMCPToolResponse(
   } else {
     results.push(resp)
   }
-  onChunk({
-    type: resp.status === 'invoking' ? ChunkType.MCP_TOOL_IN_PROGRESS : ChunkType.MCP_TOOL_COMPLETE,
-    responses: [result]
-  })
+  switch (resp.status) {
+    case 'pending':
+      onChunk({
+        type: ChunkType.MCP_TOOL_PENDING,
+        responses: [result]
+      })
+      break
+    case 'invoking':
+      onChunk({
+        type: ChunkType.MCP_TOOL_IN_PROGRESS,
+        responses: [result]
+      })
+      break
+    case 'cancelled':
+    case 'done':
+      onChunk({
+        type: ChunkType.MCP_TOOL_COMPLETE,
+        responses: [result]
+      })
+      break
+    default:
+      break
+  }
 }
 
 export function filterMCPTools(
@@ -534,8 +554,37 @@ export async function parseAndCallTools<R>(
   if (!curToolResponses || curToolResponses.length === 0) {
     return toolResults
   }
-  for (let i = 0; i < curToolResponses.length; i++) {
-    const toolResponse = curToolResponses[i]
+  for (const toolResponse of curToolResponses) {
+    upsertMCPToolResponse(
+      allToolResponses,
+      {
+        ...toolResponse,
+        status: 'pending'
+      },
+      onChunk!
+    )
+  }
+  const confirmed = await requestUserConfirmation()
+  Logger.info(`🔧 [MCP] Tool call confirmed:`, confirmed)
+  if (!confirmed) {
+    for (const toolResponse of curToolResponses) {
+      upsertMCPToolResponse(
+        allToolResponses,
+        {
+          ...toolResponse,
+          status: 'cancelled',
+          response: {
+            isError: false,
+            content: 'Tool call cancelled by user.'
+          }
+        },
+        onChunk!
+      )
+    }
+    return []
+  }
+
+  for (const toolResponse of curToolResponses) {
     upsertMCPToolResponse(
       allToolResponses,
       {

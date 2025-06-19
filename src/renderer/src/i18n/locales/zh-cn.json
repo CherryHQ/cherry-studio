@@ -685,6 +685,8 @@
       "success.yuque.export": "成功导出到语雀",
       "switch.disabled": "请等待当前回复完成后操作",
       "tools": {
+        "pending": "等待中",
+        "cancelled": "已取消",
         "completed": "已完成",
         "invoking": "调用中",
         "error": "发生错误",

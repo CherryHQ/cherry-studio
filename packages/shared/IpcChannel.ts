@@ -63,6 +63,7 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+  Mcp_SetProgress = 'mcp:set-progress',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

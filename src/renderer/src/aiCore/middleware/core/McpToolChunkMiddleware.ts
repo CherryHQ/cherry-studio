@@ -129,7 +129,8 @@ function createToolHandlingTransform(
 
         try {
           let toolResult: SdkMessageParam[] = []
-
+          Logger.info(`🔧 [${MIDDLEWARE_NAME}] Executing tool calls:`, toolCalls)
+          Logger.info(`🔧 [${MIDDLEWARE_NAME}] Executing tool use responses:`, toolUseResponses)
           if (shouldExecuteToolCalls) {
             toolResult = await executeToolCalls(
               ctx,

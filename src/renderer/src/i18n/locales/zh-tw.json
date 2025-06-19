@@ -689,7 +689,9 @@
         "invoking": "調用中",
         "error": "發生錯誤",
         "raw": "原始碼",
-        "preview": "預覽"
+        "preview": "預覽",
+        "pending": "等待中",
+        "cancelled": "已取消"
       },
       "topic.added": "新話題已新增",
       "upgrade.success.button": "重新啟動",
@@ -804,7 +806,19 @@
         "vision": "視覺",
         "websearch": "網路搜尋"
       },
-      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）"
+      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）",
+      "price": {
+        "cost": "成本",
+        "currency": "貨幣",
+        "custom": "自定義",
+        "custom_currency": "自定義貨幣",
+        "custom_currency_placeholder": "輸入自定義貨幣",
+        "input": "輸入價格",
+        "million_tokens": "M 代幣",
+        "output": "輸出價格",
+        "price": "價格"
+      },
+      "reasoning": "推理"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -964,17 +978,6 @@
       "per_images": "每張圖片",
       "required_field": "必填欄位",
       "uploaded_input": "已上傳輸入"
-    },
-    "price": {
-      "cost": "花費",
-      "currency": "幣種",
-      "custom": "自訂",
-      "custom_currency": "自訂幣種",
-      "custom_currency_placeholder": "請輸入自訂幣種",
-      "input": "輸入價格",
-      "million_tokens": "M Tokens",
-      "output": "輸出價格",
-      "price": "價格"
     },
     "prompts": {
       "explanation": "幫我解釋一下這個概念",

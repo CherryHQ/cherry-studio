@@ -638,11 +638,13 @@ export interface MCPConfig {
   isBunInstalled: boolean
 }
 
+export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done' | 'error'
+
 interface BaseToolResponse {
   id: string // unique id
   tool: MCPTool
   arguments: Record<string, unknown> | undefined
-  status: string // 'invoking' | 'done'
+  status: MCPToolResponseStatus
   response?: any
 }
 

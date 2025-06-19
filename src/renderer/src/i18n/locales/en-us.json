@@ -685,6 +685,8 @@
       "success.yuque.export": "Successfully exported to Yuque",
       "switch.disabled": "Please wait for the current reply to complete",
       "tools": {
+        "pending": "Pending",
+        "cancelled": "Cancelled",
         "completed": "Completed",
         "invoking": "Invoking",
         "error": "Error occurred",
