@@ -65,8 +65,7 @@
     "notion-helper": "^1.3.22",
     "os-proxy-config": "^1.1.2",
     "selection-hook": "^0.9.23",
-    "turndown": "7.2.0",
-    "word-extractor": "^1.0.4"
+    "turndown": "7.2.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -220,6 +219,7 @@
     "vite": "6.2.6",
     "vitest": "^3.1.4",
     "webdav": "^5.8.0",
+    "word-extractor": "^1.0.4",
     "zipread": "^1.3.3"
   },
   "resolutions": {
