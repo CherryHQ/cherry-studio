@@ -20,6 +20,7 @@ export enum IpcChannel {
   App_Copy = 'app:copy',
   App_SetStopQuitApp = 'app:set-stop-quit-app',
   App_SetAppDataPath = 'app:set-app-data-path',
+  App_GetDataPathFromArgs = 'app:get-data-path-from-args',
   App_FlushAppData = 'app:flush-app-data',
   App_IsNotEmptyDir = 'app:is-not-empty-dir',
   App_RelaunchApp = 'app:relaunch-app',

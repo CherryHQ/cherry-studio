@@ -222,6 +222,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     app.setPath('userData', filePath)
   })
 
+  ipcMain.handle(IpcChannel.App_GetDataPathFromArgs, () => {
+    return process.argv
+      .slice(1)
+      .find((arg) => arg.startsWith('--new-data-path='))
+      ?.split('--new-data-path=')[1]
+  })
+
   ipcMain.handle(IpcChannel.App_FlushAppData, () => {
     BrowserWindow.getAllWindows().forEach((w) => {
       w.webContents.session.flushStorageData()
@@ -245,8 +252,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // Relaunch app
-  ipcMain.handle(IpcChannel.App_RelaunchApp, () => {
-    app.relaunch()
+  ipcMain.handle(IpcChannel.App_RelaunchApp, (_, options?: Electron.RelaunchOptions) => {
+    app.relaunch(options)
     app.exit(0)
   })
 
