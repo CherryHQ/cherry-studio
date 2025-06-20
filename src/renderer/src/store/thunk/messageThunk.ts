@@ -1054,7 +1054,7 @@ export const resendMessageThunk =
       const resetDataList: Message[] = []
 
       if (assistantMessagesToReset.length === 0) {
-        // 没有用户消息,就创建一个或多个
+        // 没有要重置的助手消息,就创建一个或多个
 
         if (userMessageToResend?.mentions?.length) {
           console.log('userMessageToResend.mentions', userMessageToResend.mentions)

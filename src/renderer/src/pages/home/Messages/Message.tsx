@@ -164,6 +164,7 @@ const MessageItem: FC<Props> = ({
           <div style={{ paddingLeft: messageStyle === 'plain' ? 46 : undefined }}>
             <MessageEditor
               message={message}
+              topicId={topic.id}
               onSave={handleEditSave}
               onResend={handleEditResend}
               onCancel={handleEditCancel}

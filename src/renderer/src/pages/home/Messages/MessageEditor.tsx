@@ -5,6 +5,8 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
+import { RootState } from '@renderer/store'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { FileType, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames, getFileExtension } from '@renderer/utils'
@@ -17,6 +19,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useStore } from 'react-redux'
 import styled from 'styled-components'
 
 import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
@@ -25,12 +28,13 @@ import { ToolbarButton } from '../Inputbar/Inputbar'
 
 interface Props {
   message: Message
+  topicId: string
   onSave: (blocks: MessageBlock[]) => void
   onResend: (blocks: MessageBlock[]) => void
   onCancel: () => void
 }
 
-const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) => {
+const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onCancel }) => {
   const allBlocks = findAllBlocks(message)
   const [editedBlocks, setEditedBlocks] = useState<MessageBlock[]>(allBlocks)
   const [files, setFiles] = useState<FileType[]>([])
@@ -44,6 +48,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
+  const isUserMessage = message.role === 'user'
 
   const resizeTextArea = useCallback(() => {
     const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -205,6 +210,58 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     }
   }
 
+  const store = useStore<RootState>()
+
+  const couldAddImageFile = useMemo(() => {
+    const state = store.getState()
+    const topicMessages = selectMessagesForTopic(state, topicId)
+
+    const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
+    if (relatedAssistantMessages.length === 0) {
+      // 无关联消息时failback到助手模型
+      return isVisionModel(model)
+    }
+    return relatedAssistantMessages.every((m) => {
+      if (m.model) {
+        return isVisionModel(m.model)
+      } else {
+        // 若消息关联不存在的模型，视为其支持视觉
+        return true
+      }
+    })
+  }, [message.id, model, store, topicId])
+
+  const couldAddTextFile = useMemo(() => {
+    const state = store.getState()
+    const topicMessages = selectMessagesForTopic(state, topicId)
+
+    const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
+    if (relatedAssistantMessages.length === 0) {
+      // 无关联消息时failback到助手模型
+      return isVisionModel(model) || (!isVisionModel(model) && !isGenerateImageModel(model))
+    }
+    return relatedAssistantMessages.every((m) => {
+      if (m.model) {
+        return isVisionModel(m.model) || (!isVisionModel(m.model) && !isGenerateImageModel(m.model))
+      } else {
+        // 若消息关联不存在的模型，视为其支持文本
+        return true
+      }
+    })
+  }, [message.id, model, store, topicId])
+
+  const extensions = useMemo(() => {
+    if (couldAddImageFile && couldAddTextFile) {
+      return [...imageExts, ...documentExts, ...textExts]
+    } else if (couldAddImageFile) {
+      return [...imageExts]
+    } else if (couldAddTextFile) {
+      return [...documentExts, ...textExts]
+    } else {
+      return []
+    }
+  }, [couldAddImageFile, couldAddTextFile])
+
   return (
     <EditorContainer className="message-editor" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       {editedBlocks
@@ -270,13 +327,17 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
 
       <ActionBar>
         <ActionBarLeft>
-          <AttachmentButton
-            ref={attachmentButtonRef}
-            model={model}
-            files={files}
-            setFiles={setFiles}
-            ToolbarButton={ToolbarButton}
-          />
+          {isUserMessage && (
+            <AttachmentButton
+              ref={attachmentButtonRef}
+              model={model}
+              files={files}
+              setFiles={setFiles}
+              couldAddImageFile={couldAddImageFile}
+              extensions={extensions}
+              ToolbarButton={ToolbarButton}
+            />
+          )}
         </ActionBarLeft>
         <ActionBarMiddle />
         <ActionBarRight>

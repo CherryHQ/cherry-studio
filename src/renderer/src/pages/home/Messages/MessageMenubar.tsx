@@ -1,6 +1,7 @@
 import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
+import { isVisionModel } from '@renderer/config/models'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -11,9 +12,10 @@ import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import store, { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Model } from '@renderer/types'
 import type { Assistant, Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
@@ -327,13 +329,44 @@ const MessageMenubar: FC<Props> = (props) => {
     regenerateAssistantMessage(message, assistantWithTopicPrompt)
   }
 
-  const onMentionModel = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (loading) return
-    const selectedModel = await SelectModelPopup.show({ model })
-    if (!selectedModel) return
-    appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
-  }
+  // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
+  const mentionModelFilter = useMemo(() => {
+    if (!isAssistantMessage) {
+      return () => true
+    }
+    const state = store.getState()
+    const topicMessages = selectMessagesForTopic(state, topic.id)
+    // 理论上助手消息只会关联一条用户消息
+    const relatedUserMessage = topicMessages.find((msg) => {
+      return msg.role === 'user' && message.askId === msg.id
+    })
+    // 无关联用户消息时，默认返回所有模型
+    if (!relatedUserMessage) {
+      return () => true
+    }
+
+    const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) =>
+      messageBlocksSelectors.selectById(store.getState(), msgBlockId)
+    )
+
+    if (relatedUserMessageBlocks.some((block) => block.type === MessageBlockType.IMAGE)) {
+      console.log('use image filter')
+      return (m: Model) => isVisionModel(m)
+    } else {
+      return () => true
+    }
+  }, [isAssistantMessage, message.askId, topic.id])
+
+  const onMentionModel = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation()
+      if (loading) return
+      const selectedModel = await SelectModelPopup.show({ model, modelFilter: mentionModelFilter })
+      if (!selectedModel) return
+      appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
+    },
+    [appendAssistantResponse, assistant, loading, mentionModelFilter, message, model]
+  )
 
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
