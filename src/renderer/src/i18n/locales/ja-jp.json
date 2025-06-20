@@ -1103,6 +1103,7 @@
         "app_data.stop_quit_app_reason": "アプリは現在データを移行しているため、終了できません",
         "app_data.select_not_empty_dir": "新しいパスは空ではありません",
         "app_data.select_not_empty_dir_content": "新しいパスは空ではありません。コピーを選択すると、新しいパスのデータが上書きされます。データが失われるリスクがあります。続行しますか？",
+        "app_data.select_error_same_path": "新しいパスは元のパスと同じです。別のパスを選択してください",
         "app_knowledge": "知識ベースファイル",
         "app_knowledge.button.delete": "ファイルを削除",
         "app_knowledge.remove_all": "ナレッジベースファイルを削除",

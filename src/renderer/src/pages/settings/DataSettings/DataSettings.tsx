@@ -202,6 +202,12 @@ const DataSettings: FC = () => {
       return
     }
 
+    // check new app data path is same as old app data path
+    if (newAppDataPath === appInfo.appDataPath) {
+      window.message.error(t('settings.data.app_data.select_error_same_path'))
+      return
+    }
+
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(newAppDataPath)
     if (!hasWritePermission) {
