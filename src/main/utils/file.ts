@@ -8,6 +8,22 @@ import { FileType, FileTypes } from '@types'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
+function initAppDataDir() {
+  const appDataPath = getAppDataPathFromConfig()
+  if (appDataPath) {
+    app.setPath('userData', appDataPath)
+    return
+  }
+
+  if (isPortable) {
+    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
+    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
+    return
+  }
+}
+
+initAppDataDir()
+
 // 创建文件类型映射表，提高查找效率
 const fileTypeMap = new Map<string, FileTypes>()
 
@@ -45,20 +61,6 @@ function getAppDataPathFromConfig() {
     return null
   }
   return null
-}
-
-export function initAppDataDir() {
-  const appDataPath = getAppDataPathFromConfig()
-  if (appDataPath) {
-    app.setPath('userData', appDataPath)
-    return
-  }
-
-  if (isPortable) {
-    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
-    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
-    return
-  }
 }
 
 export function updateConfig(appDataPath: string) {

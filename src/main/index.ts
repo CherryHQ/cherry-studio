@@ -1,7 +1,10 @@
+// don't reorder this file, it's used to initialize the app data dir
+// eslint-disable-next-line
+import './utils/file'
+
 import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { initAppDataDir } from '@main/utils/file'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
@@ -22,7 +25,6 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 
-initAppDataDir()
 Logger.initialize()
 
 /**
