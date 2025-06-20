@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const AdmZip = require('adm-zip')
+const StreamZip = require('node-stream-zip')
 const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading bun binaries
@@ -66,8 +66,9 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
 
     // Extract the zip file using adm-zip
     console.log(`Extracting ${packageName} to ${binDir}...`)
-    const zip = new AdmZip(tempFilename)
-    zip.extractAllTo(tempdir, true)
+    const zip = new StreamZip.async({ file: tempFilename })
+    await zip.extract(null, binDir)
+    await zip.close()
 
     // Move files using Node.js fs
     const sourceDir = path.join(tempdir, packageName.split('.')[0])
