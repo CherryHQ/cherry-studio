@@ -203,7 +203,7 @@ const DataSettings: FC = () => {
     }
 
     // check new app data path is same as old app data path
-    if (newAppDataPath === appInfo.appDataPath) {
+    if (newAppDataPath.startsWith(appInfo!.appDataPath)) {
       window.message.error(t('settings.data.app_data.select_error_same_path'))
       return
     }
@@ -349,11 +349,9 @@ const DataSettings: FC = () => {
   useEffect(() => {
     const handleDataMigration = async () => {
       const newDataPath = await window.api.getDataPathFromArgs()
-      console.log('newDataPath', newDataPath)
       if (!newDataPath) return
 
       const originalPath = (await window.api.getAppInfo())?.appDataPath
-      console.log('originalPath', originalPath)
       if (!originalPath) return
 
       const title = (
