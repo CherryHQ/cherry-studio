@@ -124,7 +124,16 @@ const PopupContainer: React.FC<Props> = ({ base: _base, resolve }) => {
       destroyOnClose
       maskClosable={false}
       transitionName="animation-move-down"
-      centered>
+      centered
+      styles={{
+        body: {
+          maxHeight: '70vh',
+          overflowY: 'auto',
+          boxSizing: 'border-box',
+          paddingRight: '20px',
+          paddingLeft: '8px'
+        }
+      }}>
       <Form form={form} layout="vertical" className="compact-form">
         <Form.Item
           name="name"
