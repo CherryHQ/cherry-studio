@@ -90,12 +90,16 @@ export function updateAppDataConfig(appDataPath: string) {
   }
 
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  const findSamePath = config.appDataPath.find(
+  if (!config.appDataPath || (config.appDataPath && typeof config.appDataPath !== 'object')) {
+    config.appDataPath = []
+  }
+
+  const existingPath = config.appDataPath.find(
     (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
   )
 
-  if (findSamePath) {
-    findSamePath.dataPath = appDataPath
+  if (existingPath) {
+    existingPath.dataPath = appDataPath
   } else {
     config.appDataPath.push({ executablePath: app.getPath('exe'), dataPath: appDataPath })
   }

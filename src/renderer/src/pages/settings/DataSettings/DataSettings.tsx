@@ -260,7 +260,7 @@ const DataSettings: FC = () => {
       <div>
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
-            defaultChecked={true}
+            defaultChecked={shouldCopyData}
             onChange={(checked) => {
               shouldCopyData = checked
             }}
