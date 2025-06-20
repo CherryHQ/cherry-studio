@@ -233,11 +233,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   useEffect(() => {
     runAsyncFunction(async () => {
       EventEmitter.emit(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, {
-        tokensCount: await estimateHistoryTokens(assistant, messages),
+        tokensCount: await estimateHistoryTokens(assistant, messages, topic.prompt),
         contextCount: getContextCount(assistant, messages)
       })
     }).then(() => onFirstUpdate?.())
-  }, [assistant, messages, onFirstUpdate])
+  }, [assistant, messages, onFirstUpdate, topic.prompt])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore) return
