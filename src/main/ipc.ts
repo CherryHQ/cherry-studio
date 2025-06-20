@@ -429,4 +429,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   SelectionService.registerIpcHandler()
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
+
+  ipcMain.handle(IpcChannel.MainWindow_SetPin, (_, isPinned) => windowService.setMainWindowPin(isPinned))
 }
