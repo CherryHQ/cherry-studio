@@ -2,7 +2,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
@@ -34,6 +34,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
   const messageLength = messages.length
   const prevMessageLengthRef = useRef(messageLength)
   const [selectedIndex, setSelectedIndex] = useState(messageLength - 1)
+
+  const { isBubbleStyle } = useMessageStyle()
 
   const selectedMessageId = useMemo(() => {
     if (messages.length === 1) return messages[0]?.id
@@ -193,6 +195,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         return (
           <Popover
             key={message.id}
+            classNames={{ body: isBubbleStyle ? 'bubble' : undefined }}
             content={
               <MessageWrapper
                 $layout={multiModelMessageStyle}
@@ -219,7 +222,16 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         </SelectableMessage>
       )
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, isHorizontal, selectedMessageId, gridPopoverTrigger]
+    [
+      isGrid,
+      isGrouped,
+      topic,
+      multiModelMessageStyle,
+      isHorizontal,
+      selectedMessageId,
+      gridPopoverTrigger,
+      isBubbleStyle
+    ]
   )
 
   return (
