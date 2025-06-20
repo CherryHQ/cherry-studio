@@ -345,7 +345,6 @@ const DataSettings: FC = () => {
     })
   }
 
-  let isMigrate = false
   useEffect(() => {
     const handleDataMigration = async () => {
       const newDataPath = await window.api.getDataPathFromArgs()
@@ -405,10 +404,7 @@ const DataSettings: FC = () => {
       }
     }
 
-    if (!isMigrate) {
-      handleDataMigration()
-      isMigrate = true
-    }
+    handleDataMigration()
   }, [])
 
   // 显示进度模态框
