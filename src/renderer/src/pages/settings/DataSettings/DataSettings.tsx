@@ -234,7 +234,9 @@ const DataSettings: FC = () => {
           showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
         }
       })
+      return
     }
+    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
   }
 
   // 显示确认迁移的对话框
