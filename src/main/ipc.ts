@@ -34,7 +34,7 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateConfig } from './utils/file'
+import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, updateAppDataConfig } from './utils/file'
 import { compress, decompress } from './utils/zip'
 
 const fileManager = new FileStorage()
@@ -218,7 +218,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // Set app data path
   ipcMain.handle(IpcChannel.App_SetAppDataPath, async (_, filePath: string) => {
-    updateConfig(filePath)
+    updateAppDataConfig(filePath)
     app.setPath('userData', filePath)
   })
 

@@ -240,7 +240,7 @@ const DataSettings: FC = () => {
     messageKey: string
   ) => {
     // 复制数据选项状态
-    let shouldCopyData = await window.api.isNotEmptyDir(newPath)
+    let shouldCopyData = !(await window.api.isNotEmptyDir(newPath))
 
     // 创建路径内容组件
     const PathsContent = () => (

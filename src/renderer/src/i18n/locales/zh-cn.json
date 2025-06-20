@@ -1104,7 +1104,7 @@
         "app_data.select_error_write_permission": "新路径没有写入权限",
         "app_data.stop_quit_app_reason": "应用目前在迁移数据, 不能退出",
         "app_data.select_not_empty_dir": "新路径不为空",
-        "app_data.select_not_empty_dir_content": "新路径不为空，选择复制将覆盖现有数据，是否继续？",
+        "app_data.select_not_empty_dir_content": "新路径不为空，选择复制将覆盖新路径中的数据, 有数据丢失的风险，是否继续？",
         "app_knowledge": "知识库文件",
         "app_knowledge.button.delete": "删除文件",
         "app_knowledge.remove_all": "删除知识库文件",
