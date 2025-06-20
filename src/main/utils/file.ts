@@ -54,19 +54,28 @@ function getAppDataPathFromConfig() {
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-    if (!(config.appDataPath && fs.existsSync(config.appDataPath) && hasWritePermission(config.appDataPath))) {
+
+    if (!config.appDataPath) {
       return null
     }
 
+    let appDataPath = null
     // 兼容旧版本
-    if (typeof config.appDataPath === 'string') {
-      return config.appDataPath
+    if (config.appDataPath && typeof config.appDataPath === 'string') {
+      appDataPath = config.appDataPath
+      // 将旧版本数据迁移到新版本
+      appDataPath && updateAppDataConfig(appDataPath)
+    } else {
+      appDataPath = config.appDataPath.find(
+        (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+      )?.dataPath
     }
 
-    const findSamePath = config.appDataPath.find(
-      (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
-    )
-    return findSamePath?.dataPath || null
+    if (appDataPath && fs.existsSync(appDataPath) && hasWritePermission(appDataPath)) {
+      return appDataPath
+    }
+
+    return null
   } catch (error) {
     return null
   }
