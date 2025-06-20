@@ -18,8 +18,9 @@ interface CodePreviewProps {
 /**
  * Shiki 流式代码高亮组件
  *
- * - 通过 shiki tokenizer 处理流式响应
- * - 高性能，但需要调用者自行处理撤回
+ * - 通过 shiki tokenizer 处理流式响应，高性能
+ * - 进入视口后触发高亮，改善页面内有大量长代码块时的响应
+ * - 并发安全
  */
 const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
