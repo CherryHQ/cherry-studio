@@ -11,6 +11,7 @@ import {
   Rocket,
   Settings2,
   SquareTerminal,
+  Telescope,
   TextCursorInput,
   Zap
 } from 'lucide-react'
@@ -31,6 +32,7 @@ import QuickAssistantSettings from './QuickAssistantSettings'
 import QuickPhraseSettings from './QuickPhraseSettings'
 import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
 import ShortcutSettings from './ShortcutSettings'
+import TraceSettings from './TraceSettings'
 import WebSearchSettings from './WebSearchSettings'
 
 const SettingsPage: FC = () => {
@@ -113,6 +115,12 @@ const SettingsPage: FC = () => {
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
+          <MenuItemLink to="/settings/trace">
+            <MenuItem className={isRoute('/settings/trace')}>
+              <Telescope size={18} />
+              {t('settings.trace.title')}
+            </MenuItem>
+          </MenuItemLink>
           <MenuItemLink to="/settings/about">
             <MenuItem className={isRoute('/settings/about')}>
               <Info size={18} />
@@ -132,6 +140,7 @@ const SettingsPage: FC = () => {
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
             <Route path="data" element={<DataSettings />} />
+            <Route path="trace" element={<TraceSettings />} />
             <Route path="about" element={<AboutSettings />} />
             <Route path="quickPhrase" element={<QuickPhraseSettings />} />
           </Routes>
