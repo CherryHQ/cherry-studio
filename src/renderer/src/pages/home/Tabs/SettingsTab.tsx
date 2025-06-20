@@ -42,6 +42,7 @@ import {
   setShowPrompt,
   setShowTokens,
   setShowTranslateConfirm,
+  setSmoothStreamOutput,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
 import {
@@ -110,7 +111,8 @@ const SettingsTab: FC<Props> = (props) => {
     enableQuickPanelTriggers,
     enableBackspaceDeleteModel,
     showTranslateConfirm,
-    showTokens
+    showTokens,
+    smoothStreamOutput
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -242,6 +244,17 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={(checked) => {
                 setStreamOutput(checked)
                 onUpdateAssistantSettings({ streamOutput: checked })
+              }}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('models.smooth_stream_output')}（Beta）</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={smoothStreamOutput}
+              onChange={(checked) => {
+                dispatch(setSmoothStreamOutput(checked))
               }}
             />
           </SettingRow>

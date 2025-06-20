@@ -1607,6 +1607,14 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '115': (state: RootState) => {
+    try {
+      state.settings.smoothStreamOutput = true
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

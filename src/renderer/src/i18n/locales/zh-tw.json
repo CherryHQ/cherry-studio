@@ -792,6 +792,7 @@
       "rerank_model_tooltip": "在設定->模型服務中點擊管理按鈕添加",
       "search": "搜尋模型...",
       "stream_output": "串流輸出",
+      "smooth_stream_output": "平滑串流輸出",
       "enable_tool_use": "工具調用",
       "type": {
         "embedding": "嵌入",
