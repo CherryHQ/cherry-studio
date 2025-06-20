@@ -335,7 +335,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                             </ClickableSpan>
                           ),
                           ext: file.ext,
-                          extra: `${dayjs(file.created_at).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
+                          extra: `${dayjs(
+                            item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+                          ).format('MM-DD HH:mm')} · ${formatFileSize(file.size)}`,
                           actions: (
                             <FlexAlignCenter>
                               {item.uniqueId && (
@@ -392,7 +394,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     </ClickableSpan>
                   ),
                   ext: '.folder',
-                  extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                  extra: `${dayjs(
+                    item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+                  ).format('MM-DD HH:mm')}`,
                   actions: (
                     <FlexAlignCenter>
                       {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
@@ -470,7 +474,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     </Dropdown>
                   ),
                   ext: '.url',
-                  extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                  extra: `${dayjs(
+                    item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+                  ).format('MM-DD HH:mm')}`,
                   actions: (
                     <FlexAlignCenter>
                       {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
@@ -525,7 +531,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     </ClickableSpan>
                   ),
                   ext: '.sitemap',
-                  extra: `${dayjs(item.created_at).format('MM-DD HH:mm')}`,
+                  extra: `${dayjs(
+                    item.updated_at && item.updated_at > item.created_at ? item.updated_at : item.created_at
+                  ).format('MM-DD HH:mm')}`,
                   actions: (
                     <FlexAlignCenter>
                       {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
@@ -570,7 +578,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                 fileInfo={{
                   name: <span onClick={() => handleEditNote(note)}>{(note.content as string).slice(0, 50)}...</span>,
                   ext: '.txt',
-                  extra: `${dayjs(note.created_at).format('MM-DD HH:mm')}`,
+                  extra: `${dayjs(
+                    note.updated_at && note.updated_at > note.created_at ? note.updated_at : note.created_at
+                  ).format('MM-DD HH:mm')}`,
                   actions: (
                     <FlexAlignCenter>
                       <Button type="text" onClick={() => handleEditNote(note)} icon={<EditOutlined />} />
