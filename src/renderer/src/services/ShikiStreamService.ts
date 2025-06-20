@@ -291,16 +291,22 @@ class ShikiStreamService {
     const cacheKey = `${callerId}-${language}-${theme}`
     const lastContent = this.codeCache.get(cacheKey) || ''
 
-    // 如果内容没有变化，返回空结果
-    if (code === lastContent) {
-      return { lines: [], recall: 0 }
+    let isAppend = false
+
+    if (code.length === lastContent.length) {
+      // 内容没有变化，返回空结果
+      if (code === lastContent) {
+        return { lines: [], recall: 0 }
+      }
+    } else if (code.length > lastContent.length) {
+      // 长度增加，可能是追加
+      isAppend = code.startsWith(lastContent)
     }
 
     try {
       let result: HighlightChunkResult
 
-      // 检查是否末尾追加
-      if (code.startsWith(lastContent) && code.length > lastContent.length) {
+      if (isAppend) {
         // 流式追加，只传输增量
         const chunk = code.slice(lastContent.length)
         result = await this.highlightCodeChunk(chunk, language, theme, callerId)
