@@ -2437,7 +2437,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
-    isSupportedThinkingTokenDoubaoModel(model)
+    isSupportedThinkingTokenDoubaoModel(model) ||
+    isSupportedThinkingToggleOllamaModel(model)
   )
 }
 
@@ -2526,6 +2527,20 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
   }
 
   return DOUBAO_THINKING_MODEL_REGEX.test(model.id)
+}
+
+/**
+ * 判断是否为只有ollama支持的可控制推理关闭的模型。目前只有deepseek-r1
+ * @param model
+ * @returns
+ */
+export function isSupportedThinkingToggleOllamaModel(model?: Model): boolean {
+  if (!model || model.provider != 'ollama') {
+    return false
+  }
+
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  return baseName.startsWith('deepseek-r1')
 }
 
 export function isClaudeReasoningModel(model?: Model): boolean {

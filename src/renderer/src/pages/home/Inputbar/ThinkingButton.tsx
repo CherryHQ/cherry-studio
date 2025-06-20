@@ -9,6 +9,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   isDoubaoThinkingAutoModel,
   isSupportedReasoningEffortGrokModel,
+  isSupportedThinkingToggleOllamaModel,
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenQwenModel
@@ -38,12 +39,14 @@ const MODEL_SUPPORTED_OPTIONS: Record<string, ThinkingOption[]> = {
   grok: ['off', 'low', 'high'],
   gemini: ['off', 'low', 'medium', 'high', 'auto'],
   qwen: ['off', 'low', 'medium', 'high'],
-  doubao: ['off', 'auto', 'high']
+  doubao: ['off', 'auto', 'high'],
+  ollama: ['off', 'on']
 }
 
 // 选项转换映射表：当选项不支持时使用的替代选项
 const OPTION_FALLBACK: Record<ThinkingOption, ThinkingOption> = {
   off: 'off',
+  on: 'on',
   low: 'high',
   medium: 'high', // medium -> high (for Grok models)
   high: 'high',
@@ -59,6 +62,9 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   const isGeminiModel = isSupportedThinkingTokenGeminiModel(model)
   const isQwenModel = isSupportedThinkingTokenQwenModel(model)
   const isDoubaoModel = isSupportedThinkingTokenDoubaoModel(model)
+  const isOllamaModel = isSupportedThinkingToggleOllamaModel(model)
+
+  const isToggleMode = isOllamaModel
 
   const currentReasoningEffort = useMemo(() => {
     return assistant.settings?.reasoning_effort || 'off'
@@ -70,8 +76,9 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     if (isGrokModel) return 'grok'
     if (isQwenModel) return 'qwen'
     if (isDoubaoModel) return 'doubao'
+    if (isOllamaModel) return 'ollama'
     return 'default'
-  }, [isGeminiModel, isGrokModel, isQwenModel, isDoubaoModel])
+  }, [isGeminiModel, isGrokModel, isQwenModel, isDoubaoModel, isOllamaModel])
 
   // 获取当前模型支持的选项
   const supportedOptions = useMemo(() => {
@@ -152,11 +159,13 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
-      title: t('assistants.settings.reasoning_effort'),
+      title: isToggleMode
+        ? t('assistants.settings.reasoning_effort.toggle_mode')
+        : t('assistants.settings.reasoning_effort'),
       list: panelItems,
       symbol: 'thinking'
     })
-  }, [quickPanel, panelItems, t])
+  }, [quickPanel, panelItems, t, isToggleMode])
 
   const handleOpenQuickPanel = useCallback(() => {
     if (quickPanel.isVisible && quickPanel.symbol === 'thinking') {
@@ -181,7 +190,12 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   }))
 
   return (
-    <Tooltip placement="top" title={t('assistants.settings.reasoning_effort')} arrow>
+    <Tooltip
+      placement="top"
+      title={
+        isToggleMode ? t('assistants.settings.reasoning_effort.toggle_mode') : t('assistants.settings.reasoning_effort')
+      }
+      arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         {getThinkingIcon()}
       </ToolbarButton>
