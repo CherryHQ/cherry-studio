@@ -1103,6 +1103,8 @@
         "app_data.select_error_root_path": "New path cannot be the root path",
         "app_data.select_error_write_permission": "New path does not have write permission",
         "app_data.stop_quit_app_reason": "The app is currently migrating data and cannot be exited",
+        "app_data.select_not_empty_dir": "New path is not empty",
+        "app_data.select_not_empty_dir_content": "New path is not empty, if you select copy, it will overwrite the data in the new path, there is a risk of data loss, continue?",
         "app_knowledge": "Knowledge Base Files",
         "app_knowledge.button.delete": "Delete File",
         "app_knowledge.remove_all": "Remove Knowledge Base Files",

@@ -1103,6 +1103,8 @@
         "app_data.select_error_root_path": "新路徑不能是根路徑",
         "app_data.select_error_write_permission": "新路徑沒有寫入權限",
         "app_data.stop_quit_app_reason": "應用目前正在遷移數據，不能退出",
+        "app_data.select_not_empty_dir": "新路徑不為空",
+        "app_data.select_not_empty_dir_content": "新路徑不為空，選擇複製將覆蓋新路徑中的數據, 有數據丟失的風險，是否繼續？",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",

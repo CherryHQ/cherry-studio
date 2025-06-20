@@ -215,12 +215,24 @@ const DataSettings: FC = () => {
     const migrationClassName = 'migration-modal'
     const messageKey = 'data-migration'
 
-    // 显示确认对话框
-    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
+    if (await window.api.isNotEmptyDir(newAppDataPath)) {
+      const modal = window.modal.confirm({
+        title: t('settings.data.app_data.select_not_empty_dir'),
+        content: t('settings.data.app_data.select_not_empty_dir_content'),
+        centered: true,
+        okText: t('common.confirm'),
+        cancelText: t('common.cancel'),
+        onOk: () => {
+          modal.destroy()
+          // 显示确认对话框
+          showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
+        }
+      })
+    }
   }
 
   // 显示确认迁移的对话框
-  const showMigrationConfirmModal = (
+  const showMigrationConfirmModal = async (
     originalPath: string,
     newPath: string,
     title: React.ReactNode,
@@ -228,7 +240,7 @@ const DataSettings: FC = () => {
     messageKey: string
   ) => {
     // 复制数据选项状态
-    let shouldCopyData = true
+    let shouldCopyData = await window.api.isNotEmptyDir(newPath)
 
     // 创建路径内容组件
     const PathsContent = () => (
@@ -411,6 +423,9 @@ const DataSettings: FC = () => {
     loadingModal: { destroy: () => void },
     messageKey: string
   ): Promise<void> => {
+    // flush app data
+    await window.api.flushAppData()
+
     // 开始复制过程
     const copyResult = await window.api.copy(originalPath, newPath)
 

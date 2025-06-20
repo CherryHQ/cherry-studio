@@ -222,6 +222,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     app.setPath('userData', filePath)
   })
 
+  ipcMain.handle(IpcChannel.App_FlushAppData, () => {
+    BrowserWindow.getAllWindows().forEach((w) => {
+      w.webContents.session.flushStorageData()
+      w.webContents.session.cookies.flushStore()
+    })
+  })
+
+  ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
+    return fs.readdirSync(path).length > 0
+  })
+
   // Copy user data to new location
   ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string) => {
     try {

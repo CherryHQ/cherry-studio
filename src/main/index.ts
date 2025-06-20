@@ -1,6 +1,7 @@
-// don't reorder this file, it's used to initialize the app data dir
+// don't reorder this file, it's used to initialize the app data dir and
+// other which should be run before the main process is ready
 // eslint-disable-next-line
-import './utils/file'
+import './bootstrap'
 
 import '@main/config'
 

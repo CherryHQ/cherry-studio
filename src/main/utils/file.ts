@@ -8,7 +8,7 @@ import { FileType, FileTypes } from '@types'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
-function initAppDataDir() {
+export function initAppDataDir() {
   const appDataPath = getAppDataPathFromConfig()
   if (appDataPath) {
     app.setPath('userData', appDataPath)
@@ -21,8 +21,6 @@ function initAppDataDir() {
     return
   }
 }
-
-initAppDataDir()
 
 // 创建文件类型映射表，提高查找效率
 const fileTypeMap = new Map<string, FileTypes>()
@@ -51,32 +49,57 @@ export function hasWritePermission(path: string) {
 function getAppDataPathFromConfig() {
   try {
     const configPath = path.join(getConfigDir(), 'config.json')
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (config.appDataPath && fs.existsSync(config.appDataPath) && hasWritePermission(config.appDataPath)) {
-        return config.appDataPath
-      }
+    if (!fs.existsSync(configPath)) {
+      return null
     }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+    if (!(config.appDataPath && fs.existsSync(config.appDataPath) && hasWritePermission(config.appDataPath))) {
+      return null
+    }
+
+    // 兼容旧版本
+    if (typeof config.appDataPath === 'string') {
+      return config.appDataPath
+    }
+
+    const findSamePath = config.appDataPath.find(
+      (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+    )
+    return findSamePath?.dataPath || null
   } catch (error) {
     return null
   }
-  return null
 }
 
-export function updateConfig(appDataPath: string) {
+export function updateAppDataConfig(appDataPath: string) {
   const configDir = getConfigDir()
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true })
   }
 
+  // config.json
+  // appDataPath: [{ executablePath: string, dataPath: string }]
   const configPath = path.join(getConfigDir(), 'config.json')
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify({ appDataPath }, null, 2))
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ appDataPath: [{ executablePath: app.getPath('exe'), dataPath: appDataPath }] }, null, 2)
+    )
     return
   }
 
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  config.appDataPath = appDataPath
+  const findSamePath = config.appDataPath.find(
+    (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+  )
+
+  if (findSamePath) {
+    findSamePath.dataPath = appDataPath
+  } else {
+    config.appDataPath.push({ executablePath: app.getPath('exe'), dataPath: appDataPath })
+  }
+
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
 
