@@ -442,6 +442,7 @@
         "504": "Gateway timeout. Please try again later"
       },
       "model.exists": "Model already exists",
+      "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
       "no_api_key": "API key is not configured",
       "provider_disabled": "Model provider is not enabled",
       "render": {

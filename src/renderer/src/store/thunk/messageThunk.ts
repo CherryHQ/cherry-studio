@@ -1379,9 +1379,8 @@ export const appendAssistantResponseThunk =
         const errorBlock = createErrorBlock(
           errorAssistantStub.id,
           {
-            name: 'MissingUserMessage',
-            message:
-              'Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.',
+            name: 'missing_user_message',
+            message: 'missing_user_message',
             stack: '',
             status: 'error'
           },
