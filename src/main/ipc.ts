@@ -116,7 +116,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_SetEnableEarlyAccess, async (_, isActive: boolean) => {
     configManager.setEnableEarlyAccess(isActive)
-    await appUpdater.setEnableEarlyAccess(isActive)
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {

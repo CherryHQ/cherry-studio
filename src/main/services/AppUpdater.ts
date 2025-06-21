@@ -76,10 +76,14 @@ export default class AppUpdater {
       const data = await responses.json()
       const latestRelease = data.find((item: any) => !item.draft)
       logger.info('latestRelease', latestRelease.tag_name)
-      return `https://github.com/CherryHQ/cherry-studio/releases/download/${latestRelease.tag_name}`
+      const channel = ['rc', 'alpha', 'beta'].find((channel) => latestRelease.tag_name.includes(channel)) || 'latest'
+      return {
+        FeedUrl: `https://github.com/CherryHQ/cherry-studio/releases/download/${latestRelease.tag_name}`,
+        channel: channel
+      }
     } catch (error) {
       logger.error('Failed to get latest not draft version from github:', error)
-      return FeedUrl.GITHUB_LATEST
+      return { FeedUrl: FeedUrl.GITHUB_LATEST, channel: 'latest' }
     }
   }
 
@@ -112,17 +116,15 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  public async setEnableEarlyAccess(isActive: boolean) {
-    this.autoUpdater.setFeedURL(isActive ? await this._getLatestNotDraftVersionFromGithub() : FeedUrl.PRODUCTION)
-  }
-
   private async _setFeedUrl() {
     if (configManager.getEnableEarlyAccess()) {
-      const url = await this._getLatestNotDraftVersionFromGithub()
-      this.autoUpdater.setFeedURL(url)
+      const { FeedUrl, channel } = await this._getLatestNotDraftVersionFromGithub()
+      this.autoUpdater.setFeedURL(FeedUrl)
+      this.autoUpdater.channel = channel
       return
     }
 
+    this.autoUpdater.channel = 'latest'
     const ipCountry = await this._getIpCountry()
     logger.info('ipCountry', ipCountry)
     if (ipCountry.toLowerCase() !== 'cn') {
