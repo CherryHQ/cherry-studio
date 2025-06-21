@@ -17,7 +17,7 @@ import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
-import { defaultWebSearchProviders } from './websearch'
+import { defaultWebSearchProviders, initialState as websearchInitialState } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -1607,17 +1607,17 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '115': (state: RootState) => {
+    try {
+      if (state.websearch && !state.websearch.compressionConfig) {
+        state.websearch.compressionConfig = websearchInitialState.compressionConfig
+      }
+      return state
+    } catch (error) {
+      return state
+    }
   }
-  // '115': (state: RootState) => {
-  //   try {
-  //     if (state.websearch && !state.websearch.compressionConfig) {
-  //       state.websearch.compressionConfig = websearchInitialState.compressionConfig
-  //     }
-  //     return state
-  //   } catch (error) {
-  //     return state
-  //   }
-  // }
 }
 
 const migrate = createMigrate(migrateConfig as any)
