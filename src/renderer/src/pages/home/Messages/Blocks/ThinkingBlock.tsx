@@ -18,7 +18,7 @@ interface Props {
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [copied, setCopied] = useState(false)
   const { t } = useTranslation()
-  const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+  const { messageFont, fontSize, thoughtAutoCollapse, smoothStreamOutput } = useSettings()
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
@@ -97,7 +97,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize
               }}>
-              <Markdown block={block} />
+              <Markdown block={block} smoothStreamOutput={smoothStreamOutput} />
             </div>
           )
         }

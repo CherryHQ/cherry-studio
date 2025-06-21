@@ -7,9 +7,11 @@ import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRen
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown'
+import { useTypingOutput } from '@renderer/utils/typingOutput'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,9 +36,10 @@ const DISALLOWED_ELEMENTS = ['iframe']
 interface Props {
   // message: Message & { content: string }
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
+  smoothStreamOutput?: boolean
 }
 
-const Markdown: FC<Props> = ({ block }) => {
+const Markdown: FC<Props> = ({ block, smoothStreamOutput = false }) => {
   const { t } = useTranslation()
   const { mathEngine } = useSettings()
 
@@ -48,12 +51,15 @@ const Markdown: FC<Props> = ({ block }) => {
     return plugins
   }, [mathEngine])
 
-  const messageContent = useMemo(() => {
+  const rawContent = useMemo(() => {
     const empty = isEmpty(block.content)
     const paused = block.status === 'paused'
     const content = empty && paused ? t('message.chat.completion.paused') : block.content
     return removeSvgEmptyLines(escapeBrackets(content))
   }, [block, t])
+
+  const isStreaming = block.status === MessageBlockStatus.STREAMING
+  const messageContent = useTypingOutput(rawContent, smoothStreamOutput && isStreaming)
 
   const rehypePlugins = useMemo(() => {
     const plugins: any[] = []
