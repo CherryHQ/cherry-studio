@@ -1,11 +1,10 @@
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
-import { updateTopic } from '@renderer/store/assistants'
+import { removeTopic, updateTopic } from '@renderer/store/assistants'
 import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
+import { deleteTopicMessagesThunk, loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { find, isEmpty } from 'lodash'
@@ -175,24 +174,26 @@ export const TopicManager = {
     return updatedTopic?.messages || []
   },
 
-  async removeTopic(id: string) {
-    const messages = await TopicManager.getTopicMessages(id)
-
-    for (const message of messages) {
-      await deleteMessageFiles(message)
-    }
-
-    db.topics.delete(id)
+  /**
+   * 删除话题，包括话题本身与话题中所有消息及其blocks。同时删除关联的文件、redux状态与db
+   * @param topic
+   * @param assistantId
+   */
+  async removeTopic(topic: Topic, assistantId: string) {
+    this.clearTopicMessages(topic.id)
+    store.dispatch(removeTopic({ assistantId: assistantId, topic }))
+    db.topics.delete(topic.id)
   },
 
+  /**
+   * 删除话题下所有消息及其blocks。同时删除关联的文件、redux状态与db
+   * @param id topic id
+   */
   async clearTopicMessages(id: string) {
     const topic = await TopicManager.getTopic(id)
 
     if (topic) {
-      for (const message of topic?.messages ?? []) {
-        await deleteMessageFiles(message)
-      }
-
+      store.dispatch(deleteTopicMessagesThunk(topic.id))
       topic.messages = []
 
       await db.topics.update(id, topic)

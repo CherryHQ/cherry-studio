@@ -1,8 +1,8 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTopicMessageOperations } from '@renderer/hooks/useTopicMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
@@ -23,7 +23,7 @@ interface Props {
 }
 
 const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
-  const { editMessage } = useMessageOperations(topic)
+  const { editMessage } = useTopicMessageOperations(topic)
   const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
   const { isMultiSelectMode } = useChatContext(topic)
 

@@ -4,7 +4,6 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
   addTopic,
-  removeAllTopics,
   removeAssistant,
   removeTopic,
   setModel,
@@ -29,11 +28,12 @@ export function useAssistants() {
     assistants,
     updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
     addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
-    removeAssistant: (id: string) => {
-      dispatch(removeAssistant({ id }))
-      const assistant = assistants.find((a) => a.id === id)
+    removeAssistant: (assistantId: string) => {
+      dispatch(removeAssistant({ id: assistantId }))
+      const assistant = assistants.find((a) => a.id === assistantId)
       const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
+      topics.forEach((topic) => TopicManager.removeTopic(topic, assistantId))
+      // 并没有db删除assistant，只删除了redux状态
     }
   }
 }
@@ -55,8 +55,7 @@ export function useAssistant(id: string) {
     model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {
-      TopicManager.removeTopic(topic.id)
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
+      TopicManager.removeTopic(topic, assistant.id)
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
@@ -76,7 +75,11 @@ export function useAssistant(id: string) {
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    removeAllTopics: () => {
+      for (const topic of assistant.topics) {
+        TopicManager.removeTopic(topic, assistant.id)
+      }
+    },
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]

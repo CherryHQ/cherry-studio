@@ -60,17 +60,23 @@ export function getContextCount(assistant: Assistant, messages: Message[]) {
   }
 }
 
-export function deleteMessageFiles(message: Message) {
+/**
+ * 删除消息关联的文件
+ * @param message
+ */
+export async function deleteMessageFiles(message: Message) {
   const state = store.getState()
-  message.blocks?.forEach((blockId) => {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
-      const fileData = (block as any).file as FileType | undefined
-      if (fileData) {
-        FileManager.deleteFiles([fileData])
+  return Promise.all(
+    (message.blocks ?? []).map(async (blockId) => {
+      const block = messageBlocksSelectors.selectById(state, blockId)
+      if (block && (block.type === MessageBlockType.IMAGE || block.type === MessageBlockType.FILE)) {
+        const fileData = (block as any).file as FileType | undefined
+        if (fileData) {
+          return FileManager.deleteFiles([fileData])
+        }
       }
-    }
-  })
+    })
+  )
 }
 
 export function isGenerating() {
