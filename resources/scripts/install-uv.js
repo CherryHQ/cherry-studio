@@ -77,29 +77,8 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
     } else {
       // Unix/Linux/macOS 使用 tar 命令
       execSync(`tar -xzf "${tempFilename}" -C "${binDir}"`, { stdio: 'inherit' })
-
-      // Move files using Node.js fs
-      const sourceDir = path.join(tempdir, packageName.split('.')[0])
-      const files = fs.readdirSync(sourceDir)
-      for (const file of files) {
-        const sourcePath = path.join(sourceDir, file)
-        const destPath = path.join(binDir, file)
-        fs.copyFileSync(sourcePath, destPath)
-        fs.unlinkSync(sourcePath)
-
-        // Set executable permissions for non-Windows platforms
-        if (platform !== 'win32') {
-          try {
-            fs.chmodSync(destPath, '755')
-          } catch (error) {
-            console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
-          }
-        }
-      }
-
       // Clean up
       fs.unlinkSync(tempFilename)
-      fs.rmSync(sourceDir, { recursive: true })
     }
 
     console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
