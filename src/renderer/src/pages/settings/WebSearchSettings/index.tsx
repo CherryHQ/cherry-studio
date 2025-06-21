@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
+import CompressionSettings from './CompressionSettings'
 import WebSearchProviderSetting from './WebSearchProviderSetting'
 
 const WebSearchSettings: FC = () => {
@@ -56,6 +57,7 @@ const WebSearchSettings: FC = () => {
         </SettingGroup>
       )}
       <BasicSettings />
+      <CompressionSettings />
       <BlacklistSettings />
     </SettingContainer>
   )

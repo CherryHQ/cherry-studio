@@ -31,14 +31,9 @@ export default class TavilyProvider extends BaseWebSearchProvider {
       return {
         query: result.query,
         results: result.results.slice(0, websearch.maxResults).map((result) => {
-          let content = result.content || ''
-          if (websearch.contentLimit && content.length > websearch.contentLimit) {
-            content = content.slice(0, websearch.contentLimit) + '...'
-          }
-
           return {
             title: result.title || 'No title',
-            content: content,
+            content: result.content || '',
             url: result.url || ''
           }
         })
