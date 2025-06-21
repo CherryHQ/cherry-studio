@@ -83,11 +83,17 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           {open &&
             citations.map((citation) => (
               <HStack key={citation.url || citation.number} style={{ alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                {citation.type === 'websearch' ? (
-                  <WebSearchCitation citation={citation} />
-                ) : (
-                  <KnowledgeCitation citation={citation} />
+                {citation.type === 'websearch' && <WebSearchCitation citation={citation} />}
+                {citation.type === 'memory' && (
+                  <KnowledgeCitation
+                    citation={{
+                      ...citation,
+                      title: citation.title || t('message.memory'),
+                      showFavicon: false
+                    }}
+                  />
                 )}
+                {citation.type === 'knowledge' && <KnowledgeCitation citation={{ ...citation, showFavicon: true }} />}
               </HStack>
             ))}
         </Drawer>

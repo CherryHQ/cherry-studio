@@ -26,6 +26,7 @@ export type Assistant = {
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
+  enableMemory?: boolean
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -399,7 +400,7 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
 
 export type KnowledgeItem = {
   id: string
@@ -487,6 +488,7 @@ export type ExternalToolResult = {
   toolUse?: MCPToolResponse[]
   webSearch?: WebSearchResponse
   knowledge?: KnowledgeReference[]
+  memories?: MemoryItem[]
 }
 
 export type WebSearchProvider = {
@@ -722,3 +724,73 @@ export interface StoreSyncAction {
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 export type OpenAIServiceTier = 'auto' | 'default' | 'flex'
 export type { Message } from './newMessage'
+
+// Memory Service Types
+// ========================================================================
+export interface MemoryConfig {
+  embedderModel?: Model
+  embedderDimensions?: number
+  embedderProvider?: Provider
+  llmModel?: Model
+  llmProvider?: Provider
+  customFactExtractionPrompt?: string
+  customUpdateMemoryPrompt?: string
+}
+
+export interface MemoryItem {
+  id: string
+  memory: string
+  hash?: string
+  createdAt?: string
+  updatedAt?: string
+  score?: number
+  metadata?: Record<string, any>
+}
+
+export interface MemorySearchResult {
+  results: MemoryItem[]
+  relations?: any[]
+}
+
+export interface MemoryEntity {
+  userId?: string
+  agentId?: string
+  runId?: string
+}
+
+export interface MemorySearchFilters {
+  userId?: string
+  agentId?: string
+  runId?: string
+  [key: string]: any
+}
+
+export interface AddMemoryOptions extends MemoryEntity {
+  metadata?: Record<string, any>
+  filters?: MemorySearchFilters
+  infer?: boolean
+}
+
+export interface MemorySearchOptions extends MemoryEntity {
+  limit?: number
+  filters?: MemorySearchFilters
+}
+
+export interface MemoryHistoryItem {
+  id: number
+  memoryId: string
+  previousValue?: string
+  newValue: string
+  action: 'ADD' | 'UPDATE' | 'DELETE'
+  createdAt: string
+  updatedAt: string
+  isDeleted: boolean
+}
+
+export interface MemoryListOptions extends MemoryEntity {
+  limit?: number
+  offset?: number
+}
+
+export interface MemoryDeleteAllOptions extends MemoryEntity {}
+// ========================================================================
