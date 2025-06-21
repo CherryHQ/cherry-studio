@@ -67,7 +67,7 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
     // Extract the zip file using adm-zip
     console.log(`Extracting ${packageName} to ${binDir}...`)
     const zip = new StreamZip.async({ file: tempFilename })
-    await zip.extract(null, binDir)
+    await zip.extract(null, tempdir)
     await zip.close()
 
     // Move files using Node.js fs
