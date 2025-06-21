@@ -96,8 +96,6 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
 
     // Clean up
     fs.unlinkSync(tempFilename)
-    fs.rmSync(sourceDir, { recursive: true })
-
     console.log(`Successfully installed bun ${version} for ${platformKey}`)
     return true
   } catch (error) {
