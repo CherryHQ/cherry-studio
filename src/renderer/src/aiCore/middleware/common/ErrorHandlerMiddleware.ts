@@ -25,7 +25,7 @@ export const ErrorHandlerMiddleware =
       // 尝试执行下一个中间件
       return await next(ctx, params)
     } catch (error: any) {
-      console.log('ErrorHandlerMiddleware_error', error)
+      console.error('ErrorHandlerMiddleware_error', error)
       // 1. 使用通用的工具函数将错误解析为标准格式
       const errorChunk = createErrorChunk(error)
       // 2. 调用从外部传入的 onError 回调
@@ -50,6 +50,7 @@ export const ErrorHandlerMiddleware =
         rawOutput: undefined,
         stream: errorStream, // 将包含错误的流传递下去
         controller: undefined,
+        error: typeof error?.message === 'string' ? error.message : 'unknown error',
         getText: () => '' // 错误情况下没有文本结果
       }
     }

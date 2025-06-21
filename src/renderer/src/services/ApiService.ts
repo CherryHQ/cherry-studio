@@ -595,6 +595,9 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
 
       // Try streaming check first
       const result = await ai.completions(params)
+      if (result.error) {
+        throw new Error(result.error)
+      }
       if (!result.getText()) {
         throw new Error('No response received')
       }
@@ -608,6 +611,9 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         streamOutput: false
       }
       const result = await ai.completions(params)
+      if (result.error) {
+        throw new Error(result.error)
+      }
       if (!result.getText()) {
         throw new Error('No response received')
       }

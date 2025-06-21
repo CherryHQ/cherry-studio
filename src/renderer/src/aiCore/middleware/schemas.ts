@@ -62,7 +62,7 @@ export interface CompletionsResult {
   rawOutput?: SdkRawOutput
   stream?: ReadableStream<SdkRawChunk> | ReadableStream<Chunk> | AsyncIterable<Chunk>
   controller?: AbortController
-
+  error?: string
   getText: () => string
 }
 
