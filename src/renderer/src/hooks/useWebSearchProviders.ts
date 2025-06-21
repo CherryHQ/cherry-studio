@@ -95,11 +95,11 @@ export const useBlacklist = () => {
 }
 
 export const useWebSearchSettings = () => {
-  const compressionConfig = useAppSelector((state) => state.websearch.compressionConfig)
+  const state = useAppSelector((state) => state.websearch)
   const dispatch = useAppDispatch()
 
   return {
-    compressionConfig,
+    ...state,
     setCompressionConfig: (config: CompressionConfig) => dispatch(setCompressionConfig(config)),
     updateCompressionConfig: (config: Partial<CompressionConfig>) => dispatch(updateCompressionConfig(config))
   }

@@ -35,14 +35,9 @@ export default class ExaProvider extends BaseWebSearchProvider {
       return {
         query: response.autopromptString,
         results: response.results.slice(0, websearch.maxResults).map((result) => {
-          let content = result.text || ''
-          if (websearch.contentLimit && content.length > websearch.contentLimit) {
-            content = content.slice(0, websearch.contentLimit) + '...'
-          }
-
           return {
             title: result.title || 'No title',
-            content: content,
+            content: result.text || '',
             url: result.url || ''
           }
         })

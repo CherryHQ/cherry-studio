@@ -1,5 +1,5 @@
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
+import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import store from '@renderer/store'
 import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
@@ -13,6 +13,7 @@ import {
 } from '@renderer/types'
 import { hasObjectKey, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import dayjs from 'dayjs'
@@ -217,13 +218,13 @@ class WebSearchService {
       throw new Error('Embedding model and dimensions are required for RAG compression')
     }
 
-    // 根据搜索次数计算所需的文档数量
-    const documentCount = Math.max(0, searchCount) * (config.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT)
+    // 根据搜索次数计算所需的文档数量（默认为 3，取小一点）
+    const documentCount = Math.max(0, searchCount) * (config.documentCount ?? 3)
 
     // 创建新的知识库
     state.searchBase = {
       id: baseId,
-      name: `WebSearch Compression Base - ${requestId}`,
+      name: `WebSearch-RAG-${requestId}`,
       model: config.embeddingModel,
       rerankModel: config.rerankModel,
       dimensions: config.embeddingDimensions,
@@ -276,86 +277,81 @@ class WebSearchService {
     const query = questions.join(' | ')
     const searchBase = await this.ensureSearchBase(config, rawResults.length, requestId)
 
-    try {
-      // 1. 清空知识库
-      await window.api.knowledgeBase.reset(getKnowledgeBaseParams(searchBase))
+    // 1. 清空知识库
+    await window.api.knowledgeBase.reset(getKnowledgeBaseParams(searchBase))
 
-      // 2. 一次性添加所有搜索结果到知识库
-      const addPromises = rawResults.map(async (result) => {
-        const item: KnowledgeItem & { sourceUrl?: string } = {
-          id: uuid(),
-          type: 'note',
-          content: result.content,
-          sourceUrl: result.url, // 设置 sourceUrl 用于映射
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          processingStatus: 'pending'
-        }
-
-        await window.api.knowledgeBase.add({
-          base: getKnowledgeBaseParams(searchBase),
-          item
-        })
-      })
-
-      // 等待所有结果添加完成
-      await Promise.all(addPromises)
-
-      // 3. 在知识库中搜索获取压缩结果并转换格式
-      const retrievedResults = await searchKnowledgeBase(query, searchBase)
-      const references: KnowledgeReference[] = await Promise.all(
-        retrievedResults.map(async (result, index) => ({
-          id: index + 1,
-          content: result.pageContent,
-          sourceUrl: await getKnowledgeSourceUrl(result),
-          type: 'url' as const
-        }))
-      )
-
-      Logger.log('[WebSearchService] the number of search results:', {
-        raw: rawResults.length,
-        retrieved: retrievedResults.length
-      })
-
-      // 4. 按 sourceUrl 分组并合并同源片段
-      const urlToOriginalResult = new Map(rawResults.map((result) => [result.url, result]))
-      const sourceGroupMap = new Map<
-        string,
-        {
-          originalResult: WebSearchProviderResult
-          contents: string[]
-        }
-      >()
-
-      // 分组：将同源的检索片段归类
-      for (const reference of references) {
-        const originalResult = urlToOriginalResult.get(reference.sourceUrl)
-        if (originalResult) {
-          if (!sourceGroupMap.has(reference.sourceUrl)) {
-            sourceGroupMap.set(reference.sourceUrl, {
-              originalResult,
-              contents: []
-            })
-          }
-          sourceGroupMap.get(reference.sourceUrl)!.contents.push(reference.content)
-        }
+    // 2. 一次性添加所有搜索结果到知识库
+    const addPromises = rawResults.map(async (result) => {
+      const item: KnowledgeItem & { sourceUrl?: string } = {
+        id: uuid(),
+        type: 'note',
+        content: result.content,
+        sourceUrl: result.url, // 设置 sourceUrl 用于映射
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        processingStatus: 'pending'
       }
 
-      // 合并：每个原始搜索结果最多产生一个压缩结果
-      const compressedResults: WebSearchProviderResult[] = []
-      for (const [, group] of sourceGroupMap) {
-        compressedResults.push({
-          title: group.originalResult.title,
-          url: group.originalResult.url,
-          content: group.contents.join('\n\n---\n\n') // 用分隔符合并多个片段
-        })
-      }
+      await window.api.knowledgeBase.add({
+        base: getKnowledgeBaseParams(searchBase),
+        item
+      })
+    })
 
-      return compressedResults
-    } catch (error) {
-      Logger.warn('[WebSearchService] RAG compression failed, returning empty results:', error)
-      return []
+    // 等待所有结果添加完成
+    await Promise.all(addPromises)
+
+    // 3. 在知识库中搜索获取压缩结果并转换格式
+    const retrievedResults = await searchKnowledgeBase(query, searchBase)
+    const references: KnowledgeReference[] = await Promise.all(
+      retrievedResults.map(async (result, index) => ({
+        id: index + 1,
+        content: result.pageContent,
+        sourceUrl: await getKnowledgeSourceUrl(result),
+        type: 'url' as const
+      }))
+    )
+
+    Logger.log('[WebSearchService] With RAG, the number of search results:', {
+      raw: rawResults.length,
+      retrieved: retrievedResults.length
+    })
+
+    // 4. 按 sourceUrl 分组并合并同源片段
+    const urlToOriginalResult = new Map(rawResults.map((result) => [result.url, result]))
+    const sourceGroupMap = new Map<
+      string,
+      {
+        originalResult: WebSearchProviderResult
+        contents: string[]
+      }
+    >()
+
+    // 分组：将同源的检索片段归类
+    for (const reference of references) {
+      const originalResult = urlToOriginalResult.get(reference.sourceUrl)
+      if (originalResult) {
+        if (!sourceGroupMap.has(reference.sourceUrl)) {
+          sourceGroupMap.set(reference.sourceUrl, {
+            originalResult,
+            contents: []
+          })
+        }
+        sourceGroupMap.get(reference.sourceUrl)!.contents.push(reference.content)
+      }
     }
+
+    // 合并：每个原始搜索结果最多产生一个压缩结果
+    const compressedResults: WebSearchProviderResult[] = []
+    for (const [, group] of sourceGroupMap) {
+      compressedResults.push({
+        title: group.originalResult.title,
+        url: group.originalResult.url,
+        content: group.contents.join('\n\n---\n\n') // 用分隔符合并多个片段
+      })
+    }
+
+    return compressedResults
   }
 
   public async processWebsearch(
@@ -416,7 +412,29 @@ class WebSearchService {
           results: compressedResults
         }
       } catch (error) {
-        Logger.warn('[WebSearchService] Failed to start RAG compression, falling back to original results:', error)
+        Logger.warn('[WebSearchService] RAG compression failed, will return empty results:', error)
+        window.message.error({
+          key: 'websearch-rag-failed',
+          duration: 10,
+          content: `[${i18n.t('settings.websearch.compression.error.rag_failed')}]: ${formatErrorMessage(error)}`
+        })
+        return {
+          query: questions.join(' | '),
+          results: []
+        }
+      }
+    }
+
+    // 不压缩的情况下，在此处统一应用 contentLimit
+    if (websearch.contentLimit) {
+      const perResultLimit = Math.floor(websearch.contentLimit / aggregatedResults.length)
+      return {
+        query: questions.join(' | '),
+        results: aggregatedResults.map((result) => ({
+          ...result,
+          content:
+            result.content.length > perResultLimit ? result.content.slice(0, perResultLimit) + '...' : result.content
+        }))
       }
     }
 

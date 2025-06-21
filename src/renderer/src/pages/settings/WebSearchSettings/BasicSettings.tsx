@@ -1,5 +1,6 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { useAppDispatch } from '@renderer/store'
 import { setContentLimit, setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
 import { Input, Slider, Switch, Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -10,9 +11,7 @@ import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle
 
 const BasicSettings: FC = () => {
   const { theme } = useTheme()
-  const searchWithTime = useAppSelector((state) => state.websearch.searchWithTime)
-  const maxResults = useAppSelector((state) => state.websearch.maxResults)
-  const contentLimit = useAppSelector((state) => state.websearch.contentLimit)
+  const { searchWithTime, maxResults, contentLimit, compressionConfig } = useWebSearchSettings()
 
   const dispatch = useAppDispatch()
 
@@ -50,6 +49,7 @@ const BasicSettings: FC = () => {
             style={{ width: '100px' }}
             placeholder="2000"
             value={contentLimit === undefined ? '' : contentLimit}
+            disabled={compressionConfig?.method !== 'none'}
             onChange={(e) => {
               const value = e.target.value
               if (value === '') {
