@@ -2,8 +2,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const tar = require('tar')
-const AdmZip = require('adm-zip')
+const StreamZip = require('node-stream-zip')
 const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading uv binaries
@@ -69,18 +68,16 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
     // 根据文件扩展名选择解压方法
     if (packageName.endsWith('.zip')) {
       // 使用 adm-zip 处理 zip 文件
-      const zip = new AdmZip(tempFilename)
-      zip.extractAllTo(binDir, true)
+      const zip = new StreamZip.async({ file: tempFilename })
+      await zip.extract(null, binDir)
+      await zip.close()
       fs.unlinkSync(tempFilename)
       console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
       return true
     } else {
-      // tar.gz 文件的处理保持不变
-      await tar.x({
-        file: tempFilename,
-        cwd: tempdir,
-        z: true
-      })
+        // Unix/Linux/macOS 使用 tar 命令
+        execSync(`tar -xzf "${tempFilename}" -C "${binDir}"`, { stdio: 'inherit' })
+      }
 
       // Move files using Node.js fs
       const sourceDir = path.join(tempdir, packageName.split('.')[0])
