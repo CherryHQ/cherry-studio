@@ -1,10 +1,18 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import type { WebSearchProvider } from '@renderer/types'
+import type { Model, WebSearchProvider } from '@renderer/types'
 export interface SubscribeSource {
   key: number
   url: string
   name: string
   blacklist?: string[] // 存储从该订阅源获取的黑名单
+}
+
+export interface CompressionConfig {
+  method: 'none' | 'builtin' | 'rag'
+  embeddingModel?: Model
+  embeddingDimensions?: number // undefined表示自动获取
+  documentCount?: number // 每个搜索结果的文档数量（只是预期值）
+  rerankModel?: Model
 }
 
 export interface WebSearchState {
@@ -25,11 +33,13 @@ export interface WebSearchState {
   /** @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用 */
   overwrite: boolean
   contentLimit?: number
+  // 搜索结果压缩
+  compressionConfig?: CompressionConfig
   // 具体供应商的配置
   providerConfig: Record<string, any>
 }
 
-const initialState: WebSearchState = {
+export const initialState: WebSearchState = {
   defaultProvider: 'local-bing',
   providers: [
     {
@@ -78,6 +88,9 @@ const initialState: WebSearchState = {
   excludeDomains: [],
   subscribeSources: [],
   overwrite: false,
+  compressionConfig: {
+    method: 'none'
+  },
   providerConfig: {}
 }
 
@@ -153,6 +166,15 @@ const websearchSlice = createSlice({
     setContentLimit: (state, action: PayloadAction<number | undefined>) => {
       state.contentLimit = action.payload
     },
+    setCompressionConfig: (state, action: PayloadAction<CompressionConfig>) => {
+      state.compressionConfig = action.payload
+    },
+    updateCompressionConfig: (state, action: PayloadAction<Partial<CompressionConfig>>) => {
+      state.compressionConfig = {
+        ...state.compressionConfig,
+        ...action.payload
+      } as CompressionConfig
+    },
     setProviderConfig: (state, action: PayloadAction<Record<string, any>>) => {
       state.providerConfig = action.payload
     },
@@ -177,6 +199,8 @@ export const {
   setOverwrite,
   addWebSearchProvider,
   setContentLimit,
+  setCompressionConfig,
+  updateCompressionConfig,
   setProviderConfig,
   updateProviderConfig
 } = websearchSlice.actions

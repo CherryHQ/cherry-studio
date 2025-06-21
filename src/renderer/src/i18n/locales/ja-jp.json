@@ -775,6 +775,7 @@
       "dimensions": "{{dimensions}} 次元",
       "edit": "モデルを編集",
       "embedding": "埋め込み",
+      "embedding_dimensions": "埋め込み次元",
       "embedding_model": "埋め込み模型",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
       "function_calling": "関数呼び出し",
@@ -1821,7 +1822,27 @@
         "apikey": "API キー",
         "free": "無料",
         "content_limit": "内容の長さ制限",
-        "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
+        "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。",
+        "compression": {
+          "document_count": "文書数",
+          "document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
+          "document_count.default": "デフォルト",
+          "embedding_dimensions.auto_get": "次元を自動取得",
+          "embedding_dimensions.placeholder": "次元を入力",
+          "title": "検索結果の圧縮",
+          "method": "圧縮方法",
+          "method.none": "圧縮しない",
+          "method.builtin": "組み込み",
+          "method.rag": "RAG",
+          "info": {
+            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "まず埋め込みモデルを選択してください",
+            "dimensions_auto_failed": "次元の自動取得に失敗しました",
+            "provider_not_found": "プロバイダーが見つかりません"
+          }
+        }
       },
       "general.auto_check_update.title": "自動更新",
       "general.early_access.title": "早期アクセス",

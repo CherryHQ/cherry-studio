@@ -1,9 +1,12 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addSubscribeSource as _addSubscribeSource,
+  type CompressionConfig,
   removeSubscribeSource as _removeSubscribeSource,
+  setCompressionConfig,
   setDefaultProvider as _setDefaultProvider,
   setSubscribeSources as _setSubscribeSources,
+  updateCompressionConfig,
   updateSubscribeBlacklist as _updateSubscribeBlacklist,
   updateWebSearchProvider,
   updateWebSearchProviders
@@ -88,5 +91,16 @@ export const useBlacklist = () => {
     removeSubscribeSource,
     updateSubscribeBlacklist,
     setSubscribeSources
+  }
+}
+
+export const useWebSearchSettings = () => {
+  const compressionConfig = useAppSelector((state) => state.websearch.compressionConfig)
+  const dispatch = useAppDispatch()
+
+  return {
+    compressionConfig,
+    setCompressionConfig: (config: CompressionConfig) => dispatch(setCompressionConfig(config)),
+    updateCompressionConfig: (config: Partial<CompressionConfig>) => dispatch(updateCompressionConfig(config))
   }
 }

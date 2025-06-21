@@ -1608,6 +1608,16 @@ const migrateConfig = {
       return state
     }
   }
+  // '115': (state: RootState) => {
+  //   try {
+  //     if (state.websearch && !state.websearch.compressionConfig) {
+  //       state.websearch.compressionConfig = websearchInitialState.compressionConfig
+  //     }
+  //     return state
+  //   } catch (error) {
+  //     return state
+  //   }
+  // }
 }
 
 const migrate = createMigrate(migrateConfig as any)

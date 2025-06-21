@@ -775,6 +775,7 @@
       "dimensions": "{{dimensions}} мер",
       "edit": "Редактировать модель",
       "embedding": "Встраиваемые",
+      "embedding_dimensions": "Встраиваемые размерности",
       "embedding_model": "Встраиваемые модели",
       "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
       "function_calling": "Вызов функции",
@@ -1821,7 +1822,27 @@
         "apikey": "API ключ",
         "free": "Бесплатно",
         "content_limit": "Ограничение длины текста",
-        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
+        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан.",
+        "compression": {
+          "document_count": "Количество документов",
+          "document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
+          "document_count.default": "По умолчанию",
+          "embedding_dimensions.auto_get": "Автоматически получить размерности",
+          "embedding_dimensions.placeholder": "Введите размерности",
+          "title": "Сжатие результатов поиска",
+          "method": "Метод сжатия",
+          "method.none": "Не сжимать",
+          "method.builtin": "Встроенное",
+          "method.rag": "RAG",
+          "info": {
+            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
+            "dimensions_auto_failed": "Не удалось получить размерности",
+            "provider_not_found": "Поставщик не найден"
+          }
+        }
       },
       "general.auto_check_update.title": "Автоматическое обновление",
       "general.early_access.title": "Ранний доступ",
