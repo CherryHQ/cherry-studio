@@ -98,22 +98,22 @@ const AboutSettings: FC = () => {
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
   const getVersionType = (version: string) => {
-    if (version.includes('-beta.')) {
+    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
       return UpgradeChannel.BETA
-    } else if (version.includes('-rc.')) {
-      return UpgradeChannel.RC
-    } else {
-      return UpgradeChannel.LATEST
     }
+    if (version.includes(`-${UpgradeChannel.RC}.`)) {
+      return UpgradeChannel.RC
+    }
+    return UpgradeChannel.LATEST
   }
 
   const versionType = getVersionType(version)
 
   const handleUpgradeChannelChange = async (value: UpgradeChannel) => {
     if (value === UpgradeChannel.RC) {
-      window.message.success('切换到公测版本升级通道，相对稳定，请备份数据')
+      window.message.success(t('settings.general.early_access.rc_version_tooltip'))
     } else if (value === UpgradeChannel.BETA) {
-      window.message.success('切换到预览版本升级通道，功能最新但不稳定，谨慎使用')
+      window.message.success(t('settings.general.early_access.beta_version_tooltip'))
     }
     setUpgradeChannel(value)
   }
