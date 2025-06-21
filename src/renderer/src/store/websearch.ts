@@ -8,7 +8,7 @@ export interface SubscribeSource {
 }
 
 export interface CompressionConfig {
-  method: 'none' | 'builtin' | 'rag'
+  method: 'none' | 'rag'
   embeddingModel?: Model
   embeddingDimensions?: number // undefined表示自动获取
   documentCount?: number // 每个搜索结果的文档数量（只是预期值）
