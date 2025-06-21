@@ -90,7 +90,7 @@ export class AnthropicAPIClient extends BaseApiClient<
       return this.sdkInstance
     }
     this.sdkInstance = new Anthropic({
-      apiKey: this.getApiKey(),
+      apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
@@ -367,7 +367,7 @@ export class AnthropicAPIClient extends BaseApiClient<
    * Anthropic专用的原始流监听器
    * 处理MessageStream对象的特定事件
    */
-  override attachRawStreamListener(
+  attachRawStreamListener(
     rawOutput: AnthropicSdkRawOutput,
     listener: RawStreamListener<AnthropicSdkRawChunk>
   ): AnthropicSdkRawOutput {

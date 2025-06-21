@@ -5712,7 +5712,7 @@ __metadata:
     react-hotkeys-hook: "npm:^4.6.1"
     react-i18next: "npm:^14.1.2"
     react-infinite-scroll-component: "npm:^6.1.0"
-    react-markdown: "npm:^9.0.1"
+    react-markdown: "npm:^10.1.0"
     react-redux: "npm:^9.1.2"
     react-router: "npm:6"
     react-router-dom: "npm:6"
@@ -5721,10 +5721,10 @@ __metadata:
     redux: "npm:^5.0.1"
     redux-persist: "npm:^6.0.0"
     rehype-katex: "npm:^7.0.1"
-    rehype-mathjax: "npm:^7.0.0"
+    rehype-mathjax: "npm:^7.1.0"
     rehype-raw: "npm:^7.0.0"
-    remark-cjk-friendly: "npm:^1.1.0"
-    remark-gfm: "npm:^4.0.0"
+    remark-cjk-friendly: "npm:^1.2.0"
+    remark-gfm: "npm:^4.0.1"
     remark-math: "npm:^6.0.0"
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
@@ -12737,9 +12737,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"micromark-extension-cjk-friendly-util@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "micromark-extension-cjk-friendly-util@npm:1.1.0"
+"micromark-extension-cjk-friendly-util@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "micromark-extension-cjk-friendly-util@npm:2.0.0"
   dependencies:
     get-east-asian-width: "npm:^1.3.0"
     micromark-util-character: "npm:^2.0.0"
@@ -12747,16 +12747,16 @@ __metadata:
   peerDependenciesMeta:
     micromark-util-types:
       optional: true
-  checksum: 10c0/3ae1d4fd92f03a6c8e34e314c14a42b35cdd1bcbe043fceb1d2d45cd1a7b364e77643a3ca181910666cb11cc3606a1595fae9a15e87b0a4988fc57d5e4f65f67
+  checksum: 10c0/194c799d88982ebf785e65a1c29cbded17d5dd3510a1769123ec30ddb7e256502b97753f63e8994d91ebafa1e9b96aa2dc2a90aa4e2f2072269b05652a412886
   languageName: node
   linkType: hard
 
-"micromark-extension-cjk-friendly@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "micromark-extension-cjk-friendly@npm:1.1.0"
+"micromark-extension-cjk-friendly@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "micromark-extension-cjk-friendly@npm:1.2.0"
   dependencies:
     devlop: "npm:^1.0.0"
-    micromark-extension-cjk-friendly-util: "npm:^1.1.0"
+    micromark-extension-cjk-friendly-util: "npm:^2.0.0"
     micromark-util-chunked: "npm:^2.0.0"
     micromark-util-resolve-all: "npm:^2.0.0"
     micromark-util-symbol: "npm:^2.0.0"
@@ -12766,7 +12766,7 @@ __metadata:
   peerDependenciesMeta:
     micromark-util-types:
       optional: true
-  checksum: 10c0/95be6d8b4164b9b3b5281d77ed4f9337d95b2041ad4f7a775baa0d7f8ec495818101881eea2c7cc0ee4ee11738716899f20b3fbfbc2e6b80106544065d2ec04d
+  checksum: 10c0/5be1841629310e21c803b64feb00453fb8ac939be80c2ff473d8b4486d8eca973347520912a6e4abeda5bea4ed8ef39d3db48c4bad8285dd380d9ed34417dd0d
   languageName: node
   linkType: hard
 
@@ -15611,9 +15611,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-markdown@npm:^9.0.1":
-  version: 9.1.0
-  resolution: "react-markdown@npm:9.1.0"
+"react-markdown@npm:^10.1.0":
+  version: 10.1.0
+  resolution: "react-markdown@npm:10.1.0"
   dependencies:
     "@types/hast": "npm:^3.0.0"
     "@types/mdast": "npm:^4.0.0"
@@ -15629,7 +15629,7 @@ __metadata:
   peerDependencies:
     "@types/react": ">=18"
     react: ">=18"
-  checksum: 10c0/5bd645d39379f776d64588105f4060c390c3c8e4ff048552c9fa0ad31b756bb3ff7c11081542dc58d840ccf183a6dd4fd4d4edab44d8c24dee8b66551a5fd30d
+  checksum: 10c0/4a5dc7d15ca6d05e9ee95318c1904f83b111a76f7588c44f50f1d54d4c97193b84e4f64c4b592057c989228238a2590306cedd0c4d398e75da49262b2b5ae1bf
   languageName: node
   linkType: hard
 
@@ -15915,7 +15915,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rehype-mathjax@npm:^7.0.0":
+"rehype-mathjax@npm:^7.1.0":
   version: 7.1.0
   resolution: "rehype-mathjax@npm:7.1.0"
   dependencies:
@@ -15942,18 +15942,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-cjk-friendly@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "remark-cjk-friendly@npm:1.1.0"
+"remark-cjk-friendly@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "remark-cjk-friendly@npm:1.2.0"
   dependencies:
-    micromark-extension-cjk-friendly: "npm:^1.1.0"
+    micromark-extension-cjk-friendly: "npm:^1.2.0"
   peerDependencies:
     "@types/mdast": ^4.0.0
     unified: ^11.0.0
   peerDependenciesMeta:
     "@types/mdast":
       optional: true
-  checksum: 10c0/ef43a4c404baaaa3e3d888ea68db8ffa101746faadb96d19d6b7ee8d00f0a025613c2e508527236961b226e41d8fb34f6cc6ac217ae8770fcbf47b9f496ab32a
+  checksum: 10c0/ca7dc4fd50491693c4a84164650b30c3ae027cc7aa11b7a2e3811ab07ad0bf0c73484e37f9aed710bb68f95ca03cc540effe64cbe94bbc055b40e1aa951e2013
   languageName: node
   linkType: hard
 
@@ -15967,7 +15967,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-gfm@npm:^4.0.0":
+"remark-gfm@npm:^4.0.1":
   version: 4.0.1
   resolution: "remark-gfm@npm:4.0.1"
   dependencies:

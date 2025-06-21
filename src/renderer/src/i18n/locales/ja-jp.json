@@ -804,7 +804,19 @@
         "vision": "画像",
         "websearch": "ウェブ検索"
       },
-      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。"
+      "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。",
+      "price": {
+        "cost": "コスト",
+        "currency": "通貨",
+        "custom": "カスタム",
+        "custom_currency": "カスタム通貨",
+        "custom_currency_placeholder": "カスタム通貨を入力してください",
+        "input": "入力価格",
+        "million_tokens": "百万トークン",
+        "output": "出力価格",
+        "price": "価格"
+      },
+      "reasoning": "思考"
     },
     "navbar": {
       "expand": "ダイアログを展開",
@@ -964,17 +976,6 @@
       "per_images": "複数枚あたり",
       "required_field": "必須項目",
       "uploaded_input": "アップロード済みの入力"
-    },
-    "price": {
-      "cost": "コスト",
-      "currency": "通貨",
-      "custom": "カスタム",
-      "custom_currency": "カスタム通貨",
-      "custom_currency_placeholder": "カスタム通貨を入力してください",
-      "input": "入力価格",
-      "million_tokens": "百万トークン",
-      "output": "出力価格",
-      "price": "価格"
     },
     "prompts": {
       "explanation": "この概念を説明してください",
@@ -1160,7 +1161,7 @@
         "markdown_export.select": "選択",
         "markdown_export.title": "Markdown エクスポート",
         "markdown_export.show_model_name.title": "エクスポート時にモデル名を使用",
-        "markdown_export.show_model_name.help": "有効にすると、トピック命名モデルがエクスポートされたメッセージのタイトル作成に使用されます。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
+        "markdown_export.show_model_name.help": "有効にすると、Markdownエクスポート時にモデル名を表示します。注意：この設定はNotion、Yuqueなど、Markdownを通じたすべてのエクスポート方法にも影響します。",
         "markdown_export.show_model_provider.title": "モデルプロバイダーを表示",
         "markdown_export.show_model_provider.help": "Markdownエクスポート時にモデルプロバイダー（例：OpenAI、Geminiなど）を表示します。",
         "minute_interval_one": "{{count}} 分",
@@ -1206,8 +1207,6 @@
           "restore.confirm.content": "WebDAV から復元すると現在のデータが上書きされます。続行しますか？",
           "restore.confirm.title": "復元を確認",
           "restore.content": "WebDAVから復元すると現在のデータが上書きされます。続行しますか？",
-          "restore.modal.select.placeholder": "復元するバックアップファイルを選択してください",
-          "restore.modal.title": "WebDAV から復元",
           "restore.title": "WebDAVから復元",
           "syncError": "バックアップエラー",
           "syncStatus": "バックアップ状態",

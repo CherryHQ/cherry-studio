@@ -14,8 +14,6 @@ export const TransformCoreToSdkParamsMiddleware: CompletionsMiddleware =
   () =>
   (next) =>
   async (ctx: CompletionsContext, params: CompletionsParams): Promise<CompletionsResult> => {
-    Logger.debug(`🔄 [${MIDDLEWARE_NAME}] Starting core to SDK params transformation:`, ctx)
-
     const internal = ctx._internal
 
     // 🔧 检测递归调用：检查 params 中是否携带了预处理的 SDK 消息

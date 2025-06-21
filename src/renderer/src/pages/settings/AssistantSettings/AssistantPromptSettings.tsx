@@ -103,8 +103,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       </HStack>
       <TextAreaContainer>
         {showMarkdown ? (
-          <MarkdownContainer onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown className="markdown">{prompt}</ReactMarkdown>
+          <MarkdownContainer className="markdown" onClick={() => setShowMarkdown(false)}>
+            <ReactMarkdown>{prompt}</ReactMarkdown>
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (

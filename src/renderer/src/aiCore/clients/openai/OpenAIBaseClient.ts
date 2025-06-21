@@ -135,7 +135,7 @@ export abstract class OpenAIBaseClient<
       return this.sdkInstance
     }
 
-    let apiKeyForSdkInstance = this.provider.apiKey
+    let apiKeyForSdkInstance = this.apiKey
 
     if (this.provider.id === 'copilot') {
       const defaultHeaders = store.getState().copilot.defaultHeaders

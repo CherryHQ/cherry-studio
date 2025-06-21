@@ -42,7 +42,8 @@ import { defaultTimeout } from '@shared/config/constant'
 import Logger from 'electron-log/renderer'
 import { isEmpty } from 'lodash'
 
-import { ApiClient, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from './types'
+import { CompletionsContext } from '../middleware/types'
+import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
 
 /**
  * Abstract base class for API clients.
@@ -95,7 +96,7 @@ export abstract class BaseApiClient<
   // 在 CoreRequestToSdkParamsMiddleware中使用
   abstract getRequestTransformer(): RequestTransformer<TSdkParams, TMessageParam>
   // 在RawSdkChunkToGenericChunkMiddleware中使用
-  abstract getResponseChunkTransformer(): ResponseChunkTransformer<TRawChunk>
+  abstract getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<TRawChunk>
 
   /**
    * 工具转换
@@ -128,17 +129,6 @@ export abstract class BaseApiClient<
    * 不同的提供商可能使用不同的字段名（如messages、history等）
    */
   abstract extractMessagesFromSdkPayload(sdkPayload: TSdkParams): TMessageParam[]
-
-  /**
-   * 附加原始流监听器
-   */
-  public attachRawStreamListener<TListener extends RawStreamListener<TRawChunk>>(
-    rawOutput: TRawOutput,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _listener: TListener
-  ): TRawOutput {
-    return rawOutput
-  }
 
   /**
    * 通用函数

@@ -68,12 +68,16 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      exclude: ['pyodide']
+      exclude: ['pyodide'],
+      esbuildOptions: {
+        target: 'esnext' // for dev
+      }
     },
     worker: {
       format: 'es'
     },
     build: {
+      target: 'esnext', // for build
       rollupOptions: {
         input: {
           index: resolve(__dirname, 'src/renderer/index.html'),

@@ -76,7 +76,7 @@ export default class AiProvider {
       if (!(this.apiClient instanceof OpenAIAPIClient)) {
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
-      if (!(this.apiClient instanceof AnthropicAPIClient)) {
+      if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
         builder.remove(RawStreamListenerMiddlewareName)
       }
       if (!params.enableWebSearch) {

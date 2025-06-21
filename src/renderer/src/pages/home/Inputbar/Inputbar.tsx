@@ -13,10 +13,9 @@ import {
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -88,7 +87,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
-  const { isBubbleStyle } = useMessageStyle()
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
@@ -105,7 +103,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
 
@@ -176,20 +173,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (uploadedFiles) {
         baseUserMessage.files = uploadedFiles
       }
-      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
-
-      if (knowledgeBaseIds) {
-        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
-      }
 
       if (mentionModels) {
         baseUserMessage.mentions = mentionModels
-      }
-
-      if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
-          assistant.mcpServers?.some((s) => s.id === server.id)
-        )
       }
 
       const assistantWithTopicPrompt = topic.prompt
@@ -212,19 +198,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [
-    activedMcpServers,
-    assistant,
-    dispatch,
-    files,
-    inputEmpty,
-    loading,
-    mentionModels,
-    resizeTextArea,
-    selectedKnowledgeBases,
-    text,
-    topic
-  ])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionModels, resizeTextArea, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -698,8 +672,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
-
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
     updateAssistant({ ...assistant, knowledge_bases: bases })
     setSelectedKnowledgeBases(bases ?? [])
@@ -811,7 +783,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             contextMenu="true"
             variant="borderless"
             spellCheck={false}
-            rows={textareaRows}
+            rows={2}
             ref={textareaRef}
             style={{
               fontSize,
@@ -958,7 +930,7 @@ const Textarea = styled(TextArea)`
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
-  transition: height 0.2s ease;
+  transition: none !important;
   &.ant-input {
     line-height: 1.4;
   }
