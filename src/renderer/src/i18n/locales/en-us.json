@@ -1852,7 +1852,8 @@
           "error": {
             "embedding_model_required": "Please select an embedding model first",
             "dimensions_auto_failed": "Failed to auto-obtain dimensions",
-            "provider_not_found": "Provider not found"
+            "provider_not_found": "Provider not found",
+            "rag_failed": "RAG failed"
           }
         }
       },

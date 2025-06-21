@@ -1840,7 +1840,8 @@
           "error": {
             "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
             "dimensions_auto_failed": "Не удалось получить размерности",
-            "provider_not_found": "Поставщик не найден"
+            "provider_not_found": "Поставщик не найден",
+            "rag_failed": "RAG не удалось"
           }
         }
       },

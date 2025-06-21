@@ -1843,7 +1843,8 @@
           "error": {
             "embedding_model_required": "請先選擇嵌入模型",
             "dimensions_auto_failed": "維度自動獲取失敗",
-            "provider_not_found": "未找到服務商"
+            "provider_not_found": "未找到服務商",
+            "rag_failed": "RAG 失敗"
           }
         }
       },

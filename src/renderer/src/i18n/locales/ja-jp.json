@@ -1840,7 +1840,8 @@
           "error": {
             "embedding_model_required": "まず埋め込みモデルを選択してください",
             "dimensions_auto_failed": "次元の自動取得に失敗しました",
-            "provider_not_found": "プロバイダーが見つかりません"
+            "provider_not_found": "プロバイダーが見つかりません",
+            "rag_failed": "RAG に失敗しました"
           }
         }
       },
