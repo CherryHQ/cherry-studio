@@ -67,7 +67,7 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
 
     // 根据文件扩展名选择解压方法
     if (packageName.endsWith('.zip')) {
-      // 使用 adm-zip 处理 zip 文件
+      // 使用 adm-zip 处理 window的 zip 文件
       const zip = new StreamZip.async({ file: tempFilename })
       await zip.extract(null, binDir)
       await zip.close()
