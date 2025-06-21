@@ -271,10 +271,11 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       id="messages"
       className="messages-container"
       ref={scrollContainerRef}
-      style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0 }}
+      style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0, flex: 1, minHeight: 0 }}
       key={assistant.id}
       onScroll={handleScrollPosition}>
-      <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
+      <NarrowLayout style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
         <InfiniteScroll
           dataLength={displayMessages.length}
           next={loadMoreMessages}
@@ -299,7 +300,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
             )}
           </ScrollContainer>
         </InfiniteScroll>
-        {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
       {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
@@ -369,7 +369,7 @@ interface ContainerProps {
 
 const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   padding: 10px 0 20px;
   overflow-x: hidden;
   background-color: var(--color-background);
