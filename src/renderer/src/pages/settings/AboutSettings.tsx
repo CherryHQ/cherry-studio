@@ -97,7 +97,7 @@ const AboutSettings: FC = () => {
 
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
-  const getVersionType = (version: string) => {
+  const getVersionChannel = (version: string) => {
     if (version.includes(`-${UpgradeChannel.BETA}.`)) {
       return UpgradeChannel.BETA
     }
@@ -107,7 +107,7 @@ const AboutSettings: FC = () => {
     return UpgradeChannel.LATEST
   }
 
-  const versionType = getVersionType(version)
+  const versionChannel = getVersionChannel(version)
 
   const handleUpgradeChannelChange = async (value: UpgradeChannel) => {
     if (value === UpgradeChannel.RC) {
@@ -116,42 +116,57 @@ const AboutSettings: FC = () => {
       window.message.success(t('settings.general.early_access.beta_version_tooltip'))
     }
     setUpgradeChannel(value)
+
+    // Clear update info when switching upgrade channel
+    dispatch(
+      setUpdateState({
+        available: false,
+        info: null,
+        downloaded: false,
+        checking: false,
+        downloading: false,
+        downloadProgress: 0
+      })
+    )
   }
 
-  // Get available version options based on current version
-  const getAvailableVersions = () => {
-    if (versionType === UpgradeChannel.LATEST) {
-      return [
-        {
-          tooltip: t('settings.general.early_access.rc_version_tooltip'),
-          label: t('settings.general.early_access.rc_version'),
-          value: UpgradeChannel.RC
-        },
-        {
-          tooltip: t('settings.general.early_access.beta_version_tooltip'),
-          label: t('settings.general.early_access.beta_version'),
-          value: UpgradeChannel.BETA
-        }
-      ]
-    } else if (versionType === UpgradeChannel.RC) {
-      return [
-        {
-          tooltip: t('settings.general.early_access.beta_version_tooltip'),
-          label: t('settings.general.early_access.beta_version'),
-          value: UpgradeChannel.BETA
-        }
-      ]
-    } else {
-      return []
-    }
+  // Get available test version options based on current version
+  const getAvailableTestChannels = () => {
+    return [
+      {
+        tooltip: t('settings.general.early_access.rc_version_tooltip'),
+        label: t('settings.general.early_access.rc_version'),
+        value: UpgradeChannel.RC
+      },
+      {
+        tooltip: t('settings.general.early_access.beta_version_tooltip'),
+        label: t('settings.general.early_access.beta_version'),
+        value: UpgradeChannel.BETA
+      }
+    ]
   }
 
   // Get default selected version
-  const getDefaultVersion = () => {
+  const getTestChannel = () => {
     if (upgradeChannel === UpgradeChannel.LATEST) {
       return UpgradeChannel.RC
     }
     return upgradeChannel
+  }
+
+  const handlerSetEarlyAccess = (value: boolean) => {
+    setEarlyAccess(value)
+    dispatch(
+      setUpdateState({
+        available: false,
+        info: null,
+        downloaded: false,
+        checking: false,
+        downloading: false,
+        downloadProgress: 0
+      })
+    )
+    if (value === false) setUpgradeChannel(versionChannel)
   }
 
   useEffect(() => {
@@ -225,10 +240,10 @@ const AboutSettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
               <Tooltip title={t('settings.general.early_access.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
+                <Switch value={earlyAccess} onChange={(v) => handlerSetEarlyAccess(v)} />
               </Tooltip>
             </SettingRow>
-            {earlyAccess && getAvailableVersions().length > 0 && (
+            {earlyAccess && getAvailableTestChannels().length > 0 && (
               <>
                 <SettingDivider />
                 <SettingRow>
@@ -236,9 +251,9 @@ const AboutSettings: FC = () => {
                   <Radio.Group
                     size="small"
                     buttonStyle="solid"
-                    defaultValue={getDefaultVersion()}
+                    value={getTestChannel()}
                     onChange={(e) => handleUpgradeChannelChange(e.target.value)}>
-                    {getAvailableVersions().map((option) => (
+                    {getAvailableTestChannels().map((option) => (
                       <Tooltip key={option.value} title={option.tooltip}>
                         <Radio.Button value={option.value}>{option.label}</Radio.Button>
                       </Tooltip>
