@@ -1,6 +1,6 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
-import { FeedUrl } from '@shared/config/constant'
+import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
@@ -22,9 +22,9 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
-    autoUpdater.setFeedURL(configManager.getFeedUrl())
+    // github and gitcode don't support multiple range download
+    autoUpdater.disableDifferentialDownload = true
 
-    // 检测下载错误
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳
       logger.error('更新异常', {
@@ -64,6 +64,32 @@ export default class AppUpdater {
     this.autoUpdater = autoUpdater
   }
 
+  private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
+    try {
+      const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=10', {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      })
+      const data = (await responses.json()) as GithubReleaseInfo[]
+      const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
+        return item.prerelease && item.tag_name.includes(`-${channel}.`)
+      })
+
+      if (!release) {
+        return null
+      }
+
+      logger.info('release info', release.tag_name)
+      return `https://github.com/CherryHQ/cherry-studio/releases/download/${release.tag_name}`
+    } catch (error) {
+      logger.error('Failed to get latest not draft version from github:', error)
+      return null
+    }
+  }
+
   private async _getIpCountry() {
     try {
       // add timeout using AbortController
@@ -93,9 +119,30 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  public setFeedUrl(feedUrl: FeedUrl) {
-    autoUpdater.setFeedURL(feedUrl)
-    configManager.setFeedUrl(feedUrl)
+  private async _setFeedUrl() {
+    if (configManager.getEnableEarlyAccess()) {
+      const channel = configManager.getUpgradeChannel()
+      const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
+      if (preReleaseUrl) {
+        this.autoUpdater.setFeedURL(preReleaseUrl)
+        this.autoUpdater.channel = channel
+        this.autoUpdater.allowDowngrade = false
+        return true
+      }
+      return false
+    }
+
+    // no early access, use latest version
+    this.autoUpdater.channel = 'latest'
+    this.autoUpdater.allowDowngrade = false
+    this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
+
+    const ipCountry = await this._getIpCountry()
+    logger.info('ipCountry', ipCountry)
+    if (ipCountry.toLowerCase() !== 'cn') {
+      this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
+    }
+    return true
   }
 
   public async checkForUpdates() {
@@ -106,10 +153,12 @@ export default class AppUpdater {
       }
     }
 
-    const ipCountry = await this._getIpCountry()
-    logger.info('ipCountry', ipCountry)
-    if (ipCountry !== 'CN') {
-      this.autoUpdater.setFeedURL(FeedUrl.EARLY_ACCESS)
+    const isSetFeedUrl = await this._setFeedUrl()
+    if (!isSetFeedUrl) {
+      return {
+        currentVersion: app.getVersion(),
+        updateInfo: null
+      }
     }
 
     try {
@@ -178,7 +227,11 @@ export default class AppUpdater {
     return releaseNotes.map((note) => note.note).join('\n')
   }
 }
-
+interface GithubReleaseInfo {
+  draft: boolean
+  prerelease: boolean
+  tag_name: string
+}
 interface ReleaseNoteInfo {
   readonly version: string
   readonly note: string | null
