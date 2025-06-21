@@ -75,9 +75,8 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
       console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
       return true
     } else {
-        // Unix/Linux/macOS 使用 tar 命令
-        execSync(`tar -xzf "${tempFilename}" -C "${binDir}"`, { stdio: 'inherit' })
-      }
+      // Unix/Linux/macOS 使用 tar 命令
+      execSync(`tar -xzf "${tempFilename}" -C "${binDir}"`, { stdio: 'inherit' })
 
       // Move files using Node.js fs
       const sourceDir = path.join(tempdir, packageName.split('.')[0])
