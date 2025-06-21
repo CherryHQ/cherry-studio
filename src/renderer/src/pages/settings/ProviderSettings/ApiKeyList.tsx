@@ -359,6 +359,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                               cursor: isChecking || isCheckingSingle || isCopilot ? 'not-allowed' : 'pointer',
                               opacity: isChecking || isCheckingSingle || isCopilot ? 0.5 : 1
                             }}
+                            title={t('common.delete')}
                           />
                         </ApiKeyActions>
                       </ApiKeyListItem>
@@ -381,14 +382,8 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                     type="password"
                   />
                   <ApiKeyActions>
-                    <CheckCircleOutlined
-                      style={{ fontSize: '20px', cursor: 'pointer', color: '#52c41a' }}
-                      onClick={handleSaveNewKey}
-                    />
-                    <CloseCircleOutlined
-                      style={{ fontSize: '20px', cursor: 'pointer', color: '#ff4d4f' }}
-                      onClick={handleCancelNewKey}
-                    />
+                    <SaveButton onClick={handleSaveNewKey} title={t('common.save')} />
+                    <CancelButton onClick={handleCancelNewKey} title={t('common.cancel')} />
                   </ApiKeyActions>
                 </ApiKeyListItem>
               </List.Item>
@@ -491,6 +486,26 @@ const RemoveButton = styled(MinusCircleOutlined)`
   justify-content: center;
   font-size: 18px;
   color: var(--color-error);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+`
+
+const SaveButton = styled(CheckCircleOutlined)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: ${STATUS_COLORS.success};
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+`
+
+const CancelButton = styled(CloseCircleOutlined)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: ${STATUS_COLORS.error};
   cursor: pointer;
   transition: all 0.2s ease-in-out;
 `
