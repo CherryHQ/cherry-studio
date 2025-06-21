@@ -5,7 +5,6 @@ import {
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setEarlyAccess as _setEarlyAccess,
-  setUpgradeChannel as _setUpgradeChannel,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -18,6 +17,7 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
+  setUpgradeChannel as _setUpgradeChannel,
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
