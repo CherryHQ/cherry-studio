@@ -8,6 +8,20 @@ import { FileType, FileTypes } from '@types'
 import { app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
+export function initAppDataDir() {
+  const appDataPath = getAppDataPathFromConfig()
+  if (appDataPath) {
+    app.setPath('userData', appDataPath)
+    return
+  }
+
+  if (isPortable) {
+    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
+    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
+    return
+  }
+}
+
 // 创建文件类型映射表，提高查找效率
 const fileTypeMap = new Map<string, FileTypes>()
 
@@ -35,46 +49,70 @@ export function hasWritePermission(path: string) {
 function getAppDataPathFromConfig() {
   try {
     const configPath = path.join(getConfigDir(), 'config.json')
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-      if (config.appDataPath && fs.existsSync(config.appDataPath) && hasWritePermission(config.appDataPath)) {
-        return config.appDataPath
-      }
+    if (!fs.existsSync(configPath)) {
+      return null
     }
+
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+
+    if (!config.appDataPath) {
+      return null
+    }
+
+    let appDataPath = null
+    // 兼容旧版本
+    if (config.appDataPath && typeof config.appDataPath === 'string') {
+      appDataPath = config.appDataPath
+      // 将旧版本数据迁移到新版本
+      appDataPath && updateAppDataConfig(appDataPath)
+    } else {
+      appDataPath = config.appDataPath.find(
+        (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+      )?.dataPath
+    }
+
+    if (appDataPath && fs.existsSync(appDataPath) && hasWritePermission(appDataPath)) {
+      return appDataPath
+    }
+
+    return null
   } catch (error) {
     return null
   }
-  return null
 }
 
-export function initAppDataDir() {
-  const appDataPath = getAppDataPathFromConfig()
-  if (appDataPath) {
-    app.setPath('userData', appDataPath)
-    return
-  }
-
-  if (isPortable) {
-    const portableDir = process.env.PORTABLE_EXECUTABLE_DIR
-    app.setPath('userData', path.join(portableDir || app.getPath('exe'), 'data'))
-    return
-  }
-}
-
-export function updateConfig(appDataPath: string) {
+export function updateAppDataConfig(appDataPath: string) {
   const configDir = getConfigDir()
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true })
   }
 
+  // config.json
+  // appDataPath: [{ executablePath: string, dataPath: string }]
   const configPath = path.join(getConfigDir(), 'config.json')
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify({ appDataPath }, null, 2))
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ appDataPath: [{ executablePath: app.getPath('exe'), dataPath: appDataPath }] }, null, 2)
+    )
     return
   }
 
   const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
-  config.appDataPath = appDataPath
+  if (!config.appDataPath || (config.appDataPath && typeof config.appDataPath !== 'object')) {
+    config.appDataPath = []
+  }
+
+  const existingPath = config.appDataPath.find(
+    (item: { executablePath: string }) => item.executablePath === app.getPath('exe')
+  )
+
+  if (existingPath) {
+    existingPath.dataPath = appDataPath
+  } else {
+    config.appDataPath.push({ executablePath: app.getPath('exe'), dataPath: appDataPath })
+  }
+
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
 }
 

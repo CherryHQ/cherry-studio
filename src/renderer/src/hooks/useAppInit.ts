@@ -30,6 +30,14 @@ export function useAppInit() {
     console.timeEnd('init')
   }, [])
 
+  useEffect(() => {
+    window.api.getDataPathFromArgs().then((dataPath) => {
+      if (dataPath) {
+        window.navigate('/settings/data', { replace: true })
+      }
+    })
+  }, [])
+
   useUpdateHandler()
   useFullScreenNotice()
 
