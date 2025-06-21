@@ -76,7 +76,7 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
       return true
     } else {
       // Unix/Linux/macOS 使用 tar 命令
-      execSync(`tar -xzf "${tempFilename}" -C "${binDir}"`, { stdio: 'inherit' })
+      execSync(`tar -xzf "${tempFilename}" -C "${binDir}" --strip-components=1`, { stdio: 'inherit' })
       // Clean up
       fs.unlinkSync(tempFilename)
     }
