@@ -10,6 +10,7 @@ import { createContext, type PropsWithChildren, use, useCallback, useEffect, use
 
 interface CodeStyleContextType {
   highlightCodeChunk: (trunk: string, language: string, callerId: string) => Promise<HighlightChunkResult>
+  highlightStreamingCode: (code: string, language: string, callerId: string) => Promise<HighlightChunkResult>
   cleanupTokenizers: (callerId: string) => void
   getShikiPreProperties: (language: string) => Promise<ShikiPreProperties>
   highlightCode: (code: string, language: string) => Promise<string>
@@ -22,6 +23,7 @@ interface CodeStyleContextType {
 
 const defaultCodeStyleContext: CodeStyleContextType = {
   highlightCodeChunk: async () => ({ lines: [], recall: 0 }),
+  highlightStreamingCode: async () => ({ lines: [], recall: 0 }),
   cleanupTokenizers: () => {},
   getShikiPreProperties: async () => ({ class: '', style: '', tabindex: 0 }),
   highlightCode: async () => '',
@@ -114,6 +116,15 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     shikiStreamService.cleanupTokenizers(callerId)
   }, [])
 
+  // 高亮流式输出的代码
+  const highlightStreamingCode = useCallback(
+    async (fullContent: string, language: string, callerId: string) => {
+      const normalizedLang = languageMap[language as keyof typeof languageMap] || language.toLowerCase()
+      return shikiStreamService.highlightStreamingCode(fullContent, normalizedLang, activeShikiTheme, callerId)
+    },
+    [activeShikiTheme, languageMap]
+  )
+
   // 获取 Shiki pre 标签属性
   const getShikiPreProperties = useCallback(
     async (language: string) => {
@@ -148,6 +159,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   const contextValue = useMemo(
     () => ({
       highlightCodeChunk,
+      highlightStreamingCode,
       cleanupTokenizers,
       getShikiPreProperties,
       highlightCode,
@@ -159,6 +171,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     }),
     [
       highlightCodeChunk,
+      highlightStreamingCode,
       cleanupTokenizers,
       getShikiPreProperties,
       highlightCode,
