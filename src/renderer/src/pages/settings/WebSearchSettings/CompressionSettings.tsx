@@ -1,5 +1,5 @@
 import AiProvider from '@renderer/aiCore'
-import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
+import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
@@ -75,13 +75,12 @@ const CompressionSettings = () => {
 
   const compressionMethodOptions = [
     { value: 'none', label: t('settings.websearch.compression.method.none') },
-    { value: 'builtin', label: t('settings.websearch.compression.method.builtin') },
     { value: 'rag', label: t('settings.websearch.compression.method.rag') }
   ]
 
   const isRagMethod = compressionConfig?.method === 'rag'
 
-  const handleCompressionMethodChange = (method: 'none' | 'builtin' | 'rag') => {
+  const handleCompressionMethodChange = (method: 'none' | 'rag') => {
     updateCompressionConfig({ method })
   }
 
@@ -159,6 +158,7 @@ const CompressionSettings = () => {
           disabled={!isRagMethod}
           onChange={handleEmbeddingModelChange}
           allowClear={false}
+          showSearch
         />
       </SettingRow>
       <SettingDivider />
@@ -196,6 +196,7 @@ const CompressionSettings = () => {
           disabled={!isRagMethod}
           onChange={handleRerankModelChange}
           allowClear
+          showSearch
         />
       </SettingRow>
       <SettingDivider />
@@ -209,7 +210,7 @@ const CompressionSettings = () => {
         </SettingRowTitle>
         <div style={{ width: INPUT_BOX_WIDTH }}>
           <Slider
-            value={compressionConfig?.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
+            value={compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
             min={1}
             max={30}
             step={1}
@@ -217,7 +218,8 @@ const CompressionSettings = () => {
             onChange={handleDocumentCountChange}
             marks={{
               1: '1',
-              6: t('settings.websearch.compression.document_count.default'),
+              3: t('settings.websearch.compression.document_count.default'),
+              15: '15',
               30: '30'
             }}
           />

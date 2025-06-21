@@ -1,3 +1,4 @@
+import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
@@ -218,8 +219,8 @@ class WebSearchService {
       throw new Error('Embedding model and dimensions are required for RAG compression')
     }
 
-    // 根据搜索次数计算所需的文档数量（默认为 3，取小一点）
-    const documentCount = Math.max(0, searchCount) * (config.documentCount ?? 3)
+    // 根据搜索次数计算所需的文档数量
+    const documentCount = Math.max(0, searchCount) * (config.documentCount ?? DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT)
 
     // 创建新的知识库
     state.searchBase = {
