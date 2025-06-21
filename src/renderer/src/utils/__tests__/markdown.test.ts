@@ -9,6 +9,7 @@ import {
   getCodeBlockId,
   getExtensionByLanguage,
   markdownToPlainText,
+  processLatexBrackets,
   removeTrailingDoubleSpaces,
   updateCodeBlock
 } from '../markdown'
@@ -459,6 +460,200 @@ describe('markdown', () => {
 
     it('should keep plain text unchanged', () => {
       expect(markdownToPlainText('This is plain text.')).toBe('This is plain text.')
+    })
+  })
+
+  describe('processLatexBrackets', () => {
+    describe('basic LaTeX conversion', () => {
+      it('should convert display math \\[...\\] to $$...$$', () => {
+        expect(processLatexBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is $$a+b=c$$')
+      })
+
+      it('should convert inline math \\(...\\) to $...$', () => {
+        expect(processLatexBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
+      })
+    })
+
+    describe('code block protection', () => {
+      it('should not affect multi-line code blocks', () => {
+        const input = 'Text ```const arr = \\[1, 2, 3\\]\\nconst func = \\(x\\) => x``` more text'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should not affect inline code', () => {
+        const input = 'This is text with `const x = \\[1, 2, 3\\]` inline code'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should handle mixed code and LaTeX', () => {
+        const input = 'Math: \\[x + y\\] and code: `arr = \\[1, 2\\]` and more math: \\(z\\)'
+        const expected = 'Math: $$x + y$$ and code: `arr = \\[1, 2\\]` and more math: $z$'
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should protect complex code blocks', () => {
+        for (const [input, expected] of new Map([
+          [
+            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```',
+            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```'
+          ],
+          ['`\\[escaped brackets\\]`', '`\\[escaped brackets\\]`'],
+          [
+            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```',
+            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```'
+          ]
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('link protection', () => {
+      it('should not affect LaTeX in link text', () => {
+        const input = '[\\[pdf\\] Document](https://example.com/doc.pdf)'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should not affect LaTeX in link URLs', () => {
+        const input = '[Click here](https://example.com/path\\[with\\]brackets)'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should handle mixed links and LaTeX', () => {
+        const input = 'See [\\[pdf\\] file](url) for formula \\[x + y = z\\]'
+        const expected = 'See [\\[pdf\\] file](url) for formula $$x + y = z$$'
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should protect complex link patterns', () => {
+        for (const [input, expected] of new Map([
+          ['[Title with \\(math\\)](https://example.com)', '[Title with \\(math\\)](https://example.com)'],
+          ['[Link](https://example.com/\\[path\\]/file)', '[Link](https://example.com/\\[path\\]/file)'],
+          [
+            '[\\[Section 1\\] Overview](url) and \\[math formula\\]',
+            '[\\[Section 1\\] Overview](url) and $$math formula$$'
+          ]
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should handle empty string', () => {
+        expect(processLatexBrackets('')).toBe('')
+      })
+
+      it('should handle content without LaTeX', () => {
+        for (const [input, expected] of new Map([
+          ['Regular text without math', 'Regular text without math'],
+          ['Text with [regular] brackets', 'Text with [regular] brackets'],
+          ['Text with (parentheses)', 'Text with (parentheses)'],
+          ['No special characters here', 'No special characters here']
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+
+      it('should handle malformed LaTeX patterns', () => {
+        for (const [input, expected] of new Map([
+          ['\\[unclosed bracket', '\\[unclosed bracket'],
+          ['unopened bracket\\]', 'unopened bracket\\]'],
+          ['\\(unclosed paren', '\\(unclosed paren'],
+          ['unopened paren\\)', 'unopened paren\\)'],
+          ['\\[\\]', '$$$$'], // Empty LaTeX block
+          ['\\(\\)', '$$'] // Empty LaTeX inline
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+
+      it('should handle nested brackets', () => {
+        for (const [input, expected] of new Map([
+          ['\\[outer \\[inner\\] formula\\]', '$$outer \\[inner\\] formula$$'],
+          ['\\(a + \\(b + c\\)\\)', '$a + \\(b + c\\)$']
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('complex cases', () => {
+      it('should handle complex mixed content', () => {
+        const complexInput = `
+# Mathematical Document
+
+Here's a simple formula \\(E = mc^2\\) in text.
+
+## Section 1: Equations
+
+The quadratic formula is \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\].
+
+- Item 1: See formula \\(\\alpha + \\beta = \\gamma\\) in this list
+- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
+  - Subitem 2.1: Basic concepts and definitions
+  - Subitem 2.2: The Cauchy-Riemann equations \\[\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}\\]
+  - Subitem 2.3: Green's theorem connects line integrals and double integrals
+  \\[
+  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
+  \\]
+  - Subitem 2.4: Applications in engineering and physics
+- Item 3: The sum \\[\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}\\] is famous
+
+\`\`\`javascript
+// Code should not be affected
+const matrix = \\[
+  \\[1, 2\\],
+  \\[3, 4\\]
+\\];
+const func = \\(x\\) => x * 2;
+\`\`\`
+
+Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
+
+Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) and display math:
+
+\\[\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\\]
+`
+
+        const expectedOutput = `
+# Mathematical Document
+
+Here's a simple formula $E = mc^2$ in text.
+
+## Section 1: Equations
+
+The quadratic formula is $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
+
+- Item 1: See formula $\\alpha + \\beta = \\gamma$ in this list
+- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
+  - Subitem 2.1: Basic concepts and definitions
+  - Subitem 2.2: The Cauchy-Riemann equations $$\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}$$
+  - Subitem 2.3: Green's theorem connects line integrals and double integrals
+  $$
+  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
+  $$
+  - Subitem 2.4: Applications in engineering and physics
+- Item 3: The sum $$\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}$$ is famous
+
+\`\`\`javascript
+// Code should not be affected
+const matrix = \\[
+  \\[1, 2\\],
+  \\[3, 4\\]
+\\];
+const func = \\(x\\) => x * 2;
+\`\`\`
+
+Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
+
+Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ and display math:
+
+$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+`
+
+        expect(processLatexBrackets(complexInput)).toBe(expectedOutput)
+      })
     })
   })
 })
