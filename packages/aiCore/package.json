@@ -1,0 +1,123 @@
+{
+  "name": "@cherrystudio/ai-core",
+  "version": "1.0.0",
+  "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "ai",
+    "sdk",
+    "openai",
+    "anthropic",
+    "google",
+    "cherry-studio",
+    "vercel-ai-sdk"
+  ],
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/amazon-bedrock": "^2.2.10",
+    "@ai-sdk/anthropic": "^1.2.12",
+    "@ai-sdk/azure": "^1.3.23",
+    "@ai-sdk/cerebras": "^0.2.14",
+    "@ai-sdk/cohere": "^1.2.10",
+    "@ai-sdk/deepinfra": "^0.2.15",
+    "@ai-sdk/deepseek": "^0.2.14",
+    "@ai-sdk/fal": "^0.1.12",
+    "@ai-sdk/fireworks": "^0.2.14",
+    "@ai-sdk/google": "^1.2.19",
+    "@ai-sdk/google-vertex": "^2.2.24",
+    "@ai-sdk/groq": "^1.2.9",
+    "@ai-sdk/mistral": "^1.2.8",
+    "@ai-sdk/openai": "^1.3.22",
+    "@ai-sdk/openai-compatible": "^0.2.14",
+    "@ai-sdk/perplexity": "^1.1.9",
+    "@ai-sdk/replicate": "^0.2.8",
+    "@ai-sdk/togetherai": "^0.2.14",
+    "@ai-sdk/vercel": "^0.0.1",
+    "@ai-sdk/xai": "^1.2.16",
+    "@openrouter/ai-sdk-provider": "^0.1.0",
+    "ai": "^4.3.16",
+    "anthropic-vertex-ai": "^1.0.2",
+    "ollama-ai-provider": "^1.2.0",
+    "qwen-ai-provider": "^0.1.0",
+    "zhipu-ai-provider": "^0.1.1"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/amazon-bedrock": {
+      "optional": true
+    },
+    "@ai-sdk/anthropic": {
+      "optional": true
+    },
+    "@ai-sdk/azure": {
+      "optional": true
+    },
+    "@ai-sdk/cerebras": {
+      "optional": true
+    },
+    "@ai-sdk/cohere": {
+      "optional": true
+    },
+    "@ai-sdk/deepinfra": {
+      "optional": true
+    },
+    "@ai-sdk/deepseek": {
+      "optional": true
+    },
+    "@ai-sdk/fal": {
+      "optional": true
+    },
+    "@ai-sdk/fireworks": {
+      "optional": true
+    },
+    "@ai-sdk/google": {
+      "optional": true
+    },
+    "@ai-sdk/google-vertex": {
+      "optional": true
+    },
+    "@ai-sdk/groq": {
+      "optional": true
+    },
+    "@ai-sdk/mistral": {
+      "optional": true
+    },
+    "@ai-sdk/openai": {
+      "optional": true
+    },
+    "@ai-sdk/perplexity": {
+      "optional": true
+    },
+    "@ai-sdk/replicate": {
+      "optional": true
+    },
+    "@ai-sdk/together": {
+      "optional": true
+    },
+    "@ai-sdk/vercel": {
+      "optional": true
+    },
+    "@ai-sdk/xai": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "require": "./src/index.ts"
+    }
+  }
+}

@@ -146,7 +146,7 @@ export type User = {
   email: string
 }
 
-export type Provider = {
+export interface BaseProvider {
   id: string
   type: ProviderType
   name: string
@@ -161,6 +161,18 @@ export type Provider = {
   isNotSupportArrayContent?: boolean
   isVertex?: boolean
   notes?: string
+}
+
+export type Provider = BaseProvider
+
+export interface VertexProvider extends BaseProvider {
+  type: 'vertexai'
+  googleCredentials: {
+    clientEmail: string
+    privateKey: string
+  }
+  project: string
+  location: string
 }
 
 export type ProviderType =

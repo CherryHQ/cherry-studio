@@ -71,8 +71,11 @@ export function getErrorMessage(error: any): string {
 }
 
 export const isAbortError = (error: any): boolean => {
+  // Convert message to string for consistent checking
+  const errorMessage = String(error?.message || '')
+
   // 检查错误消息
-  if (error?.message === 'Request was aborted.') {
+  if (errorMessage === 'Request was aborted.') {
     return true
   }
 
@@ -85,7 +88,8 @@ export const isAbortError = (error: any): boolean => {
   if (
     error &&
     typeof error === 'object' &&
-    (error.message === 'Request was aborted.' || error?.message?.includes('signal is aborted without reason'))
+    errorMessage &&
+    (errorMessage === 'Request was aborted.' || errorMessage.includes('signal is aborted without reason'))
   ) {
     return true
   }

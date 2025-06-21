@@ -1,0 +1,26 @@
+diff --git a/edge/dist/index.js b/edge/dist/index.js
+index 87cb4e77c6e02c9cc16082f47d9a80878bea1006..8061d52940bfef4f4815051fd09bb700cf0034c7 100644
+--- a/edge/dist/index.js
++++ b/edge/dist/index.js
+@@ -248,7 +248,7 @@ function createVertex(options = {}) {
+     var _a;
+     const region = loadVertexLocation();
+     const project = loadVertexProject();
+-    return (_a = (0, import_provider_utils4.withoutTrailingSlash)(options.baseURL)) != null ? _a : `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google`;
++    return (_a = (0, import_provider_utils4.withoutTrailingSlash)(options.baseURL)) != null ? _a : region === "global" ? `https://aiplatform.googleapis.com/v1/projects/${project}/locations/global/publishers/google` : `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google`;
+   };
+   const createConfig = (name) => {
+     var _a;
+diff --git a/edge/dist/index.mjs b/edge/dist/index.mjs
+index bd4ed39abe78fae60673607ab46241cc29dfa0a2..2e6f36d3668635d93b17660eda18f89972b4ccfd 100644
+--- a/edge/dist/index.mjs
++++ b/edge/dist/index.mjs
+@@ -238,7 +238,7 @@ function createVertex(options = {}) {
+     var _a;
+     const region = loadVertexLocation();
+     const project = loadVertexProject();
+-    return (_a = withoutTrailingSlash(options.baseURL)) != null ? _a : `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google`;
++    return (_a = withoutTrailingSlash(options.baseURL)) != null ? _a : region === "global" ? `https://aiplatform.googleapis.com/v1/projects/${project}/locations/global/publishers/google` : `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google`;
+   };
+   const createConfig = (name) => {
+     var _a;
