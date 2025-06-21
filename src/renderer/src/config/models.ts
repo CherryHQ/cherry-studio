@@ -184,7 +184,7 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-1.6-seed(?:-[\\w-]+)'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)'
 ]
 
 const visionExcludedModels = [
@@ -238,7 +238,8 @@ export const FUNCTION_CALLING_MODELS = [
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
-  'grok-3(?:-[\\w-]+)?'
+  'grok-3(?:-[\\w-]+)?',
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -2288,6 +2289,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',
@@ -2307,21 +2310,7 @@ export const GENERATE_IMAGE_MODELS = [
   ...SUPPORTED_DISABLE_GENERATION_MODELS
 ]
 
-export const GEMINI_SEARCH_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash-001',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.0-pro-exp',
-  'gemini-2.5-pro-exp',
-  'gemini-2.5-pro-exp-03-25',
-  'gemini-2.5-pro-preview',
-  'gemini-2.5-pro-preview-03-25',
-  'gemini-2.5-pro-preview-05-06',
-  'gemini-2.5-flash-preview',
-  'gemini-2.5-flash-preview-04-17'
-]
+export const GEMINI_SEARCH_REGEX = new RegExp('gemini-2\\..*', 'i')
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
@@ -2365,7 +2354,7 @@ export function isVisionModel(model: Model): boolean {
   // }
 
   if (model.provider === 'doubao') {
-    return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false
+    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
@@ -2654,13 +2643,13 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider?.type === 'openai') {
-    if (GEMINI_SEARCH_MODELS.includes(baseName) || isOpenAIWebSearchModel(model)) {
+    if (GEMINI_SEARCH_REGEX.test(baseName) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
-    return GEMINI_SEARCH_MODELS.includes(baseName)
+    return GEMINI_SEARCH_REGEX.test(baseName)
   }
 
   if (provider.id === 'hunyuan') {
@@ -2699,7 +2688,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  return isOpenAIWebSearchModel(model) || model.id.includes('sonar')
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || model.id.includes('sonar')
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2731,7 +2720,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(model.id)
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
@@ -2837,6 +2826,7 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
+  'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 

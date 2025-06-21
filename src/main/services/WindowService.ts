@@ -56,7 +56,7 @@ export class WindowService {
       minHeight: 600,
       show: false,
       autoHideMenuBar: true,
-      transparent: isMac,
+      transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
       titleBarStyle: 'hidden',

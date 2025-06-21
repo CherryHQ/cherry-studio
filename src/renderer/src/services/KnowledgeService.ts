@@ -101,7 +101,7 @@ export const searchKnowledgeBase = async (
 
     // 执行搜索
     const searchResults = await window.api.knowledgeBase.search({
-      search: query,
+      search: rewrite || query,
       base: baseParams
     })
 

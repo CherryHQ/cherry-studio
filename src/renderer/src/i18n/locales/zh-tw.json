@@ -183,7 +183,7 @@
       "input.new.context": "清除上下文 {{Command}}",
       "input.new_topic": "新話題 {{Command}}",
       "input.pause": "暫停",
-      "input.placeholder": "在此輸入您的訊息...",
+      "input.placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
       "input.send": "傳送",
       "input.settings": "設定",
       "input.topics": " 話題 ",
@@ -752,10 +752,11 @@
       },
       "footer": {
         "copy_last_message": "按 C 鍵複製",
+        "backspace_clear": "按 Backspace 清空",
         "esc": "按 ESC {{action}}",
         "esc_back": "返回",
         "esc_close": "關閉視窗",
-        "backspace_clear": "按 Backspace 清空"
+        "esc_pause": "暫停"
       },
       "input": {
         "placeholder": {
@@ -803,7 +804,19 @@
         "vision": "視覺",
         "websearch": "網路搜尋"
       },
-      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）"
+      "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）",
+      "price": {
+        "cost": "花費",
+        "currency": "幣種",
+        "custom": "自訂",
+        "custom_currency": "自訂幣種",
+        "custom_currency_placeholder": "請輸入自訂幣種",
+        "input": "輸入價格",
+        "million_tokens": "M Tokens",
+        "output": "輸出價格",
+        "price": "價格"
+      },
+      "reasoning": "推理"
     },
     "navbar": {
       "expand": "伸縮對話框",
@@ -1071,7 +1084,25 @@
       "assistant.icon.type.none": "不顯示",
       "assistant.title": "預設助手",
       "data": {
-        "app_data": "應用程式資料",
+        "app_data": "應用數據",
+        "app_data.select": "修改目錄",
+        "app_data.select_title": "變更應用數據目錄",
+        "app_data.restart_notice": "變更數據目錄後需要重啟應用才能生效",
+        "app_data.copy_data_option": "複製數據, 開啟後會將原始目錄數據複製到新目錄",
+        "app_data.copy_time_notice": "複製數據將需要一些時間，複製期間不要關閉應用",
+        "app_data.path_changed_without_copy": "路徑已變更成功，但數據未複製",
+        "app_data.copying_warning": "數據複製中，不要強制退出應用",
+        "app_data.copying": "正在複製數據到新位置...",
+        "app_data.copy_success": "成功複製數據到新位置",
+        "app_data.copy_failed": "複製數據失敗",
+        "app_data.select_success": "數據目錄已變更，應用將重啟以應用變更",
+        "app_data.select_error": "變更數據目錄失敗",
+        "app_data.migration_title": "數據遷移",
+        "app_data.original_path": "原始路徑",
+        "app_data.new_path": "新路徑",
+        "app_data.select_error_root_path": "新路徑不能是根路徑",
+        "app_data.select_error_write_permission": "新路徑沒有寫入權限",
+        "app_data.stop_quit_app_reason": "應用目前正在遷移數據，不能退出",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",
@@ -1132,7 +1163,7 @@
         "markdown_export.select": "選擇",
         "markdown_export.title": "Markdown 匯出",
         "markdown_export.show_model_name.title": "匯出時使用模型名稱",
-        "markdown_export.show_model_name.help": "啟用後，將以主題命名模型為匯出的訊息建立標題。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
+        "markdown_export.show_model_name.help": "啟用後，匯出Markdown時會顯示模型名稱。注意：該項也會影響所有透過Markdown匯出的方式，如Notion、語雀等。",
         "markdown_export.show_model_provider.title": "顯示模型供應商",
         "markdown_export.show_model_provider.help": "在匯出Markdown時顯示模型供應商，如OpenAI、Gemini等",
         "minute_interval_one": "{{count}} 分鐘",
@@ -1196,8 +1227,6 @@
           "restore.confirm.content": "從 WebDAV 恢復將覆蓋目前資料，是否繼續？",
           "restore.confirm.title": "復元確認",
           "restore.content": "從 WebDAV 恢復將覆蓋目前資料，是否繼續？",
-          "restore.modal.select.placeholder": "請選擇要恢復的備份文件",
-          "restore.modal.title": "從 WebDAV 恢復",
           "restore.title": "從 WebDAV 恢復",
           "syncError": "備份錯誤",
           "syncStatus": "備份狀態",
@@ -1888,7 +1917,8 @@
         "model_desc": "翻譯服務使用的模型",
         "bidirectional": "雙向翻譯設定",
         "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
-        "scroll_sync": "滾動同步設定"
+        "scroll_sync": "滾動同步設定",
+        "preview": "Markdown 預覽"
       },
       "title": "翻譯",
       "tooltip.newline": "換行",
