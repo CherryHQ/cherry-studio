@@ -5,6 +5,7 @@ import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
+import { UpgradeChannel } from '@shared/config/constant'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
 import log from 'electron-log'
@@ -116,6 +117,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_SetEnableEarlyAccess, async (_, isActive: boolean) => {
     configManager.setEnableEarlyAccess(isActive)
+  })
+
+  ipcMain.handle(IpcChannel.App_SetUpgradeChannel, async (_, channel: UpgradeChannel) => {
+    configManager.setUpgradeChannel(channel)
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {

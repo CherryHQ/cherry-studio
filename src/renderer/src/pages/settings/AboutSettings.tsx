@@ -10,7 +10,8 @@ import { useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { compareVersions, runAsyncFunction } from '@renderer/utils'
-import { Avatar, Button, Progress, Row, Switch, Tag, Tooltip } from 'antd'
+import { UpgradeChannel } from '@shared/config/constant'
+import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -25,7 +26,8 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess } = useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess, upgradeChannel, setUpgradeChannel } =
+    useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -94,6 +96,63 @@ const AboutSettings: FC = () => {
   }
 
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
+
+  const getVersionType = (version: string) => {
+    if (version.includes('-beta.')) {
+      return UpgradeChannel.BETA
+    } else if (version.includes('-rc.')) {
+      return UpgradeChannel.RC
+    } else {
+      return UpgradeChannel.LATEST
+    }
+  }
+
+  const versionType = getVersionType(version)
+
+  const handleUpgradeChannelChange = async (value: UpgradeChannel) => {
+    if (value === UpgradeChannel.RC) {
+      window.message.success('切换到公测版本升级通道，相对稳定，请备份数据')
+    } else if (value === UpgradeChannel.BETA) {
+      window.message.success('切换到预览版本升级通道，功能最新但不稳定，谨慎使用')
+    }
+    setUpgradeChannel(value)
+  }
+
+  // Get available version options based on current version
+  const getAvailableVersions = () => {
+    if (versionType === UpgradeChannel.LATEST) {
+      return [
+        {
+          tooltip: t('settings.general.early_access.rc_version_tooltip'),
+          label: t('settings.general.early_access.rc_version'),
+          value: UpgradeChannel.RC
+        },
+        {
+          tooltip: t('settings.general.early_access.beta_version_tooltip'),
+          label: t('settings.general.early_access.beta_version'),
+          value: UpgradeChannel.BETA
+        }
+      ]
+    } else if (versionType === UpgradeChannel.RC) {
+      return [
+        {
+          tooltip: t('settings.general.early_access.beta_version_tooltip'),
+          label: t('settings.general.early_access.beta_version'),
+          value: UpgradeChannel.BETA
+        }
+      ]
+    } else {
+      return []
+    }
+  }
+
+  // Get default selected version
+  const getDefaultVersion = () => {
+    if (upgradeChannel === UpgradeChannel.LATEST) {
+      return UpgradeChannel.RC
+    }
+    return upgradeChannel
+  }
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -169,6 +228,25 @@ const AboutSettings: FC = () => {
                 <Switch value={earlyAccess} onChange={(v) => setEarlyAccess(v)} />
               </Tooltip>
             </SettingRow>
+            {earlyAccess && getAvailableVersions().length > 0 && (
+              <>
+                <SettingDivider />
+                <SettingRow>
+                  <SettingRowTitle>{t('settings.general.early_access.version_options')}</SettingRowTitle>
+                  <Radio.Group
+                    size="small"
+                    buttonStyle="solid"
+                    defaultValue={getDefaultVersion()}
+                    onChange={(e) => handleUpgradeChannelChange(e.target.value)}>
+                    {getAvailableVersions().map((option) => (
+                      <Tooltip key={option.value} title={option.tooltip}>
+                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                      </Tooltip>
+                    ))}
+                  </Radio.Group>
+                </SettingRow>
+              </>
+            )}
           </>
         )}
       </SettingGroup>

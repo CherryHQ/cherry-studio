@@ -1,4 +1,4 @@
-import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
@@ -17,6 +17,7 @@ export enum ConfigKeys {
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
   EnableEarlyAccess = 'enableEarlyAccess',
+  UpgradeChannel = 'upgradeChannel',
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
@@ -148,6 +149,14 @@ export class ConfigManager {
 
   setEnableEarlyAccess(value: boolean) {
     this.set(ConfigKeys.EnableEarlyAccess, value)
+  }
+
+  getUpgradeChannel(): UpgradeChannel {
+    return this.get<UpgradeChannel>(ConfigKeys.UpgradeChannel, UpgradeChannel.LATEST)
+  }
+
+  setUpgradeChannel(value: UpgradeChannel) {
+    this.set(ConfigKeys.UpgradeChannel, value)
   }
 
   getEnableDataCollection(): boolean {

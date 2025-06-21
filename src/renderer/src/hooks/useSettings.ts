@@ -5,6 +5,7 @@ import {
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setEarlyAccess as _setEarlyAccess,
+  setUpgradeChannel as _setUpgradeChannel,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -20,6 +21,7 @@ import {
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -62,6 +64,11 @@ export function useSettings() {
     setEarlyAccess(isEarlyAccess: boolean) {
       dispatch(_setEarlyAccess(isEarlyAccess))
       window.api.setEnableEarlyAccess(isEarlyAccess)
+    },
+
+    setUpgradeChannel(channel: UpgradeChannel) {
+      dispatch(_setUpgradeChannel(channel))
+      window.api.setUpgradeChannel(channel)
     },
 
     setTheme(theme: ThemeMode) {
