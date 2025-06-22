@@ -17,6 +17,7 @@ import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
+import { consolidateReferencesByUrl } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
 import { LRUCache } from 'lru-cache'
 
@@ -319,40 +320,7 @@ class WebSearchService {
     })
 
     // 4. 按 sourceUrl 分组并合并同源片段
-    const urlToOriginalResult = new Map(rawResults.map((result) => [result.url, result]))
-    const sourceGroupMap = new Map<
-      string,
-      {
-        originalResult: WebSearchProviderResult
-        contents: string[]
-      }
-    >()
-
-    // 分组：将同源的检索片段归类
-    for (const reference of references) {
-      const originalResult = urlToOriginalResult.get(reference.sourceUrl)
-      if (originalResult) {
-        if (!sourceGroupMap.has(reference.sourceUrl)) {
-          sourceGroupMap.set(reference.sourceUrl, {
-            originalResult,
-            contents: []
-          })
-        }
-        sourceGroupMap.get(reference.sourceUrl)!.contents.push(reference.content)
-      }
-    }
-
-    // 合并：每个原始搜索结果最多产生一个压缩结果
-    const compressedResults: WebSearchProviderResult[] = []
-    for (const [, group] of sourceGroupMap) {
-      compressedResults.push({
-        title: group.originalResult.title,
-        url: group.originalResult.url,
-        content: group.contents.join('\n\n---\n\n') // 用分隔符合并多个片段
-      })
-    }
-
-    return compressedResults
+    return consolidateReferencesByUrl(rawResults, references)
   }
 
   public async processWebsearch(
