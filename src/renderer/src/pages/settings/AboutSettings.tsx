@@ -97,18 +97,6 @@ const AboutSettings: FC = () => {
 
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
-  const getVersionChannel = (version: string) => {
-    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
-      return UpgradeChannel.BETA
-    }
-    if (version.includes(`-${UpgradeChannel.RC}.`)) {
-      return UpgradeChannel.RC
-    }
-    return UpgradeChannel.LATEST
-  }
-
-  const versionChannel = getVersionChannel(version)
-
   const handleUpgradeChannelChange = async (value: UpgradeChannel) => {
     if (value === UpgradeChannel.RC) {
       window.message.success(t('settings.general.early_access.rc_version_tooltip'))
