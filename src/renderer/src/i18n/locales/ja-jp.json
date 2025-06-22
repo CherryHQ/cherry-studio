@@ -1825,6 +1825,8 @@
       "general.early_access.tooltip": "更新すると、データが失われる可能性があります。データを事前にバックアップしてください。",
       "general.early_access.beta_version": "ベータ版",
       "general.early_access.rc_version": "RC版",
+      "general.early_access.latest_version": "最新版",
+      "general.early_access.latest_version_tooltip": "github latest バージョン, 最新安定版",
       "general.early_access.version_options": "バージョンオプション",
       "general.early_access.rc_version_tooltip": "より安定しています。データを事前にバックアップしてください。",
       "general.early_access.beta_version_tooltip": "最新の機能ですが、不安定な場合があります。使用には注意してください。",

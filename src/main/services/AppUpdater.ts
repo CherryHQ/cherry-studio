@@ -2,7 +2,7 @@ import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { UpdateInfo } from 'builder-util-runtime'
+import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
 import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
@@ -14,6 +14,7 @@ import { configManager } from './ConfigManager'
 export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
   private releaseInfo: UpdateInfo | undefined
+  private cancellationToken: CancellationToken = new CancellationToken()
 
   constructor(mainWindow: BrowserWindow) {
     logger.transports.file.level = 'info'
@@ -22,8 +23,6 @@ export default class AppUpdater {
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
     autoUpdater.autoDownload = configManager.getAutoUpdate()
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
-    // github and gitcode don't support multiple range download
-    autoUpdater.disableDifferentialDownload = true
 
     autoUpdater.on('error', (error) => {
       // 简单记录错误信息和时间戳
@@ -66,7 +65,7 @@ export default class AppUpdater {
 
   private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
     try {
-      const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=10', {
+      const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
         headers: {
           Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
@@ -74,6 +73,7 @@ export default class AppUpdater {
         }
       })
       const data = (await responses.json()) as GithubReleaseInfo[]
+      logger.debug('github release data', data)
       const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
         return item.prerelease && item.tag_name.includes(`-${channel}.`)
       })
@@ -120,13 +120,23 @@ export default class AppUpdater {
   }
 
   private async _setFeedUrl() {
+    // disable downgrade and differential download
+    // github and gitcode don't support multiple range download
+    this.autoUpdater.allowDowngrade = false
+    this.autoUpdater.disableDifferentialDownload = true
+
     if (configManager.getEnableEarlyAccess()) {
       const channel = configManager.getUpgradeChannel()
+      if (channel === UpgradeChannel.LATEST) {
+        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
+        this.autoUpdater.channel = UpgradeChannel.LATEST
+        return true
+      }
+
       const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
       if (preReleaseUrl) {
         this.autoUpdater.setFeedURL(preReleaseUrl)
         this.autoUpdater.channel = channel
-        this.autoUpdater.allowDowngrade = false
         return true
       }
       return false
@@ -134,7 +144,6 @@ export default class AppUpdater {
 
     // no early access, use latest version
     this.autoUpdater.channel = 'latest'
-    this.autoUpdater.allowDowngrade = false
     this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
 
     const ipCountry = await this._getIpCountry()
@@ -143,6 +152,11 @@ export default class AppUpdater {
       this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
     }
     return true
+  }
+
+  public cancelDownload() {
+    this.cancellationToken.cancel()
+    this.cancellationToken = new CancellationToken()
   }
 
   public async checkForUpdates() {
@@ -166,7 +180,8 @@ export default class AppUpdater {
       if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
-        this.autoUpdater.downloadUpdate()
+        logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
+        this.autoUpdater.downloadUpdate(this.cancellationToken)
       }
 
       return {

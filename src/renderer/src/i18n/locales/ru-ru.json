@@ -1825,6 +1825,8 @@
       "general.early_access.tooltip": "Обновление до тестовых версий не может быть откачено, существует риск потери данных, пожалуйста, сделайте резервную копию данных заранее",
       "general.early_access.beta_version": "Бета версия",
       "general.early_access.rc_version": "RC версия",
+      "general.early_access.latest_version": "Стабильная версия",
+      "general.early_access.latest_version_tooltip": "github latest версия, стабильная версия",
       "general.early_access.version_options": "Варианты версии",
       "general.early_access.rc_version_tooltip": "Более стабильно, пожалуйста, сделайте резервную копию данных заранее",
       "general.early_access.beta_version_tooltip": "Самые последние функции, но нестабильно, используйте с осторожностью",

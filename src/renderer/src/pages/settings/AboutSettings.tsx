@@ -114,7 +114,10 @@ const AboutSettings: FC = () => {
       window.message.success(t('settings.general.early_access.rc_version_tooltip'))
     } else if (value === UpgradeChannel.BETA) {
       window.message.success(t('settings.general.early_access.beta_version_tooltip'))
+    } else if (value === UpgradeChannel.LATEST) {
+      window.message.success(t('settings.general.early_access.latest_version_tooltip'))
     }
+
     setUpgradeChannel(value)
 
     // Clear update info when switching upgrade channel
@@ -134,6 +137,11 @@ const AboutSettings: FC = () => {
   const getAvailableTestChannels = () => {
     return [
       {
+        tooltip: t('settings.general.early_access.latest_version_tooltip'),
+        label: t('settings.general.early_access.latest_version'),
+        value: UpgradeChannel.LATEST
+      },
+      {
         tooltip: t('settings.general.early_access.rc_version_tooltip'),
         label: t('settings.general.early_access.rc_version'),
         value: UpgradeChannel.RC
@@ -144,14 +152,6 @@ const AboutSettings: FC = () => {
         value: UpgradeChannel.BETA
       }
     ]
-  }
-
-  // Get default selected version
-  const getTestChannel = () => {
-    if (upgradeChannel === UpgradeChannel.LATEST) {
-      return UpgradeChannel.RC
-    }
-    return upgradeChannel
   }
 
   const handlerSetEarlyAccess = (value: boolean) => {
@@ -166,7 +166,7 @@ const AboutSettings: FC = () => {
         downloadProgress: 0
       })
     )
-    if (value === false) setUpgradeChannel(versionChannel)
+    if (value === false) setUpgradeChannel(UpgradeChannel.LATEST)
   }
 
   useEffect(() => {
@@ -251,7 +251,7 @@ const AboutSettings: FC = () => {
                   <Radio.Group
                     size="small"
                     buttonStyle="solid"
-                    value={getTestChannel()}
+                    value={upgradeChannel}
                     onChange={(e) => handleUpgradeChannelChange(e.target.value)}>
                     {getAvailableTestChannels().map((option) => (
                       <Tooltip key={option.value} title={option.tooltip}>
