@@ -17,7 +17,7 @@ import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
-import { consolidateReferencesByUrl } from '@renderer/utils/websearch'
+import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
 import { LRUCache } from 'lru-cache'
 
@@ -200,7 +200,7 @@ class WebSearchService {
    */
   private async ensureSearchBase(
     config: CompressionConfig,
-    searchCount: number,
+    documentCount: number,
     requestId: string
   ): Promise<KnowledgeBase> {
     const baseId = `websearch-compression-${requestId}`
@@ -219,9 +219,6 @@ class WebSearchService {
     if (!config.embeddingModel || !config.embeddingDimensions) {
       throw new Error('Embedding model and dimensions are required for RAG compression')
     }
-
-    // 根据搜索次数计算所需的文档数量
-    const documentCount = Math.max(0, searchCount) * (config.documentCount ?? DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT)
 
     // 创建新的知识库
     state.searchBase = {
@@ -259,6 +256,41 @@ class WebSearchService {
   }
 
   /**
+   * 对搜索知识库执行多问题查询并按分数排序
+   * @param questions 问题列表
+   * @param searchBase 搜索知识库
+   * @returns 排序后的知识引用列表
+   */
+  private async querySearchBase(questions: string[], searchBase: KnowledgeBase): Promise<KnowledgeReference[]> {
+    // 1. 单独搜索每个问题
+    const searchPromises = questions.map((question) => searchKnowledgeBase(question, searchBase))
+    const allResults = await Promise.all(searchPromises)
+
+    // 2. 合并所有结果并按分数排序
+    const flatResults = allResults.flat().sort((a, b) => b.score - a.score)
+
+    // 3. 去重，保留最高分的重复内容
+    const seen = new Set<string>()
+    const uniqueResults = flatResults.filter((item) => {
+      if (seen.has(item.pageContent)) {
+        return false
+      }
+      seen.add(item.pageContent)
+      return true
+    })
+
+    // 4. 转换为引用格式
+    return await Promise.all(
+      uniqueResults.map(async (result, index) => ({
+        id: index + 1,
+        content: result.pageContent,
+        sourceUrl: await getKnowledgeSourceUrl(result),
+        type: 'url' as const
+      }))
+    )
+  }
+
+  /**
    * 使用RAG压缩搜索结果。
    * - 一次性将所有搜索结果添加到知识库
    * - 从知识库中 retrieve 相关结果
@@ -276,8 +308,11 @@ class WebSearchService {
     config: CompressionConfig,
     requestId: string
   ): Promise<WebSearchProviderResult[]> {
-    const query = questions.join(' | ')
-    const searchBase = await this.ensureSearchBase(config, rawResults.length, requestId)
+    // 根据搜索次数计算所需的文档数量
+    const totalDocumentCount =
+      Math.max(0, rawResults.length) * (config.documentCount ?? DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT)
+
+    const searchBase = await this.ensureSearchBase(config, totalDocumentCount, requestId)
 
     // 1. 清空知识库
     await window.api.knowledgeBase.reset(getKnowledgeBaseParams(searchBase))
@@ -303,24 +338,20 @@ class WebSearchService {
     // 等待所有结果添加完成
     await Promise.all(addPromises)
 
-    // 3. 在知识库中搜索获取压缩结果并转换格式
-    const retrievedResults = await searchKnowledgeBase(query, searchBase)
-    const references: KnowledgeReference[] = await Promise.all(
-      retrievedResults.map(async (result, index) => ({
-        id: index + 1,
-        content: result.pageContent,
-        sourceUrl: await getKnowledgeSourceUrl(result),
-        type: 'url' as const
-      }))
-    )
+    // 3. 对知识库执行多问题搜索获取压缩结果
+    const references = await this.querySearchBase(questions, searchBase)
+
+    // 4. 使用 Round Robin 策略选择引用
+    const selectedReferences = selectReferences(rawResults, references, totalDocumentCount)
 
     Logger.log('[WebSearchService] With RAG, the number of search results:', {
       raw: rawResults.length,
-      retrieved: retrievedResults.length
+      retrieved: references.length,
+      selected: selectedReferences.length
     })
 
-    // 4. 按 sourceUrl 分组并合并同源片段
-    return consolidateReferencesByUrl(rawResults, references)
+    // 5. 按 sourceUrl 分组并合并同源片段
+    return consolidateReferencesByUrl(rawResults, selectedReferences)
   }
 
   public async processWebsearch(
