@@ -1,3 +1,5 @@
+import { app } from 'electron'
+
 import { initAppDataDir } from './utils/file'
 
-process.env.NODE_ENV !== 'development' && initAppDataDir()
+app.isPackaged && initAppDataDir()
