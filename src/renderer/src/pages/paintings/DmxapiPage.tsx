@@ -34,9 +34,8 @@ import PaintingsList from './components/PaintingsList'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
-  IMAGE_EDIT_MODELS,
-  IMAGE_MERGE_MODELS,
   IMAGE_SIZES,
+  MODEL_GROUPS,
   MODEOPTIONS,
   STYLE_TYPE_OPTIONS,
   TEXT_TO_IMAGES_MODELS
@@ -88,24 +87,15 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const getModelOptions = (mode: generationModeType) => {
     if (mode === generationModeType.EDIT) {
-      return IMAGE_EDIT_MODELS.map((model) => ({
-        label: model.name,
-        value: model.id
-      }))
+      return MODEL_GROUPS.IMAGE_EDIT
     }
 
     if (mode === generationModeType.MERGE) {
-      return IMAGE_MERGE_MODELS.map((model) => ({
-        label: model.name,
-        value: model.id
-      }))
+      return MODEL_GROUPS.IMAGE_MERGE
     }
 
     // 默认情况或其它模式下的选项
-    return TEXT_TO_IMAGES_MODELS.map((model) => ({
-      label: model.name,
-      value: model.id
-    }))
+    return MODEL_GROUPS.TEXT_TO_IMAGES
   }
 
   const [modelOptions, setModelOptions] = useState(() => {
@@ -126,13 +116,22 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const getNewPainting = (params?: Partial<DmxapiPainting>) => {
     clearImages()
     const generationMode = params?.generationMode || painting?.generationMode || MODEOPTIONS[0].value
-    const modelOptionsList = getModelOptions(generationMode as generationModeType)
+    const modelGroups = getModelOptions(generationMode as generationModeType)
+    // 获取第一个非空分组的第一个模型
+    let firstModel = ''
+    for (const provider of Object.keys(modelGroups)) {
+      if (modelGroups[provider].length > 0) {
+        firstModel = modelGroups[provider][0].id
+        break
+      }
+    }
+
     return {
       ...DEFAULT_PAINTING,
       id: uuid(),
       seed: generateRandomSeed(),
       generationMode,
-      model: modelOptionsList[0]?.value,
+      model: firstModel,
       ...params
     }
   }
@@ -222,9 +221,17 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onGenerationModeChange = (v: generationModeType) => {
     clearImages()
-    const newModelOptions = getModelOptions(v)
-    setModelOptions(newModelOptions)
-    const firstModel = newModelOptions[0]?.value
+    const newModelGroups = getModelOptions(v)
+    setModelOptions(newModelGroups)
+
+    // 获取第一个非空分组的第一个模型
+    let firstModel = ''
+    for (const provider of Object.keys(newModelGroups)) {
+      if (newModelGroups[provider].length > 0) {
+        firstModel = newModelGroups[provider][0].id
+        break
+      }
+    }
 
     // 如果有urls，创建新的painting
     if (Array.isArray(painting.urls) && painting.urls.length > 0) {
@@ -376,13 +383,25 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const data = await response.json()
 
-    if (
-      painting.generationMode &&
-      [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode)
-    ) {
-      return data.data.map((item: { b64_json: string }) => 'data:image/png;base64,' + item.b64_json)
-    }
-    return data.data.map((item: { url: string }) => item.url)
+    // if (
+    //   painting.generationMode &&
+    //   [generationModeType.EDIT, generationModeType.MERGE].includes(painting.generationMode)
+    // ) {
+    //   return data.data.map((item: { b64_json: string }) => 'data:image/png;base64,' + item.b64_json)
+    // }
+    // return data.data.map((item: { url: string }) => item.url)
+
+    return data.data.map((item: { url: string; b64_json: string }) => {
+      if (item.b64_json) {
+        return 'data:image/png;base64,' + item.b64_json
+      }
+
+      if (item.url) {
+        return item.url
+      }
+
+      return ''
+    })
   }
 
   // 下载图像函数
@@ -603,7 +622,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return (
         <LoadTextWrap>
           <div>
-            正在用 OpenAI 官方 gpt-image-1 模型生产，
+            正在用使用官方的模型生产，
             <br />
             预计等待2~5分钟效果最好，
             <br />
@@ -699,7 +718,20 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             )}
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
+          <Select value={painting.model} onChange={onSelectModel} style={{ width: '100%' }}>
+            {Object.entries(modelOptions).map(([provider, models]) => {
+              if (models.length === 0) return null
+              return (
+                <Select.OptGroup label={provider} key={provider}>
+                  {models.map((model) => (
+                    <Select.Option key={model.id} value={model.id}>
+                      {model.name}
+                    </Select.Option>
+                  ))}
+                </Select.OptGroup>
+              )
+            })}
+          </Select>
 
           {painting.generationMode === generationModeType.GENERATION && (
             <>
