@@ -182,14 +182,13 @@ const RagSettings = () => {
           <Slider
             value={compressionConfig?.documentCount || DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT}
             min={1}
-            max={30}
+            max={10}
             step={1}
             onChange={handleDocumentCountChange}
             marks={{
-              1: '1',
-              3: t('settings.websearch.compression.rag.document_count.default'),
-              15: '15',
-              30: '30'
+              1: t('settings.websearch.compression.rag.document_count.default'),
+              3: '3',
+              10: '10'
             }}
           />
         </div>
