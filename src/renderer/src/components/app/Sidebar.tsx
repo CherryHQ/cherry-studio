@@ -10,7 +10,9 @@ import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { ThemeMode } from '@renderer/types'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { closeTab, openTab, switchTab } from '@renderer/store/tabs'
+import { MinAppType, ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import type { MenuProps } from 'antd'
 import { Avatar, Dropdown, Tooltip } from 'antd'
@@ -30,7 +32,7 @@ import {
 } from 'lucide-react'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 
 import DragableList from '../DragableList'
@@ -38,13 +40,14 @@ import MinAppIcon from '../Icons/MinAppIcon'
 import UserPopup from '../Popups/UserPopup'
 
 const Sidebar: FC = () => {
-  const { hideMinappPopup, openMinapp } = useMinappPopup()
+  const { hideMinappPopup } = useMinappPopup()
   const { minappShow, currentMinappId } = useRuntime()
   const { sidebarIcons } = useSettings()
   const { pinned } = useMinapps()
+  const dispatch = useAppDispatch()
+  const { tabs } = useAppSelector((state) => state.tabs)
 
   const { pathname } = useLocation()
-  const navigate = useNavigate()
 
   const { theme, settedTheme, toggleTheme } = useTheme()
   const avatar = useAvatar()
@@ -56,20 +59,56 @@ const Sidebar: FC = () => {
 
   const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
 
-  const to = async (path: string) => {
+  const openPageTab = async (path: string, title: string, icon?: any) => {
     await modelGenerating()
-    navigate(path)
+
+    // Check if we should open a new tab or switch to existing
+    const existingTab = tabs.find((tab) => tab.type === 'page' && tab.route === path)
+
+    if (existingTab) {
+      dispatch(switchTab(existingTab.id))
+    } else {
+      dispatch(
+        openTab({
+          type: 'page',
+          route: path,
+          title,
+          icon,
+          canClose: true,
+          isPinned: false
+        })
+      )
+    }
   }
 
   const docsId = 'cherrystudio-docs'
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
-    openMinapp({
-      id: docsId,
-      name: t('docs.title'),
-      url: isChinese ? 'https://docs.cherry-ai.com/' : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us',
-      logo: AppLogo
-    })
+    const docsUrl = isChinese
+      ? 'https://docs.cherry-ai.com/'
+      : 'https://docs.cherry-ai.com/cherry-studio-wen-dang/en-us'
+
+    // Check if docs tab already exists
+    const existingDocsTab = tabs.find((tab) => tab.type === 'minapp' && tab.minapp?.id === docsId)
+
+    if (existingDocsTab) {
+      dispatch(switchTab(existingDocsTab.id))
+    } else {
+      dispatch(
+        openTab({
+          type: 'minapp',
+          title: t('docs.title'),
+          minapp: {
+            id: docsId,
+            name: t('docs.title'),
+            url: docsUrl,
+            logo: AppLogo
+          },
+          canClose: true,
+          isPinned: false
+        })
+      )
+    }
   }
 
   const isFullscreen = useFullscreen()
@@ -124,7 +163,7 @@ const Sidebar: FC = () => {
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
-              await to('/settings/provider')
+              await openPageTab('/settings/provider', t('settings.title'))
             }}>
             <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
@@ -139,14 +178,23 @@ const Sidebar: FC = () => {
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
-  const { pathname } = useLocation()
   const { sidebarIcons, defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
-  const navigate = useNavigate()
   const { theme } = useTheme()
+  const dispatch = useAppDispatch()
+  const { tabs, activeTabId } = useAppSelector((state) => state.tabs)
 
-  const isRoute = (path: string): string => (pathname === path && !minappShow ? 'active' : '')
-  const isRoutes = (path: string): string => (pathname.startsWith(path) && !minappShow ? 'active' : '')
+  const isRoute = (path: string): string => {
+    // Check if there's an active tab with this route
+    const activeTab = tabs.find((tab) => tab.id === activeTabId)
+    return activeTab?.type === 'page' && activeTab?.route === path && !minappShow ? 'active' : ''
+  }
+
+  const isRoutes = (path: string): string => {
+    // Check if there's an active tab with a route starting with this path
+    const activeTab = tabs.find((tab) => tab.id === activeTabId)
+    return activeTab?.type === 'page' && activeTab?.route?.startsWith(path) && !minappShow ? 'active' : ''
+  }
 
   const iconMap = {
     assistants: <MessageSquare size={18} className="icon" />,
@@ -168,17 +216,54 @@ const MainMenus: FC = () => {
     files: '/files'
   }
 
+  const titleMap = {
+    assistants: t('assistants.title'),
+    agents: t('agents.title'),
+    paintings: t('paintings.title'),
+    translate: t('translate.title'),
+    minapp: t('minapp.title'),
+    knowledge: t('knowledge.title'),
+    files: t('files.title')
+  }
+
+  const openPageTab = async (path: string, title: string, icon: any) => {
+    await modelGenerating()
+
+    // For non-singleton routes, always create a new tab
+    const isSingleton = path.startsWith('/apps') || path.startsWith('/settings')
+
+    if (isSingleton) {
+      const existingTab = tabs.find((tab) => tab.type === 'page' && tab.route === path)
+
+      if (existingTab) {
+        dispatch(switchTab(existingTab.id))
+        return
+      }
+    }
+
+    dispatch(
+      openTab({
+        type: 'page',
+        route: path,
+        title,
+        icon,
+        canClose: true,
+        isPinned: false
+      })
+    )
+  }
+
   return sidebarIcons.visible.map((icon) => {
     const path = pathMap[icon]
+    const title = titleMap[icon]
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 
     return (
-      <Tooltip key={icon} title={t(`${icon}.title`)} mouseEnterDelay={0.8} placement="right">
+      <Tooltip key={icon} title={title} mouseEnterDelay={0.8} placement="right">
         <StyledLink
           onClick={async () => {
             hideMinappPopup()
-            await modelGenerating()
-            navigate(path)
+            await openPageTab(path, title, iconMap[icon])
           }}>
           <Icon theme={theme} className={isActive}>
             {iconMap[icon]}
@@ -191,18 +276,17 @@ const MainMenus: FC = () => {
 
 /** Tabs of opened minapps in sidebar */
 const SidebarOpenedMinappTabs: FC = () => {
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
-  const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
-  const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
+  const { showOpenedMinappsInSidebar } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
+  const dispatch = useAppDispatch()
+  const { tabs, activeTabId } = useAppSelector((state) => state.tabs)
 
-  const handleOnClick = (app) => {
-    if (minappShow && currentMinappId === app.id) {
-      hideMinappPopup()
-    } else {
-      openMinappKeepAlive(app)
-    }
+  // Get all open minapp tabs
+  const openedMinappTabs = tabs.filter((tab) => tab.type === 'minapp')
+
+  const handleOnClick = (tab) => {
+    dispatch(switchTab(tab.id))
   }
 
   // animation for minapp switch indicator
@@ -215,22 +299,25 @@ const SidebarOpenedMinappTabs: FC = () => {
 
     let indicatorTop = 0,
       indicatorRight = 0
-    if (minappShow && activeIcon && container) {
+    const activeTab = tabs.find((tab) => tab.id === activeTabId)
+    const isActiveMinapp = activeTab?.type === 'minapp'
+
+    if (isActiveMinapp && activeIcon && container) {
       indicatorTop = activeIcon.offsetTop + activeIcon.offsetHeight / 2 - 4 // 4 is half of the indicator's height (8px)
       indicatorRight = 0
     } else {
       indicatorTop =
-        ((openedKeepAliveMinapps.length > 0 ? openedKeepAliveMinapps.length : 1) / 2) * iconDefaultHeight +
-        iconDefaultOffset -
-        4
+        ((openedMinappTabs.length > 0 ? openedMinappTabs.length : 1) / 2) * iconDefaultHeight + iconDefaultOffset - 4
       indicatorRight = -50
     }
-    container.style.setProperty('--indicator-top', `${indicatorTop}px`)
-    container.style.setProperty('--indicator-right', `${indicatorRight}px`)
-  }, [currentMinappId, openedKeepAliveMinapps, minappShow])
+    if (container) {
+      container.style.setProperty('--indicator-top', `${indicatorTop}px`)
+      container.style.setProperty('--indicator-right', `${indicatorRight}px`)
+    }
+  }, [activeTabId, openedMinappTabs, tabs])
 
   // 检查是否需要显示已打开小程序组件
-  const isShowOpened = showOpenedMinappsInSidebar && openedKeepAliveMinapps.length > 0
+  const isShowOpened = showOpenedMinappsInSidebar && openedMinappTabs.length > 0
 
   // 如果不需要显示，返回空容器保持动画效果但不显示内容
   if (!isShowOpened) return <TabsContainer className="TabsContainer" />
@@ -240,34 +327,35 @@ const SidebarOpenedMinappTabs: FC = () => {
       <Divider />
       <TabsWrapper>
         <Menus>
-          {openedKeepAliveMinapps.map((app) => {
+          {openedMinappTabs.map((tab) => {
             const menuItems: MenuProps['items'] = [
               {
                 key: 'closeApp',
                 label: t('minapp.sidebar.close.title'),
                 onClick: () => {
-                  closeMinapp(app.id)
+                  dispatch(closeTab(tab.id))
                 }
               },
               {
                 key: 'closeAllApp',
                 label: t('minapp.sidebar.closeall.title'),
                 onClick: () => {
-                  closeAllMinapps()
+                  // Close all minapp tabs
+                  openedMinappTabs.forEach((t) => dispatch(closeTab(t.id)))
                 }
               }
             ]
-            const isActive = minappShow && currentMinappId === app.id
+            const isActive = tab.id === activeTabId
 
             return (
-              <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+              <Tooltip key={tab.id} title={tab.title} mouseEnterDelay={0.8} placement="right">
                 <StyledLink>
                   <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
                     <Icon
                       theme={theme}
-                      onClick={() => handleOnClick(app)}
+                      onClick={() => handleOnClick(tab)}
                       className={`${isActive ? 'opened-active' : ''}`}>
-                      <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
+                      {tab.minapp && <MinAppIcon size={20} app={tab.minapp} style={{ borderRadius: 6 }} sidebar />}
                     </Icon>
                   </Dropdown>
                 </StyledLink>
@@ -283,9 +371,22 @@ const SidebarOpenedMinappTabs: FC = () => {
 const PinnedApps: FC = () => {
   const { pinned, updatePinnedMinapps } = useMinapps()
   const { t } = useTranslation()
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { theme } = useTheme()
-  const { openMinappKeepAlive } = useMinappPopup()
+  const dispatch = useAppDispatch()
+  const { tabs, activeTabId } = useAppSelector((state) => state.tabs)
+
+  const openMinappTab = (app: MinAppType) => {
+    // Always open a new tab for MinApps to allow multiple instances
+    dispatch(
+      openTab({
+        type: 'minapp',
+        title: app.name,
+        minapp: app,
+        canClose: true,
+        isPinned: false
+      })
+    )
+  }
 
   return (
     <DragableList list={pinned} onUpdate={updatePinnedMinapps} listStyle={{ marginBottom: 5 }}>
@@ -300,15 +401,20 @@ const PinnedApps: FC = () => {
             }
           }
         ]
-        const isActive = minappShow && currentMinappId === app.id
+
+        // Check if this app has an active tab
+        const activeTab = tabs.find((tab) => tab.id === activeTabId)
+        const isActive = activeTab?.type === 'minapp' && activeTab?.minapp?.id === app.id
+        const hasOpenTab = tabs.some((tab) => tab.type === 'minapp' && tab.minapp?.id === app.id)
+
         return (
           <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
             <StyledLink>
               <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
                 <Icon
                   theme={theme}
-                  onClick={() => openMinappKeepAlive(app)}
-                  className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
+                  onClick={() => openMinappTab(app)}
+                  className={`${isActive ? 'active' : ''} ${hasOpenTab ? 'opened-minapp' : ''}`}>
                   <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
                 </Icon>
               </Dropdown>

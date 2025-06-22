@@ -2108,6 +2108,17 @@
           "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       }
+    },
+    "tabs": {
+      "closeOthers": "Close Others",
+      "closeToRight": "Close to the Right",
+      "pin": "Pin Tab",
+      "unpin": "Unpin Tab",
+      "duplicate": "Duplicate Tab",
+      "newTab": "New Tab",
+      "reopenClosed": "Reopen Closed Tab",
+      "newGroup": "New Group",
+      "newGroupName": "Enter group name:"
     }
   }
 }

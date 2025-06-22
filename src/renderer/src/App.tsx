@@ -2,10 +2,12 @@ import '@renderer/databases'
 
 import store, { persistor } from '@renderer/store'
 import { Provider } from 'react-redux'
-import { HashRouter, Route, Routes } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import { PersistGate } from 'redux-persist/integration/react'
+import styled from 'styled-components'
 
 import Sidebar from './components/app/Sidebar'
+import { TabBar, TabContentManager } from './components/TabBar'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
@@ -13,14 +15,29 @@ import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
 import NavigationHandler from './handler/NavigationHandler'
-import AgentsPage from './pages/agents/AgentsPage'
-import AppsPage from './pages/apps/AppsPage'
-import FilesPage from './pages/files/FilesPage'
-import HomePage from './pages/home/HomePage'
-import KnowledgePage from './pages/knowledge/KnowledgePage'
-import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
-import SettingsPage from './pages/settings/SettingsPage'
-import TranslatePage from './pages/translate/TranslatePage'
+import { useTabShortcuts } from './hooks/useTabShortcuts'
+
+function AppContent(): React.ReactElement {
+  // Initialize tab shortcuts
+  useTabShortcuts()
+
+  return (
+    <TopViewContainer>
+      <HashRouter>
+        <NavigationHandler />
+        <AppLayout>
+          <Sidebar />
+          <MainContent>
+            <TabBar />
+            <ContentArea>
+              <TabContentManager />
+            </ContentArea>
+          </MainContent>
+        </AppLayout>
+      </HashRouter>
+    </TopViewContainer>
+  )
+}
 
 function App(): React.ReactElement {
   return (
@@ -31,22 +48,7 @@ function App(): React.ReactElement {
             <NotificationProvider>
               <CodeStyleProvider>
                 <PersistGate loading={null} persistor={persistor}>
-                  <TopViewContainer>
-                    <HashRouter>
-                      <NavigationHandler />
-                      <Sidebar />
-                      <Routes>
-                        <Route path="/" element={<HomePage />} />
-                        <Route path="/agents" element={<AgentsPage />} />
-                        <Route path="/paintings/*" element={<PaintingsRoutePage />} />
-                        <Route path="/translate" element={<TranslatePage />} />
-                        <Route path="/files" element={<FilesPage />} />
-                        <Route path="/knowledge" element={<KnowledgePage />} />
-                        <Route path="/apps" element={<AppsPage />} />
-                        <Route path="/settings/*" element={<SettingsPage />} />
-                      </Routes>
-                    </HashRouter>
-                  </TopViewContainer>
+                  <AppContent />
                 </PersistGate>
               </CodeStyleProvider>
             </NotificationProvider>
@@ -56,5 +58,26 @@ function App(): React.ReactElement {
     </Provider>
   )
 }
+
+const AppLayout = styled.div`
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+`
+
+const MainContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`
+
+const ContentArea = styled.div`
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+`
 
 export default App

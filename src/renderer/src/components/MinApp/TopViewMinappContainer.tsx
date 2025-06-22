@@ -1,11 +1,6 @@
-import MinappPopupContainer from '@renderer/components/MinApp/MinappPopupContainer'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-
+// MinappPopupContainer is no longer needed since we're using the tab system
 const TopViewMinappContainer = () => {
-  const { openedKeepAliveMinapps, openedOneOffMinapp } = useRuntime()
-  const isCreate = openedKeepAliveMinapps.length > 0 || openedOneOffMinapp !== null
-
-  return <>{isCreate && <MinappPopupContainer />}</>
+  return null
 }
 
 export default TopViewMinappContainer

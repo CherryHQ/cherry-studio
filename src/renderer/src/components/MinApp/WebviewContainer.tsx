@@ -46,8 +46,23 @@ const WebviewContainer = memo(
         onNavigateCallback(appid, event.url)
       }
 
+      const handleNewWindow = (event: any) => {
+        // Prevent new windows and navigate in the same webview
+        event.preventDefault()
+        if (webviewRef.current && event.url) {
+          webviewRef.current.loadURL(event.url)
+        }
+      }
+
+      const handleWillNavigate = (event: any) => {
+        // Allow navigation within the same webview
+        onNavigateCallback(appid, event.url)
+      }
+
       webviewRef.current.addEventListener('did-finish-load', handleLoaded)
       webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
+      webviewRef.current.addEventListener('new-window', handleNewWindow)
+      webviewRef.current.addEventListener('will-navigate', handleWillNavigate)
 
       // we set the url when the webview is ready
       webviewRef.current.src = url
@@ -55,6 +70,8 @@ const WebviewContainer = memo(
       return () => {
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
+        webviewRef.current?.removeEventListener('new-window', handleNewWindow)
+        webviewRef.current?.removeEventListener('will-navigate', handleWillNavigate)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,8 +95,8 @@ const WebviewContainer = memo(
 )
 
 const WebviewStyle: React.CSSProperties = {
-  width: 'calc(100vw - var(--sidebar-width))',
-  height: 'calc(100vh - var(--navbar-height))',
+  width: '100%',
+  height: '100%',
   backgroundColor: 'var(--color-background)',
   display: 'inline-flex'
 }
