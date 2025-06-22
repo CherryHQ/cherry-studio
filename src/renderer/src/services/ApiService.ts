@@ -462,12 +462,23 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   })
   const conversation = JSON.stringify(structredMessages)
 
+  // 复制 assistant 对象，并强制关闭思考预算
+  const summaryAssistant = {
+    ...assistant,
+    settings: {
+      ...assistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    }
+  }
+
   const params: CompletionsParams = {
     callType: 'summary',
     messages: conversation,
-    assistant: { ...assistant, prompt, model },
+    assistant: { ...summaryAssistant, prompt, model },
     maxTokens: 1000,
-    streamOutput: false
+    streamOutput: false,
+    enableReasoning: false
   }
 
   try {
