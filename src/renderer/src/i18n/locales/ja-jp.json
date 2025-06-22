@@ -701,6 +701,13 @@
       "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
       "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
       "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません",
+      "websearch": {
+        "rag": "RAGを実行中...",
+        "rag_complete": "{{countBefore}}個の結果から{{countAfter}}個を保持...",
+        "rag_failed": "RAGが失敗しました。空の結果を返します...",
+        "cutoff": "検索内容を切り詰めています...",
+        "fetch_complete": "{{count}}回の検索を完了しました..."
+      },
       "download.success": "ダウンロードに成功しました",
       "download.failed": "ダウンロードに失敗しました",
       "error.fetchTopicName": "トピック名の取得に失敗しました"

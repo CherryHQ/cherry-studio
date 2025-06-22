@@ -702,6 +702,13 @@
       "success.siyuan.export": "Successfully exported to Siyuan Note",
       "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
       "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!",
+      "websearch": {
+        "rag": "Executing RAG...",
+        "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
+        "rag_failed": "RAG failed, returning empty results...",
+        "cutoff": "Truncating search content...",
+        "fetch_complete": "Completed {{count}} searches..."
+      },
       "download.success": "Download successfully",
       "download.failed": "Download failed"
     },

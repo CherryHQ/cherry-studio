@@ -702,6 +702,13 @@
       "success.siyuan.export": "導出到思源筆記成功",
       "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
       "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！",
+      "websearch": {
+        "rag": "正在執行 RAG...",
+        "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
+        "rag_failed": "RAG 失敗，返回空結果...",
+        "cutoff": "正在截斷搜尋內容...",
+        "fetch_complete": "已完成 {{count}} 次搜尋..."
+      },
       "download.success": "下載成功",
       "download.failed": "下載失敗"
     },

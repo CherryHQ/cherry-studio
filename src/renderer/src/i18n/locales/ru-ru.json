@@ -701,6 +701,13 @@
       "success.siyuan.export": "Успешный экспорт в Siyuan",
       "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
       "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!",
+      "websearch": {
+        "rag": "Выполнение RAG...",
+        "rag_complete": "Сохранено {{countAfter}} из {{countBefore}} результатов...",
+        "rag_failed": "RAG не удалось, возвращается пустой результат...",
+        "cutoff": "Обрезка содержимого поиска...",
+        "fetch_complete": "Завершено {{count}} поисков..."
+      },
       "download.success": "Скачано успешно",
       "download.failed": "Скачивание не удалось",
       "error.fetchTopicName": "Не удалось назвать топик"
