@@ -397,15 +397,28 @@ class WebSearchService {
       }
     })
 
-    const websearch = this.getWebSearchState()
+    const { compressionConfig } = this.getWebSearchState()
+
+    // 截断压缩处理
+    if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
+      const perResultLimit = Math.floor(compressionConfig.cutoffLimit / aggregatedResults.length)
+      return {
+        query: questions.join(' | '),
+        results: aggregatedResults.map((result) => ({
+          ...result,
+          content:
+            result.content.length > perResultLimit ? result.content.slice(0, perResultLimit) + '...' : result.content
+        }))
+      }
+    }
 
     // RAG压缩处理
-    if (websearch.compressionConfig?.method === 'rag' && requestId) {
+    if (compressionConfig?.method === 'rag' && requestId) {
       try {
         const compressedResults = await this.compressWithSearchBase(
           questions,
           aggregatedResults,
-          websearch.compressionConfig,
+          compressionConfig,
           requestId
         )
         return {
@@ -423,19 +436,6 @@ class WebSearchService {
           query: questions.join(' | '),
           results: []
         }
-      }
-    }
-
-    // 不压缩的情况下，在此处统一应用 contentLimit
-    if (websearch.contentLimit) {
-      const perResultLimit = Math.floor(websearch.contentLimit / aggregatedResults.length)
-      return {
-        query: questions.join(' | '),
-        results: aggregatedResults.map((result) => ({
-          ...result,
-          content:
-            result.content.length > perResultLimit ? result.content.slice(0, perResultLimit) + '...' : result.content
-        }))
       }
     }
 

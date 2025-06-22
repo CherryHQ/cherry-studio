@@ -5,6 +5,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { NOT_SUPPORTED_REANK_PROVIDERS } from '@renderer/config/providers'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
+import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
 import { Button, InputNumber, Select, Slider, Tooltip } from 'antd'
@@ -12,13 +13,10 @@ import { find, sortBy } from 'lodash'
 import { Info, RefreshCw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const INPUT_BOX_WIDTH = '200px'
 
-const CompressionSettings = () => {
+const RagSettings = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
@@ -73,17 +71,6 @@ const CompressionSettings = () => {
       .filter((group) => group.options.length > 0)
   }, [providers, t])
 
-  const compressionMethodOptions = [
-    { value: 'none', label: t('settings.websearch.compression.method.none') },
-    { value: 'rag', label: t('settings.websearch.compression.method.rag') }
-  ]
-
-  const isRagMethod = compressionConfig?.method === 'rag'
-
-  const handleCompressionMethodChange = (method: 'none' | 'rag') => {
-    updateCompressionConfig({ method })
-  }
-
   const handleEmbeddingModelChange = (modelValue: string) => {
     const selectedModel = find(embeddingModels, JSON.parse(modelValue)) as Model
     updateCompressionConfig({ embeddingModel: selectedModel })
@@ -104,14 +91,14 @@ const CompressionSettings = () => {
 
   const handleAutoGetDimensions = async () => {
     if (!compressionConfig?.embeddingModel) {
-      Logger.log('[CompressionSettings] handleAutoGetDimensions: no embedding model')
+      Logger.log('[RagSettings] handleAutoGetDimensions: no embedding model')
       window.message.error(t('settings.websearch.compression.error.embedding_model_required'))
       return
     }
 
     const provider = providers.find((p) => p.id === compressionConfig.embeddingModel?.provider)
     if (!provider) {
-      Logger.log('[CompressionSettings] handleAutoGetDimensions: provider not found')
+      Logger.log('[RagSettings] handleAutoGetDimensions: provider not found')
       window.message.error(t('settings.websearch.compression.error.provider_not_found'))
       return
     }
@@ -125,7 +112,7 @@ const CompressionSettings = () => {
 
       window.message.success(t('settings.websearch.compression.info.dimensions_auto_success', { dimensions }))
     } catch (error) {
-      Logger.error('[CompressionSettings] handleAutoGetDimensions: failed to get embedding dimensions', error)
+      Logger.error('[RagSettings] handleAutoGetDimensions: failed to get embedding dimensions', error)
       window.message.error(t('settings.websearch.compression.error.dimensions_auto_failed'))
     } finally {
       setLoadingDimensions(false)
@@ -133,21 +120,7 @@ const CompressionSettings = () => {
   }
 
   return (
-    <SettingGroup>
-      <SettingTitle>{t('settings.websearch.compression.title')}</SettingTitle>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>{t('settings.websearch.compression.method')}</SettingRowTitle>
-        <Select
-          value={compressionConfig?.method || 'none'}
-          style={{ width: INPUT_BOX_WIDTH }}
-          onChange={handleCompressionMethodChange}
-          options={compressionMethodOptions}
-        />
-      </SettingRow>
-      <SettingDivider />
-
+    <>
       <SettingRow>
         <SettingRowTitle>{t('models.embedding_model')}</SettingRowTitle>
         <Select
@@ -155,7 +128,6 @@ const CompressionSettings = () => {
           style={{ width: INPUT_BOX_WIDTH }}
           options={embeddingSelectOptions}
           placeholder={t('settings.models.empty')}
-          disabled={!isRagMethod}
           onChange={handleEmbeddingModelChange}
           allowClear={false}
           showSearch
@@ -165,24 +137,23 @@ const CompressionSettings = () => {
 
       <SettingRow>
         <SettingRowTitle>{t('models.embedding_dimensions')}</SettingRowTitle>
-        <InputNumberWrapper>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: INPUT_BOX_WIDTH }}>
           <InputNumber
             value={compressionConfig?.embeddingDimensions}
             style={{ flex: 1 }}
-            placeholder={t('settings.websearch.compression.embedding_dimensions.placeholder')}
+            placeholder={t('settings.websearch.compression.rag.embedding_dimensions.placeholder')}
             min={1}
-            disabled={!isRagMethod}
             onChange={handleEmbeddingDimensionsChange}
           />
-          <Tooltip title={t('settings.websearch.compression.embedding_dimensions.auto_get')}>
+          <Tooltip title={t('settings.websearch.compression.rag.embedding_dimensions.auto_get')}>
             <Button
               icon={<RefreshCw size={16} />}
               loading={loadingDimensions}
-              disabled={!isRagMethod || !compressionConfig?.embeddingModel}
+              disabled={!compressionConfig?.embeddingModel}
               onClick={handleAutoGetDimensions}
             />
           </Tooltip>
-        </InputNumberWrapper>
+        </div>
       </SettingRow>
       <SettingDivider />
 
@@ -193,7 +164,6 @@ const CompressionSettings = () => {
           style={{ width: INPUT_BOX_WIDTH }}
           options={rerankSelectOptions}
           placeholder={t('settings.models.empty')}
-          disabled={!isRagMethod}
           onChange={handleRerankModelChange}
           allowClear
           showSearch
@@ -203,8 +173,8 @@ const CompressionSettings = () => {
 
       <SettingRow>
         <SettingRowTitle>
-          {t('settings.websearch.compression.document_count')}
-          <Tooltip title={t('settings.websearch.compression.document_count.tooltip')} placement="right">
+          {t('settings.websearch.compression.rag.document_count')}
+          <Tooltip title={t('settings.websearch.compression.rag.document_count.tooltip')} placement="right">
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
@@ -214,26 +184,18 @@ const CompressionSettings = () => {
             min={1}
             max={30}
             step={1}
-            disabled={!isRagMethod}
             onChange={handleDocumentCountChange}
             marks={{
               1: '1',
-              3: t('settings.websearch.compression.document_count.default'),
+              3: t('settings.websearch.compression.rag.document_count.default'),
               15: '15',
               30: '30'
             }}
           />
         </div>
       </SettingRow>
-    </SettingGroup>
+    </>
   )
 }
 
-const InputNumberWrapper = styled.div`
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  width: ${INPUT_BOX_WIDTH};
-`
-
-export default CompressionSettings
+export default RagSettings

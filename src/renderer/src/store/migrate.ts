@@ -17,7 +17,7 @@ import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
-import { defaultWebSearchProviders, initialState as websearchInitialState } from './websearch'
+import { defaultWebSearchProviders } from './websearch'
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -1610,8 +1610,18 @@ const migrateConfig = {
   },
   '115': (state: RootState) => {
     try {
-      if (state.websearch && !state.websearch.compressionConfig) {
-        state.websearch.compressionConfig = websearchInitialState.compressionConfig
+      if (state.websearch) {
+        // migrate contentLimit to cutoffLimit
+        // @ts-ignore eslint-disable-next-line
+        if (state.websearch.contentLimit) {
+          // @ts-ignore eslint-disable-next-line
+          state.websearch.compressionConfig = { method: 'cutoff', cutoffLimit: state.websearch.contentLimit }
+        } else {
+          state.websearch.compressionConfig = { method: 'none' }
+        }
+
+        // @ts-ignore eslint-disable-next-line
+        delete state.websearch.contentLimit
       }
       return state
     } catch (error) {

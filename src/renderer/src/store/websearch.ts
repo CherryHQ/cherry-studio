@@ -8,7 +8,8 @@ export interface SubscribeSource {
 }
 
 export interface CompressionConfig {
-  method: 'none' | 'rag'
+  method: 'none' | 'cutoff' | 'rag'
+  cutoffLimit?: number
   embeddingModel?: Model
   embeddingDimensions?: number // undefined表示自动获取
   documentCount?: number // 每个搜索结果的文档数量（只是预期值）
@@ -32,7 +33,6 @@ export interface WebSearchState {
   // 是否覆盖服务商搜索
   /** @deprecated 支持在快捷菜单中自选搜索供应商，所以这个不再适用 */
   overwrite: boolean
-  contentLimit?: number
   // 搜索结果压缩
   compressionConfig?: CompressionConfig
   // 具体供应商的配置
@@ -163,9 +163,6 @@ const websearchSlice = createSlice({
         state.providers.push(action.payload)
       }
     },
-    setContentLimit: (state, action: PayloadAction<number | undefined>) => {
-      state.contentLimit = action.payload
-    },
     setCompressionConfig: (state, action: PayloadAction<CompressionConfig>) => {
       state.compressionConfig = action.payload
     },
@@ -198,7 +195,6 @@ export const {
   setSubscribeSources,
   setOverwrite,
   addWebSearchProvider,
-  setContentLimit,
   setCompressionConfig,
   updateCompressionConfig,
   setProviderConfig,
