@@ -5745,7 +5745,7 @@ __metadata:
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
     tiny-pinyin: "npm:^1.3.2"
-    tokenx: "npm:^0.4.1"
+    tokenx: "npm:^1.1.0"
     turndown: "npm:7.2.0"
     typescript: "npm:^5.6.2"
     uuid: "npm:^10.0.0"
@@ -17588,10 +17588,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tokenx@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "tokenx@npm:0.4.1"
-  checksum: 10c0/377f4e3c31ff9dc57b5b6af0fb1ae821227dee5e1d87b92a3ab1a0ed25454f01185c709d73592002b0d3024de1c904c8f029c46ae1806677816e4659fb8c481e
+"tokenx@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "tokenx@npm:1.1.0"
+  checksum: 10c0/8214bce58b48e130bcf4a27ac1bb5abf486c395310fb0c8f54e31656acacf97da533372afb9e8ac8f7736e6c3f29af86ea9623d4875f1399e66a5203b80609db
   languageName: node
   linkType: hard
 

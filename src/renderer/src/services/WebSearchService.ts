@@ -367,6 +367,45 @@ class WebSearchService {
   }
 
   /**
+   * 使用截断方式压缩搜索结果，可以选择单位 char 或 token。
+   *
+   * @param rawResults 原始搜索结果
+   * @param config 压缩配置
+   * @returns 截断后的搜索结果
+   */
+  private async compressWithCutoff(
+    rawResults: WebSearchProviderResult[],
+    config: CompressionConfig
+  ): Promise<WebSearchProviderResult[]> {
+    if (!config.cutoffLimit) {
+      return rawResults
+    }
+
+    const perResultLimit = Math.floor(config.cutoffLimit / rawResults.length)
+
+    // 动态导入 tokenx
+    const { sliceByTokens } = await import('tokenx')
+
+    return rawResults.map((result) => {
+      if (config.cutoffUnit === 'token') {
+        // 使用 token 截断
+        const slicedContent = sliceByTokens(result.content, 0, perResultLimit)
+        return {
+          ...result,
+          content: slicedContent.length < result.content.length ? slicedContent + '...' : slicedContent
+        }
+      } else {
+        // 使用字符截断（默认行为）
+        return {
+          ...result,
+          content:
+            result.content.length > perResultLimit ? result.content.slice(0, perResultLimit) + '...' : result.content
+        }
+      }
+    })
+  }
+
+  /**
    * 处理网络搜索请求的核心方法，处理过程中会设置运行时状态供 UI 使用。
    *
    * 该方法执行以下步骤：
@@ -480,13 +519,7 @@ class WebSearchService {
     // 截断压缩处理
     else if (compressionConfig?.method === 'cutoff' && compressionConfig.cutoffLimit) {
       await this.setWebSearchStatus(requestId, { phase: 'cutoff' }, 500)
-      const perResultLimit = Math.floor(compressionConfig.cutoffLimit / finalResults.length)
-
-      finalResults = finalResults.map((result) => ({
-        ...result,
-        content:
-          result.content.length > perResultLimit ? result.content.slice(0, perResultLimit) + '...' : result.content
-      }))
+      finalResults = await this.compressWithCutoff(finalResults, compressionConfig)
     }
 
     // 重置状态
