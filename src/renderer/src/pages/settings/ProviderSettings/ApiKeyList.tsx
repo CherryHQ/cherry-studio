@@ -1,8 +1,7 @@
 import {
   CheckCircleFilled,
-  CheckCircleOutlined,
   CloseCircleFilled,
-  CloseCircleOutlined,
+  EditOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
   PlusOutlined
@@ -14,7 +13,7 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey, splitApiKeyString } from '@renderer/utils/api'
-import { Button, Card, Flex, Input, List, message, Space, Spin, Typography } from 'antd'
+import { Button, Card, Flex, Input, List, Space, Spin, Typography } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,12 +37,6 @@ interface KeyStatus {
   latency?: number
 }
 
-const STATUS_COLORS = {
-  success: '#52c41a',
-  error: '#ff4d4f',
-  warning: '#faad14'
-}
-
 const formatAndConvertKeysToArray = (apiKeys: string): KeyStatus[] => {
   const formattedApiKeys = formatApiKeys(apiKeys)
   if (formattedApiKeys.includes(',')) {
@@ -60,6 +53,9 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [newApiKey, setNewApiKey] = useState('')
   const newInputRef = useRef<any>(null)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editValue, setEditValue] = useState('')
+  const editInputRef = useRef<any>(null)
   const { t } = useTranslation()
   const [isChecking, setIsChecking] = useState(false)
   const [isCheckingSingle, setIsCheckingSingle] = useState(false)
@@ -75,6 +71,12 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     setKeyStatuses(formatAndConvertKeysToArray(apiKeys))
   }, [apiKeys])
 
+  useEffect(() => {
+    if (editingIndex !== null && editInputRef.current) {
+      editInputRef.current.focus()
+    }
+  }, [editingIndex])
+
   const handleAddNewKey = () => {
     setIsAddingNew(true)
     setNewApiKey('')
@@ -86,7 +88,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       const keyExists = keyStatuses.some((status) => status.key === newApiKey.trim())
 
       if (keyExists) {
-        message.error({
+        window.message.error({
           key: 'duplicate-key',
           style: { marginTop: '3vh' },
           duration: 3,
@@ -96,7 +98,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       }
 
       if (newApiKey.includes(',')) {
-        message.error({
+        window.message.error({
           key: 'invalid-key',
           style: { marginTop: '3vh' },
           duration: 3,
@@ -278,6 +280,51 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     return false
   }
 
+  const handleEditKey = (index: number) => {
+    setEditingIndex(index)
+    setEditValue(keyStatuses[index].key)
+  }
+
+  const handleSaveEdit = () => {
+    if (editingIndex === null) return
+
+    if (editValue.trim()) {
+      const keyExists = keyStatuses.some((status, idx) => idx !== editingIndex && status.key === editValue.trim())
+
+      if (keyExists) {
+        window.message.error({
+          key: 'duplicate-key',
+          style: { marginTop: '3vh' },
+          duration: 3,
+          content: t('settings.provider.key_already_exists')
+        })
+        return
+      }
+
+      if (editValue.includes(',')) {
+        window.message.error({
+          key: 'invalid-key',
+          style: { marginTop: '3vh' },
+          duration: 3,
+          content: t('settings.provider.invalid_key')
+        })
+        return
+      }
+
+      const updatedKeyStatuses = [...keyStatuses]
+      updatedKeyStatuses[editingIndex] = {
+        ...updatedKeyStatuses[editingIndex],
+        key: editValue.trim(),
+        isValid: undefined
+      }
+
+      setKeyStatuses(updatedKeyStatuses)
+      onChange(updatedKeyStatuses.map((status) => status.key).join(','))
+    }
+
+    setEditingIndex(null)
+  }
+
   return (
     <>
       <Card
@@ -300,7 +347,20 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                     <List.Item style={{ padding: '8px 12px' }}>
                       <ApiKeyListItem>
                         <ApiKeyContainer>
-                          <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
+                          {editingIndex === index ? (
+                            <Input.Password
+                              ref={editInputRef}
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={handleSaveEdit}
+                              onPressEnter={handleSaveEdit}
+                              style={{ width: '100%', fontSize: '14px' }}
+                              spellCheck={false}
+                              type="password"
+                            />
+                          ) : (
+                            <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
+                          )}
                         </ApiKeyContainer>
                         <ApiKeyActions>
                           <Space>
@@ -322,15 +382,25 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                               {t('settings.provider.check')}
                             </Button>
                             {!isCopilot && (
-                              <MinusCircleOutlined
-                                onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
-                                style={{
-                                  cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                                  opacity: isChecking || isCheckingSingle ? 0.5 : 1,
-                                  fontSize: '16px',
-                                  color: 'var(--color-error)'
-                                }}
-                              />
+                              <>
+                                <EditOutlined
+                                  onClick={() => !isChecking && !isCheckingSingle && handleEditKey(index)}
+                                  style={{
+                                    cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                    opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                    fontSize: '16px'
+                                  }}
+                                />
+                                <MinusCircleOutlined
+                                  onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                                  style={{
+                                    cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                    opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                    fontSize: '16px',
+                                    color: 'var(--color-error)'
+                                  }}
+                                />
+                              </>
                             )}
                           </Space>
                         </ApiKeyActions>
@@ -350,12 +420,21 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                     placeholder={t('settings.provider.enter_new_api_key')}
                     style={{ width: '60%', fontSize: '14px' }}
                     onPressEnter={handleSaveNewKey}
+                    onBlur={handleSaveNewKey}
                     spellCheck={false}
                     type="password"
                   />
                   <ApiKeyActions>
-                    <SaveButton onClick={handleSaveNewKey} title={t('common.save')} />
-                    <CancelButton onClick={handleCancelNewKey} title={t('common.cancel')} />
+                    <MinusCircleOutlined
+                      onClick={handleCancelNewKey}
+                      title={t('common.cancel')}
+                      style={{
+                        cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                        opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                        fontSize: '16px',
+                        color: 'var(--color-error)'
+                      }}
+                    />
                   </ApiKeyActions>
                 </ApiKeyListItem>
               </List.Item>
@@ -422,26 +501,6 @@ const ApiKeyActions = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 10px;
-`
-
-const SaveButton = styled(CheckCircleOutlined)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: ${STATUS_COLORS.success};
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-`
-
-const CancelButton = styled(CloseCircleOutlined)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: ${STATUS_COLORS.error};
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
 `
 
 export default ApiKeyList

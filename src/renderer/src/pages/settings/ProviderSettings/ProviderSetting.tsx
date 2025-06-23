@@ -259,7 +259,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           </SettingSubtitle>
           <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
           {apiKeyWebsite && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: '10px' }}>
               <HStack>
                 {!isDmxapi && (
                   <SettingHelpLink target="_blank" href={apiKeyWebsite}>
