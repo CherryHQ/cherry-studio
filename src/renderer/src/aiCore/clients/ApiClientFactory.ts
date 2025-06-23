@@ -7,6 +7,7 @@ import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
+import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 
 /**
  * Factory for creating ApiClient instances based on provider configuration
@@ -50,6 +51,9 @@ export class ApiClientFactory {
         break
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient
+        break
+      case 'ppio':
+        instance = new PPIOAPIClient(provider) as BaseApiClient
         break
       default:
         console.log(`[ApiClientFactory] Using default OpenAIApiClient for provider: ${provider.id}`)

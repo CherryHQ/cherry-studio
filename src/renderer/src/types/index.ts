@@ -171,6 +171,7 @@ export type ProviderType =
   | 'qwenlm'
   | 'azure-openai'
   | 'vertexai'
+  | 'ppio'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search'
 
