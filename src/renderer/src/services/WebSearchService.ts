@@ -378,10 +378,11 @@ class WebSearchService {
     config: CompressionConfig
   ): Promise<WebSearchProviderResult[]> {
     if (!config.cutoffLimit) {
+      Logger.warn('[WebSearchService] Cutoff limit is not set, skipping compression')
       return rawResults
     }
 
-    const perResultLimit = Math.floor(config.cutoffLimit / rawResults.length)
+    const perResultLimit = Math.max(1, Math.floor(config.cutoffLimit / rawResults.length))
 
     // 动态导入 tokenx
     const { sliceByTokens } = await import('tokenx')
