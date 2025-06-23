@@ -496,6 +496,9 @@ const DataSettings: FC = () => {
     // flush app data
     await window.api.flushAppData()
 
+    // wait 2 seconds to flush app data
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
     // 开始复制过程
     const copyResult = await window.api.copy(originalPath, newPath)
 

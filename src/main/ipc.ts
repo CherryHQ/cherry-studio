@@ -235,7 +235,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     BrowserWindow.getAllWindows().forEach((w) => {
       w.webContents.session.flushStorageData()
       w.webContents.session.cookies.flushStore()
+
+      w.webContents.session.closeAllConnections()
     })
+
+    session.defaultSession.flushStorageData()
+    session.defaultSession.cookies.flushStore()
+    session.defaultSession.closeAllConnections()
   })
 
   ipcMain.handle(IpcChannel.App_IsNotEmptyDir, async (_, path: string) => {
