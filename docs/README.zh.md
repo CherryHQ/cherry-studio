@@ -1,14 +1,46 @@
 <h1 align="center">
   <a href="https://github.com/CherryHQ/cherry-studio/releases">
-    <img src="https://github.com/CherryHQ/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" />
+    <img src="https://github.com/CherryHQ/cherry-studio/blob/main/build/icon.png?raw=true" width="150" height="150" alt="banner" /><br>
   </a>
 </h1>
 <p align="center">
-  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a><br>
+  <a href="https://github.com/CherryHQ/cherry-studio">English</a> | 中文 | <a href="./README.ja.md">日本語</a> | <a href="https://cherry-ai.com">官方网站</a> | <a href="https://docs.cherry-ai.com/cherry-studio-wen-dang/zh-cn">文档</a> | <a href="./dev.md">开发</a> | <a href="https://github.com/CherryHQ/cherry-studio/issues">反馈</a><br>
 </p>
+
+<!-- 题头徽章组合 -->
+
 <div align="center">
+
+[![][deepwiki-shield]][deepwiki-link]
+[![][twitter-shield]][twitter-link]
+[![][discord-shield]][discord-link]
+[![][telegram-shield]][telegram-link]
+
+</div>
+
+<!-- 项目统计徽章 -->
+
+<div align="center">
+
+[![][github-stars-shield]][github-stars-link]
+[![][github-forks-shield]][github-forks-link]
+[![][github-release-shield]][github-release-link]
+[![][github-contributors-shield]][github-contributors-link]
+
+</div>
+
+<div align="center">
+
+[![][license-shield]][license-link]
+[![][commercial-shield]][commercial-link]
+[![][sponsor-shield]][sponsor-link]
+
+</div>
+
+<div align="center">
+ <a href="https://hellogithub.com/repository/1605492e1e2a4df3be07abfa4578dd37" target="_blank"><img src="https://api.hellogithub.com/v1/widgets/recommend.svg?rid=1605492e1e2a4df3be07abfa4578dd37" alt="Featured｜HelloGitHub" style="width: 200px; height: 43px;" width="200" height="43" /></a>
  <a href="https://trendshift.io/repositories/11772" target="_blank"><img src="https://trendshift.io/api/badge/repositories/11772" alt="kangfenmao%2Fcherry-studio | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
- <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+ <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 200px; height: 43px;" width="200" height="43" /></a>
 </div>
 
 # 🍒 Cherry Studio
@@ -124,14 +156,6 @@ https://docs.cherry-ai.com
 
 欢迎 PR 更多主题
 
-# 🖥️ 开发
-
-参考[开发文档](dev.md)
-
-参考[架构概览文档](https://deepwiki.com/CherryHQ/cherry-studio)
-
-参考[分支策略](branching-strategy-zh.md)了解贡献指南
-
 # 🤝 贡献
 
 我们欢迎对 Cherry Studio 的贡献！您可以通过以下方式贡献：
@@ -143,6 +167,8 @@ https://docs.cherry-ai.com
 5. **撰写文档**：改进用户手册和指南
 6. **社区参与**：加入讨论并帮助用户
 7. **推广使用**：宣传 Cherry Studio
+
+参考[分支策略](branching-strategy-zh.md)了解贡献指南
 
 ## 入门
 
@@ -168,22 +194,34 @@ https://docs.cherry-ai.com
 </a>
 <br /><br />
 
-# 🌐 社区
-
-[Telegram](https://t.me/CherryStudioAI) | [Email](mailto:support@cherry-ai.com) | [Twitter](https://x.com/kangfenmao)
-
-# ☕ 赞助
-
-[赞助开发者](sponsor.md)
-
-# 📃 许可证
-
-[LICENSE](../LICENSE)
-
-# ✉️ 联系我们
-
-yinsenho@cherry-ai.com
-
 # ⭐️ Star 记录
 
-[![Star History Chart](https://api.star-history.com/svg?repos=kangfenmao/cherry-studio&type=Timeline)](https://star-history.com/#kangfenmao/cherry-studio&Timeline)
+[![Star History Chart](https://api.star-history.com/svg?repos=CherryHQ/cherry-studio&type=Timeline)](https://star-history.com/#CherryHQ/cherry-studio&Timeline)
+
+<!-- Links & Images -->
+[deepwiki-shield]: https://img.shields.io/badge/Deepwiki-CherryHQ-0088CC?style=plastic
+[deepwiki-link]: https://deepwiki.com/CherryHQ/cherry-studio
+[twitter-shield]: https://img.shields.io/badge/Twitter-CherryStudioApp-0088CC?style=plastic&logo=x
+[twitter-link]: https://twitter.com/CherryStudioHQ
+[discord-shield]: https://img.shields.io/badge/Discord-@CherryStudio-0088CC?style=plastic&logo=discord
+[discord-link]: https://discord.gg/wez8HtpxqQ
+[telegram-shield]: https://img.shields.io/badge/Telegram-@CherryStudioAI-0088CC?style=plastic&logo=telegram
+[telegram-link]: https://t.me/CherryStudioAI
+
+<!-- 项目统计徽章 -->
+[github-stars-shield]: https://img.shields.io/github/stars/CherryHQ/cherry-studio?style=social
+[github-stars-link]: https://github.com/CherryHQ/cherry-studio/stargazers
+[github-forks-shield]: https://img.shields.io/github/forks/CherryHQ/cherry-studio?style=social
+[github-forks-link]: https://github.com/CherryHQ/cherry-studio/network
+[github-release-shield]: https://img.shields.io/github/v/release/CherryHQ/cherry-studio
+[github-release-link]: https://github.com/CherryHQ/cherry-studio/releases
+[github-contributors-shield]: https://img.shields.io/github/contributors/CherryHQ/cherry-studio
+[github-contributors-link]: https://github.com/CherryHQ/cherry-studio/graphs/contributors
+
+<!-- 许可和赞助徽章 -->
+[license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?style=plastic&logo=gnu
+[license-link]: https://www.gnu.org/licenses/agpl-3.0
+[commercial-shield]: https://img.shields.io/badge/商用授权-联系-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
+[commercial-link]: mailto:license@cherry-ai.com?subject=商业授权咨询
+[sponsor-shield]: https://img.shields.io/badge/赞助支持-FF6699.svg?style=plastic&logo=githubsponsors&logoColor=white
+[sponsor-link]: https://github.com/CherryHQ/cherry-studio/blob/main/docs/sponsor.md

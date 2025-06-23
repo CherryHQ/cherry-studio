@@ -654,6 +654,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@cherrystudio/embedjs-ollama@npm:^0.1.31":
+  version: 0.1.31
+  resolution: "@cherrystudio/embedjs-ollama@npm:0.1.31"
+  dependencies:
+    "@cherrystudio/embedjs-interfaces": "npm:0.1.31"
+    "@langchain/core": "npm:^0.3.26"
+    "@langchain/ollama": "npm:^0.1.4"
+    debug: "npm:^4.4.0"
+  checksum: 10c0/7ac807aca5a99dccc2d2bfc8245c9b9c5184c7b0b48f1ea4d3367a2175a8978c5cbc425614e1851074cffd93ffbb31350e4e567de308aa5100a6a2cbd795813f
+  languageName: node
+  linkType: hard
+
 "@cherrystudio/embedjs-openai@npm:^0.1.31":
   version: 0.1.31
   resolution: "@cherrystudio/embedjs-openai@npm:0.1.31"
@@ -2009,7 +2021,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@google/genai@npm:^1.0.1":
+"@google/genai@npm:1.0.1":
   version: 1.0.1
   resolution: "@google/genai@npm:1.0.1"
   dependencies:
@@ -2020,6 +2032,20 @@ __metadata:
   peerDependencies:
     "@modelcontextprotocol/sdk": ^1.11.0
   checksum: 10c0/1b908e4497ba6717598d93369ce54814059fb4879fb7fe9563059bae2298f4b8ceb50fd5ab3908b8fa04ccb90043d69ea824d530794e582476b8392c2d94303b
+  languageName: node
+  linkType: hard
+
+"@google/genai@patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch":
+  version: 1.0.1
+  resolution: "@google/genai@patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch::version=1.0.1&hash=b1e680"
+  dependencies:
+    google-auth-library: "npm:^9.14.2"
+    ws: "npm:^8.18.0"
+    zod: "npm:^3.22.4"
+    zod-to-json-schema: "npm:^3.22.4"
+  peerDependencies:
+    "@modelcontextprotocol/sdk": ^1.11.0
+  checksum: 10c0/aa38b73de3d84944f51c1f45a3945ea7578b6660276ea748f2349ed42106edc5c81c08872f7fb62cd6e158fc0517283cfe9cdbcce806eee3b62439f60b82496a
   languageName: node
   linkType: hard
 
@@ -2617,6 +2643,34 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@langchain/ollama@npm:^0.1.4":
+  version: 0.1.6
+  resolution: "@langchain/ollama@npm:0.1.6"
+  dependencies:
+    ollama: "npm:^0.5.12"
+    uuid: "npm:^10.0.0"
+    zod: "npm:^3.24.1"
+    zod-to-json-schema: "npm:^3.24.1"
+  peerDependencies:
+    "@langchain/core": ">=0.2.21 <0.4.0"
+  checksum: 10c0/535f2f4304edf125d0133a80fcb7657c5ffcab3c180e3ea69ce171c7a5fadb220b0d00c3bb7523bbe4f2f56663e0dd59cd19e19adadf0091c800b9ddca17ed3b
+  languageName: node
+  linkType: hard
+
+"@langchain/ollama@npm:^0.2.1":
+  version: 0.2.1
+  resolution: "@langchain/ollama@npm:0.2.1"
+  dependencies:
+    ollama: "npm:^0.5.12"
+    uuid: "npm:^10.0.0"
+    zod: "npm:^3.24.1"
+    zod-to-json-schema: "npm:^3.24.1"
+  peerDependencies:
+    "@langchain/core": ">=0.2.21 <0.4.0"
+  checksum: 10c0/be3083a15e879f2c19d0a51aafb88a3ba4ea69f9fdd90e6069b84edd92649c00a29a34cb885746e099f5cab0791b55df3776cd582cba7de299b8bd574d32b8c1
+  languageName: node
+  linkType: hard
+
 "@langchain/openai@npm:0.3.16":
   version: 0.3.16
   resolution: "@langchain/openai@npm:0.3.16"
@@ -2858,7 +2912,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libsql/client@npm:^0.14.0":
+"@libsql/client@npm:0.14.0, @libsql/client@npm:^0.14.0":
   version: 0.14.0
   resolution: "@libsql/client@npm:0.14.0"
   dependencies:
@@ -2951,9 +3005,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libsql/win32-x64-msvc@npm:0.4.7":
+"@libsql/win32-x64-msvc@npm:0.4.7, @libsql/win32-x64-msvc@npm:^0.4.7":
   version: 0.4.7
   resolution: "@libsql/win32-x64-msvc@npm:0.4.7"
+  checksum: 10c0/2fcb8715b6f0571dec145eaaf3fd53c7c5aa5bf408fe1be9d84b10adc8a909bb6ee60b45e0d7052b0c1722c30ac212356a3f1adcdf7f57d5a59b48f36ca5bdf5
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
@@ -4060,6 +4115,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/balanced-match@npm:^3":
+  version: 3.0.2
+  resolution: "@types/balanced-match@npm:3.0.2"
+  checksum: 10c0/833f6499609363537026c4ec2770af5c5a36e71b80f7b5b23884b15296301bfcf974cd40bc75fda940dea4994acd96c9222b284c248383a1ade59bf8835940b0
+  languageName: node
+  linkType: hard
+
 "@types/cacheable-request@npm:^6.0.1":
   version: 6.0.3
   resolution: "@types/cacheable-request@npm:6.0.3"
@@ -4696,6 +4758,15 @@ __metadata:
   version: 1.10.11
   resolution: "@types/verror@npm:1.10.11"
   checksum: 10c0/6d815cb2b76501f976cf9fa0feaf572e83b2ec3043eff92507c9976e52b7844453bd47c84f1298bf583f8e6568f39063a2541f80656f4af8e179072a711f9ab5
+  languageName: node
+  linkType: hard
+
+"@types/word-extractor@npm:^1":
+  version: 1.0.6
+  resolution: "@types/word-extractor@npm:1.0.6"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/84f89c458213db5aec4d6badad14e0f2c07ac4b92f16165d19a95548f2b98fd5fff00419d49547464cb75c9432b5e9cb3b452d75eb5f07d808e31b44be390453
   languageName: node
   linkType: hard
 
@@ -5544,6 +5615,7 @@ __metadata:
     "@cherrystudio/embedjs-loader-sitemap": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-web": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-xml": "npm:^0.1.31"
+    "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
     "@electron-toolkit/eslint-config-prettier": "npm:^3.0.0"
     "@electron-toolkit/eslint-config-ts": "npm:^3.0.0"
@@ -5554,10 +5626,13 @@ __metadata:
     "@emotion/is-prop-valid": "npm:^1.3.1"
     "@eslint-react/eslint-plugin": "npm:^1.36.1"
     "@eslint/js": "npm:^9.22.0"
-    "@google/genai": "npm:^1.0.1"
+    "@google/genai": "patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch"
     "@hello-pangea/dnd": "npm:^16.6.0"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.36"
+    "@langchain/ollama": "npm:^0.2.1"
+    "@libsql/client": "npm:0.14.0"
+    "@libsql/win32-x64-msvc": "npm:^0.4.7"
     "@modelcontextprotocol/sdk": "npm:^1.11.4"
     "@mozilla/readability": "npm:^0.6.0"
     "@notionhq/client": "npm:^2.2.15"
@@ -5571,6 +5646,7 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.6.3"
     "@testing-library/react": "npm:^16.3.0"
     "@tryfabric/martian": "npm:^1.2.4"
+    "@types/balanced-match": "npm:^3"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
@@ -5583,6 +5659,7 @@ __metadata:
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
     "@types/react-window": "npm:^1"
     "@types/tinycolor2": "npm:^1"
+    "@types/word-extractor": "npm:^1"
     "@uiw/codemirror-extensions-langs": "npm:^4.23.12"
     "@uiw/codemirror-themes-all": "npm:^4.23.12"
     "@uiw/react-codemirror": "npm:^4.23.12"
@@ -5596,6 +5673,7 @@ __metadata:
     archiver: "npm:^7.0.1"
     async-mutex: "npm:^0.5.0"
     axios: "npm:^1.7.3"
+    balanced-match: "npm:^3.0.1"
     browser-image-compression: "npm:^2.0.2"
     color: "npm:^5.0.0"
     dayjs: "npm:^1.11.11"
@@ -5623,11 +5701,12 @@ __metadata:
     fast-xml-parser: "npm:^5.2.0"
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
+    google-auth-library: "npm:^9.15.1"
     html-to-image: "npm:^1.11.13"
     husky: "npm:^9.1.7"
     i18next: "npm:^23.11.5"
     jest-styled-components: "npm:^7.2.0"
-    jsdom: "npm:^26.0.0"
+    jsdom: "npm:26.1.0"
     lint-staged: "npm:^15.5.0"
     lodash: "npm:^4.17.21"
     lru-cache: "npm:^11.1.0"
@@ -5637,6 +5716,7 @@ __metadata:
     mime: "npm:^4.0.4"
     motion: "npm:^12.10.5"
     node-stream-zip: "npm:^1.15.0"
+    notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.1.1"
     openai: "patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch"
@@ -5651,7 +5731,7 @@ __metadata:
     react-hotkeys-hook: "npm:^4.6.1"
     react-i18next: "npm:^14.1.2"
     react-infinite-scroll-component: "npm:^6.1.0"
-    react-markdown: "npm:^9.0.1"
+    react-markdown: "npm:^10.1.0"
     react-redux: "npm:^9.1.2"
     react-router: "npm:6"
     react-router-dom: "npm:6"
@@ -5660,26 +5740,28 @@ __metadata:
     redux: "npm:^5.0.1"
     redux-persist: "npm:^6.0.0"
     rehype-katex: "npm:^7.0.1"
-    rehype-mathjax: "npm:^7.0.0"
+    rehype-mathjax: "npm:^7.1.0"
     rehype-raw: "npm:^7.0.0"
-    remark-cjk-friendly: "npm:^1.1.0"
-    remark-gfm: "npm:^4.0.0"
+    remark-cjk-friendly: "npm:^1.2.0"
+    remark-gfm: "npm:^4.0.1"
     remark-math: "npm:^6.0.0"
+    remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
     sass: "npm:^1.88.0"
-    selection-hook: "npm:^0.9.22"
+    selection-hook: "npm:^0.9.23"
     shiki: "npm:^3.4.2"
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
     tiny-pinyin: "npm:^1.3.2"
     tokenx: "npm:^0.4.1"
-    turndown: "npm:^7.2.0"
+    turndown: "npm:7.2.0"
     typescript: "npm:^5.6.2"
     uuid: "npm:^10.0.0"
     vite: "npm:6.2.6"
     vitest: "npm:^3.1.4"
     webdav: "npm:^5.8.0"
+    word-extractor: "npm:^1.0.4"
     zipread: "npm:^1.3.3"
   languageName: unknown
   linkType: soft
@@ -5990,7 +6072,7 @@ __metadata:
 
 "app-builder-lib@patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch":
   version: 26.0.15
-  resolution: "app-builder-lib@patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch::version=26.0.15&hash=b02ae9"
+  resolution: "app-builder-lib@patch:app-builder-lib@npm%3A26.0.15#~/.yarn/patches/app-builder-lib-npm-26.0.15-360e5b0476.patch::version=26.0.15&hash=1f4887"
   dependencies:
     "@develar/schema-utils": "npm:~2.6.5"
     "@electron/asar": "npm:3.4.1"
@@ -6028,7 +6110,7 @@ __metadata:
   peerDependencies:
     dmg-builder: 26.0.15
     electron-builder-squirrel-windows: 26.0.15
-  checksum: 10c0/616072842c01f9f65283c95bf5642106c32bc3c6679672955f57b48bae9c28de10e18f2005d0e6e46cb2cb560dda3869ebf1412d3db50b7872c5f660581ad6db
+  checksum: 10c0/5de2bd593b21e464585ffa3424e053d41f8569b14ba2a00f29f84cb0b83347a7da3653587f9ef8b5d2f6d1e5bfc4081956b9d72f180d65960db49b5ac84b73d4
   languageName: node
   linkType: hard
 
@@ -6221,6 +6303,13 @@ __metadata:
   version: 1.0.2
   resolution: "balanced-match@npm:1.0.2"
   checksum: 10c0/9308baf0a7e4838a82bbfd11e01b1cb0f0cf2893bc1676c27c2a8c0e70cbae1c59120c3268517a8ae7fb6376b4639ef81ca22582611dbee4ed28df945134aaee
+  languageName: node
+  linkType: hard
+
+"balanced-match@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "balanced-match@npm:3.0.1"
+  checksum: 10c0/ac8dd63a5b260610c2cbda982f436e964c1b9ae8764d368a523769da40a31710abd6e19f0fdf1773c4ad7b2ea7ba7b285d547375dc723f6e754369835afc8e9f
   languageName: node
   linkType: hard
 
@@ -10211,7 +10300,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"google-auth-library@npm:^9.14.2":
+"google-auth-library@npm:^9.14.2, google-auth-library@npm:^9.15.1":
   version: 9.15.1
   resolution: "google-auth-library@npm:9.15.1"
   dependencies:
@@ -11332,7 +11421,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jsdom@npm:^26.0.0":
+"jsdom@npm:26.1.0":
   version: 26.1.0
   resolution: "jsdom@npm:26.1.0"
   dependencies:
@@ -12675,9 +12764,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"micromark-extension-cjk-friendly-util@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "micromark-extension-cjk-friendly-util@npm:1.1.0"
+"micromark-extension-cjk-friendly-util@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "micromark-extension-cjk-friendly-util@npm:2.0.0"
   dependencies:
     get-east-asian-width: "npm:^1.3.0"
     micromark-util-character: "npm:^2.0.0"
@@ -12685,16 +12774,16 @@ __metadata:
   peerDependenciesMeta:
     micromark-util-types:
       optional: true
-  checksum: 10c0/3ae1d4fd92f03a6c8e34e314c14a42b35cdd1bcbe043fceb1d2d45cd1a7b364e77643a3ca181910666cb11cc3606a1595fae9a15e87b0a4988fc57d5e4f65f67
+  checksum: 10c0/194c799d88982ebf785e65a1c29cbded17d5dd3510a1769123ec30ddb7e256502b97753f63e8994d91ebafa1e9b96aa2dc2a90aa4e2f2072269b05652a412886
   languageName: node
   linkType: hard
 
-"micromark-extension-cjk-friendly@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "micromark-extension-cjk-friendly@npm:1.1.0"
+"micromark-extension-cjk-friendly@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "micromark-extension-cjk-friendly@npm:1.2.0"
   dependencies:
     devlop: "npm:^1.0.0"
-    micromark-extension-cjk-friendly-util: "npm:^1.1.0"
+    micromark-extension-cjk-friendly-util: "npm:^2.0.0"
     micromark-util-chunked: "npm:^2.0.0"
     micromark-util-resolve-all: "npm:^2.0.0"
     micromark-util-symbol: "npm:^2.0.0"
@@ -12704,7 +12793,7 @@ __metadata:
   peerDependenciesMeta:
     micromark-util-types:
       optional: true
-  checksum: 10c0/95be6d8b4164b9b3b5281d77ed4f9337d95b2041ad4f7a775baa0d7f8ec495818101881eea2c7cc0ee4ee11738716899f20b3fbfbc2e6b80106544065d2ec04d
+  checksum: 10c0/5be1841629310e21c803b64feb00453fb8ac939be80c2ff473d8b4486d8eca973347520912a6e4abeda5bea4ed8ef39d3db48c4bad8285dd380d9ed34417dd0d
   languageName: node
   linkType: hard
 
@@ -13815,6 +13904,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"notion-helper@npm:^1.3.22":
+  version: 1.3.22
+  resolution: "notion-helper@npm:1.3.22"
+  peerDependencies:
+    "@notionhq/client": ^2.0.0
+  peerDependenciesMeta:
+    "@notionhq/client":
+      optional: true
+  checksum: 10c0/4afad1d6610ec910fe3fba0cb204431a1e5f3b45b5294c5ac3c0108611859a5919597e0400f500550fad709d291b7931cfe2766a49eb59638305584b90c02463
+  languageName: node
+  linkType: hard
+
 "npm-run-path@npm:^5.1.0":
   version: 5.3.0
   resolution: "npm-run-path@npm:5.3.0"
@@ -13907,6 +14008,15 @@ __metadata:
   bin:
     officeparser: officeParser.js
   checksum: 10c0/3cb5277ddd0b9a0ba67713708c6ed743ad9bfcb200ff3da922ba703a5e35684a03fa8fb7c5c9390a75803e79545e4114c759d3efdd8a30d009c318281f9043c6
+  languageName: node
+  linkType: hard
+
+"ollama@npm:^0.5.12":
+  version: 0.5.16
+  resolution: "ollama@npm:0.5.16"
+  dependencies:
+    whatwg-fetch: "npm:^3.6.20"
+  checksum: 10c0/901f9dac5692447219b3a48dcb9ad4f7da292a8ddbbbf429482cdde56e787a8a37123f3df18957733b8990f70b67fd05eb13b9bb17bd029eb6597d5b36345d7a
   languageName: node
   linkType: hard
 
@@ -14012,7 +14122,7 @@ __metadata:
 
 "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch":
   version: 5.1.0
-  resolution: "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch::version=5.1.0&hash=cf4b11"
+  resolution: "openai@patch:openai@npm%3A5.1.0#~/.yarn/patches/openai-npm-5.1.0-0e7b3ccb07.patch::version=5.1.0&hash=7d7491"
   peerDependencies:
     ws: ^8.18.0
     zod: ^3.23.8
@@ -14023,7 +14133,7 @@ __metadata:
       optional: true
   bin:
     openai: bin/cli
-  checksum: 10c0/26abab8311c5e130759d8b2a939ac408872d808c8e8b8f6a7bb5c85f2df0a66d61aece3af783dbf04a2aa401481cf20a6eddcb777b545b387f66220a6a6d25d7
+  checksum: 10c0/e7d2429887d0060cf9d8cd2c04640f759b55bffab696b3e926e510357af1b5f5b3bcf55d0e0dbe2282da8438a61fd75259847899db289d1e18ff0798b2450344
   languageName: node
   linkType: hard
 
@@ -15528,9 +15638,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-markdown@npm:^9.0.1":
-  version: 9.1.0
-  resolution: "react-markdown@npm:9.1.0"
+"react-markdown@npm:^10.1.0":
+  version: 10.1.0
+  resolution: "react-markdown@npm:10.1.0"
   dependencies:
     "@types/hast": "npm:^3.0.0"
     "@types/mdast": "npm:^4.0.0"
@@ -15546,7 +15656,7 @@ __metadata:
   peerDependencies:
     "@types/react": ">=18"
     react: ">=18"
-  checksum: 10c0/5bd645d39379f776d64588105f4060c390c3c8e4ff048552c9fa0ad31b756bb3ff7c11081542dc58d840ccf183a6dd4fd4d4edab44d8c24dee8b66551a5fd30d
+  checksum: 10c0/4a5dc7d15ca6d05e9ee95318c1904f83b111a76f7588c44f50f1d54d4c97193b84e4f64c4b592057c989228238a2590306cedd0c4d398e75da49262b2b5ae1bf
   languageName: node
   linkType: hard
 
@@ -15832,7 +15942,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rehype-mathjax@npm:^7.0.0":
+"rehype-mathjax@npm:^7.1.0":
   version: 7.1.0
   resolution: "rehype-mathjax@npm:7.1.0"
   dependencies:
@@ -15859,18 +15969,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-cjk-friendly@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "remark-cjk-friendly@npm:1.1.0"
+"remark-cjk-friendly@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "remark-cjk-friendly@npm:1.2.0"
   dependencies:
-    micromark-extension-cjk-friendly: "npm:^1.1.0"
+    micromark-extension-cjk-friendly: "npm:^1.2.0"
   peerDependencies:
     "@types/mdast": ^4.0.0
     unified: ^11.0.0
   peerDependenciesMeta:
     "@types/mdast":
       optional: true
-  checksum: 10c0/ef43a4c404baaaa3e3d888ea68db8ffa101746faadb96d19d6b7ee8d00f0a025613c2e508527236961b226e41d8fb34f6cc6ac217ae8770fcbf47b9f496ab32a
+  checksum: 10c0/ca7dc4fd50491693c4a84164650b30c3ae027cc7aa11b7a2e3811ab07ad0bf0c73484e37f9aed710bb68f95ca03cc540effe64cbe94bbc055b40e1aa951e2013
   languageName: node
   linkType: hard
 
@@ -15884,7 +15994,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-gfm@npm:^4.0.0":
+"remark-gfm@npm:^4.0.1":
   version: 4.0.1
   resolution: "remark-gfm@npm:4.0.1"
   dependencies:
@@ -15962,6 +16072,13 @@ __metadata:
     mdast-util-to-markdown: "npm:^2.0.0"
     unified: "npm:^11.0.0"
   checksum: 10c0/0cdb37ce1217578f6f847c7ec9f50cbab35df5b9e3903d543e74b405404e67c07defcb23cd260a567b41b769400f6de03c2c3d9cd6ae7a6707d5c8d89ead489f
+  languageName: node
+  linkType: hard
+
+"remove-markdown@npm:^0.6.2":
+  version: 0.6.2
+  resolution: "remove-markdown@npm:0.6.2"
+  checksum: 10c0/d26fb020b202f227877a29701fcbc96980af3c17001ae46f3253ba21307babcfa424006a207161f83ed04efe19fc9be6b084bd1308ef0b2217c59139e6ef6eb4
   languageName: node
   linkType: hard
 
@@ -16338,6 +16455,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"saxes@npm:^5.0.1":
+  version: 5.0.1
+  resolution: "saxes@npm:5.0.1"
+  dependencies:
+    xmlchars: "npm:^2.2.0"
+  checksum: 10c0/b7476c41dbe1c3a89907d2546fecfba234de5e66743ef914cde2603f47b19bed09732ab51b528ad0f98b958369d8be72b6f5af5c9cfad69972a73d061f0b3952
+  languageName: node
+  linkType: hard
+
 "saxes@npm:^6.0.0":
   version: 6.0.0
   resolution: "saxes@npm:6.0.0"
@@ -16384,13 +16510,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"selection-hook@npm:^0.9.22":
-  version: 0.9.22
-  resolution: "selection-hook@npm:0.9.22"
+"selection-hook@npm:^0.9.23":
+  version: 0.9.23
+  resolution: "selection-hook@npm:0.9.23"
   dependencies:
     node-gyp: "npm:latest"
     node-gyp-build: "npm:^4.8.4"
-  checksum: 10c0/4a202485fc4aed250f4ab863fdca9235240d49e5629549f5cf72dd3087af81ee54d65c28fa7d215d7ca609e25132b125e10540acbab1f6f4a7d8a508e1468ea3
+  checksum: 10c0/3b91193814c063e14dd788cff3b27020821bbeae24eab106d2ce5bf600c034c1b3db96ce573c456b74d0553346dfcf4c7cc8d49386a22797b42667f7ed3eee01
   languageName: node
   linkType: hard
 
@@ -17614,7 +17740,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"turndown@npm:^7.2.0":
+"turndown@npm:7.2.0":
   version: 7.2.0
   resolution: "turndown@npm:7.2.0"
   dependencies:
@@ -18442,6 +18568,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"whatwg-fetch@npm:^3.6.20":
+  version: 3.6.20
+  resolution: "whatwg-fetch@npm:3.6.20"
+  checksum: 10c0/fa972dd14091321d38f36a4d062298df58c2248393ef9e8b154493c347c62e2756e25be29c16277396046d6eaa4b11bd174f34e6403fff6aaca9fb30fa1ff46d
+  languageName: node
+  linkType: hard
+
 "whatwg-mimetype@npm:^4.0.0":
   version: 4.0.0
   resolution: "whatwg-mimetype@npm:4.0.0"
@@ -18532,6 +18665,16 @@ __metadata:
   dependencies:
     registry-js: "npm:^1.15.1"
   checksum: 10c0/f3712938ce0786c359f171c40cc40df37448e06feeaaddd056312dcc93caff02c1eac9df6f0fac162ec99ac1f23dffb70bf19fe08fac097fed3c32b7ae95f6aa
+  languageName: node
+  linkType: hard
+
+"word-extractor@npm:^1.0.4":
+  version: 1.0.4
+  resolution: "word-extractor@npm:1.0.4"
+  dependencies:
+    saxes: "npm:^5.0.1"
+    yauzl: "npm:^2.10.0"
+  checksum: 10c0/f8c6b4f9278802d0c803479c1441713e351e67f7b0d2f85bd8cbe94b76298d4adb058b5f23ee0a01faa02f3b1f01c507a4a2f44fa39cfcbd498a51769dd9e8e7
   languageName: node
   linkType: hard
 
@@ -18809,6 +18952,13 @@ __metadata:
   version: 3.24.2
   resolution: "zod@npm:3.24.2"
   checksum: 10c0/c638c7220150847f13ad90635b3e7d0321b36cce36f3fc6050ed960689594c949c326dfe2c6fa87c14b126ee5d370ccdebd6efb304f41ef5557a4aaca2824565
+  languageName: node
+  linkType: hard
+
+"zod@npm:^3.24.1":
+  version: 3.25.56
+  resolution: "zod@npm:3.25.56"
+  checksum: 10c0/3800f01d4b1df932b91354eb1e648f69cc7e5561549e6d2bf83827d930a5f33bbf92926099445f6fc1ebb64ca9c6513ef9ae5e5409cfef6325f354bcf6fc9a24
   languageName: node
   linkType: hard
 

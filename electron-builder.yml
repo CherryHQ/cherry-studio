@@ -107,8 +107,9 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    新增划词助手
-    助手支持分组
-    支持主题颜色切换
-    划词助手支持应用过滤
-    翻译模块功能改进
+    - 新功能：可选数据保存目录
+    - 快捷助手：支持单独选择助手，支持暂停、上下文、思考过程、流式
+    - 划词助手：系统托盘菜单开关
+    - 翻译：新增 Markdown 预览选项
+    - 新供应商：新增 Vertex AI 服务商
+    - 错误修复和界面优化

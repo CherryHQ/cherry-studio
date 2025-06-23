@@ -3,37 +3,58 @@
 exports[`Markdown > rendering > should match snapshot 1`] = `
 <div
   class="markdown"
-  data-testid="markdown-content"
 >
-  # Test Markdown
+  <div
+    data-testid="markdown-content"
+  >
+    # Test Markdown
 
 This is **bold** text.
-  <span
-    data-testid="has-link-component"
-  >
-    link
-  </span>
-  <div
-    data-testid="has-code-component"
-  >
-    <div
-      data-id="code-block-1"
-      data-testid="code-block"
+    <span
+      data-testid="has-link-component"
     >
-      <code>
-        test code
-      </code>
-      <button
-        type="button"
+      link
+    </span>
+    <div
+      data-testid="has-code-component"
+    >
+      <div
+        data-id="code-block-1"
+        data-testid="code-block"
       >
-        Save
-      </button>
+        <code>
+          test code
+        </code>
+        <button
+          type="button"
+        >
+          Save
+        </button>
+      </div>
     </div>
+    <div
+      data-testid="has-table-component"
+    >
+      <div
+        data-block-id="test-block-1"
+        data-testid="table-component"
+      >
+        <table>
+          test table
+        </table>
+        <button
+          data-testid="copy-table-button"
+          type="button"
+        >
+          Copy Table
+        </button>
+      </div>
+    </div>
+    <span
+      data-testid="has-img-component"
+    >
+      img
+    </span>
   </div>
-  <span
-    data-testid="has-img-component"
-  >
-    img
-  </span>
 </div>
 `;

@@ -8,8 +8,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
-import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
-import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown'
+import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,6 +24,8 @@ import remarkMath from 'remark-math'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import remarkDisableConstructs from './plugins/remarkDisableConstructs'
+import Table from './Table'
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
@@ -39,7 +41,7 @@ const Markdown: FC<Props> = ({ block }) => {
   const { mathEngine } = useSettings()
 
   const remarkPlugins = useMemo(() => {
-    const plugins = [remarkGfm, remarkCjkFriendly]
+    const plugins = [remarkGfm, remarkCjkFriendly, remarkDisableConstructs(['codeIndented'])]
     if (mathEngine !== 'none') {
       plugins.push(remarkMath)
     }
@@ -50,7 +52,7 @@ const Markdown: FC<Props> = ({ block }) => {
     const empty = isEmpty(block.content)
     const paused = block.status === 'paused'
     const content = empty && paused ? t('message.chat.completion.paused') : block.content
-    return removeSvgEmptyLines(escapeBrackets(content))
+    return removeSvgEmptyLines(processLatexBrackets(content))
   }, [block, t])
 
   const rehypePlugins = useMemo(() => {
@@ -83,6 +85,7 @@ const Markdown: FC<Props> = ({ block }) => {
       code: (props: any) => (
         <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
       ),
+      table: (props: any) => <Table {...props} blockId={block.id} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
       p: (props) => {
@@ -91,36 +94,33 @@ const Markdown: FC<Props> = ({ block }) => {
         return <p {...props} />
       }
     } as Partial<Components>
-  }, [onSaveCodeBlock])
+  }, [onSaveCodeBlock, block.id])
+
+  if (messageContent.includes('<style>')) {
+    components.style = MarkdownShadowDOMRenderer as any
+  }
 
   const urlTransform = useCallback((value: string) => {
     if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
     return defaultUrlTransform(value)
   }, [])
 
-  // if (role === 'user' && !renderInputMessageAsMarkdown) {
-  //   return <p style={{ marginBottom: 5, whiteSpace: 'pre-wrap' }}>{messageContent}</p>
-  // }
-
-  if (messageContent.includes('<style>')) {
-    components.style = MarkdownShadowDOMRenderer as any
-  }
-
   return (
-    <ReactMarkdown
-      rehypePlugins={rehypePlugins}
-      remarkPlugins={remarkPlugins}
-      className="markdown"
-      components={components}
-      disallowedElements={DISALLOWED_ELEMENTS}
-      urlTransform={urlTransform}
-      remarkRehypeOptions={{
-        footnoteLabel: t('common.footnotes'),
-        footnoteLabelTagName: 'h4',
-        footnoteBackContent: ' '
-      }}>
-      {messageContent}
-    </ReactMarkdown>
+    <div className="markdown">
+      <ReactMarkdown
+        rehypePlugins={rehypePlugins}
+        remarkPlugins={remarkPlugins}
+        components={components}
+        disallowedElements={DISALLOWED_ELEMENTS}
+        urlTransform={urlTransform}
+        remarkRehypeOptions={{
+          footnoteLabel: t('common.footnotes'),
+          footnoteLabelTagName: 'h4',
+          footnoteBackContent: ' '
+        }}>
+        {messageContent}
+      </ReactMarkdown>
+    </div>
   )
 }
 

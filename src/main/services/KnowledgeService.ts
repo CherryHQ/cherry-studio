@@ -25,12 +25,12 @@ import Embeddings from '@main/embeddings/Embeddings'
 import { addFileLoader } from '@main/loader'
 import Reranker from '@main/reranker/Reranker'
 import { windowService } from '@main/services/WindowService'
+import { getDataPath } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileType, KnowledgeBaseParams, KnowledgeItem } from '@types'
-import { app } from 'electron'
 import Logger from 'electron-log'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -88,7 +88,7 @@ const loaderTaskIntoOfSet = (loaderTask: LoaderTask): LoaderTaskOfSet => {
 }
 
 class KnowledgeService {
-  private storageDir = path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')
+  private storageDir = path.join(getDataPath(), 'KnowledgeBase')
   // Byte based
   private workload = 0
   private processingItemCount = 0
@@ -110,13 +110,21 @@ class KnowledgeService {
   private getRagApplication = async ({
     id,
     model,
+    provider,
     apiKey,
     apiVersion,
     baseURL,
     dimensions
   }: KnowledgeBaseParams): Promise<RAGApplication> => {
     let ragApplication: RAGApplication
-    const embeddings = new Embeddings({ model, apiKey, apiVersion, baseURL, dimensions } as KnowledgeBaseParams)
+    const embeddings = new Embeddings({
+      model,
+      provider,
+      apiKey,
+      apiVersion,
+      baseURL,
+      dimensions
+    } as KnowledgeBaseParams)
     try {
       ragApplication = await new RAGApplicationBuilder()
         .setModel('NO_MODEL')

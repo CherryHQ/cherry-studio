@@ -1,7 +1,7 @@
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 export const videoExts = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
-export const documentExts = ['.pdf', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
+export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
 const textExtsByCategory = new Map([
@@ -408,3 +408,4 @@ export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',
   EARLY_ACCESS = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
+export const defaultTimeout = 5 * 1000 * 60

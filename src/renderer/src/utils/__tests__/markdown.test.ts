@@ -7,6 +7,9 @@ import {
   convertMathFormula,
   findCitationInChildren,
   getCodeBlockId,
+  getExtensionByLanguage,
+  markdownToPlainText,
+  processLatexBrackets,
   removeTrailingDoubleSpaces,
   updateCodeBlock
 } from '../markdown'
@@ -142,6 +145,67 @@ describe('markdown', () => {
     })
   })
 
+  describe('getExtensionByLanguage', () => {
+    // 批量测试语言名称到扩展名的映射
+    const testLanguageExtensions = (testCases: Record<string, string>) => {
+      for (const [language, expectedExtension] of Object.entries(testCases)) {
+        const result = getExtensionByLanguage(language)
+        expect(result).toBe(expectedExtension)
+      }
+    }
+
+    it('should return extension for exact language name match', () => {
+      testLanguageExtensions({
+        '4D': '.4dm',
+        'C#': '.cs',
+        JavaScript: '.js',
+        TypeScript: '.ts',
+        'Objective-C++': '.mm',
+        Python: '.py',
+        SVG: '.svg',
+        'Visual Basic .NET': '.vb'
+      })
+    })
+
+    it('should return extension for case-insensitive language name match', () => {
+      testLanguageExtensions({
+        '4d': '.4dm',
+        'c#': '.cs',
+        javascript: '.js',
+        typescript: '.ts',
+        'objective-c++': '.mm',
+        python: '.py',
+        svg: '.svg',
+        'visual basic .net': '.vb'
+      })
+    })
+
+    it('should return extension for language aliases', () => {
+      testLanguageExtensions({
+        js: '.js',
+        node: '.js',
+        'obj-c++': '.mm',
+        'objc++': '.mm',
+        'objectivec++': '.mm',
+        py: '.py',
+        'visual basic': '.vb'
+      })
+    })
+
+    it('should return fallback extension for unknown languages', () => {
+      testLanguageExtensions({
+        'unknown-language': '.unknown-language',
+        custom: '.custom'
+      })
+    })
+
+    it('should handle empty string input', () => {
+      testLanguageExtensions({
+        '': '.'
+      })
+    })
+  })
+
   describe('getCodeBlockId', () => {
     it('should generate ID from position information', () => {
       // 从位置信息生成ID
@@ -184,7 +248,7 @@ describe('markdown', () => {
     // function getAllCodeBlockIds(markdown: string): { [content: string]: string } {
     //   const result: { [content: string]: string } = {}
     //   const tree = unified().use(remarkParse).parse(markdown)
-
+    //
     //   visit(tree, 'code', (node) => {
     //     const id = getCodeBlockId(node.position?.start)
     //     if (id) {
@@ -192,7 +256,7 @@ describe('markdown', () => {
     //       console.log(`Code Block ID: "${id}" for content: "${node.value}" lang: "${node.lang}"`)
     //     }
     //   })
-
+    //
     //   return result
     // }
 
@@ -321,6 +385,275 @@ describe('markdown', () => {
       const result = updateCodeBlock(markdown, blockId, newContent)
 
       expect(result).toBe(expectedResult)
+    })
+  })
+
+  describe('markdownToPlainText', () => {
+    it('should return an empty string if input is null or empty', () => {
+      expect(markdownToPlainText(null as any)).toBe('')
+      expect(markdownToPlainText('')).toBe('')
+    })
+
+    it('should remove headers', () => {
+      expect(markdownToPlainText('# Header 1')).toBe('Header 1')
+      expect(markdownToPlainText('## Header 2')).toBe('Header 2')
+      expect(markdownToPlainText('### Header 3')).toBe('Header 3')
+    })
+
+    it('should remove bold and italic', () => {
+      expect(markdownToPlainText('**bold**')).toBe('bold')
+      expect(markdownToPlainText('*italic*')).toBe('italic')
+      expect(markdownToPlainText('***bolditalic***')).toBe('bolditalic')
+      expect(markdownToPlainText('__bold__')).toBe('bold')
+      expect(markdownToPlainText('_italic_')).toBe('italic')
+      expect(markdownToPlainText('___bolditalic___')).toBe('bolditalic')
+    })
+
+    it('should remove strikethrough', () => {
+      expect(markdownToPlainText('~~strikethrough~~')).toBe('strikethrough')
+    })
+
+    it('should remove links, keeping the text', () => {
+      expect(markdownToPlainText('[link text](http://example.com)')).toBe('link text')
+      expect(markdownToPlainText('[link text with title](http://example.com "title")')).toBe('link text with title')
+    })
+
+    it('should remove images, keeping the alt text', () => {
+      expect(markdownToPlainText('![alt text](http://example.com/image.png)')).toBe('alt text')
+    })
+
+    it('should remove inline code', () => {
+      expect(markdownToPlainText('`inline code`')).toBe('inline code')
+    })
+
+    it('should remove code blocks', () => {
+      const codeBlock = '```javascript\nconst x = 1;\n```'
+      expect(markdownToPlainText(codeBlock)).toBe('const x = 1;') // remove-markdown keeps code content
+    })
+
+    it('should remove blockquotes', () => {
+      expect(markdownToPlainText('> blockquote')).toBe('blockquote')
+    })
+
+    it('should remove unordered lists', () => {
+      const list = '* item 1\n* item 2'
+      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
+    })
+
+    it('should remove ordered lists', () => {
+      const list = '1. item 1\n2. item 2'
+      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
+    })
+
+    it('should remove horizontal rules', () => {
+      expect(markdownToPlainText('---')).toBe('')
+      expect(markdownToPlainText('***')).toBe('')
+      expect(markdownToPlainText('___')).toBe('')
+    })
+
+    it('should handle a mix of markdown elements', () => {
+      const mixed = '# Title\nSome **bold** and *italic* text.\n[link](url)\n`code`\n> quote\n* list item'
+      const expected = 'Title\nSome bold and italic text.\nlink\ncode\nquote\nlist item'
+      const normalize = (str: string) => str.replace(/\s+/g, ' ').trim()
+      expect(normalize(markdownToPlainText(mixed))).toBe(normalize(expected))
+    })
+
+    it('should keep plain text unchanged', () => {
+      expect(markdownToPlainText('This is plain text.')).toBe('This is plain text.')
+    })
+  })
+
+  describe('processLatexBrackets', () => {
+    describe('basic LaTeX conversion', () => {
+      it('should convert display math \\[...\\] to $$...$$', () => {
+        expect(processLatexBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is $$a+b=c$$')
+      })
+
+      it('should convert inline math \\(...\\) to $...$', () => {
+        expect(processLatexBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
+      })
+    })
+
+    describe('code block protection', () => {
+      it('should not affect multi-line code blocks', () => {
+        const input = 'Text ```const arr = \\[1, 2, 3\\]\\nconst func = \\(x\\) => x``` more text'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should not affect inline code', () => {
+        const input = 'This is text with `const x = \\[1, 2, 3\\]` inline code'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should handle mixed code and LaTeX', () => {
+        const input = 'Math: \\[x + y\\] and code: `arr = \\[1, 2\\]` and more math: \\(z\\)'
+        const expected = 'Math: $$x + y$$ and code: `arr = \\[1, 2\\]` and more math: $z$'
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should protect complex code blocks', () => {
+        for (const [input, expected] of new Map([
+          [
+            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```',
+            '```javascript\\nconst latex = "\\\\[formula\\\\]"\\n```'
+          ],
+          ['`\\[escaped brackets\\]`', '`\\[escaped brackets\\]`'],
+          [
+            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```',
+            '```\\narray = \\[\\n  \\(item1\\),\\n  \\(item2\\)\\n\\]\\n```'
+          ]
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('link protection', () => {
+      it('should not affect LaTeX in link text', () => {
+        const input = '[\\[pdf\\] Document](https://example.com/doc.pdf)'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should not affect LaTeX in link URLs', () => {
+        const input = '[Click here](https://example.com/path\\[with\\]brackets)'
+        expect(processLatexBrackets(input)).toBe(input)
+      })
+
+      it('should handle mixed links and LaTeX', () => {
+        const input = 'See [\\[pdf\\] file](url) for formula \\[x + y = z\\]'
+        const expected = 'See [\\[pdf\\] file](url) for formula $$x + y = z$$'
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
+
+      it('should protect complex link patterns', () => {
+        for (const [input, expected] of new Map([
+          ['[Title with \\(math\\)](https://example.com)', '[Title with \\(math\\)](https://example.com)'],
+          ['[Link](https://example.com/\\[path\\]/file)', '[Link](https://example.com/\\[path\\]/file)'],
+          [
+            '[\\[Section 1\\] Overview](url) and \\[math formula\\]',
+            '[\\[Section 1\\] Overview](url) and $$math formula$$'
+          ]
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should handle empty string', () => {
+        expect(processLatexBrackets('')).toBe('')
+      })
+
+      it('should handle content without LaTeX', () => {
+        for (const [input, expected] of new Map([
+          ['Regular text without math', 'Regular text without math'],
+          ['Text with [regular] brackets', 'Text with [regular] brackets'],
+          ['Text with (parentheses)', 'Text with (parentheses)'],
+          ['No special characters here', 'No special characters here']
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+
+      it('should handle malformed LaTeX patterns', () => {
+        for (const [input, expected] of new Map([
+          ['\\[unclosed bracket', '\\[unclosed bracket'],
+          ['unopened bracket\\]', 'unopened bracket\\]'],
+          ['\\(unclosed paren', '\\(unclosed paren'],
+          ['unopened paren\\)', 'unopened paren\\)'],
+          ['\\[\\]', '$$$$'], // Empty LaTeX block
+          ['\\(\\)', '$$'] // Empty LaTeX inline
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+
+      it('should handle nested brackets', () => {
+        for (const [input, expected] of new Map([
+          ['\\[outer \\[inner\\] formula\\]', '$$outer \\[inner\\] formula$$'],
+          ['\\(a + \\(b + c\\)\\)', '$a + \\(b + c\\)$']
+        ])) {
+          expect(processLatexBrackets(input)).toBe(expected)
+        }
+      })
+    })
+
+    describe('complex cases', () => {
+      it('should handle complex mixed content', () => {
+        const complexInput = `
+# Mathematical Document
+
+Here's a simple formula \\(E = mc^2\\) in text.
+
+## Section 1: Equations
+
+The quadratic formula is \\[x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\\].
+
+- Item 1: See formula \\(\\alpha + \\beta = \\gamma\\) in this list
+- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
+  - Subitem 2.1: Basic concepts and definitions
+  - Subitem 2.2: The Cauchy-Riemann equations \\[\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}\\]
+  - Subitem 2.3: Green's theorem connects line integrals and double integrals
+  \\[
+  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
+  \\]
+  - Subitem 2.4: Applications in engineering and physics
+- Item 3: The sum \\[\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}\\] is famous
+
+\`\`\`javascript
+// Code should not be affected
+const matrix = \\[
+  \\[1, 2\\],
+  \\[3, 4\\]
+\\];
+const func = \\(x\\) => x * 2;
+\`\`\`
+
+Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
+
+Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) and display math:
+
+\\[\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\\]
+`
+
+        const expectedOutput = `
+# Mathematical Document
+
+Here's a simple formula $E = mc^2$ in text.
+
+## Section 1: Equations
+
+The quadratic formula is $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
+
+- Item 1: See formula $\\alpha + \\beta = \\gamma$ in this list
+- Item 2: Check [\\[PDF\\] Complex Analysis](https://example.com/math.pdf)
+  - Subitem 2.1: Basic concepts and definitions
+  - Subitem 2.2: The Cauchy-Riemann equations $$\\frac{\\partial u}{\\partial x} = \\frac{\\partial v}{\\partial y}, \\quad \\frac{\\partial u}{\\partial y} = -\\frac{\\partial v}{\\partial x}$$
+  - Subitem 2.3: Green's theorem connects line integrals and double integrals
+  $$
+  \\oint_C (P dx + Q dy) = \\iint_D \\left(\\frac{\\partial Q}{\\partial x} - \\frac{\\partial P}{\\partial y}\\right) dx dy
+  $$
+  - Subitem 2.4: Applications in engineering and physics
+- Item 3: The sum $$\\sum_{i=1}^{n} \\frac{1}{i^2} = \\frac{\\pi^2}{6}$$ is famous
+
+\`\`\`javascript
+// Code should not be affected
+const matrix = \\[
+  \\[1, 2\\],
+  \\[3, 4\\]
+\\];
+const func = \\(x\\) => x * 2;
+\`\`\`
+
+Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
+
+Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ and display math:
+
+$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+`
+
+        expect(processLatexBrackets(complexInput)).toBe(expectedOutput)
+      })
     })
   })
 })

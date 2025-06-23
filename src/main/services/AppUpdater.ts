@@ -1,11 +1,12 @@
 import { isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
-import { IpcChannel } from '@shared/IpcChannel'
 import { FeedUrl } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
+import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
 import { configManager } from './ConfigManager'
@@ -56,7 +57,35 @@ export default class AppUpdater {
       logger.info('下载完成', releaseInfo)
     })
 
+    if (isWin) {
+      ;(autoUpdater as NsisUpdater).installDirectory = path.dirname(app.getPath('exe'))
+    }
+
     this.autoUpdater = autoUpdater
+  }
+
+  private async _getIpCountry() {
+    try {
+      // add timeout using AbortController
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+      const ipinfo = await fetch('https://ipinfo.io/json', {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9'
+        }
+      })
+
+      clearTimeout(timeoutId)
+      const data = await ipinfo.json()
+      return data.country || 'CN'
+    } catch (error) {
+      logger.error('Failed to get ipinfo:', error)
+      return 'CN'
+    }
   }
 
   public setAutoUpdate(isActive: boolean) {
@@ -75,6 +104,12 @@ export default class AppUpdater {
         currentVersion: app.getVersion(),
         updateInfo: null
       }
+    }
+
+    const ipCountry = await this._getIpCountry()
+    logger.info('ipCountry', ipCountry)
+    if (ipCountry !== 'CN') {
+      this.autoUpdater.setFeedURL(FeedUrl.EARLY_ACCESS)
     }
 
     try {
