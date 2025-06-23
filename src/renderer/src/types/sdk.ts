@@ -102,6 +102,6 @@ export type GeminiSdkToolCall = FunctionCall
 
 export type GeminiOptions = {
   streamOutput: boolean
-  abortSignal?: AbortSignal
+  signal?: AbortSignal
   timeout?: number
 }

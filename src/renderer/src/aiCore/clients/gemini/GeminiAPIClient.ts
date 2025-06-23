@@ -85,7 +85,7 @@ export class GeminiAPIClient extends BaseApiClient<
       ...rest,
       config: {
         ...rest.config,
-        abortSignal: options?.abortSignal,
+        abortSignal: options?.signal,
         httpOptions: {
           ...rest.config?.httpOptions,
           timeout: options?.timeout
@@ -479,6 +479,7 @@ export class GeminiAPIClient extends BaseApiClient<
             for (const message of messages) {
               history.push(await this.convertMessageToSdkParam(message))
             }
+            messages.push(userLastMessage)
           }
         }
 

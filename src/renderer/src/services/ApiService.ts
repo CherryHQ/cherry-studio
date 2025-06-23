@@ -462,12 +462,23 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   })
   const conversation = JSON.stringify(structredMessages)
 
+  // 复制 assistant 对象，并强制关闭思考预算
+  const summaryAssistant = {
+    ...assistant,
+    settings: {
+      ...assistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    }
+  }
+
   const params: CompletionsParams = {
     callType: 'summary',
     messages: conversation,
-    assistant: { ...assistant, prompt, model },
+    assistant: { ...summaryAssistant, prompt, model },
     maxTokens: 1000,
-    streamOutput: false
+    streamOutput: false,
+    enableReasoning: false
   }
 
   try {
@@ -590,7 +601,8 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         callType: 'check',
         messages: 'hi',
         assistant,
-        streamOutput: true
+        streamOutput: true,
+        shouldThrow: true
       }
 
       // Try streaming check first
@@ -605,7 +617,8 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         callType: 'check',
         messages: 'hi',
         assistant,
-        streamOutput: false
+        streamOutput: false,
+        shouldThrow: true
       }
       const result = await ai.completions(params)
       if (!result.getText()) {
