@@ -239,6 +239,7 @@ const AboutSettings: FC = () => {
                   <Radio.Group
                     size="small"
                     buttonStyle="solid"
+                    defaultValue={UpgradeChannel.LATEST}
                     value={upgradeChannel}
                     onChange={(e) => handleUpgradeChannelChange(e.target.value)}>
                     {getAvailableTestChannels().map((option) => (
