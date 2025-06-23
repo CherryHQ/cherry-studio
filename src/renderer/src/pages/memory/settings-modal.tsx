@@ -32,9 +32,9 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
       form.setFieldsValue({
         llmModel: memoryConfig.llmModel ? getModelUniqId(memoryConfig.llmModel) : undefined,
         embedderModel: memoryConfig.embedderModel ? getModelUniqId(memoryConfig.embedderModel) : undefined,
-        embedderDimensions: memoryConfig.embedderDimensions,
-        customFactExtractionPrompt: memoryConfig.customFactExtractionPrompt,
-        customUpdateMemoryPrompt: memoryConfig.customUpdateMemoryPrompt
+        embedderDimensions: memoryConfig.embedderDimensions
+        // customFactExtractionPrompt: memoryConfig.customFactExtractionPrompt,
+        // customUpdateMemoryPrompt: memoryConfig.customUpdateMemoryPrompt
       })
     }
   }, [visible, memoryConfig, form])
@@ -50,9 +50,9 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
       ...memoryConfig,
       llmModel,
       embedderModel,
-      embedderDimensions: values.embedderDimensions,
-      customFactExtractionPrompt: values.customFactExtractionPrompt,
-      customUpdateMemoryPrompt: values.customUpdateMemoryPrompt
+      embedderDimensions: values.embedderDimensions
+      // customFactExtractionPrompt: values.customFactExtractionPrompt,
+      // customUpdateMemoryPrompt: values.customUpdateMemoryPrompt
     }
 
     dispatch(updateMemoryConfig(updatedConfig))
@@ -112,12 +112,12 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
           rules={[{ required: true, message: 'Please enter embedding dimensions' }]}>
           <Input type="number" placeholder="1536" disabled={isEmbeddingConfigured} />
         </Form.Item>
-        <Form.Item label="Custom Fact Extraction Prompt" name="customFactExtractionPrompt">
+        {/* <Form.Item label="Custom Fact Extraction Prompt" name="customFactExtractionPrompt">
           <Input.TextArea placeholder="Optional custom prompt for fact extraction..." rows={3} />
         </Form.Item>
         <Form.Item label="Custom Update Memory Prompt" name="customUpdateMemoryPrompt">
           <Input.TextArea placeholder="Optional custom prompt for memory updates..." rows={3} />
-        </Form.Item>
+        </Form.Item> */}
       </Form>
     </Modal>
   )

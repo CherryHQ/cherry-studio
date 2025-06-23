@@ -2193,6 +2193,8 @@
       "configure_memory_first": "Please configure memory settings first",
       "global_memory_disabled_title": "Global Memory Disabled",
       "global_memory_disabled_desc": "To use memory features, please enable global memory in assistant settings first.",
+      "not_configured_title": "Memory Not Configured",
+      "not_configured_desc": "Please configure embedding and LLM models in memory settings to enable memory functionality.",
       "go_to_memory_page": "Go to Memory Page"
     }
   }

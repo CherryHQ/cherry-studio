@@ -2193,6 +2193,8 @@
       "configure_memory_first": "最初にメモリ設定を構成してください",
       "global_memory_disabled_title": "グローバルメモリが無効です",
       "global_memory_disabled_desc": "メモリ機能を使用するには、まずアシスタント設定でグローバルメモリを有効にしてください。",
+      "not_configured_title": "メモリが設定されていません",
+      "not_configured_desc": "メモリ機能を有効にするには、メモリ設定で埋め込みとLLMモデルを設定してください。",
       "go_to_memory_page": "メモリページに移動"
     }
   }

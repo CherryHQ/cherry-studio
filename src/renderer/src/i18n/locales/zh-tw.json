@@ -2193,6 +2193,8 @@
       "configure_memory_first": "請先配置記憶設定",
       "global_memory_disabled_title": "全域記憶已停用",
       "global_memory_disabled_desc": "要使用記憶功能，請先在助手設定中啟用全域記憶。",
+      "not_configured_title": "記憶未配置",
+      "not_configured_desc": "請在記憶設定中配置嵌入和LLM模型以啟用記憶功能。",
       "go_to_memory_page": "前往記憶頁面"
     }
   }

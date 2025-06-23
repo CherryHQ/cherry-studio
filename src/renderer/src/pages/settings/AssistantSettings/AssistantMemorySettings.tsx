@@ -130,11 +130,6 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
           )}
           showIcon
           style={{ marginBottom: 16 }}
-          action={
-            <Button size="small" onClick={() => setSettingsModalVisible(true)}>
-              {t('common.configure')}
-            </Button>
-          }
         />
       )}
 
