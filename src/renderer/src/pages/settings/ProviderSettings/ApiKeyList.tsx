@@ -564,7 +564,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         )}
       </Card>
 
-      <Flex gap={10} style={{ marginTop: '8px' }}>
+      <Flex gap={10} justify="space-between" style={{ marginTop: '8px' }}>
         {!isCopilot && (
           <>
             <Space>
