@@ -13,7 +13,7 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey, splitApiKeyString } from '@renderer/utils/api'
-import { Button, Card, Flex, Input, List, Space, Spin, Typography } from 'antd'
+import { Button, Card, Flex, Input, List, Space, Spin, Tooltip, Typography } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,6 +35,11 @@ interface KeyStatus {
   error?: string
   model?: Model
   latency?: number
+}
+
+const STATUS_COLORS = {
+  success: '#52c41a',
+  error: '#ff4d4f'
 }
 
 const formatAndConvertKeysToArray = (apiKeys: string): KeyStatus[] => {
@@ -271,6 +276,33 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     onChange(updatedKeyStatuses.map((status) => status.key).join(','))
   }
 
+  const renderKeyCheckResultTooltip = (status: KeyStatus) => {
+    if (status.checking) {
+      return t('settings.models.check.checking')
+    }
+
+    const statusTitle = status.isValid
+      ? t('settings.models.check.passed')
+      : `${t('settings.models.check.failed')}${status.error ? ` (${status.error})` : ''}`
+    const statusColor = status.isValid ? STATUS_COLORS.success : STATUS_COLORS.error
+
+    return (
+      <div>
+        <strong style={{ color: statusColor }}>{statusTitle}</strong>
+        {type === 'provider' && status.model && (
+          <div style={{ marginTop: 5 }}>
+            {t('common.model')}: {status.model.name}
+          </div>
+        )}
+        {status.latency && status.isValid && (
+          <div style={{ marginTop: 5 }}>
+            {t('settings.provider.check_tooltip.latency')}: {(status.latency / 1000).toFixed(2)}s
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const shouldAutoFocus = () => {
     if (type === 'provider') {
       return (provider as Provider).enabled && apiKeys === '' && !isProviderSupportAuth(provider as Provider)
@@ -363,46 +395,46 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                           )}
                         </ApiKeyContainer>
                         <ApiKeyActions>
-                          <Space>
+                          <Tooltip title={renderKeyCheckResultTooltip(status)}>
                             {status.checking && (
                               <Space>
                                 <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
                               </Space>
                             )}
                             {status.isValid === true && !status.checking && (
-                              <CheckCircleFilled style={{ color: '#52c41a' }} />
+                              <CheckCircleFilled style={{ color: STATUS_COLORS.success }} />
                             )}
                             {status.isValid === false && !status.checking && (
-                              <CloseCircleFilled style={{ color: '#ff4d4f' }} />
+                              <CloseCircleFilled style={{ color: STATUS_COLORS.error }} />
                             )}
-                            <Button
-                              size="small"
-                              onClick={() => checkSingleKey(index)}
-                              disabled={isChecking || isCheckingSingle || isCopilot}>
-                              {t('settings.provider.check')}
-                            </Button>
-                            {!isCopilot && (
-                              <>
-                                <EditOutlined
-                                  onClick={() => !isChecking && !isCheckingSingle && handleEditKey(index)}
-                                  style={{
-                                    cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                                    opacity: isChecking || isCheckingSingle ? 0.5 : 1,
-                                    fontSize: '16px'
-                                  }}
-                                />
-                                <MinusCircleOutlined
-                                  onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
-                                  style={{
-                                    cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                                    opacity: isChecking || isCheckingSingle ? 0.5 : 1,
-                                    fontSize: '16px',
-                                    color: 'var(--color-error)'
-                                  }}
-                                />
-                              </>
-                            )}
-                          </Space>
+                          </Tooltip>
+                          <Button
+                            size="small"
+                            onClick={() => checkSingleKey(index)}
+                            disabled={isChecking || isCheckingSingle || isCopilot}>
+                            {t('settings.provider.check')}
+                          </Button>
+                          {!isCopilot && (
+                            <>
+                              <EditOutlined
+                                onClick={() => !isChecking && !isCheckingSingle && handleEditKey(index)}
+                                style={{
+                                  cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                  opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                  fontSize: '16px'
+                                }}
+                              />
+                              <MinusCircleOutlined
+                                onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                                style={{
+                                  cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                  opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                  fontSize: '16px',
+                                  color: 'var(--color-error)'
+                                }}
+                              />
+                            </>
+                          )}
                         </ApiKeyActions>
                       </ApiKeyListItem>
                     </List.Item>
