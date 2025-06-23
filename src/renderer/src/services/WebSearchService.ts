@@ -228,8 +228,8 @@ class WebSearchService {
       await window.api.knowledgeBase.delete(state.searchBase.id)
     }
 
-    if (!config.embeddingModel || !config.embeddingDimensions) {
-      throw new Error('Embedding model and dimensions are required for RAG compression')
+    if (!config.embeddingModel) {
+      throw new Error('Embedding model is required for RAG compression')
     }
 
     // 创建新的知识库

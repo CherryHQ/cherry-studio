@@ -1846,6 +1846,7 @@
           "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
           "rag.embedding_dimensions.auto_get": "次元を自動取得",
           "rag.embedding_dimensions.placeholder": "次元を入力",
+          "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",
           "info": {
             "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
           },

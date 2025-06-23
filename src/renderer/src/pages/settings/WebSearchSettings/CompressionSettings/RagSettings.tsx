@@ -136,13 +136,18 @@ const RagSettings = () => {
       <SettingDivider />
 
       <SettingRow>
-        <SettingRowTitle>{t('models.embedding_dimensions')}</SettingRowTitle>
+        <SettingRowTitle>
+          {t('models.embedding_dimensions')}
+          <Tooltip title={t('settings.websearch.compression.rag.embedding_dimensions.tooltip')}>
+            <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
+          </Tooltip>
+        </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: INPUT_BOX_WIDTH }}>
           <InputNumber
             value={compressionConfig?.embeddingDimensions}
             style={{ flex: 1 }}
             placeholder={t('settings.websearch.compression.rag.embedding_dimensions.placeholder')}
-            min={1}
+            min={0}
             onChange={handleEmbeddingDimensionsChange}
           />
           <Tooltip title={t('settings.websearch.compression.rag.embedding_dimensions.auto_get')}>
