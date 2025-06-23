@@ -168,10 +168,6 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     }
   }, [highlightCode])
 
-  const hasHighlightedCode = useMemo(() => {
-    return tokenLines.length > 0
-  }, [tokenLines.length])
-
   useEffect(() => {
     const container = codeContentRef.current
     if (!container || !codeShowLineNumbers) return
@@ -179,6 +175,8 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     const digits = Math.max(tokenLines.length.toString().length, 1)
     container.style.setProperty('--line-digits', digits.toString())
   }, [codeShowLineNumbers, tokenLines.length])
+
+  const hasHighlightedCode = tokenLines.length > 0
 
   return (
     <ContentContainer
