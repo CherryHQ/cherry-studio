@@ -1582,7 +1582,6 @@ const migrateConfig = {
   '113': (state: RootState) => {
     try {
       addProvider(state, 'vertexai')
-      state.llm.providers = moveProvider(state.llm.providers, 'vertexai', 10)
       if (!state.llm.settings.vertexai) {
         state.llm.settings.vertexai = llmInitialState.settings.vertexai
       }

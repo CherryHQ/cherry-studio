@@ -33,10 +33,11 @@ import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
-import { findFileBlocks, getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
+import store from '../store'
 import {
   getAssistantProvider,
   getAssistantSettings,
@@ -63,7 +64,7 @@ async function fetchExternalTool(
   lastAnswer?: Message
 ): Promise<ExternalToolResult> {
   // 可能会有重复？
-  const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
+  const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
   const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
@@ -251,15 +252,28 @@ async function fetchExternalTool(
 
     // Get MCP tools (Fix duplicate declaration)
     let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const enabledMCPs = assistant.mcpServers
+    const allMcpServers = store.getState().mcp.servers || []
+    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+    const assistantMcpServers = assistant.mcpServers || []
+
+    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
-        const toolPromises = enabledMCPs.map(async (mcpServer) => {
-          const tools = await window.api.mcp.listTools(mcpServer)
-          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
+          try {
+            const tools = await window.api.mcp.listTools(mcpServer)
+            return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+          } catch (error) {
+            console.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            return []
+          }
         })
-        const results = await Promise.all(toolPromises)
-        mcpTools = results.flat() // Flatten the array of arrays
+        const results = await Promise.allSettled(toolPromises)
+        mcpTools = results
+          .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .flat()
       } catch (toolError) {
         console.error('Error fetching MCP tools:', toolError)
       }
@@ -448,12 +462,23 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   })
   const conversation = JSON.stringify(structredMessages)
 
+  // 复制 assistant 对象，并强制关闭思考预算
+  const summaryAssistant = {
+    ...assistant,
+    settings: {
+      ...assistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    }
+  }
+
   const params: CompletionsParams = {
     callType: 'summary',
     messages: conversation,
-    assistant: { ...assistant, prompt, model },
+    assistant: { ...summaryAssistant, prompt, model },
     maxTokens: 1000,
-    streamOutput: false
+    streamOutput: false,
+    enableReasoning: false
   }
 
   try {
@@ -570,16 +595,14 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      const result = await ai.getEmbeddingDimensions(model)
-      if (result === 0) {
-        throw new Error(i18n.t('message.error.enter.model'))
-      }
+      await ai.getEmbeddingDimensions(model)
     } else {
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
-        streamOutput: true
+        streamOutput: true,
+        shouldThrow: true
       }
 
       // Try streaming check first
@@ -594,7 +617,8 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         callType: 'check',
         messages: 'hi',
         assistant,
-        streamOutput: false
+        streamOutput: false,
+        shouldThrow: true
       }
       const result = await ai.completions(params)
       if (!result.getText()) {

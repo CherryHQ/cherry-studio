@@ -2,12 +2,12 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const AdmZip = require('adm-zip')
+const StreamZip = require('node-stream-zip')
 const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading bun binaries
 const BUN_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/bun/releases/download'
-const DEFAULT_BUN_VERSION = '1.2.9' // Default fallback version
+const DEFAULT_BUN_VERSION = '1.2.17' // Default fallback version
 
 // Mapping of platform+arch to binary package name
 const BUN_PACKAGES = {
@@ -66,35 +66,36 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
 
     // Extract the zip file using adm-zip
     console.log(`Extracting ${packageName} to ${binDir}...`)
-    const zip = new AdmZip(tempFilename)
-    zip.extractAllTo(tempdir, true)
+    const zip = new StreamZip.async({ file: tempFilename })
 
-    // Move files using Node.js fs
-    const sourceDir = path.join(tempdir, packageName.split('.')[0])
-    const files = fs.readdirSync(sourceDir)
+    // Get all entries in the zip file
+    const entries = await zip.entries()
 
-    for (const file of files) {
-      const sourcePath = path.join(sourceDir, file)
-      const destPath = path.join(binDir, file)
+    // Extract files directly to binDir, flattening the directory structure
+    for (const entry of Object.values(entries)) {
+      if (!entry.isDirectory) {
+        // Get just the filename without path
+        const filename = path.basename(entry.name)
+        const outputPath = path.join(binDir, filename)
 
-      fs.copyFileSync(sourcePath, destPath)
-      fs.unlinkSync(sourcePath)
-
-      // Set executable permissions for non-Windows platforms
-      if (platform !== 'win32') {
-        try {
-          // 755 permission: rwxr-xr-x
-          fs.chmodSync(destPath, '755')
-        } catch (error) {
-          console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+        console.log(`Extracting ${entry.name} -> ${filename}`)
+        await zip.extract(entry.name, outputPath)
+        // Make executable files executable on Unix-like systems
+        if (platform !== 'win32') {
+          try {
+            fs.chmodSync(outputPath, 0o755)
+          } catch (chmodError) {
+            console.error(`Warning: Failed to set executable permissions on ${filename}`)
+            return false
+          }
         }
+        console.log(`Extracted ${entry.name} -> ${outputPath}`)
       }
     }
+    await zip.close()
 
     // Clean up
     fs.unlinkSync(tempFilename)
-    fs.rmSync(sourceDir, { recursive: true })
-
     console.log(`Successfully installed bun ${version} for ${platformKey}`)
     return true
   } catch (error) {

@@ -141,17 +141,6 @@ export const getCitationContent = (message: Message): string => {
 }
 
 /**
- * Gets the knowledgeBaseIds array from the *first* MainTextMessageBlock of a message.
- * Note: Assumes knowledgeBaseIds are only relevant on the first text block, adjust if needed.
- * @param message - The message object.
- * @returns The knowledgeBaseIds array or undefined if not found.
- */
-export const getKnowledgeBaseIds = (message: Message): string[] | undefined => {
-  const firstTextBlock = findMainTextBlocks(message)
-  return firstTextBlock?.flatMap((block) => block.knowledgeBaseIds).filter((id): id is string => Boolean(id))
-}
-
-/**
  * Gets the file content from all FileMessageBlocks and ImageMessageBlocks of a message.
  * @param message - The message object.
  * @returns The file content or an empty string if no file blocks are found.

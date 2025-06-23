@@ -752,10 +752,11 @@
       },
       "footer": {
         "copy_last_message": "Нажмите C для копирования",
+        "backspace_clear": "Нажмите Backspace, чтобы очистить",
         "esc": "Нажмите ESC {{action}}",
         "esc_back": "возвращения",
         "esc_close": "закрытия окна",
-        "backspace_clear": "Нажмите Backspace, чтобы очистить"
+        "esc_pause": "пауза"
       },
       "input": {
         "placeholder": {
@@ -803,7 +804,19 @@
         "vision": "Визуальные",
         "websearch": "Веб-поисковые"
       },
-      "rerank_model_not_support_provider": "В настоящее время модель переупорядочивания не поддерживает этого провайдера ({{provider}})"
+      "rerank_model_not_support_provider": "В настоящее время модель переупорядочивания не поддерживает этого провайдера ({{provider}})",
+      "price": {
+        "cost": "Стоимость",
+        "currency": "Валюта",
+        "custom": "Пользовательский",
+        "custom_currency": "Пользовательская валюта",
+        "custom_currency_placeholder": "Введите пользовательскую валюту",
+        "input": "Цена ввода",
+        "million_tokens": "M Tokens",
+        "output": "Цена вывода",
+        "price": "Цена"
+      },
+      "reasoning": "Рассуждение"
     },
     "navbar": {
       "expand": "Развернуть диалоговое окно",
@@ -961,7 +974,8 @@
       "per_image": "за изображение",
       "per_images": "за изображения",
       "required_field": "Обязательное поле",
-      "uploaded_input": "Загруженный ввод"
+      "uploaded_input": "Загруженный ввод",
+      "prompt_placeholder_en": "[to be translated]:Enter your image description, currently Imagen only supports English prompts"
     },
     "prompts": {
       "explanation": "Объясните мне этот концепт",
@@ -1069,7 +1083,29 @@
       "assistant.title": "Ассистент по умолчанию",
       "data": {
         "app_data": "Данные приложения",
-        "app_knowledge": "База знаний",
+        "app_data.select": "Изменить директорию",
+        "app_data.select_title": "Изменить директорию данных приложения",
+        "app_data.restart_notice": "Для применения изменений может потребоваться несколько перезапусков приложения",
+        "app_data.copy_data_option": "Копировать данные, будет автоматически перезапущено после копирования данных из исходной директории в новую директорию",
+        "app_data.copy_time_notice": "Копирование данных из исходной директории займет некоторое время, пожалуйста, будьте терпеливы",
+        "app_data.path_changed_without_copy": "Путь изменен успешно",
+        "app_data.copying_warning": "Копирование данных, нельзя взаимодействовать с приложением, не закрывайте приложение, приложение будет перезапущено после копирования",
+        "app_data.copying": "Копирование данных в новое место...",
+        "app_data.copy_success": "Данные успешно скопированы в новое место",
+        "app_data.copy_failed": "Не удалось скопировать данные",
+        "app_data.select_success": "Директория данных изменена, приложение будет перезапущено для применения изменений",
+        "app_data.select_error": "Не удалось изменить директорию данных",
+        "app_data.migration_title": "Миграция данных",
+        "app_data.original_path": "Исходный путь",
+        "app_data.new_path": "Новый путь",
+        "app_data.select_error_root_path": "Новый путь не может быть корневым",
+        "app_data.select_error_write_permission": "Новый путь не имеет разрешения на запись",
+        "app_data.stop_quit_app_reason": "Приложение в настоящее время перемещает данные и не может быть закрыто",
+        "app_data.select_not_empty_dir": "Новый путь не пуст",
+        "app_data.select_not_empty_dir_content": "Новый путь не пуст, он перезапишет данные в новом пути, есть риск потери данных и ошибки копирования, продолжить?",
+        "app_data.select_error_in_app_path": "Новый путь совпадает с исходным путем, пожалуйста, выберите другой путь",
+        "app_data.select_error_same_path": "Новый путь совпадает с исходным путем, пожалуйста, выберите другой путь",
+        "app_knowledge": "Файлы базы знаний",
         "app_knowledge.button.delete": "Удалить файл",
         "app_knowledge.remove_all": "Удалить файлы базы знаний",
         "app_knowledge.remove_all_confirm": "Удаление файлов базы знаний не удалит саму базу знаний, что позволит уменьшить занимаемый объем памяти, продолжить?",
@@ -1129,7 +1165,7 @@
         "markdown_export.select": "Выбрать",
         "markdown_export.title": "Экспорт в Markdown",
         "markdown_export.show_model_name.title": "Использовать имя модели при экспорте",
-        "markdown_export.show_model_name.help": "Если включено, для создания заголовков экспортируемых сообщений будет использоваться модель именования темы. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
+        "markdown_export.show_model_name.help": "Если включено, при экспорте в Markdown будет отображаться имя модели. Примечание: Эта опция также влияет на все методы экспорта через Markdown, такие как Notion, Yuque и т.д.",
         "markdown_export.show_model_provider.title": "Показать поставщика модели",
         "markdown_export.show_model_provider.help": "Показывать поставщика модели (например, OpenAI, Gemini) при экспорте в Markdown",
         "minute_interval_one": "{{count}} минута",
@@ -1193,8 +1229,6 @@
           "restore.confirm.content": "Восстановление с WebDAV перезапишет текущие данные, продолжить?",
           "restore.confirm.title": "Подтверждение восстановления",
           "restore.content": "Восстановление с WebDAV перезапишет текущие данные, продолжить?",
-          "restore.modal.select.placeholder": "Выберите файл резервной копии для восстановления",
-          "restore.modal.title": "Восстановление с WebDAV",
           "restore.title": "Восстановление с WebDAV",
           "syncError": "Ошибка резервного копирования",
           "syncStatus": "Статус резервного копирования",

@@ -153,7 +153,7 @@ function createToolHandlingTransform(
           if (toolResult.length > 0) {
             const output = ctx._internal.toolProcessingState?.output
 
-            const newParams = buildParamsWithToolResults(ctx, currentParams, output!, toolResult, toolCalls)
+            const newParams = buildParamsWithToolResults(ctx, currentParams, output, toolResult, toolCalls)
             await executeWithToolHandling(newParams, depth + 1)
           }
         } catch (error) {
@@ -243,7 +243,7 @@ async function executeToolUseResponses(
 function buildParamsWithToolResults(
   ctx: CompletionsContext,
   currentParams: CompletionsParams,
-  output: SdkRawOutput | string,
+  output: SdkRawOutput | string | undefined,
   toolResults: SdkMessageParam[],
   toolCalls: SdkToolCall[]
 ): CompletionsParams {

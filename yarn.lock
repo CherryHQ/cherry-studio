@@ -4115,6 +4115,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/balanced-match@npm:^3":
+  version: 3.0.2
+  resolution: "@types/balanced-match@npm:3.0.2"
+  checksum: 10c0/833f6499609363537026c4ec2770af5c5a36e71b80f7b5b23884b15296301bfcf974cd40bc75fda940dea4994acd96c9222b284c248383a1ade59bf8835940b0
+  languageName: node
+  linkType: hard
+
 "@types/cacheable-request@npm:^6.0.1":
   version: 6.0.3
   resolution: "@types/cacheable-request@npm:6.0.3"
@@ -4751,6 +4758,15 @@ __metadata:
   version: 1.10.11
   resolution: "@types/verror@npm:1.10.11"
   checksum: 10c0/6d815cb2b76501f976cf9fa0feaf572e83b2ec3043eff92507c9976e52b7844453bd47c84f1298bf583f8e6568f39063a2541f80656f4af8e179072a711f9ab5
+  languageName: node
+  linkType: hard
+
+"@types/word-extractor@npm:^1":
+  version: 1.0.6
+  resolution: "@types/word-extractor@npm:1.0.6"
+  dependencies:
+    "@types/node": "npm:*"
+  checksum: 10c0/84f89c458213db5aec4d6badad14e0f2c07ac4b92f16165d19a95548f2b98fd5fff00419d49547464cb75c9432b5e9cb3b452d75eb5f07d808e31b44be390453
   languageName: node
   linkType: hard
 
@@ -5630,6 +5646,7 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.6.3"
     "@testing-library/react": "npm:^16.3.0"
     "@tryfabric/martian": "npm:^1.2.4"
+    "@types/balanced-match": "npm:^3"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
@@ -5642,6 +5659,7 @@ __metadata:
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
     "@types/react-window": "npm:^1"
     "@types/tinycolor2": "npm:^1"
+    "@types/word-extractor": "npm:^1"
     "@uiw/codemirror-extensions-langs": "npm:^4.23.12"
     "@uiw/codemirror-themes-all": "npm:^4.23.12"
     "@uiw/react-codemirror": "npm:^4.23.12"
@@ -5655,6 +5673,7 @@ __metadata:
     archiver: "npm:^7.0.1"
     async-mutex: "npm:^0.5.0"
     axios: "npm:^1.7.3"
+    balanced-match: "npm:^3.0.1"
     browser-image-compression: "npm:^2.0.2"
     color: "npm:^5.0.0"
     dayjs: "npm:^1.11.11"
@@ -5712,7 +5731,7 @@ __metadata:
     react-hotkeys-hook: "npm:^4.6.1"
     react-i18next: "npm:^14.1.2"
     react-infinite-scroll-component: "npm:^6.1.0"
-    react-markdown: "npm:^9.0.1"
+    react-markdown: "npm:^10.1.0"
     react-redux: "npm:^9.1.2"
     react-router: "npm:6"
     react-router-dom: "npm:6"
@@ -5721,10 +5740,10 @@ __metadata:
     redux: "npm:^5.0.1"
     redux-persist: "npm:^6.0.0"
     rehype-katex: "npm:^7.0.1"
-    rehype-mathjax: "npm:^7.0.0"
+    rehype-mathjax: "npm:^7.1.0"
     rehype-raw: "npm:^7.0.0"
-    remark-cjk-friendly: "npm:^1.1.0"
-    remark-gfm: "npm:^4.0.0"
+    remark-cjk-friendly: "npm:^1.2.0"
+    remark-gfm: "npm:^4.0.1"
     remark-math: "npm:^6.0.0"
     remove-markdown: "npm:^0.6.2"
     rollup-plugin-visualizer: "npm:^5.12.0"
@@ -5742,6 +5761,7 @@ __metadata:
     vite: "npm:6.2.6"
     vitest: "npm:^3.1.4"
     webdav: "npm:^5.8.0"
+    word-extractor: "npm:^1.0.4"
     zipread: "npm:^1.3.3"
   languageName: unknown
   linkType: soft
@@ -6283,6 +6303,13 @@ __metadata:
   version: 1.0.2
   resolution: "balanced-match@npm:1.0.2"
   checksum: 10c0/9308baf0a7e4838a82bbfd11e01b1cb0f0cf2893bc1676c27c2a8c0e70cbae1c59120c3268517a8ae7fb6376b4639ef81ca22582611dbee4ed28df945134aaee
+  languageName: node
+  linkType: hard
+
+"balanced-match@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "balanced-match@npm:3.0.1"
+  checksum: 10c0/ac8dd63a5b260610c2cbda982f436e964c1b9ae8764d368a523769da40a31710abd6e19f0fdf1773c4ad7b2ea7ba7b285d547375dc723f6e754369835afc8e9f
   languageName: node
   linkType: hard
 
@@ -12737,9 +12764,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"micromark-extension-cjk-friendly-util@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "micromark-extension-cjk-friendly-util@npm:1.1.0"
+"micromark-extension-cjk-friendly-util@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "micromark-extension-cjk-friendly-util@npm:2.0.0"
   dependencies:
     get-east-asian-width: "npm:^1.3.0"
     micromark-util-character: "npm:^2.0.0"
@@ -12747,16 +12774,16 @@ __metadata:
   peerDependenciesMeta:
     micromark-util-types:
       optional: true
-  checksum: 10c0/3ae1d4fd92f03a6c8e34e314c14a42b35cdd1bcbe043fceb1d2d45cd1a7b364e77643a3ca181910666cb11cc3606a1595fae9a15e87b0a4988fc57d5e4f65f67
+  checksum: 10c0/194c799d88982ebf785e65a1c29cbded17d5dd3510a1769123ec30ddb7e256502b97753f63e8994d91ebafa1e9b96aa2dc2a90aa4e2f2072269b05652a412886
   languageName: node
   linkType: hard
 
-"micromark-extension-cjk-friendly@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "micromark-extension-cjk-friendly@npm:1.1.0"
+"micromark-extension-cjk-friendly@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "micromark-extension-cjk-friendly@npm:1.2.0"
   dependencies:
     devlop: "npm:^1.0.0"
-    micromark-extension-cjk-friendly-util: "npm:^1.1.0"
+    micromark-extension-cjk-friendly-util: "npm:^2.0.0"
     micromark-util-chunked: "npm:^2.0.0"
     micromark-util-resolve-all: "npm:^2.0.0"
     micromark-util-symbol: "npm:^2.0.0"
@@ -12766,7 +12793,7 @@ __metadata:
   peerDependenciesMeta:
     micromark-util-types:
       optional: true
-  checksum: 10c0/95be6d8b4164b9b3b5281d77ed4f9337d95b2041ad4f7a775baa0d7f8ec495818101881eea2c7cc0ee4ee11738716899f20b3fbfbc2e6b80106544065d2ec04d
+  checksum: 10c0/5be1841629310e21c803b64feb00453fb8ac939be80c2ff473d8b4486d8eca973347520912a6e4abeda5bea4ed8ef39d3db48c4bad8285dd380d9ed34417dd0d
   languageName: node
   linkType: hard
 
@@ -15611,9 +15638,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-markdown@npm:^9.0.1":
-  version: 9.1.0
-  resolution: "react-markdown@npm:9.1.0"
+"react-markdown@npm:^10.1.0":
+  version: 10.1.0
+  resolution: "react-markdown@npm:10.1.0"
   dependencies:
     "@types/hast": "npm:^3.0.0"
     "@types/mdast": "npm:^4.0.0"
@@ -15629,7 +15656,7 @@ __metadata:
   peerDependencies:
     "@types/react": ">=18"
     react: ">=18"
-  checksum: 10c0/5bd645d39379f776d64588105f4060c390c3c8e4ff048552c9fa0ad31b756bb3ff7c11081542dc58d840ccf183a6dd4fd4d4edab44d8c24dee8b66551a5fd30d
+  checksum: 10c0/4a5dc7d15ca6d05e9ee95318c1904f83b111a76f7588c44f50f1d54d4c97193b84e4f64c4b592057c989228238a2590306cedd0c4d398e75da49262b2b5ae1bf
   languageName: node
   linkType: hard
 
@@ -15915,7 +15942,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rehype-mathjax@npm:^7.0.0":
+"rehype-mathjax@npm:^7.1.0":
   version: 7.1.0
   resolution: "rehype-mathjax@npm:7.1.0"
   dependencies:
@@ -15942,18 +15969,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-cjk-friendly@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "remark-cjk-friendly@npm:1.1.0"
+"remark-cjk-friendly@npm:^1.2.0":
+  version: 1.2.0
+  resolution: "remark-cjk-friendly@npm:1.2.0"
   dependencies:
-    micromark-extension-cjk-friendly: "npm:^1.1.0"
+    micromark-extension-cjk-friendly: "npm:^1.2.0"
   peerDependencies:
     "@types/mdast": ^4.0.0
     unified: ^11.0.0
   peerDependenciesMeta:
     "@types/mdast":
       optional: true
-  checksum: 10c0/ef43a4c404baaaa3e3d888ea68db8ffa101746faadb96d19d6b7ee8d00f0a025613c2e508527236961b226e41d8fb34f6cc6ac217ae8770fcbf47b9f496ab32a
+  checksum: 10c0/ca7dc4fd50491693c4a84164650b30c3ae027cc7aa11b7a2e3811ab07ad0bf0c73484e37f9aed710bb68f95ca03cc540effe64cbe94bbc055b40e1aa951e2013
   languageName: node
   linkType: hard
 
@@ -15967,7 +15994,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"remark-gfm@npm:^4.0.0":
+"remark-gfm@npm:^4.0.1":
   version: 4.0.1
   resolution: "remark-gfm@npm:4.0.1"
   dependencies:
@@ -16425,6 +16452,15 @@ __metadata:
   version: 1.4.1
   resolution: "sax@npm:1.4.1"
   checksum: 10c0/6bf86318a254c5d898ede6bd3ded15daf68ae08a5495a2739564eb265cd13bcc64a07ab466fb204f67ce472bb534eb8612dac587435515169593f4fffa11de7c
+  languageName: node
+  linkType: hard
+
+"saxes@npm:^5.0.1":
+  version: 5.0.1
+  resolution: "saxes@npm:5.0.1"
+  dependencies:
+    xmlchars: "npm:^2.2.0"
+  checksum: 10c0/b7476c41dbe1c3a89907d2546fecfba234de5e66743ef914cde2603f47b19bed09732ab51b528ad0f98b958369d8be72b6f5af5c9cfad69972a73d061f0b3952
   languageName: node
   linkType: hard
 
@@ -18629,6 +18665,16 @@ __metadata:
   dependencies:
     registry-js: "npm:^1.15.1"
   checksum: 10c0/f3712938ce0786c359f171c40cc40df37448e06feeaaddd056312dcc93caff02c1eac9df6f0fac162ec99ac1f23dffb70bf19fe08fac097fed3c32b7ae95f6aa
+  languageName: node
+  linkType: hard
+
+"word-extractor@npm:^1.0.4":
+  version: 1.0.4
+  resolution: "word-extractor@npm:1.0.4"
+  dependencies:
+    saxes: "npm:^5.0.1"
+    yauzl: "npm:^2.10.0"
+  checksum: 10c0/f8c6b4f9278802d0c803479c1441713e351e67f7b0d2f85bd8cbe94b76298d4adb058b5f23ee0a01faa02f3b1f01c507a4a2f44fa39cfcbd498a51769dd9e8e7
   languageName: node
   linkType: hard
 

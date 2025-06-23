@@ -42,13 +42,13 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@renderer/utils/formats', () => ({
-  escapeBrackets: vi.fn((str) => str),
   removeSvgEmptyLines: vi.fn((str) => str)
 }))
 
 vi.mock('@renderer/utils/markdown', () => ({
   findCitationInChildren: vi.fn(() => '{"id": 1, "url": "https://example.com"}'),
-  getCodeBlockId: vi.fn(() => 'code-block-1')
+  getCodeBlockId: vi.fn(() => 'code-block-1'),
+  processLatexBrackets: vi.fn((str) => str)
 }))
 
 // Mock components with more realistic behavior
@@ -102,6 +102,12 @@ vi.mock('remark-math', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-katex', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-mathjax', () => ({ __esModule: true, default: vi.fn() }))
 vi.mock('rehype-raw', () => ({ __esModule: true, default: vi.fn() }))
+
+// Mock custom plugins
+vi.mock('../plugins/remarkDisableConstructs', () => ({
+  __esModule: true,
+  default: vi.fn()
+}))
 
 // Mock ReactMarkdown with realistic rendering
 vi.mock('react-markdown', () => ({
@@ -162,12 +168,16 @@ describe('Markdown', () => {
   describe('rendering', () => {
     it('should render markdown content with correct structure', () => {
       const block = createMainTextBlock({ content: 'Test content' })
-      render(<Markdown block={block} />)
+      const { container } = render(<Markdown block={block} />)
 
-      const markdown = screen.getByTestId('markdown-content')
-      expect(markdown).toBeInTheDocument()
-      expect(markdown).toHaveClass('markdown')
-      expect(markdown).toHaveTextContent('Test content')
+      // Check that the outer container has the markdown class
+      const markdownContainer = container.querySelector('.markdown')
+      expect(markdownContainer).toBeInTheDocument()
+
+      // Check that the markdown content is rendered inside
+      const markdownContent = screen.getByTestId('markdown-content')
+      expect(markdownContent).toBeInTheDocument()
+      expect(markdownContent).toHaveTextContent('Test content')
     })
 
     it('should handle empty content gracefully', () => {
@@ -200,16 +210,6 @@ describe('Markdown', () => {
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toHaveTextContent('Real content')
       expect(markdown).not.toHaveTextContent('Paused')
-    })
-
-    it('should process content through format utilities', async () => {
-      const { escapeBrackets, removeSvgEmptyLines } = await import('@renderer/utils/formats')
-      const content = 'Content with [brackets] and SVG'
-
-      render(<Markdown block={createMainTextBlock({ content })} />)
-
-      expect(escapeBrackets).toHaveBeenCalledWith(content)
-      expect(removeSvgEmptyLines).toHaveBeenCalledWith(content)
     })
 
     it('should match snapshot', () => {
