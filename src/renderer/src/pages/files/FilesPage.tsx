@@ -22,6 +22,9 @@ import styled from 'styled-components'
 
 import FileList from './FileList'
 
+type SortField = 'created_at' | 'size' | 'name'
+type SortOrder = 'asc' | 'desc'
+
 const FilesPage: FC = () => {
   const { t } = useTranslation()
   const [fileType, setFileType] = useState<string>('document')
