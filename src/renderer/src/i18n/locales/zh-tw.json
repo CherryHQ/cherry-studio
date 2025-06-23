@@ -1106,7 +1106,7 @@
         "app_data.select_not_empty_dir": "新路徑不為空",
         "app_data.select_not_empty_dir_content": "新路徑不為空，選擇複製將覆蓋新路徑中的數據, 有數據丟失和複製失敗的風險，是否繼續？",
         "app_data.select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
-        "app_data.select_error_in_app_path": "新路徑不能在應用可執行文件路徑內，請選擇其他路徑",
+        "app_data.select_error_in_app_path": "新路徑與應用安裝路徑相同，請選擇其他路徑",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",

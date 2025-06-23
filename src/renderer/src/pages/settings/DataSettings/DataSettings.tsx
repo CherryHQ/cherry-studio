@@ -208,8 +208,8 @@ const DataSettings: FC = () => {
       return
     }
 
-    // check new app data path is not in app executable path
-    if (newAppDataPath.startsWith(appInfo.appPath)) {
+    // check new app data path is not in app install path
+    if (newAppDataPath.startsWith(appInfo.installPath)) {
       window.message.error(t('settings.data.app_data.select_error_in_app_path'))
       return
     }

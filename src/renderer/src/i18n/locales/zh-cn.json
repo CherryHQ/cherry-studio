@@ -1106,7 +1106,7 @@
         "app_data.select_not_empty_dir": "新路径不为空",
         "app_data.select_not_empty_dir_content": "新路径不为空，将覆盖新路径中的数据, 有数据丢失和复制失败的风险，是否继续？",
         "app_data.select_error_same_path": "新路径与旧路径相同，请选择其他路径",
-        "app_data.select_error_in_app_path": "新路径不能在应用可执行文件路径内，请选择其他路径",
+        "app_data.select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
         "app_knowledge": "知识库文件",
         "app_knowledge.button.delete": "删除文件",
         "app_knowledge.remove_all": "删除知识库文件",

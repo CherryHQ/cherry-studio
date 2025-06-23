@@ -1104,7 +1104,7 @@
         "app_data.select_not_empty_dir": "新しいパスは空ではありません",
         "app_data.select_not_empty_dir_content": "新しいパスは空ではありません。新しいパスのデータが上書きされます。データが失われるリスクがあります。続行しますか？",
         "app_data.select_error_same_path": "新しいパスは元のパスと同じです。別のパスを選択してください",
-        "app_data.select_error_in_app_path": "新しいパスはアプリの実行ファイルパス内にあるため、選択できません。別のパスを選択してください",
+        "app_data.select_error_in_app_path": "新しいパスはアプリのインストールパスと同じです。別のパスを選択してください",
         "app_knowledge": "知識ベースファイル",
         "app_knowledge.button.delete": "ファイルを削除",
         "app_knowledge.remove_all": "ナレッジベースファイルを削除",

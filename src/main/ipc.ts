@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import { arch } from 'node:os'
+import path from 'node:path'
 
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
@@ -57,7 +58,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     resourcesPath: getResourcePath(),
     logsPath: log.transports.file.getFile().path,
     arch: arch(),
-    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env
+    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
+    installPath: path.dirname(app.getPath('exe'))
   }))
 
   ipcMain.handle(IpcChannel.App_Proxy, async (_, proxy: string) => {
