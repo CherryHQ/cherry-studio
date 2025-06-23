@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   addImageFileToContents,
   encodeHTML,
-  escapeBrackets,
   escapeDollarNumber,
   extractTitle,
   removeSvgEmptyLines,
@@ -177,36 +176,6 @@ describe('formats', () => {
 
     it('should handle dollar sign at the end of string', () => {
       expect(escapeDollarNumber('The cost is $')).toBe('The cost is $')
-    })
-  })
-
-  describe('escapeBrackets', () => {
-    it('should convert \\[...\\] to display math format', () => {
-      expect(escapeBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is \n$$\na+b=c\n$$\n')
-    })
-
-    it('should convert \\(...\\) to inline math format', () => {
-      expect(escapeBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
-    })
-
-    it('should not affect code blocks', () => {
-      const codeBlock = 'This is text with a code block ```const x = \\[1, 2, 3\\]```'
-      expect(escapeBrackets(codeBlock)).toBe(codeBlock)
-    })
-
-    it('should not affect inline code', () => {
-      const inlineCode = 'This is text with `const x = \\[1, 2, 3\\]` inline code'
-      expect(escapeBrackets(inlineCode)).toBe(inlineCode)
-    })
-
-    it('should handle multiple occurrences', () => {
-      const input = 'Formula 1: \\[a+b=c\\] and formula 2: \\(x+y=z\\)'
-      const expected = 'Formula 1: \n$$\na+b=c\n$$\n and formula 2: $x+y=z$'
-      expect(escapeBrackets(input)).toBe(expected)
-    })
-
-    it('should handle empty string', () => {
-      expect(escapeBrackets('')).toBe('')
     })
   })
 
