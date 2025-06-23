@@ -216,6 +216,7 @@ const MessageContainer = styled.div`
 `
 
 const MessageContentContainer = styled.div`
+  max-width: 100%;
   padding-left: 46px;
   margin-top: 5px;
   overflow-y: auto;

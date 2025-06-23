@@ -112,10 +112,6 @@ ul {
 }
 
 .bubble:not(.multi-select-mode) {
-  .system-prompt {
-    background-color: var(--chat-background-assistant);
-  }
-
   .block-wrapper {
     display: flow-root;
   }
@@ -133,7 +129,6 @@ ul {
   }
 
   .message-user {
-    align-items: flex-end;
     .message-header {
       flex-direction: row-reverse;
       text-align: right;
@@ -146,10 +141,11 @@ ul {
       border-radius: 10px 0 10px 10px;
       padding: 10px 16px 10px 16px;
       background-color: var(--chat-background-user);
-      justify-self: end;
+      align-self: self-end;
     }
     .MessageFooter {
       margin-top: 2px;
+      align-self: self-end;
     }
   }
 
