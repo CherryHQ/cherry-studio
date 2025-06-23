@@ -16,7 +16,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileType } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
@@ -47,7 +47,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
-  const [fileMap, setFileMap] = useState<{ [key: string]: FileType }>({})
+  const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
 
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -127,7 +127,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
     )
 
-    return downloadedFiles.filter((file): file is FileType => file !== null)
+    return downloadedFiles.filter((file): file is FileMetadata => file !== null)
   }
 
   const onGenerate = async () => {
@@ -722,7 +722,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             listType="picture-card"
             beforeUpload={(file) => {
               const path = URL.createObjectURL(file)
-              setFileMap({ ...fileMap, [path]: file as unknown as FileType })
+              setFileMap({ ...fileMap, [path]: file as unknown as FileMetadata })
               updatePaintingState({ [item.key!]: path })
               return false // 阻止默认上传行为
             }}>

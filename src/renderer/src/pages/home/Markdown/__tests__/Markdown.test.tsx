@@ -42,13 +42,13 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@renderer/utils/formats', () => ({
-  escapeBrackets: vi.fn((str) => str),
   removeSvgEmptyLines: vi.fn((str) => str)
 }))
 
 vi.mock('@renderer/utils/markdown', () => ({
   findCitationInChildren: vi.fn(() => '{"id": 1, "url": "https://example.com"}'),
-  getCodeBlockId: vi.fn(() => 'code-block-1')
+  getCodeBlockId: vi.fn(() => 'code-block-1'),
+  processLatexBrackets: vi.fn((str) => str)
 }))
 
 // Mock components with more realistic behavior
@@ -210,16 +210,6 @@ describe('Markdown', () => {
       const markdown = screen.getByTestId('markdown-content')
       expect(markdown).toHaveTextContent('Real content')
       expect(markdown).not.toHaveTextContent('Paused')
-    })
-
-    it('should process content through format utilities', async () => {
-      const { escapeBrackets, removeSvgEmptyLines } = await import('@renderer/utils/formats')
-      const content = 'Content with [brackets] and SVG'
-
-      render(<Markdown block={createMainTextBlock({ content })} />)
-
-      expect(escapeBrackets).toHaveBeenCalledWith(content)
-      expect(removeSvgEmptyLines).toHaveBeenCalledWith(content)
     })
 
     it('should match snapshot', () => {

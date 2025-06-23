@@ -554,7 +554,11 @@
       "rename": "重命名",
       "search": "搜索知识库",
       "search_placeholder": "输入查询内容",
-      "settings": "知识库设置",
+      "settings": {
+        "title": "知识库设置",
+        "preprocessing": "预处理",
+        "preprocessing_tooltip": "使用 OCR 预处理上传的文件"
+      },
       "sitemap_placeholder": "请输入站点地图 URL",
       "sitemaps": "网站",
       "source": "来源",
@@ -575,7 +579,13 @@
       "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
       "url_added": "网址已添加",
       "url_placeholder": "请输入网址, 多个网址用回车分隔",
-      "urls": "网址"
+      "urls": "网址",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "预处理完成",
+      "status_embedding_failed": "嵌入失败",
+      "status_preprocess_failed": "预处理失败",
+      "quota": "{{name}} 剩余额度：{{quota}}",
+      "quota_infinity": "{{name}} 剩余额度：无限制"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -830,7 +840,7 @@
     "notification": {
       "assistant": "助手响应",
       "knowledge.success": "成功添加 {{type}} 到知识库",
-      "knowledge.error": "添加 {{type}} 到知识库失败: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "对话后模型在内存中保持的时间（默认：5分钟）",
@@ -1091,11 +1101,11 @@
         "app_data": "应用数据",
         "app_data.select": "修改目录",
         "app_data.select_title": "更改应用数据目录",
-        "app_data.restart_notice": "应用需要重启以应用更改",
-        "app_data.copy_data_option": "复制数据，开启后会将原始目录数据复制到新目录",
+        "app_data.restart_notice": "应用可能会重启多次以应用更改",
+        "app_data.copy_data_option": "复制数据，会自动重启后将原始目录数据复制到新目录",
         "app_data.copy_time_notice": "复制数据将需要一些时间，复制期间不要关闭应用",
-        "app_data.path_changed_without_copy": "路径已更改成功，但数据未复制",
-        "app_data.copying_warning": "数据复制中，不要强制退出app",
+        "app_data.path_changed_without_copy": "路径已更改成功",
+        "app_data.copying_warning": "数据复制中，不要强制退出app, 复制完成后会自动重启应用",
         "app_data.copying": "正在将数据复制到新位置...",
         "app_data.copy_success": "已成功复制数据到新位置",
         "app_data.copy_failed": "复制数据失败",
@@ -1107,6 +1117,10 @@
         "app_data.select_error_root_path": "新路径不能是根路径",
         "app_data.select_error_write_permission": "新路径没有写入权限",
         "app_data.stop_quit_app_reason": "应用目前在迁移数据, 不能退出",
+        "app_data.select_not_empty_dir": "新路径不为空",
+        "app_data.select_not_empty_dir_content": "新路径不为空，将覆盖新路径中的数据, 有数据丢失和复制失败的风险，是否继续？",
+        "app_data.select_error_same_path": "新路径与旧路径相同，请选择其他路径",
+        "app_data.select_error_in_app_path": "新路径与应用安装路径相同，请选择其他路径",
         "app_knowledge": "知识库文件",
         "app_knowledge.button.delete": "删除文件",
         "app_knowledge.remove_all": "删除知识库文件",
@@ -1639,7 +1653,7 @@
         "title": "通知设置",
         "assistant": "助手消息",
         "backup": "备份",
-        "knowledge_embed": "知识嵌入"
+        "knowledge_embed": "知识库"
       },
       "provider": {
         "add.name": "提供商名称",
@@ -1800,42 +1814,6 @@
       "tray.onclose": "关闭时最小化到托盘",
       "tray.show": "显示托盘图标",
       "tray.title": "托盘",
-      "websearch": {
-        "blacklist": "黑名单",
-        "blacklist_description": "在搜索结果中不会出现以下网站的结果",
-        "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "check": "检测",
-        "check_failed": "验证失败",
-        "check_success": "验证成功",
-        "overwrite": "覆盖服务商搜索",
-        "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
-        "get_api_key": "点击这里获取密钥",
-        "no_provider_selected": "请选择搜索服务商后再检测",
-        "search_max_result": "搜索结果个数",
-        "search_provider": "搜索服务商",
-        "search_provider_placeholder": "选择一个搜索服务商",
-        "subscribe": "黑名单订阅",
-        "subscribe_update": "立即更新",
-        "subscribe_add": "添加订阅",
-        "subscribe_url": "订阅源地址",
-        "subscribe_name": "替代名字",
-        "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
-        "subscribe_add_success": "订阅源添加成功!",
-        "subscribe_delete": "删除订阅源",
-        "search_result_default": "默认",
-        "search_with_time": "搜索包含日期",
-        "tavily": {
-          "api_key": "Tavily API 密钥",
-          "api_key.placeholder": "请输入 Tavily API 密钥",
-          "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
-          "title": "Tavily"
-        },
-        "title": "网络搜索",
-        "apikey": "API 密钥",
-        "free": "免费",
-        "content_limit": "内容长度限制",
-        "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
-      },
       "quickPhrase": {
         "title": "快捷短语",
         "add": "添加短语",
@@ -1881,7 +1859,66 @@
         "service_tier.auto": "自动",
         "service_tier.default": "默认",
         "service_tier.flex": "灵活"
-      }
+      },
+      "tool": {
+        "title": "工具设置",
+        "preprocess": {
+          "title": "文档预处理",
+          "provider": "文档预处理服务商",
+          "provider_placeholder": "选择一个文档预处理服务商"
+        },
+        "ocr": {
+          "title": "OCR",
+          "provider": "OCR 服务商",
+          "provider_placeholder": "选择一个 OCR 服务商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "识别模式",
+              "accurate": "准确",
+              "fast": "快速"
+            },
+            "min_confidence": "最低置信度"
+          }
+        },
+        "websearch": {
+          "blacklist": "黑名单",
+          "blacklist_description": "在搜索结果中不会出现以下网站的结果",
+          "blacklist_tooltip": "请使用以下格式(换行分隔)\n匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
+          "check": "检测",
+          "check_failed": "验证失败",
+          "check_success": "验证成功",
+          "overwrite": "覆盖服务商搜索",
+          "overwrite_tooltip": "强制使用搜索服务商而不是大语言模型进行搜索",
+          "get_api_key": "点击这里获取密钥",
+          "no_provider_selected": "请选择搜索服务商后再检测",
+          "search_max_result": "搜索结果个数",
+          "search_provider": "搜索服务商",
+          "search_provider_placeholder": "选择一个搜索服务商",
+          "subscribe": "黑名单订阅",
+          "subscribe_update": "立即更新",
+          "subscribe_add": "添加订阅",
+          "subscribe_url": "订阅源地址",
+          "subscribe_name": "替代名字",
+          "subscribe_name.placeholder": "当下载的订阅源没有名称时所使用的替代名称",
+          "subscribe_add_success": "订阅源添加成功!",
+          "subscribe_delete": "删除订阅源",
+          "search_result_default": "默认",
+          "search_with_time": "搜索包含日期",
+          "tavily": {
+            "api_key": "Tavily API 密钥",
+            "api_key.placeholder": "请输入 Tavily API 密钥",
+            "description": "Tavily 是一个为 AI 代理量身定制的搜索引擎，提供实时、准确的结果、智能查询建议和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "网络搜索",
+          "apikey": "API 密钥",
+          "free": "免费",
+          "content_limit": "内容长度限制",
+          "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
+        },
+        "preprocessOrOcr.tooltip": "在设置 -> 工具中设置文档预处理服务商或OCR，文档预处理可以有效提升复杂格式文档与扫描版文档的检索效果，OCR仅可识别文档内图片或扫描版PDF的文本"
+      },
+      "mineru.api_key": "MinerU现在提供每日500页的免费额度，您不需要填写密钥。"
     },
     "translate": {
       "any.language": "任意语言",

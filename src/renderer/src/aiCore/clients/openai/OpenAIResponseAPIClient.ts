@@ -7,7 +7,7 @@ import {
 } from '@renderer/config/models'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
-  FileType,
+  FileMetadata,
   FileTypes,
   MCPCallToolResponse,
   MCPTool,
@@ -78,7 +78,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
     return new OpenAI({
       dangerouslyAllowBrowser: true,
-      apiKey: this.provider.apiKey,
+      apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
       defaultHeaders: {
         ...this.defaultHeaders()
@@ -94,7 +94,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     return await sdk.responses.create(payload, options)
   }
 
-  private async handlePdfFile(file: FileType): Promise<OpenAI.Responses.ResponseInputFile | undefined> {
+  private async handlePdfFile(file: FileMetadata): Promise<OpenAI.Responses.ResponseInputFile | undefined> {
     if (file.size > 32 * MB) return undefined
     try {
       const pageCount = await window.api.file.pdfInfo(file.id + file.ext)
@@ -425,6 +425,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
     const toolCalls: OpenAIResponseSdkToolCall[] = []
     const outputItems: OpenAI.Responses.ResponseOutputItem[] = []
     let hasBeenCollectedToolCalls = false
+    let hasReasoningSummary = false
     return () => ({
       async transform(chunk: OpenAIResponseSdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
         // 处理chunk
@@ -495,6 +496,16 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
               if (chunk.item.type === 'function_call') {
                 outputItems.push(chunk.item)
               }
+              break
+            case 'response.reasoning_summary_part.added':
+              if (hasReasoningSummary) {
+                const separator = '\n\n'
+                controller.enqueue({
+                  type: ChunkType.THINKING_DELTA,
+                  text: separator
+                })
+              }
+              hasReasoningSummary = true
               break
             case 'response.reasoning_summary_text.delta':
               controller.enqueue({

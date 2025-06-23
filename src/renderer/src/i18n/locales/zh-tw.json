@@ -546,7 +546,11 @@
       "rename": "重新命名",
       "search": "搜尋知識庫",
       "search_placeholder": "輸入查詢內容",
-      "settings": "知識庫設定",
+      "settings": {
+        "title": "知識庫設定",
+        "preprocessing": "預處理",
+        "preprocessing_tooltip": "預處理上傳的文件"
+      },
       "sitemap_placeholder": "請輸入網站地圖 URL",
       "sitemaps": "網站",
       "source": "來源",
@@ -570,12 +574,18 @@
       "urls": "網址",
       "dimensions": "嵌入維度",
       "dimensions_size_tooltip": "嵌入維度大小，數值越大，嵌入維度越大，但消耗的 Token 也越多",
+      "status_embedding_completed": "嵌入完成",
+      "status_preprocess_completed": "預處理完成",
+      "status_embedding_failed": "嵌入失敗",
+      "status_preprocess_failed": "預處理失敗",
       "dimensions_size_placeholder": " 嵌入維度大小，例如 1024",
       "dimensions_auto_set": "自動設定嵌入維度",
       "dimensions_error_invalid": "請輸入嵌入維度大小",
       "dimensions_size_too_large": "嵌入維度不能超過模型上下文限制（{{max_context}}）",
       "dimensions_set_right": "⚠️ 請確保模型支援所設置的嵌入維度大小",
-      "dimensions_default": "模型將使用預設嵌入維度"
+      "dimensions_default": "模型將使用預設嵌入維度",
+      "quota": "{{name}} 剩餘配額：{{quota}}",
+      "quota_infinity": "{{name}} 配額：無限制"
     },
     "languages": {
       "arabic": "阿拉伯文",
@@ -830,7 +840,7 @@
     "notification": {
       "assistant": "助手回應",
       "knowledge.success": "成功將{{type}}新增至知識庫",
-      "knowledge.error": "無法將 {{type}} 加入知識庫: {{error}}"
+      "knowledge.error": "{{error}}"
     },
     "ollama": {
       "keep_alive_time.description": "對話後模型在記憶體中保持的時間（預設為 5 分鐘）",
@@ -1091,11 +1101,11 @@
         "app_data": "應用數據",
         "app_data.select": "修改目錄",
         "app_data.select_title": "變更應用數據目錄",
-        "app_data.restart_notice": "變更數據目錄後需要重啟應用才能生效",
-        "app_data.copy_data_option": "複製數據, 開啟後會將原始目錄數據複製到新目錄",
+        "app_data.restart_notice": "變更數據目錄後可能需要重啟應用才能生效",
+        "app_data.copy_data_option": "複製數據, 會自動重啟後將原始目錄數據複製到新目錄",
         "app_data.copy_time_notice": "複製數據將需要一些時間，複製期間不要關閉應用",
-        "app_data.path_changed_without_copy": "路徑已變更成功，但數據未複製",
-        "app_data.copying_warning": "數據複製中，不要強制退出應用",
+        "app_data.path_changed_without_copy": "路徑已變更成功",
+        "app_data.copying_warning": "數據複製中，不要強制退出應用, 複製完成後會自動重啟應用",
         "app_data.copying": "正在複製數據到新位置...",
         "app_data.copy_success": "成功複製數據到新位置",
         "app_data.copy_failed": "複製數據失敗",
@@ -1107,6 +1117,10 @@
         "app_data.select_error_root_path": "新路徑不能是根路徑",
         "app_data.select_error_write_permission": "新路徑沒有寫入權限",
         "app_data.stop_quit_app_reason": "應用目前正在遷移數據，不能退出",
+        "app_data.select_not_empty_dir": "新路徑不為空",
+        "app_data.select_not_empty_dir_content": "新路徑不為空，選擇複製將覆蓋新路徑中的數據, 有數據丟失和複製失敗的風險，是否繼續？",
+        "app_data.select_error_same_path": "新路徑與舊路徑相同，請選擇其他路徑",
+        "app_data.select_error_in_app_path": "新路徑與應用安裝路徑相同，請選擇其他路徑",
         "app_knowledge": "知識庫文件",
         "app_knowledge.button.delete": "刪除檔案",
         "app_knowledge.remove_all": "刪除知識庫檔案",
@@ -1783,50 +1797,72 @@
       "theme.window.style.title": "視窗樣式",
       "theme.window.style.transparent": "透明視窗",
       "title": "設定",
+      "tool": {
+        "title": "工具設定",
+        "websearch": {
+          "blacklist": "黑名單",
+          "blacklist_description": "以下網站不會出現在搜尋結果中",
+          "blacklist_tooltip": "請使用以下格式 (換行符號分隔)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
+          "check": "檢查",
+          "check_failed": "驗證失敗",
+          "check_success": "驗證成功",
+          "get_api_key": "點選這裡取得金鑰",
+          "no_provider_selected": "請選擇搜尋服務商後再檢查",
+          "search_max_result": "搜尋結果個數",
+          "search_provider": "搜尋服務商",
+          "search_provider_placeholder": "選擇一個搜尋服務商",
+          "search_result_default": "預設",
+          "search_with_time": "搜尋包含日期",
+          "tavily": {
+            "api_key": "Tavily API 金鑰",
+            "api_key.placeholder": "請輸入 Tavily API 金鑰",
+            "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
+            "title": "Tavily"
+          },
+          "title": "網路搜尋",
+          "subscribe": "黑名單訂閱",
+          "subscribe_update": "更新",
+          "subscribe_add": "新增訂閱",
+          "subscribe_url": "訂閱網址",
+          "subscribe_name": "替代名稱",
+          "subscribe_name.placeholder": "下載的訂閱源沒有名稱時使用的替代名稱。",
+          "subscribe_add_success": "訂閱源新增成功!",
+          "subscribe_delete": "刪除",
+          "overwrite": "覆蓋搜尋服務",
+          "overwrite_tooltip": "強制使用搜尋服務而不是 LLM",
+          "apikey": "API 金鑰",
+          "free": "免費",
+          "content_limit": "內容長度限制",
+          "content_limit_tooltip": "限制搜尋結果的內容長度；超過限制的內容將被截斷。"
+        },
+        "preprocess": {
+          "title": "前置處理",
+          "provider": "前置處理供應商",
+          "provider_placeholder": "選擇一個預處理供應商"
+        },
+        "preprocessOrOcr.tooltip": "在「設定」->「工具」中設定文件預處理服務供應商或OCR。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能，而OCR僅能辨識文件內圖片文字或掃描PDF文字。",
+        "ocr": {
+          "title": "光學字符識別",
+          "provider": "OCR 供應商",
+          "provider_placeholder": "選擇一個OCR服務提供商",
+          "mac_system_ocr_options": {
+            "mode": {
+              "title": "識別模式",
+              "accurate": "準確",
+              "fast": "快速"
+            },
+            "min_confidence": "最小置信度"
+          }
+        }
+      },
+      "topic.pin_to_top": "固定話題置頂",
       "topic.position": "話題位置",
       "topic.position.left": "左側",
       "topic.position.right": "右側",
       "topic.show.time": "顯示話題時間",
-      "topic.pin_to_top": "固定話題置頂",
       "tray.onclose": "關閉時最小化到系统匣",
       "tray.show": "顯示系统匣圖示",
       "tray.title": "系统匣",
-      "websearch": {
-        "check_success": "驗證成功",
-        "get_api_key": "點選這裡取得金鑰",
-        "search_with_time": "搜尋包含日期",
-        "tavily": {
-          "api_key": "Tavily API 金鑰",
-          "api_key.placeholder": "請輸入 Tavily API 金鑰",
-          "description": "Tavily 是一個為 AI 代理量身訂製的搜尋引擎，提供即時、準確的結果、智慧查詢建議和深入的研究能力",
-          "title": "Tavily"
-        },
-        "blacklist": "黑名單",
-        "blacklist_description": "以下網站不會出現在搜索結果中",
-        "search_max_result": "搜尋結果個數",
-        "search_result_default": "預設",
-        "check": "檢查",
-        "search_provider": "搜尋服務商",
-        "search_provider_placeholder": "選擇一個搜尋服務商",
-        "no_provider_selected": "請選擇搜索服務商後再檢查",
-        "check_failed": "驗證失敗",
-        "blacklist_tooltip": "匹配模式: *://*.example.com/*\n正则表达式: /example\\.(net|org)/",
-        "subscribe": "黑名單訂閱",
-        "subscribe_update": "更新",
-        "subscribe_add": "添加訂閱",
-        "subscribe_url": "訂閱源地址",
-        "subscribe_name": "替代名稱",
-        "subscribe_name.placeholder": "當下載的訂閱源沒有名稱時所使用的替代名稱",
-        "subscribe_add_success": "訂閱源添加成功!",
-        "subscribe_delete": "刪除",
-        "title": "網路搜尋",
-        "overwrite": "覆蓋搜尋服務商",
-        "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
-        "apikey": "API 金鑰",
-        "free": "免費",
-        "content_limit": "內容長度限制",
-        "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷"
-      },
       "general.auto_check_update.title": "自動更新",
       "general.early_access.title": "搶先體驗",
       "general.early_access.tooltip": "開啟後，將使用 GitHub 的最新版本，下載速度可能較慢，請務必提前備份數據",
@@ -1881,7 +1917,8 @@
         "assistant": "助手訊息",
         "backup": "備份訊息",
         "knowledge_embed": "知識庫訊息"
-      }
+      },
+      "mineru.api_key": "Mineru 現在每天提供 500 頁的免費配額，且無需輸入金鑰。"
     },
     "translate": {
       "any.language": "任意語言",

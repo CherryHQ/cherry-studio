@@ -202,6 +202,18 @@ const DataSettings: FC = () => {
       return
     }
 
+    // check new app data path is not in old app data path
+    if (newAppDataPath.startsWith(appInfo.appDataPath)) {
+      window.message.error(t('settings.data.app_data.select_error_same_path'))
+      return
+    }
+
+    // check new app data path is not in app install path
+    if (newAppDataPath.startsWith(appInfo.installPath)) {
+      window.message.error(t('settings.data.app_data.select_error_in_app_path'))
+      return
+    }
+
     // check new app data path has write permission
     const hasWritePermission = await window.api.hasWritePermission(newAppDataPath)
     if (!hasWritePermission) {
@@ -213,22 +225,39 @@ const DataSettings: FC = () => {
       <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
     )
     const migrationClassName = 'migration-modal'
-    const messageKey = 'data-migration'
+    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName)
+  }
 
-    // 显示确认对话框
-    showMigrationConfirmModal(appInfo.appDataPath, newAppDataPath, migrationTitle, migrationClassName, messageKey)
+  const doubleConfirmModalBeforeCopyData = (newPath: string) => {
+    window.modal.confirm({
+      title: t('settings.data.app_data.select_not_empty_dir'),
+      content: t('settings.data.app_data.select_not_empty_dir_content'),
+      centered: true,
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      onOk: () => {
+        window.message.info({
+          content: t('settings.data.app_data.restart_notice'),
+          duration: 2
+        })
+        setTimeout(() => {
+          window.api.relaunchApp({
+            args: ['--new-data-path=' + newPath]
+          })
+        }, 500)
+      }
+    })
   }
 
   // 显示确认迁移的对话框
-  const showMigrationConfirmModal = (
+  const showMigrationConfirmModal = async (
     originalPath: string,
     newPath: string,
     title: React.ReactNode,
-    className: string,
-    messageKey: string
+    className: string
   ) => {
     // 复制数据选项状态
-    let shouldCopyData = true
+    let shouldCopyData = !(await window.api.isNotEmptyDir(newPath))
 
     // 创建路径内容组件
     const PathsContent = () => (
@@ -248,7 +277,7 @@ const DataSettings: FC = () => {
       <div>
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
-            defaultChecked={true}
+            defaultChecked={shouldCopyData}
             onChange={(checked) => {
               shouldCopyData = checked
             }}
@@ -262,7 +291,7 @@ const DataSettings: FC = () => {
     )
 
     // 显示确认模态框
-    const modal = window.modal.confirm({
+    window.modal.confirm({
       title,
       className,
       width: 'min(600px, 90vw)',
@@ -287,30 +316,26 @@ const DataSettings: FC = () => {
       cancelText: t('common.cancel'),
       onOk: async () => {
         try {
-          // 立即关闭确认对话框
-          modal.destroy()
-
-          // 设置停止退出应用
-          window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
-
           if (shouldCopyData) {
-            // 如果选择复制数据，显示进度模态框并执行迁移
-            const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
-
-            try {
-              await startMigration(originalPath, newPath, progressInterval, updateProgress, loadingModal, messageKey)
-            } catch (error) {
-              if (progressInterval) {
-                clearInterval(progressInterval)
-              }
-              loadingModal.destroy()
-              throw error
+            if (await window.api.isNotEmptyDir(newPath)) {
+              doubleConfirmModalBeforeCopyData(newPath)
+              return
             }
-          } else {
-            // 如果不复制数据，直接设置新的应用数据路径
-            await window.api.setAppDataPath(newPath)
-            window.message.success(t('settings.data.app_data.path_changed_without_copy'))
+
+            window.message.info({
+              content: t('settings.data.app_data.restart_notice'),
+              duration: 3
+            })
+            setTimeout(() => {
+              window.api.relaunchApp({
+                args: ['--new-data-path=' + newPath]
+              })
+            }, 500)
+            return
           }
+          // 如果不复制数据，直接设置新的应用数据路径
+          await window.api.setAppDataPath(newPath)
+          window.message.success(t('settings.data.app_data.path_changed_without_copy'))
 
           // 更新应用数据路径
           setAppInfo(await window.api.getAppInfo())
@@ -320,22 +345,79 @@ const DataSettings: FC = () => {
             window.message.success(t('settings.data.app_data.select_success'))
             window.api.setStopQuitApp(false, '')
             window.api.relaunchApp()
-          }, 1000)
+          }, 500)
         } catch (error) {
           window.api.setStopQuitApp(false, '')
           window.message.error({
-            content:
-              (shouldCopyData
-                ? t('settings.data.app_data.copy_failed')
-                : t('settings.data.app_data.path_change_failed')) +
-              ': ' +
-              error,
+            content: t('settings.data.app_data.path_change_failed') + ': ' + error,
             duration: 5
           })
         }
       }
     })
   }
+
+  useEffect(() => {
+    const handleDataMigration = async () => {
+      const newDataPath = await window.api.getDataPathFromArgs()
+      if (!newDataPath) return
+
+      const originalPath = (await window.api.getAppInfo())?.appDataPath
+      if (!originalPath) return
+
+      const title = (
+        <div style={{ fontSize: '18px', fontWeight: 'bold' }}>{t('settings.data.app_data.migration_title')}</div>
+      )
+      const className = 'migration-modal'
+      const messageKey = 'data-migration'
+
+      // Create PathsContent component for this specific migration
+      const PathsContent = () => (
+        <div>
+          <MigrationPathRow>
+            <MigrationPathLabel>{t('settings.data.app_data.original_path')}:</MigrationPathLabel>
+            <MigrationPathValue>{originalPath}</MigrationPathValue>
+          </MigrationPathRow>
+          <MigrationPathRow style={{ marginTop: '16px' }}>
+            <MigrationPathLabel>{t('settings.data.app_data.new_path')}:</MigrationPathLabel>
+            <MigrationPathValue>{newDataPath}</MigrationPathValue>
+          </MigrationPathRow>
+        </div>
+      )
+
+      const { loadingModal, progressInterval, updateProgress } = showProgressModal(title, className, PathsContent)
+      try {
+        window.api.setStopQuitApp(true, t('settings.data.app_data.stop_quit_app_reason'))
+        await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal, messageKey)
+
+        // 更新应用数据路径
+        setAppInfo(await window.api.getAppInfo())
+
+        // 通知用户并重启应用
+        setTimeout(() => {
+          window.message.success(t('settings.data.app_data.select_success'))
+          window.api.setStopQuitApp(false, '')
+          window.api.relaunchApp({
+            args: ['--user-data-dir=' + newDataPath]
+          })
+        }, 1000)
+      } catch (error) {
+        window.api.setStopQuitApp(false, '')
+        window.message.error({
+          content: t('settings.data.app_data.copy_failed') + ': ' + error,
+          key: messageKey,
+          duration: 5
+        })
+      } finally {
+        if (progressInterval) {
+          clearInterval(progressInterval)
+        }
+        loadingModal.destroy()
+      }
+    }
+
+    handleDataMigration()
+  }, [])
 
   // 显示进度模态框
   const showProgressModal = (title: React.ReactNode, className: string, PathsContent: React.FC) => {
@@ -411,6 +493,12 @@ const DataSettings: FC = () => {
     loadingModal: { destroy: () => void },
     messageKey: string
   ): Promise<void> => {
+    // flush app data
+    await window.api.flushAppData()
+
+    // wait 2 seconds to flush app data
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
     // 开始复制过程
     const copyResult = await window.api.copy(originalPath, newPath)
 

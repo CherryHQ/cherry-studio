@@ -1,7 +1,7 @@
 import { DeleteOutlined } from '@ant-design/icons'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import type { FileType } from '@renderer/types'
+import { FileMetadata } from '@renderer/types'
 import { Popconfirm, Upload } from 'antd'
 import { Button } from 'antd'
 import type { RcFile, UploadProps } from 'antd/es/upload'
@@ -10,7 +10,7 @@ import styled from 'styled-components'
 
 interface ImageUploaderProps {
   fileMap: {
-    imageFiles?: FileType[]
+    imageFiles?: FileMetadata[]
     paths?: string[]
   }
   maxImages: number

@@ -2,7 +2,7 @@ import { CopyOutlined } from '@ant-design/icons'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileType, KnowledgeBase } from '@renderer/types'
+import { FileMetadata, KnowledgeBase } from '@renderer/types'
 import { Input, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,11 +22,10 @@ interface Props extends ShowParams {
 const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [open, setOpen] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileType | null }>>([])
+  const [results, setResults] = useState<Array<ExtractChunkData & { file: FileMetadata | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
   const searchInputRef = useRef<any>(null)
-
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
       setResults([])
@@ -131,7 +130,10 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                             {item.file.origin_name}
                           </a>
                         ) : (
-                          item.metadata.source
+                          // item.metadata.source
+                          <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
+                            {item.metadata.source.split('/').pop() || item.metadata.source}
+                          </a>
                         )}
                       </Text>
                     </MetadataContainer>

@@ -217,7 +217,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
         const fileMatch = result.sourceUrl.match(filePattern)
 
         let url = result.sourceUrl
-        let title = result.sourceUrl
+        let title = result.sourceUrl.split('/').pop() || 'Unknown File'
         const showFavicon = true
 
         // 如果匹配文件链接格式 [filename](http://file/xxx)

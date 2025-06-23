@@ -1,5 +1,5 @@
 import FileManager from '@renderer/services/FileManager'
-import { FileType, FileTypes } from '@renderer/types'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Col, Image, Row, Spin } from 'antd'
 import { t } from 'i18next'
@@ -14,14 +14,14 @@ interface FileItemProps {
   list: {
     key: FileTypes | 'all' | string
     file: React.ReactNode
-    files?: FileType[]
+    files?: FileMetadata[]
     count?: number
     size: string
     ext: string
     created_at: string
     actions: React.ReactNode
   }[]
-  files?: FileType[]
+  files?: FileMetadata[]
 }
 
 const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
