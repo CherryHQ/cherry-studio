@@ -1353,12 +1353,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     },
     {
-      id: 'deepseek-v3-250324',
-      provider: 'doubao',
-      name: 'DeepSeek-V3',
-      group: 'DeepSeek'
-    },
-    {
       id: 'doubao-pro-32k-241215',
       provider: 'doubao',
       name: 'Doubao-pro-32k',

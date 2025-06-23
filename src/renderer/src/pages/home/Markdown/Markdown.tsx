@@ -8,8 +8,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
-import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
-import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown'
+import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,7 +52,7 @@ const Markdown: FC<Props> = ({ block }) => {
     const empty = isEmpty(block.content)
     const paused = block.status === 'paused'
     const content = empty && paused ? t('message.chat.completion.paused') : block.content
-    return removeSvgEmptyLines(escapeBrackets(content))
+    return removeSvgEmptyLines(processLatexBrackets(content))
   }, [block, t])
 
   const rehypePlugins = useMemo(() => {
