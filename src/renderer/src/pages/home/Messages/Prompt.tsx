@@ -30,11 +30,11 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
 }
 
 const Container = styled.div<{ $isDark: boolean }>`
-  padding: 10px 20px;
-  margin: 5px 20px 0 20px;
+  padding: 10px 16px;
   border-radius: 10px;
   cursor: pointer;
   border: 0.5px solid var(--color-border);
+  margin: 10px 10px 0 10px;
 `
 
 const Text = styled.div`

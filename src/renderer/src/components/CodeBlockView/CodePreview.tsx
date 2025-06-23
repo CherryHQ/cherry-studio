@@ -238,12 +238,12 @@ const ContentContainer = styled.div<{
 }>`
   position: relative;
   overflow: auto;
-  border: 0.5px solid transparent;
-  border-radius: 5px;
+  border-radius: inherit;
   margin-top: 0;
 
   .shiki {
     padding: 1em;
+    border-radius: inherit;
 
     code {
       display: flex;
@@ -291,7 +291,7 @@ const ContentContainer = styled.div<{
     }
   }
 
-  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.3s ease-in-out forwards' : 'none')};
+  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.1s ease-in forwards' : 'none')};
 `
 
 const CodePlaceholder = styled.div`

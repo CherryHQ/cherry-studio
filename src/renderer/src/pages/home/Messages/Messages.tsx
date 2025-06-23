@@ -1,3 +1,4 @@
+import ContextMenu from '@renderer/components/ContextMenu'
 import SvgSpinners180Ring from '@renderer/components/Icons/SvgSpinners180Ring'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { LOAD_MORE_COUNT } from '@renderer/config/constant'
@@ -271,7 +272,6 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       id="messages"
       className="messages-container"
       ref={scrollContainerRef}
-      style={{ position: 'relative', paddingTop: showPrompt ? 10 : 0 }}
       key={assistant.id}
       onScroll={handleScrollPosition}>
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
@@ -283,22 +283,25 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           scrollableTarget="messages"
           inverse
           style={{ overflow: 'visible' }}>
-          <ScrollContainer>
-            {groupedMessages.map(([key, groupMessages]) => (
-              <MessageGroup
-                key={key}
-                messages={groupMessages}
-                topic={topic}
-                registerMessageElement={registerMessageElement}
-              />
-            ))}
-            {isLoadingMore && (
-              <LoaderContainer>
-                <SvgSpinners180Ring color="var(--color-text-2)" />
-              </LoaderContainer>
-            )}
-          </ScrollContainer>
+          <ContextMenu>
+            <ScrollContainer>
+              {groupedMessages.map(([key, groupMessages]) => (
+                <MessageGroup
+                  key={key}
+                  messages={groupMessages}
+                  topic={topic}
+                  registerMessageElement={registerMessageElement}
+                />
+              ))}
+              {isLoadingMore && (
+                <LoaderContainer>
+                  <SvgSpinners180Ring color="var(--color-text-2)" />
+                </LoaderContainer>
+              )}
+            </ScrollContainer>
+          </ContextMenu>
         </InfiniteScroll>
+
         {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
@@ -361,6 +364,10 @@ const LoaderContainer = styled.div`
 const ScrollContainer = styled.div`
   display: flex;
   flex-direction: column-reverse;
+  padding: 20px 10px 20px 16px;
+  .multi-select-mode & {
+    padding-bottom: 60px;
+  }
 `
 
 interface ContainerProps {
@@ -370,11 +377,9 @@ interface ContainerProps {
 const MessagesContainer = styled(Scrollbar)<ContainerProps>`
   display: flex;
   flex-direction: column-reverse;
-  padding: 10px 0 20px;
   overflow-x: hidden;
-  background-color: var(--color-background);
   z-index: 1;
-  margin-right: 2px;
+  position: relative;
 `
 
 export default Messages
