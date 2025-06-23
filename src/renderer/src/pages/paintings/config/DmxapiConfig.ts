@@ -58,7 +58,7 @@ export const TEXT_TO_IMAGES_MODELS = [
   {
     id: 'imagen4',
     provider: 'Google',
-    name: 'Google：imagen4'
+    name: 'imagen4'
   }
 ]
 
@@ -66,7 +66,7 @@ export const IMAGE_EDIT_MODELS = [
   {
     id: 'gpt-image-1',
     provider: 'OpenAI',
-    name: 'OpenAI：gpt-image-1'
+    name: 'gpt-image-1'
   },
   {
     id: 'flux-kontext-pro',
@@ -84,7 +84,7 @@ export const IMAGE_MERGE_MODELS = [
   {
     id: 'gpt-image-1',
     provider: 'OpenAI',
-    name: 'OpenAI：gpt-image-1'
+    name: 'gpt-image-1'
   },
   {
     id: 'flux-kontext-pro',

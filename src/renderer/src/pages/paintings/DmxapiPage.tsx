@@ -626,7 +626,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <br />
             预计等待2~5分钟效果最好，
             <br />
-            本次消耗金额请到DMIAPI后台日志查看
+            本次消耗金额请到DMXAPI后台日志查看
           </div>
         </LoadTextWrap>
       )
