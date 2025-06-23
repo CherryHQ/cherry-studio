@@ -168,24 +168,14 @@ const GeneralSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>
-            {t('settings.general.spell_check')}
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
-              {t('settings.general.spell_check.description')}
-            </div>
-          </SettingRowTitle>
+          <SettingRowTitle>{t('settings.general.spell_check')}</SettingRowTitle>
           <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
         </SettingRow>
         {enableSpellCheck && (
           <>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>
-                {t('settings.general.spell_check.languages')}
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
-                  {t('settings.general.spell_check.languages.description')}
-                </div>
-              </SettingRowTitle>
+              <SettingRowTitle>{t('settings.general.spell_check.languages')}</SettingRowTitle>
               <Select
                 mode="multiple"
                 value={spellCheckLanguages}

@@ -104,10 +104,10 @@ export class WindowService {
   }
 
   private setupSpellCheck(mainWindow: BrowserWindow) {
-    const enableSpellCheck = configManager.get('enableSpellCheck')
+    const enableSpellCheck = configManager.get('enableSpellCheck', false)
     if (enableSpellCheck) {
       try {
-        const spellCheckLanguages = configManager.get('spellCheckLanguages') as string[]
+        const spellCheckLanguages = configManager.get('spellCheckLanguages', []) as string[]
         spellCheckLanguages.length > 0 && mainWindow.webContents.session.setSpellCheckerLanguages(spellCheckLanguages)
       } catch (error) {
         Logger.error('Failed to set spell check languages:', error as Error)
