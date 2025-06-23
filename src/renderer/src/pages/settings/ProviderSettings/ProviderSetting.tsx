@@ -267,7 +267,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                   </SettingHelpLink>
                 )}
               </HStack>
-              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           )}
           {!isDmxapi && (

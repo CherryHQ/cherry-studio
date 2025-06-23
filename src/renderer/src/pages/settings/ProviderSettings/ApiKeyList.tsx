@@ -5,8 +5,7 @@ import {
   CloseCircleOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
-  PlusOutlined,
-  RedoOutlined
+  PlusOutlined
 } from '@ant-design/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
@@ -15,7 +14,7 @@ import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Model, Provider, WebSearchProvider } from '@renderer/types'
 import { maskApiKey, splitApiKeyString } from '@renderer/utils/api'
-import { Button, Card, Flex, Input, List, message, Space, Tooltip, Typography } from 'antd'
+import { Button, Card, Flex, Input, List, message, Space, Spin, Typography } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -155,9 +154,6 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       return
     }
 
-    setIsCheckingSingle(true)
-    setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
-
     try {
       let latency: number
       let model: Model | undefined
@@ -173,10 +169,16 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         }
         model = selectedModelForCheck
 
+        setIsCheckingSingle(true)
+        setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
+
         const startTime = Date.now()
         await checkApi({ ...(provider as Provider), apiKey: keyStatuses[keyIndex].key }, model)
         latency = Date.now() - startTime
       } else {
+        setIsCheckingSingle(true)
+        setKeyStatuses((prev) => prev.map((status, idx) => (idx === keyIndex ? { ...status, checking: true } : status)))
+
         const startTime = Date.now()
         await WebSearchService.checkSearch({
           ...(provider as WebSearchProvider),
@@ -267,33 +269,6 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
     onChange(updatedKeyStatuses.map((status) => status.key).join(','))
   }
 
-  const renderKeyCheckResultTooltip = (status: KeyStatus) => {
-    if (status.checking) {
-      return t('settings.models.check.checking')
-    }
-
-    const statusTitle = status.isValid
-      ? t('settings.models.check.passed')
-      : `${t('settings.models.check.failed')}${status.error ? ` (${status.error})` : ''}`
-    const statusColor = status.isValid ? STATUS_COLORS.success : STATUS_COLORS.error
-
-    return (
-      <div>
-        <strong style={{ color: statusColor }}>{statusTitle}</strong>
-        {type === 'provider' && status.model && (
-          <div style={{ marginTop: 5 }}>
-            {t('common.model')}: {status.model.name}
-          </div>
-        )}
-        {status.latency && status.isValid && (
-          <div style={{ marginTop: 5 }}>
-            {t('settings.provider.check_tooltip.latency')}: {(status.latency / 1000).toFixed(2)}s
-          </div>
-        )}
-      </div>
-    )
-  }
-
   const shouldAutoFocus = () => {
     if (type === 'provider') {
       return (provider as Provider).enabled && apiKeys === '' && !isProviderSupportAuth(provider as Provider)
@@ -328,39 +303,36 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                           <Typography.Text copyable={{ text: status.key }}>{maskApiKey(status.key)}</Typography.Text>
                         </ApiKeyContainer>
                         <ApiKeyActions>
-                          <Tooltip title={renderKeyCheckResultTooltip(status)}>
+                          <Space>
                             {status.checking && (
-                              <StatusIndicator type="checking">
-                                <LoadingOutlined style={{ fontSize: 16 }} spin />
-                              </StatusIndicator>
+                              <Space>
+                                <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
+                              </Space>
                             )}
                             {status.isValid === true && !status.checking && (
-                              <StatusIndicator type="success">
-                                <CheckCircleFilled />
-                              </StatusIndicator>
+                              <CheckCircleFilled style={{ color: '#52c41a' }} />
                             )}
                             {status.isValid === false && !status.checking && (
-                              <StatusIndicator type="error">
-                                <CloseCircleFilled />
-                              </StatusIndicator>
+                              <CloseCircleFilled style={{ color: '#ff4d4f' }} />
                             )}
-                          </Tooltip>
-                          <CheckButton
-                            onClick={() => checkSingleKey(index)}
-                            style={{
-                              cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                              opacity: isChecking || isCheckingSingle ? 0.5 : 1
-                            }}
-                            title={t('settings.provider.check')}
-                          />
-                          <RemoveButton
-                            onClick={() => !isChecking && !isCheckingSingle && !isCopilot && removeKey(index)}
-                            style={{
-                              cursor: isChecking || isCheckingSingle || isCopilot ? 'not-allowed' : 'pointer',
-                              opacity: isChecking || isCheckingSingle || isCopilot ? 0.5 : 1
-                            }}
-                            title={t('common.delete')}
-                          />
+                            <Button
+                              size="small"
+                              onClick={() => checkSingleKey(index)}
+                              disabled={isChecking || isCheckingSingle || isCopilot}>
+                              {t('settings.provider.check')}
+                            </Button>
+                            {!isCopilot && (
+                              <MinusCircleOutlined
+                                onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                                style={{
+                                  cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                  opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                  fontSize: '16px',
+                                  color: 'var(--color-error)'
+                                }}
+                              />
+                            )}
+                          </Space>
                         </ApiKeyActions>
                       </ApiKeyListItem>
                     </List.Item>
@@ -450,44 +422,6 @@ const ApiKeyActions = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 10px;
-`
-
-const StatusIndicator = styled.div<{ type: string }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  cursor: pointer;
-  color: ${(props) => {
-    switch (props.type) {
-      case 'success':
-        return '#52c41a'
-      case 'error':
-        return '#ff4d4f'
-      default:
-        return 'var(--color-link)'
-    }
-  }};
-`
-
-const CheckButton = styled(RedoOutlined)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--color-link);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-`
-
-const RemoveButton = styled(MinusCircleOutlined)`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  color: var(--color-error);
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
 `
 
 const SaveButton = styled(CheckCircleOutlined)`
