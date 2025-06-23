@@ -1570,6 +1570,7 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "No API keys found, please add API keys first.",
       "models.check.passed": "Passed",
+      "models.check.checking": "Checking",
       "models.check.select_api_key": "Select the API key to use:",
       "models.check.single": "Single",
       "models.check.start": "Start",

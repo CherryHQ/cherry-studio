@@ -1567,6 +1567,7 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "未找到API密鑰，請先添加API密鑰",
       "models.check.passed": "通過",
+      "models.check.checking": "檢查中",
       "models.check.select_api_key": "選擇要使用的API密鑰：",
       "models.check.single": "單個",
       "models.check.start": "開始",

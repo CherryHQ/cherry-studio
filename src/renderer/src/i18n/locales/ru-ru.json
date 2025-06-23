@@ -1563,6 +1563,7 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.passed": "Прошло",
+      "models.check.checking": "Проверка",
       "models.check.select_api_key": "Выберите API ключ для использования:",
       "models.check.single": "Один",
       "models.check.start": "Начать",
