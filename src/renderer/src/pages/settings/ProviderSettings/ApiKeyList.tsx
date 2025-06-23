@@ -1,6 +1,8 @@
 import {
   CheckCircleFilled,
   CloseCircleFilled,
+  CloseCircleOutlined,
+  DeleteOutlined,
   EditOutlined,
   LoadingOutlined,
   MinusCircleOutlined,
@@ -57,6 +59,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   const [keyStatuses, setKeyStatuses] = useState<KeyStatus[]>(() => formatAndConvertKeysToArray(apiKeys))
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [newApiKey, setNewApiKey] = useState('')
+  const [isCancelingNewKey, setIsCancelingNewKey] = useState(false)
   const newInputRef = useRef<any>(null)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -64,6 +67,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   const { t } = useTranslation()
   const [isChecking, setIsChecking] = useState(false)
   const [isCheckingSingle, setIsCheckingSingle] = useState(false)
+  const [confirmDeleteIndex, setConfirmDeleteIndex] = useState<number | null>(null)
   const isCopilot = provider.id === 'copilot'
 
   useEffect(() => {
@@ -73,7 +77,21 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   }, [isAddingNew])
 
   useEffect(() => {
-    setKeyStatuses(formatAndConvertKeysToArray(apiKeys))
+    const newKeyStatuses = formatAndConvertKeysToArray(apiKeys)
+
+    setKeyStatuses((currentStatuses) => {
+      const newKeys = newKeyStatuses.map((k) => k.key)
+      const currentKeys = currentStatuses.map((k) => k.key)
+
+      // If the keys are the same, no need to update, prevents re-render loops.
+      if (newKeys.join(',') === currentKeys.join(',')) {
+        return currentStatuses
+      }
+
+      // Merge new keys with existing statuses to preserve them.
+      const statusesMap = new Map(currentStatuses.map((s) => [s.key, s]))
+      return newKeyStatuses.map((k) => statusesMap.get(k.key) || k)
+    })
   }, [apiKeys])
 
   useEffect(() => {
@@ -83,11 +101,17 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   }, [editingIndex])
 
   const handleAddNewKey = () => {
+    setIsCancelingNewKey(false)
     setIsAddingNew(true)
     setNewApiKey('')
   }
 
   const handleSaveNewKey = () => {
+    if (isCancelingNewKey) {
+      setIsCancelingNewKey(false)
+      return
+    }
+
     if (newApiKey.trim()) {
       // Check if the key already exists
       const keyExists = keyStatuses.some((status) => status.key === newApiKey.trim())
@@ -117,11 +141,16 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       // Update parent component with new keys
       onChange(updatedKeyStatuses.map((status) => status.key).join(','))
     }
-    setIsAddingNew(false)
-    setNewApiKey('')
+
+    // Add a small delay before resetting to prevent immediate re-triggering
+    setTimeout(() => {
+      setIsAddingNew(false)
+      setNewApiKey('')
+    }, 100)
   }
 
   const handleCancelNewKey = () => {
+    setIsCancelingNewKey(true)
     setIsAddingNew(false)
     setNewApiKey('')
   }
@@ -271,9 +300,20 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
   }
 
   const removeKey = (keyIndex: number) => {
-    const updatedKeyStatuses = keyStatuses.filter((_, idx) => idx !== keyIndex)
-    setKeyStatuses(updatedKeyStatuses)
-    onChange(updatedKeyStatuses.map((status) => status.key).join(','))
+    if (confirmDeleteIndex === keyIndex) {
+      // Second click - actually remove the key
+      const updatedKeyStatuses = keyStatuses.filter((_, idx) => idx !== keyIndex)
+      setKeyStatuses(updatedKeyStatuses)
+      onChange(updatedKeyStatuses.map((status) => status.key).join(','))
+      setConfirmDeleteIndex(null)
+    } else {
+      // First click - show confirmation state
+      setConfirmDeleteIndex(keyIndex)
+      // Auto-reset after 3 seconds
+      setTimeout(() => {
+        setConfirmDeleteIndex(null)
+      }, 3000)
+    }
   }
 
   const renderKeyCheckResultTooltip = (status: KeyStatus) => {
@@ -281,13 +321,11 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       return t('settings.models.check.checking')
     }
 
-    const statusTitle = status.isValid
-      ? t('settings.models.check.passed')
-      : `${t('settings.models.check.failed')}${status.error ? ` (${status.error})` : ''}`
+    const statusTitle = status.isValid ? t('settings.models.check.passed') : t('settings.models.check.failed')
     const statusColor = status.isValid ? STATUS_COLORS.success : STATUS_COLORS.error
 
     return (
-      <div>
+      <div style={{ maxHeight: '200px', overflowY: 'auto', maxWidth: '300px', wordWrap: 'break-word' }}>
         <strong style={{ color: statusColor }}>{statusTitle}</strong>
         {type === 'provider' && status.model && (
           <div style={{ marginTop: 5 }}>
@@ -299,6 +337,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
             {t('settings.provider.check_tooltip.latency')}: {(status.latency / 1000).toFixed(2)}s
           </div>
         )}
+        {status.error && <div style={{ marginTop: 5 }}>{status.error}</div>}
       </div>
     )
   }
@@ -354,7 +393,16 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       onChange(updatedKeyStatuses.map((status) => status.key).join(','))
     }
 
+    // Add a small delay before resetting to prevent immediate re-triggering
+    setTimeout(() => {
+      setEditingIndex(null)
+      setEditValue('')
+    }, 100)
+  }
+
+  const handleCancelEdit = () => {
     setEditingIndex(null)
+    setEditValue('')
   }
 
   return (
@@ -386,6 +434,12 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                               onChange={(e) => setEditValue(e.target.value)}
                               onBlur={handleSaveEdit}
                               onPressEnter={handleSaveEdit}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  handleCancelEdit()
+                                }
+                              }}
                               style={{ width: '100%', fontSize: '14px' }}
                               spellCheck={false}
                               type="password"
@@ -395,44 +449,73 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                           )}
                         </ApiKeyContainer>
                         <ApiKeyActions>
-                          <Tooltip title={renderKeyCheckResultTooltip(status)}>
-                            {status.checking && (
-                              <Space>
-                                <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
-                              </Space>
-                            )}
-                            {status.isValid === true && !status.checking && (
-                              <CheckCircleFilled style={{ color: STATUS_COLORS.success }} />
-                            )}
-                            {status.isValid === false && !status.checking && (
-                              <CloseCircleFilled style={{ color: STATUS_COLORS.error }} />
-                            )}
-                          </Tooltip>
-                          <Button
-                            size="small"
-                            onClick={() => checkSingleKey(index)}
-                            disabled={isChecking || isCheckingSingle || isCopilot}>
-                            {t('settings.provider.check')}
-                          </Button>
-                          {!isCopilot && (
+                          {editingIndex === index ? (
+                            <CloseCircleOutlined
+                              onClick={handleCancelEdit}
+                              title={t('common.cancel')}
+                              style={{
+                                cursor: 'pointer',
+                                fontSize: '16px',
+                                color: 'var(--color-error)'
+                              }}
+                            />
+                          ) : (
                             <>
-                              <EditOutlined
-                                onClick={() => !isChecking && !isCheckingSingle && handleEditKey(index)}
-                                style={{
-                                  cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                                  opacity: isChecking || isCheckingSingle ? 0.5 : 1,
-                                  fontSize: '16px'
-                                }}
-                              />
-                              <MinusCircleOutlined
-                                onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
-                                style={{
-                                  cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
-                                  opacity: isChecking || isCheckingSingle ? 0.5 : 1,
-                                  fontSize: '16px',
-                                  color: 'var(--color-error)'
-                                }}
-                              />
+                              <Tooltip title={renderKeyCheckResultTooltip(status)}>
+                                {status.checking && (
+                                  <Space>
+                                    <Spin indicator={<LoadingOutlined style={{ fontSize: 16 }} spin />} />
+                                  </Space>
+                                )}
+                                {status.isValid === true && !status.checking && (
+                                  <CheckCircleFilled style={{ color: STATUS_COLORS.success }} />
+                                )}
+                                {status.isValid === false && !status.checking && (
+                                  <CloseCircleFilled style={{ color: STATUS_COLORS.error }} />
+                                )}
+                              </Tooltip>
+                              <Button
+                                size="small"
+                                onClick={() => checkSingleKey(index)}
+                                disabled={isChecking || isCheckingSingle || isCopilot}>
+                                {t('settings.provider.check')}
+                              </Button>
+                              {!isCopilot && (
+                                <>
+                                  <EditOutlined
+                                    onClick={() => !isChecking && !isCheckingSingle && handleEditKey(index)}
+                                    style={{
+                                      cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                      opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                      fontSize: '16px'
+                                    }}
+                                    title={t('common.edit')}
+                                  />
+                                  {confirmDeleteIndex === index ? (
+                                    <DeleteOutlined
+                                      onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                                      style={{
+                                        cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                        opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                        fontSize: '16px',
+                                        color: 'var(--color-error)'
+                                      }}
+                                      title={t('common.delete')}
+                                    />
+                                  ) : (
+                                    <MinusCircleOutlined
+                                      onClick={() => !isChecking && !isCheckingSingle && removeKey(index)}
+                                      style={{
+                                        cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
+                                        opacity: isChecking || isCheckingSingle ? 0.5 : 1,
+                                        fontSize: '16px',
+                                        color: 'var(--color-error)'
+                                      }}
+                                      title={t('common.delete')}
+                                    />
+                                  )}
+                                </>
+                              )}
                             </>
                           )}
                         </ApiKeyActions>
@@ -453,12 +536,18 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                     style={{ width: '60%', fontSize: '14px' }}
                     onPressEnter={handleSaveNewKey}
                     onBlur={handleSaveNewKey}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.preventDefault()
+                        handleCancelNewKey()
+                      }
+                    }}
                     spellCheck={false}
                     type="password"
                   />
                   <ApiKeyActions>
-                    <MinusCircleOutlined
-                      onClick={handleCancelNewKey}
+                    <CloseCircleOutlined
+                      onMouseDown={handleCancelNewKey}
                       title={t('common.cancel')}
                       style={{
                         cursor: isChecking || isCheckingSingle ? 'not-allowed' : 'pointer',
@@ -482,11 +571,10 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
               <Button
                 key="add"
                 type="primary"
-                onClick={handleAddNewKey}
+                onClick={editingIndex !== null ? handleSaveEdit : isAddingNew ? handleSaveNewKey : handleAddNewKey}
                 icon={<PlusOutlined />}
-                disabled={isAddingNew}
                 autoFocus={shouldAutoFocus()}>
-                {t('common.add')}
+                {editingIndex !== null || isAddingNew ? t('common.save') : t('common.add')}
               </Button>
             </Space>
             {keyStatuses.length > 1 && (
@@ -533,6 +621,18 @@ const ApiKeyActions = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 10px;
+
+  @keyframes pulse {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
 `
 
 export default ApiKeyList
