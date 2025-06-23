@@ -59,10 +59,13 @@ export async function handleDelete(fileId: string, t: (key: string) => string) {
 
   try {
     await db.transaction('rw', db.topics, db.message_blocks, async () => {
-      const allTopics = await db.topics.toArray()
+      const relatedTopics = await db.topics
+        .where('messages.id')
+        .anyOf(affectedMessageIds)
+        .toArray()
       const topicsToUpdate: Record<string, { messages: Message[] }> = {}
 
-      for (const topic of allTopics) {
+      for (const topic of relatedTopics) {
         let modified = false
         const newMessages = (topic.messages || []).map((msg) => {
           if (affectedMessageIds.includes(msg.id)) {
