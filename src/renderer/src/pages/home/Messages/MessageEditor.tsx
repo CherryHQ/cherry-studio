@@ -222,12 +222,15 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             }}
             onKeyDown={(e) => handleKeyDown(e, block.id)}
             autoFocus
-            contextMenu="true"
             spellCheck={enableSpellCheck}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onFocus={() => {
               // 记录当前聚焦的组件
               PasteService.setLastFocusedComponent('messageEditor')
+            }}
+            onContextMenu={(e) => {
+              // 阻止事件冒泡，避免触发全局的 Electron contextMenu
+              e.stopPropagation()
             }}
             style={{
               fontSize,

@@ -781,7 +781,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
             }
             autoFocus
-            contextMenu="true"
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
