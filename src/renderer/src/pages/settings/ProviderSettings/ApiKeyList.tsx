@@ -413,7 +413,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
         styles={{ body: { padding: 0 } }}
         style={{ marginBottom: '10px', border: '0.5px solid var(--color-border)' }}>
         {keyStatuses.length === 0 && !isAddingNew ? (
-          <Typography.Text type="secondary" style={{ padding: '8px 12px', display: 'block' }}>
+          <Typography.Text type="secondary" style={{ padding: '4px 11px', display: 'block' }}>
             {t('error.no_api_key')}
           </Typography.Text>
         ) : (
@@ -424,7 +424,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
                   size="small"
                   dataSource={keyStatuses}
                   renderItem={(status, index) => (
-                    <List.Item style={{ padding: '8px 12px' }}>
+                    <List.Item style={{ padding: '4px 11px' }}>
                       <ApiKeyListItem>
                         <ApiKeyContainer>
                           {editingIndex === index ? (
@@ -526,7 +526,7 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
               </Scrollbar>
             )}
             {isAddingNew && (
-              <List.Item style={{ padding: '8px 12px' }}>
+              <List.Item style={{ padding: '4px 11px' }}>
                 <ApiKeyListItem>
                   <Input.Password
                     ref={newInputRef}
