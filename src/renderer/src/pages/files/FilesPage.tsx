@@ -12,7 +12,7 @@ import Logger from '@renderer/config/logger'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileType, FileTypes } from '@renderer/types'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import { formatFileSize } from '@renderer/utils'
 import { Button, Empty, Flex, Popconfirm } from 'antd'
@@ -33,8 +33,7 @@ const FilesPage: FC = () => {
   const [fileType, setFileType] = useState<string>('document')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-
-  const tempFilesSort = (files: FileType[]) => {
+  const tempFilesSort = (files: FileMetadata[]) => {
     return files.sort((a, b) => {
       const aIsTemp = a.origin_name.startsWith('temp_file')
       const bIsTemp = b.origin_name.startsWith('temp_file')
@@ -44,7 +43,7 @@ const FilesPage: FC = () => {
     })
   }
 
-  const sortFiles = (files: FileType[]) => {
+  const sortFiles = (files: FileMetadata[]) => {
     return [...files].sort((a, b) => {
       let comparison = 0
       switch (sortField) {
@@ -62,7 +61,7 @@ const FilesPage: FC = () => {
     })
   }
 
-  const files = useLiveQuery<FileType[]>(() => {
+  const files = useLiveQuery<FileMetadata[]>(() => {
     if (fileType === 'all') {
       return db.files.orderBy('count').toArray().then(tempFilesSort)
     }

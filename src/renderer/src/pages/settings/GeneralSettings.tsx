@@ -239,10 +239,7 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
-          <Switch
-            checked={notificationSettings.knowledgeEmbed}
-            onChange={(v) => handleNotificationChange('knowledgeEmbed', v)}
-          />
+          <Switch checked={notificationSettings.knowledge} onChange={(v) => handleNotificationChange('knowledge', v)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

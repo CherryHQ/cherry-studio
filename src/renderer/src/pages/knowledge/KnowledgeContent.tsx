@@ -7,16 +7,15 @@ import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Logger from '@renderer/config/logger'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
-import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
+import { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Alert, Button, Dropdown, Empty, message, Tag, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import { ChevronsDown, ChevronsUp, Plus, Search, Settings2 } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -24,7 +23,8 @@ import CustomCollapse from '../../components/CustomCollapse'
 import FileItem from '../files/FileItem'
 import { NavbarIcon } from '../home/Navbar'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
-import KnowledgeSettingsPopup from './components/KnowledgeSettingsPopup'
+import KnowledgeSettings from './components/KnowledgeSettings'
+import QuotaTag from './components/QuotaTag'
 import StatusIcon from './components/StatusIcon'
 
 const { Dragger } = Upload
@@ -43,6 +43,9 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
   const [expandAll, setExpandAll] = useState(false)
+  const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
+  const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
+  const [quota, setQuota] = useState<number | undefined>(undefined)
 
   const {
     base,
@@ -58,7 +61,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     addSitemap,
     removeItem,
     getProcessingStatus,
-    getDirectoryProcessingPercent,
     addNote,
     addDirectory,
     updateItem
@@ -66,12 +68,33 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
 
   const providerName = getProviderName(base?.model.provider || '')
   const disabled = !base?.version || !providerName
+  useEffect(() => {
+    const handlers = [
+      window.electron.ipcRenderer.on('file-preprocess-finished', (_, { itemId, quota }) => {
+        setPreprocessMap((prev) => new Map(prev).set(itemId, true))
+        if (quota) {
+          setQuota(quota)
+        }
+      }),
+
+      window.electron.ipcRenderer.on('file-preprocess-progress', (_, { itemId, progress }) => {
+        setProgressMap((prev) => new Map(prev).set(itemId, progress))
+      }),
+
+      window.electron.ipcRenderer.on('directory-processing-percent', (_, { itemId, percent }) => {
+        console.log('[Progress] Directory:', itemId, percent)
+        setProgressMap((prev) => new Map(prev).set(itemId, percent))
+      })
+    ]
+
+    return () => {
+      handlers.forEach((cleanup) => cleanup())
+    }
+  }, [])
 
   if (!base) {
     return null
   }
-
-  const getProgressingPercentForItem = (itemId: string) => getDirectoryProcessingPercent(itemId)
 
   const handleAddFile = () => {
     if (disabled) {
@@ -92,23 +115,36 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     if (disabled) {
       return
     }
-
     if (files) {
-      const _files: FileType[] = files
-        .map((file) => ({
-          id: file.name,
-          name: file.name,
-          path: window.api.file.getPathForFile(file),
-          size: file.size,
-          ext: `.${file.name.split('.').pop()}`.toLowerCase(),
-          count: 1,
-          origin_name: file.name,
-          type: file.type as FileTypes,
-          created_at: new Date().toISOString()
-        }))
+      const _files: FileMetadata[] = files
+        .map((file) => {
+          // 这个路径 filePath 很可能是在文件选择时的原始路径。
+          const filePath = window.api.file.getPathForFile(file)
+          let nameFromPath = filePath
+          const lastSlash = filePath.lastIndexOf('/')
+          const lastBackslash = filePath.lastIndexOf('\\')
+          if (lastSlash !== -1 || lastBackslash !== -1) {
+            nameFromPath = filePath.substring(Math.max(lastSlash, lastBackslash) + 1)
+          }
+
+          // 从派生的文件名中获取扩展名
+          const extFromPath = nameFromPath.includes('.') ? `.${nameFromPath.split('.').pop()}` : ''
+
+          return {
+            id: uuid(),
+            name: nameFromPath, // 使用从路径派生的文件名
+            path: filePath,
+            size: file.size,
+            ext: extFromPath.toLowerCase(),
+            count: 1,
+            origin_name: file.name, // 保存 File 对象中原始的文件名
+            type: file.type as FileTypes,
+            created_at: new Date().toISOString()
+          }
+        })
         .filter(({ ext }) => fileTypes.includes(ext))
-      const uploadedFiles = await FileManager.uploadFiles(_files)
-      addFiles(uploadedFiles)
+      // const uploadedFiles = await FileManager.uploadFiles(_files)
+      addFiles(_files)
     }
   }
 
@@ -229,6 +265,16 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     }
   }
 
+  const showPreprocessIcon = (item: KnowledgeItem) => {
+    if (base.preprocessOrOcrProvider && item.isPreprocessed !== false) {
+      return true
+    }
+    if (!base.preprocessOrOcrProvider && item.isPreprocessed === true) {
+      return true
+    }
+    return false
+  }
+
   return (
     <MainContainer>
       <HeaderContainer>
@@ -236,7 +282,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           <Button
             type="text"
             icon={<Settings2 size={18} color="var(--color-icon)" />}
-            onClick={() => KnowledgeSettingsPopup.show({ base })}
+            onClick={() => KnowledgeSettings.show({ base })}
             size="small"
           />
           <div className="model-row">
@@ -254,6 +300,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               <Tag color="cyan" style={{ borderRadius: 20, margin: 0 }}>
                 {base.rerankModel.name}
               </Tag>
+            )}
+            {base.preprocessOrOcrProvider && base.preprocessOrOcrProvider.type === 'preprocess' && (
+              <QuotaTag base={base} providerId={base.preprocessOrOcrProvider?.provider.id} quota={quota} />
             )}
           </div>
         </ModelInfo>
@@ -326,14 +375,14 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                   }
                 }}>
                 {(item) => {
-                  const file = item.content as FileType
+                  const file = item.content as FileMetadata
                   return (
                     <div style={{ height: '75px', paddingTop: '12px' }}>
                       <FileItem
                         key={item.id}
                         fileInfo={{
                           name: (
-                            <ClickableSpan onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
+                            <ClickableSpan onClick={() => window.api.file.openPath(file.path)}>
                               <Ellipsis>
                                 <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
                               </Ellipsis>
@@ -345,6 +394,18 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                             <FlexAlignCenter>
                               {item.uniqueId && (
                                 <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                              )}
+                              {showPreprocessIcon(item) && (
+                                <StatusIconWrapper>
+                                  <StatusIcon
+                                    sourceId={item.id}
+                                    base={base}
+                                    getProcessingStatus={getProcessingStatus}
+                                    type="file"
+                                    isPreprocessed={preprocessMap.get(item.id) || item.isPreprocessed || false}
+                                    progress={progressMap.get(item.id)}
+                                  />
+                                </StatusIconWrapper>
                               )}
                               <StatusIconWrapper>
                                 <StatusIcon
@@ -406,7 +467,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           sourceId={item.id}
                           base={base}
                           getProcessingStatus={getProcessingStatus}
-                          getProcessingPercent={getProgressingPercentForItem}
                           type="directory"
                         />
                       </StatusIconWrapper>
@@ -695,12 +755,11 @@ const ClickableSpan = styled.span`
 `
 
 const StatusIconWrapper = styled.div`
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: 2px;
 `
 
 const RefreshIcon = styled(RedoOutlined)`

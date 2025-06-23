@@ -110,6 +110,7 @@ export enum IpcChannel {
   KnowledgeBase_Remove = 'knowledge-base:remove',
   KnowledgeBase_Search = 'knowledge-base:search',
   KnowledgeBase_Rerank = 'knowledge-base:rerank',
+  KnowledgeBase_Check_Quota = 'knowledge-base:check-quota',
 
   //file
   File_Open = 'file:open',
@@ -120,9 +121,10 @@ export enum IpcChannel {
   File_Clear = 'file:clear',
   File_Read = 'file:read',
   File_Delete = 'file:delete',
+  File_DeleteDir = 'file:deleteDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
-  File_Create = 'file:create',
+  File_CreateTempFile = 'file:createTempFile',
   File_Write = 'file:write',
   File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
@@ -134,6 +136,12 @@ export enum IpcChannel {
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
+
+  // file service
+  FileService_Upload = 'file-service:upload',
+  FileService_List = 'file-service:list',
+  FileService_Delete = 'file-service:delete',
+  FileService_Retrieve = 'file-service:retrieve',
 
   Export_Word = 'export:word',
 

@@ -252,7 +252,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ provider: initi
               min={1}
               max={60}
               step={1}
-              marks={{ 1: '1', 10: t('settings.websearch.search_result_default'), 60: '60' }}
+              marks={{ 1: '1', 10: t('settings.tool.websearch.search_result_default'), 60: '60' }}
               onChangeComplete={(value) => updateProvider({ ...provider, rateLimit: value })}
             />
           </SettingRow>

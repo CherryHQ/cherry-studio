@@ -19,7 +19,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client', 'bufferutil', 'utf-8-validate'],
+        external: ['@libsql/client', 'bufferutil', 'utf-8-validate', '@cherrystudio/mac-system-ocr'],
         output: {
           // 彻底禁用代码分割 - 返回 null 强制单文件打包
           manualChunks: undefined,
@@ -30,7 +30,7 @@ export default defineConfig({
       sourcemap: process.env.NODE_ENV === 'development'
     },
     optimizeDeps: {
-      noDiscovery: process.env.NODE_ENV === 'development'
+      disabled: 'dev'
     }
   },
   preload: {

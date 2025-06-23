@@ -55,8 +55,8 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
         label: p.name,
         description: WebSearchService.isWebSearchEnabled(p.id)
           ? hasObjectKey(p, 'apiKey')
-            ? t('settings.websearch.apikey')
-            : t('settings.websearch.free')
+            ? t('settings.tool.websearch.apikey')
+            : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
         icon: <Globe />,
         isSelected: p.id === assistant?.webSearchProviderId,
@@ -81,7 +81,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     items.push({
       label: t('chat.input.web_search.settings'),
       icon: <Settings />,
-      action: () => navigate('/settings/web-search')
+      action: () => navigate('/settings/tool/websearch')
     })
 
     items.unshift({
