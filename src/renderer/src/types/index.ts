@@ -625,10 +625,15 @@ export interface GetMCPPromptResponse {
   messages: {
     role: string
     content: {
-      type: 'text' | 'image' | 'audio' | 'resource'
+      type: 'text' | 'image' | 'audio' | 'resource' | 'resource_link'
       text?: string
       data?: string
       mimeType?: string
+      // 添加 resource_link 相关字段
+      name?: string
+      title?: string
+      uri?: string
+      description?: string
     }
   }[]
 }
