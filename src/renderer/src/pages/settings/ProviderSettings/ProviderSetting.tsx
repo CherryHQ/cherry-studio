@@ -3,7 +3,7 @@ import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
-import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import { isRerankModel } from '@renderer/config/models'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
@@ -16,7 +16,7 @@ import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { debounce, isEmpty } from 'lodash'
+import { isEmpty } from 'lodash'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
@@ -31,7 +31,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiCheckPopup from './ApiCheckPopup'
+import ApiKeyList from './ApiKeyList'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
@@ -41,7 +41,7 @@ import ModelList, { ModelStatus } from './ModelList'
 import ModelListSearchBar from './ModelListSearchBar'
 import ProviderOAuth from './ProviderOAuth'
 import ProviderSettingsPopup from './ProviderSettingsPopup'
-import SelectProviderModelPopup from './SelectProviderModelPopup'
+import VertexAISettings from './VertexAISettings'
 
 interface Props {
   provider: Provider
@@ -54,14 +54,11 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
   const [apiKey, setApiKey] = useState(provider.apiKey)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
-  const [apiValid, setApiValid] = useState(false)
-  const [apiChecking, setApiChecking] = useState(false)
   const [modelSearchText, setModelSearchText] = useState('')
   const deferredModelSearchText = useDeferredValue(modelSearchText)
   const { updateProvider, models } = useProvider(provider.id)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const [inputValue, setInputValue] = useState(apiKey)
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -74,14 +71,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
 
   const [modelStatuses, setModelStatuses] = useState<ModelStatus[]>([])
   const [isHealthChecking, setIsHealthChecking] = useState(false)
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedSetApiKey = useCallback(
-    debounce((value) => {
-      setApiKey(formatApiKeys(value))
-    }, 100),
-    []
-  )
 
   const moveProviderToTop = useCallback(
     (providerId: string) => {
@@ -98,18 +87,17 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     [allProviders, updateProviders]
   )
 
-  const onUpdateApiKey = () => {
-    if (apiKey !== provider.apiKey) {
-      updateProvider({ ...provider, apiKey })
-    }
-  }
-
   const onUpdateApiHost = () => {
     if (apiHost.trim()) {
       updateProvider({ ...provider, apiHost })
     } else {
       setApiHost(provider.apiHost)
     }
+  }
+
+  const handleApiKeyChange = (newApiKey: string) => {
+    setApiKey(newApiKey)
+    updateProvider({ ...provider, apiKey: newApiKey })
   }
 
   const onUpdateApiVersion = () => updateProvider({ ...provider, apiVersion })
@@ -191,75 +179,6 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
     setIsHealthChecking(false)
   }
 
-  const onCheckApi = async () => {
-    const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-
-    if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
-      })
-      return
-    }
-
-    const model = await SelectProviderModelPopup.show({ provider })
-
-    if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
-      return
-    }
-
-    if (apiKey.includes(',')) {
-      const keys = splitApiKeyString(apiKey)
-
-      const result = await ApiCheckPopup.show({
-        title: t('settings.provider.check_multiple_keys'),
-        provider: { ...provider, apiHost },
-        model,
-        apiKeys: keys,
-        type: 'provider'
-      })
-
-      if (result?.validKeys) {
-        const newApiKey = result.validKeys.join(',')
-        setInputValue(newApiKey)
-        setApiKey(newApiKey)
-        updateProvider({ ...provider, apiKey: newApiKey })
-      }
-    } else {
-      setApiChecking(true)
-
-      try {
-        await checkApi({ ...provider, apiKey, apiHost }, model)
-
-        window.message.success({
-          key: 'api-check',
-          style: { marginTop: '3vh' },
-          duration: 2,
-          content: i18n.t('message.api.connection.success')
-        })
-
-        setApiValid(true)
-        setTimeout(() => setApiValid(false), 3000)
-      } catch (error: any) {
-        const errorMessage = error?.message ? ' ' + error.message : ''
-
-        window.message.error({
-          key: 'api-check',
-          style: { marginTop: '3vh' },
-          duration: 8,
-          content: i18n.t('message.api.connection.failed') + errorMessage
-        })
-
-        setApiValid(false)
-      } finally {
-        setApiChecking(false)
-      }
-    }
-  }
-
   const onReset = () => {
     setApiHost(configedApiHost)
     updateProvider({ ...provider, apiHost: configedApiHost })
@@ -328,78 +247,59 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
           provider={provider}
           setApiKey={(v) => {
             setApiKey(v)
-            setInputValue(v)
             updateProvider({ ...provider, apiKey: v })
           }}
         />
       )}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
-      <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-        <Input.Password
-          value={inputValue}
-          placeholder={t('settings.provider.api_key')}
-          onChange={(e) => {
-            setInputValue(e.target.value)
-            debouncedSetApiKey(e.target.value)
-          }}
-          onBlur={() => {
-            const formattedValue = formatApiKeys(inputValue)
-            setInputValue(formattedValue)
-            setApiKey(formattedValue)
-            onUpdateApiKey()
-          }}
-          spellCheck={false}
-          autoFocus={provider.enabled && apiKey === '' && !isProviderSupportAuth(provider)}
-          disabled={provider.id === 'copilot'}
-        />
-        <Button
-          type={apiValid ? 'primary' : 'default'}
-          ghost={apiValid}
-          onClick={onCheckApi}
-          disabled={!apiHost || apiChecking}>
-          {apiChecking ? <LoadingOutlined spin /> : apiValid ? <CheckOutlined /> : t('settings.provider.check')}
-        </Button>
-      </Space.Compact>
-      {apiKeyWebsite && (
-        <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-          <HStack>
-            {!isDmxapi && (
-              <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                {t('settings.provider.get_api_key')}
-              </SettingHelpLink>
-            )}
-          </HStack>
-          <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-        </SettingHelpTextRow>
-      )}
-      {!isDmxapi && (
+      {provider.id !== 'vertexai' && (
         <>
-          <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
-          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
-            <Input
-              value={apiHost}
-              placeholder={t('settings.provider.api_host')}
-              onChange={(e) => setApiHost(e.target.value)}
-              onBlur={onUpdateApiHost}
-            />
-            {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
-              <Button danger onClick={onReset}>
-                {t('settings.provider.api.url.reset')}
-              </Button>
-            )}
-          </Space.Compact>
-          {isOpenAIProvider(provider) && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-              <SettingHelpText
-                style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
-                {hostPreview()}
-              </SettingHelpText>
-              <SettingHelpText style={{ minWidth: 'fit-content' }}>
-                {t('settings.provider.api.url.tip')}
-              </SettingHelpText>
+          <SettingSubtitle style={{ marginBottom: 5 }}>
+            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+              <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
+            </Space>
+          </SettingSubtitle>
+          <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
+          {apiKeyWebsite && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: '10px' }}>
+              <HStack>
+                {!isDmxapi && (
+                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                    {t('settings.provider.get_api_key')}
+                  </SettingHelpLink>
+                )}
+              </HStack>
             </SettingHelpTextRow>
+          )}
+          {!isDmxapi && (
+            <>
+              <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+              <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                <Input
+                  value={apiHost}
+                  placeholder={t('settings.provider.api_host')}
+                  onChange={(e) => setApiHost(e.target.value)}
+                  onBlur={onUpdateApiHost}
+                />
+                {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
+                  <Button danger onClick={onReset}>
+                    {t('settings.provider.api.url.reset')}
+                  </Button>
+                )}
+              </Space.Compact>
+              {isOpenAIProvider(provider) && (
+                <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                  <SettingHelpText
+                    style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                    {hostPreview()}
+                  </SettingHelpText>
+                  <SettingHelpText style={{ minWidth: 'fit-content' }}>
+                    {t('settings.provider.api.url.tip')}
+                  </SettingHelpText>
+                </SettingHelpTextRow>
+              )}
+            </>
           )}
         </>
       )}
@@ -419,6 +319,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {provider.id === 'lmstudio' && <LMStudioSettings />}
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings provider={provider} setApiKey={setApiKey} />}
+      {provider.id === 'vertexai' && <VertexAISettings />}
       <SettingSubtitle style={{ marginBottom: 5 }}>
         <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
           <HStack alignItems="center" gap={8} mb={5}>

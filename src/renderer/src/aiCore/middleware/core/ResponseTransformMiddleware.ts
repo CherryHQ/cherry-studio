@@ -37,7 +37,7 @@ export const ResponseTransformMiddleware: CompletionsMiddleware =
         }
 
         // 获取响应转换器
-        const responseChunkTransformer = apiClient.getResponseChunkTransformer?.()
+        const responseChunkTransformer = apiClient.getResponseChunkTransformer(ctx)
         if (!responseChunkTransformer) {
           Logger.warn(`[${MIDDLEWARE_NAME}] No ResponseChunkTransformer available, skipping transformation`)
           return result

@@ -1,5 +1,4 @@
 import { Chunk } from '@renderer/types/chunk'
-import { isAbortError } from '@renderer/utils/error'
 
 import { CompletionsResult } from '../schemas'
 import { CompletionsContext } from '../types'
@@ -26,29 +25,26 @@ export const ErrorHandlerMiddleware =
       // 尝试执行下一个中间件
       return await next(ctx, params)
     } catch (error: any) {
-      let errorStream: ReadableStream<Chunk> | undefined
-      // 有些sdk的abort error 是直接抛出的
-      if (!isAbortError(error)) {
-        // 1. 使用通用的工具函数将错误解析为标准格式
-        const errorChunk = createErrorChunk(error)
-        // 2. 调用从外部传入的 onError 回调
-        if (params.onError) {
-          params.onError(error)
-        }
-
-        // 3. 根据配置决定是重新抛出错误，还是将其作为流的一部分向下传递
-        if (shouldThrow) {
-          throw error
-        }
-
-        // 如果不抛出，则创建一个只包含该错误块的流并向下传递
-        errorStream = new ReadableStream<Chunk>({
-          start(controller) {
-            controller.enqueue(errorChunk)
-            controller.close()
-          }
-        })
+      console.log('ErrorHandlerMiddleware_error', error)
+      // 1. 使用通用的工具函数将错误解析为标准格式
+      const errorChunk = createErrorChunk(error)
+      // 2. 调用从外部传入的 onError 回调
+      if (params.onError) {
+        params.onError(error)
       }
+
+      // 3. 根据配置决定是重新抛出错误，还是将其作为流的一部分向下传递
+      if (shouldThrow) {
+        throw error
+      }
+
+      // 如果不抛出，则创建一个只包含该错误块的流并向下传递
+      const errorStream = new ReadableStream<Chunk>({
+        start(controller) {
+          controller.enqueue(errorChunk)
+          controller.close()
+        }
+      })
 
       return {
         rawOutput: undefined,

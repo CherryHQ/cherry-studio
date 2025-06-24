@@ -25,7 +25,6 @@ export const StreamAdapterMiddleware: CompletionsMiddleware =
     // 但是这个中间件的职责是流适配，是否在这调用优待商榷
     // 调用下游中间件
     const result = await next(ctx, params)
-
     if (
       result.rawOutput &&
       !(result.rawOutput instanceof ReadableStream) &&

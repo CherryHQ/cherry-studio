@@ -4,6 +4,7 @@ import { AihubmixAPIClient } from './AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
+import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 
@@ -43,6 +44,9 @@ export class ApiClientFactory {
         break
       case 'gemini':
         instance = new GeminiAPIClient(provider) as BaseApiClient
+        break
+      case 'vertexai':
+        instance = new VertexAPIClient(provider) as BaseApiClient
         break
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient

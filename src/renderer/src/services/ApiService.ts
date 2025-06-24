@@ -33,10 +33,11 @@ import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName } from '@renderer/utils'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
-import { getKnowledgeBaseIds, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
+import store from '../store'
 import {
   getAssistantProvider,
   getAssistantSettings,
@@ -50,7 +51,6 @@ import { processKnowledgeSearch } from './KnowledgeService'
 import {
   filterContextMessages,
   filterEmptyMessages,
-  filterMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
 } from './MessagesService'
@@ -64,7 +64,7 @@ async function fetchExternalTool(
   lastAnswer?: Message
 ): Promise<ExternalToolResult> {
   // 可能会有重复？
-  const knowledgeBaseIds = getKnowledgeBaseIds(lastUserMessage)
+  const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
   const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
@@ -252,15 +252,28 @@ async function fetchExternalTool(
 
     // Get MCP tools (Fix duplicate declaration)
     let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const enabledMCPs = assistant.mcpServers
+    const allMcpServers = store.getState().mcp.servers || []
+    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+    const assistantMcpServers = assistant.mcpServers || []
+
+    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+
     if (enabledMCPs && enabledMCPs.length > 0) {
       try {
-        const toolPromises = enabledMCPs.map(async (mcpServer) => {
-          const tools = await window.api.mcp.listTools(mcpServer)
-          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
+          try {
+            const tools = await window.api.mcp.listTools(mcpServer)
+            return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+          } catch (error) {
+            console.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
+            return []
+          }
         })
-        const results = await Promise.all(toolPromises)
-        mcpTools = results.flat() // Flatten the array of arrays
+        const results = await Promise.allSettled(toolPromises)
+        mcpTools = results
+          .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .flat()
       } catch (toolError) {
         console.error('Error fetching MCP tools:', toolError)
       }
@@ -416,10 +429,9 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
   const model = getTopNamingModel() || assistant.model || getDefaultModel()
-  const userMessages = takeRight(messages, 5).map((message) => ({
-    ...message,
-    content: getMainTextContent(message)
-  }))
+
+  // 总结上下文总是取最后5条消息
+  const contextMessages = takeRight(messages, 5)
 
   const provider = getProviderByModel(model)
 
@@ -429,12 +441,44 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   const AI = new AiProvider(provider)
 
+  // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
+  const structredMessages = contextMessages.map((message) => {
+    const structredMessage = {
+      role: message.role,
+      mainText: getMainTextContent(message)
+    }
+
+    // 让LLM知道消息中包含的文件，但只提供文件名
+    // 对助手消息而言，没有提供工具调用结果等更多信息，仅提供文本上下文。
+    const fileBlocks = findFileBlocks(message)
+    let fileList: Array<string> = []
+    if (fileBlocks.length && fileBlocks.length > 0) {
+      fileList = fileBlocks.map((fileBlock) => fileBlock.file.origin_name)
+    }
+    return {
+      ...structredMessage,
+      files: fileList.length > 0 ? fileList : undefined
+    }
+  })
+  const conversation = JSON.stringify(structredMessages)
+
+  // 复制 assistant 对象，并强制关闭思考预算
+  const summaryAssistant = {
+    ...assistant,
+    settings: {
+      ...assistant.settings,
+      reasoning_effort: undefined,
+      qwenThinkMode: false
+    }
+  }
+
   const params: CompletionsParams = {
     callType: 'summary',
-    messages: filterMessages(userMessages),
-    assistant: { ...assistant, prompt, model },
+    messages: conversation,
+    assistant: { ...summaryAssistant, prompt, model },
     maxTokens: 1000,
-    streamOutput: false
+    streamOutput: false,
+    enableReasoning: false
   }
 
   try {
@@ -497,7 +541,7 @@ export async function fetchGenerate({ prompt, content }: { prompt: string; conte
 
 function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio') return true
+  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
   return !isEmpty(provider.apiKey)
 }
 
@@ -519,14 +563,19 @@ export function checkApiProvider(provider: Provider): void {
   const key = 'api-check'
   const style = { marginTop: '3vh' }
 
-  if (provider.id !== 'ollama' && provider.id !== 'lmstudio') {
+  if (
+    provider.id !== 'ollama' &&
+    provider.id !== 'lmstudio' &&
+    provider.type !== 'vertexai' &&
+    provider.id !== 'copilot'
+  ) {
     if (!provider.apiKey) {
       window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
       throw new Error(i18n.t('message.error.enter.api.key'))
     }
   }
 
-  if (!provider.apiHost) {
+  if (!provider.apiHost && provider.type !== 'vertexai') {
     window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
     throw new Error(i18n.t('message.error.enter.api.host'))
   }
@@ -546,16 +595,14 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      const result = await ai.getEmbeddingDimensions(model)
-      if (result === 0) {
-        throw new Error(i18n.t('message.error.enter.model'))
-      }
+      await ai.getEmbeddingDimensions(model)
     } else {
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
-        streamOutput: true
+        streamOutput: true,
+        shouldThrow: true
       }
 
       // Try streaming check first
@@ -570,7 +617,8 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         callType: 'check',
         messages: 'hi',
         assistant,
-        streamOutput: false
+        streamOutput: false,
+        shouldThrow: true
       }
       const result = await ai.completions(params)
       if (!result.getText()) {

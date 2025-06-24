@@ -6,14 +6,14 @@ import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { INITIAL_TTS_PROVIDERS } from '@renderer/config/tts'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
-import { Assistant, WebSearchProvider } from '@renderer/types'
+import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
 import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
-import { INITIAL_PROVIDERS, moveProvider } from './llm'
+import { INITIAL_PROVIDERS, initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
 import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
@@ -53,6 +53,15 @@ function addProvider(state: RootState, id: string) {
     const _provider = INITIAL_PROVIDERS.find((p) => p.id === id)
     if (_provider) {
       state.llm.providers.push(_provider)
+    }
+  }
+}
+
+function updateProvider(state: RootState, id: string, provider: Partial<Provider>) {
+  if (state.llm.providers) {
+    const index = state.llm.providers.findIndex((p) => p.id === id)
+    if (index !== -1) {
+      state.llm.providers[index] = { ...state.llm.providers[index], ...provider }
     }
   }
 }
@@ -1463,8 +1472,6 @@ const migrateConfig = {
           searchMessageShortcut.shortcut = [isMac ? 'Command' : 'Ctrl', 'Shift', 'F']
         }
       }
-      // Quick assistant model
-      state.llm.quickAssistantModel = state.llm.defaultModel || SYSTEM_MODELS.silicon[1]
       return state
     } catch (error) {
       return state
@@ -1564,8 +1571,43 @@ const migrateConfig = {
     try {
       addProvider(state, 'cephalon')
       addProvider(state, '302ai')
+      addProvider(state, 'lanyun')
       state.llm.providers = moveProvider(state.llm.providers, 'cephalon', 13)
       state.llm.providers = moveProvider(state.llm.providers, '302ai', 14)
+      state.llm.providers = moveProvider(state.llm.providers, 'lanyun', 15)
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '113': (state: RootState) => {
+    try {
+      addProvider(state, 'vertexai')
+      if (!state.llm.settings.vertexai) {
+        state.llm.settings.vertexai = llmInitialState.settings.vertexai
+      }
+      updateProvider(state, 'gemini', {
+        isVertex: false
+      })
+      updateProvider(state, 'vertexai', {
+        isVertex: true
+      })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '114': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.exportMenuOptions) {
+        if (typeof state.settings.exportMenuOptions.plain_text === 'undefined') {
+          state.settings.exportMenuOptions.plain_text = true
+        }
+      }
+      if (state.settings) {
+        state.settings.enableSpellCheck = false
+        state.settings.spellCheckLanguages = []
+      }
       return state
     } catch (error) {
       return state

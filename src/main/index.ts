@@ -1,3 +1,8 @@
+// don't reorder this file, it's used to initialize the app data dir and
+// other which should be run before the main process is ready
+// eslint-disable-next-line
+import './bootstrap'
+
 import '@main/config'
 
 import { electronApp, optimizer } from '@electron-toolkit/utils'
@@ -20,7 +25,6 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import { setUserDataDir } from './utils/file'
 
 Logger.initialize()
 
@@ -72,9 +76,6 @@ if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)
 } else {
-  // Portable dir must be setup before app ready
-  setUserDataDir()
-
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.

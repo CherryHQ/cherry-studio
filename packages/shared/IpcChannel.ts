@@ -3,6 +3,8 @@ export enum IpcChannel {
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
+  App_SetEnableSpellCheck = 'app:set-enable-spell-check',
+  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
   App_Reload = 'app:reload',
@@ -15,7 +17,15 @@ export enum IpcChannel {
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetFeedUrl = 'app:set-feed-url',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
-
+  App_Select = 'app:select',
+  App_HasWritePermission = 'app:has-write-permission',
+  App_Copy = 'app:copy',
+  App_SetStopQuitApp = 'app:set-stop-quit-app',
+  App_SetAppDataPath = 'app:set-app-data-path',
+  App_GetDataPathFromArgs = 'app:get-data-path-from-args',
+  App_FlushAppData = 'app:flush-app-data',
+  App_IsNotEmptyDir = 'app:is-not-empty-dir',
+  App_RelaunchApp = 'app:relaunch-app',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
   App_InstallUvBinary = 'app:install-uv-binary',
@@ -86,6 +96,10 @@ export enum IpcChannel {
   Gemini_ListFiles = 'gemini:list-files',
   Gemini_DeleteFile = 'gemini:delete-file',
 
+  // VertexAI
+  VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
+
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
 
@@ -118,6 +132,7 @@ export enum IpcChannel {
   File_Copy = 'file:copy',
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
+  File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
 
   Export_Word = 'export:word',

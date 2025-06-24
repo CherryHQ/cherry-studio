@@ -13,10 +13,9 @@ import {
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -36,6 +35,7 @@ import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import { getFilesFromDropEvent } from '@renderer/utils/input'
+import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -77,7 +77,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel
+    enableBackspaceDeleteModel,
+    enableSpellCheck
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -87,7 +88,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
-  const { isBubbleStyle } = useMessageStyle()
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
@@ -104,7 +104,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
 
@@ -175,32 +174,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (uploadedFiles) {
         baseUserMessage.files = uploadedFiles
       }
-      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
-
-      if (knowledgeBaseIds) {
-        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
-      }
 
       if (mentionModels) {
         baseUserMessage.mentions = mentionModels
       }
 
-      if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
-          assistant.mcpServers?.some((s) => s.id === server.id)
-        )
-      }
-
-      if (topic.prompt) {
-        assistant.prompt = assistant.prompt ? `${assistant.prompt}\n${topic.prompt}` : topic.prompt
-      }
+      const assistantWithTopicPrompt = topic.prompt
+        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+        : assistant
 
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
 
       currentMessageId.current = message.id
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
 
       // Clear input
       setText('')
@@ -211,19 +199,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [
-    activedMcpServers,
-    assistant,
-    dispatch,
-    files,
-    inputEmpty,
-    loading,
-    mentionModels,
-    resizeTextArea,
-    selectedKnowledgeBases,
-    text,
-    topic
-  ])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionModels, resizeTextArea, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -309,8 +285,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    const isEnterPressed = event.keyCode == 13
-
     // 按下Tab键，自动选中${xxx}
     if (event.key === 'Tab' && inputFocus) {
       event.preventDefault()
@@ -366,32 +340,37 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (isEnterPressed && !event.shiftKey && sendMessageShortcut === 'Enter') {
-      if (quickPanel.isVisible) return event.preventDefault()
+    //to check if the SendMessage key is pressed
+    //other keys should be ignored
+    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
+    if (isEnterPressed) {
+      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+        if (quickPanel.isVisible) return event.preventDefault()
+        sendMessage()
+        return event.preventDefault()
+      } else {
+        //shift+enter's default behavior is to add a new line, ignore it
+        if (!event.shiftKey) {
+          event.preventDefault()
 
-      sendMessage()
-      return event.preventDefault()
-    }
+          const textArea = textareaRef.current?.resizableTextArea?.textArea
+          if (textArea) {
+            const start = textArea.selectionStart
+            const end = textArea.selectionEnd
+            const text = textArea.value
+            const newText = text.substring(0, start) + '\n' + text.substring(end)
 
-    if (sendMessageShortcut === 'Shift+Enter' && isEnterPressed && event.shiftKey) {
-      if (quickPanel.isVisible) return event.preventDefault()
+            // update text by setState, not directly modify textarea.value
+            setText(newText)
 
-      sendMessage()
-      return event.preventDefault()
-    }
-
-    if (sendMessageShortcut === 'Ctrl+Enter' && isEnterPressed && event.ctrlKey) {
-      if (quickPanel.isVisible) return event.preventDefault()
-
-      sendMessage()
-      return event.preventDefault()
-    }
-
-    if (sendMessageShortcut === 'Command+Enter' && isEnterPressed && event.metaKey) {
-      if (quickPanel.isVisible) return event.preventDefault()
-
-      sendMessage()
-      return event.preventDefault()
+            // set cursor position in the next render cycle
+            setTimeout(() => {
+              textArea.selectionStart = textArea.selectionEnd = start + 1
+              onInput() // trigger resizeTextArea
+            }, 0)
+          }
+        }
+      }
     }
 
     if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionModels.length > 0) {
@@ -694,8 +673,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
-
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
     updateAssistant({ ...assistant, knowledge_bases: bases })
     setSelectedKnowledgeBases(bases ?? [])
@@ -798,12 +775,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={isTranslating ? t('chat.input.translating') : t('chat.input.placeholder')}
+            placeholder={
+              isTranslating
+                ? t('chat.input.translating')
+                : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
+            }
             autoFocus
-            contextMenu="true"
             variant="borderless"
-            spellCheck={false}
-            rows={textareaRows}
+            spellCheck={enableSpellCheck}
+            rows={2}
             ref={textareaRef}
             style={{
               fontSize,
@@ -950,7 +930,7 @@ const Textarea = styled(TextArea)`
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
-  transition: height 0.2s ease;
+  transition: none !important;
   &.ant-input {
     line-height: 1.4;
   }

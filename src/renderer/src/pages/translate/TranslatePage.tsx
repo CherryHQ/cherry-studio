@@ -26,6 +26,7 @@ import { find, isEmpty, sortBy } from 'lodash'
 import { HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
 let _text = ''
@@ -39,6 +40,8 @@ const TranslateSettings: FC<{
   setIsScrollSyncEnabled: (value: boolean) => void
   isBidirectional: boolean
   setIsBidirectional: (value: boolean) => void
+  enableMarkdown: boolean
+  setEnableMarkdown: (value: boolean) => void
   bidirectionalPair: [string, string]
   setBidirectionalPair: (value: [string, string]) => void
   translateModel: Model | undefined
@@ -52,6 +55,8 @@ const TranslateSettings: FC<{
   setIsScrollSyncEnabled,
   isBidirectional,
   setIsBidirectional,
+  enableMarkdown,
+  setEnableMarkdown,
   bidirectionalPair,
   setBidirectionalPair,
   translateModel,
@@ -82,6 +87,7 @@ const TranslateSettings: FC<{
     setBidirectionalPair(localPair)
     db.settings.put({ id: 'translate:bidirectional:pair', value: localPair })
     db.settings.put({ id: 'translate:scroll:sync', value: isScrollSyncEnabled })
+    db.settings.put({ id: 'translate:markdown:enabled', value: enableMarkdown })
     window.message.success({
       content: t('message.save.success.title'),
       key: 'translate-settings-save'
@@ -133,6 +139,13 @@ const TranslateSettings: FC<{
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-3)' }}>
             {t('translate.settings.model_desc')}
           </div>
+        </div>
+
+        <div>
+          <Flex align="center" justify="space-between">
+            <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
+            <Switch checked={enableMarkdown} onChange={setEnableMarkdown} />
+          </Flex>
         </div>
 
         <div>
@@ -212,10 +225,11 @@ const TranslatePage: FC = () => {
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
   const [isScrollSyncEnabled, setIsScrollSyncEnabled] = useState(false)
   const [isBidirectional, setIsBidirectional] = useState(false)
+  const [enableMarkdown, setEnableMarkdown] = useState(false)
   const [bidirectionalPair, setBidirectionalPair] = useState<[string, string]>(['english', 'chinese'])
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<string>('auto') // 添加用户选择的源语言状态
+  const [sourceLanguage, setSourceLanguage] = useState<string>('auto')
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -293,8 +307,7 @@ const TranslatePage: FC = () => {
       let actualSourceLanguage: string
       if (sourceLanguage === 'auto') {
         actualSourceLanguage = await detectLanguage(text)
-        console.log('检测到的语言:', actualSourceLanguage)
-        setDetectedLanguage(actualSourceLanguage) // 更新检测到的语言
+        setDetectedLanguage(actualSourceLanguage)
       } else {
         actualSourceLanguage = sourceLanguage
       }
@@ -371,6 +384,9 @@ const TranslatePage: FC = () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       targetLang && setTargetLanguage(targetLang.value)
 
+      const sourceLang = await db.settings.get({ id: 'translate:source:language' })
+      sourceLang && setSourceLanguage(sourceLang.value)
+
       const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
       if (bidirectionalPairSetting) {
         const langPair = bidirectionalPairSetting.value
@@ -388,6 +404,9 @@ const TranslatePage: FC = () => {
 
       const scrollSyncSetting = await db.settings.get({ id: 'translate:scroll:sync' })
       setIsScrollSyncEnabled(scrollSyncSetting ? scrollSyncSetting.value : false)
+
+      const markdownSetting = await db.settings.get({ id: 'translate:markdown:enabled' })
+      setEnableMarkdown(markdownSetting ? markdownSetting.value : false)
     })
   }, [])
 
@@ -509,12 +528,15 @@ const TranslatePage: FC = () => {
                 value={sourceLanguage}
                 style={{ width: 180 }}
                 optionFilterProp="label"
-                onChange={(value) => setSourceLanguage(value)}
+                onChange={(value) => {
+                  setSourceLanguage(value)
+                  db.settings.put({ id: 'translate:source:language', value })
+                }}
                 options={[
                   {
                     value: 'auto',
                     label: detectedLanguage
-                      ? `${t('translate.detected.language')}(${t(`languages.${detectedLanguage.toLowerCase()}`)})`
+                      ? `${t('translate.detected.language')} (${t(`languages.${detectedLanguage.toLowerCase()}`)})`
                       : t('translate.detected.language')
                   },
                   ...translateLanguageOptions().map((lang) => ({
@@ -586,7 +608,13 @@ const TranslatePage: FC = () => {
           </OperationBar>
 
           <OutputText ref={outputTextRef} onScroll={handleOutputScroll} className="selectable">
-            {result || t('translate.output.placeholder')}
+            {!result ? (
+              t('translate.output.placeholder')
+            ) : enableMarkdown ? (
+              <ReactMarkdown>{result}</ReactMarkdown>
+            ) : (
+              result
+            )}
           </OutputText>
         </OutputContainer>
       </ContentContainer>
@@ -598,6 +626,8 @@ const TranslatePage: FC = () => {
         setIsScrollSyncEnabled={setIsScrollSyncEnabled}
         isBidirectional={isBidirectional}
         setIsBidirectional={toggleBidirectional}
+        enableMarkdown={enableMarkdown}
+        setEnableMarkdown={setEnableMarkdown}
         bidirectionalPair={bidirectionalPair}
         setBidirectionalPair={setBidirectionalPair}
         translateModel={translateModel}

@@ -80,14 +80,17 @@ const MessageItem: FC<Props> = ({
 
   const handleEditResend = useCallback(
     async (blocks: MessageBlock[]) => {
+      const assistantWithTopicPrompt = topic.prompt
+        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
+        : assistant
       try {
-        await resendUserMessageWithEdit(message, blocks, assistant)
+        await resendUserMessageWithEdit(message, blocks, assistantWithTopicPrompt)
         stopEditing()
       } catch (error) {
         console.error('Failed to resend message:', error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant, stopEditing]
+    [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]
   )
 
   const handleEditCancel = useCallback(() => {

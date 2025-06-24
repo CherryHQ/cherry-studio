@@ -17,7 +17,6 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
     const { assistant, messages } = params
     const client = context.apiClientInstance as BaseApiClient<OpenAI>
     const signal = context._internal?.flowControl?.abortSignal
-
     if (!assistant.model || !isDedicatedImageGenerationModel(assistant.model) || typeof messages === 'string') {
       return next(context, params)
     }
@@ -97,11 +96,21 @@ export const ImageGenerationMiddleware: CompletionsMiddleware =
             )
           }
 
-          const b64_json_array = response.data?.map((item) => `data:image/png;base64,${item.b64_json}`) || []
+          let imageType: 'url' | 'base64' = 'base64'
+          const imageList =
+            response.data?.reduce((acc: string[], image) => {
+              if (image.url) {
+                acc.push(image.url)
+                imageType = 'url'
+              } else if (image.b64_json) {
+                acc.push(`data:image/png;base64,${image.b64_json}`)
+              }
+              return acc
+            }, []) || []
 
           enqueue({
             type: ChunkType.IMAGE_COMPLETE,
-            image: { type: 'base64', images: b64_json_array }
+            image: { type: imageType, images: imageList }
           })
 
           const usage = (response as any).usage || { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }

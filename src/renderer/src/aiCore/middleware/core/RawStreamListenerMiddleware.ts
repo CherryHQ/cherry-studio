@@ -15,8 +15,6 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
 
     // 在这里可以监听到从SDK返回的最原始流
     if (result.rawOutput) {
-      console.log(`[${MIDDLEWARE_NAME}] 检测到原始SDK输出，准备附加监听器`)
-
       const providerType = ctx.apiClientInstance.provider.type
       // TODO: 后面下放到AnthropicAPIClient
       if (providerType === 'anthropic') {

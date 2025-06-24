@@ -8,7 +8,7 @@ import PasteService from '@renderer/services/PasteService'
 import { FileType, FileTypes } from '@renderer/types'
 import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames, getFileExtension } from '@renderer/utils'
-import { getFilesFromDropEvent } from '@renderer/utils/input'
+import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
@@ -40,7 +40,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -137,9 +137,8 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
     }
   }
 
-  const handleClick = async (withResend?: boolean) => {
-    if (isProcessing) return
-    setIsProcessing(true)
+  // 处理编辑区块并上传文件
+  const processEditedBlocks = async () => {
     const updatedBlocks = [...editedBlocks]
     if (files && files.length) {
       const uploadedFiles = await FileManager.uploadFiles(files)
@@ -153,10 +152,56 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
         }
       })
     }
-    if (withResend) {
-      onResend(updatedBlocks)
-    } else {
-      onSave(updatedBlocks)
+    return updatedBlocks
+  }
+
+  const handleSave = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    const updatedBlocks = await processEditedBlocks()
+    onSave(updatedBlocks)
+  }
+
+  const handleResend = async () => {
+    if (isProcessing) return
+    setIsProcessing(true)
+    const updatedBlocks = await processEditedBlocks()
+    onResend(updatedBlocks)
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>, blockId: string) => {
+    if (message.role !== 'user') {
+      return
+    }
+
+    // keep the same enter behavior as inputbar
+    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
+    if (isEnterPressed) {
+      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+        handleResend()
+        return event.preventDefault()
+      } else {
+        if (!event.shiftKey) {
+          event.preventDefault()
+
+          const textArea = textareaRef.current?.resizableTextArea?.textArea
+          if (textArea) {
+            const start = textArea.selectionStart
+            const end = textArea.selectionEnd
+            const text = textArea.value
+            const newText = text.substring(0, start) + '\n' + text.substring(end)
+
+            //same with onChange()
+            handleTextChange(blockId, newText)
+
+            // set cursor position in the next render cycle
+            setTimeout(() => {
+              textArea.selectionStart = textArea.selectionEnd = start + 1
+              resizeTextArea() // trigger resizeTextArea
+            }, 0)
+          }
+        }
+      }
     }
   }
 
@@ -175,13 +220,17 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
               handleTextChange(block.id, e.target.value)
               resizeTextArea()
             }}
+            onKeyDown={(e) => handleKeyDown(e, block.id)}
             autoFocus
-            contextMenu="true"
-            spellCheck={false}
+            spellCheck={enableSpellCheck}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onFocus={() => {
               // 记录当前聚焦的组件
               PasteService.setLastFocusedComponent('messageEditor')
+            }}
+            onContextMenu={(e) => {
+              // 阻止事件冒泡，避免触发全局的 Electron contextMenu
+              e.stopPropagation()
             }}
             style={{
               fontSize,
@@ -240,13 +289,13 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             </ToolbarButton>
           </Tooltip>
           <Tooltip title={t('common.save')}>
-            <ToolbarButton type="text" onClick={() => handleClick()}>
+            <ToolbarButton type="text" onClick={handleSave}>
               <Save size={16} />
             </ToolbarButton>
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
-              <ToolbarButton type="text" onClick={() => handleClick(true)}>
+              <ToolbarButton type="text" onClick={handleResend}>
                 <Send size={16} />
               </ToolbarButton>
             </Tooltip>

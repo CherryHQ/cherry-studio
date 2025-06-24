@@ -48,7 +48,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     rerankBaseURL: rerankHost,
     rerankApiKey: rerankAiProvider.getApiKey() || 'secret',
     rerankModel: base.rerankModel?.id,
-    rerankModelProvider: base.rerankModel?.provider
+    rerankModelProvider: rerankProvider.name.toLowerCase()
     // topN: base.topN
   }
 }
@@ -101,7 +101,7 @@ export const searchKnowledgeBase = async (
 
     // 执行搜索
     const searchResults = await window.api.knowledgeBase.search({
-      search: query,
+      search: rewrite || query,
       base: baseParams
     })
 

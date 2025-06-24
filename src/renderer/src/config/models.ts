@@ -145,6 +145,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
+import { getBaseModelName } from '@renderer/utils'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -183,7 +184,7 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-1.6-seed(?:-[\\w-]+)'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)'
 ]
 
 const visionExcludedModels = [
@@ -237,7 +238,8 @@ export const FUNCTION_CALLING_MODELS = [
   'glm-4(?:-[\\w-]+)?',
   'learnlm(?:-[\\w-]+)?',
   'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
-  'grok-3(?:-[\\w-]+)?'
+  'grok-3(?:-[\\w-]+)?',
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
 ]
 
 const FUNCTION_CALLING_EXCLUDED_MODELS = [
@@ -520,40 +522,64 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
   ],
   aihubmix: [
     {
+      id: 'o3',
+      provider: 'aihubmix',
+      name: 'o3',
+      group: 'gpt'
+    },
+    {
+      id: 'o4-mini',
+      provider: 'aihubmix',
+      name: 'o4-mini',
+      group: 'gpt'
+    },
+    {
+      id: 'gpt-4.1',
+      provider: 'aihubmix',
+      name: 'gpt-4.1',
+      group: 'gpt'
+    },
+    {
       id: 'gpt-4o',
       provider: 'aihubmix',
-      name: 'GPT-4o',
-      group: 'GPT-4o'
+      name: 'gpt-4o',
+      group: 'gpt'
     },
     {
-      id: 'claude-3-5-sonnet-latest',
+      id: 'gpt-image-1',
       provider: 'aihubmix',
-      name: 'Claude 3.5 Sonnet',
-      group: 'Claude 3.5'
+      name: 'gpt-image-1',
+      group: 'gpt'
     },
     {
-      id: 'gemini-2.0-flash-exp-search',
+      id: 'DeepSeek-V3',
       provider: 'aihubmix',
-      name: 'Gemini 2.0 Flash Exp Search',
-      group: 'Gemini 2.0'
+      name: 'DeepSeek-V3',
+      group: 'DeepSeek'
     },
     {
-      id: 'deepseek-chat',
+      id: 'claude-sonnet-4-20250514',
       provider: 'aihubmix',
-      name: 'DeepSeek Chat',
-      group: 'DeepSeek Chat'
+      name: 'claude-sonnet-4-20250514',
+      group: 'claude'
     },
     {
-      id: 'aihubmix-Llama-3-3-70B-Instruct',
+      id: 'gemini-2.5-pro-preview-05-06',
       provider: 'aihubmix',
-      name: 'Llama-3.3-70b',
-      group: 'Llama 3.3'
+      name: 'gemini-2.5-pro-preview-05-06',
+      group: 'gemini'
     },
     {
-      id: 'Qwen/QVQ-72B-Preview',
+      id: 'gemini-2.5-flash-preview-05-20-nothink',
       provider: 'aihubmix',
-      name: 'Qwen/QVQ-72B',
-      group: 'Qwen'
+      name: 'gemini-2.5-flash-preview-05-20-nothink',
+      group: 'gemini'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      provider: 'aihubmix',
+      name: 'gemini-2.5-flash',
+      group: 'gemini'
     }
   ],
 
@@ -1318,12 +1344,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       id: 'deepseek-r1-distill-qwen-7b-250120',
       provider: 'doubao',
       name: 'DeepSeek-R1-Distill-Qwen-7B',
-      group: 'DeepSeek'
-    },
-    {
-      id: 'deepseek-v3-250324',
-      provider: 'doubao',
-      name: 'DeepSeek-V3',
       group: 'DeepSeek'
     },
     {
@@ -2178,76 +2198,83 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       name: 'DeepSeek-R1满血版',
       group: 'DeepSeek'
     }
-  ]
+  ],
+  lanyun: []
 }
 
 export const TEXT_TO_IMAGES_MODELS = [
   {
-    id: 'black-forest-labs/FLUX.1-schnell',
+    id: 'Kwai-Kolors/Kolors',
     provider: 'silicon',
-    name: 'FLUX.1 Schnell',
-    group: 'FLUX'
-  },
-  {
-    id: 'black-forest-labs/FLUX.1-dev',
-    provider: 'silicon',
-    name: 'FLUX.1 Dev',
-    group: 'FLUX'
-  },
-  {
-    id: 'black-forest-labs/FLUX.1-pro',
-    provider: 'silicon',
-    name: 'FLUX.1 Pro',
-    group: 'FLUX'
-  },
-  {
-    id: 'Pro/black-forest-labs/FLUX.1-schnell',
-    provider: 'silicon',
-    name: 'FLUX.1 Schnell Pro',
-    group: 'FLUX'
-  },
-  {
-    id: 'LoRA/black-forest-labs/FLUX.1-dev',
-    provider: 'silicon',
-    name: 'FLUX.1 Dev LoRA',
-    group: 'FLUX'
-  },
-  {
-    id: 'deepseek-ai/Janus-Pro-7B',
-    provider: 'silicon',
-    name: 'Janus-Pro-7B',
-    group: 'deepseek-ai'
-  },
-  {
-    id: 'stabilityai/stable-diffusion-3-5-large',
-    provider: 'silicon',
-    name: 'Stable Diffusion 3.5 Large',
-    group: 'Stable Diffusion'
-  },
-  {
-    id: 'stabilityai/stable-diffusion-3-5-large-turbo',
-    provider: 'silicon',
-    name: 'Stable Diffusion 3.5 Large Turbo',
-    group: 'Stable Diffusion'
-  },
-  {
-    id: 'stabilityai/stable-diffusion-3-medium',
-    provider: 'silicon',
-    name: 'Stable Diffusion 3 Medium',
-    group: 'Stable Diffusion'
-  },
-  {
-    id: 'stabilityai/stable-diffusion-2-1',
-    provider: 'silicon',
-    name: 'Stable Diffusion 2.1',
-    group: 'Stable Diffusion'
-  },
-  {
-    id: 'stabilityai/stable-diffusion-xl-base-1.0',
-    provider: 'silicon',
-    name: 'Stable Diffusion XL Base 1.0',
-    group: 'Stable Diffusion'
+    name: 'Kolors',
+    group: 'Kwai-Kolors'
   }
+  // {
+  //   id: 'black-forest-labs/FLUX.1-schnell',
+  //   provider: 'silicon',
+  //   name: 'FLUX.1 Schnell',
+  //   group: 'FLUX'
+  // },
+  // {
+  //   id: 'black-forest-labs/FLUX.1-dev',
+  //   provider: 'silicon',
+  //   name: 'FLUX.1 Dev',
+  //   group: 'FLUX'
+  // },
+  // {
+  //   id: 'black-forest-labs/FLUX.1-pro',
+  //   provider: 'silicon',
+  //   name: 'FLUX.1 Pro',
+  //   group: 'FLUX'
+  // },
+  // {
+  //   id: 'Pro/black-forest-labs/FLUX.1-schnell',
+  //   provider: 'silicon',
+  //   name: 'FLUX.1 Schnell Pro',
+  //   group: 'FLUX'
+  // },
+  // {
+  //   id: 'LoRA/black-forest-labs/FLUX.1-dev',
+  //   provider: 'silicon',
+  //   name: 'FLUX.1 Dev LoRA',
+  //   group: 'FLUX'
+  // },
+  // {
+  //   id: 'deepseek-ai/Janus-Pro-7B',
+  //   provider: 'silicon',
+  //   name: 'Janus-Pro-7B',
+  //   group: 'deepseek-ai'
+  // },
+  // {
+  //   id: 'stabilityai/stable-diffusion-3-5-large',
+  //   provider: 'silicon',
+  //   name: 'Stable Diffusion 3.5 Large',
+  //   group: 'Stable Diffusion'
+  // },
+  // {
+  //   id: 'stabilityai/stable-diffusion-3-5-large-turbo',
+  //   provider: 'silicon',
+  //   name: 'Stable Diffusion 3.5 Large Turbo',
+  //   group: 'Stable Diffusion'
+  // },
+  // {
+  //   id: 'stabilityai/stable-diffusion-3-medium',
+  //   provider: 'silicon',
+  //   name: 'Stable Diffusion 3 Medium',
+  //   group: 'Stable Diffusion'
+  // },
+  // {
+  //   id: 'stabilityai/stable-diffusion-2-1',
+  //   provider: 'silicon',
+  //   name: 'Stable Diffusion 2.1',
+  //   group: 'Stable Diffusion'
+  // },
+  // {
+  //   id: 'stabilityai/stable-diffusion-xl-base-1.0',
+  //   provider: 'silicon',
+  //   name: 'Stable Diffusion XL Base 1.0',
+  //   group: 'Stable Diffusion'
+  // }
 ]
 
 export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
@@ -2256,6 +2283,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',
@@ -2275,21 +2304,7 @@ export const GENERATE_IMAGE_MODELS = [
   ...SUPPORTED_DISABLE_GENERATION_MODELS
 ]
 
-export const GEMINI_SEARCH_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash-001',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.0-pro-exp',
-  'gemini-2.5-pro-exp',
-  'gemini-2.5-pro-exp-03-25',
-  'gemini-2.5-pro-preview',
-  'gemini-2.5-pro-preview-03-25',
-  'gemini-2.5-pro-preview-05-06',
-  'gemini-2.5-flash-preview',
-  'gemini-2.5-flash-preview-04-17'
-]
+export const GEMINI_SEARCH_REGEX = new RegExp('gemini-2\\..*', 'i')
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
@@ -2333,7 +2348,7 @@ export function isVisionModel(model: Model): boolean {
   // }
 
   if (model.provider === 'doubao') {
-    return VISION_REGEX.test(model.name) || model.type?.includes('vision') || false
+    return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
   return VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
@@ -2484,9 +2499,10 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+
   return (
-    model.id.toLowerCase().startsWith('qwen3') ||
-    model.id.toLowerCase().startsWith('qwen/qwen3') ||
+    baseName.startsWith('qwen3') ||
     [
       'qwen-plus-latest',
       'qwen-plus-0428',
@@ -2494,7 +2510,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
-    ].includes(model.id.toLowerCase())
+    ].includes(baseName)
   )
 }
 
@@ -2592,9 +2608,11 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+
   // 不管哪个供应商都判断了
   if (model.id.includes('claude')) {
-    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(model.id)
+    return CLAUDE_SUPPORTED_WEBSEARCH_REGEX.test(baseName)
   }
 
   if (provider.type === 'openai-response') {
@@ -2606,7 +2624,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'perplexity') {
-    return PERPLEXITY_SEARCH_MODELS.includes(model?.id)
+    return PERPLEXITY_SEARCH_MODELS.includes(baseName)
   }
 
   if (provider.id === 'aihubmix') {
@@ -2615,31 +2633,31 @@ export function isWebSearchModel(model: Model): boolean {
     }
 
     const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-    return models.includes(model?.id)
+    return models.includes(baseName)
   }
 
   if (provider?.type === 'openai') {
-    if (GEMINI_SEARCH_MODELS.includes(model?.id) || isOpenAIWebSearchModel(model)) {
+    if (GEMINI_SEARCH_REGEX.test(baseName) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
-    return GEMINI_SEARCH_MODELS.includes(model?.id)
+    return GEMINI_SEARCH_REGEX.test(baseName)
   }
 
   if (provider.id === 'hunyuan') {
-    return model?.id !== 'hunyuan-lite'
+    return baseName !== 'hunyuan-lite'
   }
 
   if (provider.id === 'zhipu') {
-    return model?.id?.startsWith('glm-4-')
+    return baseName?.startsWith('glm-4-')
   }
 
   if (provider.id === 'dashscope') {
     const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
     // matches id like qwen-max-0919, qwen-max-latest
-    return models.some((i) => model.id.startsWith(i))
+    return models.some((i) => baseName.startsWith(i))
   }
 
   if (provider.id === 'openrouter') {
@@ -2664,7 +2682,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  return isOpenAIWebSearchModel(model) || model.id.includes('sonar')
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || model.id.includes('sonar')
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2683,7 +2701,9 @@ export function isGenerateImageModel(model: Model): boolean {
   if (isEmbedding) {
     return false
   }
-  if (GENERATE_IMAGE_MODELS.includes(model.id)) {
+
+  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  if (GENERATE_IMAGE_MODELS.includes(baseName)) {
     return true
   }
   return false
@@ -2694,7 +2714,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(model.id)
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
@@ -2800,6 +2820,7 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
+  'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
@@ -2826,10 +2847,10 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1(\.|-5)-thinking-vision-pro|1(\.|-)5-thinking-pro-m|seed-1\.6|seed-1\.6-flash)(?:-[\\w-]+)?/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-[\w-]+)?/i
 
-// 支持 auto 的 Doubao 模型
-export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(?:1-5-thinking-pro-m|seed-1.6)(?:-[\\w-]+)?/i
+// 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
+export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(1-5-thinking-pro-m|seed-1\.6|seed-1-6-[\w-]+)(?:-[\w-]+)*/i
 
 export function isDoubaoThinkingAutoModel(model: Model): boolean {
   return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id)

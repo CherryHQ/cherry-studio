@@ -136,6 +136,10 @@ ul {
     display: flow-root;
   }
 
+  .block-wrapper:last-child > *:last-child {
+    margin-bottom: 0;
+  }
+
   .message-content-container > *:last-child {
     margin-bottom: 0;
   }

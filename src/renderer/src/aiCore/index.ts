@@ -11,6 +11,7 @@ import { AnthropicAPIClient } from './clients/anthropic/AnthropicAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
 import { MIDDLEWARE_NAME as AbortHandlerMiddlewareName } from './middleware/common/AbortHandlerMiddleware'
+import { MIDDLEWARE_NAME as ErrorHandlerMiddlewareName } from './middleware/common/ErrorHandlerMiddleware'
 import { MIDDLEWARE_NAME as FinalChunkConsumerMiddlewareName } from './middleware/common/FinalChunkConsumerMiddleware'
 import { applyCompletionsMiddlewares } from './middleware/composer'
 import { MIDDLEWARE_NAME as McpToolChunkMiddlewareName } from './middleware/core/McpToolChunkMiddleware'
@@ -62,6 +63,7 @@ export default class AiProvider {
       builder.clear()
       builder
         .add(MiddlewareRegistry[FinalChunkConsumerMiddlewareName])
+        .add(MiddlewareRegistry[ErrorHandlerMiddlewareName])
         .add(MiddlewareRegistry[AbortHandlerMiddlewareName])
         .add(MiddlewareRegistry[ImageGenerationMiddlewareName])
     } else {
@@ -74,7 +76,7 @@ export default class AiProvider {
       if (!(this.apiClient instanceof OpenAIAPIClient)) {
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
-      if (!(this.apiClient instanceof AnthropicAPIClient)) {
+      if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
         builder.remove(RawStreamListenerMiddlewareName)
       }
       if (!params.enableWebSearch) {
@@ -112,7 +114,7 @@ export default class AiProvider {
       return dimensions
     } catch (error) {
       console.error('Error getting embedding dimensions:', error)
-      return 0
+      throw error
     }
   }
 

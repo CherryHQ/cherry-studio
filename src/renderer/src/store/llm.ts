@@ -14,6 +14,14 @@ type LlmSettings = {
   gpustack: {
     keepAliveTime: number
   }
+  vertexai: {
+    serviceAccount: {
+      privateKey: string
+      clientEmail: string
+    }
+    projectId: string
+    location: string
+  }
 }
 
 export interface LlmState {
@@ -21,7 +29,7 @@ export interface LlmState {
   defaultModel: Model
   topicNamingModel: Model
   translateModel: Model
-  quickAssistantModel: Model
+  quickAssistantId: string
   settings: LlmSettings
 }
 
@@ -147,6 +155,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'lanyun',
+    name: 'LANYUN',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://maas-api.lanyun.net',
+    models: SYSTEM_MODELS.lanyun,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'openrouter',
     name: 'OpenRouter',
     type: 'openai',
@@ -215,17 +233,19 @@ export const INITIAL_PROVIDERS: Provider[] = [
     apiHost: 'https://generativelanguage.googleapis.com',
     models: SYSTEM_MODELS.gemini,
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isVertex: false
   },
   {
-    id: 'zhipu',
-    name: 'ZhiPu',
-    type: 'openai',
+    id: 'vertexai',
+    name: 'VertexAI',
+    type: 'vertexai',
     apiKey: '',
-    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
-    models: SYSTEM_MODELS.zhipu,
+    apiHost: 'https://aiplatform.googleapis.com',
+    models: [],
     isSystem: true,
-    enabled: false
+    enabled: false,
+    isVertex: true
   },
   {
     id: 'github',
@@ -247,6 +267,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     isSystem: true,
     enabled: false,
     isAuthed: false
+  },
+  {
+    id: 'zhipu',
+    name: 'ZhiPu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    models: SYSTEM_MODELS.zhipu,
+    isSystem: true,
+    enabled: false
   },
   {
     id: 'yi',
@@ -359,26 +389,6 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
-    id: 'zhinao',
-    name: 'zhinao',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.360.cn',
-    models: SYSTEM_MODELS.zhinao,
-    isSystem: true,
-    enabled: false
-  },
-  {
-    id: 'hunyuan',
-    name: 'hunyuan',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.hunyuan.cloud.tencent.com',
-    models: SYSTEM_MODELS.hunyuan,
-    isSystem: true,
-    enabled: false
-  },
-  {
     id: 'nvidia',
     name: 'nvidia',
     type: 'openai',
@@ -459,6 +469,16 @@ export const INITIAL_PROVIDERS: Provider[] = [
     enabled: false
   },
   {
+    id: 'hunyuan',
+    name: 'hunyuan',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.hunyuan.cloud.tencent.com',
+    models: SYSTEM_MODELS.hunyuan,
+    isSystem: true,
+    enabled: false
+  },
+  {
     id: 'tencent-cloud-ti',
     name: 'Tencent Cloud TI',
     type: 'openai',
@@ -500,11 +520,11 @@ export const INITIAL_PROVIDERS: Provider[] = [
   }
 ]
 
-const initialState: LlmState = {
+export const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.defaultModel[0],
   topicNamingModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
-  quickAssistantModel: SYSTEM_MODELS.defaultModel[3],
+  quickAssistantId: '',
   providers: INITIAL_PROVIDERS,
   settings: {
     ollama: {
@@ -515,6 +535,14 @@ const initialState: LlmState = {
     },
     gpustack: {
       keepAliveTime: 0
+    },
+    vertexai: {
+      serviceAccount: {
+        privateKey: '',
+        clientEmail: ''
+      },
+      projectId: '',
+      location: ''
     }
   }
 }
@@ -611,8 +639,9 @@ const llmSlice = createSlice({
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
     },
-    setQuickAssistantModel: (state, action: PayloadAction<{ model: Model }>) => {
-      state.quickAssistantModel = action.payload.model
+
+    setQuickAssistantId: (state, action: PayloadAction<string>) => {
+      state.quickAssistantId = action.payload
     },
     setOllamaKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.ollama.keepAliveTime = action.payload
@@ -622,6 +651,18 @@ const llmSlice = createSlice({
     },
     setGPUStackKeepAliveTime: (state, action: PayloadAction<number>) => {
       state.settings.gpustack.keepAliveTime = action.payload
+    },
+    setVertexAIProjectId: (state, action: PayloadAction<string>) => {
+      state.settings.vertexai.projectId = action.payload
+    },
+    setVertexAILocation: (state, action: PayloadAction<string>) => {
+      state.settings.vertexai.location = action.payload
+    },
+    setVertexAIServiceAccountPrivateKey: (state, action: PayloadAction<string>) => {
+      state.settings.vertexai.serviceAccount.privateKey = action.payload
+    },
+    setVertexAIServiceAccountClientEmail: (state, action: PayloadAction<string>) => {
+      state.settings.vertexai.serviceAccount.clientEmail = action.payload
     },
     updateModel: (
       state,
@@ -651,10 +692,14 @@ export const {
   setDefaultModel,
   setTopicNamingModel,
   setTranslateModel,
-  setQuickAssistantModel,
+  setQuickAssistantId,
   setOllamaKeepAliveTime,
   setLMStudioKeepAliveTime,
   setGPUStackKeepAliveTime,
+  setVertexAIProjectId,
+  setVertexAILocation,
+  setVertexAIServiceAccountPrivateKey,
+  setVertexAIServiceAccountClientEmail,
   updateModel
 } = llmSlice.actions
 
