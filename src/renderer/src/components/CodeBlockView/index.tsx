@@ -290,7 +290,7 @@ const SplitViewWrapper = styled.div`
     width: 100%;
   }
 
-  &:not(:has(+ .html-artifacts)) {
+  &:not(:has(+ [class*='Container'])) {
     border-radius: 0 0 8px 8px;
   }
 `
