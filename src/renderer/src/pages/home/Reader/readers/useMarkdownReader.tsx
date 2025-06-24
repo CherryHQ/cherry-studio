@@ -1,7 +1,8 @@
 import CodeBlockView from '@renderer/components/CodeBlockView'
 import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
-import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
+import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { processLatexBrackets } from '@renderer/utils/markdown'
 import { useMemo } from 'react'
 import ReactMarkdown, { Components, defaultUrlTransform } from 'react-markdown'
 import rehypeRaw from 'rehype-raw'
@@ -21,7 +22,7 @@ const useMarkdownReader = (props: Props) => {
   const { markdownContent } = props
 
   const processedContent = useMemo(() => {
-    const content = removeSvgEmptyLines(escapeBrackets(markdownContent))
+    const content = removeSvgEmptyLines(processLatexBrackets(markdownContent))
     return content
   }, [markdownContent])
 
@@ -70,7 +71,6 @@ const useMarkdownReader = (props: Props) => {
     <MarkdownReader
       rehypePlugins={rehypePlugins}
       remarkPlugins={[remarkGfm, remarkCjkFriendly]}
-      className="markdown"
       components={components}
       disallowedElements={DISALLOWED_ELEMENTS}
       urlTransform={urlTransform}>
