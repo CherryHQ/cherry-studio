@@ -1613,10 +1613,10 @@ const migrateConfig = {
       return state
     }
   },
-  '113': (state: RootState) => {
+  '115': (state: RootState) => {
     try {
       // 完整的 TTS 功能初始化和所有提供商添加
-      console.log('[Migration 113] Initializing complete TTS functionality')
+      console.log('[Migration 115] Initializing complete TTS functionality')
 
       // 初始化 TTS 状态（如果不存在）
       if (!state.tts) {
@@ -1648,13 +1648,13 @@ const migrateConfig = {
       allTTSProviders.forEach((provider) => {
         const existingProvider = state.tts.providers.find((p) => p.id === provider.id)
         if (!existingProvider) {
-          console.log(`[Migration 113] Adding TTS provider: ${provider.id}`)
+          console.log(`[Migration 115] Adding TTS provider: ${provider.id}`)
           state.tts.providers.push(provider as any)
         } else {
           // 更新现有提供商的设置，确保包含流式合成设置
           if (provider.settings.streaming !== undefined && existingProvider.settings.streaming === undefined) {
             existingProvider.settings.streaming = provider.settings.streaming
-            console.log(`[Migration 113] Added streaming setting to ${provider.id}`)
+            console.log(`[Migration 115] Added streaming setting to ${provider.id}`)
           }
           // 确保 Web Speech API 默认启用
           if (provider.id === 'web-speech') {
@@ -1663,10 +1663,10 @@ const migrateConfig = {
         }
       })
 
-      console.log(`[Migration 113] TTS providers initialized, count: ${state.tts.providers.length}`)
+      console.log(`[Migration 115] TTS providers initialized, count: ${state.tts.providers.length}`)
       return state
     } catch (error) {
-      console.error('[Migration 113] Complete TTS initialization failed:', error)
+      console.error('[Migration 115] Complete TTS initialization failed:', error)
       return state
     }
   }
