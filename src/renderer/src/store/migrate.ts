@@ -1603,6 +1603,10 @@ const migrateConfig = {
           state.settings.exportMenuOptions.plain_text = true
         }
       }
+      if (state.settings) {
+        state.settings.enableSpellCheck = false
+        state.settings.spellCheckLanguages = []
+      }
       return state
     } catch (error) {
       return state
