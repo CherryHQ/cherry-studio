@@ -412,6 +412,7 @@
       "search": "Search",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
+      "selectedItems": "Selected {{count}} items",
       "success": "Success",
       "topics": "Topics",
       "warning": "Warning",

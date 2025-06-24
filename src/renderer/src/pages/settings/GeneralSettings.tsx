@@ -173,37 +173,6 @@ const GeneralSettings: FC = () => {
         </SettingRow>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.general.spell_check')}</SettingRowTitle>
-          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
-        </SettingRow>
-        {enableSpellCheck && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.general.spell_check.languages')}</SettingRowTitle>
-              <Select
-                mode="multiple"
-                value={spellCheckLanguages}
-                style={{ width: 280 }}
-                placeholder={t('settings.general.spell_check.languages')}
-                onChange={handleSpellCheckLanguagesChange}
-                options={spellCheckLanguageOptions.map((lang) => ({
-                  value: lang.value,
-                  label: (
-                    <Space.Compact direction="horizontal" block>
-                      <Space.Compact block>{lang.label}</Space.Compact>
-                      <span role="img" aria-label={lang.flag}>
-                        {lang.flag}
-                      </span>
-                    </Space.Compact>
-                  )
-                }))}
-              />
-            </SettingRow>
-          </>
-        )}
-        <SettingDivider />
-        <SettingRow>
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
           <Selector value={storeProxyMode} onChange={onProxyModeChange} options={proxyModeOptions} />
         </SettingRow>
@@ -219,6 +188,37 @@ const GeneralSettings: FC = () => {
                 style={{ width: 180 }}
                 onBlur={() => onSetProxyUrl()}
                 type="url"
+              />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.spell_check')}</SettingRowTitle>
+          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
+        </SettingRow>
+        {enableSpellCheck && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.spell_check.languages')}</SettingRowTitle>
+              <Selector<string>
+                size={14}
+                multiple
+                value={spellCheckLanguages}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Flex align="center" gap={8}>
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  )
+                }))}
               />
             </SettingRow>
           </>

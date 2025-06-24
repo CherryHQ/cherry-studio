@@ -1,6 +1,7 @@
-import { Dropdown } from 'antd'
+import { Dropdown, DropdownProps } from 'antd'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { ReactNode, useMemo, useState } from 'react'
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
 interface SelectorOption<V = string | number> {
@@ -11,17 +12,29 @@ interface SelectorOption<V = string | number> {
   disabled?: boolean
 }
 
-interface SelectorProps<V = string | number> {
+interface BaseSelectorProps<V = string | number> {
   options: SelectorOption<V>[]
-  value?: V
   placeholder?: string
   placement?: 'topLeft' | 'topCenter' | 'topRight' | 'bottomLeft' | 'bottomCenter' | 'bottomRight' | 'top' | 'bottom'
   /** 字体大小 */
   size?: number
   /** 是否禁用 */
   disabled?: boolean
+}
+
+interface SingleSelectorProps<V> extends BaseSelectorProps<V> {
+  multiple?: false
+  value?: V
   onChange: (value: V) => void
 }
+
+interface MultipleSelectorProps<V> extends BaseSelectorProps<V> {
+  multiple: true
+  value?: V[]
+  onChange: (value: V[]) => void
+}
+
+type SelectorProps<V> = SingleSelectorProps<V> | MultipleSelectorProps<V>
 
 const Selector = <V extends string | number>({
   options,
@@ -30,45 +43,83 @@ const Selector = <V extends string | number>({
   placement = 'bottomRight',
   size = 13,
   placeholder,
-  disabled = false
+  disabled = false,
+  multiple = false
 }: SelectorProps<V>) => {
   const [open, setOpen] = useState(false)
+  const { t } = useTranslation()
+  const inputRef = useRef<any>(null)
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        inputRef.current?.focus()
+      }, 1)
+    }
+  }, [open])
+
+  const selectedValues = useMemo(() => {
+    if (multiple) {
+      return (value as V[]) || []
+    }
+    return value !== undefined ? [value as V] : []
+  }, [value, multiple])
 
   const label = useMemo(() => {
-    if (value !== undefined && value !== null) {
-      const findLabel = (opts: SelectorOption<V>[]): string | ReactNode | undefined => {
+    if (selectedValues.length > 0) {
+      const findLabels = (opts: SelectorOption<V>[]): (string | ReactNode)[] => {
+        const labels: (string | ReactNode)[] = []
         for (const opt of opts) {
-          if (opt.value === value) {
-            return opt.label
+          if (selectedValues.includes(opt.value)) {
+            labels.push(opt.label)
           }
           if (opt.options) {
-            const found = findLabel(opt.options)
-            if (found) return found
+            labels.push(...findLabels(opt.options))
           }
         }
-        return undefined
+        return labels
       }
-      return findLabel(options) || placeholder
+      const labels = findLabels(options)
+      if (labels.length === 0) return placeholder
+      if (labels.length === 1) return labels[0]
+      return t('common.selectedItems', { count: labels.length })
     }
     return placeholder
-  }, [options, value, placeholder])
+  }, [selectedValues, placeholder, options, t])
 
   const items = useMemo(() => {
     const mapOption = (option: SelectorOption<V>) => ({
       key: option.value,
       label: option.label,
-      extra: <CheckIcon>{option.value === value && <Check size={14} />}</CheckIcon>,
+      extra: <CheckIcon>{selectedValues.includes(option.value) && <Check size={14} />}</CheckIcon>,
       disabled: option.disabled,
       type: option.type || (option.options ? 'group' : undefined),
       children: option.options?.map(mapOption)
     })
 
     return options.map(mapOption)
-  }, [options, value])
+  }, [options, selectedValues])
 
   function onClick(e: { key: string }) {
-    if (!disabled) {
-      onChange(e.key as V)
+    if (disabled) return
+
+    const newValue = e.key as V
+    if (multiple) {
+      const newValues = selectedValues.includes(newValue)
+        ? selectedValues.filter((v) => v !== newValue)
+        : [...selectedValues, newValue]
+      ;(onChange as MultipleSelectorProps<V>['onChange'])(newValues)
+    } else {
+      ;(onChange as SingleSelectorProps<V>['onChange'])(newValue)
+      setOpen(false)
+    }
+  }
+
+  const handleOpenChange: DropdownProps['onOpenChange'] = (nextOpen, info) => {
+    if (disabled) return
+
+    if (info.source === 'trigger' || nextOpen) {
+      setOpen(nextOpen)
     }
   }
 
@@ -76,11 +127,11 @@ const Selector = <V extends string | number>({
     <Dropdown
       overlayClassName="selector-dropdown"
       menu={{ items, onClick }}
-      trigger={disabled ? [] : ['click']}
+      trigger={['click']}
       placement={placement}
       open={open && !disabled}
-      onOpenChange={disabled ? undefined : setOpen}>
-      <Label $size={size} $open={open} $disabled={disabled}>
+      onOpenChange={handleOpenChange}>
+      <Label $size={size} $open={open} $disabled={disabled} $isPlaceholder={label === placeholder}>
         {label}
         <LabelIcon size={size + 3} />
       </Label>
@@ -95,7 +146,7 @@ const LabelIcon = styled(ChevronsUpDown)`
   transition: background-color 0.2s;
 `
 
-const Label = styled.div<{ $size: number; $open: boolean; $disabled: boolean }>`
+const Label = styled.div<{ $size: number; $open: boolean; $disabled: boolean; $isPlaceholder: boolean }>`
   display: flex;
   align-items: center;
   gap: 4px;
@@ -105,6 +156,8 @@ const Label = styled.div<{ $size: number; $open: boolean; $disabled: boolean }>`
   line-height: 1;
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+  color: ${({ $isPlaceholder }) => ($isPlaceholder ? 'var(--color-text-2)' : 'inherit')};
+
   transition:
     background-color 0.2s,
     opacity 0.2s;

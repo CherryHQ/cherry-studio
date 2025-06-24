@@ -412,6 +412,7 @@
       "search": "Поиск",
       "select": "Выбрать",
       "selectedMessages": "Выбрано {{count}} сообщений",
+      "selectedItems": "Выбрано {{count}} элементов",
       "success": "Успешно",
       "topics": "Топики",
       "warning": "Предупреждение",
