@@ -1582,7 +1582,6 @@ const migrateConfig = {
   '113': (state: RootState) => {
     try {
       addProvider(state, 'vertexai')
-      state.llm.providers = moveProvider(state.llm.providers, 'vertexai', 10)
       if (!state.llm.settings.vertexai) {
         state.llm.settings.vertexai = llmInitialState.settings.vertexai
       }
@@ -1603,6 +1602,10 @@ const migrateConfig = {
         if (typeof state.settings.exportMenuOptions.plain_text === 'undefined') {
           state.settings.exportMenuOptions.plain_text = true
         }
+      }
+      if (state.settings) {
+        state.settings.enableSpellCheck = false
+        state.settings.spellCheckLanguages = []
       }
       return state
     } catch (error) {

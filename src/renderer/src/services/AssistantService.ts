@@ -15,6 +15,16 @@ export function getDefaultAssistant(): Assistant {
     messages: [],
     type: 'assistant',
     regularPhrases: [], // Added regularPhrases
+    settings: {
+      temperature: DEFAULT_TEMPERATURE,
+      contextCount: DEFAULT_CONTEXTCOUNT,
+      enableMaxTokens: false,
+      maxTokens: 0,
+      streamOutput: true,
+      topP: 1,
+      toolUseMode: 'prompt',
+      customParameters: []
+    },
     reader: {
       position: 'left'
     }
@@ -130,7 +140,17 @@ export async function createAssistantFromAgent(agent: Agent) {
     topics: [topic],
     model: agent.defaultModel,
     type: 'assistant',
-    regularPhrases: agent.regularPhrases || [] // Ensured regularPhrases
+    regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
+    settings: agent.settings || {
+      temperature: DEFAULT_TEMPERATURE,
+      contextCount: DEFAULT_CONTEXTCOUNT,
+      enableMaxTokens: false,
+      maxTokens: 0,
+      streamOutput: true,
+      topP: 1,
+      toolUseMode: 'prompt',
+      customParameters: []
+    }
   }
 
   store.dispatch(addAssistant(assistant))

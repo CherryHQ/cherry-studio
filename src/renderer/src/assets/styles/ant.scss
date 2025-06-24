@@ -197,11 +197,26 @@
   }
 }
 
-.ant-dropdown-menu .ant-dropdown-menu-sub {
-  max-height: 350px;
-  width: max-content;
-  overflow-y: auto;
-  overflow-x: hidden;
+.ant-dropdown {
+  .ant-dropdown-menu {
+    max-height: 50vh;
+    overflow-y: auto;
+    border: 0.5px solid var(--color-border);
+    .ant-dropdown-menu-sub {
+      max-height: 50vh;
+      width: max-content;
+      overflow-y: auto;
+      overflow-x: hidden;
+      border: 0.5px solid var(--color-border);
+    }
+  }
+  .ant-dropdown-arrow + .ant-dropdown-menu {
+    border: none;
+  }
+}
+
+.ant-select-dropdown {
+  border: 0.5px solid var(--color-border);
 }
 
 .ant-collapse {

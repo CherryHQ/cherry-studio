@@ -90,7 +90,7 @@ export class AnthropicAPIClient extends BaseApiClient<
       return this.sdkInstance
     }
     this.sdkInstance = new Anthropic({
-      apiKey: this.getApiKey(),
+      apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
       dangerouslyAllowBrowser: true,
       defaultHeaders: {

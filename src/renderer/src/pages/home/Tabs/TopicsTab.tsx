@@ -127,11 +127,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
       }
       await modelGenerating()
       const index = findIndex(assistant.topics, (t) => t.id === topic.id)
-      setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      if (topic.id === activeTopic.id) {
+        setActiveTopic(assistant.topics[index + 1 === assistant.topics.length ? index - 1 : index + 1])
+      }
       removeTopic(topic)
       setDeletingTopicId(null)
     },
-    [assistant.topics, onClearMessages, removeTopic, setActiveTopic]
+    [activeTopic.id, assistant.topics, onClearMessages, removeTopic, setActiveTopic]
   )
 
   const onPinTopic = useCallback(
@@ -471,7 +473,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
                   <TopicName className={getTopicNameClassName()} title={topicName}>
                     {topicName}
                   </TopicName>
-                  {isActive && !topic.pinned && (
+                  {!topic.pinned && (
                     <Tooltip
                       placement="bottom"
                       mouseEnterDelay={0.7}
@@ -548,6 +550,10 @@ const TopicListItem = styled.div`
   }
   &:hover {
     background-color: var(--color-list-item-hover);
+    transition: background-color 0.1s;
+    .menu {
+      opacity: 1;
+    }
   }
   &.active {
     background-color: var(--color-list-item);

@@ -169,7 +169,8 @@ export const useKnowledge = (baseId: string) => {
         processingStatus: 'pending',
         processingProgress: 0,
         processingError: '',
-        uniqueId: undefined
+        uniqueId: undefined,
+        updated_at: Date.now()
       })
       setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
     }
