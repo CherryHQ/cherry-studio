@@ -273,8 +273,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     try {
       await fs.promises.cp(oldPath, newPath, {
         recursive: true,
-        filter: (src, _) => {
-          if (occupiedDirs.some((dir) => src.startsWith(dir))) {
+        filter: (src) => {
+          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
             return false
           }
           return true

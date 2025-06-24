@@ -501,7 +501,11 @@ const DataSettings: FC = () => {
     await new Promise((resolve) => setTimeout(resolve, 2000))
 
     // 开始复制过程
-    const copyResult = await window.api.copy(originalPath, newPath, occupiedDirs)
+    const copyResult = await window.api.copy(
+      originalPath,
+      newPath,
+      occupiedDirs.map((dir) => originalPath + '/' + dir)
+    )
 
     // 停止进度更新
     if (progressInterval) {
