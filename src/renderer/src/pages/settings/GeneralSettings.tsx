@@ -2,8 +2,15 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setEnableDataCollection, setLanguage, setNotificationSettings } from '@renderer/store/settings'
-import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
+import {
+  setEnableDataCollection,
+  setEnableSpellCheck,
+  setLanguage,
+  setNotificationSettings,
+  setProxyMode,
+  setProxyUrl as _setProxyUrl,
+  setSpellCheckLanguages
+} from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
@@ -26,7 +33,8 @@ const GeneralSettings: FC = () => {
     trayOnClose,
     tray,
     proxyMode: storeProxyMode,
-    enableDataCollection
+    enableDataCollection,
+    enableSpellCheck
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
@@ -69,6 +77,11 @@ const GeneralSettings: FC = () => {
     i18n.changeLanguage(value)
   }
 
+  const handleSpellCheckChange = (checked: boolean) => {
+    dispatch(setEnableSpellCheck(checked))
+    window.api.setEnableSpellCheck(checked)
+  }
+
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       window.message.error({ content: t('message.error.invalid.proxy.url'), key: 'proxy-error' })
@@ -109,9 +122,28 @@ const GeneralSettings: FC = () => {
   ]
 
   const notificationSettings = useSelector((state: RootState) => state.settings.notification)
+  const spellCheckLanguages = useSelector((state: RootState) => state.settings.spellCheckLanguages)
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
+  }
+
+  // Define available spell check languages with display names (only commonly supported languages)
+  const spellCheckLanguageOptions = [
+    { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+    { value: 'es', label: 'Español', flag: '🇪🇸' },
+    { value: 'fr', label: 'Français', flag: '🇫🇷' },
+    { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+    { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+    { value: 'pt', label: 'Português', flag: '🇵🇹' },
+    { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+    { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
+  ]
+
+  const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
+    dispatch(setSpellCheckLanguages(selectedLanguages))
+    window.api.setSpellCheckLanguages(selectedLanguages)
   }
 
   return (
@@ -134,6 +166,37 @@ const GeneralSettings: FC = () => {
             ))}
           </Select>
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.spell_check')}</SettingRowTitle>
+          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
+        </SettingRow>
+        {enableSpellCheck && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.spell_check.languages')}</SettingRowTitle>
+              <Select
+                mode="multiple"
+                value={spellCheckLanguages}
+                style={{ width: 280 }}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Space.Compact direction="horizontal" block>
+                      <Space.Compact block>{lang.label}</Space.Compact>
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                    </Space.Compact>
+                  )
+                }))}
+              />
+            </SettingRow>
+          </>
+        )}
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>

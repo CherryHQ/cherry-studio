@@ -168,9 +168,15 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     }
   }, [highlightCode])
 
-  const hasHighlightedCode = useMemo(() => {
-    return tokenLines.length > 0
-  }, [tokenLines.length])
+  useEffect(() => {
+    const container = codeContentRef.current
+    if (!container || !codeShowLineNumbers) return
+
+    const digits = Math.max(tokenLines.length.toString().length, 1)
+    container.style.setProperty('--line-digits', digits.toString())
+  }, [codeShowLineNumbers, tokenLines.length])
+
+  const hasHighlightedCode = tokenLines.length > 0
 
   return (
     <ContentContainer
@@ -242,6 +248,10 @@ const ContentContainer = styled.div<{
   border-radius: 5px;
   margin-top: 0;
 
+  /* 动态宽度计算 */
+  --line-digits: 0;
+  --gutter-width: max(calc(var(--line-digits) * 0.7rem), 2.1rem);
+
   .shiki {
     padding: 1em;
 
@@ -252,7 +262,7 @@ const ContentContainer = styled.div<{
       .line {
         display: block;
         min-height: 1.3rem;
-        padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
+        padding-left: ${(props) => (props.$lineNumbers ? 'var(--gutter-width)' : '0')};
 
         * {
           overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};

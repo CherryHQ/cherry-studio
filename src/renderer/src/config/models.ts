@@ -1353,12 +1353,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     },
     {
-      id: 'deepseek-v3-250324',
-      provider: 'doubao',
-      name: 'DeepSeek-V3',
-      group: 'DeepSeek'
-    },
-    {
       id: 'doubao-pro-32k-241215',
       provider: 'doubao',
       name: 'Doubao-pro-32k',
@@ -2688,7 +2682,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  return isOpenAIWebSearchModel(model) || model.id.includes('sonar')
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || model.id.includes('sonar')
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2720,7 +2714,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(model.id)
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {

@@ -77,7 +77,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel
+    enableBackspaceDeleteModel,
+    enableSpellCheck
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -780,9 +781,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
             }
             autoFocus
-            contextMenu="true"
             variant="borderless"
-            spellCheck={false}
+            spellCheck={enableSpellCheck}
             rows={2}
             ref={textareaRef}
             style={{

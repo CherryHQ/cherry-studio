@@ -220,10 +220,21 @@ class FileStorage {
   public readFile = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<string> => {
     const filePath = path.join(this.storageDir, id)
 
-    if (documentExts.includes(path.extname(filePath))) {
+    const fileExtension = path.extname(filePath)
+
+    if (documentExts.includes(fileExtension)) {
       const originalCwd = process.cwd()
       try {
         chdir(this.tempDir)
+
+        if (fileExtension === '.doc') {
+          const WordExtractor = require('word-extractor')
+          const extractor = new WordExtractor()
+          const extracted = await extractor.extract(filePath)
+          chdir(originalCwd)
+          return extracted.getBody()
+        }
+
         const data = await officeParser.parseOfficeAsync(filePath)
         chdir(originalCwd)
         return data
