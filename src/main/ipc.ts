@@ -87,6 +87,26 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setLanguage(language)
   })
 
+  // spell check
+  ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((window) => {
+      window.webContents.session.setSpellCheckerEnabled(isEnable)
+    })
+  })
+
+  // spell check languages
+  ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
+    if (languages.length === 0) {
+      return
+    }
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((window) => {
+      window.webContents.session.setSpellCheckerLanguages(languages)
+    })
+    configManager.set('spellCheckLanguages', languages)
+  })
+
   // launch on boot
   ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, (_, openAtLogin: boolean) => {
     // Set login item settings for windows and mac
