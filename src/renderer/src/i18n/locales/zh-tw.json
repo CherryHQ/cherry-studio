@@ -1853,7 +1853,7 @@
           "rag.document_count.default": "預設",
           "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
           "rag.embedding_dimensions.auto_get": "自動獲取維度",
-          "rag.embedding_dimensions.placeholder": "請輸入維度",
+          "rag.embedding_dimensions.placeholder": "不設置維度",
           "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",
           "info": {
             "dimensions_auto_success": "維度自動獲取成功，維度為 {{dimensions}}"

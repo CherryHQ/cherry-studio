@@ -1862,7 +1862,7 @@
           "rag.document_count.default": "默认",
           "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
           "rag.embedding_dimensions.auto_get": "自动获取维度",
-          "rag.embedding_dimensions.placeholder": "请输入维度",
+          "rag.embedding_dimensions.placeholder": "不设置维度",
           "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",
           "info": {
             "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
