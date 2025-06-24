@@ -1,7 +1,8 @@
 import MinAppIcon from '@renderer/components/Icons/MinAppIcon'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
-import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useAppDispatch } from '@renderer/store'
+import { openTab } from '@renderer/store/tabs'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown, message } from 'antd'
@@ -17,14 +18,23 @@ interface Props {
 }
 
 const App: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
-  const { openMinappKeepAlive } = useMinappPopup()
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
 
   const handleClick = () => {
-    openMinappKeepAlive(app)
+    // Open miniapp as a new tab
+    dispatch(
+      openTab({
+        type: 'minapp',
+        title: app.name,
+        minapp: app,
+        canClose: true,
+        isPinned: false
+      })
+    )
     onClick?.()
   }
 

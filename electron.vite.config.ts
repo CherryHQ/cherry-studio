@@ -67,6 +67,13 @@ export default defineConfig({
         '@shared': resolve('packages/shared')
       }
     },
+    // Multi-project development server configuration
+    server: {
+      port: 5173, // Preferred port
+      strictPort: false, // Allow automatic port increment (this is the default)
+      host: true, // Listen on all addresses for better network access
+      open: false // Don't auto-open browser (Electron handles this)
+    },
     optimizeDeps: {
       exclude: ['pyodide'],
       esbuildOptions: {

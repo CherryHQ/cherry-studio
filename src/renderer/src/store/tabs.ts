@@ -6,7 +6,7 @@ export interface Tab {
   id: string
   type: 'page' | 'minapp'
   title: string
-  icon?: string | React.ReactNode
+  icon?: string // Only allow serializable string icons (e.g., emojis or icon names)
   route?: string
   minapp?: MinAppType
   instanceId: string

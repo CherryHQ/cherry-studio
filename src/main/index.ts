@@ -5,8 +5,9 @@ import { initAppDataDir } from '@main/utils/file'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
-import Logger from 'electron-log'
 
+import { setupLogger } from './configs/logger'
+import Logger from './configs/logger'
 import { isDev, isWin } from './constant'
 import { registerIpc } from './ipc'
 import { configManager } from './services/ConfigManager'
@@ -22,8 +23,40 @@ import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 
+// Early warning handler to catch console errors before logger setup
+process.on('warning', (warning) => {
+  // Diagnostic: Log warning details to file directly
+  const fs = require('fs')
+  const path = require('path')
+  const userDataPath = app.getPath('userData')
+  const logPath = path.join(userDataPath, 'early-warnings.log')
+  const timestamp = new Date().toISOString()
+  const logEntry = `[${timestamp}] Warning: ${warning.name} - ${warning.message}\nStack: ${warning.stack}\n\n`
+
+  try {
+    fs.appendFileSync(logPath, logEntry)
+    // Also log the path to console so user can find it
+    console.log(`[DEBUG] Diagnostic logs are being written to: ${userDataPath}`)
+  } catch (err) {
+    // Can't log file write errors
+  }
+})
+
+// Override console.error early to prevent EIO errors
+const originalConsoleError = console.error
+console.error = (...args) => {
+  try {
+    if (originalConsoleError) {
+      originalConsoleError.apply(console, args)
+    }
+  } catch (error) {
+    // Silently ignore console errors during early initialization
+    // These will be properly handled once the logger is set up
+  }
+}
+
 initAppDataDir()
-Logger.initialize()
+setupLogger()
 
 /**
  * Disable chromium's window animations
@@ -55,18 +88,47 @@ app.on('web-contents-created', (_, webContents) => {
   })
 })
 
-// in production mode, handle uncaught exception and unhandled rejection globally
-if (!isDev) {
-  // handle uncaught exception
-  process.on('uncaughtException', (error) => {
-    Logger.error('Uncaught Exception:', error)
-  })
+// Handle uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (error) => {
+  try {
+    Logger.error('Uncaught Exception:', error.message, error.stack)
+  } catch {
+    // If logger fails, try to write to a crash file as last resort
+    const crashFile = require('path').join(app.getPath('userData'), 'crash.log')
+    const fs = require('fs')
+    const crashData = `[${new Date().toISOString()}] Uncaught Exception: ${error.message}\n${error.stack}\n`
+    fs.appendFileSync(crashFile, crashData)
+  }
 
-  // handle unhandled rejection
-  process.on('unhandledRejection', (reason, promise) => {
+  // In production, we've logged the error, but let the app continue if possible
+})
+
+process.on('unhandledRejection', (reason, promise) => {
+  try {
     Logger.error('Unhandled Rejection at:', promise, 'reason:', reason)
-  })
-}
+  } catch {
+    // If logger fails, try to write to a crash file as last resort
+    const crashFile = require('path').join(app.getPath('userData'), 'crash.log')
+    const fs = require('fs')
+    const crashData = `[${new Date().toISOString()}] Unhandled Rejection: ${reason}\n`
+    fs.appendFileSync(crashFile, crashData)
+  }
+})
+
+// Prevent writes to closed stdio streams
+process.stdout.on('error', (err) => {
+  // Ignore EPIPE and EIO errors on stdout
+  if (err.code === 'EPIPE' || err.code === 'EIO') {
+    return
+  }
+})
+
+process.stderr.on('error', (err) => {
+  // Ignore EPIPE and EIO errors on stderr
+  if (err.code === 'EPIPE' || err.code === 'EIO') {
+    return
+  }
+})
 
 // Check for single instance lock
 if (!app.requestSingleInstanceLock()) {
@@ -87,14 +149,22 @@ if (!app.requestSingleInstanceLock()) {
       app.dock?.hide()
     }
 
+    Logger.info('[Main] Creating main window...')
     const mainWindow = windowService.createMainWindow()
+    Logger.info('[Main] Main window created')
+
+    Logger.info('[Main] Creating tray service...')
     new TrayService()
+    Logger.info('[Main] Tray service created')
 
     app.on('activate', function () {
+      Logger.info('[Main] App activate event fired')
       const mainWindow = windowService.getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
+        Logger.info('[Main] Main window not found or destroyed, creating new one')
         windowService.createMainWindow()
       } else {
+        Logger.info('[Main] Showing existing main window')
         windowService.showMainWindow()
       }
     })

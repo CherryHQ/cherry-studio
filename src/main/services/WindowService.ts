@@ -35,10 +35,13 @@ export class WindowService {
 
   public createMainWindow(): BrowserWindow {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      Logger.info('[WindowService] Main window already exists, showing it')
       this.mainWindow.show()
       this.mainWindow.focus()
       return this.mainWindow
     }
+
+    Logger.info('[WindowService] Creating new main window')
 
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1080,
@@ -145,14 +148,19 @@ export class WindowService {
 
   private setupWindowEvents(mainWindow: BrowserWindow) {
     mainWindow.once('ready-to-show', () => {
+      Logger.info('[WindowService] Main window ready-to-show event fired')
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
 
       // show window only when laucn to tray not set
       const isLaunchToTray = configManager.getLaunchToTray()
+      Logger.info(`[WindowService] isLaunchToTray: ${isLaunchToTray}`)
       if (!isLaunchToTray) {
         //[mac]hacky-fix: miniWindow set visibleOnFullScreen:true will cause dock icon disappeared
         app.dock?.show()
         mainWindow.show()
+        Logger.info('[WindowService] Main window shown')
+      } else {
+        Logger.info('[WindowService] Skipping show due to launch-to-tray setting')
       }
     })
 
@@ -280,12 +288,28 @@ export class WindowService {
   }
 
   private loadMainWindowContent(mainWindow: BrowserWindow) {
+    Logger.info('[WindowService] Loading main window content')
+    Logger.info(`[WindowService] isDev: ${is.dev}`)
+    Logger.info(`[WindowService] ELECTRON_RENDERER_URL: ${process.env['ELECTRON_RENDERER_URL'] || 'NOT SET'}`)
+
     if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+      const url = process.env['ELECTRON_RENDERER_URL']
+      Logger.info(`[WindowService] Loading dev URL: ${url}`)
+      mainWindow.loadURL(url)
       // mainWindow.webContents.openDevTools()
     } else {
-      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+      const filePath = join(__dirname, '../renderer/index.html')
+      Logger.info(`[WindowService] Loading file: ${filePath}`)
+      mainWindow.loadFile(filePath)
     }
+
+    mainWindow.webContents.on('did-finish-load', () => {
+      Logger.info('[WindowService] Main window finished loading')
+    })
+
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+      Logger.error(`[WindowService] Main window failed to load: ${errorCode} - ${errorDescription}`)
+    })
   }
 
   public getMainWindow(): BrowserWindow | null {

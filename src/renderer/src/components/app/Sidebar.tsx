@@ -59,7 +59,7 @@ const Sidebar: FC = () => {
 
   const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
 
-  const openPageTab = async (path: string, title: string, icon?: any) => {
+  const openPageTab = async (path: string, title: string, icon?: string) => {
     await modelGenerating()
 
     // Check if we should open a new tab or switch to existing
@@ -73,7 +73,7 @@ const Sidebar: FC = () => {
           type: 'page',
           route: path,
           title,
-          icon,
+          icon, // Now only accepts string icons
           canClose: true,
           isPinned: false
         })
@@ -226,7 +226,7 @@ const MainMenus: FC = () => {
     files: t('files.title')
   }
 
-  const openPageTab = async (path: string, title: string, icon: any) => {
+  const openPageTab = async (path: string, title: string) => {
     await modelGenerating()
 
     // For non-singleton routes, always create a new tab
@@ -246,7 +246,7 @@ const MainMenus: FC = () => {
         type: 'page',
         route: path,
         title,
-        icon,
+        // Don't pass icon - let TabItem component handle icon rendering based on route
         canClose: true,
         isPinned: false
       })
@@ -263,7 +263,7 @@ const MainMenus: FC = () => {
         <StyledLink
           onClick={async () => {
             hideMinappPopup()
-            await openPageTab(path, title, iconMap[icon])
+            await openPageTab(path, title)
           }}>
           <Icon theme={theme} className={isActive}>
             {iconMap[icon]}
