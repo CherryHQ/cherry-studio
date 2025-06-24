@@ -9,7 +9,18 @@ class ContextMenu {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
       if (filtered.length > 0) {
-        const menu = Menu.buildFromTemplate([...filtered, ...this.createInspectMenuItems(w)])
+        let template = [...filtered, ...this.createInspectMenuItems(w)]
+        const dictionarySuggestions = this.createDictionarySuggestions(properties, w)
+        if (dictionarySuggestions.length > 0) {
+          template = [
+            ...dictionarySuggestions,
+            { type: 'separator' },
+            this.createSpellCheckMenuItem(properties, w),
+            { type: 'separator' },
+            ...template
+          ]
+        }
+        const menu = Menu.buildFromTemplate(template)
         menu.popup()
       }
     })
@@ -71,6 +82,53 @@ class ContextMenu {
     })
 
     return template
+  }
+
+  private createSpellCheckMenuItem(
+    properties: Electron.ContextMenuParams,
+    mainWindow: Electron.BrowserWindow
+  ): MenuItemConstructorOptions {
+    const hasText = properties.selectionText.length > 0
+
+    return {
+      id: 'learnSpelling',
+      label: '&Learn Spelling',
+      visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
+      click: () => {
+        mainWindow.webContents.session.addWordToSpellCheckerDictionary(properties.misspelledWord)
+      }
+    }
+  }
+
+  private createDictionarySuggestions(
+    properties: Electron.ContextMenuParams,
+    mainWindow: Electron.BrowserWindow
+  ): MenuItemConstructorOptions[] {
+    const hasText = properties.selectionText.length > 0
+
+    if (!hasText || !properties.misspelledWord) {
+      return []
+    }
+
+    if (properties.dictionarySuggestions.length === 0) {
+      return [
+        {
+          id: 'dictionarySuggestions',
+          label: 'No Guesses Found',
+          visible: true,
+          enabled: false
+        }
+      ]
+    }
+
+    return properties.dictionarySuggestions.map((suggestion) => ({
+      id: 'dictionarySuggestions',
+      label: suggestion,
+      visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
+      click: (menuItem: Electron.MenuItem) => {
+        mainWindow.webContents.replaceMisspelling(menuItem.label)
+      }
+    }))
   }
 }
 

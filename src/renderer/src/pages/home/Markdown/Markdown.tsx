@@ -9,7 +9,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
-import { escapeBrackets, removeSvgEmptyLines } from '@renderer/utils/formats'
+import { removeSvgEmptyLines } from '@renderer/utils/formats'
+import { processLatexBrackets } from '@renderer/utils/markdown'
 import { findCitationInChildren, getCodeBlockId } from '@renderer/utils/markdown'
 import { useTypingOutput } from '@renderer/utils/typingOutput'
 import { isEmpty } from 'lodash'
@@ -55,7 +56,7 @@ const Markdown: FC<Props> = ({ block, smoothStreamOutput = false }) => {
     const empty = isEmpty(block.content)
     const paused = block.status === 'paused'
     const content = empty && paused ? t('message.chat.completion.paused') : block.content
-    return removeSvgEmptyLines(escapeBrackets(content))
+    return removeSvgEmptyLines(processLatexBrackets(content))
   }, [block, t])
 
   const isStreaming = block.status === MessageBlockStatus.STREAMING
