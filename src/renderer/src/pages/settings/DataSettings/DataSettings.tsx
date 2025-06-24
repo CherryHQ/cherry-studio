@@ -19,6 +19,7 @@ import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
+import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -500,7 +501,11 @@ const DataSettings: FC = () => {
     await new Promise((resolve) => setTimeout(resolve, 2000))
 
     // 开始复制过程
-    const copyResult = await window.api.copy(originalPath, newPath)
+    const copyResult = await window.api.copy(
+      originalPath,
+      newPath,
+      occupiedDirs.map((dir) => originalPath + '/' + dir)
+    )
 
     // 停止进度更新
     if (progressInterval) {
