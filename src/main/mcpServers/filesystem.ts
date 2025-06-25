@@ -1,307 +1,47 @@
-// port https://github.com/modelcontextprotocol/servers/blob/main/src/filesystem/index.ts
+// Refactored filesystem MCP server using service-oriented architecture
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema, ToolSchema } from '@modelcontextprotocol/sdk/types.js'
-import { createTwoFilesPatch } from 'diff'
-import fs from 'fs/promises'
-import { minimatch } from 'minimatch'
-import os from 'os'
-import path from 'path'
-import { z } from 'zod'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
-// Normalize all paths consistently
-function normalizePath(p: string): string {
-  return path.normalize(p)
-}
-
-function expandHome(filepath: string): string {
-  if (filepath.startsWith('~/') || filepath === '~') {
-    return path.join(os.homedir(), filepath.slice(1))
-  }
-  return filepath
-}
-
-// Security utilities
-async function validatePath(allowedDirectories: string[], requestedPath: string): Promise<string> {
-  const expandedPath = expandHome(requestedPath)
-  const absolute = path.isAbsolute(expandedPath)
-    ? path.resolve(expandedPath)
-    : path.resolve(process.cwd(), expandedPath)
-
-  const normalizedRequested = normalizePath(absolute)
-
-  // Check if path is within allowed directories
-  const isAllowed = allowedDirectories.some((dir) => normalizedRequested.startsWith(dir))
-  if (!isAllowed) {
-    throw new Error(
-      `Access denied - path outside allowed directories: ${absolute} not in ${allowedDirectories.join(', ')}`
-    )
-  }
-
-  // Handle symlinks by checking their real path
-  try {
-    const realPath = await fs.realpath(absolute)
-    const normalizedReal = normalizePath(realPath)
-    const isRealPathAllowed = allowedDirectories.some((dir) => normalizedReal.startsWith(dir))
-    if (!isRealPathAllowed) {
-      throw new Error('Access denied - symlink target outside allowed directories')
-    }
-    return realPath
-  } catch (error) {
-    // For new files that don't exist yet, verify parent directory
-    const parentDir = path.dirname(absolute)
-    try {
-      const realParentPath = await fs.realpath(parentDir)
-      const normalizedParent = normalizePath(realParentPath)
-      const isParentAllowed = allowedDirectories.some((dir) => normalizedParent.startsWith(dir))
-      if (!isParentAllowed) {
-        throw new Error('Access denied - parent directory outside allowed directories')
-      }
-      return absolute
-    } catch {
-      throw new Error(`Parent directory does not exist: ${parentDir}`)
-    }
-  }
-}
-
-// Schema definitions
-const ReadFileArgsSchema = z.object({
-  path: z.string()
-})
-
-const ReadMultipleFilesArgsSchema = z.object({
-  paths: z.array(z.string())
-})
-
-const WriteFileArgsSchema = z.object({
-  path: z.string(),
-  content: z.string()
-})
-
-const EditOperation = z.object({
-  oldText: z.string().describe('Text to search for - must match exactly'),
-  newText: z.string().describe('Text to replace with')
-})
-
-const EditFileArgsSchema = z.object({
-  path: z.string(),
-  edits: z.array(EditOperation),
-  dryRun: z.boolean().default(false).describe('Preview changes using git-style diff format')
-})
-
-const CreateDirectoryArgsSchema = z.object({
-  path: z.string()
-})
-
-const ListDirectoryArgsSchema = z.object({
-  path: z.string()
-})
-
-const DirectoryTreeArgsSchema = z.object({
-  path: z.string()
-})
-
-const MoveFileArgsSchema = z.object({
-  source: z.string(),
-  destination: z.string()
-})
-
-const SearchFilesArgsSchema = z.object({
-  path: z.string(),
-  pattern: z.string(),
-  excludePatterns: z.array(z.string()).optional().default([])
-})
-
-const GetFileInfoArgsSchema = z.object({
-  path: z.string()
-})
+import { FileSystemService } from '../services/filesystem'
+import {
+  CreateDirectoryArgsSchema,
+  DirectoryTreeArgsSchema,
+  EditBlockArgsSchema,
+  EditFileArgsSchema,
+  FileSystemConfig,
+  GetFileInfoArgsSchema,
+  ListDirectoryArgsSchema,
+  MoveFileArgsSchema,
+  ReadFileArgsSchema,
+  ReadMultipleFilesArgsSchema,
+  SearchCodeArgsSchema,
+  SearchFilesArgsSchema,
+  WriteFileArgsSchema
+} from '../services/filesystem/types'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ToolInputSchema = ToolSchema.shape.inputSchema
-type ToolInput = z.infer<typeof ToolInputSchema>
-
-interface FileInfo {
-  size: number
-  created: Date
-  modified: Date
-  accessed: Date
-  isDirectory: boolean
-  isFile: boolean
-  permissions: string
-}
-
-// Tool implementations
-async function getFileStats(filePath: string): Promise<FileInfo> {
-  const stats = await fs.stat(filePath)
-  return {
-    size: stats.size,
-    created: stats.birthtime,
-    modified: stats.mtime,
-    accessed: stats.atime,
-    isDirectory: stats.isDirectory(),
-    isFile: stats.isFile(),
-    permissions: stats.mode.toString(8).slice(-3)
-  }
-}
-
-async function searchFiles(
-  allowedDirectories: string[],
-  rootPath: string,
-  pattern: string,
-  excludePatterns: string[] = []
-): Promise<string[]> {
-  const results: string[] = []
-
-  async function search(currentPath: string) {
-    const entries = await fs.readdir(currentPath, { withFileTypes: true })
-
-    for (const entry of entries) {
-      const fullPath = path.join(currentPath, entry.name)
-
-      try {
-        // Validate each path before processing
-        await validatePath(allowedDirectories, fullPath)
-
-        // Check if path matches any exclude pattern
-        const relativePath = path.relative(rootPath, fullPath)
-        const shouldExclude = excludePatterns.some((pattern) => {
-          const globPattern = pattern.includes('*') ? pattern : `**/${pattern}/**`
-          return minimatch(relativePath, globPattern, { dot: true })
-        })
-
-        if (shouldExclude) {
-          continue
-        }
-
-        if (entry.name.toLowerCase().includes(pattern.toLowerCase())) {
-          results.push(fullPath)
-        }
-
-        if (entry.isDirectory()) {
-          await search(fullPath)
-        }
-      } catch (error) {
-        // Skip invalid paths during search
-      }
-    }
-  }
-
-  await search(rootPath)
-  return results
-}
-
-// file editing and diffing utilities
-function normalizeLineEndings(text: string): string {
-  return text.replace(/\r\n/g, '\n')
-}
-
-function createUnifiedDiff(originalContent: string, newContent: string, filepath: string = 'file'): string {
-  // Ensure consistent line endings for diff
-  const normalizedOriginal = normalizeLineEndings(originalContent)
-  const normalizedNew = normalizeLineEndings(newContent)
-
-  return createTwoFilesPatch(filepath, filepath, normalizedOriginal, normalizedNew, 'original', 'modified')
-}
-
-async function applyFileEdits(
-  filePath: string,
-  edits: Array<{ oldText: string; newText: string }>,
-  dryRun = false
-): Promise<string> {
-  // Read file content and normalize line endings
-  const content = normalizeLineEndings(await fs.readFile(filePath, 'utf-8'))
-
-  // Apply edits sequentially
-  let modifiedContent = content
-  for (const edit of edits) {
-    const normalizedOld = normalizeLineEndings(edit.oldText)
-    const normalizedNew = normalizeLineEndings(edit.newText)
-
-    // If exact match exists, use it
-    if (modifiedContent.includes(normalizedOld)) {
-      modifiedContent = modifiedContent.replace(normalizedOld, normalizedNew)
-      continue
-    }
-
-    // Otherwise, try line-by-line matching with flexibility for whitespace
-    const oldLines = normalizedOld.split('\n')
-    const contentLines = modifiedContent.split('\n')
-    let matchFound = false
-
-    for (let i = 0; i <= contentLines.length - oldLines.length; i++) {
-      const potentialMatch = contentLines.slice(i, i + oldLines.length)
-
-      // Compare lines with normalized whitespace
-      const isMatch = oldLines.every((oldLine, j) => {
-        const contentLine = potentialMatch[j]
-        return oldLine.trim() === contentLine.trim()
-      })
-
-      if (isMatch) {
-        // Preserve original indentation of first line
-        const originalIndent = contentLines[i].match(/^\s*/)?.[0] || ''
-        const newLines = normalizedNew.split('\n').map((line, j) => {
-          if (j === 0) return originalIndent + line.trimStart()
-          // For subsequent lines, try to preserve relative indentation
-          const oldIndent = oldLines[j]?.match(/^\s*/)?.[0] || ''
-          const newIndent = line.match(/^\s*/)?.[0] || ''
-          if (oldIndent && newIndent) {
-            const relativeIndent = newIndent.length - oldIndent.length
-            return originalIndent + ' '.repeat(Math.max(0, relativeIndent)) + line.trimStart()
-          }
-          return line
-        })
-
-        contentLines.splice(i, oldLines.length, ...newLines)
-        modifiedContent = contentLines.join('\n')
-        matchFound = true
-        break
-      }
-    }
-
-    if (!matchFound) {
-      throw new Error(`Could not find exact match for edit:\n${edit.oldText}`)
-    }
-  }
-
-  // Create unified diff
-  const diff = createUnifiedDiff(content, modifiedContent, filePath)
-
-  // Format diff with appropriate number of backticks
-  let numBackticks = 3
-  while (diff.includes('`'.repeat(numBackticks))) {
-    numBackticks++
-  }
-  const formattedDiff = `${'`'.repeat(numBackticks)}diff\n${diff}${'`'.repeat(numBackticks)}\n\n`
-
-  if (!dryRun) {
-    await fs.writeFile(filePath, modifiedContent, 'utf-8')
-  }
-
-  return formattedDiff
-}
+type ToolInput = import('zod').infer<typeof ToolInputSchema>
 
 class FileSystemServer {
   public server: Server
-  private allowedDirectories: string[]
-  constructor(allowedDirs: string[]) {
-    if (!Array.isArray(allowedDirs) || allowedDirs.length === 0) {
-      throw new Error('No allowed directories provided, please specify at least one directory in args')
+  private fileSystemService: FileSystemService
+
+  constructor(allowedDirs: string[], config?: Partial<FileSystemConfig>) {
+    const fsConfig: FileSystemConfig = {
+      allowedDirectories: allowedDirs,
+      fileWriteLineLimit: config?.fileWriteLineLimit,
+      enableAuditLogging: config?.enableAuditLogging ?? false
     }
 
-    this.allowedDirectories = allowedDirs.map((dir) => normalizePath(path.resolve(expandHome(dir))))
-
-    // Validate that all directories exist and are accessible
-    this.validateDirs().catch((error) => {
-      console.error('Error validating allowed directories:', error)
-      throw new Error(`Error validating allowed directories: ${error}`)
-    })
+    this.fileSystemService = new FileSystemService(fsConfig)
 
     this.server = new Server(
       {
         name: 'secure-filesystem-server',
-        version: '0.2.0'
+        version: '0.3.0'
       },
       {
         capabilities: {
@@ -309,25 +49,12 @@ class FileSystemServer {
         }
       }
     )
+
     this.initialize()
   }
 
-  async validateDirs() {
-    // Validate that all directories exist and are accessible
-    await Promise.all(
-      this.allowedDirectories.map(async (dir) => {
-        try {
-          const stats = await fs.stat(expandHome(dir))
-          if (!stats.isDirectory()) {
-            console.error(`Error: ${dir} is not a directory`)
-            throw new Error(`Error: ${dir} is not a directory`)
-          }
-        } catch (error: any) {
-          console.error(`Error accessing directory ${dir}:`, error)
-          throw new Error(`Error accessing directory ${dir}:`, error)
-        }
-      })
-    )
+  async validateDirectories() {
+    await this.fileSystemService.initialize()
   }
 
   initialize() {
@@ -369,6 +96,14 @@ class FileSystemServer {
               'with new content. Returns a git-style diff showing the changes made. ' +
               'Only works within allowed directories.',
             inputSchema: zodToJsonSchema(EditFileArgsSchema) as ToolInput
+          },
+          {
+            name: 'edit_block',
+            description:
+              'Make targeted text replacements in a file by searching for specific text blocks. ' +
+              'Supports fuzzy matching when exact matches are not found. Perfect for code editing ' +
+              'and surgical text modifications. Returns a git-style diff showing changes.',
+            inputSchema: zodToJsonSchema(EditBlockArgsSchema) as ToolInput
           },
           {
             name: 'create_directory',
@@ -417,6 +152,15 @@ class FileSystemServer {
             inputSchema: zodToJsonSchema(SearchFilesArgsSchema) as ToolInput
           },
           {
+            name: 'search_code',
+            description:
+              'Search for text patterns within files using fast text search. ' +
+              'Supports file pattern filtering and exclude patterns. Returns matching lines ' +
+              'with line numbers and context. Perfect for finding specific code patterns ' +
+              'or text across multiple files.',
+            inputSchema: zodToJsonSchema(SearchCodeArgsSchema) as ToolInput
+          },
+          {
             name: 'get_file_info',
             description:
               'Retrieve detailed metadata about a file or directory. Returns comprehensive ' +
@@ -450,10 +194,12 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for read_file: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            const content = await fs.readFile(validPath, 'utf-8')
+            const result = await this.fileSystemService.readFile(parsed.data.path)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
-              content: [{ type: 'text', text: content }]
+              content: [{ type: 'text', text: result.data! }]
             }
           }
 
@@ -462,20 +208,15 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for read_multiple_files: ${parsed.error}`)
             }
-            const results = await Promise.all(
-              parsed.data.paths.map(async (filePath: string) => {
-                try {
-                  const validPath = await validatePath(this.allowedDirectories, filePath)
-                  const content = await fs.readFile(validPath, 'utf-8')
-                  return `${filePath}:\n${content}\n`
-                } catch (error) {
-                  const errorMessage = error instanceof Error ? error.message : String(error)
-                  return `${filePath}: Error - ${errorMessage}`
-                }
-              })
-            )
+            const result = await this.fileSystemService.readMultipleFiles(parsed.data.paths)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
+            const fileContents = Array.from(result.data!.entries())
+              .map(([path, content]) => `${path}:\n${content}\n`)
+              .join('\n---\n')
             return {
-              content: [{ type: 'text', text: results.join('\n---\n') }]
+              content: [{ type: 'text', text: fileContents }]
             }
           }
 
@@ -484,8 +225,10 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for write_file: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            await fs.writeFile(validPath, parsed.data.content, 'utf-8')
+            const result = await this.fileSystemService.writeFile(parsed.data.path, parsed.data.content)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
               content: [{ type: 'text', text: `Successfully wrote to ${parsed.data.path}` }]
             }
@@ -496,10 +239,43 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for edit_file: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            const result = await applyFileEdits(validPath, parsed.data.edits, parsed.data.dryRun)
+            const result = await this.fileSystemService.editFile(
+              parsed.data.path,
+              parsed.data.edits,
+              parsed.data.dryRun
+            )
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
-              content: [{ type: 'text', text: result }]
+              content: [{ type: 'text', text: result.data! }]
+            }
+          }
+
+          case 'edit_block': {
+            const parsed = EditBlockArgsSchema.safeParse(args)
+            if (!parsed.success) {
+              throw new Error(`Invalid arguments for edit_block: ${parsed.error}`)
+            }
+            const result = await this.fileSystemService.editBlock(
+              parsed.data.path,
+              parsed.data.search,
+              parsed.data.replace,
+              { fuzzy: parsed.data.fuzzy, dryRun: parsed.data.dryRun }
+            )
+            if (!result.success) {
+              throw new Error(result.error)
+            }
+
+            const editResult = result.data!
+            if (!editResult.success) {
+              return {
+                content: [{ type: 'text', text: `Edit failed: ${editResult.error}` }]
+              }
+            }
+
+            return {
+              content: [{ type: 'text', text: editResult.diff! }]
             }
           }
 
@@ -508,8 +284,10 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for create_directory: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            await fs.mkdir(validPath, { recursive: true })
+            const result = await this.fileSystemService.createDirectory(parsed.data.path)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
               content: [{ type: 'text', text: `Successfully created directory ${parsed.data.path}` }]
             }
@@ -520,10 +298,12 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for list_directory: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            const entries = await fs.readdir(validPath, { withFileTypes: true })
-            const formatted = entries
-              .map((entry) => `${entry.isDirectory() ? '[DIR]' : '[FILE]'} ${entry.name}`)
+            const result = await this.fileSystemService.listDirectory(parsed.data.path)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
+            const formatted = result
+              .data!.map((entry) => `${entry.type === 'directory' ? '[DIR]' : '[FILE]'} ${entry.name}`)
               .join('\n')
             return {
               content: [{ type: 'text', text: formatted }]
@@ -535,41 +315,15 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for directory_tree: ${parsed.error}`)
             }
-
-            interface TreeEntry {
-              name: string
-              type: 'file' | 'directory'
-              children?: TreeEntry[]
+            const result = await this.fileSystemService.getDirectoryTree(parsed.data.path)
+            if (!result.success) {
+              throw new Error(result.error)
             }
-
-            async function buildTree(allowedDirectories: string[], currentPath: string): Promise<TreeEntry[]> {
-              const validPath = await validatePath(allowedDirectories, currentPath)
-              const entries = await fs.readdir(validPath, { withFileTypes: true })
-              const result: TreeEntry[] = []
-
-              for (const entry of entries) {
-                const entryData: TreeEntry = {
-                  name: entry.name,
-                  type: entry.isDirectory() ? 'directory' : 'file'
-                }
-
-                if (entry.isDirectory()) {
-                  const subPath = path.join(currentPath, entry.name)
-                  entryData.children = await buildTree(allowedDirectories, subPath)
-                }
-
-                result.push(entryData)
-              }
-
-              return result
-            }
-
-            const treeData = await buildTree(this.allowedDirectories, parsed.data.path)
             return {
               content: [
                 {
                   type: 'text',
-                  text: JSON.stringify(treeData, null, 2)
+                  text: JSON.stringify(result.data, null, 2)
                 }
               ]
             }
@@ -580,9 +334,10 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for move_file: ${parsed.error}`)
             }
-            const validSourcePath = await validatePath(this.allowedDirectories, parsed.data.source)
-            const validDestPath = await validatePath(this.allowedDirectories, parsed.data.destination)
-            await fs.rename(validSourcePath, validDestPath)
+            const result = await this.fileSystemService.moveFile(parsed.data.source, parsed.data.destination)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
               content: [
                 { type: 'text', text: `Successfully moved ${parsed.data.source} to ${parsed.data.destination}` }
@@ -595,15 +350,41 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for search_files: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            const results = await searchFiles(
-              this.allowedDirectories,
-              validPath,
+            const result = await this.fileSystemService.searchFiles(
+              parsed.data.path,
               parsed.data.pattern,
               parsed.data.excludePatterns
             )
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
-              content: [{ type: 'text', text: results.length > 0 ? results.join('\n') : 'No matches found' }]
+              content: [{ type: 'text', text: result.data!.length > 0 ? result.data!.join('\n') : 'No matches found' }]
+            }
+          }
+
+          case 'search_code': {
+            const parsed = SearchCodeArgsSchema.safeParse(args)
+            if (!parsed.success) {
+              throw new Error(`Invalid arguments for search_code: ${parsed.error}`)
+            }
+            const result = await this.fileSystemService.searchCode({
+              path: parsed.data.path,
+              pattern: parsed.data.pattern,
+              filePattern: parsed.data.filePattern,
+              excludePatterns: parsed.data.excludePatterns
+            })
+            if (!result.success) {
+              throw new Error(result.error)
+            }
+
+            const formatted =
+              result.data!.length > 0
+                ? result.data!.map((r) => `${r.path}:${r.lineNumber}: ${r.lineContent}`).join('\n')
+                : 'No matches found'
+
+            return {
+              content: [{ type: 'text', text: formatted }]
             }
           }
 
@@ -612,13 +393,15 @@ class FileSystemServer {
             if (!parsed.success) {
               throw new Error(`Invalid arguments for get_file_info: ${parsed.error}`)
             }
-            const validPath = await validatePath(this.allowedDirectories, parsed.data.path)
-            const info = await getFileStats(validPath)
+            const result = await this.fileSystemService.getFileInfo(parsed.data.path)
+            if (!result.success) {
+              throw new Error(result.error)
+            }
             return {
               content: [
                 {
                   type: 'text',
-                  text: Object.entries(info)
+                  text: Object.entries(result.data!)
                     .map(([key, value]) => `${key}: ${value}`)
                     .join('\n')
                 }
@@ -627,11 +410,12 @@ class FileSystemServer {
           }
 
           case 'list_allowed_directories': {
+            const allowedDirs = this.fileSystemService.getAllowedDirectories()
             return {
               content: [
                 {
                   type: 'text',
-                  text: `Allowed directories:\n${this.allowedDirectories.join('\n')}`
+                  text: `Allowed directories:\n${allowedDirs.join('\n')}`
                 }
               ]
             }
