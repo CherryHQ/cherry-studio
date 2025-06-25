@@ -43,15 +43,15 @@
  <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 200px; height: 43px;" width="200" height="43" /></a>
 </div>
 
-# 🍒 Cherry Studio
+# 🍒 neucleos Cockpit
 
-Cherry Studio 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
+neucleos Cockpit 是一款支持多个大语言模型（LLM）服务商的桌面客户端，兼容 Windows、Mac 和 Linux 系统。
 
-👏 欢迎加入 [Telegram 群组](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
+👏 欢迎加入 [Telegram 群组](https://t.me/neucleosAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ群(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
-❤️ 喜欢 Cherry Studio? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
+❤️ 喜欢 neucleos Cockpit? 点亮小星星 🌟 或 [赞助开发者](sponsor.md)! ❤️
 
-# GitCode✖️Cherry Studio【新源力】贡献挑战赛
+# GitCode✖️neucleos Cockpit【新源力】贡献挑战赛
 
 <p align="center">
   <a href="https://gitcode.com/CherryHQ/cherry-studio/discussion/2">
@@ -149,16 +149,16 @@ https://docs.cherry-ai.com
 # 🌈 主题
 
 - 主题库：https://cherrycss.com
-- Aero 主题：https://github.com/hakadao/CherryStudio-Aero
-- PaperMaterial 主题：https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
-- 仿 Claude 主题：https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-- 霓虹枫叶主题：https://github.com/BoningtonChen/CherryStudio_themes
+- Aero 主题：https://github.com/hakadao/neucleos-Aero
+- PaperMaterial 主题：https://github.com/rainoffallingstar/neucleos-PaperMaterial
+- 仿 Claude 主题：https://github.com/bjl101501/neucleos-Claudestyle-dynamic
+- 霓虹枫叶主题：https://github.com/BoningtonChen/neucleos_themes
 
 欢迎 PR 更多主题
 
 # 🤝 贡献
 
-我们欢迎对 Cherry Studio 的贡献！您可以通过以下方式贡献：
+我们欢迎对 neucleos Cockpit 的贡献！您可以通过以下方式贡献：
 
 1. **贡献代码**：开发新功能或优化现有代码
 2. **修复错误**：提交您发现的错误修复
@@ -166,7 +166,7 @@ https://docs.cherry-ai.com
 4. **产品设计**：参与设计讨论
 5. **撰写文档**：改进用户手册和指南
 6. **社区参与**：加入讨论并帮助用户
-7. **推广使用**：宣传 Cherry Studio
+7. **推广使用**：宣传 neucleos Cockpit
 
 参考[分支策略](branching-strategy-zh.md)了解贡献指南
 
@@ -199,16 +199,18 @@ https://docs.cherry-ai.com
 [![Star History Chart](https://api.star-history.com/svg?repos=CherryHQ/cherry-studio&type=Timeline)](https://star-history.com/#CherryHQ/cherry-studio&Timeline)
 
 <!-- Links & Images -->
+
 [deepwiki-shield]: https://img.shields.io/badge/Deepwiki-CherryHQ-0088CC?style=plastic
 [deepwiki-link]: https://deepwiki.com/CherryHQ/cherry-studio
-[twitter-shield]: https://img.shields.io/badge/Twitter-CherryStudioApp-0088CC?style=plastic&logo=x
-[twitter-link]: https://twitter.com/CherryStudioHQ
-[discord-shield]: https://img.shields.io/badge/Discord-@CherryStudio-0088CC?style=plastic&logo=discord
+[twitter-shield]: https://img.shields.io/badge/Twitter-neucleosApp-0088CC?style=plastic&logo=x
+[twitter-link]: https://twitter.com/neucleosHQ
+[discord-shield]: https://img.shields.io/badge/Discord-@neucleos-0088CC?style=plastic&logo=discord
 [discord-link]: https://discord.gg/wez8HtpxqQ
-[telegram-shield]: https://img.shields.io/badge/Telegram-@CherryStudioAI-0088CC?style=plastic&logo=telegram
-[telegram-link]: https://t.me/CherryStudioAI
+[telegram-shield]: https://img.shields.io/badge/Telegram-@neucleosAI-0088CC?style=plastic&logo=telegram
+[telegram-link]: https://t.me/neucleosAI
 
 <!-- 项目统计徽章 -->
+
 [github-stars-shield]: https://img.shields.io/github/stars/CherryHQ/cherry-studio?style=social
 [github-stars-link]: https://github.com/CherryHQ/cherry-studio/stargazers
 [github-forks-shield]: https://img.shields.io/github/forks/CherryHQ/cherry-studio?style=social
@@ -219,6 +221,7 @@ https://docs.cherry-ai.com
 [github-contributors-link]: https://github.com/CherryHQ/cherry-studio/graphs/contributors
 
 <!-- 许可和赞助徽章 -->
+
 [license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?style=plastic&logo=gnu
 [license-link]: https://www.gnu.org/licenses/agpl-3.0
 [commercial-shield]: https://img.shields.io/badge/商用授权-联系-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue

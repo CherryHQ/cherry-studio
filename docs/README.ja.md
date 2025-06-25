@@ -43,13 +43,13 @@
  <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 200px; height: 43px;" width="200" height="43" /></a>
 </div>
 
-# 🍒 Cherry Studio
+# 🍒 neucleos Cockpit
 
-Cherry Studio は、複数の LLM プロバイダーをサポートするデスクトップクライアントで、Windows、Mac、Linux で利用可能です。
+neucleos Cockpit は、複数の LLM プロバイダーをサポートするデスクトップクライアントで、Windows、Mac、Linux で利用可能です。
 
-👏 [Telegram](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
+👏 [Telegram](https://t.me/neucleosAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQグループ(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
-❤️ Cherry Studio をお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！
+❤️ neucleos Cockpit をお気に入りにしましたか？小さな星をつけてください 🌟 または [スポンサー](sponsor.md) をして開発をサポートしてください！
 
 # 🌠 スクリーンショット
 
@@ -137,16 +137,16 @@ Cherry Studio は、複数の LLM プロバイダーをサポートするデス�
 # 🌈 テーマ
 
 - テーマギャラリー：https://cherrycss.com
-- Aero テーマ：https://github.com/hakadao/CherryStudio-Aero
-- PaperMaterial テーマ：https://github.com/rainoffallingstar/CherryStudio-PaperMaterial
-- Claude テーマ：https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic
-- メープルネオンテーマ：https://github.com/BoningtonChen/CherryStudio_themes
+- Aero テーマ：https://github.com/hakadao/neucleos-Aero
+- PaperMaterial テーマ：https://github.com/rainoffallingstar/neucleos-PaperMaterial
+- Claude テーマ：https://github.com/bjl101501/neucleos-Claudestyle-dynamic
+- メープルネオンテーマ：https://github.com/BoningtonChen/neucleos_themes
 
 より多くのテーマの PR を歓迎します
 
 # 🤝 貢献
 
-Cherry Studio への貢献を歓迎します！以下の方法で貢献できます：
+neucleos Cockpit への貢献を歓迎します！以下の方法で貢献できます：
 
 1. **コードの貢献**：新機能を開発するか、既存のコードを最適化します
 2. **バグの修正**：見つけたバグを修正します
@@ -154,7 +154,7 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 4. **製品デザイン**：デザインの議論に参加します
 5. **ドキュメントの作成**：ユーザーマニュアルやガイドを改善します
 6. **コミュニティの参加**：ディスカッションに参加し、ユーザーを支援します
-7. **使用の促進**：Cherry Studio を広めます
+7. **使用の促進**：neucleos Cockpit を広めます
 
 [ブランチ戦略](branching-strategy-en.md)を参照して貢献ガイドラインを確認してください
 
@@ -187,16 +187,18 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 [![Star History Chart](https://api.star-history.com/svg?repos=CherryHQ/cherry-studio&type=Timeline)](https://star-history.com/#CherryHQ/cherry-studio&Timeline)
 
 <!-- リンクと画像 -->
+
 [deepwiki-shield]: https://img.shields.io/badge/Deepwiki-CherryHQ-0088CC?style=plastic
 [deepwiki-link]: https://deepwiki.com/CherryHQ/cherry-studio
-[twitter-shield]: https://img.shields.io/badge/Twitter-CherryStudioApp-0088CC?style=plastic&logo=x
-[twitter-link]: https://twitter.com/CherryStudioHQ
-[discord-shield]: https://img.shields.io/badge/Discord-@CherryStudio-0088CC?style=plastic&logo=discord
+[twitter-shield]: https://img.shields.io/badge/Twitter-neucleosApp-0088CC?style=plastic&logo=x
+[twitter-link]: https://twitter.com/neucleosHQ
+[discord-shield]: https://img.shields.io/badge/Discord-@neucleos-0088CC?style=plastic&logo=discord
 [discord-link]: https://discord.gg/wez8HtpxqQ
-[telegram-shield]: https://img.shields.io/badge/Telegram-@CherryStudioAI-0088CC?style=plastic&logo=telegram
-[telegram-link]: https://t.me/CherryStudioAI
+[telegram-shield]: https://img.shields.io/badge/Telegram-@neucleosAI-0088CC?style=plastic&logo=telegram
+[telegram-link]: https://t.me/neucleosAI
 
 <!-- プロジェクト統計 -->
+
 [github-stars-shield]: https://img.shields.io/github/stars/CherryHQ/cherry-studio?style=social
 [github-stars-link]: https://github.com/CherryHQ/cherry-studio/stargazers
 [github-forks-shield]: https://img.shields.io/github/forks/CherryHQ/cherry-studio?style=social
@@ -207,6 +209,7 @@ Cherry Studio への貢献を歓迎します！以下の方法で貢献できま
 [github-contributors-link]: https://github.com/CherryHQ/cherry-studio/graphs/contributors
 
 <!-- ライセンスとスポンサー -->
+
 [license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?style=plastic&logo=gnu
 [license-link]: https://www.gnu.org/licenses/agpl-3.0
 [commercial-shield]: https://img.shields.io/badge/商用ライセンス-お問い合わせ-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue

@@ -1,6 +1,6 @@
-# Cherry Studio 中间件规范
+# neucleos Cockpit 中间件规范
 
-本文档定义了 Cherry Studio `aiCore` 模块中中间件的设计、实现和使用规范。目标是建立一个灵活、可维护且易于扩展的中间件系统。
+本文档定义了 neucleos Cockpit `aiCore` 模块中中间件的设计、实现和使用规范。目标是建立一个灵活、可维护且易于扩展的中间件系统。
 
 ## 1. 核心概念
 

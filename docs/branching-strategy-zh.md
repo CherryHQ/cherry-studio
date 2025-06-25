@@ -1,11 +1,10 @@
 # 🌿 分支策略
 
-Cherry Studio 采用结构化的分支策略来维护代码质量并简化开发流程。
+neucleos Cockpit 采用结构化的分支策略来维护代码质量并简化开发流程。
 
 ## 主要分支
 
 - `main`：主开发分支
-
   - 包含最新的开发代码
   - 禁止直接提交 - 所有更改必须通过拉取请求（Pull Request）
   - 此分支上的代码可能包含正在开发的功能，不一定完全稳定
@@ -18,28 +17,24 @@ Cherry Studio 采用结构化的分支策略来维护代码质量并简化开发
 
 ## 贡献分支
 
-在为 Cherry Studio 贡献代码时，请遵循以下准则：
+在为 neucleos Cockpit 贡献代码时，请遵循以下准则：
 
 1. **功能开发分支：**
-
    - 从 `main` 分支创建
    - 命名格式：`feature/issue-number-brief-description`
    - 完成后提交 PR 到 `main` 分支
 
 2. **Bug 修复分支：**
-
    - 从 `main` 分支创建
    - 命名格式：`fix/issue-number-brief-description`
    - 完成后提交 PR 到 `main` 分支
 
 3. **文档更新分支：**
-
    - 从 `main` 分支创建
    - 命名格式：`docs/brief-description`
    - 完成后提交 PR 到 `main` 分支
 
 4. **紧急修复分支：**
-
    - 从 `main` 分支创建
    - 命名格式：`hotfix/issue-number-brief-description`
    - 完成后需要同时合并到 `main` 和相关的 `release` 分支

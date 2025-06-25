@@ -1,8 +1,8 @@
-# Cherry Studio AI Provider 技术架构文档 (新方案)
+# neucleos Cockpit AI Provider 技术架构文档 (新方案)
 
 ## 1. 核心设计理念与目标
 
-本架构旨在重构 Cherry Studio 的 AI Provider（现称为 `aiCore`）层，以实现以下目标：
+本架构旨在重构 neucleos Cockpit 的 AI Provider（现称为 `aiCore`）层，以实现以下目标：
 
 - **职责清晰**：明确划分各组件的职责，降低耦合度。
 - **高度复用**：最大化业务逻辑和通用处理逻辑的复用，减少重复代码。
@@ -191,7 +191,7 @@ src/renderer/src/
 - **强化中间件**：让中间件承担起更多解析和特性处理的责任。
 - **编写单元测试和集成测试**：确保每个组件和整体流程的正确性。
 
-此架构旨在提供一个更健壮、更灵活、更易于维护的 AI 功能核心，支撑 Cherry Studio 未来的发展。
+此架构旨在提供一个更健壮、更灵活、更易于维护的 AI 功能核心，支撑 neucleos Cockpit 未来的发展。
 
 ## 6. 迁移策略与实施建议
 

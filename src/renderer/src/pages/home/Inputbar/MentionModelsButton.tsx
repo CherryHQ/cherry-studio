@@ -5,6 +5,8 @@ import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
+import { useAppDispatch } from '@renderer/store'
+import { openTab } from '@renderer/store/tabs'
 import { Model } from '@renderer/types'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'

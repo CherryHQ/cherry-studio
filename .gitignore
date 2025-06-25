@@ -57,3 +57,5 @@ playwright-report
 test-results
 
 YOUR_MEMORY_FILE_PATH
+.neucleos/mcp.json
+resources/neucleos/neucleos-cockpit.2025-06-24.private-key.pem

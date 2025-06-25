@@ -1,11 +1,10 @@
 # 🌿 Branching Strategy
 
-Cherry Studio implements a structured branching strategy to maintain code quality and streamline the development process.
+neucleos Cockpit implements a structured branching strategy to maintain code quality and streamline the development process.
 
 ## Main Branches
 
 - `main`: Main development branch
-
   - Contains the latest development code
   - Direct commits are not allowed - changes must come through pull requests
   - Code may contain features in development and might not be fully stable
@@ -18,28 +17,24 @@ Cherry Studio implements a structured branching strategy to maintain code qualit
 
 ## Contributing Branches
 
-When contributing to Cherry Studio, please follow these guidelines:
+When contributing to neucleos Cockpit, please follow these guidelines:
 
 1. **Feature Branches:**
-
    - Create from `main` branch
    - Naming format: `feature/issue-number-brief-description`
    - Submit PR back to `main`
 
 2. **Bug Fix Branches:**
-
    - Create from `main` branch
    - Naming format: `fix/issue-number-brief-description`
    - Submit PR back to `main`
 
 3. **Documentation Branches:**
-
    - Create from `main` branch
    - Naming format: `docs/brief-description`
    - Submit PR back to `main`
 
 4. **Hotfix Branches:**
-
    - Create from `main` branch
    - Naming format: `hotfix/issue-number-brief-description`
    - Submit PR to both `main` and relevant `release` branches

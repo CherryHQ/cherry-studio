@@ -41,13 +41,13 @@
  <a href="https://www.producthunt.com/posts/cherry-studio?embed=true&utm_source=badge-featured&utm_medium=badge&utm_souce=badge-cherry&#0045;studio" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=496640&theme=light" alt="Cherry&#0032;Studio - AI&#0032;Chatbots&#0044;&#0032;AI&#0032;Desktop&#0032;Client | Product Hunt" style="width: 200px; height: 43px;" width="200" height="43" /></a>
 </div>
 
-# 🍒 Cherry Studio
+# 🍒 neucleos Cockpit
 
-Cherry Studio is a desktop client that supports for multiple LLM providers, available on Windows, Mac and Linux.
+neucleos Cockpit is a desktop client that supports for multiple LLM providers, available on Windows, Mac and Linux.
 
-👏 Join [Telegram Group](https://t.me/CherryStudioAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
+👏 Join [Telegram Group](https://t.me/neucleosAI)｜[Discord](https://discord.gg/wez8HtpxqQ) | [QQ Group(575014769)](https://qm.qq.com/q/lo0D4qVZKi)
 
-❤️ Like Cherry Studio? Give it a star 🌟 or [Sponsor](docs/sponsor.md) to support the development!
+❤️ Like neucleos Cockpit? Give it a star 🌟 or [Sponsor](docs/sponsor.md) to support the development!
 
 # 🌠 Screenshot
 
@@ -135,16 +135,16 @@ Want to influence our roadmap? Join our [GitHub Discussions](https://github.com/
 # 🌈 Theme
 
 - Theme Gallery: <https://cherrycss.com>
-- Aero Theme: <https://github.com/hakadao/CherryStudio-Aero>
-- PaperMaterial Theme: <https://github.com/rainoffallingstar/CherryStudio-PaperMaterial>
-- Claude dynamic-style: <https://github.com/bjl101501/CherryStudio-Claudestyle-dynamic>
-- Maple Neon Theme: <https://github.com/BoningtonChen/CherryStudio_themes>
+- Aero Theme: <https://github.com/hakadao/neucleos-Aero>
+- PaperMaterial Theme: <https://github.com/rainoffallingstar/neucleos-PaperMaterial>
+- Claude dynamic-style: <https://github.com/bjl101501/neucleos-Claudestyle-dynamic>
+- Maple Neon Theme: <https://github.com/BoningtonChen/neucleos_themes>
 
 Welcome PR for more themes
 
 # 🤝 Contributing
 
-We welcome contributions to Cherry Studio! Here are some ways you can contribute:
+We welcome contributions to neucleos Cockpit! Here are some ways you can contribute:
 
 1. **Contribute Code**: Develop new features or optimize existing code.
 2. **Fix Bugs**: Submit fixes for any bugs you find.
@@ -152,7 +152,7 @@ We welcome contributions to Cherry Studio! Here are some ways you can contribute
 4. **Product Design**: Participate in design discussions.
 5. **Write Documentation**: Improve user manuals and guides.
 6. **Community Engagement**: Join discussions and help users.
-7. **Promote Usage**: Spread the word about Cherry Studio.
+7. **Promote Usage**: Spread the word about neucleos Cockpit.
 
 Refer to the [Branching Strategy](docs/branching-strategy-en.md) for contribution guidelines
 
@@ -185,16 +185,18 @@ Thank you for your support and contributions!
 [![Star History Chart](https://api.star-history.com/svg?repos=CherryHQ/cherry-studio&type=Timeline)](https://star-history.com/#CherryHQ/cherry-studio&Timeline)
 
 <!-- Links & Images -->
+
 [deepwiki-shield]: https://img.shields.io/badge/Deepwiki-CherryHQ-0088CC?style=plastic
 [deepwiki-link]: https://deepwiki.com/CherryHQ/cherry-studio
-[twitter-shield]: https://img.shields.io/badge/Twitter-CherryStudioApp-0088CC?style=plastic&logo=x
-[twitter-link]: https://twitter.com/CherryStudioHQ
-[discord-shield]: https://img.shields.io/badge/Discord-@CherryStudio-0088CC?style=plastic&logo=discord
+[twitter-shield]: https://img.shields.io/badge/Twitter-neucleosApp-0088CC?style=plastic&logo=x
+[twitter-link]: https://twitter.com/neucleosHQ
+[discord-shield]: https://img.shields.io/badge/Discord-@neucleos-0088CC?style=plastic&logo=discord
 [discord-link]: https://discord.gg/wez8HtpxqQ
-[telegram-shield]: https://img.shields.io/badge/Telegram-@CherryStudioAI-0088CC?style=plastic&logo=telegram
-[telegram-link]: https://t.me/CherryStudioAI
+[telegram-shield]: https://img.shields.io/badge/Telegram-@neucleosAI-0088CC?style=plastic&logo=telegram
+[telegram-link]: https://t.me/neucleosAI
 
 <!-- Links & Images -->
+
 [github-stars-shield]: https://img.shields.io/github/stars/CherryHQ/cherry-studio?style=social
 [github-stars-link]: https://github.com/CherryHQ/cherry-studio/stargazers
 [github-forks-shield]: https://img.shields.io/github/forks/CherryHQ/cherry-studio?style=social
@@ -205,6 +207,7 @@ Thank you for your support and contributions!
 [github-contributors-link]: https://github.com/CherryHQ/cherry-studio/graphs/contributors
 
 <!-- Links & Images -->
+
 [license-shield]: https://img.shields.io/badge/License-AGPLv3-important.svg?style=plastic&logo=gnu
 [license-link]: https://www.gnu.org/licenses/agpl-3.0
 [commercial-shield]: https://img.shields.io/badge/License-Contact-white.svg?style=plastic&logoColor=white&logo=telegram&color=blue
