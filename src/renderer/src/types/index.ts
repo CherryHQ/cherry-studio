@@ -161,6 +161,7 @@ export type Provider = {
   isNotSupportArrayContent?: boolean
   isVertex?: boolean
   notes?: string
+  extra_headers?: Record<string, string>
 }
 
 export type ProviderType =

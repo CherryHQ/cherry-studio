@@ -412,6 +412,7 @@
       "search": "Search",
       "select": "Select",
       "selectedMessages": "Selected {{count}} messages",
+      "selectedItems": "Selected {{count}} items",
       "success": "Success",
       "topics": "Topics",
       "warning": "Warning",
@@ -1613,7 +1614,6 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "No API keys found, please add API keys first.",
       "models.check.passed": "Passed",
-      "models.check.checking": "Checking",
       "models.check.select_api_key": "Select the API key to use:",
       "models.check.single": "Single",
       "models.check.start": "Start",
@@ -1662,6 +1662,7 @@
         "api.url.tip": "Ending with / ignores v1, ending with # forces use of input address",
         "api_host": "API Host",
         "api_key": "API Key",
+        "api_key.tip": "Multiple keys separated by commas",
         "api_version": "API Version",
         "basic_auth": "HTTP authentication",
         "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
@@ -1716,9 +1717,9 @@
         "get_api_key": "Get API Key",
         "is_not_support_array_content": "Enable compatible mode",
         "no_models_for_check": "No models available for checking (e.g. chat models)",
+        "not_checked": "Not Checked",
         "remove_duplicate_keys": "Remove Duplicate Keys",
         "remove_invalid_keys": "Remove Invalid Keys",
-        "invalid_key": "Invalid API key",
         "search": "Search Providers...",
         "search_placeholder": "Search model id or name",
         "title": "Model Provider",
@@ -1747,10 +1748,7 @@
           },
           "documentation": "View official documentation for more configuration details:",
           "learn_more": "Learn More"
-        },
-        "enter_new_api_key": "Enter new API key",
-        "key_already_exists": "API key already exists",
-        "check_tooltip.latency": "Latency"
+        }
       },
       "proxy": {
         "mode": {

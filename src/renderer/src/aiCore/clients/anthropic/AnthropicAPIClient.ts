@@ -94,7 +94,8 @@ export class AnthropicAPIClient extends BaseApiClient<
       baseURL: this.getBaseURL(),
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
-        'anthropic-beta': 'output-128k-2025-02-19'
+        'anthropic-beta': 'output-128k-2025-02-19',
+        ...this.provider.extra_headers
       }
     })
     return this.sdkInstance

@@ -308,10 +308,11 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
 
 const EditorContainer = styled.div`
   padding: 8px 0;
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
   margin-top: 5px;
+  margin-bottom: 10px;
   background-color: var(--color-background-opacity);
   width: 100%;
 

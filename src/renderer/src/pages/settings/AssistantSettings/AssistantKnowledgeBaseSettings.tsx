@@ -3,7 +3,7 @@ import { Box } from '@renderer/components/Layout'
 import { useAppSelector } from '@renderer/store'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Row, Segmented, Select, SelectProps, Tooltip } from 'antd'
-import { CircleHelp } from 'lucide-react'
+import { ChevronDown, CircleHelp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -46,6 +46,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             .toLowerCase()
             .includes(input.toLowerCase())
         }
+        suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
       />
       <Row align="middle" style={{ marginTop: 10 }}>
         <Label>{t('assistants.settings.knowledge_base.recognition')}</Label>

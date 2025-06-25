@@ -412,6 +412,7 @@
       "search": "搜索",
       "select": "选择",
       "selectedMessages": "选中 {{count}} 条消息",
+      "selectedItems": "已选择 {{count}} 项",
       "success": "成功",
       "topics": "话题",
       "warning": "警告",
@@ -1613,7 +1614,6 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "未找到API密钥，请先添加API密钥",
       "models.check.passed": "通过",
-      "models.check.checking": "检测中",
       "models.check.select_api_key": "选择要使用的API密钥：",
       "models.check.single": "单个",
       "models.check.start": "开始",
@@ -1662,6 +1662,7 @@
         "api.url.tip": "/结尾忽略v1版本，#结尾强制使用输入地址",
         "api_host": "API 地址",
         "api_key": "API 密钥",
+        "api_key.tip": "多个密钥使用逗号分隔",
         "api_version": "API 版本",
         "basic_auth": "HTTP 认证",
         "basic_auth.tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）",
@@ -1716,9 +1717,9 @@
         "get_api_key": "点击这里获取密钥",
         "is_not_support_array_content": "开启兼容模式",
         "no_models_for_check": "没有可以被检测的模型（例如对话模型）",
+        "not_checked": "未检测",
         "remove_duplicate_keys": "移除重复密钥",
         "remove_invalid_keys": "删除无效密钥",
-        "invalid_key": "无效的 API 密钥",
         "search": "搜索模型平台...",
         "search_placeholder": "搜索模型 ID 或名称",
         "title": "模型服务",
@@ -1747,10 +1748,7 @@
           },
           "documentation": "查看官方文档了解更多配置详情：",
           "learn_more": "了解更多"
-        },
-        "enter_new_api_key": "输入新的API密钥",
-        "key_already_exists": "API密钥已存在",
-        "check_tooltip.latency": "耗时"
+        }
       },
       "proxy": {
         "mode": {

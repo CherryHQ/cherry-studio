@@ -7,6 +7,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { Assistant, Topic } from '@renderer/types'
+import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import React, { FC, useMemo, useState } from 'react'
@@ -106,7 +107,7 @@ const Chat: FC<Props> = (props) => {
   }
 
   return (
-    <Container id="chat" className={messageStyle}>
+    <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
         <ContentSearch
           ref={contentSearchRef}
