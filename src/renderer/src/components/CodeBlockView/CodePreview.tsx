@@ -4,7 +4,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
@@ -154,9 +154,15 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     setTimeout(highlightCode, 0)
   }, [isInViewport, highlightCode])
 
-  const hasHighlightedCode = useMemo(() => {
-    return tokenLines.length > 0
-  }, [tokenLines.length])
+  useEffect(() => {
+    const container = codeContainerRef.current
+    if (!container || !codeShowLineNumbers) return
+
+    const digits = Math.max(tokenLines.length.toString().length, 1)
+    container.style.setProperty('--line-digits', digits.toString())
+  }, [codeShowLineNumbers, tokenLines.length])
+
+  const hasHighlightedCode = tokenLines.length > 0
 
   return (
     <ContentContainer
@@ -224,12 +230,16 @@ const ContentContainer = styled.div<{
 }>`
   position: relative;
   overflow: auto;
-  border: 0.5px solid transparent;
-  border-radius: 5px;
+  border-radius: inherit;
   margin-top: 0;
+
+  /* 动态宽度计算 */
+  --line-digits: 0;
+  --gutter-width: max(calc(var(--line-digits) * 0.7rem), 2.1rem);
 
   .shiki {
     padding: 1em;
+    border-radius: inherit;
 
     code {
       display: flex;
@@ -238,7 +248,7 @@ const ContentContainer = styled.div<{
       .line {
         display: block;
         min-height: 1.3rem;
-        padding-left: ${(props) => (props.$lineNumbers ? '2rem' : '0')};
+        padding-left: ${(props) => (props.$lineNumbers ? 'var(--gutter-width)' : '0')};
 
         * {
           overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
@@ -277,7 +287,7 @@ const ContentContainer = styled.div<{
     }
   }
 
-  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.3s ease-in-out forwards' : 'none')};
+  animation: ${(props) => (props.$fadeIn ? 'contentFadeIn 0.1s ease-in forwards' : 'none')};
 `
 
 const CodePlaceholder = styled.div`

@@ -409,3 +409,5 @@ export enum FeedUrl {
   EARLY_ACCESS = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
 export const defaultTimeout = 5 * 1000 * 60
+
+export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']

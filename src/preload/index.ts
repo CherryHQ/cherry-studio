@@ -17,6 +17,8 @@ const api = {
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
+  setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
+  setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
   setLaunchToTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchToTray, isActive),
   setTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTray, isActive),
@@ -30,7 +32,8 @@ const api = {
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   setAppDataPath: (path: string) => ipcRenderer.invoke(IpcChannel.App_SetAppDataPath, path),
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
-  copy: (oldPath: string, newPath: string) => ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath),
+  copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
+    ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
   setStopQuitApp: (stop: boolean, reason: string) => ipcRenderer.invoke(IpcChannel.App_SetStopQuitApp, stop, reason),
   flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),

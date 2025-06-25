@@ -39,7 +39,6 @@ const AgentsSubscribeUrlSettings: FC = () => {
           />
         </HStack>
       </SettingRow>
-      <SettingDivider />
     </SettingGroup>
   )
 }

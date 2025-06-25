@@ -151,7 +151,8 @@ const Container = styled.div`
 `
 
 const ContainerWrapper = styled.div`
-  width: 800px;
+  width: 100%;
+  padding: 0 16px;
   display: flex;
   flex-direction: column;
 `

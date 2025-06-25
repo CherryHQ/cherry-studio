@@ -161,6 +161,7 @@ export type Provider = {
   isNotSupportArrayContent?: boolean
   isVertex?: boolean
   notes?: string
+  extra_headers?: Record<string, string>
 }
 
 export type ProviderType =
@@ -387,6 +388,7 @@ export type AppInfo = {
   logsPath: string
   arch: string
   isPortable: boolean
+  installPath: string
 }
 
 export interface Shortcut {

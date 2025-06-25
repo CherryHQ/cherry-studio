@@ -77,7 +77,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel
+    enableBackspaceDeleteModel,
+    enableSpellCheck
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -138,17 +139,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
-  const resizeTextArea = useCallback(() => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
+  const resizeTextArea = useCallback(
+    (force: boolean = false) => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        // 如果已经手动设置了高度,则不自动调整
+        if (textareaHeight && !force) {
+          return
+        }
+        if (textArea?.scrollHeight) {
+          textArea.style.height = Math.min(textArea.scrollHeight, 400) + 'px'
+        }
       }
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
-    }
-  }, [textareaHeight])
+    },
+    [textareaHeight]
+  )
 
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
@@ -748,13 +753,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   return (
-    <Container
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      className="inputbar">
-      <NarrowLayout style={{ width: '100%' }}>
+    <NarrowLayout style={{ width: '100%' }}>
+      <Container
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        className="inputbar">
         <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
@@ -780,14 +785,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
             }
             autoFocus
-            contextMenu="true"
             variant="borderless"
-            spellCheck={false}
+            spellCheck={enableSpellCheck}
             rows={2}
             ref={textareaRef}
             style={{
               fontSize,
-              minHeight: textareaHeight ? `${textareaHeight}px` : undefined
+              minHeight: textareaHeight ? `${textareaHeight}px` : '30px'
             }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -851,8 +855,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>
-      </NarrowLayout>
-    </Container>
+      </Container>
+    </NarrowLayout>
   )
 }
 
@@ -887,16 +891,15 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
+  padding: 0 16px 16px 16px;
 `
 
 const InputBarContainer = styled.div`
   border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   position: relative;
-  margin: 14px 20px;
-  margin-top: 0;
   border-radius: 15px;
-  padding-top: 6px; // 为拖动手柄留出空间
+  padding-top: 8px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 
   &.file-dragging {
@@ -919,7 +922,7 @@ const InputBarContainer = styled.div`
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '6px 15px 8px' // 减小顶部padding
+  padding: '6px 15px 0px' // 减小顶部padding
 }
 
 const Textarea = styled(TextArea)`
@@ -934,16 +937,17 @@ const Textarea = styled(TextArea)`
   &.ant-input {
     line-height: 1.4;
   }
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
 `
 
 const Toolbar = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  padding: 0 8px;
-  padding-bottom: 0;
-  margin-bottom: 4px;
-  height: 30px;
+  padding: 5px 8px;
+  height: 40px;
   gap: 16px;
   position: relative;
   z-index: 2;

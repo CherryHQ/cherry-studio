@@ -1,6 +1,7 @@
-import { CheckOutlined } from '@ant-design/icons'
+import EditableNumber from '@renderer/components/EditableNumber'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
+import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import {
   isOpenAIModel,
@@ -38,7 +39,6 @@ import {
   setPasteLongTextThreshold,
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
-  setShowMessageDivider,
   setShowPrompt,
   setShowTokens,
   setShowTranslateConfirm,
@@ -54,7 +54,7 @@ import {
 } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
-import { Button, Col, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, InputNumber, Row, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -86,7 +86,6 @@ const SettingsTab: FC<Props> = (props) => {
 
   const {
     showPrompt,
-    showMessageDivider,
     messageFont,
     showInputEstimatedTokens,
     sendMessageShortcut,
@@ -313,20 +312,6 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>
-              {t('settings.messages.divider')}
-              <Tooltip title={t('settings.messages.divider.tooltip')}>
-                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
-              </Tooltip>
-            </SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={showMessageDivider}
-              onChange={(checked) => dispatch(setShowMessageDivider(checked))}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.use_serif_font')}</SettingRowTitleSmall>
             <Switch
               size="small"
@@ -351,56 +336,56 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style')}</SettingRowTitleSmall>
-            <StyledSelect
+            <Selector
               value={messageStyle}
               onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
-              style={{ width: 135 }}
-              size="small">
-              <Select.Option value="plain">{t('message.message.style.plain')}</Select.Option>
-              <Select.Option value="bubble">{t('message.message.style.bubble')}</Select.Option>
-            </StyledSelect>
+              options={[
+                { value: 'plain', label: t('message.message.style.plain') },
+                { value: 'bubble', label: t('message.message.style.bubble') }
+              ]}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.multi_model_style')}</SettingRowTitleSmall>
-            <StyledSelect
-              size="small"
+            <Selector
               value={multiModelMessageStyle}
               onChange={(value) =>
                 dispatch(setMultiModelMessageStyle(value as 'fold' | 'vertical' | 'horizontal' | 'grid'))
               }
-              style={{ width: 135 }}>
-              <Select.Option value="fold">{t('message.message.multi_model_style.fold')}</Select.Option>
-              <Select.Option value="vertical">{t('message.message.multi_model_style.vertical')}</Select.Option>
-              <Select.Option value="horizontal">{t('message.message.multi_model_style.horizontal')}</Select.Option>
-              <Select.Option value="grid">{t('message.message.multi_model_style.grid')}</Select.Option>
-            </StyledSelect>
+              options={[
+                { value: 'fold', label: t('message.message.multi_model_style.fold') },
+                { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
+                { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
+                { value: 'grid', label: t('message.message.multi_model_style.grid') }
+              ]}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.navigation')}</SettingRowTitleSmall>
-            <StyledSelect
-              size="small"
+            <Selector
               value={messageNavigation}
               onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
-              style={{ width: 135 }}>
-              <Select.Option value="none">{t('settings.messages.navigation.none')}</Select.Option>
-              <Select.Option value="buttons">{t('settings.messages.navigation.buttons')}</Select.Option>
-              <Select.Option value="anchor">{t('settings.messages.navigation.anchor')}</Select.Option>
-            </StyledSelect>
+              options={[
+                { value: 'none', label: t('settings.messages.navigation.none') },
+                { value: 'buttons', label: t('settings.messages.navigation.buttons') },
+                { value: 'anchor', label: t('settings.messages.navigation.anchor') }
+              ]}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
-            <StyledSelect
+            <Selector
               value={mathEngine}
               onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
-              style={{ width: 135 }}
-              size="small">
-              <Select.Option value="KaTeX">KaTeX</Select.Option>
-              <Select.Option value="MathJax">MathJax</Select.Option>
-              <Select.Option value="none">{t('settings.messages.math_engine.none')}</Select.Option>
-            </StyledSelect>
+              options={[
+                { value: 'KaTeX', label: 'KaTeX' },
+                { value: 'MathJax', label: 'MathJax' },
+                { value: 'none', label: t('settings.messages.math_engine.none') }
+              ]}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -430,17 +415,14 @@ const SettingsTab: FC<Props> = (props) => {
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
-            <StyledSelect
+            <Selector
               value={codeStyle}
               onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
-              style={{ width: 135 }}
-              size="small">
-              {themeNames.map((theme) => (
-                <Select.Option key={theme} value={theme}>
-                  {theme}
-                </Select.Option>
-              ))}
-            </StyledSelect>
+              options={themeNames.map((theme) => ({
+                value: theme,
+                label: theme
+              }))}
+            />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -466,7 +448,7 @@ const SettingsTab: FC<Props> = (props) => {
                     <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                   </Tooltip>
                 </SettingRowTitleSmall>
-                <InputNumber
+                <EditableNumber
                   size="small"
                   min={1}
                   max={60}
@@ -577,7 +559,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitleSmall>{t('settings.messages.input.paste_long_text_threshold')}</SettingRowTitleSmall>
-                <InputNumber
+                <EditableNumber
                   size="small"
                   min={500}
                   max={10000}
@@ -641,11 +623,9 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
-            <StyledSelect
-              defaultValue={'english' as TranslateLanguageVarious}
-              size="small"
+            <Selector
               value={targetLanguage}
-              menuItemSelectedIcon={<CheckOutlined />}
+              onChange={(value) => setTargetLanguage(value as TranslateLanguageVarious)}
               options={[
                 { value: 'chinese', label: t('settings.input.target_language.chinese') },
                 { value: 'chinese-traditional', label: t('settings.input.target_language.chinese-traditional') },
@@ -653,17 +633,14 @@ const SettingsTab: FC<Props> = (props) => {
                 { value: 'japanese', label: t('settings.input.target_language.japanese') },
                 { value: 'russian', label: t('settings.input.target_language.russian') }
               ]}
-              onChange={(value) => setTargetLanguage(value as TranslateLanguageVarious)}
-              style={{ width: 135 }}
             />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
-            <StyledSelect
-              size="small"
+            <Selector
               value={sendMessageShortcut}
-              menuItemSelectedIcon={<CheckOutlined />}
+              onChange={(value) => setSendMessageShortcut(value as SendMessageShortcut)}
               options={[
                 { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
                 { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
@@ -671,8 +648,6 @@ const SettingsTab: FC<Props> = (props) => {
                 { value: 'Command+Enter', label: getSendMessageShortcutLabel('Command+Enter') },
                 { value: 'Shift+Enter', label: getSendMessageShortcutLabel('Shift+Enter') }
               ]}
-              onChange={(value) => setSendMessageShortcut(value as SendMessageShortcut)}
-              style={{ width: 135 }}
             />
           </SettingRow>
         </SettingGroup>
@@ -702,14 +677,6 @@ const SettingGroup = styled.div<{ theme?: ThemeMode }>`
   margin-top: 0;
   border-radius: 8px;
   margin-bottom: 10px;
-`
-
-const StyledSelect = styled(Select)`
-  .ant-select-selector {
-    border-radius: 15px !important;
-    padding: 4px 10px !important;
-    height: 26px !important;
-  }
 `
 
 export default SettingsTab

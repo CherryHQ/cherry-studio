@@ -98,7 +98,6 @@
     border: none;
     border-top: 0.5px solid var(--color-border);
     margin: 20px 0;
-    background-color: var(--color-border);
   }
 
   span {
@@ -119,7 +118,7 @@
   }
 
   pre {
-    border-radius: 5px;
+    border-radius: 8px;
     overflow-x: auto;
     font-family: 'Fira Code', 'Courier New', Courier, monospace;
     background-color: var(--color-background-mute);
@@ -157,15 +156,28 @@
   }
 
   table {
-    border-collapse: collapse;
+    --table-border-radius: 8px;
     margin: 1em 0;
     width: 100%;
+    border-radius: var(--table-border-radius);
+    overflow: hidden;
+    border-collapse: separate;
+    border: 0.5px solid var(--color-border);
+    border-spacing: 0;
   }
 
   th,
   td {
-    border: 0.5px solid var(--color-border);
+    border-right: 0.5px solid var(--color-border);
+    border-bottom: 0.5px solid var(--color-border);
     padding: 0.5em;
+    &:last-child {
+      border-right: none;
+    }
+  }
+
+  tr:last-child td {
+    border-bottom: none;
   }
 
   th {
@@ -238,6 +250,10 @@
       text-decoration: underline;
     }
   }
+
+  > *:last-child {
+    margin-bottom: 0 !important;
+  }
 }
 
 .footnotes {
@@ -309,7 +325,7 @@ mjx-container {
 
 /* CodeMirror 相关样式 */
 .cm-editor {
-  border-radius: 5px;
+  border-radius: inherit;
 
   &.cm-focused {
     outline: none;
@@ -317,7 +333,7 @@ mjx-container {
 
   .cm-scroller {
     font-family: var(--code-font-family);
-    border-radius: 5px;
+    border-radius: inherit;
 
     .cm-gutters {
       line-height: 1.6;
