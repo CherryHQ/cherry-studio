@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { BrowserWindow, ipcMain } from 'electron'
 
 interface PythonExecutionRequest {
@@ -65,7 +67,7 @@ export class PythonService {
     }
 
     return new Promise((resolve, reject) => {
-      const requestId = `python-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      const requestId = randomUUID()
 
       // Store the request
       this.pendingRequests.set(requestId, { resolve, reject })
