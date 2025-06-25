@@ -556,7 +556,13 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export const formatApiKeys = (value: string) => {
-  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+  return value
+    .replaceAll('，', ',') // 替换中文逗号
+    .replaceAll('\n', ',') // 替换换行符
+    .split(',') // 分割成数组
+    .map((key) => key.trim()) // 去除每个key的空格
+    .filter((key) => key) // 移除空的key
+    .join(',') // 重新连接
 }
 
 export function checkApiProvider(provider: Provider): void {

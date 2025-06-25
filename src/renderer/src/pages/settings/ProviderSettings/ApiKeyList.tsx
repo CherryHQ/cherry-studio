@@ -84,7 +84,11 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       const currentKeys = currentStatuses.map((k) => k.key)
 
       // If the keys are the same, no need to update, prevents re-render loops.
-      if (newKeys.join(',') === currentKeys.join(',')) {
+      // Sort both arrays to ensure consistent comparison
+      const sortedNewKeys = [...newKeys].sort()
+      const sortedCurrentKeys = [...currentKeys].sort()
+
+      if (sortedNewKeys.join(',') === sortedCurrentKeys.join(',')) {
         return currentStatuses
       }
 
@@ -137,9 +141,9 @@ const ApiKeyList: FC<Props> = ({ provider, apiKeys, onChange, type = 'provider' 
       }
 
       const updatedKeyStatuses = [...keyStatuses, { key: newApiKey.trim() }]
-      setKeyStatuses(updatedKeyStatuses)
+      const newKeyString = updatedKeyStatuses.map((status) => status.key).join(',')
       // Update parent component with new keys
-      onChange(updatedKeyStatuses.map((status) => status.key).join(','))
+      onChange(newKeyString)
     }
 
     // Add a small delay before resetting to prevent immediate re-triggering

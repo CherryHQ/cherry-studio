@@ -1,4 +1,3 @@
-import { IpcChannel } from '@shared/IpcChannel'
 import Logger from 'electron-log'
 
 import { windowService } from '../WindowService'
@@ -15,23 +14,14 @@ export function handleProvidersProtocolUrl(url: URL) {
       // }
       // cherrystudio://providers/api-keys?data={base64Encode(JSON.stringify(jsonConfig))}
       const data = params.get('data')
-      if (data) {
-        const stringify = Buffer.from(data, 'base64').toString('utf8')
-        Logger.info('get api keys from urlschema: ', stringify)
-        const jsonConfig = JSON.parse(stringify)
-        Logger.info('get api keys from urlschema: ', jsonConfig)
-        const mainWindow = windowService.getMainWindow()
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IpcChannel.Provider_AddKey, jsonConfig)
-          mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?id=${jsonConfig.id}')`)
-        }
-      } else {
-        Logger.error('No data found in URL')
+      const mainWindow = windowService.getMainWindow()
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
       }
       break
     }
     default:
-      console.error(`Unknown MCP protocol URL: ${url}`)
+      Logger.error(`Unknown MCP protocol URL: ${url}`)
       break
   }
 }
