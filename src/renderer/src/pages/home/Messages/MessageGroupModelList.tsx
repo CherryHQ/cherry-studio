@@ -6,8 +6,10 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setFoldDisplayMode } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
+import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
+import { motion } from 'framer-motion'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -26,6 +28,28 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   const { foldDisplayMode } = useSettings()
   const isCompact = foldDisplayMode === 'compact'
 
+  const isMessageProcessing = useCallback((message: Message) => {
+    return [
+      AssistantMessageStatus.PENDING,
+      AssistantMessageStatus.PROCESSING,
+      AssistantMessageStatus.SEARCHING
+    ].includes(message.status as AssistantMessageStatus)
+  }, [])
+
+  const renderModelAvatar = useCallback(
+    (message: Message, size: number) => {
+      return (
+        <motion.span
+          variants={lightbulbVariants}
+          animate={isMessageProcessing(message) ? 'active' : 'idle'}
+          initial="idle">
+          <ModelAvatar model={message.model as Model} size={size} />
+        </motion.span>
+      )
+    },
+    [isMessageProcessing]
+  )
+
   const renderLabel = useCallback(
     (message: Message) => {
       const modelTip = message.model?.name
@@ -39,19 +63,19 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               onClick={() => {
                 setSelectedMessage(message)
               }}>
-              <ModelAvatar model={message.model as Model} size={22} />
+              {renderModelAvatar(message, 22)}
             </AvatarWrapper>
           </Tooltip>
         )
       }
       return (
         <SegmentedLabel>
-          <ModelAvatar model={message.model as Model} size={20} />
+          {renderModelAvatar(message, 20)}
           <ModelName>{message.model?.name}</ModelName>
         </SegmentedLabel>
       )
     },
-    [isCompact, selectMessageId, setSelectedMessage]
+    [isCompact, renderModelAvatar, selectMessageId, setSelectedMessage]
   )
 
   return (
