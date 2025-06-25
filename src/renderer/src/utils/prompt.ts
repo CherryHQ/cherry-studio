@@ -1,3 +1,4 @@
+import { getStoreSetting } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
 import { MCPTool } from '@renderer/types'
 
@@ -166,8 +167,13 @@ export const promptVariableReplacer = async (userSystemPrompt: string, modelName
   }
 
   if (userSystemPrompt.includes('{{username}}')) {
-    const userName = store.getState().settings.userName || 'User'
-    userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
+    try {
+      const userName = (getStoreSetting('userName') as string) || 'User'
+      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, userName)
+    } catch (error) {
+      console.error('Failed to get username:', error)
+      userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
+    }
   }
 
   if (userSystemPrompt.includes('{{system}}')) {
@@ -182,7 +188,7 @@ export const promptVariableReplacer = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{language}}')) {
     try {
-      const language = store.getState().settings.language
+      const language = getStoreSetting('language') as string
       userSystemPrompt = userSystemPrompt.replace(/{{language}}/g, language)
     } catch (error) {
       console.error('Failed to get language:', error)
@@ -207,16 +213,6 @@ export const promptVariableReplacer = async (userSystemPrompt: string, modelName
     } catch (error) {
       console.error('Failed to get model name:', error)
       userSystemPrompt = userSystemPrompt.replace(/{{model_name}}/g, 'Unknown Model')
-    }
-
-    if (userSystemPrompt.includes('{{username}}')) {
-      try {
-        const username = store.getState().settings.userName || 'Unknown Username'
-        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, username)
-      } catch (error) {
-        console.error('Failed to get username:', error)
-        userSystemPrompt = userSystemPrompt.replace(/{{username}}/g, 'Unknown Username')
-      }
     }
   }
 
