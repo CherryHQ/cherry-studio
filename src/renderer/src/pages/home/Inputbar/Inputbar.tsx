@@ -13,10 +13,9 @@ import {
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -78,7 +77,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel
+    enableBackspaceDeleteModel,
+    enableSpellCheck
   } = useSettings()
   const [expended, setExpend] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
@@ -88,7 +88,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const { t } = useTranslation()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
-  const { isBubbleStyle } = useMessageStyle()
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
@@ -105,7 +104,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const currentMessageId = useRef<string>('')
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { activedMcpServers } = useMCPServers()
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
 
@@ -141,17 +139,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
-  const resizeTextArea = useCallback(() => {
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      // 如果已经手动设置了高度,则不自动调整
-      if (textareaHeight) {
-        return
+  const resizeTextArea = useCallback(
+    (force: boolean = false) => {
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        // 如果已经手动设置了高度,则不自动调整
+        if (textareaHeight && !force) {
+          return
+        }
+        if (textArea?.scrollHeight) {
+          textArea.style.height = Math.min(textArea.scrollHeight, 400) + 'px'
+        }
       }
-      textArea.style.height = 'auto'
-      textArea.style.height = textArea?.scrollHeight > 400 ? '400px' : `${textArea?.scrollHeight}px`
-    }
-  }, [textareaHeight])
+    },
+    [textareaHeight]
+  )
 
   const sendMessage = useCallback(async () => {
     if (inputEmpty || loading) {
@@ -176,20 +178,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       if (uploadedFiles) {
         baseUserMessage.files = uploadedFiles
       }
-      const knowledgeBaseIds = selectedKnowledgeBases?.map((base) => base.id)
-
-      if (knowledgeBaseIds) {
-        baseUserMessage.knowledgeBaseIds = knowledgeBaseIds
-      }
 
       if (mentionModels) {
         baseUserMessage.mentions = mentionModels
-      }
-
-      if (!isEmpty(assistant.mcpServers) && !isEmpty(activedMcpServers)) {
-        baseUserMessage.enabledMCPs = activedMcpServers.filter((server) =>
-          assistant.mcpServers?.some((s) => s.id === server.id)
-        )
       }
 
       const assistantWithTopicPrompt = topic.prompt
@@ -212,19 +203,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } catch (error) {
       console.error('Failed to send message:', error)
     }
-  }, [
-    activedMcpServers,
-    assistant,
-    dispatch,
-    files,
-    inputEmpty,
-    loading,
-    mentionModels,
-    resizeTextArea,
-    selectedKnowledgeBases,
-    text,
-    topic
-  ])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionModels, resizeTextArea, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -698,8 +677,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const textareaRows = window.innerHeight >= 1000 || isBubbleStyle ? 2 : 1
-
   const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
     updateAssistant({ ...assistant, knowledge_bases: bases })
     setSelectedKnowledgeBases(bases ?? [])
@@ -776,13 +753,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   return (
-    <Container
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      className="inputbar">
-      <NarrowLayout style={{ width: '100%' }}>
+    <NarrowLayout style={{ width: '100%' }}>
+      <Container
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        className="inputbar">
         <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
@@ -808,14 +785,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
             }
             autoFocus
-            contextMenu="true"
             variant="borderless"
-            spellCheck={false}
-            rows={textareaRows}
+            spellCheck={enableSpellCheck}
+            rows={2}
             ref={textareaRef}
             style={{
               fontSize,
-              minHeight: textareaHeight ? `${textareaHeight}px` : undefined
+              minHeight: textareaHeight ? `${textareaHeight}px` : '30px'
             }}
             styles={{ textarea: TextareaStyle }}
             onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -879,8 +855,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>
-      </NarrowLayout>
-    </Container>
+      </Container>
+    </NarrowLayout>
   )
 }
 
@@ -915,16 +891,15 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
+  padding: 0 16px 16px 16px;
 `
 
 const InputBarContainer = styled.div`
   border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   position: relative;
-  margin: 14px 20px;
-  margin-top: 0;
   border-radius: 15px;
-  padding-top: 6px; // 为拖动手柄留出空间
+  padding-top: 8px; // 为拖动手柄留出空间
   background-color: var(--color-background-opacity);
 
   &.file-dragging {
@@ -947,7 +922,7 @@ const InputBarContainer = styled.div`
 
 const TextareaStyle: CSSProperties = {
   paddingLeft: 0,
-  padding: '6px 15px 8px' // 减小顶部padding
+  padding: '6px 15px 0px' // 减小顶部padding
 }
 
 const Textarea = styled(TextArea)`
@@ -958,9 +933,12 @@ const Textarea = styled(TextArea)`
   overflow: auto;
   width: 100%;
   box-sizing: border-box;
-  transition: height 0.2s ease;
+  transition: none !important;
   &.ant-input {
     line-height: 1.4;
+  }
+  &::-webkit-scrollbar {
+    width: 3px;
   }
 `
 
@@ -968,10 +946,8 @@ const Toolbar = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
-  padding: 0 8px;
-  padding-bottom: 0;
-  margin-bottom: 4px;
-  height: 30px;
+  padding: 5px 8px;
+  height: 40px;
   gap: 16px;
   position: relative;
   z-index: 2;

@@ -71,7 +71,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <HStack gap={8} alignItems="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
-            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
+            <Button style={{ fontSize: 18, padding: '4px', minWidth: '28px', height: '28px' }}>{emoji}</Button>
             {emoji && (
               <CloseCircleFilled
                 className="delete-icon"
@@ -109,8 +109,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       </HStack>
       <TextAreaContainer>
         {showMarkdown ? (
-          <MarkdownContainer onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown className="markdown">{processedPrompt || prompt}</ReactMarkdown>
+          <MarkdownContainer className="markdown" onClick={() => setShowMarkdown(false)}>
+            <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
             <div style={{ height: '30px' }} />
           </MarkdownContainer>
         ) : (

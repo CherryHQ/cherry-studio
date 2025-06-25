@@ -1,4 +1,3 @@
-import { DownOutlined } from '@ant-design/icons'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -14,6 +13,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Avatar } from 'antd'
+import { CircleChevronDown } from 'lucide-react'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -104,14 +104,18 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       if (groupMessages.length > 1) {
         for (const m of groupMessages) {
           dispatch(
-            newMessagesActions.updateMessage({ topicId: m.topicId, messageId: m.id, updates: { foldSelected: true } })
+            newMessagesActions.updateMessage({
+              topicId: m.topicId,
+              messageId: m.id,
+              updates: { foldSelected: m.id === message.id }
+            })
           )
         }
 
         setTimeout(() => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+            messageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
           }
         }, 100)
       }
@@ -180,28 +184,23 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
             else messageItemsRef.current.delete('bottom-anchor')
           }}
           style={{
-            opacity: mouseY ? 0.5 + calculateValueByDistance('bottom-anchor', 1) : 0.6
+            opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(0 - messages.length / 2)) / 5)
           }}
           onClick={scrollToBottom}>
-          <MessageItemContainer
-            style={{ transform: `scale(${1 + calculateValueByDistance('bottom-anchor', 1)})` }}></MessageItemContainer>
-          <Avatar
-            icon={<DownOutlined style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }} />}
+          <CircleChevronDown
             size={10 + calculateValueByDistance('bottom-anchor', 20)}
-            style={{
-              backgroundColor: theme === 'dark' ? 'var(--color-background-soft)' : 'var(--color-primary-light)',
-              border: `1px solid ${theme === 'dark' ? 'var(--color-border-soft)' : 'var(--color-primary-soft)'}`,
-              opacity: 0.9
-            }}
+            style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
           />
         </MessageItem>
         {messages.map((message, index) => {
           const opacity = 0.5 + calculateValueByDistance(message.id, 1)
-          const scale = 1 + calculateValueByDistance(message.id, 1)
+          const scale = 1 + calculateValueByDistance(message.id, 1.2)
           const size = 10 + calculateValueByDistance(message.id, 20)
           const avatarSource = getAvatarSource(isLocalAi, getMessageModelId(message))
           const username = removeLeadingEmoji(getUserName(message))
           const content = getMainTextContent(message)
+
+          if (message.type === 'clear') return null
 
           return (
             <MessageItem
@@ -220,15 +219,14 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               </MessageItemContainer>
 
               {message.role === 'assistant' ? (
-                <Avatar
+                <MessageItemAvatar
                   src={avatarSource}
                   size={size}
                   style={{
                     border: isLocalAi ? '1px solid var(--color-border-soft)' : 'none',
                     filter: theme === 'dark' ? 'invert(0.05)' : undefined
-                  }}>
-                  A
-                </Avatar>
+                  }}
+                />
               ) : (
                 <>
                   {isEmoji(avatar) ? (
@@ -242,7 +240,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                       {avatar}
                     </EmojiAvatar>
                   ) : (
-                    <Avatar src={avatar} size={size} />
+                    <MessageItemAvatar src={avatar} size={size} />
                   )}
                 </>
               )}
@@ -261,18 +259,28 @@ const MessageItemContainer = styled.div`
   align-items: flex-end;
   justify-content: space-between;
   text-align: right;
-  gap: 4px;
-  text-shadow: 0 0 2px rgba(255, 255, 255, 0.5);
+  gap: 3px;
   opacity: 0;
   transform-origin: right center;
+  transition: transform cubic-bezier(0.25, 1, 0.5, 1) 150ms;
+  will-change: transform;
+`
+
+const MessageItemAvatar = styled(Avatar)`
+  transition:
+    width,
+    height,
+    cubic-bezier(0.25, 1, 0.5, 1) 150ms;
+  will-change: width, height;
 `
 
 const MessageLineContainer = styled.div<{ $height: number | null }>`
   width: 14px;
   position: fixed;
-  top: ${(props) => (props.$height ? `calc(${props.$height / 2}px + var(--status-bar-height))` : '50%')};
+  top: calc(50% - var(--status-bar-height) - 10px);
   right: 13px;
-  max-height: ${(props) => (props.$height ? `${props.$height}px` : 'calc(100% - var(--status-bar-height) * 2)')};
+  max-height: ${(props) =>
+    props.$height ? `${props.$height - 20}px` : 'calc(100% - var(--status-bar-height) * 2 - 20px)'};
   transform: translateY(-50%);
   z-index: 0;
   user-select: none;
@@ -282,7 +290,7 @@ const MessageLineContainer = styled.div<{ $height: number | null }>`
   font-size: 5px;
   overflow: hidden;
   &:hover {
-    width: 440px;
+    width: 500px;
     overflow-x: visible;
     overflow-y: hidden;
     ${MessageItemContainer} {

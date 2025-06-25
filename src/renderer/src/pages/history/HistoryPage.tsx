@@ -1,11 +1,11 @@
-import { ArrowLeftOutlined, EnterOutlined } from '@ant-design/icons'
+import { HStack } from '@renderer/components/Layout'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { Input, InputRef } from 'antd'
+import { Divider, Input, InputRef } from 'antd'
 import { last } from 'lodash'
-import { Search } from 'lucide-react'
+import { ChevronLeft, CornerDownLeft, Search } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -73,26 +73,35 @@ const TopicsPage: FC = () => {
 
   return (
     <Container>
-      <Header>
-        {stack.length > 1 && (
-          <HeaderLeft>
-            <MenuIcon onClick={goBack}>
-              <ArrowLeftOutlined />
-            </MenuIcon>
-          </HeaderLeft>
-        )}
-        <SearchInput
-          placeholder={t('history.search.placeholder')}
-          type="search"
-          value={search}
-          autoFocus
-          allowClear
+      <HStack style={{ padding: '0 12px', marginTop: 8 }}>
+        <Input
+          prefix={
+            stack.length > 1 ? (
+              <SearchIcon className="back-icon" onClick={goBack}>
+                <ChevronLeft size={16} />
+              </SearchIcon>
+            ) : (
+              <SearchIcon>
+                <Search size={15} />
+              </SearchIcon>
+            )
+          }
+          suffix={search.length >= 2 ? <CornerDownLeft size={16} /> : null}
           ref={inputRef}
+          placeholder={t('history.search.placeholder')}
+          value={search}
           onChange={(e) => setSearch(e.target.value.trimStart())}
-          suffix={search.length >= 2 ? <EnterOutlined /> : <Search size={16} />}
+          allowClear
+          autoFocus
+          spellCheck={false}
+          style={{ paddingLeft: 0 }}
+          variant="borderless"
+          size="middle"
           onPressEnter={onSearch}
         />
-      </Header>
+      </HStack>
+      <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+
       <TopicsHistory
         keywords={search}
         onClick={onTopicClick as any}
@@ -118,50 +127,23 @@ const Container = styled.div`
   height: 100%;
 `
 
-const Header = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 0;
-  width: 100%;
-  position: relative;
-  background-color: var(--color-background-mute);
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  border-bottom: 0.5px solid var(--color-frame-border);
-`
-
-const HeaderLeft = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  position: absolute;
-  top: 12px;
-  left: 15px;
-`
-
-const MenuIcon = styled.div`
-  cursor: pointer;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  width: 33px;
-  height: 33px;
+const SearchIcon = styled.div`
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  &:hover {
-    background-color: var(--color-background);
-    .anticon {
-      color: var(--color-text-1);
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  background-color: var(--color-background-soft);
+  margin-right: 2px;
+  &.back-icon {
+    cursor: pointer;
+    transition: background-color 0.2s;
+    &:hover {
+      background-color: var(--color-background-mute);
     }
   }
-`
-
-const SearchInput = styled(Input)`
-  border-radius: 30px;
-  width: 800px;
-  height: 36px;
 `
 
 export default TopicsPage

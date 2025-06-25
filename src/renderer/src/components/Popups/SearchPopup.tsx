@@ -32,16 +32,23 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       title={null}
-      width="920px"
+      width={700}
       transitionName="animation-move-down"
       styles={{
         content: {
+          borderRadius: 20,
           padding: 0,
-          border: `1px solid var(--color-frame-border)`
+          overflow: 'hidden',
+          paddingBottom: 16
         },
-        body: { height: '85vh' }
+        body: {
+          height: '80vh',
+          maxHeight: 'inherit',
+          padding: 0
+        }
       }}
       centered
+      closable={false}
       footer={null}>
       <HistoryPage />
     </Modal>

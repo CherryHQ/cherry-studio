@@ -1353,12 +1353,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     },
     {
-      id: 'deepseek-v3-250324',
-      provider: 'doubao',
-      name: 'DeepSeek-V3',
-      group: 'DeepSeek'
-    },
-    {
       id: 'doubao-pro-32k-241215',
       provider: 'doubao',
       name: 'Doubao-pro-32k',
@@ -2289,6 +2283,8 @@ export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
 ]
 
 export const SUPPORTED_DISABLE_GENERATION_MODELS = [
+  'gemini-2.0-flash-exp-image-generation',
+  'gemini-2.0-flash-preview-image-generation',
   'gemini-2.0-flash-exp',
   'gpt-4o',
   'gpt-4o-mini',
@@ -2308,24 +2304,7 @@ export const GENERATE_IMAGE_MODELS = [
   ...SUPPORTED_DISABLE_GENERATION_MODELS
 ]
 
-export const GEMINI_SEARCH_MODELS = [
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash-001',
-  'gemini-2.5-pro',
-  'gemini-2.0-pro-exp-02-05',
-  'gemini-2.0-pro-exp',
-  'gemini-2.5-pro-exp',
-  'gemini-2.5-pro-exp-03-25',
-  'gemini-2.5-pro-preview',
-  'gemini-2.5-pro-preview-03-25',
-  'gemini-2.5-pro-preview-05-06',
-  'gemini-2.5-flash-preview',
-  'gemini-2.5-flash-preview-04-17',
-  'gemini-2.5-flash-preview-05-20',
-  'gemini-2.5-flash-lite-preview-06-17'
-]
+export const GEMINI_SEARCH_REGEX = new RegExp('gemini-2\\..*', 'i')
 
 export const OPENAI_NO_SUPPORT_DEV_ROLE_MODELS = ['o1-preview', 'o1-mini']
 
@@ -2658,13 +2637,13 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider?.type === 'openai') {
-    if (GEMINI_SEARCH_MODELS.includes(baseName) || isOpenAIWebSearchModel(model)) {
+    if (GEMINI_SEARCH_REGEX.test(baseName) || isOpenAIWebSearchModel(model)) {
       return true
     }
   }
 
   if (provider.id === 'gemini' || provider?.type === 'gemini') {
-    return GEMINI_SEARCH_MODELS.includes(baseName)
+    return GEMINI_SEARCH_REGEX.test(baseName)
   }
 
   if (provider.id === 'hunyuan') {
@@ -2703,7 +2682,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  return isOpenAIWebSearchModel(model) || model.id.includes('sonar')
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || model.id.includes('sonar')
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2735,7 +2714,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(model.id)
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
@@ -2841,6 +2820,7 @@ export function groupQwenModels(models: Model[]): Record<string, Model[]> {
 
 export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   // Gemini models
+  'gemini-2\\.5-flash-lite.*$': { min: 512, max: 24576 },
   'gemini-.*-flash.*$': { min: 0, max: 24576 },
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
@@ -2867,7 +2847,7 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-[\w-]+)?/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-\d{6})?$/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(1-5-thinking-pro-m|seed-1\.6|seed-1-6-[\w-]+)(?:-[\w-]+)*/i

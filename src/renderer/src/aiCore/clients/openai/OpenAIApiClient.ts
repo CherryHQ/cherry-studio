@@ -494,7 +494,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
   }
 
   // 在RawSdkChunkToGenericChunkMiddleware中使用
-  getResponseChunkTransformer = (): ResponseChunkTransformer<OpenAISdkRawChunk> => {
+  getResponseChunkTransformer(): ResponseChunkTransformer<OpenAISdkRawChunk> {
     let hasBeenCollectedWebSearch = false
     const collectWebSearchData = (
       chunk: OpenAISdkRawChunk,
@@ -588,9 +588,52 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       return null
     }
+
     const toolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
+    let isFinished = false
+    let lastUsageInfo: any = null
+
+    /**
+     * 统一的完成信号发送逻辑
+     * - 有 finish_reason 时
+     * - 无 finish_reason 但是流正常结束时
+     */
+    const emitCompletionSignals = (controller: TransformStreamDefaultController<GenericChunk>) => {
+      if (isFinished) return
+
+      if (toolCalls.length > 0) {
+        controller.enqueue({
+          type: ChunkType.MCP_TOOL_CREATED,
+          tool_calls: toolCalls
+        })
+      }
+
+      const usage = lastUsageInfo || {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0
+      }
+
+      controller.enqueue({
+        type: ChunkType.LLM_RESPONSE_COMPLETE,
+        response: { usage }
+      })
+
+      // 防止重复发送
+      isFinished = true
+    }
+
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
+        // 持续更新usage信息
+        if (chunk.usage) {
+          lastUsageInfo = {
+            prompt_tokens: chunk.usage.prompt_tokens || 0,
+            completion_tokens: chunk.usage.completion_tokens || 0,
+            total_tokens: (chunk.usage.prompt_tokens || 0) + (chunk.usage.completion_tokens || 0)
+          }
+        }
+
         // 处理chunk
         if ('choices' in chunk && chunk.choices && chunk.choices.length > 0) {
           const choice = chunk.choices[0]
@@ -655,12 +698,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           // 处理finish_reason，发送流结束信号
           if ('finish_reason' in choice && choice.finish_reason) {
             Logger.debug(`[OpenAIApiClient] Stream finished with reason: ${choice.finish_reason}`)
-            if (toolCalls.length > 0) {
-              controller.enqueue({
-                type: ChunkType.MCP_TOOL_CREATED,
-                tool_calls: toolCalls
-              })
-            }
             const webSearchData = collectWebSearchData(chunk, contentSource, context)
             if (webSearchData) {
               controller.enqueue({
@@ -668,18 +705,17 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 llm_web_search: webSearchData
               })
             }
-            controller.enqueue({
-              type: ChunkType.LLM_RESPONSE_COMPLETE,
-              response: {
-                usage: {
-                  prompt_tokens: chunk.usage?.prompt_tokens || 0,
-                  completion_tokens: chunk.usage?.completion_tokens || 0,
-                  total_tokens: (chunk.usage?.prompt_tokens || 0) + (chunk.usage?.completion_tokens || 0)
-                }
-              }
-            })
+            emitCompletionSignals(controller)
           }
         }
+      },
+
+      // 流正常结束时，检查是否需要发送完成信号
+      flush(controller) {
+        if (isFinished) return
+
+        Logger.debug('[OpenAIApiClient] Stream ended without finish_reason, emitting fallback completion signals')
+        emitCompletionSignals(controller)
       }
     })
   }

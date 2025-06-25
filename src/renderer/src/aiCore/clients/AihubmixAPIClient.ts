@@ -20,6 +20,7 @@ import {
   SdkToolCall
 } from '@renderer/types/sdk'
 
+import { CompletionsContext } from '../middleware/types'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { BaseApiClient } from './BaseApiClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
@@ -41,11 +42,19 @@ export class AihubmixAPIClient extends BaseApiClient {
   constructor(provider: Provider) {
     super(provider)
 
+    const providerExtraHeaders = {
+      ...provider,
+      extra_headers: {
+        ...provider.extra_headers,
+        'APP-Code': 'MLTG2087'
+      }
+    }
+
     // 初始化各个client - 现在有类型安全
-    const claudeClient = new AnthropicAPIClient(provider)
-    const geminiClient = new GeminiAPIClient({ ...provider, apiHost: 'https://aihubmix.com/gemini' })
-    const openaiClient = new OpenAIResponseAPIClient(provider)
-    const defaultClient = new OpenAIAPIClient(provider)
+    const claudeClient = new AnthropicAPIClient(providerExtraHeaders)
+    const geminiClient = new GeminiAPIClient({ ...providerExtraHeaders, apiHost: 'https://aihubmix.com/gemini' })
+    const openaiClient = new OpenAIResponseAPIClient(providerExtraHeaders)
+    const defaultClient = new OpenAIAPIClient(providerExtraHeaders)
 
     this.clients.set('claude', claudeClient)
     this.clients.set('gemini', geminiClient)
@@ -163,8 +172,8 @@ export class AihubmixAPIClient extends BaseApiClient {
     return this.currentClient.getRequestTransformer()
   }
 
-  getResponseChunkTransformer(): ResponseChunkTransformer<SdkRawChunk> {
-    return this.currentClient.getResponseChunkTransformer()
+  getResponseChunkTransformer(ctx: CompletionsContext): ResponseChunkTransformer<SdkRawChunk> {
+    return this.currentClient.getResponseChunkTransformer(ctx)
   }
 
   convertMcpToolsToSdkTools(mcpTools: MCPTool[]): SdkTool[] {

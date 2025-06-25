@@ -76,7 +76,7 @@ export default class AiProvider {
       if (!(this.apiClient instanceof OpenAIAPIClient)) {
         builder.remove(ThinkingTagExtractionMiddlewareName)
       }
-      if (!(this.apiClient instanceof AnthropicAPIClient)) {
+      if (!(this.apiClient instanceof AnthropicAPIClient) && !(this.apiClient instanceof OpenAIResponseAPIClient)) {
         builder.remove(RawStreamListenerMiddlewareName)
       }
       if (!params.enableWebSearch) {
@@ -114,7 +114,7 @@ export default class AiProvider {
       return dimensions
     } catch (error) {
       console.error('Error getting embedding dimensions:', error)
-      return 0
+      throw error
     }
   }
 

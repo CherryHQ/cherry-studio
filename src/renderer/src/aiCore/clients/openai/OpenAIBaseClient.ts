@@ -85,16 +85,13 @@ export abstract class OpenAIBaseClient<
 
   override async getEmbeddingDimensions(model: Model): Promise<number> {
     const sdk = await this.getSdkInstance()
-    try {
-      const data = await sdk.embeddings.create({
-        model: model.id,
-        input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
-        encoding_format: 'float'
-      })
-      return data.data[0].embedding.length
-    } catch (e) {
-      return 0
-    }
+
+    const data = await sdk.embeddings.create({
+      model: model.id,
+      input: model?.provider === 'baidu-cloud' ? ['hi'] : 'hi',
+      encoding_format: 'float'
+    })
+    return data.data[0].embedding.length
   }
 
   override async listModels(): Promise<OpenAI.Models.Model[]> {
@@ -138,7 +135,7 @@ export abstract class OpenAIBaseClient<
       return this.sdkInstance
     }
 
-    let apiKeyForSdkInstance = this.provider.apiKey
+    let apiKeyForSdkInstance = this.apiKey
 
     if (this.provider.id === 'copilot') {
       const defaultHeaders = store.getState().copilot.defaultHeaders
@@ -162,6 +159,7 @@ export abstract class OpenAIBaseClient<
         baseURL: this.getBaseURL(),
         defaultHeaders: {
           ...this.defaultHeaders(),
+          ...this.provider.extra_headers,
           ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
           ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
         }
