@@ -1,10 +1,8 @@
 import { CheckOutlined } from '@ant-design/icons'
+import MarqueeComponent from '@renderer/components/MarqueeComponent'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { Lightbulb } from 'lucide-react'
-import { motion } from 'motion/react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -24,7 +22,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
 
   useEffect(() => {
-    if (!isThinking && thoughtAutoCollapse) {
+    if (thoughtAutoCollapse) {
       setActiveKey('')
     } else {
       setActiveKey('thought')
@@ -58,22 +56,27 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
       expandIconPosition="end"
+      ghost
       items={[
         {
           key: 'thought',
           label: (
-            <MessageTitleLabel>
-              <motion.span
-                style={{ height: '18px' }}
-                variants={lightbulbVariants}
-                animate={isThinking ? 'active' : 'idle'}
-                initial="idle">
-                <Lightbulb size={18} />
-              </motion.span>
-              <ThinkingText>
+            <MarqueeComponent
+              expanded={activeKey === 'thought'}
+              isThinking={isThinking}
+              thinkingTimeText={
                 <ThinkingTimeSeconds blockThinkingTime={block.thinking_millsec} isThinking={isThinking} />
-              </ThinkingText>
-              {/* {isThinking && <BarLoader color="#9254de" />} */}
+              }
+              content={block.content}
+            />
+          ),
+          children: (
+            //  FIXME: 临时兼容
+            <ThinkingContent
+              style={{
+                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+                fontSize
+              }}>
               {!isThinking && (
                 <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
                   <ActionButton
@@ -88,18 +91,10 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                   </ActionButton>
                 </Tooltip>
               )}
-            </MessageTitleLabel>
-          ),
-          children: (
-            //  FIXME: 临时兼容
-            <div
-              style={{
-                fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-                fontSize
-              }}>
               <Markdown block={block} smoothStreamOutput={smoothStreamOutput} />
-            </div>
-          )
+            </ThinkingContent>
+          ),
+          showArrow: false
         }
       ]}
     />
@@ -143,18 +138,20 @@ const ThinkingTimeSeconds = memo(
 
 const CollapseContainer = styled(Collapse)`
   margin-bottom: 15px;
+  .ant-collapse-header {
+    padding: 0 !important;
+  }
+  .ant-collapse-content-box {
+    padding: 16px !important;
+    border-width: 0 0.5px 0.5px 0.5px;
+    border-style: solid;
+    border-color: var(--color-border);
+    border-radius: 0 0 12px 12px;
+  }
 `
 
-const MessageTitleLabel = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  height: 22px;
-  gap: 4px;
-`
-
-const ThinkingText = styled.span`
-  color: var(--color-text-2);
+const ThinkingContent = styled.div`
+  position: relative;
 `
 
 const ActionButton = styled.button`
@@ -169,6 +166,9 @@ const ActionButton = styled.button`
   margin-left: auto;
   opacity: 0.6;
   transition: all 0.3s;
+  position: absolute;
+  right: -12px;
+  top: -12px;
 
   &:hover {
     opacity: 1;
