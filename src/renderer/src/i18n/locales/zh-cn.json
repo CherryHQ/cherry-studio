@@ -385,6 +385,7 @@
       "cut": "剪切",
       "default": "默认",
       "delete": "删除",
+      "delete_confirm": "确定要删除吗？",
       "description": "描述",
       "docs": "文档",
       "download": "下载",
@@ -1655,6 +1656,9 @@
         "api_host": "API 地址",
         "api_key": "API 密钥",
         "api_version": "API 版本",
+        "api.key.new_key.placeholder": "输入一个或多个密钥，以空格分隔",
+        "api.key.warn.key_already_exist": "API密钥已存在",
+        "api.key.check.latency": "耗时",
         "basic_auth": "HTTP 认证",
         "basic_auth.tip": "适用于通过服务器部署的实例（参见文档）。目前仅支持 Basic 方案（RFC7617）",
         "basic_auth.user_name": "用户名",
@@ -1739,10 +1743,7 @@
           },
           "documentation": "查看官方文档了解更多配置详情：",
           "learn_more": "了解更多"
-        },
-        "enter_new_api_key": "输入新的API密钥",
-        "key_already_exists": "API密钥已存在",
-        "check_tooltip.latency": "耗时"
+        }
       },
       "proxy": {
         "mode": {

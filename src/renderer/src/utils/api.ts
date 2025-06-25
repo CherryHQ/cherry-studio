@@ -58,3 +58,13 @@ export function splitApiKeyString(keyStr: string): string[] {
     .map((k) => k.replace(/\\,/g, ','))
     .filter((k) => k)
 }
+
+/**
+ * 格式化 API key 字符串。
+ *
+ * @param {string} value - 需要格式化的 API key 字符串。
+ * @returns {string} 格式化后的 API key 字符串。
+ */
+export function formatApiKeys(value: string): string {
+  return value.replaceAll('，', ',').replaceAll(' ', ',').replaceAll(' ', '').replaceAll('\n', ',')
+}

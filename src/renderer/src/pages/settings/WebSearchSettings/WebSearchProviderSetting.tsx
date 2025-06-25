@@ -1,4 +1,5 @@
 import { ExportOutlined } from '@ant-design/icons'
+import ApiKeyList from '@renderer/components/ApiKeyList/list'
 import { getWebSearchProviderLogo, WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { WebSearchProvider } from '@renderer/types'
@@ -10,8 +11,7 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingDivider, SettingHelpLink, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
-import ApiKeyList from '../ProviderSettings/ApiKeyList'
+import { SettingDivider, SettingHelpLink, SettingSubtitle, SettingTitle } from '..'
 
 interface Props {
   provider: WebSearchProvider
@@ -88,17 +88,24 @@ const WebSearchProviderSetting: FC<Props> = ({ provider: _provider }) => {
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
       {hasObjectKey(provider, 'apiKey') && (
-        <>
-          <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-          <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="websearch" />
-          {apiKeyWebsite && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
+        <ApiKeyList
+          provider={provider}
+          apiKeys={apiKey}
+          onChange={handleApiKeyChange}
+          type="websearch"
+          title={
+            <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
+              {t('settings.provider.api_key')}
+            </SettingSubtitle>
+          }
+          footer={
+            apiKeyWebsite && (
               <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                 {t('settings.websearch.get_api_key')}
               </SettingHelpLink>
-            </SettingHelpTextRow>
-          )}
-        </>
+            )
+          }
+        />
       )}
       {hasObjectKey(provider, 'apiHost') && (
         <>

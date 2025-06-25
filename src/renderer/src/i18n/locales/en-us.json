@@ -385,6 +385,7 @@
       "cut": "Cut",
       "default": "Default",
       "delete": "Delete",
+      "delete_confirm": "Are you sure you want to delete?",
       "description": "Description",
       "docs": "Docs",
       "download": "Download",
@@ -1655,6 +1656,9 @@
         "api_host": "API Host",
         "api_key": "API Key",
         "api_version": "API Version",
+        "api.key.new_key.placeholder": "Enter one or more keys, separated by spaces",
+        "api.key.warn.key_already_exist": "API key already exists",
+        "api.key.check.latency": "Latency",
         "basic_auth": "HTTP authentication",
         "basic_auth.tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
         "basic_auth.user_name": "Username",
@@ -1739,10 +1743,7 @@
           },
           "documentation": "View official documentation for more configuration details:",
           "learn_more": "Learn More"
-        },
-        "enter_new_api_key": "Enter new API key",
-        "key_already_exists": "API key already exists",
-        "check_tooltip.latency": "Latency"
+        }
       },
       "proxy": {
         "mode": {

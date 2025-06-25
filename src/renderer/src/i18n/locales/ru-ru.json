@@ -385,6 +385,7 @@
       "cut": "Вырезать",
       "default": "По умолчанию",
       "delete": "Удалить",
+      "delete_confirm": "Вы уверены, что хотите удалить?",
       "description": "Описание",
       "docs": "Документы",
       "download": "Скачать",
@@ -1643,6 +1644,9 @@
         "api_host": "Хост API",
         "api_key": "Ключ API",
         "api_version": "Версия API",
+        "api.key.new_key.placeholder": "Введите один или несколько ключей, разделенных пробелами",
+        "api.key.warn.key_already_exist": "API ключ уже существует",
+        "api.key.check.latency": "Задержка",
         "basic_auth": "HTTP аутентификация",
         "basic_auth.tip": "Применимо к экземплярам, развернутым через сервер (см. документацию). В настоящее время поддерживается только схема Basic (RFC7617).",
         "basic_auth.user_name": "Имя пользователя",
@@ -1727,10 +1731,7 @@
           },
           "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
           "learn_more": "Узнать больше"
-        },
-        "enter_new_api_key": "Введите новый API ключ",
-        "key_already_exists": "API ключ уже существует",
-        "check_tooltip.latency": "Задержка"
+        }
       },
       "proxy": {
         "mode": {

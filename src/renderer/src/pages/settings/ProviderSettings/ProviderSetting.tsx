@@ -1,5 +1,6 @@
 import { isOpenAIProvider } from '@renderer/aiCore/clients/ApiClientFactory'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
+import ApiKeyList from '@renderer/components/ApiKeyList/list'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { HStack } from '@renderer/components/Layout'
 import { isRerankModel } from '@renderer/config/models'
@@ -10,12 +11,10 @@ import { checkModelsHealth, getModelCheckSummary } from '@renderer/services/Heal
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { Provider } from '@renderer/types'
 import { formatApiHost, splitApiKeyString } from '@renderer/utils/api'
-import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { isEmpty } from 'lodash'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { motion } from 'motion/react'
 import { FC, useCallback, useDeferredValue, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -28,7 +27,6 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiKeyList from './ApiKeyList'
 import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
@@ -252,23 +250,22 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
       {isDmxapi && <DMXAPISettings provider={provider} setApiKey={setApiKey} />}
       {provider.id !== 'vertexai' && (
         <>
-          <SettingSubtitle style={{ marginBottom: 5 }}>
-            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
-              <SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>
-            </Space>
-          </SettingSubtitle>
-          <ApiKeyList provider={provider} apiKeys={apiKey} onChange={handleApiKeyChange} type="provider" />
-          {apiKeyWebsite && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: '10px' }}>
-              <HStack>
-                {!isDmxapi && (
-                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                )}
-              </HStack>
-            </SettingHelpTextRow>
-          )}
+          <ApiKeyList
+            provider={provider}
+            apiKeys={apiKey}
+            onChange={handleApiKeyChange}
+            type="provider"
+            title={<SettingSubtitle style={{ marginTop: 0 }}>{t('settings.provider.api_key')}</SettingSubtitle>}
+            footer={
+              apiKeyWebsite &&
+              !isDmxapi && (
+                <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
+              )
+            }
+          />
+
           {!isDmxapi && (
             <>
               <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
@@ -329,14 +326,7 @@ const ProviderSetting: FC<Props> = ({ provider: _provider }) => {
                 type="text"
                 size="small"
                 onClick={onHealthCheck}
-                icon={
-                  <motion.span
-                    variants={lightbulbVariants}
-                    animate={isHealthChecking ? 'active' : 'idle'}
-                    initial="idle">
-                    <StreamlineGoodHealthAndWellBeing />
-                  </motion.span>
-                }
+                icon={<StreamlineGoodHealthAndWellBeing isActive={isHealthChecking} />}
               />
             </Tooltip>
           )}
