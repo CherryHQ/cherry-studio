@@ -1,3 +1,4 @@
+import { backupToS3, handleData } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
 import { Input, Modal, Select, Spin } from 'antd'
 import dayjs from 'dayjs'
@@ -10,74 +11,15 @@ interface BackupFile {
   size: number
 }
 
-interface S3ModalProps {
-  isModalVisible: boolean
-  handleBackup: () => void
-  handleCancel: () => void
-  backuping: boolean
-  customFileName: string
-  setCustomFileName: (value: string) => void
-}
-
 export function useS3BackupModal() {
   const [customFileName, setCustomFileName] = useState('')
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [backuping, setBackuping] = useState(false)
-  const { t } = useTranslation()
 
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      // 调用S3备份API
-      const {
-        s3: {
-          endpoint: s3Endpoint,
-          region: s3Region,
-          bucket: s3Bucket,
-          accessKeyId: s3AccessKeyId,
-          secretAccessKey: s3SecretAccessKey,
-          root: s3Root,
-          skipBackupFile: s3SkipBackupFile
-        }
-      } = (await import('@renderer/store')).default.getState().settings
-
-      const backupData = await (await import('@renderer/services/BackupService')).getBackupData()
-
-      await window.api.backup.backupToS3(backupData, {
-        endpoint: s3Endpoint,
-        region: s3Region,
-        bucket: s3Bucket,
-        access_key_id: s3AccessKeyId,
-        secret_access_key: s3SecretAccessKey,
-        root: s3Root,
-        fileName: customFileName,
-        skipBackupFile: s3SkipBackupFile
-      })
-
-      // 更新S3同步状态
-      const { setS3SyncState } = await import('@renderer/store/backup')
-      const store = (await import('@renderer/store')).default
-      store.dispatch(
-        setS3SyncState({
-          lastSyncTime: Date.now(),
-          syncing: false,
-          lastSyncError: null
-        })
-      )
-
-      window.message.success(t('settings.data.s3.backup.success'))
-    } catch (error: any) {
-      // 更新错误状态
-      const { setS3SyncState } = await import('@renderer/store/backup')
-      const store = (await import('@renderer/store')).default
-      store.dispatch(
-        setS3SyncState({
-          lastSyncError: error.message,
-          syncing: false
-        })
-      )
-
-      window.message.error(t('settings.data.s3.backup.error', { message: error.message }))
+      await backupToS3({ customFileName, showMessage: true })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)
@@ -109,6 +51,8 @@ export function useS3BackupModal() {
   }
 }
 
+type S3BackupModalProps = ReturnType<typeof useS3BackupModal>
+
 export function S3BackupModal({
   isModalVisible,
   handleBackup,
@@ -116,7 +60,7 @@ export function S3BackupModal({
   backuping,
   customFileName,
   setCustomFileName
-}: S3ModalProps) {
+}: S3BackupModalProps) {
   const { t } = useTranslation()
 
   return (
@@ -135,17 +79,6 @@ export function S3BackupModal({
       />
     </Modal>
   )
-}
-
-interface S3RestoreModalProps {
-  isRestoreModalVisible: boolean
-  handleRestore: () => void
-  handleCancel: () => void
-  restoring: boolean
-  selectedFile: string | null
-  setSelectedFile: (value: string | null) => void
-  loadingFiles: boolean
-  backupFiles: BackupFile[]
 }
 
 interface UseS3RestoreModalProps {
@@ -229,7 +162,7 @@ export function useS3RestoreModal({
             root,
             fileName: selectedFile
           })
-          await (await import('@renderer/services/BackupService')).handleData(JSON.parse(data))
+          await handleData(JSON.parse(data))
           window.message.success(t('settings.data.s3.restore.success'))
           setIsRestoreModalVisible(false)
         } catch (error: any) {
@@ -260,6 +193,8 @@ export function useS3RestoreModal({
     showRestoreModal
   }
 }
+
+type S3RestoreModalProps = ReturnType<typeof useS3RestoreModal>
 
 export function S3RestoreModal({
   isRestoreModalVisible,
@@ -292,7 +227,9 @@ export function S3RestoreModal({
           options={backupFiles.map(formatFileOption)}
           loading={loadingFiles}
           showSearch
-          filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+          filterOption={(input, option) =>
+            typeof option?.label === 'string' ? option.label.toLowerCase().includes(input.toLowerCase()) : false
+          }
         />
         {loadingFiles && (
           <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>

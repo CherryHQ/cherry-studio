@@ -299,13 +299,19 @@ export async function restoreFromWebdav(fileName?: string) {
 
 // 备份到 S3
 export async function backupToS3({
+  showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     Logger.log('[Backup] Manual backup already in progress')
     return
+  }
+
+  // force set showMessage to false when auto backup process
+  if (autoBackupProcess) {
+    showMessage = false
   }
 
   isManualBackupRunning = true
@@ -365,6 +371,7 @@ export async function backupToS3({
       timestamp: Date.now(),
       source: 'backup'
     })
+    showMessage && window.message.success({ content: i18n.t('message.backup.success'), key: 'backup' })
 
     // 清理旧备份文件
     if (s3MaxBackups > 0) {
@@ -430,6 +437,7 @@ export async function backupToS3({
     })
     store.dispatch(setS3SyncState({ lastSyncError: error.message }))
     console.error('[Backup] backupToS3: Error uploading file to S3:', error)
+    showMessage && window.message.error({ content: i18n.t('message.backup.failed'), key: 'backup' })
     throw error
   } finally {
     if (!autoBackupProcess) {
