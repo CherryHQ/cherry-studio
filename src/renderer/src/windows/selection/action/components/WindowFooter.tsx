@@ -1,6 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { CircleX, Copy, Pause, RefreshCw } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -24,6 +24,8 @@ const WindowFooter: FC<FooterProps> = ({
   const [isEscHovered, setIsEscHovered] = useState(false)
   const [isRegenerateHovered, setIsRegenerateHovered] = useState(false)
   const [isContainerHovered, setIsContainerHovered] = useState(false)
+  const [isShowMe, setIsShowMe] = useState(true)
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     window.addEventListener('focus', handleWindowFocus)
@@ -32,18 +34,49 @@ const WindowFooter: FC<FooterProps> = ({
     return () => {
       window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('blur', handleWindowBlur)
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+      }
     }
   }, [])
 
+  useEffect(() => {
+    hideTimerRef.current = setTimeout(() => {
+      setIsShowMe(false)
+      hideTimerRef.current = null
+    }, 3000)
+
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current)
+      }
+    }
+  }, [])
+
+  const showMePeriod = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current)
+    }
+
+    setIsShowMe(true)
+    hideTimerRef.current = setTimeout(() => {
+      setIsShowMe(false)
+      hideTimerRef.current = null
+    }, 2000)
+  }
+
   useHotkeys('c', () => {
+    showMePeriod()
     handleCopy()
   })
 
   useHotkeys('r', () => {
+    showMePeriod()
     handleRegenerate()
   })
 
   useHotkeys('esc', () => {
+    showMePeriod()
     handleEsc()
   })
 
@@ -107,7 +140,8 @@ const WindowFooter: FC<FooterProps> = ({
     <Container
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
-      $isHovered={isContainerHovered}>
+      $isHovered={isContainerHovered}
+      $showInitially={isShowMe}>
       <OpButtonWrapper>
         <OpButton onClick={handleEsc} $isWindowFocus={isWindowFocus} data-hovered={isEscHovered}>
           {loading ? (
@@ -144,7 +178,7 @@ const WindowFooter: FC<FooterProps> = ({
   )
 }
 
-const Container = styled.div<{ $isHovered: boolean }>`
+const Container = styled.div<{ $isHovered: boolean; $showInitially: boolean }>`
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -160,7 +194,7 @@ const Container = styled.div<{ $isHovered: boolean }>`
   height: 32px;
   backdrop-filter: blur(8px);
   border-radius: 8px;
-  opacity: 0;
+  opacity: ${(props) => (props.$showInitially ? 1 : 0)};
   transition: all 0.3s ease;
 
   &:hover {
