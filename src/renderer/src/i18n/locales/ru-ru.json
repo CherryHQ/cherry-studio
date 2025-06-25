@@ -1599,7 +1599,6 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
       "models.check.passed": "Прошло",
-      "models.check.checking": "Проверка",
       "models.check.select_api_key": "Выберите API ключ для использования:",
       "models.check.single": "Один",
       "models.check.start": "Начать",
@@ -1642,6 +1641,7 @@
         "api.url.tip": "Заканчивая на / игнорирует v1, заканчивая на # принудительно использует введенный адрес",
         "api_host": "Хост API",
         "api_key": "Ключ API",
+        "api_key.tip": "Несколько ключей, разделенных запятыми",
         "api_version": "Версия API",
         "basic_auth": "HTTP аутентификация",
         "basic_auth.tip": "Применимо к экземплярам, развернутым через сервер (см. документацию). В настоящее время поддерживается только схема Basic (RFC7617).",
@@ -1693,9 +1693,9 @@
         "get_api_key": "Получить ключ API",
         "is_not_support_array_content": "Включить совместимый режим",
         "no_models_for_check": "Нет моделей для проверки (например, диалоговые модели)",
+        "not_checked": "Не проверено",
         "remove_duplicate_keys": "Удалить дубликаты ключей",
         "remove_invalid_keys": "Удалить недействительные ключи",
-        "invalid_key": "Недействительный ключ API",
         "search": "Поиск поставщиков...",
         "search_placeholder": "Поиск по ID или имени модели",
         "title": "Провайдеры моделей",
@@ -1727,10 +1727,7 @@
           },
           "documentation": "Смотрите официальную документацию для получения более подробной информации о конфигурации:",
           "learn_more": "Узнать больше"
-        },
-        "enter_new_api_key": "Введите новый API ключ",
-        "key_already_exists": "API ключ уже существует",
-        "check_tooltip.latency": "Задержка"
+        }
       },
       "proxy": {
         "mode": {

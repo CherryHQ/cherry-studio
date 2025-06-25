@@ -1599,7 +1599,6 @@
       "models.check.model_status_summary": "{{provider}}: {{summary}}",
       "models.check.no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
       "models.check.passed": "成功",
-      "models.check.checking": "チェック中",
       "models.check.select_api_key": "使用するAPIキーを選択：",
       "models.check.single": "単一",
       "models.check.start": "開始",
@@ -1642,6 +1641,7 @@
         "api.url.tip": "/で終わる場合、v1を無視します。#で終わる場合、入力されたアドレスを強制的に使用します",
         "api_host": "APIホスト",
         "api_key": "APIキー",
+        "api_key.tip": "複数のキーはカンマで区切ります",
         "api_version": "APIバージョン",
         "basic_auth": "HTTP 認証",
         "basic_auth.tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
@@ -1693,9 +1693,9 @@
         "get_api_key": "APIキーを取得",
         "is_not_support_array_content": "互換モードを有効にする",
         "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
+        "not_checked": "未チェック",
         "remove_duplicate_keys": "重複キーを削除",
         "remove_invalid_keys": "無効なキーを削除",
-        "invalid_key": "無効なAPIキー",
         "search": "プロバイダーを検索...",
         "search_placeholder": "モデルIDまたは名前を検索",
         "title": "モデルプロバイダー",
@@ -1727,10 +1727,7 @@
           },
           "documentation": "詳細な設定については、公式ドキュメントを参照してください:",
           "learn_more": "詳細を確認"
-        },
-        "enter_new_api_key": "新しいAPIキーを入力",
-        "key_already_exists": "APIキーはすでに存在します",
-        "check_tooltip.latency": "遅延"
+        }
       },
       "proxy": {
         "mode": {
