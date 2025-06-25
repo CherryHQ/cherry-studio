@@ -1,0 +1,124 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Primary Colors - mapped from existing CSS variables */
+  --color-primary: #00b96b;
+  --color-primary-soft: #00b96b99;
+  --color-primary-mute: #00b96b33;
+
+  /* Background Colors */
+  --color-background: #ffffff;
+  --color-background-soft: rgba(0, 0, 0, 0.04);
+  --color-background-mute: #eee;
+  --color-background-opacity: rgba(235, 235, 235, 0.7);
+
+  /* Text Colors */
+  --color-text: #1b1b1f;
+  --color-text-secondary: rgba(0, 0, 0, 0.75);
+  --color-text-1: rgba(0, 0, 0, 1);
+  --color-text-2: rgba(0, 0, 0, 0.6);
+  --color-text-3: rgba(0, 0, 0, 0.38);
+
+  /* Border Colors */
+  --color-border: #00000019;
+  --color-border-soft: #00000010;
+  --color-border-mute: #00000005;
+
+  /* Icon Colors */
+  --color-icon: #00000099;
+  --color-icon-white: #000000;
+
+  /* Utility Colors */
+  --color-error: #f44336;
+  --color-link: #1677ff;
+  --color-hover: #eee;
+  --color-active: rgba(0, 0, 0, 0.04);
+
+  /* Chat Colors */
+  --chat-background: #f3f3f3;
+  --chat-background-user: #95ec69;
+  --chat-background-assistant: #ffffff;
+  --chat-text-user: #000000;
+
+  /* Navbar Colors */
+  --navbar-background-mac: rgba(255, 255, 255, 0.55);
+  --navbar-background: rgba(244, 244, 244);
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    /* Background Colors - Dark */
+    --color-background: #1a1a1a;
+    --color-background-soft: rgba(255, 255, 255, 0.04);
+    --color-background-mute: #2c2c2c;
+    --color-background-opacity: rgba(42, 42, 42, 0.7);
+
+    /* Text Colors - Dark */
+    --color-text: #ffffff;
+    --color-text-secondary: rgba(255, 255, 255, 0.75);
+    --color-text-1: rgba(255, 255, 255, 1);
+    --color-text-2: rgba(255, 255, 255, 0.6);
+    --color-text-3: rgba(255, 255, 255, 0.38);
+
+    /* Border Colors - Dark */
+    --color-border: #ffffff19;
+    --color-border-soft: #ffffff10;
+    --color-border-mute: #ffffff05;
+
+    /* Icon Colors - Dark */
+    --color-icon: #ffffff99;
+    --color-icon-white: #ffffff;
+
+    /* Utility Colors - Dark */
+    --color-hover: #2c2c2c;
+    --color-active: rgba(255, 255, 255, 0.04);
+
+    /* Chat Colors - Dark */
+    --chat-background: #111111;
+    --chat-background-user: #28b561;
+    --chat-background-assistant: #2c2c2c;
+
+    /* Navbar Colors - Dark */
+    --navbar-background-mac: rgba(42, 42, 42, 0.55);
+    --navbar-background: rgba(42, 42, 42);
+  }
+}
+
+/* Class-based dark mode for manual theme switching */
+.dark {
+  /* Background Colors - Dark */
+  --color-background: #1a1a1a;
+  --color-background-soft: rgba(255, 255, 255, 0.04);
+  --color-background-mute: #2c2c2c;
+  --color-background-opacity: rgba(42, 42, 42, 0.7);
+
+  /* Text Colors - Dark */
+  --color-text: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.75);
+  --color-text-1: rgba(255, 255, 255, 1);
+  --color-text-2: rgba(255, 255, 255, 0.6);
+  --color-text-3: rgba(255, 255, 255, 0.38);
+
+  /* Border Colors - Dark */
+  --color-border: #ffffff19;
+  --color-border-soft: #ffffff10;
+  --color-border-mute: #ffffff05;
+
+  /* Icon Colors - Dark */
+  --color-icon: #ffffff99;
+  --color-icon-white: #ffffff;
+
+  /* Utility Colors - Dark */
+  --color-hover: #2c2c2c;
+  --color-active: rgba(255, 255, 255, 0.04);
+
+  /* Chat Colors - Dark */
+  --chat-background: #111111;
+  --chat-background-user: #28b561;
+  --chat-background-assistant: #2c2c2c;
+
+  /* Navbar Colors - Dark */
+  --navbar-background-mac: rgba(42, 42, 42, 0.55);
+  --navbar-background: rgba(42, 42, 42);
+}

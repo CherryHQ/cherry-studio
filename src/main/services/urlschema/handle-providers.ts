@@ -13,7 +13,7 @@ export function handleProvidersProtocolUrl(url: URL) {
       //   "baseUrl": "https://tokenflux.ai/v1",
       //   "apiKey": "sk-xxxx"
       // }
-      // cherrystudio://providers/api-keys?data={base64Encode(JSON.stringify(jsonConfig))}
+      // neucleos-cockpit://providers/api-keys?data={base64Encode(JSON.stringify(jsonConfig))}
       const data = params.get('data')
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')

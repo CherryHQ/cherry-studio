@@ -1,3 +1,5 @@
+// @ts-ignore - Tailwind CSS v4 Vite plugin
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
@@ -45,7 +47,7 @@ export default defineConfig({
     }
   },
   renderer: {
-    plugins: [react(), ...visualizerPlugin('renderer')],
+    plugins: [react(), tailwindcss(), ...visualizerPlugin('renderer')],
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),

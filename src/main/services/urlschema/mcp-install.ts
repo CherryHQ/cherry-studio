@@ -43,7 +43,7 @@ export function handleMcpProtocolUrl(url: URL) {
       //     }
       //   }
       // }
-      // cherrystudio://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
+      // neucleos-cockpit://mcp/install?servers={base64Encode(JSON.stringify(jsonConfig))}
       const data = params.get('servers')
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')

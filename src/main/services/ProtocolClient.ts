@@ -10,22 +10,22 @@ import { handleProvidersProtocolUrl } from './urlschema/handle-providers'
 import { handleMcpProtocolUrl } from './urlschema/mcp-install'
 import { windowService } from './WindowService'
 
-export const CHERRY_STUDIO_PROTOCOL = 'cherrystudio'
+export const NEUCLEOS_COCKPIT_PROTOCOL = 'neucleos-cockpit'
 
 export function registerProtocolClient(app: Electron.App) {
   if (process.defaultApp) {
     if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL, process.execPath, [process.argv[1]])
+      app.setAsDefaultProtocolClient(NEUCLEOS_COCKPIT_PROTOCOL, process.execPath, [process.argv[1]])
     }
   }
 
-  app.setAsDefaultProtocolClient('cherrystudio')
+  app.setAsDefaultProtocolClient('neucleos-cockpit')
 }
 
 export function handleProtocolUrl(url: string) {
   if (!url) return
   // Process the URL that was used to open the app
-  // The url will be in the format: cherrystudio://data?param1=value1&param2=value2
+  // The url will be in the format: neucleos-cockpit://data?param1=value1&param2=value2
 
   // Parse the URL and extract parameters
   const urlObj = new URL(url)
@@ -53,11 +53,11 @@ export function handleProtocolUrl(url: string) {
 
 const execAsync = promisify(exec)
 
-const DESKTOP_FILE_NAME = 'cherrystudio-url-handler.desktop'
+const DESKTOP_FILE_NAME = 'neucleos-cockpit-url-handler.desktop'
 
 /**
  * Sets up deep linking for the AppImage build on Linux by creating a .desktop file.
- * This allows the OS to open cherrystudio:// URLs with this App.
+ * This allows the OS to open neucleos-cockpit:// URLs with this App.
  */
 export async function setupAppImageDeepLink(): Promise<void> {
   // Only run on Linux and when packaged as an AppImage
@@ -85,11 +85,11 @@ export async function setupAppImageDeepLink(): Promise<void> {
     // %U allows passing the URL to the application
     // NoDisplay=true hides it from the regular application menu
     const desktopFileContent = `[Desktop Entry]
-Name=Cherry Studio
+Name=neucleos Cockpit
 Exec=${escapePathForExec(appPath)} %U
 Terminal=false
 Type=Application
-MimeType=x-scheme-handler/${CHERRY_STUDIO_PROTOCOL};
+MimeType=x-scheme-handler/${NEUCLEOS_COCKPIT_PROTOCOL};
 NoDisplay=true
 `
 

@@ -1,5 +1,5 @@
-appId: com.kangfenmao.CherryStudio
-productName: Cherry Studio
+appId: com.neucleos.cockpit
+productName: neucleos Cockpit
 electronLanguages:
   - zh-CN
   - zh-TW
@@ -53,7 +53,7 @@ asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'
 win:
-  executableName: Cherry Studio
+  executableName: neucleos Cockpit
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
@@ -94,12 +94,12 @@ linux:
   category: Utility
   desktop:
     entry:
-      StartupWMClass: CherryStudio
+      StartupWMClass: neucleos-cockpit
   mimeTypes:
-    - x-scheme-handler/cherrystudio
+    - x-scheme-handler/neucleos-cockpit
 publish:
   provider: generic
-  url: https://releases.cherry-ai.com
+  url: https://releases.neucleos.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
 afterPack: scripts/after-pack.js
