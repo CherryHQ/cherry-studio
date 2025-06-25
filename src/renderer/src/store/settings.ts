@@ -360,7 +360,7 @@ export const initialState: SettingsState = {
     root: '',
     autoSync: false,
     syncInterval: 0,
-    maxBackups: 0,
+    maxBackups: 5,
     skipBackupFile: false
   }
 }

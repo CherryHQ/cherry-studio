@@ -6,7 +6,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setS3 } from '@renderer/store/settings'
+import { S3Config, setS3 } from '@renderer/store/settings'
 import { Button, Input, Select, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -15,18 +15,18 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const S3Settings: FC = () => {
-  const { s3 } = useSettings()
+  const { s3 = {} as S3Config } = useSettings()
 
   const {
-    endpoint: s3EndpointInit,
-    region: s3RegionInit,
-    bucket: s3BucketInit,
-    accessKeyId: s3AccessKeyIdInit,
-    secretAccessKey: s3SecretAccessKeyInit,
-    root: s3RootInit,
-    syncInterval: s3SyncIntervalInit,
-    maxBackups: s3MaxBackupsInit,
-    skipBackupFile: s3SkipBackupFileInit
+    endpoint: s3EndpointInit = '',
+    region: s3RegionInit = '',
+    bucket: s3BucketInit = '',
+    accessKeyId: s3AccessKeyIdInit = '',
+    secretAccessKey: s3SecretAccessKeyInit = '',
+    root: s3RootInit = '',
+    syncInterval: s3SyncIntervalInit = 0,
+    maxBackups: s3MaxBackupsInit = 5,
+    skipBackupFile: s3SkipBackupFileInit = false
   } = s3
 
   const [endpoint, setEndpoint] = useState<string | undefined>(s3EndpointInit)
