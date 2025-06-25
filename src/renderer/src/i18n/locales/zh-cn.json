@@ -1526,6 +1526,7 @@
         "registry": "包管理源",
         "registryTooltip": "选择用于安装包的源，以解决默认源的网络问题",
         "registryDefault": "默认",
+        "customRegistryPlaceholder": "请输入私有仓库地址，如: https://npm.company.com",
         "not_support": "模型不支持",
         "user": "用户",
         "system": "系统",

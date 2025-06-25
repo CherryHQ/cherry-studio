@@ -1513,6 +1513,7 @@
         "registry": "パッケージ管理レジストリ",
         "registryTooltip": "デフォルトのレジストリでネットワークの問題が発生した場合、パッケージインストールに使用するレジストリを選択してください。",
         "registryDefault": "デフォルト",
+        "customRegistryPlaceholder": "プライベート倉庫のアドレスを入力してください（例：https://npm.company.com）",
         "not_support": "モデルはサポートされていません",
         "user": "ユーザー",
         "system": "システム",
