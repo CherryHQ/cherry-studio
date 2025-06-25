@@ -412,6 +412,7 @@
       "search": "搜索",
       "select": "选择",
       "selectedMessages": "选中 {{count}} 条消息",
+      "selectedItems": "已选择 {{count}} 项",
       "success": "成功",
       "topics": "话题",
       "warning": "警告",

@@ -14,6 +14,7 @@ import { Agent, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import stringWidth from 'string-width'
@@ -150,7 +151,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       maskClosable={false}
       afterClose={onClose}
       okText={t('agents.add.title')}
-      width={800}
+      width={600}
       transitionName="animation-move-down"
       centered>
       <Form
@@ -212,6 +213,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                   .toLowerCase()
                   .includes(input.toLowerCase())
               }
+              suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
             />
           </Form.Item>
         )}

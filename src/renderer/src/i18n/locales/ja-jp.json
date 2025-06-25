@@ -412,6 +412,7 @@
       "search": "検索",
       "select": "選択",
       "selectedMessages": "{{count}}件のメッセージを選択しました",
+      "selectedItems": "{{count}}件の項目を選択しました",
       "success": "成功",
       "topics": "トピック",
       "warning": "警告",

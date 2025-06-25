@@ -412,6 +412,7 @@
       "search": "搜尋",
       "select": "選擇",
       "selectedMessages": "選中 {{count}} 條訊息",
+      "selectedItems": "已選擇 {{count}} 項",
       "success": "成功",
       "topics": "話題",
       "warning": "警告",
