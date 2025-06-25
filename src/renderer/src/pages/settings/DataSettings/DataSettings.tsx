@@ -458,7 +458,7 @@ const DataSettings: FC = () => {
           newPath,
           occupiedDirs.map((dir) => originalPath + '/' + dir)
         )
-        
+
         // 停止进度更新
         if (progressInterval) {
           clearInterval(progressInterval)
