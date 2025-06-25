@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { isMac } from '@renderer/config/constant'
+import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
@@ -1609,6 +1609,26 @@ const migrateConfig = {
         state.settings.spellCheckLanguages = []
         state.settings.upgradeChannel = UpgradeChannel.LATEST
       }
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '115': (state: RootState) => {
+    try {
+      state.assistants.assistants.forEach((assistant) => {
+        if (!assistant.settings) {
+          assistant.settings = {
+            temperature: DEFAULT_TEMPERATURE,
+            contextCount: DEFAULT_CONTEXTCOUNT,
+            topP: 1,
+            toolUseMode: 'prompt',
+            customParameters: [],
+            streamOutput: true,
+            enableMaxTokens: false
+          }
+        }
+      })
       return state
     } catch (error) {
       return state
