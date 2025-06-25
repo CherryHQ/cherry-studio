@@ -145,7 +145,7 @@ const AssistantSettings: FC = () => {
           justifyContent: 'space-between'
         }}>
         {t('settings.assistant.model_params')}
-        <Button onClick={onReset} style={{ width: 60 }}>
+        <Button onClick={onReset} style={{ width: 81 }}>
           {t('chat.settings.reset')}
         </Button>
       </SettingSubtitle>
@@ -156,7 +156,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={20}>
+        <Col span={19}>
           <Slider
             min={0}
             max={2}
@@ -167,7 +167,7 @@ const AssistantSettings: FC = () => {
             step={0.01}
           />
         </Col>
-        <Col span={4}>
+        <Col span={5}>
           <InputNumber
             min={0}
             max={2}
@@ -185,7 +185,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={20}>
+        <Col span={19}>
           <Slider
             min={0}
             max={1}
@@ -196,7 +196,7 @@ const AssistantSettings: FC = () => {
             step={0.01}
           />
         </Col>
-        <Col span={4}>
+        <Col span={5}>
           <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
         </Col>
       </Row>
@@ -207,7 +207,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={20}>
+        <Col span={19}>
           <Slider
             min={0}
             max={20}
@@ -218,7 +218,7 @@ const AssistantSettings: FC = () => {
             step={1}
           />
         </Col>
-        <Col span={4}>
+        <Col span={5}>
           <InputNumber
             min={0}
             max={20}
