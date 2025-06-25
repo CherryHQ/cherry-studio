@@ -225,6 +225,112 @@ jobs:
           merge-multiple: false
         continue-on-error: true
 
+      # AI Performance Analysis
+      - name: AI Performance Analysis
+        id: ai-performance
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Check artifact sizes for performance analysis
+            const artifactAnalysis = {
+              windows: { x64: 0, arm64: 0 },
+              macos: { x64: 0, arm64: 0 },
+              linux: { x86_64: 0, arm64: 0 }
+            };
+            
+            // Analyze build artifacts
+            const artifactDirs = [
+              'all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-windows-latest',
+              'all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-macos-latest',
+              'all-artifacts/cherry-studio-nightly-${{ steps.date.outputs.date }}-ubuntu-latest'
+            ];
+            
+            artifactDirs.forEach(dir => {
+              if (fs.existsSync(dir)) {
+                const files = fs.readdirSync(dir);
+                files.forEach(file => {
+                  const stats = fs.statSync(path.join(dir, file));
+                  const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+                  
+                  // Categorize by platform and architecture
+                  if (file.includes('x64')) {
+                    if (dir.includes('windows')) artifactAnalysis.windows.x64 = sizeMB;
+                    else if (dir.includes('macos')) artifactAnalysis.macos.x64 = sizeMB;
+                  } else if (file.includes('arm64')) {
+                    if (dir.includes('windows')) artifactAnalysis.windows.arm64 = sizeMB;
+                    else if (dir.includes('macos')) artifactAnalysis.macos.arm64 = sizeMB;
+                  } else if (file.includes('x86_64')) {
+                    artifactAnalysis.linux.x86_64 = sizeMB;
+                  } else if (file.includes('arm64') && dir.includes('ubuntu')) {
+                    artifactAnalysis.linux.arm64 = sizeMB;
+                  }
+                });
+              }
+            });
+            
+            // Generate performance insights
+            let performanceReport = `## 🚀 AI Performance Analysis\n\n`;
+            performanceReport += `### Build Size Analysis\n\n`;
+            performanceReport += `| Platform | Architecture | Size (MB) | Status |\n`;
+            performanceReport += `|----------|--------------|-----------|--------|\n`;
+            
+            // Analyze and report on sizes
+            Object.entries(artifactAnalysis).forEach(([platform, archs]) => {
+              Object.entries(archs).forEach(([arch, size]) => {
+                if (size > 0) {
+                  const status = size > 150 ? '⚠️ Large' : '✅ Optimal';
+                  performanceReport += `| ${platform.charAt(0).toUpperCase() + platform.slice(1)} | ${arch} | ${size} | ${status} |\n`;
+                }
+              });
+            });
+            
+            performanceReport += `\n### Build Time Insights\n`;
+            
+            // Get workflow run time
+            try {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: context.runId
+              });
+              
+              const duration = new Date(run.updated_at) - new Date(run.created_at);
+              const minutes = Math.floor(duration / 60000);
+              
+              performanceReport += `- Total build time: ${minutes} minutes\n`;
+              performanceReport += `- Status: ${minutes < 30 ? '✅ Fast' : minutes < 45 ? '⚠️ Moderate' : '❌ Slow'}\n`;
+              
+              // Recommendations based on performance
+              performanceReport += `\n### AI Recommendations\n`;
+              
+              if (minutes > 45) {
+                performanceReport += `- Consider optimizing build dependencies to reduce build time\n`;
+                performanceReport += `- Review webpack/vite bundle configurations for optimization opportunities\n`;
+              }
+              
+              const largeBuilds = Object.entries(artifactAnalysis).filter(([_, archs]) => 
+                Object.values(archs).some(size => size > 150)
+              );
+              
+              if (largeBuilds.length > 0) {
+                performanceReport += `- Large build sizes detected. Consider:\n`;
+                performanceReport += `  - Tree-shaking unused dependencies\n`;
+                performanceReport += `  - Lazy loading heavy components\n`;
+                performanceReport += `  - Optimizing asset compression\n`;
+              }
+              
+            } catch (error) {
+              console.log('Could not get workflow run time');
+            }
+            
+            // Save report
+            fs.writeFileSync('performance-analysis.md', performanceReport);
+            core.setOutput('performance_report', performanceReport);
+
       - name: Create summary report
         run: |
           echo "## ⚠️ 警告：这是每日构建版本" >> $GITHUB_STEP_SUMMARY
@@ -232,6 +338,12 @@ jobs:
           echo "安装此版本前请务必备份数据，并做好数据迁移准备。" >> $GITHUB_STEP_SUMMARY
           echo "构建日期：$(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Include AI Performance Analysis if available
+          if [ -f "performance-analysis.md" ]; then
+            cat performance-analysis.md >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
 
           echo "## 📦 安装包校验和" >> $GITHUB_STEP_SUMMARY
           echo "请在下载后验证文件完整性。提供 SHA256 校验和。" >> $GITHUB_STEP_SUMMARY

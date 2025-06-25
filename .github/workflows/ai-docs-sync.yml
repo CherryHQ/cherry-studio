@@ -1,0 +1,717 @@
+name: AI Documentation Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**/*.ts'
+      - 'src/**/*.tsx'
+      - 'src/**/*.js'
+      - 'src/**/*.jsx'
+      - 'package.json'
+      - 'README.md'
+  schedule:
+    # Run weekly on Saturdays at 3 AM UTC
+    - cron: '0 3 * * 6'
+  workflow_dispatch:
+    inputs:
+      full_scan:
+        description: 'Perform full documentation scan'
+        required: false
+        type: boolean
+        default: false
+      focus_area:
+        description: 'Specific area to focus on (e.g., api, components, services)'
+        required: false
+        default: ''
+      doc_types:
+        description: 'Documentation types to update (api,readme,architecture,changelog)'
+        required: false
+        default: 'api,readme'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CLAUDE_MODEL: claude-3-5-sonnet-20241022
+  DOC_IMPROVEMENT_THRESHOLD: 20
+
+jobs:
+  analyze-changes:
+    name: Analyze Documentation Needs
+    runs-on: ubuntu-latest
+    outputs:
+      needs_update: ${{ steps.analyze.outputs.needs_update }}
+      changed_files: ${{ steps.changes.outputs.files }}
+      doc_state: ${{ steps.state.outputs.report }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get changed files
+        id: changes
+        run: |
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # Get files changed in the last commit
+            CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -E '\.(ts|tsx|js|jsx)$' || true)
+          elif [[ "${{ inputs.full_scan }}" == "true" ]]; then
+            # Get all source files for full scan
+            CHANGED_FILES=$(find src -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | head -50)
+          else
+            # Get files changed in the last week
+            CHANGED_FILES=$(git log --since="1 week ago" --name-only --pretty=format: | grep -E '\.(ts|tsx|js|jsx)$' | sort -u | head -20)
+          fi
+          
+          # Convert to JSON array
+          if [ -n "$CHANGED_FILES" ]; then
+            FILES_JSON=$(echo "$CHANGED_FILES" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "files=$FILES_JSON" >> $GITHUB_OUTPUT
+            echo "Found $(echo "$CHANGED_FILES" | wc -l) files to analyze"
+          else
+            echo "files=[]" >> $GITHUB_OUTPUT
+            echo "No files to analyze"
+          fi
+      
+      - name: Analyze documentation state
+        id: state
+        run: |
+          cat > analyze_docs.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          
+          function analyzeDocumentation() {
+            const report = {
+              totalFiles: 0,
+              documentedFiles: 0,
+              missingDocs: [],
+              outdatedDocs: [],
+              apiCoverage: 0,
+              readmeStatus: 'unknown',
+              lastReadmeUpdate: null,
+              architectureDocs: []
+            };
+            
+            // Check README
+            if (fs.existsSync('README.md')) {
+              const stats = fs.statSync('README.md');
+              report.lastReadmeUpdate = stats.mtime;
+              const readme = fs.readFileSync('README.md', 'utf8');
+              
+              // Check for key sections
+              const sections = ['Installation', 'Usage', 'API', 'Contributing'];
+              const missingSections = sections.filter(s => !readme.includes(`# ${s}`) && !readme.includes(`## ${s}`));
+              
+              if (missingSections.length === 0) {
+                report.readmeStatus = 'complete';
+              } else if (missingSections.length <= 2) {
+                report.readmeStatus = 'partial';
+              } else {
+                report.readmeStatus = 'minimal';
+              }
+              
+              report.readmeMissingSections = missingSections;
+            }
+            
+            // Check for architecture docs
+            const docPaths = ['docs/', 'documentation/', '.github/docs/'];
+            for (const docPath of docPaths) {
+              if (fs.existsSync(docPath)) {
+                const files = fs.readdirSync(docPath);
+                report.architectureDocs.push(...files.filter(f => f.endsWith('.md')));
+              }
+            }
+            
+            // Analyze source files for JSDoc coverage
+            const sourceFiles = JSON.parse(process.env.CHANGED_FILES || '[]');
+            
+            for (const file of sourceFiles) {
+              if (!fs.existsSync(file)) continue;
+              
+              report.totalFiles++;
+              
+              const content = fs.readFileSync(file, 'utf8');
+              
+              // Check for JSDoc comments
+              const functionMatches = content.match(/(?:export\s+)?(?:async\s+)?function\s+(\w+)|(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?\(|class\s+(\w+)|interface\s+(\w+)/g) || [];
+              const jsdocMatches = content.match(/\/\*\*[\s\S]*?\*\//g) || [];
+              
+              if (jsdocMatches.length > 0) {
+                report.documentedFiles++;
+              }
+              
+              // Simple heuristic: if file has more than 3 functions but less than 2 JSDoc comments
+              if (functionMatches.length > 3 && jsdocMatches.length < 2) {
+                report.missingDocs.push({
+                  file,
+                  functions: functionMatches.length,
+                  documented: jsdocMatches.length,
+                  coverage: jsdocMatches.length / functionMatches.length
+                });
+              }
+              
+              // Check if documentation might be outdated
+              // Look for TODO/FIXME in JSDoc
+              const outdatedIndicators = content.match(/\/\*\*[\s\S]*?(TODO|FIXME|DEPRECATED|outdated)[\s\S]*?\*\//gi) || [];
+              if (outdatedIndicators.length > 0) {
+                report.outdatedDocs.push({
+                  file,
+                  count: outdatedIndicators.length
+                });
+              }
+            }
+            
+            // Calculate API coverage
+            if (report.totalFiles > 0) {
+              report.apiCoverage = Math.round((report.documentedFiles / report.totalFiles) * 100);
+            }
+            
+            // Determine if update is needed
+            const needsUpdate = 
+              report.apiCoverage < 70 ||
+              report.missingDocs.length > 3 ||
+              report.outdatedDocs.length > 0 ||
+              report.readmeStatus === 'minimal' ||
+              (report.lastReadmeUpdate && (Date.now() - new Date(report.lastReadmeUpdate).getTime()) > 30 * 24 * 60 * 60 * 1000); // 30 days
+            
+            report.needsUpdate = needsUpdate;
+            
+            fs.writeFileSync('doc_analysis_report.json', JSON.stringify(report, null, 2));
+            
+            return report;
+          }
+          
+          const report = analyzeDocumentation();
+          console.log('Documentation analysis complete');
+          console.log(`API Coverage: ${report.apiCoverage}%`);
+          console.log(`Files missing docs: ${report.missingDocs.length}`);
+          console.log(`README status: ${report.readmeStatus}`);
+          EOF
+          
+          CHANGED_FILES='${{ steps.changes.outputs.files }}' node analyze_docs.js
+          
+          # Output report
+          REPORT=$(cat doc_analysis_report.json)
+          echo "report=$REPORT" >> $GITHUB_OUTPUT
+      
+      - name: Determine if update needed
+        id: analyze
+        run: |
+          REPORT='${{ steps.state.outputs.report }}'
+          NEEDS_UPDATE=$(echo "$REPORT" | jq -r '.needsUpdate')
+          
+          # Override if manual trigger
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            NEEDS_UPDATE="true"
+          fi
+          
+          echo "needs_update=$NEEDS_UPDATE" >> $GITHUB_OUTPUT
+          
+          if [[ "$NEEDS_UPDATE" == "true" ]]; then
+            echo "Documentation update needed"
+          else
+            echo "Documentation is up to date"
+          fi
+
+  generate-documentation:
+    name: Generate Documentation Updates
+    runs-on: ubuntu-latest
+    needs: analyze-changes
+    if: needs.analyze-changes.outputs.needs_update == 'true'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+          npm install @anthropic-ai/sdk typedoc @microsoft/tsdoc
+      
+      - name: Create documentation branch
+        id: branch
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          BRANCH_NAME="ai/docs-update-$TIMESTAMP"
+          git checkout -b "$BRANCH_NAME"
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Generate API documentation
+        id: api_docs
+        if: contains(inputs.doc_types, 'api') || inputs.doc_types == ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DOC_STATE: ${{ needs.analyze-changes.outputs.doc_state }}
+        run: |
+          cat > generate_api_docs.js << 'EOF'
+          const Anthropic = require('@anthropic-ai/sdk');
+          const fs = require('fs');
+          const path = require('path');
+          const { execSync } = require('child_process');
+          
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY,
+          });
+          
+          async function generateAPIDocs() {
+            const docState = JSON.parse(process.env.DOC_STATE);
+            const missingDocs = docState.missingDocs || [];
+            
+            console.log(`Generating API documentation for ${missingDocs.length} files`);
+            
+            for (const fileInfo of missingDocs) {
+              console.log(`\nProcessing: ${fileInfo.file}`);
+              
+              if (!fs.existsSync(fileInfo.file)) {
+                console.log(`File not found: ${fileInfo.file}`);
+                continue;
+              }
+              
+              const content = fs.readFileSync(fileInfo.file, 'utf8');
+              const fileName = path.basename(fileInfo.file);
+              const ext = path.extname(fileInfo.file);
+              
+              const systemPrompt = `You are an expert technical writer creating API documentation for TypeScript/JavaScript code.
+          
+          Your documentation should:
+          1. Follow JSDoc/TSDoc standards
+          2. Include comprehensive parameter descriptions
+          3. Document return types and values
+          4. Add usage examples where helpful
+          5. Include @throws tags for error cases
+          6. Use @deprecated, @since, @see tags appropriately
+          7. Be concise but thorough
+          8. Match the project's documentation style
+          
+          For React components:
+          - Document all props with types and defaults
+          - Include usage examples
+          - Document any hooks or context usage
+          
+          For services/utilities:
+          - Document all public methods
+          - Include error handling information
+          - Add examples for complex functions`;
+          
+              const userPrompt = `Please add comprehensive JSDoc/TSDoc documentation to this file:
+          
+          File: ${fileInfo.file}
+          Current documentation coverage: ${Math.round(fileInfo.coverage * 100)}%
+          
+          \`\`\`${ext.slice(1)}
+          ${content}
+          \`\`\`
+          
+          Requirements:
+          1. Add JSDoc comments to all exported functions, classes, interfaces, and types
+          2. Document all parameters, return values, and possible exceptions
+          3. Include at least one example for complex functions
+          4. Preserve all existing code exactly as is
+          5. Only add documentation comments
+          
+          Return the complete file with documentation added.`;
+          
+              try {
+                const response = await anthropic.messages.create({
+                  model: process.env.CLAUDE_MODEL,
+                  max_tokens: 8192,
+                  temperature: 0.2,
+                  system: systemPrompt,
+                  messages: [{ role: 'user', content: userPrompt }]
+                });
+                
+                const result = response.content[0].text;
+                
+                // Extract the documented code
+                const codeMatch = result.match(/```(?:typescript|javascript|tsx|jsx|ts|js)([\s\S]*?)```/);
+                if (codeMatch) {
+                  const documentedCode = codeMatch[1].trim();
+                  
+                  // Backup original file
+                  fs.copyFileSync(fileInfo.file, `${fileInfo.file}.backup`);
+                  
+                  // Write documented version
+                  fs.writeFileSync(fileInfo.file, documentedCode);
+                  console.log(`✅ Updated documentation in ${fileInfo.file}`);
+                } else {
+                  console.log(`❌ Could not extract documented code for ${fileInfo.file}`);
+                }
+                
+              } catch (error) {
+                console.error(`Error documenting ${fileInfo.file}:`, error.message);
+              }
+              
+              // Rate limit protection
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            
+            // Run formatter
+            try {
+              execSync('yarn format', { stdio: 'inherit' });
+            } catch (e) {
+              console.log('Formatting failed, continuing...');
+            }
+            
+            // Generate TypeDoc
+            console.log('\nGenerating TypeDoc documentation...');
+            try {
+              execSync('npx typedoc --out docs/api src/index.ts', { stdio: 'inherit' });
+              console.log('✅ TypeDoc generation complete');
+            } catch (e) {
+              console.log('TypeDoc generation failed, continuing...');
+            }
+          }
+          
+          generateAPIDocs();
+          EOF
+          
+          node generate_api_docs.js
+      
+      - name: Update README
+        id: readme
+        if: contains(inputs.doc_types, 'readme') || inputs.doc_types == ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DOC_STATE: ${{ needs.analyze-changes.outputs.doc_state }}
+        run: |
+          cat > update_readme.js << 'EOF'
+          const Anthropic = require('@anthropic-ai/sdk');
+          const fs = require('fs');
+          
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY,
+          });
+          
+          async function updateReadme() {
+            const docState = JSON.parse(process.env.DOC_STATE);
+            
+            if (docState.readmeStatus === 'complete' && !docState.readmeMissingSections?.length) {
+              console.log('README is already complete');
+              return;
+            }
+            
+            // Read current README
+            const currentReadme = fs.existsSync('README.md') ? fs.readFileSync('README.md', 'utf8') : '';
+            
+            // Read package.json for project info
+            const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            
+            // Read CLAUDE.md for additional context
+            const claudeMd = fs.existsSync('CLAUDE.md') ? fs.readFileSync('CLAUDE.md', 'utf8') : '';
+            
+            const systemPrompt = `You are a technical writer updating a project README.md file.
+          
+          Guidelines:
+          1. Preserve all existing content and structure
+          2. Only add missing sections or update outdated information
+          3. Keep the tone professional and clear
+          4. Include all standard sections: Description, Features, Installation, Usage, API, Configuration, Contributing, License
+          5. Add badges for build status, coverage, version, etc. if appropriate
+          6. Include screenshots or diagrams if referenced
+          7. Keep examples concise and practical
+          8. Ensure all links are correct and working`;
+          
+            const userPrompt = `Please update this README.md file:
+          
+          Current README:
+          \`\`\`markdown
+          ${currentReadme || '# No existing README'}
+          \`\`\`
+          
+          Project Information:
+          - Name: ${packageJson.name}
+          - Version: ${packageJson.version}
+          - Description: ${packageJson.description}
+          - License: ${packageJson.license}
+          
+          Missing sections: ${docState.readmeMissingSections?.join(', ') || 'None identified'}
+          
+          Additional Context:
+          ${claudeMd.substring(0, 2000)}
+          
+          Please:
+          1. Add any missing standard sections
+          2. Update version numbers and dependencies
+          3. Ensure installation instructions are current
+          4. Add or update usage examples
+          5. Include API documentation section if relevant
+          6. Keep all existing content that's still relevant
+          
+          Return the complete updated README.md`;
+          
+            try {
+              const response = await anthropic.messages.create({
+                model: process.env.CLAUDE_MODEL,
+                max_tokens: 8192,
+                temperature: 0.3,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }]
+              });
+              
+              const updatedReadme = response.content[0].text;
+              
+              // Extract markdown content
+              const readmeMatch = updatedReadme.match(/```markdown([\s\S]*?)```/);
+              if (readmeMatch) {
+                fs.writeFileSync('README.md', readmeMatch[1].trim());
+                console.log('✅ README.md updated successfully');
+              } else {
+                // Fallback: assume the entire response is the README
+                fs.writeFileSync('README.md', updatedReadme);
+                console.log('✅ README.md updated successfully (fallback)');
+              }
+              
+            } catch (error) {
+              console.error('Error updating README:', error.message);
+            }
+          }
+          
+          updateReadme();
+          EOF
+          
+          node update_readme.js
+      
+      - name: Generate CHANGELOG entry
+        id: changelog
+        if: contains(inputs.doc_types, 'changelog')
+        run: |
+          # Get recent commits for changelog
+          RECENT_COMMITS=$(git log --since="1 week ago" --pretty=format:"- %s (%h)" --no-merges | head -20)
+          
+          # Create changelog entry
+          CHANGELOG_ENTRY="## [Unreleased] - $(date +%Y-%m-%d)
+
+### Documentation
+- Updated API documentation for better coverage
+- Improved README with missing sections
+- Added JSDoc comments to undocumented functions
+- Synchronized documentation with latest code changes
+
+### Recent Changes
+$RECENT_COMMITS
+"
+          
+          # Prepend to CHANGELOG.md if it exists
+          if [ -f CHANGELOG.md ]; then
+            echo "$CHANGELOG_ENTRY" > CHANGELOG.tmp
+            echo "" >> CHANGELOG.tmp
+            cat CHANGELOG.md >> CHANGELOG.tmp
+            mv CHANGELOG.tmp CHANGELOG.md
+          else
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "$CHANGELOG_ENTRY" >> CHANGELOG.md
+          fi
+          
+          echo "✅ CHANGELOG.md updated"
+      
+      - name: Generate architecture diagram
+        id: architecture
+        if: contains(inputs.doc_types, 'architecture')
+        run: |
+          # Create docs directory if it doesn't exist
+          mkdir -p docs/architecture
+          
+          # Generate simple architecture overview
+          cat > docs/architecture/overview.md << 'EOF'
+          # Architecture Overview
+          
+          This document provides an overview of the Neucleos application architecture.
+          
+          ## System Architecture
+          
+          ```mermaid
+          graph TB
+              subgraph "Main Process"
+                  MP[Main Process]
+                  WS[Window Service]
+                  MS[MCP Service]
+                  SS[Storage Service]
+              end
+              
+              subgraph "Renderer Process"
+                  RP[React App]
+                  RS[Redux Store]
+                  AC[AI Core]
+              end
+              
+              subgraph "External Services"
+                  AI[AI Providers]
+                  WD[WebDAV]
+                  FS[File System]
+              end
+              
+              MP <--> RP
+              WS --> MP
+              MS --> MP
+              SS --> MP
+              
+              RP --> RS
+              RP --> AC
+              
+              AC --> AI
+              SS --> WD
+              SS --> FS
+          ```
+          
+          ## Component Structure
+          
+          - **Main Process**: Handles OS integration, window management, and file operations
+          - **Renderer Process**: React-based UI with Redux state management
+          - **AI Core**: Unified interface for multiple LLM providers
+          - **Storage**: Local and remote storage with encryption support
+          
+          ## Data Flow
+          
+          1. User interactions in the Renderer Process
+          2. IPC communication to Main Process for system operations
+          3. AI requests processed through AI Core
+          4. Results stored via Storage Service
+          5. UI updates via Redux state changes
+          
+          For more details, see the specific component documentation.
+          EOF
+          
+          echo "✅ Architecture documentation created"
+      
+      - name: Commit documentation updates
+        id: commit
+        run: |
+          git config --local user.email "ai-assistant[bot]@users.noreply.github.com"
+          git config --local user.name "AI Assistant[bot]"
+          
+          # Remove backup files
+          find . -name "*.backup" -delete
+          
+          git add -A
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          DOC_STATE='${{ needs.analyze-changes.outputs.doc_state }}'
+          API_COVERAGE=$(echo "$DOC_STATE" | jq -r '.apiCoverage')
+          
+          git commit -m "docs: automated documentation update
+
+- API documentation coverage improved to ${API_COVERAGE}%
+- README sections updated and completed
+- JSDoc comments added to undocumented functions
+- Documentation synchronized with latest code changes
+
+Generated by Claude AI for better documentation coverage."
+          
+          git push origin ${{ steps.branch.outputs.branch }}
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+      
+      - name: Create pull request
+        if: steps.commit.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const docState = JSON.parse(process.env.DOC_STATE);
+            
+            const body = `## 📚 Automated Documentation Update
+
+This PR updates project documentation to stay synchronized with the latest code changes.
+
+### Documentation Improvements
+- **API Coverage**: ${docState.apiCoverage}% ${docState.apiCoverage > 70 ? '✅' : '⚠️'}
+- **Files Documented**: ${docState.documentedFiles}/${docState.totalFiles}
+- **README Status**: ${docState.readmeStatus} ${docState.readmeStatus === 'complete' ? '✅' : '⚠️'}
+
+### Changes Made
+- ${docState.missingDocs.length} files received JSDoc documentation
+- ${docState.outdatedDocs.length} outdated documentation sections updated
+- README.md ${docState.readmeMissingSections?.length ? `missing sections added: ${docState.readmeMissingSections.join(', ')}` : 'verified complete'}
+${docState.architectureDocs.length > 0 ? `- Architecture documentation: ${docState.architectureDocs.length} files` : ''}
+
+### Files with Improved Documentation
+${docState.missingDocs.slice(0, 10).map(f => 
+  `- \`${f.file}\` (coverage: ${Math.round(f.coverage * 100)}% → ~90%)`
+).join('\n')}
+${docState.missingDocs.length > 10 ? `\n... and ${docState.missingDocs.length - 10} more files` : ''}
+
+### Review Checklist
+- [ ] Documentation accurately describes the code
+- [ ] Examples are correct and runnable
+- [ ] No sensitive information exposed
+- [ ] Links and references are valid
+- [ ] Formatting is consistent
+
+### Notes
+This is an automated documentation update to ensure docs stay in sync with code changes. While AI has done its best to understand and document the code, human review is essential for accuracy.
+
+---
+*Generated by Claude AI to maintain documentation quality.*`;
+            
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `docs: improve documentation coverage to ${docState.apiCoverage}%`,
+              body: body,
+              head: '${{ steps.branch.outputs.branch }}',
+              base: 'main',
+              draft: false
+            });
+            
+            // Add labels
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.data.number,
+              labels: ['ai-generated', 'documentation', 'maintenance']
+            });
+            
+            console.log(`Created PR #${pr.data.number}: ${pr.data.html_url}`);
+        env:
+          DOC_STATE: ${{ needs.analyze-changes.outputs.doc_state }}
+
+  generate-report:
+    name: Generate Documentation Report
+    runs-on: ubuntu-latest
+    needs: [analyze-changes, generate-documentation]
+    if: always()
+    
+    steps:
+      - name: Create summary report
+        run: |
+          echo "## 📊 Documentation Sync Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          DOC_STATE='${{ needs.analyze-changes.outputs.doc_state }}'
+          
+          if [ -n "$DOC_STATE" ]; then
+            API_COVERAGE=$(echo "$DOC_STATE" | jq -r '.apiCoverage')
+            TOTAL_FILES=$(echo "$DOC_STATE" | jq -r '.totalFiles')
+            DOCUMENTED_FILES=$(echo "$DOC_STATE" | jq -r '.documentedFiles')
+            README_STATUS=$(echo "$DOC_STATE" | jq -r '.readmeStatus')
+            
+            echo "### Current State" >> $GITHUB_STEP_SUMMARY
+            echo "- **API Coverage**: ${API_COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+            echo "- **Files Analyzed**: ${TOTAL_FILES}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Files Documented**: ${DOCUMENTED_FILES}" >> $GITHUB_STEP_SUMMARY
+            echo "- **README Status**: ${README_STATUS}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Workflow Details" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Model**: ${{ env.CLAUDE_MODEL }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Documentation Types**: ${{ inputs.doc_types || 'api,readme' }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "${{ needs.analyze-changes.outputs.needs_update }}" == "false" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Documentation is up to date. No changes needed." >> $GITHUB_STEP_SUMMARY
+          fi

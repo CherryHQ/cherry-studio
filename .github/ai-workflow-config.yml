@@ -1,0 +1,251 @@
+# AI Workflow Configuration
+# This file contains shared configuration for AI-powered GitHub workflows
+
+# AI Model Configuration
+ai:
+  model: claude-3-5-sonnet-20241022
+  max_tokens: 8192
+  temperature: 0.3
+  
+  # Model-specific settings
+  models:
+    claude:
+      default: claude-3-5-sonnet-20241022
+      alternatives:
+        - claude-3-opus-20240229
+        - claude-3-sonnet-20240229
+    
+    # Future support for other models
+    openai:
+      default: gpt-4-turbo-preview
+      alternatives:
+        - gpt-4
+        - gpt-3.5-turbo
+
+# Cost Management
+costs:
+  # Maximum costs per workflow type (USD)
+  limits:
+    main_task: 10.00
+    pr_review: 5.00
+    issue_implementation: 15.00
+    test_generation: 20.00
+    documentation: 10.00
+  
+  # Cost estimation multipliers
+  estimation:
+    simple_task: 0.5
+    medium_task: 1.0
+    complex_task: 3.0
+  
+  # Alert thresholds
+  alerts:
+    warning_percentage: 80
+    critical_percentage: 95
+
+# Review Configuration
+review:
+  # Confidence thresholds
+  confidence:
+    auto_approve: 0.9
+    request_changes: 0.8
+    comment_only: 0.5
+  
+  # File and size limits
+  limits:
+    max_files: 50
+    max_additions: 2000
+    max_file_size: 100000  # bytes
+  
+  # Review focus areas
+  focus:
+    - security
+    - performance
+    - error_handling
+    - code_style
+    - documentation
+
+# Test Generation
+testing:
+  # Coverage targets by directory
+  coverage_targets:
+    default: 80
+    src/renderer: 85
+    src/main: 75
+    src/services: 90
+  
+  # Test types priority
+  priority:
+    - unit
+    - integration
+    - e2e
+  
+  # Framework preferences
+  frameworks:
+    unit: vitest
+    integration: vitest
+    e2e: playwright
+
+# Documentation
+documentation:
+  # Update triggers
+  triggers:
+    # Days before README is considered stale
+    readme_stale_days: 30
+    # Minimum API coverage percentage
+    min_api_coverage: 70
+    # Maximum undocumented functions
+    max_undocumented: 5
+  
+  # Documentation sections
+  required_sections:
+    readme:
+      - Description
+      - Features
+      - Installation
+      - Usage
+      - API
+      - Contributing
+      - License
+    
+    api:
+      - parameters
+      - returns
+      - examples
+      - throws
+
+# Workflow Behavior
+behavior:
+  # Branch naming
+  branches:
+    prefix: ai/
+    include_timestamp: true
+    max_length: 60
+  
+  # Commit messages
+  commits:
+    conventional: true
+    include_ai_marker: true
+    sign_off: false
+  
+  # Pull requests
+  pull_requests:
+    draft_on_test_failure: true
+    draft_on_complexity: complex
+    auto_assign_reviewers: false
+    delete_branch_on_merge: true
+
+# Security
+security:
+  # Patterns to check in code
+  forbidden_patterns:
+    - api_key
+    - password
+    - secret
+    - token
+    - private_key
+  
+  # File patterns to ignore
+  ignore_patterns:
+    - "*.test.*"
+    - "*.spec.*"
+    - "*.md"
+    - ".env.example"
+  
+  # Required security checks
+  checks:
+    - no_hardcoded_secrets
+    - input_validation
+    - error_handling
+    - secure_dependencies
+
+# Labels
+labels:
+  # Workflow labels
+  ai_generated: ai-generated
+  needs_review: needs-review
+  ai_approved: ai-approved
+  ai_changes_requested: ai-changes-requested
+  ai_implemented: ai-implemented
+  
+  # Complexity labels
+  complexity:
+    simple: "complexity:simple"
+    medium: "complexity:medium"
+    complex: "complexity:complex"
+  
+  # Type labels
+  types:
+    bug: bug
+    feature: feature
+    documentation: documentation
+    test: test
+    refactor: refactor
+
+# Notifications
+notifications:
+  # Slack webhook (if configured)
+  slack:
+    enabled: false
+    webhook_url: ""
+    notify_on:
+      - workflow_failure
+      - cost_limit_exceeded
+      - security_issue_found
+  
+  # Email notifications (via GitHub)
+  email:
+    enabled: true
+    notify_on:
+      - pr_created
+      - review_completed
+
+# Performance
+performance:
+  # Caching
+  cache:
+    enabled: true
+    ttl_minutes: 60
+    max_size_mb: 500
+  
+  # Rate limiting
+  rate_limits:
+    api_calls_per_minute: 10
+    concurrent_workflows: 3
+  
+  # Timeouts (seconds)
+  timeouts:
+    ai_request: 300
+    test_execution: 600
+    total_workflow: 1800
+
+# Monitoring
+monitoring:
+  # Metrics to track
+  metrics:
+    - cost_per_workflow
+    - success_rate
+    - average_duration
+    - coverage_improvement
+    - issues_resolved
+  
+  # Reporting
+  reports:
+    weekly_summary: true
+    monthly_analysis: true
+    cost_breakdown: true
+
+# Feature Flags
+features:
+  # Enable/disable features
+  multi_model_support: false
+  workflow_chaining: false
+  learning_mode: false
+  auto_merge: false
+  progressive_rollout: true
+  
+  # Experimental features
+  experimental:
+    semantic_search: false
+    code_explanation: false
+    architecture_analysis: false

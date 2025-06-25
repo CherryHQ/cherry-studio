@@ -1,0 +1,409 @@
+name: AI PR Review and Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to review'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  CLAUDE_MODEL: claude-3-5-sonnet-20241022
+  MAX_REVIEW_COST: 5.00
+  REVIEW_CONFIDENCE_THRESHOLD: 0.8
+
+jobs:
+  prepare-review:
+    name: Prepare PR Review Context
+    runs-on: ubuntu-latest
+    outputs:
+      should_review: ${{ steps.check.outputs.should_review }}
+      files_changed: ${{ steps.pr_info.outputs.files_changed }}
+      additions: ${{ steps.pr_info.outputs.additions }}
+      deletions: ${{ steps.pr_info.outputs.deletions }}
+      
+    steps:
+      - name: Get PR information
+        id: pr_info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr_number = context.payload.pull_request?.number || '${{ inputs.pr_number }}';
+            
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: parseInt(pr_number)
+            });
+            
+            core.setOutput('files_changed', pr.changed_files);
+            core.setOutput('additions', pr.additions);
+            core.setOutput('deletions', pr.deletions);
+            
+            // Get labels
+            const labels = pr.labels.map(l => l.name);
+            
+            // Skip AI review if labeled
+            if (labels.includes('skip-ai-review')) {
+              core.setOutput('should_review', 'false');
+              return;
+            }
+            
+            // Skip if PR is from AI
+            if (labels.includes('ai-generated')) {
+              core.setOutput('should_review', 'false');
+              return;
+            }
+            
+            // Skip draft PRs unless labeled for review
+            if (pr.draft && !labels.includes('ai-review-draft')) {
+              core.setOutput('should_review', 'false');
+              return;
+            }
+            
+            core.setOutput('should_review', 'true');
+      
+      - name: Check review conditions
+        id: check
+        run: |
+          if [[ "${{ steps.pr_info.outputs.should_review }}" == "false" ]]; then
+            echo "should_review=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Skip very large PRs
+          if [[ ${{ steps.pr_info.outputs.files_changed }} -gt 50 ]]; then
+            echo "should_review=false" >> $GITHUB_OUTPUT
+            echo "::warning::PR too large for AI review (>50 files)"
+            exit 0
+          fi
+          
+          if [[ ${{ steps.pr_info.outputs.additions }} -gt 2000 ]]; then
+            echo "should_review=false" >> $GITHUB_OUTPUT
+            echo "::warning::PR too large for AI review (>2000 additions)"
+            exit 0
+          fi
+          
+          echo "should_review=true" >> $GITHUB_OUTPUT
+
+  ai-review:
+    name: Perform AI Review
+    runs-on: ubuntu-latest
+    needs: prepare-review
+    if: needs.prepare-review.outputs.should_review == 'true'
+    
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      
+      - name: Setup review environment
+        run: |
+          # Install necessary tools
+          npm install @anthropic-ai/sdk diff2html-cli
+      
+      - name: Get PR diff
+        id: diff
+        run: |
+          # Get the diff
+          git diff origin/${{ github.base_ref }}...${{ github.event.pull_request.head.sha }} > pr.diff
+          
+          # Generate HTML diff for better readability
+          diff2html -i file -o stdout pr.diff > pr_diff.html
+          
+          # Get list of changed files
+          git diff --name-only origin/${{ github.base_ref }}...${{ github.event.pull_request.head.sha }} > changed_files.txt
+      
+      - name: Analyze changes with AI
+        id: analyze
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cat > review_pr.js << 'EOF'
+          const Anthropic = require('@anthropic-ai/sdk');
+          const fs = require('fs');
+          const path = require('path');
+          
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY,
+          });
+          
+          async function reviewPR() {
+            const diff = fs.readFileSync('pr.diff', 'utf8');
+            const changedFiles = fs.readFileSync('changed_files.txt', 'utf8').split('\n').filter(f => f);
+            
+            // Read CLAUDE.md for project context
+            let projectContext = '';
+            try {
+              projectContext = fs.readFileSync('CLAUDE.md', 'utf8');
+            } catch (e) {
+              console.log('No CLAUDE.md found');
+            }
+            
+            const systemPrompt = `You are an expert code reviewer for the Neucleos project. Your role is to:
+          
+          1. Review code changes for quality, security, and best practices
+          2. Identify potential bugs, performance issues, or security vulnerabilities
+          3. Suggest improvements while being constructive and specific
+          4. Verify changes align with project standards and architecture
+          5. Check for proper error handling and edge cases
+          
+          Project Context:
+          ${projectContext}
+          
+          Provide reviews in this format:
+          - Overall Assessment: (approve/request-changes/comment)
+          - Confidence Score: (0-1)
+          - Summary: Brief overview
+          - Issues Found: List of specific issues with severity (high/medium/low)
+          - Suggestions: Specific improvements
+          - Security Concerns: Any security issues found
+          - Positive Aspects: What was done well`;
+          
+            const userPrompt = `Please review this pull request:
+          
+          Changed files: ${changedFiles.join(', ')}
+          
+          Diff:
+          ${diff.substring(0, 30000)} ${diff.length > 30000 ? '... (truncated)' : ''}
+          
+          Focus on:
+          1. Code quality and maintainability
+          2. Security vulnerabilities
+          3. Performance implications
+          4. Error handling
+          5. Test coverage needs
+          6. Documentation requirements`;
+          
+            try {
+              const response = await anthropic.messages.create({
+                model: process.env.CLAUDE_MODEL,
+                max_tokens: 4096,
+                temperature: 0.3,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }]
+              });
+              
+              const review = response.content[0].text;
+              
+              // Parse the review
+              const assessmentMatch = review.match(/Overall Assessment:\s*(approve|request-changes|comment)/i);
+              const confidenceMatch = review.match(/Confidence Score:\s*([\d.]+)/i);
+              
+              const assessment = assessmentMatch ? assessmentMatch[1].toLowerCase() : 'comment';
+              const confidence = confidenceMatch ? parseFloat(confidenceMatch[1]) : 0.5;
+              
+              // Extract different sections
+              const sections = {
+                summary: review.match(/Summary:([\s\S]*?)(?=Issues Found:|$)/i)?.[1]?.trim() || '',
+                issues: review.match(/Issues Found:([\s\S]*?)(?=Suggestions:|$)/i)?.[1]?.trim() || '',
+                suggestions: review.match(/Suggestions:([\s\S]*?)(?=Security Concerns:|$)/i)?.[1]?.trim() || '',
+                security: review.match(/Security Concerns:([\s\S]*?)(?=Positive Aspects:|$)/i)?.[1]?.trim() || '',
+                positive: review.match(/Positive Aspects:([\s\S]*?)$/i)?.[1]?.trim() || ''
+              };
+              
+              // Save review
+              fs.writeFileSync('review_result.json', JSON.stringify({
+                assessment,
+                confidence,
+                sections,
+                fullReview: review,
+                usage: response.usage,
+                model: response.model
+              }, null, 2));
+              
+              // Generate line-specific comments
+              const lineComments = [];
+              
+              // Simple pattern matching for common issues
+              const diffLines = diff.split('\n');
+              for (let i = 0; i < diffLines.length; i++) {
+                const line = diffLines[i];
+                
+                // Check for console.log in production code
+                if (line.startsWith('+') && line.includes('console.log') && !changedFiles.some(f => f.includes('test'))) {
+                  lineComments.push({
+                    path: changedFiles[0], // Simplified - in production, track actual file
+                    line: i,
+                    body: 'Consider removing console.log from production code'
+                  });
+                }
+                
+                // Check for hardcoded secrets
+                if (line.startsWith('+') && line.match(/api[_-]?key|password|secret/i) && line.includes('=')) {
+                  lineComments.push({
+                    path: changedFiles[0],
+                    line: i,
+                    body: '⚠️ Potential hardcoded secret detected. Use environment variables instead.'
+                  });
+                }
+                
+                // Check for TODO comments
+                if (line.startsWith('+') && line.match(/TODO|FIXME|HACK/i)) {
+                  lineComments.push({
+                    path: changedFiles[0],
+                    line: i,
+                    body: 'TODO comment found. Consider creating an issue to track this.'
+                  });
+                }
+              }
+              
+              fs.writeFileSync('line_comments.json', JSON.stringify(lineComments, null, 2));
+              
+              console.log(`Review complete: ${assessment} (confidence: ${confidence})`);
+              
+            } catch (error) {
+              console.error('Error reviewing PR:', error);
+              process.exit(1);
+            }
+          }
+          
+          reviewPR();
+          EOF
+          
+          node review_pr.js
+      
+      - name: Post review comments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const review = JSON.parse(fs.readFileSync('review_result.json', 'utf8'));
+            const lineComments = JSON.parse(fs.readFileSync('line_comments.json', 'utf8'));
+            
+            const pr_number = context.payload.pull_request?.number || '${{ inputs.pr_number }}';
+            
+            // Check confidence threshold
+            if (review.confidence < parseFloat(process.env.REVIEW_CONFIDENCE_THRESHOLD)) {
+              console.log('Confidence too low, posting as comment only');
+              review.assessment = 'comment';
+            }
+            
+            // Prepare review body
+            let body = `## 🤖 AI Code Review\n\n`;
+            body += `**Assessment:** ${review.assessment}\n`;
+            body += `**Confidence:** ${(review.confidence * 100).toFixed(0)}%\n\n`;
+            
+            if (review.sections.summary) {
+              body += `### Summary\n${review.sections.summary}\n\n`;
+            }
+            
+            if (review.sections.issues && review.sections.issues !== 'None' && review.sections.issues !== 'N/A') {
+              body += `### 🔍 Issues Found\n${review.sections.issues}\n\n`;
+            }
+            
+            if (review.sections.suggestions && review.sections.suggestions !== 'None' && review.sections.suggestions !== 'N/A') {
+              body += `### 💡 Suggestions\n${review.sections.suggestions}\n\n`;
+            }
+            
+            if (review.sections.security && review.sections.security !== 'None' && review.sections.security !== 'N/A') {
+              body += `### 🔒 Security Concerns\n${review.sections.security}\n\n`;
+            }
+            
+            if (review.sections.positive && review.sections.positive !== 'None' && review.sections.positive !== 'N/A') {
+              body += `### ✅ Positive Aspects\n${review.sections.positive}\n\n`;
+            }
+            
+            body += `---\n`;
+            body += `*This review was generated by Claude (${process.env.CLAUDE_MODEL}). `;
+            body += `While AI can catch many issues, human review is still essential.*`;
+            
+            // Map assessment to GitHub review event
+            const eventMap = {
+              'approve': 'APPROVE',
+              'request-changes': 'REQUEST_CHANGES',
+              'comment': 'COMMENT'
+            };
+            
+            try {
+              // Create the review
+              const reviewResponse = await github.rest.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: parseInt(pr_number),
+                body: body,
+                event: eventMap[review.assessment] || 'COMMENT',
+                comments: lineComments.slice(0, 10) // Limit line comments
+              });
+              
+              console.log(`Review posted: ${reviewResponse.data.html_url}`);
+              
+              // Add label based on assessment
+              if (review.assessment === 'approve') {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(pr_number),
+                  labels: ['ai-approved']
+                });
+              } else if (review.assessment === 'request-changes') {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(pr_number),
+                  labels: ['ai-changes-requested']
+                });
+              }
+              
+            } catch (error) {
+              console.error('Error posting review:', error);
+              
+              // Fall back to posting as comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(pr_number),
+                body: body
+              });
+            }
+      
+      - name: Update PR status check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = JSON.parse(require('fs').readFileSync('review_result.json', 'utf8'));
+            
+            const pr_number = context.payload.pull_request?.number || '${{ inputs.pr_number }}';
+            
+            // Create status check
+            const state = review.assessment === 'approve' ? 'success' : 
+                         review.assessment === 'request-changes' ? 'failure' : 'neutral';
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request?.head.sha || context.sha,
+              state: state,
+              target_url: `${context.payload.pull_request?.html_url || ''}#issuecomment-new`,
+              description: `AI review: ${review.assessment} (${(review.confidence * 100).toFixed(0)}% confidence)`,
+              context: 'ai-review/claude'
+            });
+
+  monitor-costs:
+    name: Monitor Review Costs
+    runs-on: ubuntu-latest
+    needs: ai-review
+    if: always()
+    
+    steps:
+      - name: Calculate and report costs
+        run: |
+          echo "## AI Review Cost Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** ${{ env.CLAUDE_MODEL }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Estimated Cost:** < $0.50 USD" >> $GITHUB_STEP_SUMMARY
+          echo "**Cost Limit:** ${{ env.MAX_REVIEW_COST }} USD" >> $GITHUB_STEP_SUMMARY
+          
+          # In production, track actual token usage and costs

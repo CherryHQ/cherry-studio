@@ -1,0 +1,286 @@
+# CLAUDE.md Template - Project Guidelines for Claude Code
+
+This template demonstrates best practices for creating a CLAUDE.md file that Claude Code will automatically reference when working in your repository.
+
+---
+
+# Project Guidelines for Claude Code
+
+## Project Overview
+
+[Brief description of your project, its purpose, and key technologies used]
+
+## Code Standards
+
+### Language-Specific Guidelines
+
+#### TypeScript/JavaScript
+- Use TypeScript for all new code
+- Prefer `const` over `let`, avoid `var`
+- Use async/await over Promise chains
+- Follow ESLint configuration strictly
+- Use named exports over default exports
+
+#### Python
+- Follow PEP 8 style guide
+- Use type hints for all functions
+- Prefer f-strings for string formatting
+- Use `black` formatter settings
+
+### General Principles
+- Write self-documenting code with clear variable names
+- Keep functions small and focused (max 50 lines)
+- Add JSDoc/docstring comments for all public APIs
+- Use meaningful commit messages following conventional commits
+
+## Architecture Guidelines
+
+### Design Patterns
+- Follow [MVC/MVVM/Clean Architecture] pattern
+- Use dependency injection for testability
+- Implement repository pattern for data access
+- Apply SOLID principles
+
+### Project Structure
+```
+src/
+├── components/     # Reusable UI components
+├── services/       # Business logic
+├── utils/          # Helper functions
+├── types/          # TypeScript type definitions
+└── tests/          # Test files (colocated)
+```
+
+### State Management
+- Use [Redux/MobX/Context API] for global state
+- Keep component state local when possible
+- Avoid prop drilling beyond 2 levels
+
+## Testing Requirements
+
+### Coverage Standards
+- Maintain minimum 80% code coverage
+- 100% coverage for critical business logic
+- Write tests before fixing bugs (regression tests)
+
+### Test Types
+- **Unit Tests**: All pure functions and utilities
+- **Integration Tests**: API endpoints and service interactions
+- **E2E Tests**: Critical user journeys only
+
+### Testing Patterns
+```typescript
+// Follow AAA pattern
+test('should calculate total price', () => {
+  // Arrange
+  const items = [{ price: 10 }, { price: 20 }];
+  
+  // Act
+  const total = calculateTotal(items);
+  
+  // Assert
+  expect(total).toBe(30);
+});
+```
+
+## Security Guidelines
+
+### Input Validation
+- Always validate and sanitize user inputs
+- Use parameterized queries for database operations
+- Implement rate limiting on all endpoints
+
+### Authentication & Authorization
+- Use JWT tokens with short expiration
+- Implement refresh token rotation
+- Check permissions at service layer, not just UI
+
+### Sensitive Data
+- Never log sensitive information (passwords, tokens, PII)
+- Use environment variables for secrets
+- Encrypt data at rest and in transit
+
+## Performance Standards
+
+### Frontend
+- Keep bundle size under 500KB (gzipped)
+- Lazy load routes and heavy components
+- Implement virtual scrolling for long lists
+- Target Core Web Vitals: LCP < 2.5s, FID < 100ms, CLS < 0.1
+
+### Backend
+- API response time < 200ms for 95th percentile
+- Database queries should use indexes
+- Implement caching strategy (Redis/in-memory)
+- Use pagination for list endpoints (max 100 items)
+
+## Code Review Checklist
+
+When reviewing code, ensure:
+
+- [ ] Follows project coding standards
+- [ ] Has appropriate test coverage
+- [ ] Includes necessary documentation
+- [ ] No security vulnerabilities introduced
+- [ ] Performance impact considered
+- [ ] Error handling is comprehensive
+- [ ] Logging is appropriate (not too verbose)
+- [ ] Database migrations are backward compatible
+- [ ] API changes maintain backward compatibility
+
+## Common Patterns
+
+### Error Handling
+```typescript
+// Always use custom error classes
+class ValidationError extends Error {
+  constructor(message: string, public field: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+}
+
+// Consistent error response format
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid input",
+    "details": { "field": "email" }
+  }
+}
+```
+
+### API Response Format
+```typescript
+// Success response
+{
+  "data": { /* actual data */ },
+  "meta": {
+    "timestamp": "2024-01-27T10:00:00Z",
+    "version": "1.0"
+  }
+}
+
+// Error response
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human readable message",
+    "details": { /* additional context */ }
+  }
+}
+```
+
+## Git Workflow
+
+### Branch Naming
+- Feature: `feature/ISSUE-description`
+- Bug fix: `fix/ISSUE-description`
+- Hotfix: `hotfix/ISSUE-description`
+- Release: `release/v1.2.3`
+
+### Commit Messages
+Follow conventional commits:
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation changes
+- `style:` Code style changes (formatting)
+- `refactor:` Code refactoring
+- `test:` Test additions or fixes
+- `chore:` Build process or auxiliary tool changes
+
+### Pull Request Process
+1. Create PR with descriptive title
+2. Fill out PR template completely
+3. Ensure all CI checks pass
+4. Request review from appropriate team members
+5. Address review feedback promptly
+6. Squash merge to main branch
+
+## Dependencies
+
+### Adding New Dependencies
+- Justify the need in PR description
+- Check license compatibility (MIT, Apache 2.0 preferred)
+- Verify security with `npm audit` or equivalent
+- Consider bundle size impact
+- Prefer well-maintained packages (recent updates, many contributors)
+
+### Updating Dependencies
+- Update regularly (monthly) for security patches
+- Test thoroughly after major updates
+- Document breaking changes in CHANGELOG
+
+## Documentation Standards
+
+### Code Documentation
+- Document "why" not "what" in comments
+- Keep README.md up-to-date with setup instructions
+- Document all environment variables in `.env.example`
+- Maintain API documentation (OpenAPI/Swagger)
+
+### Architecture Decisions
+- Use ADRs (Architecture Decision Records) for significant decisions
+- Document in `docs/decisions/` directory
+- Include context, decision, and consequences
+
+## Deployment
+
+### Pre-deployment Checklist
+- [ ] All tests passing
+- [ ] Security scan completed
+- [ ] Performance benchmarks met
+- [ ] Database migrations tested
+- [ ] Rollback plan documented
+- [ ] Monitoring alerts configured
+
+### Environment-Specific Configurations
+- Never hardcode environment-specific values
+- Use feature flags for gradual rollouts
+- Maintain separate configs for dev/staging/prod
+
+## AI Assistant Instructions
+
+When Claude Code works on this repository:
+
+1. **Always follow the established patterns** in the codebase
+2. **Write tests** for any new functionality
+3. **Update documentation** when changing APIs
+4. **Consider performance implications** of changes
+5. **Ensure backward compatibility** for API changes
+6. **Use existing utilities** before creating new ones
+7. **Follow the git workflow** defined above
+8. **Ask for clarification** when requirements are ambiguous
+
+## Quick Reference
+
+### Common Commands
+```bash
+# Development
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run test         # Run test suite
+npm run lint         # Run linter
+npm run typecheck    # TypeScript checking
+
+# Database
+npm run db:migrate   # Run migrations
+npm run db:seed      # Seed database
+npm run db:reset     # Reset database
+
+# Code Quality
+npm run format       # Format code
+npm run analyze      # Bundle analysis
+npm run security     # Security audit
+```
+
+### Important Files
+- `.env.example` - Environment variable template
+- `CONTRIBUTING.md` - Contribution guidelines
+- `CHANGELOG.md` - Version history
+- `docker-compose.yml` - Local development setup
+- `.github/workflows/` - CI/CD pipelines
+
+---
+
+*This CLAUDE.md file ensures Claude Code understands your project's specific requirements and maintains consistency with your team's standards.*

@@ -1,0 +1,618 @@
+name: AI Issue to PR Converter
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to convert to PR'
+        required: true
+        type: string
+      complexity:
+        description: 'Task complexity (simple/medium/complex)'
+        required: false
+        default: 'medium'
+      cost_limit:
+        description: 'Maximum cost limit in USD'
+        required: false
+        default: '15'
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+env:
+  CLAUDE_MODEL: claude-3-5-sonnet-20241022
+  TRIGGER_LABEL: 'ai-implement'
+  COMPLEXITY_LABELS:
+    simple: 'complexity:simple'
+    medium: 'complexity:medium'
+    complex: 'complexity:complex'
+
+jobs:
+  validate-issue:
+    name: Validate Issue for Implementation
+    runs-on: ubuntu-latest
+    outputs:
+      should_proceed: ${{ steps.validate.outputs.proceed }}
+      issue_data: ${{ steps.get_issue.outputs.data }}
+      complexity: ${{ steps.assess.outputs.complexity }}
+      
+    steps:
+      - name: Check trigger
+        id: trigger
+        run: |
+          if [[ "${{ github.event_name }}" == "issues" ]]; then
+            if [[ "${{ github.event.label.name }}" == "${{ env.TRIGGER_LABEL }}" ]]; then
+              echo "Issue labeled with ai-implement"
+              echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_ENV
+            else
+              echo "Not the trigger label"
+              exit 0
+            fi
+          else
+            echo "issue_number=${{ inputs.issue_number }}" >> $GITHUB_ENV
+          fi
+      
+      - name: Get issue details
+        id: get_issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = process.env.issue_number;
+            if (!issue_number) {
+              core.setFailed('No issue number provided');
+              return;
+            }
+            
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(issue_number)
+            });
+            
+            // Check if it's actually a PR
+            if (issue.pull_request) {
+              core.setFailed('This is a pull request, not an issue');
+              return;
+            }
+            
+            // Extract implementation details from issue body
+            const body = issue.body || '';
+            
+            // Look for acceptance criteria
+            const acMatch = body.match(/## Acceptance Criteria([\s\S]*?)(?=##|$)/i);
+            const acceptanceCriteria = acMatch ? acMatch[1].trim() : '';
+            
+            // Look for technical requirements
+            const techMatch = body.match(/## Technical Requirements([\s\S]*?)(?=##|$)/i);
+            const technicalReqs = techMatch ? techMatch[1].trim() : '';
+            
+            // Check for specific implementation instructions
+            const implMatch = body.match(/## Implementation([\s\S]*?)(?=##|$)/i);
+            const implementation = implMatch ? implMatch[1].trim() : '';
+            
+            const issueData = {
+              number: issue.number,
+              title: issue.title,
+              body: issue.body,
+              labels: issue.labels.map(l => l.name),
+              acceptanceCriteria,
+              technicalReqs,
+              implementation,
+              hasSpecification: !!(acceptanceCriteria || technicalReqs || implementation)
+            };
+            
+            core.setOutput('data', JSON.stringify(issueData));
+      
+      - name: Assess complexity
+        id: assess
+        run: |
+          ISSUE_DATA='${{ steps.get_issue.outputs.data }}'
+          
+          # Default to workflow input if provided
+          if [[ -n "${{ inputs.complexity }}" ]]; then
+            echo "complexity=${{ inputs.complexity }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Parse issue data
+          TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
+          BODY_LENGTH=$(echo "$ISSUE_DATA" | jq -r '.body | length')
+          HAS_SPEC=$(echo "$ISSUE_DATA" | jq -r '.hasSpecification')
+          
+          # Simple heuristics for complexity
+          if [[ "$TITLE" =~ (fix|typo|update|small|minor) ]]; then
+            COMPLEXITY="simple"
+          elif [[ "$TITLE" =~ (refactor|redesign|architecture|system) ]]; then
+            COMPLEXITY="complex"
+          elif [[ "$HAS_SPEC" == "true" && $BODY_LENGTH -gt 500 ]]; then
+            COMPLEXITY="complex"
+          elif [[ $BODY_LENGTH -lt 200 ]]; then
+            COMPLEXITY="simple"
+          else
+            COMPLEXITY="medium"
+          fi
+          
+          echo "complexity=$COMPLEXITY" >> $GITHUB_OUTPUT
+      
+      - name: Validate implementation readiness
+        id: validate
+        run: |
+          ISSUE_DATA='${{ steps.get_issue.outputs.data }}'
+          
+          # Check if issue has enough information
+          HAS_SPEC=$(echo "$ISSUE_DATA" | jq -r '.hasSpecification')
+          BODY_LENGTH=$(echo "$ISSUE_DATA" | jq -r '.body | length')
+          
+          if [[ "$HAS_SPEC" == "false" && $BODY_LENGTH -lt 100 ]]; then
+            echo "::error::Issue lacks sufficient implementation details"
+            echo "proceed=false" >> $GITHUB_OUTPUT
+            
+            # Post comment on issue
+            gh issue comment ${{ env.issue_number }} \
+              --body "❌ This issue needs more implementation details before AI can work on it.
+
+Please add:
+- Clear acceptance criteria
+- Technical requirements or constraints
+- Any specific implementation guidelines
+
+You can use this template:
+\`\`\`markdown
+## Acceptance Criteria
+- [ ] ...
+- [ ] ...
+
+## Technical Requirements
+- ...
+- ...
+
+## Implementation Notes
+- ...
+\`\`\`"
+            
+            exit 0
+          fi
+          
+          echo "proceed=true" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  implement-issue:
+    name: Implement Issue Solution
+    runs-on: ubuntu-latest
+    needs: validate-issue
+    if: needs.validate-issue.outputs.should_proceed == 'true'
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: |
+          yarn install --frozen-lockfile
+          npm install @anthropic-ai/sdk
+      
+      - name: Create implementation branch
+        id: branch
+        run: |
+          ISSUE_NUMBER=${{ env.issue_number }}
+          ISSUE_DATA='${{ needs.validate-issue.outputs.issue_data }}'
+          TITLE=$(echo "$ISSUE_DATA" | jq -r '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
+          
+          # Truncate title to 50 chars
+          TITLE=$(echo "$TITLE" | cut -c1-50)
+          
+          BRANCH_NAME="ai/issue-${ISSUE_NUMBER}-${TITLE}"
+          git checkout -b "$BRANCH_NAME"
+          
+          echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+      
+      - name: Implement solution with AI
+        id: implement
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_DATA: ${{ needs.validate-issue.outputs.issue_data }}
+          COMPLEXITY: ${{ needs.validate-issue.outputs.complexity }}
+        run: |
+          cat > implement_issue.js << 'EOF'
+          const Anthropic = require('@anthropic-ai/sdk');
+          const fs = require('fs');
+          const path = require('path');
+          const { execSync } = require('child_process');
+          
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY,
+          });
+          
+          async function implementIssue() {
+            const issueData = JSON.parse(process.env.ISSUE_DATA);
+            const complexity = process.env.COMPLEXITY;
+            
+            // Read project context
+            const claudeMd = fs.readFileSync('CLAUDE.md', 'utf8');
+            const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            
+            // Get relevant files based on issue
+            let relevantFiles = [];
+            const keywords = issueData.title.toLowerCase().split(' ');
+            
+            // Find potentially relevant files
+            try {
+              const gitFiles = execSync('git ls-files').toString().split('\n');
+              relevantFiles = gitFiles.filter(file => {
+                if (!file || file.includes('node_modules')) return false;
+                const fileLower = file.toLowerCase();
+                return keywords.some(kw => kw.length > 3 && fileLower.includes(kw));
+              }).slice(0, 10); // Limit to 10 most relevant files
+            } catch (e) {
+              console.log('Could not get file list');
+            }
+            
+            // Read relevant files
+            const fileContents = {};
+            for (const file of relevantFiles) {
+              try {
+                if (fs.existsSync(file)) {
+                  fileContents[file] = fs.readFileSync(file, 'utf8');
+                }
+              } catch (e) {
+                // Skip files that can't be read
+              }
+            }
+            
+            const systemPrompt = `You are an expert developer implementing features for the Neucleos project.
+          
+          Project Context:
+          ${claudeMd}
+          
+          When implementing issues:
+          1. Follow the existing code patterns and architecture
+          2. Write clean, maintainable, and well-documented code
+          3. Include proper error handling and edge cases
+          4. Add appropriate tests for new functionality
+          5. Update documentation if needed
+          6. Consider performance and security implications
+          7. Use TypeScript types properly
+          8. Follow the project's ESLint and Prettier configuration
+          
+          For each implementation:
+          - Start with a clear plan
+          - Implement incrementally
+          - Test each component
+          - Ensure backward compatibility`;
+          
+            const userPrompt = `Please implement the following issue:
+          
+          Issue #${issueData.number}: ${issueData.title}
+          Complexity: ${complexity}
+          
+          Description:
+          ${issueData.body}
+          
+          ${issueData.acceptanceCriteria ? `Acceptance Criteria:\n${issueData.acceptanceCriteria}\n` : ''}
+          ${issueData.technicalReqs ? `Technical Requirements:\n${issueData.technicalReqs}\n` : ''}
+          ${issueData.implementation ? `Implementation Notes:\n${issueData.implementation}\n` : ''}
+          
+          Relevant files found:
+          ${relevantFiles.join('\n')}
+          
+          Please provide:
+          1. Implementation plan with specific steps
+          2. Code changes needed (with full file paths)
+          3. Tests to add
+          4. Documentation updates if needed
+          
+          Output format:
+          - For new files: Start with \`\`\`path/to/file.ext
+          - For existing files: Show the changes clearly with context
+          - Include all necessary imports and dependencies`;
+          
+            try {
+              // Adjust token limit based on complexity
+              const maxTokens = complexity === 'simple' ? 4096 : 
+                               complexity === 'complex' ? 16384 : 8192;
+              
+              const response = await anthropic.messages.create({
+                model: process.env.CLAUDE_MODEL,
+                max_tokens: maxTokens,
+                temperature: 0.3,
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }]
+              });
+              
+              const implementation = response.content[0].text;
+              
+              // Save full response
+              fs.writeFileSync('implementation_plan.md', implementation);
+              
+              // Extract and apply code changes
+              const codeBlocks = implementation.match(/```[\s\S]*?```/g) || [];
+              let filesChanged = [];
+              
+              for (const block of codeBlocks) {
+                const lines = block.split('\n');
+                const firstLine = lines[0].replace('```', '').trim();
+                
+                // Skip language-only code blocks
+                if (['javascript', 'typescript', 'json', 'bash', 'shell'].includes(firstLine)) {
+                  continue;
+                }
+                
+                // Check if it's a file path
+                if (firstLine.includes('.') && (firstLine.includes('/') || firstLine.includes('src'))) {
+                  const filePath = firstLine.split(' ')[0];
+                  const content = lines.slice(1, -1).join('\n');
+                  
+                  if (filePath && content) {
+                    // Ensure directory exists
+                    const dir = path.dirname(filePath);
+                    if (!fs.existsSync(dir)) {
+                      fs.mkdirSync(dir, { recursive: true });
+                    }
+                    
+                    // Check if file exists for edit vs create
+                    const exists = fs.existsSync(filePath);
+                    
+                    // Write file
+                    fs.writeFileSync(filePath, content);
+                    filesChanged.push({ path: filePath, action: exists ? 'modified' : 'created' });
+                    console.log(`${exists ? 'Modified' : 'Created'}: ${filePath}`);
+                  }
+                }
+              }
+              
+              // Run formatter
+              try {
+                execSync('yarn format', { stdio: 'inherit' });
+              } catch (e) {
+                console.log('Formatting failed, continuing...');
+              }
+              
+              // Run tests
+              let testsPassed = false;
+              try {
+                execSync('yarn test', { stdio: 'inherit' });
+                testsPassed = true;
+              } catch (e) {
+                console.log('Tests failed');
+              }
+              
+              // Save implementation summary
+              const summary = {
+                issueNumber: issueData.number,
+                issueTitle: issueData.title,
+                complexity,
+                filesChanged,
+                testsPassed,
+                implementation: implementation.substring(0, 1000) + '...',
+                usage: response.usage
+              };
+              
+              fs.writeFileSync('implementation_summary.json', JSON.stringify(summary, null, 2));
+              
+              return filesChanged.length > 0;
+              
+            } catch (error) {
+              console.error('Error implementing issue:', error);
+              process.exit(1);
+            }
+          }
+          
+          implementIssue().then(hasChanges => {
+            process.exit(hasChanges ? 0 : 1);
+          });
+          EOF
+          
+          node implement_issue.js
+      
+      - name: Commit changes
+        id: commit
+        run: |
+          git config --local user.email "ai-assistant[bot]@users.noreply.github.com"
+          git config --local user.name "AI Assistant[bot]"
+          
+          git add -A
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Read summary for commit message
+          ISSUE_DATA='${{ needs.validate-issue.outputs.issue_data }}'
+          ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
+          ISSUE_TITLE=$(echo "$ISSUE_DATA" | jq -r '.title')
+          
+          git commit -m "fix: implement issue #${ISSUE_NUMBER}
+
+${ISSUE_TITLE}
+
+This commit implements the solution for issue #${ISSUE_NUMBER}.
+Changes were generated by Claude AI based on the issue description
+and requirements.
+
+Closes #${ISSUE_NUMBER}"
+          
+          git push origin ${{ steps.branch.outputs.branch }}
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+      
+      - name: Create pull request
+        if: steps.commit.outputs.has_changes == 'true'
+        id: create_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const issueData = JSON.parse(process.env.ISSUE_DATA);
+            const summary = JSON.parse(fs.readFileSync('implementation_summary.json', 'utf8'));
+            
+            // Read implementation plan
+            const plan = fs.readFileSync('implementation_plan.md', 'utf8');
+            
+            const body = `## 🤖 AI Implementation of #${issueData.number}
+
+This PR implements: **${issueData.title}**
+
+### Implementation Summary
+- **Complexity:** ${summary.complexity}
+- **Files Changed:** ${summary.filesChanged.length}
+- **Tests Status:** ${summary.testsPassed ? '✅ Passing' : '❌ Failing'}
+
+### Changes Made
+${summary.filesChanged.map(f => `- ${f.action === 'created' ? '➕' : '📝'} \`${f.path}\``).join('\n')}
+
+### Implementation Details
+<details>
+<summary>View implementation plan</summary>
+
+${plan.substring(0, 3000)}${plan.length > 3000 ? '\n\n... (truncated)' : ''}
+
+</details>
+
+### Acceptance Criteria
+${issueData.acceptanceCriteria || 'No specific criteria provided'}
+
+### Checklist
+- [x] Code follows project conventions
+- [x] Changes are within issue scope
+- ${summary.testsPassed ? '[x]' : '[ ]'} All tests pass
+- [ ] Manual testing completed
+- [ ] Documentation updated if needed
+- [ ] No security vulnerabilities introduced
+
+### Next Steps
+Please review the implementation and test the changes locally. The AI has attempted to follow all project conventions and requirements, but human review is essential.
+
+Closes #${issueData.number}
+
+---
+*This PR was automatically generated by Claude AI. Human review and testing required before merging.*`;
+            
+            const pr = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `AI: ${issueData.title}`,
+              body: body,
+              head: '${{ steps.branch.outputs.branch }}',
+              base: 'main',
+              draft: summary.complexity === 'complex' || !summary.testsPassed
+            });
+            
+            // Link PR to issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueData.number,
+              body: `🤖 I've created PR #${pr.data.number} to implement this issue.
+
+Branch: \`${{ steps.branch.outputs.branch }}\`
+Status: ${pr.data.draft ? 'Draft (needs review)' : 'Ready for review'}
+
+Please review the changes and provide feedback.`
+            });
+            
+            // Add labels
+            const labels = ['ai-generated', 'closes-issue'];
+            if (!summary.testsPassed) labels.push('failing-tests');
+            if (summary.complexity) labels.push(`complexity:${summary.complexity}`);
+            
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.data.number,
+              labels: labels
+            });
+            
+            core.setOutput('pr_number', pr.data.number);
+            core.setOutput('pr_url', pr.data.html_url);
+        env:
+          ISSUE_DATA: ${{ needs.validate-issue.outputs.issue_data }}
+      
+      - name: Run AI PR review
+        if: steps.create_pr.outputs.pr_number
+        uses: ./.github/workflows/ai-pr-review.yml
+        with:
+          pr_number: ${{ steps.create_pr.outputs.pr_number }}
+
+  report-status:
+    name: Report Implementation Status
+    runs-on: ubuntu-latest
+    needs: [validate-issue, implement-issue]
+    if: always()
+    
+    steps:
+      - name: Update issue status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = process.env.issue_number;
+            
+            if ('${{ needs.implement-issue.result }}' === 'success') {
+              // Remove trigger label and add completed label
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parseInt(issueNumber),
+                  name: '${{ env.TRIGGER_LABEL }}'
+                });
+              } catch (e) {
+                // Label might not exist
+              }
+              
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issueNumber),
+                labels: ['ai-implemented']
+              });
+            } else if ('${{ needs.validate-issue.outputs.should_proceed }}' === 'false') {
+              // Add needs-info label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issueNumber),
+                labels: ['needs-information']
+              });
+            } else {
+              // Implementation failed
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issueNumber),
+                body: `❌ AI implementation failed. Please check the workflow logs for details.
+
+Common reasons:
+- Issue description lacks sufficient detail
+- Technical requirements are unclear
+- Conflicts with existing code
+- Complexity exceeds AI capabilities
+
+You can try:
+1. Adding more implementation details to the issue
+2. Breaking down the issue into smaller tasks
+3. Implementing manually`
+              });
+              
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(issueNumber),
+                labels: ['ai-failed']
+              });
+            }
+        env:
+          issue_number: ${{ env.issue_number }}

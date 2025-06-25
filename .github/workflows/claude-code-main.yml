@@ -1,0 +1,352 @@
+name: Claude Code Main AI Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task for Claude to perform'
+        required: true
+        type: string
+      context:
+        description: 'Additional context or constraints'
+        required: false
+        type: string
+      branch:
+        description: 'Target branch for changes'
+        required: false
+        default: 'main'
+      cost_limit:
+        description: 'Maximum cost limit in USD'
+        required: false
+        default: '10'
+
+env:
+  CLAUDE_MODEL: claude-3-5-sonnet-20241022
+  MAX_TOKENS: 8192
+  TEMPERATURE: 0.7
+
+jobs:
+  verify-context:
+    name: Verify Perfect Information
+    runs-on: ubuntu-latest
+    outputs:
+      context_complete: ${{ steps.check.outputs.complete }}
+      missing_info: ${{ steps.check.outputs.missing }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+      
+      - name: Analyze task context
+        id: check
+        run: |
+          echo "Analyzing task context for completeness..."
+          
+          # Check for ambiguous terms
+          AMBIGUOUS_TERMS="fix|improve|update|refactor|optimize"
+          if echo "${{ inputs.task }}" | grep -qE "($AMBIGUOUS_TERMS)" && [ -z "${{ inputs.context }}" ]; then
+            echo "complete=false" >> $GITHUB_OUTPUT
+            echo "missing=Task contains ambiguous terms without specific context" >> $GITHUB_OUTPUT
+          else
+            echo "complete=true" >> $GITHUB_OUTPUT
+            echo "missing=" >> $GITHUB_OUTPUT
+          fi
+
+  cost-estimation:
+    name: Estimate and Monitor Costs
+    runs-on: ubuntu-latest
+    needs: verify-context
+    if: needs.verify-context.outputs.context_complete == 'true'
+    outputs:
+      estimated_cost: ${{ steps.estimate.outputs.cost }}
+      proceed: ${{ steps.check.outputs.proceed }}
+    
+    steps:
+      - name: Estimate task cost
+        id: estimate
+        run: |
+          # Basic cost estimation based on task complexity
+          TASK_LENGTH=$(echo "${{ inputs.task }}" | wc -w)
+          BASE_COST=0.5
+          
+          if [ $TASK_LENGTH -gt 50 ]; then
+            ESTIMATED_COST=$(echo "scale=2; $BASE_COST * 3" | bc)
+          elif [ $TASK_LENGTH -gt 20 ]; then
+            ESTIMATED_COST=$(echo "scale=2; $BASE_COST * 2" | bc)
+          else
+            ESTIMATED_COST=$BASE_COST
+          fi
+          
+          echo "cost=$ESTIMATED_COST" >> $GITHUB_OUTPUT
+      
+      - name: Check cost limit
+        id: check
+        run: |
+          if (( $(echo "${{ steps.estimate.outputs.cost }} <= ${{ inputs.cost_limit }}" | bc -l) )); then
+            echo "proceed=true" >> $GITHUB_OUTPUT
+          else
+            echo "proceed=false" >> $GITHUB_OUTPUT
+            echo "::error::Estimated cost (${{ steps.estimate.outputs.cost }}) exceeds limit (${{ inputs.cost_limit }})"
+            exit 1
+          fi
+
+  execute-task:
+    name: Execute AI Task
+    runs-on: ubuntu-latest
+    needs: [verify-context, cost-estimation]
+    if: needs.cost-estimation.outputs.proceed == 'true'
+    
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Create work branch
+        id: branch
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          WORK_BRANCH="ai/claude-task-$TIMESTAMP"
+          git checkout -b $WORK_BRANCH
+          echo "branch=$WORK_BRANCH" >> $GITHUB_OUTPUT
+      
+      - name: Execute Claude task
+        id: claude
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # Create task execution script
+          cat > execute_task.js << 'EOF'
+          const Anthropic = require('@anthropic-ai/sdk');
+          const fs = require('fs');
+          const path = require('path');
+          
+          const anthropic = new Anthropic({
+            apiKey: process.env.ANTHROPIC_API_KEY,
+          });
+          
+          async function executeTask() {
+            const task = process.argv[2];
+            const context = process.argv[3] || '';
+            
+            // Read relevant project files
+            const claudeMd = fs.readFileSync('CLAUDE.md', 'utf8');
+            const packageJson = fs.readFileSync('package.json', 'utf8');
+            
+            const systemPrompt = `You are an AI assistant helping with the Neucleos project.
+          
+          ${claudeMd}
+          
+          When making code changes:
+          1. Follow the existing code style and conventions
+          2. Ensure all tests pass
+          3. Update documentation as needed
+          4. Add appropriate error handling
+          5. Consider security implications
+          6. Optimize for performance where relevant`;
+          
+            const userPrompt = `Task: ${task}
+          ${context ? `\nAdditional context: ${context}` : ''}
+          
+          Please provide:
+          1. A summary of what needs to be done
+          2. The specific changes to make
+          3. Any files that need to be created or modified
+          4. Tests that should be added or updated
+          
+          Format your response with clear sections and include actual code changes.`;
+          
+            try {
+              const response = await anthropic.messages.create({
+                model: process.env.CLAUDE_MODEL,
+                max_tokens: parseInt(process.env.MAX_TOKENS),
+                temperature: parseFloat(process.env.TEMPERATURE),
+                system: systemPrompt,
+                messages: [{ role: 'user', content: userPrompt }]
+              });
+              
+              // Save response for processing
+              fs.writeFileSync('claude_response.json', JSON.stringify({
+                task,
+                context,
+                response: response.content[0].text,
+                usage: response.usage,
+                model: response.model
+              }, null, 2));
+              
+              console.log('Task analysis complete');
+              
+              // Extract and apply code changes
+              // This is a simplified version - in production, use a more robust parser
+              const responseText = response.content[0].text;
+              const codeBlocks = responseText.match(/```[\s\S]*?```/g) || [];
+              
+              let changesApplied = false;
+              for (const block of codeBlocks) {
+                const lines = block.split('\n');
+                const firstLine = lines[0].replace('```', '').trim();
+                
+                // Check if it's a file path
+                if (firstLine.includes('/') || firstLine.includes('.')) {
+                  const filePath = firstLine.split(' ')[0];
+                  const content = lines.slice(1, -1).join('\n');
+                  
+                  if (filePath && content) {
+                    const fullPath = path.resolve(filePath);
+                    const dir = path.dirname(fullPath);
+                    
+                    // Create directory if it doesn't exist
+                    if (!fs.existsSync(dir)) {
+                      fs.mkdirSync(dir, { recursive: true });
+                    }
+                    
+                    // Write file
+                    fs.writeFileSync(fullPath, content);
+                    console.log(`Updated: ${filePath}`);
+                    changesApplied = true;
+                  }
+                }
+              }
+              
+              // Save summary
+              const summary = responseText.split('\n').slice(0, 10).join('\n');
+              fs.writeFileSync('task_summary.md', `# Task Summary\n\n${summary}\n\nFull response saved in claude_response.json`);
+              
+              return changesApplied;
+              
+            } catch (error) {
+              console.error('Error executing task:', error);
+              process.exit(1);
+            }
+          }
+          
+          executeTask().then(changesApplied => {
+            process.exit(changesApplied ? 0 : 1);
+          });
+          EOF
+          
+          # Install Anthropic SDK temporarily
+          npm install @anthropic-ai/sdk
+          
+          # Execute task
+          node execute_task.js "${{ inputs.task }}" "${{ inputs.context }}"
+      
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          yarn test
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+      
+      - name: Run linting
+        id: lint
+        continue-on-error: true
+        run: |
+          yarn lint
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+      
+      - name: Commit changes
+        id: commit
+        run: |
+          git config --local user.email "ai-assistant[bot]@users.noreply.github.com"
+          git config --local user.name "AI Assistant[bot]"
+          
+          git add -A
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git commit -m "AI: ${{ inputs.task }}
+
+          Generated by Claude (${{ env.CLAUDE_MODEL }})
+          Task: ${{ inputs.task }}
+          Context: ${{ inputs.context }}
+          
+          Test status: ${{ steps.tests.outputs.exit_code == '0' && 'Passed' || 'Failed' }}
+          Lint status: ${{ steps.lint.outputs.exit_code == '0' && 'Passed' || 'Failed' }}"
+            
+            git push origin ${{ steps.branch.outputs.branch }}
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create pull request
+        if: steps.commit.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.branch.outputs.branch }}
+          base: ${{ inputs.branch }}
+          title: "AI: ${{ inputs.task }}"
+          body: |
+            ## AI-Generated Changes
+            
+            **Task:** ${{ inputs.task }}
+            **Context:** ${{ inputs.context }}
+            **Model:** ${{ env.CLAUDE_MODEL }}
+            **Estimated Cost:** ${{ needs.cost-estimation.outputs.estimated_cost }} USD
+            
+            ### Summary
+            See `task_summary.md` for details.
+            
+            ### Quality Checks
+            - Tests: ${{ steps.tests.outputs.exit_code == '0' && '✅ Passed' || '❌ Failed' }}
+            - Linting: ${{ steps.lint.outputs.exit_code == '0' && '✅ Passed' || '❌ Failed' }}
+            
+            ### Security Considerations
+            Please review changes for:
+            - [ ] No hardcoded secrets or credentials
+            - [ ] Proper input validation
+            - [ ] Safe file operations
+            - [ ] Appropriate error handling
+            
+            ### Manual Review Required
+            - [ ] Code follows project conventions
+            - [ ] Changes are within task scope
+            - [ ] Documentation is updated if needed
+            - [ ] No unintended side effects
+            
+            ---
+            *This PR was automatically generated by Claude AI. Human review is required before merging.*
+          labels: |
+            ai-generated
+            needs-review
+
+  cleanup:
+    name: Cleanup and Report
+    runs-on: ubuntu-latest
+    needs: [execute-task]
+    if: always()
+    
+    steps:
+      - name: Generate cost report
+        run: |
+          echo "## AI Task Execution Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Task:** ${{ inputs.task }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Estimated Cost:** ${{ needs.cost-estimation.outputs.estimated_cost }} USD" >> $GITHUB_STEP_SUMMARY
+          echo "**Cost Limit:** ${{ inputs.cost_limit }} USD" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Store metrics
+        if: always()
+        run: |
+          # In production, send to monitoring service
+          echo "Task execution metrics stored"

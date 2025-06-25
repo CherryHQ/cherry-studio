@@ -1,0 +1,66 @@
+# Perfect Information Ignore File
+# Files and patterns listed here will be excluded from PI checks
+
+# Generated files
+out/**
+dist/**
+build/**
+coverage/**
+*.generated.ts
+*.generated.js
+
+# Dependencies
+node_modules/**
+packages/*/node_modules/**
+
+# Test files (already handled separately)
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/__tests__/**
+**/__mocks__/**
+**/__fixtures__/**
+
+# Build and config files
+*.config.js
+*.config.ts
+webpack.*.js
+rollup.*.js
+vite.*.js
+
+# Third-party code
+src/vendor/**
+src/lib/third-party/**
+
+# Assets and static files
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.svg
+**/*.ico
+**/*.woff
+**/*.woff2
+**/*.ttf
+**/*.eot
+
+# Documentation
+**/*.md
+docs/**
+
+# Environment and secrets (should never be committed anyway)
+.env
+.env.*
+secrets/**
+
+# IDE and OS files
+.vscode/**
+.idea/**
+*.swp
+.DS_Store
+Thumbs.db
+
+# Temporary exemptions (remove after fixing)
+# Add temporary exemptions here with date and reason:
+# src/legacy/OldComponent.tsx # TODO: Remove by 2025-02-01 - Legacy code being refactored

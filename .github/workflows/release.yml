@@ -106,6 +106,116 @@ jobs:
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           NODE_OPTIONS: --max-old-space-size=8192
 
+      # AI-Generated Release Notes
+      - name: Generate AI Release Notes
+        id: ai-release-notes
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const tag = "${{ steps.get-tag.outputs.tag }}";
+            
+            // Get commits since last release
+            let commits = [];
+            try {
+              // Get the previous release tag
+              const { data: releases } = await github.rest.repos.listReleases({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 10
+              });
+              
+              const previousTag = releases.find(r => r.tag_name !== tag)?.tag_name;
+              
+              if (previousTag) {
+                // Get commits between tags
+                const { data: comparison } = await github.rest.repos.compareCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  base: previousTag,
+                  head: tag
+                });
+                commits = comparison.commits;
+              }
+            } catch (error) {
+              console.log('Could not get previous release, using recent commits');
+              const { data: recentCommits } = await github.rest.repos.listCommits({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 20
+              });
+              commits = recentCommits;
+            }
+            
+            // Analyze commits and categorize changes
+            const features = [];
+            const fixes = [];
+            const improvements = [];
+            const breaking = [];
+            
+            commits.forEach(commit => {
+              const message = commit.commit.message.toLowerCase();
+              const firstLine = commit.commit.message.split('\n')[0];
+              
+              if (message.includes('breaking change') || message.includes('breaking:')) {
+                breaking.push(firstLine);
+              } else if (message.startsWith('feat:') || message.includes('feature')) {
+                features.push(firstLine);
+              } else if (message.startsWith('fix:') || message.includes('fix')) {
+                fixes.push(firstLine);
+              } else if (message.startsWith('perf:') || message.includes('improve') || message.includes('optimize')) {
+                improvements.push(firstLine);
+              }
+            });
+            
+            // Generate release notes
+            let releaseNotes = `# Release ${tag}\n\n`;
+            releaseNotes += `## 🎉 What's New\n\n`;
+            
+            if (breaking.length > 0) {
+              releaseNotes += `### ⚠️ Breaking Changes\n`;
+              breaking.forEach(change => releaseNotes += `- ${change}\n`);
+              releaseNotes += '\n';
+            }
+            
+            if (features.length > 0) {
+              releaseNotes += `### ✨ New Features\n`;
+              features.forEach(feat => releaseNotes += `- ${feat}\n`);
+              releaseNotes += '\n';
+            }
+            
+            if (improvements.length > 0) {
+              releaseNotes += `### 🚀 Improvements\n`;
+              improvements.forEach(imp => releaseNotes += `- ${imp}\n`);
+              releaseNotes += '\n';
+            }
+            
+            if (fixes.length > 0) {
+              releaseNotes += `### 🐛 Bug Fixes\n`;
+              fixes.forEach(fix => releaseNotes += `- ${fix}\n`);
+              releaseNotes += '\n';
+            }
+            
+            // Add platform-specific notes
+            releaseNotes += `## 📦 Platform Support\n\n`;
+            releaseNotes += `This release includes builds for:\n`;
+            releaseNotes += `- Windows (x64, arm64)\n`;
+            releaseNotes += `- macOS (x64, arm64)\n`;
+            releaseNotes += `- Linux (x86_64, arm64)\n\n`;
+            
+            // Add footer
+            releaseNotes += `## 🙏 Acknowledgments\n\n`;
+            releaseNotes += `Thanks to all contributors who made this release possible!\n\n`;
+            releaseNotes += `---\n`;
+            releaseNotes += `*Release notes generated with AI assistance*\n`;
+            
+            // Save to file for the release action
+            const fs = require('fs');
+            fs.writeFileSync('release-notes.md', releaseNotes);
+            
+            core.setOutput('release_notes', releaseNotes);
+
       - name: Release
         uses: ncipollo/release-action@v1
         with:
@@ -114,6 +224,7 @@ jobs:
           makeLatest: false
           tag: ${{ steps.get-tag.outputs.tag }}
           artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/*.blockmap'
+          bodyFile: ${{ matrix.os == 'ubuntu-latest' && 'release-notes.md' || '' }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
   dispatch-docs-update:

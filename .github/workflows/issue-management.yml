@@ -4,12 +4,148 @@ on:
   schedule:
     - cron: "0 0 * * *"
   workflow_dispatch:
+  issues:
+    types: [opened, edited]
 
 env:
   daysBeforeStale: 30 # Number of days of inactivity before marking as stale
   daysBeforeClose: 10 # Number of days to wait after marking as stale before closing
 
 jobs:
+  # AI Issue Categorization for new/edited issues
+  ai-categorize:
+    if: github.event_name == 'issues' && (github.event.action == 'opened' || github.event.action == 'edited')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: AI Issue Analysis and Categorization
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+            const title = issue.title.toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const content = `${title} ${body}`;
+            
+            // AI-based categorization rules
+            const categories = {
+              'bug': {
+                keywords: ['error', 'crash', 'bug', 'broken', 'fail', 'issue', 'problem', 'not working', 'exception'],
+                label: 'kind/bug',
+                priority: 'high'
+              },
+              'feature': {
+                keywords: ['feature', 'enhancement', 'request', 'add', 'implement', 'support', 'new', 'would like'],
+                label: 'kind/enhancement',
+                priority: 'medium'
+              },
+              'performance': {
+                keywords: ['slow', 'performance', 'memory', 'cpu', 'lag', 'freeze', 'optimize', 'speed'],
+                label: 'performance',
+                priority: 'medium'
+              },
+              'security': {
+                keywords: ['security', 'vulnerability', 'exploit', 'injection', 'xss', 'csrf', 'auth'],
+                label: 'security',
+                priority: 'critical'
+              },
+              'documentation': {
+                keywords: ['docs', 'documentation', 'readme', 'guide', 'tutorial', 'example'],
+                label: 'documentation',
+                priority: 'low'
+              },
+              'ui': {
+                keywords: ['ui', 'ux', 'interface', 'design', 'layout', 'style', 'css', 'visual'],
+                label: 'ui/ux',
+                priority: 'medium'
+              }
+            };
+            
+            // Analyze issue content
+            const detectedCategories = [];
+            const labelsToAdd = [];
+            let highestPriority = 'low';
+            const priorityOrder = { 'critical': 4, 'high': 3, 'medium': 2, 'low': 1 };
+            
+            for (const [category, config] of Object.entries(categories)) {
+              const keywordFound = config.keywords.some(keyword => content.includes(keyword));
+              if (keywordFound) {
+                detectedCategories.push(category);
+                labelsToAdd.push(config.label);
+                if (priorityOrder[config.priority] > priorityOrder[highestPriority]) {
+                  highestPriority = config.priority;
+                }
+              }
+            }
+            
+            // Add priority label
+            if (highestPriority !== 'low') {
+              labelsToAdd.push(`priority/${highestPriority}`);
+            }
+            
+            // Check for platform-specific issues
+            const platforms = {
+              'windows': ['windows', 'win32', 'win64', '.exe'],
+              'macos': ['macos', 'mac', 'darwin', '.dmg', 'apple'],
+              'linux': ['linux', 'ubuntu', 'debian', 'fedora', '.appimage', '.deb']
+            };
+            
+            for (const [platform, keywords] of Object.entries(platforms)) {
+              if (keywords.some(keyword => content.includes(keyword))) {
+                labelsToAdd.push(`platform/${platform}`);
+              }
+            }
+            
+            // Apply labels if any were detected
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labelsToAdd
+              });
+            }
+            
+            // Add AI analysis comment
+            let comment = `## 🤖 AI Issue Analysis\n\n`;
+            comment += `I've analyzed this issue and applied the following categorizations:\n\n`;
+            
+            if (detectedCategories.length > 0) {
+              comment += `**Categories detected:** ${detectedCategories.join(', ')}\n`;
+              comment += `**Priority level:** ${highestPriority}\n\n`;
+            } else {
+              comment += `No specific categories were detected. Please provide more details about your issue.\n\n`;
+            }
+            
+            // Add helpful suggestions based on category
+            if (detectedCategories.includes('bug')) {
+              comment += `### Bug Report Guidelines\n`;
+              comment += `To help us resolve this issue quickly, please ensure you've included:\n`;
+              comment += `- Steps to reproduce the issue\n`;
+              comment += `- Expected vs actual behavior\n`;
+              comment += `- System information (OS, version)\n`;
+              comment += `- Any error messages or logs\n\n`;
+            }
+            
+            if (detectedCategories.includes('feature')) {
+              comment += `### Feature Request Guidelines\n`;
+              comment += `Thank you for your suggestion! Please consider:\n`;
+              comment += `- Describing the use case for this feature\n`;
+              comment += `- How this would benefit other users\n`;
+              comment += `- Any implementation ideas you might have\n\n`;
+            }
+            
+            comment += `*This analysis was performed automatically. Labels can be adjusted by maintainers as needed.*`;
+            
+            // Post the comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
   stale:
     if: github.repository_owner == 'CherryHQ'
     runs-on: ubuntu-latest

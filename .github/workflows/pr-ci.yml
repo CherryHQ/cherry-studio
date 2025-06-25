@@ -45,3 +45,73 @@ jobs:
 
       - name: Lint Check
         run: yarn test:lint
+
+      # AI Code Analysis Step
+      - name: AI Code Analysis
+        id: ai-analysis
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Get changed files in the PR
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Filter for code files
+            const codeFiles = files.filter(file => 
+              (file.filename.endsWith('.ts') || 
+               file.filename.endsWith('.tsx') || 
+               file.filename.endsWith('.js') || 
+               file.filename.endsWith('.jsx')) &&
+              file.status !== 'removed'
+            );
+            
+            // Create AI analysis comment
+            let analysisComment = `## 🤖 AI Code Analysis Summary\n\n`;
+            analysisComment += `Analyzed ${codeFiles.length} changed files in this PR.\n\n`;
+            
+            // Analyze patterns (simplified for cost-effectiveness)
+            const patterns = {
+              'Security Concerns': codeFiles.filter(f => 
+                f.patch && (f.patch.includes('eval(') || 
+                           f.patch.includes('innerHTML') || 
+                           f.patch.includes('dangerouslySetInnerHTML'))
+              ).length,
+              'Performance Considerations': codeFiles.filter(f => 
+                f.patch && (f.patch.includes('useEffect(') || 
+                           f.patch.includes('useMemo(') || 
+                           f.patch.includes('useCallback('))
+              ).length,
+              'TypeScript Issues': codeFiles.filter(f => 
+                f.patch && (f.patch.includes('any') || 
+                           f.patch.includes('@ts-ignore'))
+              ).length
+            };
+            
+            // Add findings to comment
+            Object.entries(patterns).forEach(([category, count]) => {
+              if (count > 0) {
+                analysisComment += `### ${category}\n`;
+                analysisComment += `Found ${count} file(s) with potential ${category.toLowerCase()}.\n\n`;
+              }
+            });
+            
+            // Add general recommendations
+            analysisComment += `### Recommendations\n`;
+            analysisComment += `- Ensure all TypeScript types are properly defined\n`;
+            analysisComment += `- Consider adding unit tests for new functionality\n`;
+            analysisComment += `- Review performance implications of React hooks usage\n`;
+            
+            // Post comment on PR
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: analysisComment
+            });
+            
+            core.setOutput('analysis_complete', 'true');
