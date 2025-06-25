@@ -81,7 +81,8 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
       apiKey: this.apiKey,
       baseURL: this.getBaseURL(),
       defaultHeaders: {
-        ...this.defaultHeaders()
+        ...this.defaultHeaders(),
+        ...this.provider.extra_headers
       }
     })
   }
