@@ -173,21 +173,22 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
 
 const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   return (
-    <WebSearchCard>
-      <ContextMenu>
+    <ContextMenu>
+      <WebSearchCard>
         <WebSearchCardHeader>
-          <CitationIndex>{citation.number}</CitationIndex>
           {citation.showFavicon && <FileSearch width={16} />}
           <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
             {citation.title}
           </CitationLink>
+
+          <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>
         <WebSearchCardContent className="selectable-text">
           {citation.content && truncateText(citation.content, 100)}
         </WebSearchCardContent>
-      </ContextMenu>
-    </WebSearchCard>
+      </WebSearchCard>
+    </ContextMenu>
   )
 }
 
