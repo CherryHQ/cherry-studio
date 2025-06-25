@@ -1640,7 +1640,7 @@
       "models.base_url": "基础 URL",
       "models.api_key": "API 密钥",
       "models.provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
-      "models.provider_key_already_exists": "{{provider}} 已有 API 密钥 ({{existingKey}}), 不会重复添加",
+      "models.provider_key_already_exists": "{{provider}} 已存在相同API 密钥, 不会重复添加",
       "models.provider_key_added": "成功为 {{provider}} 添加 API 密钥",
       "models.provider_key_overridden": "成功更新 {{provider}} 的 API 密钥",
       "models.provider_key_no_change": "{{provider}} 的 API 密钥没有变化",
