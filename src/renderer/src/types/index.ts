@@ -423,7 +423,7 @@ export interface KnowledgeBase {
   id: string
   name: string
   model: Model
-  dimensions: number
+  dimensions?: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
