@@ -51,7 +51,14 @@ export function useS3BackupModal() {
   }
 }
 
-type S3BackupModalProps = ReturnType<typeof useS3BackupModal>
+type S3BackupModalProps = {
+  isModalVisible: boolean
+  handleBackup: () => Promise<void>
+  handleCancel: () => void
+  backuping: boolean
+  customFileName: string
+  setCustomFileName: (value: string) => void
+}
 
 export function S3BackupModal({
   isModalVisible,
