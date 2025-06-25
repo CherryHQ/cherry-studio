@@ -546,7 +546,7 @@ const DataSettings: FC = () => {
     }
 
     handleDataMigration()
-  }, [])
+  }, [t])
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
