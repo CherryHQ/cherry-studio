@@ -183,6 +183,10 @@ const api = {
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
+  python: {
+    execute: (script: string, context?: Record<string, any>, timeout?: number) =>
+      ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
+  },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
   },
