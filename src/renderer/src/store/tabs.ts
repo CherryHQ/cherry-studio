@@ -79,11 +79,29 @@ const tabsSlice = createSlice({
         })
 
         if (isSingleton) {
-          // Find existing tab for this route
-          const existingTab = state.tabs.find((tab) => tab.type === 'page' && tab.route === tabConfig.route)
+          // Find existing tab for this route or any route within the same singleton group
+          let existingTab = state.tabs.find((tab) => tab.type === 'page' && tab.route === tabConfig.route)
+
+          // If exact match not found, check for any tab within the same singleton group
+          if (!existingTab) {
+            existingTab = state.tabs.find((tab) => {
+              if (tab.type !== 'page' || !tab.route || !tabConfig.route) return false
+
+              // Check if both routes belong to the same singleton group
+              return SINGLETON_ROUTES.some((singletonRoute) => {
+                if (singletonRoute.endsWith('/*')) {
+                  const baseRoute = singletonRoute.slice(0, -2)
+                  return tab.route?.startsWith(baseRoute) && tabConfig.route?.startsWith(baseRoute)
+                }
+                return false
+              })
+            })
+          }
 
           if (existingTab) {
-            // Just switch to existing tab
+            // Update the existing tab's route to the new route and switch to it
+            existingTab.route = tabConfig.route
+            existingTab.title = tabConfig.title || existingTab.title
             state.tabs.forEach((tab) => (tab.isActive = false))
             existingTab.isActive = true
             existingTab.lastActiveAt = Date.now()
@@ -245,6 +263,15 @@ const tabsSlice = createSlice({
       }
     },
 
+    updateTabRoute: (state, action: PayloadAction<{ tabId: string; route: string }>) => {
+      const { tabId, route } = action.payload
+      const tab = state.tabs.find((t) => t.id === tabId)
+      if (tab) {
+        tab.route = route
+        tab.lastActiveAt = Date.now()
+      }
+    },
+
     reorderTabs: (state, action: PayloadAction<string[]>) => {
       state.tabOrder = action.payload
     },
@@ -371,6 +398,7 @@ export const {
   switchToNextTab,
   switchToPreviousTab,
   updateTab,
+  updateTabRoute,
   reorderTabs,
   pinTab,
   unpinTab,

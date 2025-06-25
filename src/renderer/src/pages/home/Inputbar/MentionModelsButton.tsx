@@ -12,7 +12,6 @@ import { first, sortBy } from 'lodash'
 import { AtSign, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router'
 import styled from 'styled-components'
 
 export interface MentionModelsButtonRef {
@@ -29,7 +28,7 @@ interface Props {
 const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, ToolbarButton }) => {
   const { providers } = useProviders()
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const quickPanel = useQuickPanel()
 
   const pinnedModels = useLiveQuery(
@@ -107,12 +106,21 @@ const MentionModelsButton: FC<Props> = ({ ref, mentionModels, onMentionModel, To
     items.push({
       label: t('settings.models.add.add_model') + '...',
       icon: <Plus />,
-      action: () => navigate('/settings/provider'),
+      action: () =>
+        dispatch(
+          openTab({
+            type: 'page',
+            route: '/settings/provider',
+            title: 'Settings - Provider',
+            canClose: true,
+            isPinned: false
+          })
+        ),
       isSelected: false
     })
 
     return items
-  }, [providers, t, pinnedModels, mentionModels, onMentionModel, navigate])
+  }, [providers, t, pinnedModels, mentionModels, onMentionModel, dispatch])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({

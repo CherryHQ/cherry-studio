@@ -3,13 +3,14 @@ import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
+import { useAppDispatch } from '@renderer/store'
+import { openTab } from '@renderer/store/tabs'
 import { Assistant, WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { CircleX, Globe, Settings } from 'lucide-react'
 import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useNavigate } from 'react-router-dom'
 
 export interface WebSearchButtonRef {
   openQuickPanel: () => void
@@ -23,7 +24,7 @@ interface Props {
 
 const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { t } = useTranslation()
-  const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
   const { updateAssistant } = useAssistant(assistant.id)
@@ -81,7 +82,16 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     items.push({
       label: t('chat.input.web_search.settings'),
       icon: <Settings />,
-      action: () => navigate('/settings/web-search')
+      action: () =>
+        dispatch(
+          openTab({
+            type: 'page',
+            route: '/settings/web-search',
+            title: 'Settings - Web Search',
+            canClose: true,
+            isPinned: false
+          })
+        )
     })
 
     items.unshift({
@@ -103,7 +113,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     t,
     updateSelectedWebSearchProvider,
     updateSelectedWebSearchBuiltin,
-    navigate
+    dispatch
   ])
 
   const openQuickPanel = useCallback(() => {

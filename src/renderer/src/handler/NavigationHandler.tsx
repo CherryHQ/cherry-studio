@@ -1,10 +1,11 @@
-import { useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { openTab } from '@renderer/store/tabs'
 import { useHotkeys } from 'react-hotkeys-hook'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 
 const NavigationHandler: React.FC = () => {
   const location = useLocation()
-  const navigate = useNavigate()
+  const dispatch = useAppDispatch()
   const showSettingsShortcutEnabled = useAppSelector(
     (state) => state.shortcuts.shortcuts.find((s) => s.key === 'show_settings')?.enabled
   )
@@ -15,7 +16,15 @@ const NavigationHandler: React.FC = () => {
       if (location.pathname.startsWith('/settings')) {
         return
       }
-      navigate('/settings/provider')
+      dispatch(
+        openTab({
+          type: 'page',
+          route: '/settings/provider',
+          title: 'Settings',
+          canClose: true,
+          isPinned: false
+        })
+      )
     },
     {
       splitKey: '!',

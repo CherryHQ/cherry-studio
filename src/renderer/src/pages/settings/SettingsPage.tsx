@@ -1,5 +1,7 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { updateTabRoute } from '@renderer/store/tabs'
 import {
   Cloud,
   Command,
@@ -17,7 +19,7 @@ import {
 // 导入useAppSelector
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AboutSettings from './AboutSettings'
@@ -36,8 +38,20 @@ import WebSearchSettings from './WebSearchSettings'
 const SettingsPage: FC = () => {
   const { pathname } = useLocation()
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const dispatch = useAppDispatch()
+  const { activeTabId } = useAppSelector((state) => state.tabs)
 
   const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
+
+  const navigateToSettings = (route: string) => {
+    // Update the current tab's route
+    if (activeTabId) {
+      dispatch(updateTabRoute({ tabId: activeTabId, route }))
+    }
+    // Navigate using React Router
+    navigate(route)
+  }
 
   return (
     <Container>
@@ -47,93 +61,79 @@ const SettingsPage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <SettingMenus>
-          <MenuItemLink to="/settings/provider">
-            <MenuItem className={isRoute('/settings/provider')}>
-              <Cloud size={18} />
-              {t('settings.provider.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/model">
-            <MenuItem className={isRoute('/settings/model')}>
-              <Package size={18} />
-              {t('settings.model')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/web-search">
-            <MenuItem className={isRoute('/settings/web-search')}>
-              <Globe size={18} />
-              {t('settings.websearch.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
-              <SquareTerminal size={18} />
-              {t('settings.mcp.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/general">
-            <MenuItem className={isRoute('/settings/general')}>
-              <Settings2 size={18} />
-              {t('settings.general')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/display">
-            <MenuItem className={isRoute('/settings/display')}>
-              <MonitorCog size={18} />
-              {t('settings.display.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/shortcut">
-            <MenuItem className={isRoute('/settings/shortcut')}>
-              <Command size={18} />
-              {t('settings.shortcuts.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/quickAssistant">
-            <MenuItem className={isRoute('/settings/quickAssistant')}>
-              <Rocket size={18} />
-              {t('settings.quickAssistant.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/selectionAssistant">
-            <MenuItem className={isRoute('/settings/selectionAssistant')}>
-              <TextCursorInput size={18} />
-              {t('selection.name')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/quickPhrase">
-            <MenuItem className={isRoute('/settings/quickPhrase')}>
-              <Zap size={18} />
-              {t('settings.quickPhrase.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
-              <HardDrive size={18} />
-              {t('settings.data.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/about">
-            <MenuItem className={isRoute('/settings/about')}>
-              <Info size={18} />
-              {t('settings.about')}
-            </MenuItem>
-          </MenuItemLink>
+          <MenuItem className={isRoute('/settings/provider')} onClick={() => navigateToSettings('/settings/provider')}>
+            <Cloud size={18} />
+            {t('settings.provider.title')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/model')} onClick={() => navigateToSettings('/settings/model')}>
+            <Package size={18} />
+            {t('settings.model')}
+          </MenuItem>
+          <MenuItem
+            className={isRoute('/settings/web-search')}
+            onClick={() => navigateToSettings('/settings/web-search')}>
+            <Globe size={18} />
+            {t('settings.websearch.title')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/mcp')} onClick={() => navigateToSettings('/settings/mcp')}>
+            <SquareTerminal size={18} />
+            {t('settings.mcp.title')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/general')} onClick={() => navigateToSettings('/settings/general')}>
+            <Settings2 size={18} />
+            {t('settings.general')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/display')} onClick={() => navigateToSettings('/settings/display')}>
+            <MonitorCog size={18} />
+            {t('settings.display.title')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/shortcut')} onClick={() => navigateToSettings('/settings/shortcut')}>
+            <Command size={18} />
+            {t('settings.shortcuts.title')}
+          </MenuItem>
+          <MenuItem
+            className={isRoute('/settings/quickAssistant')}
+            onClick={() => navigateToSettings('/settings/quickAssistant')}>
+            <Rocket size={18} />
+            {t('settings.quickAssistant.title')}
+          </MenuItem>
+          <MenuItem
+            className={isRoute('/settings/selectionAssistant')}
+            onClick={() => navigateToSettings('/settings/selectionAssistant')}>
+            <TextCursorInput size={18} />
+            {t('selection.name')}
+          </MenuItem>
+          <MenuItem
+            className={isRoute('/settings/quickPhrase')}
+            onClick={() => navigateToSettings('/settings/quickPhrase')}>
+            <Zap size={18} />
+            {t('settings.quickPhrase.title')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/data')} onClick={() => navigateToSettings('/settings/data')}>
+            <HardDrive size={18} />
+            {t('settings.data.title')}
+          </MenuItem>
+          <MenuItem className={isRoute('/settings/about')} onClick={() => navigateToSettings('/settings/about')}>
+            <Info size={18} />
+            {t('settings.about')}
+          </MenuItem>
         </SettingMenus>
         <SettingContent>
           <Routes>
-            <Route path="provider" element={<ProvidersList />} />
-            <Route path="model" element={<ModelSettings />} />
-            <Route path="web-search" element={<WebSearchSettings />} />
-            <Route path="mcp/*" element={<MCPSettings />} />
-            <Route path="general" element={<GeneralSettings />} />
-            <Route path="display" element={<DisplaySettings />} />
-            <Route path="shortcut" element={<ShortcutSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
-            <Route path="data" element={<DataSettings />} />
-            <Route path="about" element={<AboutSettings />} />
-            <Route path="quickPhrase" element={<QuickPhraseSettings />} />
+            <Route path="/settings/provider" element={<ProvidersList />} />
+            <Route path="/settings/model" element={<ModelSettings />} />
+            <Route path="/settings/web-search" element={<WebSearchSettings />} />
+            <Route path="/settings/mcp/*" element={<MCPSettings />} />
+            <Route path="/settings/general" element={<GeneralSettings />} />
+            <Route path="/settings/display" element={<DisplaySettings />} />
+            <Route path="/settings/shortcut" element={<ShortcutSettings />} />
+            <Route path="/settings/quickAssistant" element={<QuickAssistantSettings />} />
+            <Route path="/settings/selectionAssistant" element={<SelectionAssistantSettings />} />
+            <Route path="/settings/data" element={<DataSettings />} />
+            <Route path="/settings/about" element={<AboutSettings />} />
+            <Route path="/settings/quickPhrase" element={<QuickPhraseSettings />} />
+            {/* Default route - redirect to provider when no sub-route is specified */}
+            <Route path="/settings" element={<Navigate to="/settings/provider" replace />} />
           </Routes>
         </SettingContent>
       </ContentContainer>
@@ -162,12 +162,6 @@ const SettingMenus = styled.ul`
   user-select: none;
 `
 
-const MenuItemLink = styled(Link)`
-  text-decoration: none;
-  color: var(--color-text-1);
-  margin-bottom: 5px;
-`
-
 const MenuItem = styled.li`
   display: flex;
   flex-direction: row;
@@ -180,6 +174,7 @@ const MenuItem = styled.li`
   font-weight: 500;
   transition: all 0.2s ease-in-out;
   border: 0.5px solid transparent;
+  margin-bottom: 5px;
   .anticon {
     font-size: 16px;
     opacity: 0.8;
