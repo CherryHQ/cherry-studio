@@ -66,6 +66,13 @@ export class AihubmixAPIClient extends BaseApiClient {
     this.currentClient = this.defaultClient as BaseApiClient
   }
 
+  override getBaseURL(): string {
+    if (!this.currentClient) {
+      return this.provider.apiHost
+    }
+    return this.currentClient.getBaseURL()
+  }
+
   /**
    * 类型守卫：确保client是BaseApiClient的实例
    */
