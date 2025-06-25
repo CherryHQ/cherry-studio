@@ -315,7 +315,7 @@ const DisplaySettings: FC = () => {
           language="css"
           placeholder={t('settings.display.custom.css.placeholder')}
           onChange={(value) => dispatch(setCustomCss(value))}
-          height="500px"
+          height="60vh"
           options={{
             collapsible: false,
             wrappable: true,
