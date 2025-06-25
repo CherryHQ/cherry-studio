@@ -1,4 +1,4 @@
-import { isWindows } from '@renderer/config/constant'
+import { isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
@@ -53,7 +53,7 @@ const SelectionAssistantSettings: FC = () => {
 
   // force disable selection assistant on non-windows systems
   useEffect(() => {
-    if (!isWindows && selectionEnabled) {
+    if (!isWin && selectionEnabled) {
       setSelectionEnabled(false)
     }
   }, [selectionEnabled, setSelectionEnabled])
@@ -76,12 +76,12 @@ const SelectionAssistantSettings: FC = () => {
         <SettingRow>
           <SettingLabel>
             <SettingRowTitle>{t('selection.settings.enable.title')}</SettingRowTitle>
-            {!isWindows && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
+            {!isWin && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
           </SettingLabel>
           <Switch
-            checked={isWindows && selectionEnabled}
+            checked={isWin && selectionEnabled}
             onChange={(checked) => setSelectionEnabled(checked)}
-            disabled={!isWindows}
+            disabled={!isWin}
           />
         </SettingRow>
 

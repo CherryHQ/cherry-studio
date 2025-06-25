@@ -93,7 +93,7 @@ describe('CitationTooltip', () => {
 
       const tooltip = screen.getByTestId('tooltip-wrapper')
       expect(tooltip).toHaveAttribute('data-placement', 'top')
-      expect(tooltip).toHaveAttribute('data-color', 'var(--color-background-mute)')
+      expect(tooltip).toHaveAttribute('data-color', 'var(--color-background)')
 
       const styles = JSON.parse(tooltip.getAttribute('data-styles') || '{}')
       expect(styles.body).toEqual({

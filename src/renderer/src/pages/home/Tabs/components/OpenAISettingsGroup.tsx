@@ -1,3 +1,4 @@
+import Selector from '@renderer/components/Selector'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { RootState, useAppDispatch } from '@renderer/store'
@@ -102,13 +103,11 @@ const OpenAISettingsGroup: FC<Props> = ({
               <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
           </SettingRowTitleSmall>
-          <StyledSelect
+          <Selector
             value={serviceTierMode}
-            style={{ width: 135 }}
             onChange={(value) => {
               setServiceTierMode(value as OpenAIServiceTier)
             }}
-            size="small"
             options={serviceTierOptions}
           />
         </SettingRow>
@@ -135,6 +134,7 @@ const OpenAISettingsGroup: FC<Props> = ({
           </>
         )}
       </SettingGroup>
+      <SettingDivider />
     </CollapsibleSettingGroup>
   )
 }

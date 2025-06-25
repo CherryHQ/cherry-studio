@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { Button, Form, FormProps, Input, Modal } from 'antd'
+import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -66,7 +66,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       centered>
       <Form
         form={form}
-        labelCol={{ flex: '150px' }}
+        labelCol={{ flex: '110px' }}
         labelAlign="right"
         colon={false}
         style={{ marginTop: 25 }}
@@ -89,11 +89,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <Form.Item name="name" label={t('settings.websearch.subscribe_name')}>
           <Input placeholder={t('settings.websearch.subscribe_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item label=" ">
+        <Flex justify="end" style={{ marginBottom: 8 }}>
           <Button type="primary" htmlType="submit">
             {t('settings.websearch.subscribe_add')}
           </Button>
-        </Form.Item>
+        </Flex>
       </Form>
     </Modal>
   )

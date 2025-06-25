@@ -54,9 +54,10 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
 
   return (
     <Tooltip
+      arrow={false}
       overlay={tooltipContent}
       placement="top"
-      color="var(--color-background-mute)"
+      color="var(--color-background)"
       styles={{
         body: {
           border: '1px solid var(--color-border)',
