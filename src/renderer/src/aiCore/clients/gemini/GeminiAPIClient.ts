@@ -686,16 +686,19 @@ export class GeminiAPIClient extends BaseApiClient<
     toolCalls: FunctionCall[]
   ): Content[] {
     const parts: Part[] = []
+    const modelParts: Part[] = []
     if (output) {
-      parts.push({
+      modelParts.push({
         text: output
       })
     }
+
     toolCalls.forEach((toolCall) => {
-      parts.push({
+      modelParts.push({
         functionCall: toolCall
       })
     })
+
     parts.push(
       ...toolResults
         .map((ts) => ts.parts)
@@ -703,10 +706,22 @@ export class GeminiAPIClient extends BaseApiClient<
         .filter((p) => p !== undefined)
     )
 
-    const lastMessage = currentReqMessages[currentReqMessages.length - 1]
-    if (lastMessage) {
-      lastMessage.parts?.push(...parts)
+    const userMessage: Content = {
+      role: 'user',
+      parts: []
     }
+
+    if (modelParts.length > 0) {
+      currentReqMessages.push({
+        role: 'model',
+        parts: modelParts
+      })
+    }
+    if (parts.length > 0) {
+      userMessage.parts?.push(...parts)
+      currentReqMessages.push(userMessage)
+    }
+
     return currentReqMessages
   }
 
@@ -747,7 +762,7 @@ export class GeminiAPIClient extends BaseApiClient<
         }
       })
     }
-    return [messageParam, ...(sdkPayload.history || [])]
+    return [...(sdkPayload.history || []), messageParam]
   }
 
   private async uploadFile(file: FileType): Promise<File> {
