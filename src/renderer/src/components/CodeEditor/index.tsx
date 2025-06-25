@@ -227,10 +227,10 @@ const CodeEditor = ({
         ...customBasicSetup // override basicSetup
       }}
       style={{
-        ...style,
         fontSize: `${fontSize - 1}px`,
         marginTop: 0,
-        borderRadius: 'inherit'
+        borderRadius: 'inherit',
+        ...style
       }}
     />
   )

@@ -333,7 +333,7 @@ mjx-container {
 
   .cm-scroller {
     font-family: var(--code-font-family);
-    border-radius: 5px;
+    border-radius: inherit;
 
     .cm-gutters {
       line-height: 1.6;
