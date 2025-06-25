@@ -155,7 +155,7 @@ const ProvidersList: FC = () => {
         }
 
         const modalInstance = window.modal.confirm({
-          title: t('settings.models.provider_key_confirm_title'),
+          title: t('settings.models.provider_key_confirm_title', { provider: providerDisplayName }),
           content: (
             <ProviderInfoContainer>
               <ProviderInfoCard size="small">
