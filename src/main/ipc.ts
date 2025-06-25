@@ -269,9 +269,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   // Copy user data to new location
-  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string) => {
+  ipcMain.handle(IpcChannel.App_Copy, async (_, oldPath: string, newPath: string, occupiedDirs: string[] = []) => {
     try {
-      await fs.promises.cp(oldPath, newPath, { recursive: true })
+      await fs.promises.cp(oldPath, newPath, {
+        recursive: true,
+        filter: (src) => {
+          if (occupiedDirs.some((dir) => src.startsWith(path.resolve(dir)))) {
+            return false
+          }
+          return true
+        }
+      })
       return { success: true }
     } catch (error: any) {
       log.error('Failed to copy user data:', error)

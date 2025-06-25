@@ -176,7 +176,10 @@ export class GeminiAPIClient extends BaseApiClient<
       apiVersion: this.getApiVersion(),
       httpOptions: {
         baseUrl: this.getBaseURL(),
-        apiVersion: this.getApiVersion()
+        apiVersion: this.getApiVersion(),
+        headers: {
+          ...this.provider.extra_headers
+        }
       }
     })
 
