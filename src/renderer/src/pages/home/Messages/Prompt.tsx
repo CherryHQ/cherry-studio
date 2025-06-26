@@ -2,7 +2,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { Assistant, Topic } from '@renderer/types'
-import { FC } from 'react'
+import { containsSupportedVariables } from '@renderer/utils/prompt'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,13 +22,44 @@ const Prompt: FC<Props> = ({ assistant, topic }) => {
 
   const processedPrompt = usePromptProcessor({ prompt, modelName: assistant.model?.name })
 
+  // 用于控制显示的状态
+  const [displayText, setDisplayText] = useState(prompt)
+  const [isVisible, setIsVisible] = useState(true)
+
+  useEffect(() => {
+    // 如果没有变量需要替换，直接显示处理后的内容
+    if (!containsSupportedVariables(prompt)) {
+      setDisplayText(processedPrompt)
+      setIsVisible(true)
+      return
+    }
+
+    // 如果有变量需要替换，先显示原始prompt
+    setDisplayText(prompt)
+    setIsVisible(true)
+
+    // 延迟过渡
+    const timer = setTimeout(() => {
+      // 先淡出
+      setIsVisible(false)
+
+      // 切换内容并淡入
+      setTimeout(() => {
+        setDisplayText(processedPrompt)
+        setIsVisible(true)
+      }, 300)
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [prompt, processedPrompt])
+
   if (!prompt && !topicPrompt) {
     return null
   }
 
   return (
     <Container className="system-prompt" onClick={() => AssistantSettingsPopup.show({ assistant })} $isDark={isDark}>
-      <Text>{processedPrompt || prompt}</Text>
+      <Text $isVisible={isVisible}>{displayText}</Text>
     </Container>
   )
 }
@@ -40,13 +72,16 @@ const Container = styled.div<{ $isDark: boolean }>`
   margin: 10px 10px 0 10px;
 `
 
-const Text = styled.div`
+const Text = styled.div<{ $isVisible: boolean }>`
   color: var(--color-text-2);
   font-size: 12px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+
+  opacity: ${(props) => (props.$isVisible ? 1 : 0)};
+  transition: opacity 0.3s ease-in-out;
 `
 
 export default Prompt

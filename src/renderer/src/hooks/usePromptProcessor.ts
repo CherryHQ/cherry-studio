@@ -1,3 +1,4 @@
+import Logger from '@renderer/config/logger'
 import { containsSupportedVariables, promptVariableReplacer } from '@renderer/utils/prompt'
 import { useEffect, useState } from 'react'
 
@@ -7,7 +8,7 @@ interface PromptProcessor {
 }
 
 export function usePromptProcessor({ prompt, modelName }: PromptProcessor): string {
-  const [processedPrompt, setProcessedPrompt] = useState('')
+  const [processedPrompt, setProcessedPrompt] = useState(prompt)
 
   useEffect(() => {
     const processPrompt = async () => {
@@ -19,7 +20,7 @@ export function usePromptProcessor({ prompt, modelName }: PromptProcessor): stri
           setProcessedPrompt(prompt)
         }
       } catch (error) {
-        console.error('Error processing prompt variables:', error)
+        Logger.error('Failed to process prompt variables, falling back:', error)
         setProcessedPrompt(prompt)
       }
     }
