@@ -1478,7 +1478,8 @@
           "version": "Version"
         },
         "errors": {
-          "32000": "MCP server failed to start, please check the parameters according to the tutorial"
+          "32000": "MCP server failed to start, please check the parameters according to the tutorial",
+          "toolNotFound": "Tool {{name}} not found"
         },
         "serverPlural": "servers",
         "serverSingular": "server",

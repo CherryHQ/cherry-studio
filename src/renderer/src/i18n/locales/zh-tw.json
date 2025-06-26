@@ -1468,7 +1468,8 @@
           "version": "版本"
         },
         "errors": {
-          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整"
+          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整",
+          "toolNotFound": "未找到工具 {{name}}"
         },
         "serverPlural": "伺服器",
         "serverSingular": "伺服器",
