@@ -326,7 +326,7 @@ const PopoverContent = styled.div`
 `
 
 const KnowledgePopoverContent = styled(PopoverContent)`
-  max-width: 800px;
+  max-width: 600px;
 `
 
 const PopoverContentItem = styled.div`

@@ -66,7 +66,7 @@ import {
   mcpToolCallResponseToAnthropicMessage,
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
-import { findFileBlocks, findImageBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { buildSystemPrompt } from '@renderer/utils/prompt'
 
 import { BaseApiClient } from '../BaseApiClient'
@@ -192,7 +192,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: getMainTextContent(message)
+        text: await this.getMessageContent(message)
       }
     ]
 
