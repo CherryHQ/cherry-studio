@@ -69,7 +69,6 @@ export interface SettingsState {
   autoCheckUpdate: boolean
   earlyAccess: boolean
   renderInputMessageAsMarkdown: boolean
-  smoothStreamOutput: boolean
   // 代码执行
   codeExecution: {
     enabled: boolean
@@ -223,7 +222,6 @@ export const initialState: SettingsState = {
   autoCheckUpdate: true,
   earlyAccess: false,
   renderInputMessageAsMarkdown: false,
-  smoothStreamOutput: true,
   codeExecution: {
     enabled: false,
     timeoutMinutes: 1
@@ -433,9 +431,6 @@ const settingsSlice = createSlice({
     },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
-    },
-    setSmoothStreamOutput: (state, action: PayloadAction<boolean>) => {
-      state.smoothStreamOutput = action.payload
     },
     setClickAssistantToShowTopic: (state, action: PayloadAction<boolean>) => {
       state.clickAssistantToShowTopic = action.payload
@@ -731,7 +726,6 @@ export const {
   setAutoCheckUpdate,
   setEarlyAccess,
   setRenderInputMessageAsMarkdown,
-  setSmoothStreamOutput,
   setClickAssistantToShowTopic,
   setSkipBackupFile,
   setWebdavHost,

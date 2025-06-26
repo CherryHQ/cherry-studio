@@ -806,7 +806,6 @@
       "rerank_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "search": "搜索模型...",
       "stream_output": "流式输出",
-      "smooth_stream_output": "平滑流式输出",
       "enable_tool_use": "工具调用",
       "type": {
         "embedding": "嵌入",

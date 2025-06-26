@@ -793,7 +793,6 @@
       "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
       "search": "モデルを検索...",
       "stream_output": "ストリーム出力",
-      "smooth_stream_output": "スムーズストリーム出力",
       "enable_tool_use": "ツール呼び出し",
       "type": {
         "embedding": "埋め込み",

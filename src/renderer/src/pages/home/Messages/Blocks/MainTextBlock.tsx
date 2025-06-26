@@ -24,7 +24,7 @@ const toolUseRegex = /<tool_use>([\s\S]*?)<\/tool_use>/g
 
 const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
   // Use the passed citationBlockId directly in the selector
-  const { renderInputMessageAsMarkdown, smoothStreamOutput } = useSettings()
+  const { renderInputMessageAsMarkdown } = useSettings()
 
   const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
 
@@ -155,7 +155,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
           {block.content}
         </p>
       ) : (
-        <Markdown block={{ ...block, content: ignoreToolUse }} smoothStreamOutput={smoothStreamOutput} />
+        <Markdown block={{ ...block, content: ignoreToolUse }} />
       )}
     </>
   )

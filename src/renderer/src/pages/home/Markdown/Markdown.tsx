@@ -37,10 +37,9 @@ const DISALLOWED_ELEMENTS = ['iframe']
 interface Props {
   // message: Message & { content: string }
   block: MainTextMessageBlock | TranslationMessageBlock | ThinkingMessageBlock
-  smoothStreamOutput?: boolean
 }
 
-const Markdown: FC<Props> = ({ block, smoothStreamOutput = false }) => {
+const Markdown: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
   const { mathEngine } = useSettings()
 
@@ -60,7 +59,7 @@ const Markdown: FC<Props> = ({ block, smoothStreamOutput = false }) => {
   }, [block, t])
 
   const isStreaming = block.status === MessageBlockStatus.STREAMING
-  const messageContent = useTypingOutput(rawContent, smoothStreamOutput && isStreaming)
+  const messageContent = useTypingOutput(rawContent, isStreaming)
 
   const rehypePlugins = useMemo(() => {
     const plugins: any[] = []
