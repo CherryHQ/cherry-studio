@@ -18,7 +18,7 @@ export function handleProvidersProtocolUrl(url: URL) {
       const data = params.get('data')
       const mainWindow = windowService.getMainWindow()
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${encodeURIComponent(data||'')}')`)
       }
       break
     }
