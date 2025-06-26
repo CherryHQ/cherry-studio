@@ -238,20 +238,15 @@ const ProvidersList: FC = () => {
     }
 
     try {
-        const decodeBase64UTF8 = (base64String: string) => {
-        // 先将 base64 转换为 Uint8Array
-        const binaryString = atob(base64String);
-        const bytes = new Uint8Array(binaryString.length);
-        
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        
-        // 使用 TextDecoder 解码 UTF-8
-        const decoder = new TextDecoder('utf-8');
-        return decoder.decode(bytes);
-      }
-      const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(decodeBase64UTF8(addProviderData))
+      const base64Decode = (base64EncodedString: string) =>
+        new TextDecoder().decode(Uint8Array.from(atob(base64EncodedString), (m) => m.charCodeAt(0)))
+      const {
+        id,
+        apiKey: newApiKey,
+        baseUrl,
+        type,
+        name
+      } = JSON.parse(base64Decode(addProviderData.replaceAll('_', '+').replaceAll('-', '/')))
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
