@@ -1607,7 +1607,6 @@ const migrateConfig = {
       if (state.settings) {
         state.settings.enableSpellCheck = false
         state.settings.spellCheckLanguages = []
-        state.settings.upgradeChannel = UpgradeChannel.LATEST
       }
       return state
     } catch (error) {
@@ -1629,6 +1628,9 @@ const migrateConfig = {
           }
         }
       })
+      if (state.settings) {
+        state.settings.upgradeChannel = UpgradeChannel.LATEST
+      }
       return state
     } catch (error) {
       return state
