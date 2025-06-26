@@ -92,7 +92,11 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.BackupProgress, processData)
-      Logger.log('[BackupManager] backup progress', processData)
+      // 只在关键阶段记录日志：开始、结束和主要阶段转换点
+      const logStages = ['preparing', 'writing_data', 'preparing_compression', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        Logger.log('[BackupManager] backup progress', processData)
+      }
     }
 
     try {
@@ -154,18 +158,23 @@ class BackupManager {
       let totalBytes = 0
       let processedBytes = 0
 
-      // 首先计算总文件数和总大小
+      // 首先计算总文件数和总大小，但不记录详细日志
       const calculateTotals = async (dirPath: string) => {
-        const items = await fs.readdir(dirPath, { withFileTypes: true })
-        for (const item of items) {
-          const fullPath = path.join(dirPath, item.name)
-          if (item.isDirectory()) {
-            await calculateTotals(fullPath)
-          } else {
-            totalEntries++
-            const stats = await fs.stat(fullPath)
-            totalBytes += stats.size
+        try {
+          const items = await fs.readdir(dirPath, { withFileTypes: true })
+          for (const item of items) {
+            const fullPath = path.join(dirPath, item.name)
+            if (item.isDirectory()) {
+              await calculateTotals(fullPath)
+            } else {
+              totalEntries++
+              const stats = await fs.stat(fullPath)
+              totalBytes += stats.size
+            }
           }
+        } catch (error) {
+          // 仅在出错时记录日志
+          Logger.error('[BackupManager] Error calculating totals:', error)
         }
       }
 
@@ -237,7 +246,11 @@ class BackupManager {
 
     const onProgress = (processData: { stage: string; progress: number; total: number }) => {
       mainWindow?.webContents.send(IpcChannel.RestoreProgress, processData)
-      Logger.log('[BackupManager] restore progress', processData)
+      // 只在关键阶段记录日志
+      const logStages = ['preparing', 'extracting', 'extracted', 'reading_data', 'completed']
+      if (logStages.includes(processData.stage) || processData.progress === 100) {
+        Logger.log('[BackupManager] restore progress', processData)
+      }
     }
 
     try {
@@ -389,21 +402,54 @@ class BackupManager {
     destination: string,
     onProgress: (size: number) => void
   ): Promise<void> {
-    const items = await fs.readdir(source, { withFileTypes: true })
+    // 先统计总文件数
+    let totalFiles = 0
+    let processedFiles = 0
+    let lastProgressReported = 0
 
-    for (const item of items) {
-      const sourcePath = path.join(source, item.name)
-      const destPath = path.join(destination, item.name)
+    // 计算总文件数
+    const countFiles = async (dir: string): Promise<number> => {
+      let count = 0
+      const items = await fs.readdir(dir, { withFileTypes: true })
+      for (const item of items) {
+        if (item.isDirectory()) {
+          count += await countFiles(path.join(dir, item.name))
+        } else {
+          count++
+        }
+      }
+      return count
+    }
 
-      if (item.isDirectory()) {
-        await fs.ensureDir(destPath)
-        await this.copyDirWithProgress(sourcePath, destPath, onProgress)
-      } else {
-        const stats = await fs.stat(sourcePath)
-        await fs.copy(sourcePath, destPath)
-        onProgress(stats.size)
+    totalFiles = await countFiles(source)
+
+    // 复制文件并更新进度
+    const copyDir = async (src: string, dest: string): Promise<void> => {
+      const items = await fs.readdir(src, { withFileTypes: true })
+
+      for (const item of items) {
+        const sourcePath = path.join(src, item.name)
+        const destPath = path.join(dest, item.name)
+
+        if (item.isDirectory()) {
+          await fs.ensureDir(destPath)
+          await copyDir(sourcePath, destPath)
+        } else {
+          const stats = await fs.stat(sourcePath)
+          await fs.copy(sourcePath, destPath)
+          processedFiles++
+
+          // 只在进度变化超过5%时报告进度
+          const currentProgress = Math.floor((processedFiles / totalFiles) * 100)
+          if (currentProgress - lastProgressReported >= 5 || processedFiles === totalFiles) {
+            lastProgressReported = currentProgress
+            onProgress(stats.size)
+          }
+        }
       }
     }
+
+    await copyDir(source, destination)
   }
 
   async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
@@ -440,6 +486,10 @@ class BackupManager {
       .replace(/[-:T.Z]/g, '')
       .slice(0, 14)
     const filename = s3Config.fileName || `cherry-studio.backup.${deviceName}.${timestamp}.zip`
+
+    // 不记录详细日志，只记录开始和结束
+    Logger.log(`[BackupManager] Starting S3 backup to ${filename}`)
+
     const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
     const s3Client = new S3Storage('s3', {
       endpoint: s3Config.endpoint,
@@ -453,8 +503,11 @@ class BackupManager {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)
       const result = await s3Client.putFileContents(filename, fileBuffer)
       await fs.remove(backupedFilePath)
+
+      Logger.log(`[BackupManager] S3 backup completed successfully: ${filename}`)
       return result
     } catch (error) {
+      Logger.error(`[BackupManager] S3 backup failed:`, error)
       await fs.remove(backupedFilePath)
       throw error
     }
@@ -462,6 +515,10 @@ class BackupManager {
 
   async restoreFromS3(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
     const filename = s3Config.fileName || 'cherry-studio.backup.zip'
+
+    // 只记录开始和结束或错误
+    Logger.log(`[BackupManager] Starting restore from S3: ${filename}`)
+
     const s3Client = new S3Storage('s3', {
       endpoint: s3Config.endpoint,
       region: s3Config.region,
@@ -483,9 +540,11 @@ class BackupManager {
         writeStream.on('finish', () => resolve())
         writeStream.on('error', (error) => reject(error))
       })
+
+      Logger.log(`[BackupManager] S3 restore file downloaded successfully: ${filename}`)
       return await this.restore(_, backupedFilePath)
     } catch (error: any) {
-      Logger.error('[backup] Failed to restore from S3:', error)
+      Logger.error('[BackupManager] Failed to restore from S3:', error)
       throw new Error(error.message || 'Failed to restore backup file')
     }
   }
