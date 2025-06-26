@@ -22,15 +22,17 @@ export async function handleProvidersProtocolUrl(url: URL) {
       const mainWindow = windowService.getMainWindow()
 
       // add check there is window.navigate function in mainWindow
-      if (mainWindow && !mainWindow.isDestroyed() && await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`)) {
-    
-         
-            mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
-          } else {
-            setTimeout(() => {
-              handleProvidersProtocolUrl(url)
-            }, 1000)
-          }
+      if (
+        mainWindow &&
+        !mainWindow.isDestroyed() &&
+        (await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`))
+      ) {
+        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+      } else {
+        setTimeout(() => {
+          handleProvidersProtocolUrl(url)
+        }, 1000)
+      }
       break
     }
     default:

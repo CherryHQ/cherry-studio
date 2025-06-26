@@ -102,7 +102,6 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
-
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
@@ -136,10 +135,8 @@ if (!app.requestSingleInstanceLock()) {
     if (url) handleProtocolUrl(url)
   }
 
- 
   // for windows to start with url
   handleOpenUrl(process.argv)
-
 
   // Listen for second instance
   app.on('second-instance', (_event, argv) => {
