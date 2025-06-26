@@ -230,6 +230,7 @@ const MessageFooter = styled.div`
   align-items: center;
   gap: 20px;
   margin-left: 46px;
+  margin-top: 2px;
 `
 
 const NewContextMessage = styled.div`
