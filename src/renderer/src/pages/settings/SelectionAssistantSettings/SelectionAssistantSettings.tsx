@@ -50,6 +50,7 @@ const SelectionAssistantSettings: FC = () => {
     setFilterList
   } = useSelectionAssistant()
   const [isFilterListModalOpen, setIsFilterListModalOpen] = useState(false)
+  const [opacityValue, setOpacityValue] = useState(actionWindowOpacity)
 
   // force disable selection assistant on non-windows systems
   useEffect(() => {
@@ -195,14 +196,15 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.opacity.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.opacity.description')}</SettingDescription>
               </SettingLabel>
-              <div style={{ marginRight: '16px' }}>{actionWindowOpacity}%</div>
+              <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
                 style={{ width: 100 }}
                 min={20}
                 max={100}
                 reverse
-                value={actionWindowOpacity}
-                onChange={setActionWindowOpacity}
+                value={opacityValue}
+                onChange={setOpacityValue}
+                onChangeComplete={setActionWindowOpacity}
                 tooltip={{ open: false }}
               />
             </SettingRow>

@@ -150,7 +150,7 @@ const ThinkingTimeSeconds = memo(
 )
 
 const CollapseContainer = styled(Collapse)`
-  margin-bottom: 15px;
+  margin: 15px 0;
 `
 
 const MessageTitleLabel = styled.div`

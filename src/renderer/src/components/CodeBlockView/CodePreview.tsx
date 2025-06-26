@@ -4,7 +4,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
@@ -18,19 +18,20 @@ interface CodePreviewProps {
 /**
  * Shiki 流式代码高亮组件
  *
- * - 通过 shiki tokenizer 处理流式响应
- * - 为了正确执行语法高亮，必须保证流式响应都依次到达 tokenizer，不能跳过
+ * - 通过 shiki tokenizer 处理流式响应，高性能
+ * - 进入视口后触发高亮，改善页面内有大量长代码块时的响应
+ * - 并发安全
  */
 const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   const { codeShowLineNumbers, fontSize, codeCollapsible, codeWrappable } = useSettings()
-  const { activeShikiTheme, highlightCodeChunk, cleanupTokenizers } = useCodeStyle()
+  const { activeShikiTheme, highlightStreamingCode, cleanupTokenizers } = useCodeStyle()
   const [isExpanded, setIsExpanded] = useState(!codeCollapsible)
   const [isUnwrapped, setIsUnwrapped] = useState(!codeWrappable)
   const [tokenLines, setTokenLines] = useState<ThemedToken[][]>([])
-  const codeContentRef = useRef<HTMLDivElement>(null)
-  const prevCodeLengthRef = useRef(0)
-  const safeCodeStringRef = useRef(children)
-  const highlightQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const [isInViewport, setIsInViewport] = useState(false)
+  const codeContainerRef = useRef<HTMLDivElement>(null)
+  const processingRef = useRef(false)
+  const latestRequestedContentRef = useRef<string | null>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
   const shikiThemeRef = useRef(activeShikiTheme)
 
@@ -45,7 +46,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
       icon: isExpanded ? <ChevronsDownUp className="icon" /> : <ChevronsUpDown className="icon" />,
       tooltip: isExpanded ? t('code_block.collapse') : t('code_block.expand'),
       visible: () => {
-        const scrollHeight = codeContentRef.current?.scrollHeight
+        const scrollHeight = codeContainerRef.current?.scrollHeight
         return codeCollapsible && (scrollHeight ?? 0) > 350
       },
       onClick: () => setIsExpanded((prev) => !prev)
@@ -77,81 +78,63 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     setIsUnwrapped(!codeWrappable)
   }, [codeWrappable])
 
-  // 处理尾部空白字符
-  const safeCodeString = useMemo(() => {
-    return typeof children === 'string' ? children.trimEnd() : ''
-  }, [children])
-
   const highlightCode = useCallback(async () => {
-    if (!safeCodeString) return
+    const currentContent = typeof children === 'string' ? children.trimEnd() : ''
 
-    if (prevCodeLengthRef.current === safeCodeString.length) return
+    // 记录最新要处理的内容，为了保证最终状态正确
+    latestRequestedContentRef.current = currentContent
 
-    // 捕获当前状态
-    const startPos = prevCodeLengthRef.current
-    const endPos = safeCodeString.length
+    // 如果正在处理，先跳出，等到完成后会检查是否有新内容
+    if (processingRef.current) return
 
-    // 添加到处理队列，确保按顺序处理
-    highlightQueueRef.current = highlightQueueRef.current.then(async () => {
-      // FIXME: 长度有问题，或者破坏了流式内容，需要清理 tokenizer 并使用完整代码重新高亮
-      if (prevCodeLengthRef.current > safeCodeString.length || !safeCodeString.startsWith(safeCodeStringRef.current)) {
-        cleanupTokenizers(callerId)
-        prevCodeLengthRef.current = 0
-        safeCodeStringRef.current = ''
+    processingRef.current = true
 
-        const result = await highlightCodeChunk(safeCodeString, language, callerId)
-        setTokenLines(result.lines)
+    try {
+      // 循环处理，确保会处理最新内容
+      while (latestRequestedContentRef.current !== null) {
+        const contentToProcess = latestRequestedContentRef.current
+        latestRequestedContentRef.current = null // 标记开始处理
 
-        prevCodeLengthRef.current = safeCodeString.length
-        safeCodeStringRef.current = safeCodeString
+        // 传入完整内容，让 ShikiStreamService 检测变化并处理增量高亮
+        const result = await highlightStreamingCode(contentToProcess, language, callerId)
 
-        return
+        // 如有结果，更新 tokenLines
+        if (result.lines.length > 0 || result.recall !== 0) {
+          setTokenLines((prev) => {
+            return result.recall === -1
+              ? result.lines
+              : [...prev.slice(0, Math.max(0, prev.length - result.recall)), ...result.lines]
+          })
+        }
       }
-
-      // 跳过 race condition，延迟到后续任务
-      if (prevCodeLengthRef.current !== startPos) {
-        return
-      }
-
-      const incrementalCode = safeCodeString.slice(startPos, endPos)
-      const result = await highlightCodeChunk(incrementalCode, language, callerId)
-      setTokenLines((lines) => [...lines.slice(0, Math.max(0, lines.length - result.recall)), ...result.lines])
-      prevCodeLengthRef.current = endPos
-      safeCodeStringRef.current = safeCodeString
-    })
-  }, [callerId, cleanupTokenizers, highlightCodeChunk, language, safeCodeString])
+    } finally {
+      processingRef.current = false
+    }
+  }, [highlightStreamingCode, language, callerId, children])
 
   // 主题变化时强制重新高亮
   useEffect(() => {
     if (shikiThemeRef.current !== activeShikiTheme) {
-      prevCodeLengthRef.current++
       shikiThemeRef.current = activeShikiTheme
+      cleanupTokenizers(callerId)
+      setTokenLines([])
     }
-  }, [activeShikiTheme])
+  }, [activeShikiTheme, callerId, cleanupTokenizers])
 
   // 组件卸载时清理资源
   useEffect(() => {
     return () => cleanupTokenizers(callerId)
   }, [callerId, cleanupTokenizers])
 
-  // 触发代码高亮
-  // - 进入视口后触发第一次高亮
-  // - 内容变化后触发之后的高亮
+  // 视口检测逻辑，进入视口后触发第一次代码高亮
   useEffect(() => {
-    let isMounted = true
-
-    if (prevCodeLengthRef.current > 0) {
-      setTimeout(highlightCode, 0)
-      return
-    }
-
-    const codeElement = codeContentRef.current
+    const codeElement = codeContainerRef.current
     if (!codeElement) return
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].intersectionRatio > 0 && isMounted) {
-          setTimeout(highlightCode, 0)
+        if (entries[0].intersectionRatio > 0) {
+          setIsInViewport(true)
           observer.disconnect()
         }
       },
@@ -161,15 +144,18 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     )
 
     observer.observe(codeElement)
+    return () => observer.disconnect()
+  }, []) // 只执行一次
 
-    return () => {
-      isMounted = false
-      observer.disconnect()
-    }
-  }, [highlightCode])
+  // 触发代码高亮
+  useEffect(() => {
+    if (!isInViewport) return
+
+    setTimeout(highlightCode, 0)
+  }, [isInViewport, highlightCode])
 
   useEffect(() => {
-    const container = codeContentRef.current
+    const container = codeContainerRef.current
     if (!container || !codeShowLineNumbers) return
 
     const digits = Math.max(tokenLines.length.toString().length, 1)
@@ -180,7 +166,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
 
   return (
     <ContentContainer
-      ref={codeContentRef}
+      ref={codeContainerRef}
       $lineNumbers={codeShowLineNumbers}
       $wrap={codeWrappable && !isUnwrapped}
       $fadeIn={hasHighlightedCode}

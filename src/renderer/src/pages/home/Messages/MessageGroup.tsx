@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -257,7 +258,7 @@ const GroupContainer = styled.div`
   }
 `
 
-const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
+const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
   overflow-y: visible;
