@@ -12,15 +12,39 @@ export async function applyFileEdits(
     // Read file content and normalize line endings
     const content = normalizeLineEndings(await fs.readFile(filePath, 'utf-8'))
 
+    if (edits.length === 0) {
+      return { success: true, data: 'No edits to apply' }
+    }
+
+    // Validate that all oldText exists before applying any edits
+    for (const [index, edit] of edits.entries()) {
+      const normalizedOld = normalizeLineEndings(edit.oldText)
+      if (!content.includes(normalizedOld)) {
+        // Check if we can find it with whitespace flexibility
+        const found = findTextWithWhitespaceFlexibility(content, normalizedOld)
+        if (!found) {
+          return {
+            success: false,
+            error: `Edit ${index + 1}: Could not find text to replace:\n${edit.oldText}`
+          }
+        }
+      }
+    }
+
     // Apply edits sequentially
     let modifiedContent = content
-    for (const edit of edits) {
+    for (const [index, edit] of edits.entries()) {
       const normalizedOld = normalizeLineEndings(edit.oldText)
       const normalizedNew = normalizeLineEndings(edit.newText)
 
       // If exact match exists, use it
       if (modifiedContent.includes(normalizedOld)) {
-        modifiedContent = modifiedContent.replace(normalizedOld, normalizedNew)
+        // Only replace the first occurrence to avoid unintended replacements
+        const replaceIndex = modifiedContent.indexOf(normalizedOld)
+        modifiedContent =
+          modifiedContent.substring(0, replaceIndex) +
+          normalizedNew +
+          modifiedContent.substring(replaceIndex + normalizedOld.length)
         continue
       }
 
@@ -39,18 +63,32 @@ export async function applyFileEdits(
         })
 
         if (isMatch) {
-          // Preserve original indentation of first line
+          // Preserve original indentation more intelligently
           const originalIndent = contentLines[i].match(/^\s*/)?.[0] || ''
           const newLines = normalizedNew.split('\n').map((line, j) => {
-            if (j === 0) return originalIndent + line.trimStart()
-            // For subsequent lines, try to preserve relative indentation
+            if (j === 0) {
+              // For the first line, preserve the original indentation
+              return originalIndent + line.trimStart()
+            }
+
+            // For subsequent lines, calculate relative indentation
             const oldIndent = oldLines[j]?.match(/^\s*/)?.[0] || ''
             const newIndent = line.match(/^\s*/)?.[0] || ''
+
             if (oldIndent && newIndent) {
-              const relativeIndent = newIndent.length - oldIndent.length
-              return originalIndent + ' '.repeat(Math.max(0, relativeIndent)) + line.trimStart()
+              // Calculate the difference in indentation
+              const oldIndentSize = oldIndent.length
+              const newIndentSize = newIndent.length
+              const indentDifference = newIndentSize - oldIndentSize
+
+              // Apply the same indentation pattern but relative to original
+              const baseIndent = originalIndent
+              const additionalIndent = ' '.repeat(Math.max(0, indentDifference))
+              return baseIndent + additionalIndent + line.trimStart()
             }
-            return line
+
+            // If we can't determine indentation, preserve the line as-is but with base indent
+            return line.trim() ? originalIndent + line.trimStart() : line
           })
 
           contentLines.splice(i, oldLines.length, ...newLines)
@@ -63,7 +101,7 @@ export async function applyFileEdits(
       if (!matchFound) {
         return {
           success: false,
-          error: `Could not find exact match for edit:\n${edit.oldText}`
+          error: `Edit ${index + 1}: Could not find exact match for edit:\n${edit.oldText}\n\nTip: Check for whitespace differences or use fuzzy matching.`
         }
       }
     }
@@ -147,4 +185,34 @@ export async function editBlock(
       error: `Failed to edit block: ${error instanceof Error ? error.message : String(error)}`
     }
   }
+}
+
+// Helper function to find text with whitespace flexibility
+function findTextWithWhitespaceFlexibility(content: string, searchText: string): boolean {
+  const searchLines = searchText
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const contentLines = content.split('\n')
+
+  // Try to find a sequence of lines that match when trimmed
+  for (let i = 0; i <= contentLines.length - searchLines.length; i++) {
+    let allMatch = true
+
+    for (let j = 0; j < searchLines.length; j++) {
+      const contentLine = contentLines[i + j]?.trim() || ''
+      const searchLine = searchLines[j]
+
+      if (contentLine !== searchLine) {
+        allMatch = false
+        break
+      }
+    }
+
+    if (allMatch) {
+      return true
+    }
+  }
+
+  return false
 }

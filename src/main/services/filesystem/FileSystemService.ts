@@ -6,6 +6,14 @@ import { getFileInfo, moveFile, readFile, readMultipleFiles, writeFile } from '.
 import { EditOperation, EditResult, FileInfo, FileSystemConfig, SearchResult, ServiceResult, TreeEntry } from './types'
 import { expandHome, normalizePath, validateAllowedDirectories, validatePath } from './utils/pathValidation'
 import { CodeSearchOptions, searchCode, searchFiles } from './utils/searchUtils'
+import {
+  validateArray,
+  validateContent,
+  validateEditOperations,
+  validateFilePath,
+  validateSearchPattern,
+  validateString
+} from './utils/validation'
 
 export class FileSystemService {
   private allowedDirectories: string[]
@@ -23,6 +31,8 @@ export class FileSystemService {
   // File operations
   async readFile(filePath: string): Promise<ServiceResult<string>> {
     try {
+      validateString(filePath, 'filePath')
+      validateFilePath(filePath)
       const validPath = await validatePath(this.allowedDirectories, filePath)
       return await readFile(validPath)
     } catch (error) {
@@ -34,38 +44,62 @@ export class FileSystemService {
   }
 
   async readMultipleFiles(filePaths: string[]): Promise<ServiceResult<Map<string, string>>> {
-    const validatedPaths: string[] = []
-    const errors: string[] = []
+    try {
+      validateArray(filePaths, 'filePaths')
 
-    // Validate all paths first
-    for (const filePath of filePaths) {
-      try {
-        const validPath = await validatePath(this.allowedDirectories, filePath)
-        validatedPaths.push(validPath)
-      } catch (error) {
-        errors.push(`${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+      if (filePaths.length === 0) {
+        return { success: false, error: 'No file paths provided' }
       }
-    }
 
-    if (validatedPaths.length === 0) {
+      if (filePaths.length > 100) {
+        return { success: false, error: 'Too many files requested (max 100)' }
+      }
+
+      const validatedPaths: string[] = []
+      const errors: string[] = []
+
+      // Validate all paths first
+      for (const filePath of filePaths) {
+        try {
+          validateString(filePath, 'filePath')
+          validateFilePath(filePath)
+          const validPath = await validatePath(this.allowedDirectories, filePath)
+          validatedPaths.push(validPath)
+        } catch (error) {
+          errors.push(`${filePath}: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+
+      if (validatedPaths.length === 0) {
+        return {
+          success: false,
+          error: errors.join('\n')
+        }
+      }
+
+      const result = await readMultipleFiles(validatedPaths)
+      if (errors.length > 0 && result.error) {
+        result.error = errors.join('\n') + '\n' + result.error
+      } else if (errors.length > 0) {
+        result.error = errors.join('\n')
+      }
+
+      return result
+    } catch (error) {
       return {
         success: false,
-        error: errors.join('\n')
+        error: error instanceof Error ? error.message : String(error)
       }
     }
-
-    const result = await readMultipleFiles(validatedPaths)
-    if (errors.length > 0 && result.error) {
-      result.error = errors.join('\n') + '\n' + result.error
-    } else if (errors.length > 0) {
-      result.error = errors.join('\n')
-    }
-
-    return result
   }
 
   async writeFile(filePath: string, content: string): Promise<ServiceResult<void>> {
     try {
+      validateString(filePath, 'filePath')
+      validateString(content, 'content')
+      validateFilePath(filePath)
+      validateContent(content)
+
       const validPath = await validatePath(this.allowedDirectories, filePath)
 
       // Check file write line limit if configured
@@ -90,6 +124,11 @@ export class FileSystemService {
 
   async moveFile(sourcePath: string, destPath: string): Promise<ServiceResult<void>> {
     try {
+      validateString(sourcePath, 'sourcePath')
+      validateString(destPath, 'destPath')
+      validateFilePath(sourcePath)
+      validateFilePath(destPath)
+
       const validSourcePath = await validatePath(this.allowedDirectories, sourcePath)
       const validDestPath = await validatePath(this.allowedDirectories, destPath)
       return await moveFile(validSourcePath, validDestPath)
@@ -103,6 +142,8 @@ export class FileSystemService {
 
   async getFileInfo(filePath: string): Promise<ServiceResult<FileInfo>> {
     try {
+      validateString(filePath, 'filePath')
+      validateFilePath(filePath)
       const validPath = await validatePath(this.allowedDirectories, filePath)
       return await getFileInfo(validPath)
     } catch (error) {
@@ -116,6 +157,8 @@ export class FileSystemService {
   // Directory operations
   async createDirectory(dirPath: string): Promise<ServiceResult<void>> {
     try {
+      validateString(dirPath, 'dirPath')
+      validateFilePath(dirPath)
       const validPath = await validatePath(this.allowedDirectories, dirPath)
       return await createDirectory(validPath)
     } catch (error) {
@@ -128,6 +171,8 @@ export class FileSystemService {
 
   async listDirectory(dirPath: string): Promise<ServiceResult<Array<{ name: string; type: 'file' | 'directory' }>>> {
     try {
+      validateString(dirPath, 'dirPath')
+      validateFilePath(dirPath)
       const validPath = await validatePath(this.allowedDirectories, dirPath)
       return await listDirectory(validPath)
     } catch (error) {
@@ -140,6 +185,8 @@ export class FileSystemService {
 
   async getDirectoryTree(dirPath: string): Promise<ServiceResult<TreeEntry[]>> {
     try {
+      validateString(dirPath, 'dirPath')
+      validateFilePath(dirPath)
       const validPath = await validatePath(this.allowedDirectories, dirPath)
       return await buildDirectoryTree(validPath, this.allowedDirectories)
     } catch (error) {
@@ -153,6 +200,18 @@ export class FileSystemService {
   // Search operations
   async searchFiles(searchPath: string, pattern: string, excludePatterns?: string[]): Promise<ServiceResult<string[]>> {
     try {
+      validateString(searchPath, 'searchPath')
+      validateString(pattern, 'pattern')
+      validateFilePath(searchPath)
+      validateSearchPattern(pattern)
+
+      if (excludePatterns) {
+        validateArray(excludePatterns, 'excludePatterns')
+        for (const excludePattern of excludePatterns) {
+          validateString(excludePattern, 'excludePattern')
+        }
+      }
+
       const validPath = await validatePath(this.allowedDirectories, searchPath)
       const results = await searchFiles(this.allowedDirectories, validPath, pattern, excludePatterns)
       return { success: true, data: results }
@@ -171,13 +230,29 @@ export class FileSystemService {
     excludePatterns?: string[]
   }): Promise<ServiceResult<SearchResult[]>> {
     try {
+      validateString(options.path, 'path')
+      validateString(options.pattern, 'pattern')
+      validateFilePath(options.path)
+      validateSearchPattern(options.pattern)
+
+      if (options.filePattern) {
+        validateString(options.filePattern, 'filePattern')
+      }
+
+      if (options.excludePatterns) {
+        validateArray(options.excludePatterns, 'excludePatterns')
+        for (const excludePattern of options.excludePatterns) {
+          validateString(excludePattern, 'excludePattern')
+        }
+      }
+
       const validPath = await validatePath(this.allowedDirectories, options.path)
       const searchOptions: CodeSearchOptions = {
         ...options,
         path: validPath
       }
 
-      const results = await searchCode(searchOptions)
+      const results = await searchCode(this.allowedDirectories, searchOptions)
       const searchResults: SearchResult[] = results.map((r) => ({
         path: r.file,
         lineNumber: r.line,
@@ -197,6 +272,11 @@ export class FileSystemService {
   // Edit operations
   async editFile(filePath: string, edits: EditOperation[], dryRun = false): Promise<ServiceResult<string>> {
     try {
+      validateString(filePath, 'filePath')
+      validateArray(edits, 'edits')
+      validateFilePath(filePath)
+      validateEditOperations(edits)
+
       const validPath = await validatePath(this.allowedDirectories, filePath)
       return await applyFileEdits(validPath, edits, dryRun)
     } catch (error) {
@@ -214,6 +294,11 @@ export class FileSystemService {
     options: { fuzzy?: boolean; dryRun?: boolean } = {}
   ): Promise<ServiceResult<EditResult>> {
     try {
+      validateString(filePath, 'filePath')
+      validateString(searchText, 'searchText')
+      validateString(replaceText, 'replaceText')
+      validateFilePath(filePath)
+
       const validPath = await validatePath(this.allowedDirectories, filePath)
       return await editBlock(validPath, searchText, replaceText, options)
     } catch (error) {

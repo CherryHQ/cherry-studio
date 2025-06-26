@@ -25,37 +25,48 @@ export function formatDiff(diff: string): string {
 export function findFuzzyMatch(
   content: string,
   searchText: string,
-  threshold: number = 0.8
-): { start: number; end: number; match: string } | null {
+  threshold: number = 0.75
+): { start: number; end: number; match: string; score: number } | null {
   const searchLines = searchText
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
   const contentLines = content.split('\n')
 
+  let bestMatch: { start: number; end: number; match: string; score: number } | null = null
+
   // Try to find a sequence of lines that match with some flexibility
   for (let i = 0; i <= contentLines.length - searchLines.length; i++) {
-    let matchScore = 0
-    const matchedLines: string[] = []
+    const candidates = []
+    let totalScore = 0
+    let validMatches = 0
 
-    for (let j = 0; j < searchLines.length; j++) {
+    // Try exact length match first
+    for (let j = 0; j < searchLines.length && i + j < contentLines.length; j++) {
       const contentLine = contentLines[i + j].trim()
       const searchLine = searchLines[j]
-
-      // Calculate similarity score
       const similarity = calculateSimilarity(contentLine, searchLine)
+
+      candidates.push({
+        line: contentLines[i + j],
+        similarity,
+        valid: similarity > threshold
+      })
+
       if (similarity > threshold) {
-        matchScore += similarity
-        matchedLines.push(contentLines[i + j])
-      } else {
-        break
+        totalScore += similarity
+        validMatches++
       }
     }
 
-    if (matchedLines.length === searchLines.length) {
-      const averageScore = matchScore / searchLines.length
-      if (averageScore > threshold) {
-        // Calculate the actual character positions
+    // Check if we have enough valid matches
+    const matchRatio = validMatches / searchLines.length
+    if (matchRatio >= 0.7) {
+      // At least 70% of lines should match
+      const averageScore = totalScore / searchLines.length
+
+      if (averageScore > threshold && (!bestMatch || averageScore > bestMatch.score)) {
+        // Calculate character positions
         const startLineIndex = i
         const endLineIndex = i + searchLines.length - 1
 
@@ -69,32 +80,53 @@ export function findFuzzyMatch(
           end += contentLines[k].length + (k < endLineIndex ? 1 : 0)
         }
 
-        return {
+        bestMatch = {
           start,
           end,
-          match: matchedLines.join('\n')
+          match: candidates.map((c) => c.line).join('\n'),
+          score: averageScore
         }
       }
     }
   }
 
-  return null
+  return bestMatch
 }
 
 function calculateSimilarity(str1: string, str2: string): number {
   if (str1 === str2) return 1
   if (str1.length === 0 || str2.length === 0) return 0
 
-  // Simple character-based similarity
-  const longer = str1.length > str2.length ? str1 : str2
-  const shorter = str1.length > str2.length ? str2 : str1
+  // Use Levenshtein distance for better similarity calculation
+  const distance = levenshteinDistance(str1, str2)
+  const maxLength = Math.max(str1.length, str2.length)
+  return 1 - distance / maxLength
+}
 
-  let matches = 0
-  for (let i = 0; i < shorter.length; i++) {
-    if (longer[i] === shorter[i]) {
-      matches++
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix: number[][] = []
+  const len1 = str1.length
+  const len2 = str2.length
+
+  // Initialize matrix
+  for (let i = 0; i <= len1; i++) {
+    matrix[i] = [i]
+  }
+  for (let j = 0; j <= len2; j++) {
+    matrix[0][j] = j
+  }
+
+  // Fill matrix
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1, // deletion
+        matrix[i][j - 1] + 1, // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      )
     }
   }
 
-  return matches / longer.length
+  return matrix[len1][len2]
 }
