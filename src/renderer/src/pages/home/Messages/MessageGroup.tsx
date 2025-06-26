@@ -173,7 +173,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
           key={message.id}
           className={classNames([
             {
-              [multiModelMessageStyle]: message.role === 'assistant',
+              [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
               selected: message.id === selectedMessageId
             }
           ])}>
@@ -191,7 +191,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                 className={classNames([
                   'in-popover',
                   {
-                    [multiModelMessageStyle]: message.role === 'assistant',
+                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
                     selected: message.id === selectedMessageId
                   }
                 ])}>
@@ -210,7 +210,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
       return messageContent
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, selectedMessageId, gridPopoverTrigger]
+    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
   )
 
   return (
