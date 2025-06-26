@@ -59,6 +59,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         <LayoutContainer>
           {['fold', 'vertical', 'horizontal', 'grid'].map((layout) => (
             <Tooltip
+              mouseEnterDelay={0.5}
               key={layout}
               title={t(`message.message.multi_model_style`) + ': ' + t(`message.message.multi_model_style.${layout}`)}>
               <LayoutOption
@@ -101,15 +102,13 @@ const GroupMenuBar = styled.div<{ $layout: MultiModelMessageStyle }>`
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  margin: 0 20px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  margin-top: 10px;
+  padding: 8px;
+  border-radius: 10px;
+  margin: 8px 10px 16px;
   justify-content: space-between;
   overflow: hidden;
   border: 0.5px solid var(--color-border);
   height: 40px;
-  background-color: var(--color-background);
 `
 
 const LayoutContainer = styled.div`

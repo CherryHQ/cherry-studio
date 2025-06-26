@@ -16,6 +16,7 @@ const FILE_LOADER_MAP: Record<string, string> = {
   // 内置类型
   '.pdf': 'common',
   '.csv': 'common',
+  '.doc': 'common',
   '.docx': 'common',
   '.pptx': 'common',
   '.xlsx': 'common',

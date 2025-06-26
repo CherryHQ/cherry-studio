@@ -2,34 +2,33 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const { execSync } = require('child_process')
-const tar = require('tar')
-const AdmZip = require('adm-zip')
+const StreamZip = require('node-stream-zip')
 const { downloadWithRedirects } = require('./download')
 
 // Base URL for downloading uv binaries
 const UV_RELEASE_BASE_URL = 'https://gitcode.com/CherryHQ/uv/releases/download'
-const DEFAULT_UV_VERSION = '0.6.14'
+const DEFAULT_UV_VERSION = '0.7.13'
 
 // Mapping of platform+arch to binary package name
 const UV_PACKAGES = {
-  'darwin-arm64': 'uv-aarch64-apple-darwin.tar.gz',
-  'darwin-x64': 'uv-x86_64-apple-darwin.tar.gz',
+  'darwin-arm64': 'uv-aarch64-apple-darwin.zip',
+  'darwin-x64': 'uv-x86_64-apple-darwin.zip',
   'win32-arm64': 'uv-aarch64-pc-windows-msvc.zip',
   'win32-ia32': 'uv-i686-pc-windows-msvc.zip',
   'win32-x64': 'uv-x86_64-pc-windows-msvc.zip',
-  'linux-arm64': 'uv-aarch64-unknown-linux-gnu.tar.gz',
-  'linux-ia32': 'uv-i686-unknown-linux-gnu.tar.gz',
-  'linux-ppc64': 'uv-powerpc64-unknown-linux-gnu.tar.gz',
-  'linux-ppc64le': 'uv-powerpc64le-unknown-linux-gnu.tar.gz',
-  'linux-s390x': 'uv-s390x-unknown-linux-gnu.tar.gz',
-  'linux-x64': 'uv-x86_64-unknown-linux-gnu.tar.gz',
-  'linux-armv7l': 'uv-armv7-unknown-linux-gnueabihf.tar.gz',
+  'linux-arm64': 'uv-aarch64-unknown-linux-gnu.zip',
+  'linux-ia32': 'uv-i686-unknown-linux-gnu.zip',
+  'linux-ppc64': 'uv-powerpc64-unknown-linux-gnu.zip',
+  'linux-ppc64le': 'uv-powerpc64le-unknown-linux-gnu.zip',
+  'linux-s390x': 'uv-s390x-unknown-linux-gnu.zip',
+  'linux-x64': 'uv-x86_64-unknown-linux-gnu.zip',
+  'linux-armv7l': 'uv-armv7-unknown-linux-gnueabihf.zip',
   // MUSL variants
-  'linux-musl-arm64': 'uv-aarch64-unknown-linux-musl.tar.gz',
-  'linux-musl-ia32': 'uv-i686-unknown-linux-musl.tar.gz',
-  'linux-musl-x64': 'uv-x86_64-unknown-linux-musl.tar.gz',
-  'linux-musl-armv6l': 'uv-arm-unknown-linux-musleabihf.tar.gz',
-  'linux-musl-armv7l': 'uv-armv7-unknown-linux-musleabihf.tar.gz'
+  'linux-musl-arm64': 'uv-aarch64-unknown-linux-musl.zip',
+  'linux-musl-ia32': 'uv-i686-unknown-linux-musl.zip',
+  'linux-musl-x64': 'uv-x86_64-unknown-linux-musl.zip',
+  'linux-musl-armv6l': 'uv-arm-unknown-linux-musleabihf.zip',
+  'linux-musl-armv7l': 'uv-armv7-unknown-linux-musleabihf.zip'
 }
 
 /**
@@ -66,46 +65,35 @@ async function downloadUvBinary(platform, arch, version = DEFAULT_UV_VERSION, is
 
     console.log(`Extracting ${packageName} to ${binDir}...`)
 
-    // 根据文件扩展名选择解压方法
-    if (packageName.endsWith('.zip')) {
-      // 使用 adm-zip 处理 zip 文件
-      const zip = new AdmZip(tempFilename)
-      zip.extractAllTo(binDir, true)
-      fs.unlinkSync(tempFilename)
-      console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
-      return true
-    } else {
-      // tar.gz 文件的处理保持不变
-      await tar.x({
-        file: tempFilename,
-        cwd: tempdir,
-        z: true
-      })
+    const zip = new StreamZip.async({ file: tempFilename })
 
-      // Move files using Node.js fs
-      const sourceDir = path.join(tempdir, packageName.split('.')[0])
-      const files = fs.readdirSync(sourceDir)
-      for (const file of files) {
-        const sourcePath = path.join(sourceDir, file)
-        const destPath = path.join(binDir, file)
-        fs.copyFileSync(sourcePath, destPath)
-        fs.unlinkSync(sourcePath)
+    // Get all entries in the zip file
+    const entries = await zip.entries()
 
-        // Set executable permissions for non-Windows platforms
+    // Extract files directly to binDir, flattening the directory structure
+    for (const entry of Object.values(entries)) {
+      if (!entry.isDirectory) {
+        // Get just the filename without path
+        const filename = path.basename(entry.name)
+        const outputPath = path.join(binDir, filename)
+
+        console.log(`Extracting ${entry.name} -> ${filename}`)
+        await zip.extract(entry.name, outputPath)
+        // Make executable files executable on Unix-like systems
         if (platform !== 'win32') {
           try {
-            fs.chmodSync(destPath, '755')
-          } catch (error) {
-            console.warn(`Warning: Failed to set executable permissions: ${error.message}`)
+            fs.chmodSync(outputPath, 0o755)
+          } catch (chmodError) {
+            console.error(`Warning: Failed to set executable permissions on ${filename}`)
+            return false
           }
         }
+        console.log(`Extracted ${entry.name} -> ${outputPath}`)
       }
-
-      // Clean up
-      fs.unlinkSync(tempFilename)
-      fs.rmSync(sourceDir, { recursive: true })
     }
 
+    await zip.close()
+    fs.unlinkSync(tempFilename)
     console.log(`Successfully installed uv ${version} for ${platform}-${arch}`)
     return true
   } catch (error) {

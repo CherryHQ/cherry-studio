@@ -31,7 +31,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => 
 }
 
 const Alert = styled(AntdAlert)`
-  margin: 0.5rem 0;
+  margin: 0.5rem 0 !important;
   padding: 10px;
   font-size: 12px;
 `

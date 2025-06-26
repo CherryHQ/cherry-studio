@@ -85,7 +85,7 @@ export class GeminiAPIClient extends BaseApiClient<
       ...rest,
       config: {
         ...rest.config,
-        abortSignal: options?.abortSignal,
+        abortSignal: options?.signal,
         httpOptions: {
           ...rest.config?.httpOptions,
           timeout: options?.timeout
@@ -176,7 +176,10 @@ export class GeminiAPIClient extends BaseApiClient<
       apiVersion: this.getApiVersion(),
       httpOptions: {
         baseUrl: this.getBaseURL(),
-        apiVersion: this.getApiVersion()
+        apiVersion: this.getApiVersion(),
+        headers: {
+          ...this.provider.extra_headers
+        }
       }
     })
 
@@ -479,6 +482,7 @@ export class GeminiAPIClient extends BaseApiClient<
             for (const message of messages) {
               history.push(await this.convertMessageToSdkParam(message))
             }
+            messages.push(userLastMessage)
           }
         }
 
@@ -682,16 +686,19 @@ export class GeminiAPIClient extends BaseApiClient<
     toolCalls: FunctionCall[]
   ): Content[] {
     const parts: Part[] = []
+    const modelParts: Part[] = []
     if (output) {
-      parts.push({
+      modelParts.push({
         text: output
       })
     }
+
     toolCalls.forEach((toolCall) => {
-      parts.push({
+      modelParts.push({
         functionCall: toolCall
       })
     })
+
     parts.push(
       ...toolResults
         .map((ts) => ts.parts)
@@ -699,10 +706,22 @@ export class GeminiAPIClient extends BaseApiClient<
         .filter((p) => p !== undefined)
     )
 
-    const lastMessage = currentReqMessages[currentReqMessages.length - 1]
-    if (lastMessage) {
-      lastMessage.parts?.push(...parts)
+    const userMessage: Content = {
+      role: 'user',
+      parts: []
     }
+
+    if (modelParts.length > 0) {
+      currentReqMessages.push({
+        role: 'model',
+        parts: modelParts
+      })
+    }
+    if (parts.length > 0) {
+      userMessage.parts?.push(...parts)
+      currentReqMessages.push(userMessage)
+    }
+
     return currentReqMessages
   }
 
@@ -743,7 +762,7 @@ export class GeminiAPIClient extends BaseApiClient<
         }
       })
     }
-    return [messageParam, ...(sdkPayload.history || [])]
+    return [...(sdkPayload.history || []), messageParam]
   }
 
   private async uploadFile(file: FileType): Promise<File> {

@@ -135,7 +135,7 @@ export abstract class OpenAIBaseClient<
       return this.sdkInstance
     }
 
-    let apiKeyForSdkInstance = this.provider.apiKey
+    let apiKeyForSdkInstance = this.apiKey
 
     if (this.provider.id === 'copilot') {
       const defaultHeaders = store.getState().copilot.defaultHeaders
@@ -159,6 +159,7 @@ export abstract class OpenAIBaseClient<
         baseURL: this.getBaseURL(),
         defaultHeaders: {
           ...this.defaultHeaders(),
+          ...this.provider.extra_headers,
           ...(this.provider.id === 'copilot' ? { 'editor-version': 'vscode/1.97.2' } : {}),
           ...(this.provider.id === 'copilot' ? { 'copilot-vision-request': 'true' } : {})
         }

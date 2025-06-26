@@ -4,7 +4,7 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Form, Input, Modal, Radio, Space } from 'antd'
+import { Button, Flex, Form, Input, Modal, Radio } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -98,7 +98,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       title={t('agents.import.title')}
       open={open}
       onCancel={onCancel}
-      footer={null}
+      footer={
+        <Flex justify="end" gap={8}>
+          <Button onClick={onCancel}>{t('common.cancel')}</Button>
+          <Button type="primary" onClick={() => form.submit()} loading={loading}>
+            {t('agents.import.button')}
+          </Button>
+        </Flex>
+      }
       transitionName="animation-move-down"
       centered>
       <Form form={form} onFinish={onFinish} layout="vertical">
@@ -120,15 +127,6 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             <Button onClick={() => form.submit()}>{t('agents.import.select_file')}</Button>
           </Form.Item>
         )}
-
-        <Form.Item>
-          <Space>
-            <Button onClick={onCancel}>{t('common.cancel')}</Button>
-            <Button type="primary" onClick={() => form.submit()} loading={loading}>
-              {t('agents.import.button')}
-            </Button>
-          </Space>
-        </Form.Item>
       </Form>
     </Modal>
   )

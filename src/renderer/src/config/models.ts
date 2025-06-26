@@ -1353,12 +1353,6 @@ export const SYSTEM_MODELS: Record<string, Model[]> = {
       group: 'DeepSeek'
     },
     {
-      id: 'deepseek-v3-250324',
-      provider: 'doubao',
-      name: 'DeepSeek-V3',
-      group: 'DeepSeek'
-    },
-    {
       id: 'doubao-pro-32k-241215',
       provider: 'doubao',
       name: 'Doubao-pro-32k',
@@ -2475,6 +2469,10 @@ export function isGeminiReasoningModel(model?: Model): boolean {
     return false
   }
 
+  if (model.id.startsWith('gemini') && model.id.includes('thinking')) {
+    return true
+  }
+
   if (model.id.includes('gemini-2.5')) {
     return true
   }
@@ -2544,6 +2542,10 @@ export const isSupportedThinkingTokenClaudeModel = isClaudeReasoningModel
 
 export function isReasoningModel(model?: Model): boolean {
   if (!model) {
+    return false
+  }
+
+  if (isEmbeddingModel(model)) {
     return false
   }
 
@@ -2688,7 +2690,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  return isOpenAIWebSearchModel(model) || model.id.includes('sonar')
+  return isOpenAIWebSearchChatCompletionOnlyModel(model) || model.id.includes('sonar')
 }
 
 export function isGenerateImageModel(model: Model): boolean {
@@ -2720,7 +2722,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(model.id)
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
@@ -2853,7 +2855,7 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-[\w-]+)?/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-\d{6})?$/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
 export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(1-5-thinking-pro-m|seed-1\.6|seed-1-6-[\w-]+)(?:-[\w-]+)*/i

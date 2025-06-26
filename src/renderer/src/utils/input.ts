@@ -1,4 +1,4 @@
-import { isMac, isWindows } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
 import type { SendMessageShortcut } from '@renderer/store/settings'
 import { FileType } from '@renderer/types'
@@ -71,7 +71,7 @@ export const getSendMessageShortcutLabel = (shortcut: SendMessageShortcut) => {
     case 'Alt+Enter':
       return `${isMac ? '⌥' : 'Alt'} + Enter`
     case 'Command+Enter':
-      return `${isMac ? '⌘' : isWindows ? 'Win' : 'Super'} + Enter`
+      return `${isMac ? '⌘' : isWin ? 'Win' : 'Super'} + Enter`
     case 'Shift+Enter':
       return 'Shift + Enter'
     default:
