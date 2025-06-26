@@ -247,6 +247,13 @@ const ProvidersList: FC = () => {
         type,
         name
       } = JSON.parse(base64Decode(addProviderData.replaceAll('_', '+').replaceAll('-', '/')))
+
+      if (!id || !newApiKey || !baseUrl) {
+        window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        window.navigate('/settings/provider')
+        return
+      }
+
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
