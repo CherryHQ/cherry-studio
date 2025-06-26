@@ -490,6 +490,22 @@ $$
       it('should convert inline math \\(...\\) to $...$', () => {
         expect(processLatexBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
       })
+
+      it('should handle complex mathematical text with escaped brackets', () => {
+        const input = `设 \\(A\\) 为 \\(n\\times n\\) 的实可逆矩阵，
+\\[
+B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
+\\]
+求 \\(B\\) 的正惯性指数 \\(p(B)\\) 和负惯性指数 \\(q(B)\\)。`
+
+        const expected = `设 $A$ 为 $n\\times n$ 的实可逆矩阵，
+$$
+B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
+$$
+求 $B$ 的正惯性指数 $p(B)$ 和负惯性指数 $q(B)$。`
+
+        expect(processLatexBrackets(input)).toBe(expected)
+      })
     })
 
     describe('code block protection', () => {
