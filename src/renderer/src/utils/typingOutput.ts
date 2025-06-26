@@ -25,7 +25,6 @@ export function useTypingOutput(content: string, isStreaming: boolean): string {
     if (processedLengthRef.current === 0) return
 
     const outputNextChar = () => {
-      console.log('outputNextChar', queueRef.current)
       if (queueRef.current.length > 0) {
         const nextChar = queueRef.current.charAt(0)
         queueRef.current = queueRef.current.slice(1)
