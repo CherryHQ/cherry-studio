@@ -174,7 +174,7 @@ const Content = styled(motion.div)`
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .marquee-item:last-child {
+  /* .marquee-item:last-child {
     filter: blur(1.5px);
   }
   .marquee-item:nth-last-child(2) {
@@ -182,7 +182,7 @@ const Content = styled(motion.div)`
   }
   .marquee-item:first-child {
     filter: none;
-  }
+  } */
 `
 
 const ArrowContainer = styled.div`
