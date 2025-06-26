@@ -2,7 +2,7 @@ import Logger from 'electron-log'
 
 import { windowService } from '../WindowService'
 
-export function handleProvidersProtocolUrl(url: URL) {
+export async function handleProvidersProtocolUrl(url: URL) {
   switch (url.pathname) {
     case '/api-keys': {
       // jsonConfig example:
@@ -20,9 +20,17 @@ export function handleProvidersProtocolUrl(url: URL) {
       const params = new URLSearchParams(processedSearch)
       const data = params.get('data')
       const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
-      }
+
+      // add check there is window.navigate function in mainWindow
+      if (mainWindow && !mainWindow.isDestroyed() && await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`)) {
+    
+         
+            mainWindow.webContents.executeJavaScript(`window.navigate('/settings/provider?addProviderData=${data}')`)
+          } else {
+            setTimeout(() => {
+              handleProvidersProtocolUrl(url)
+            }, 1000)
+          }
       break
     }
     default:

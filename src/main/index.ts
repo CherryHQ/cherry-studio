@@ -102,6 +102,7 @@ if (!app.requestSingleInstanceLock()) {
       }
     })
 
+
     registerShortcuts(mainWindow)
 
     registerIpc(mainWindow, app)
@@ -124,11 +125,10 @@ if (!app.requestSingleInstanceLock()) {
   registerProtocolClient(app)
 
   // macOS specific: handle protocol when app is already running
-  let cachedUrl = ''
+
   app.on('open-url', (event, url) => {
     event.preventDefault()
     handleProtocolUrl(url)
-    cachedUrl = url
   })
 
   const handleOpenUrl = (args: string[]) => {
@@ -136,17 +136,10 @@ if (!app.requestSingleInstanceLock()) {
     if (url) handleProtocolUrl(url)
   }
 
-  app.once('web-contents-created', (_, webContents) => {
-    webContents.once('did-finish-load', () => {
-      if (cachedUrl) {
-        // for macOS
-        handleProtocolUrl(cachedUrl)
-      } else {
-        // for Windows
-        handleOpenUrl(process.argv)
-      }
-    })
-  })
+ 
+  // for windows to start with url
+  handleOpenUrl(process.argv)
+
 
   // Listen for second instance
   app.on('second-instance', (_event, argv) => {
