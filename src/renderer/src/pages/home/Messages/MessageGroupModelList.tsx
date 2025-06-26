@@ -7,9 +7,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setFoldDisplayMode } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
-import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
-import { motion } from 'framer-motion'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -39,12 +37,11 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   const renderModelAvatar = useCallback(
     (message: Message, size: number) => {
       return (
-        <motion.span
-          variants={lightbulbVariants}
-          animate={isMessageProcessing(message) ? 'active' : 'idle'}
-          initial="idle">
-          <ModelAvatar model={message.model as Model} size={size} />
-        </motion.span>
+        <ModelAvatar
+          className={isMessageProcessing(message) ? 'animation-pulse' : ''}
+          model={message.model as Model}
+          size={size}
+        />
       )
     },
     [isMessageProcessing]
@@ -56,7 +53,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5}>
+          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -80,20 +77,21 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
   return (
     <Container>
-      <DisplayModeToggle
-        displayMode={foldDisplayMode}
-        onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
-        <Tooltip
-          title={
-            isCompact
-              ? t(`message.message.multi_model_style.fold.expand`)
-              : t('message.message.multi_model_style.fold.compress')
-          }
-          placement="top">
+      <Tooltip
+        title={
+          isCompact
+            ? t(`message.message.multi_model_style.fold.expand`)
+            : t('message.message.multi_model_style.fold.compress')
+        }
+        placement="top"
+        mouseEnterDelay={0.5}
+        mouseLeaveDelay={0}>
+        <DisplayModeToggle
+          displayMode={foldDisplayMode}
+          onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
           {isCompact ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
-        </Tooltip>
-      </DisplayModeToggle>
-
+        </DisplayModeToggle>
+      </Tooltip>
       <ModelsContainer $displayMode={foldDisplayMode}>
         {isCompact ? (
           /* Compact style display */
