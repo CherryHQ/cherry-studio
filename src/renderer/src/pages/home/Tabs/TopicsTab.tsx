@@ -178,10 +178,9 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic 
               const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
               updateTopic(updatedTopic)
               topic.id === activeTopic.id && setActiveTopic(updatedTopic)
+            } else {
+              window.message?.error(t('message.error.fetchTopicName'))
             }
-            //  else {
-            //   window.message?.error(t('message.error.fetchTopicName'))
-            // }
           }
         }
       },
