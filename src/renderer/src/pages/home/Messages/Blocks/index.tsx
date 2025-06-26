@@ -166,16 +166,5 @@ const ImageBlockGroup = styled.div`
   display: grid;
   grid-template-columns: repeat(3, minmax(200px, 1fr));
   gap: 8px;
-  width: 100%;
   max-width: 960px;
-  > * {
-    min-width: 200px;
-  }
-  @media (min-width: 1536px) {
-    grid-template-columns: repeat(4, minmax(250px, 1fr));
-    max-width: 1280px;
-    > * {
-      min-width: 250px;
-    }
-  }
 `

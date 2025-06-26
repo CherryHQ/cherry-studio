@@ -1,4 +1,3 @@
-import { DownOutlined, UpOutlined } from '@ant-design/icons'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   isEmbeddingModel,
@@ -9,7 +8,8 @@ import {
 } from '@renderer/config/models'
 import { Model, ModelType } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
-import { Button, Checkbox, Divider, Flex, Form, Input, message, Modal } from 'antd'
+import { Button, Checkbox, Divider, Flex, Form, Input, InputNumber, message, Modal, Select } from 'antd'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -20,25 +20,42 @@ interface ModelEditContentProps {
   onClose: () => void
 }
 
+const symbols = ['$', '¥', '€', '£']
 const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, open, onClose }) => {
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const [showModelTypes, setShowModelTypes] = useState(false)
+  const [showMoreSettings, setShowMoreSettings] = useState(false)
+  const [currencySymbol, setCurrencySymbol] = useState(model.pricing?.currencySymbol || '$')
+  const [isCustomCurrency, setIsCustomCurrency] = useState(!symbols.includes(model.pricing?.currencySymbol || '$'))
+
   const onFinish = (values: any) => {
+    const finalCurrencySymbol = isCustomCurrency ? values.customCurrencySymbol : values.currencySymbol
     const updatedModel = {
       ...model,
       id: values.id || model.id,
       name: values.name || model.name,
-      group: values.group || model.group
+      group: values.group || model.group,
+      pricing: {
+        input_per_million_tokens: Number(values.input_per_million_tokens) || 0,
+        output_per_million_tokens: Number(values.output_per_million_tokens) || 0,
+        currencySymbol: finalCurrencySymbol || '$'
+      }
     }
     onUpdateModel(updatedModel)
-    setShowModelTypes(false)
+    setShowMoreSettings(false)
     onClose()
   }
+
   const handleClose = () => {
-    setShowModelTypes(false)
+    setShowMoreSettings(false)
     onClose()
   }
+
+  const currencyOptions = [
+    ...symbols.map((symbol) => ({ label: symbol, value: symbol })),
+    { label: t('models.price.custom'), value: 'custom' }
+  ]
+
   return (
     <Modal
       title={t('models.edit')}
@@ -52,7 +69,7 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         if (visible) {
           form.getFieldInstance('id')?.focus()
         } else {
-          setShowModelTypes(false)
+          setShowMoreSettings(false)
         }
       }}>
       <Form
@@ -64,7 +81,15 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
         initialValues={{
           id: model.id,
           name: model.name,
-          group: model.group
+          group: model.group,
+          input_per_million_tokens: model.pricing?.input_per_million_tokens ?? 0,
+          output_per_million_tokens: model.pricing?.output_per_million_tokens ?? 0,
+          currencySymbol: symbols.includes(model.pricing?.currencySymbol || '$')
+            ? model.pricing?.currencySymbol || '$'
+            : 'custom',
+          customCurrencySymbol: symbols.includes(model.pricing?.currencySymbol || '$')
+            ? ''
+            : model.pricing?.currencySymbol || ''
         }}
         onFinish={onFinish}>
         <Form.Item
@@ -108,20 +133,25 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item style={{ marginBottom: 15, textAlign: 'center' }}>
+        <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
           <Flex justify="space-between" align="center" style={{ position: 'relative' }}>
-            <MoreSettingsRow onClick={() => setShowModelTypes(!showModelTypes)}>
+            <Button
+              color="default"
+              variant="filled"
+              icon={showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              iconPosition="end"
+              onClick={() => setShowMoreSettings(!showMoreSettings)}
+              style={{ color: 'var(--color-text-3)' }}>
               {t('settings.moresetting')}
-              <ExpandIcon>{showModelTypes ? <UpOutlined /> : <DownOutlined />}</ExpandIcon>
-            </MoreSettingsRow>
+            </Button>
             <Button type="primary" htmlType="submit" size="middle">
               {t('common.save')}
             </Button>
           </Flex>
         </Form.Item>
-        {showModelTypes && (
-          <div>
-            <Divider style={{ margin: '0 0 15px 0' }} />
+        {showMoreSettings && (
+          <div style={{ marginBottom: 8 }}>
+            <Divider style={{ margin: '16px 0 16px 0' }} />
             <TypeTitle>{t('models.type.select')}:</TypeTitle>
             {(() => {
               const defaultTypes = [
@@ -193,6 +223,60 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
                 />
               )
             })()}
+            <TypeTitle>{t('models.price.price')}</TypeTitle>
+            <Form.Item name="currencySymbol" label={t('models.price.currency')} style={{ marginBottom: 10 }}>
+              <Select
+                style={{ width: '100px' }}
+                options={currencyOptions}
+                onChange={(value) => {
+                  if (value === 'custom') {
+                    setIsCustomCurrency(true)
+                    setCurrencySymbol(form.getFieldValue('customCurrencySymbol') || '')
+                  } else {
+                    setIsCustomCurrency(false)
+                    setCurrencySymbol(value)
+                  }
+                }}
+                dropdownMatchSelectWidth={false}
+                suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
+              />
+            </Form.Item>
+
+            {isCustomCurrency && (
+              <Form.Item
+                name="customCurrencySymbol"
+                label={t('models.price.custom_currency')}
+                style={{ marginBottom: 10 }}
+                rules={[{ required: isCustomCurrency }]}>
+                <Input
+                  style={{ width: '100px' }}
+                  placeholder={t('models.price.custom_currency_placeholder')}
+                  maxLength={5}
+                  onChange={(e) => setCurrencySymbol(e.target.value)}
+                />
+              </Form.Item>
+            )}
+
+            <Form.Item label={t('models.price.input')} name="input_per_million_tokens">
+              <InputNumber
+                placeholder="0.00"
+                min={0}
+                step={0.01}
+                precision={2}
+                style={{ width: '240px' }}
+                addonAfter={`${currencySymbol} / ${t('models.price.million_tokens')}`}
+              />
+            </Form.Item>
+            <Form.Item label={t('models.price.output')} name="output_per_million_tokens">
+              <InputNumber
+                placeholder="0.00"
+                min={0}
+                step={0.01}
+                precision={2}
+                style={{ width: '240px' }}
+                addonAfter={`${currencySymbol} / ${t('models.price.million_tokens')}`}
+              />
+            </Form.Item>
           </div>
         )}
       </Form>
@@ -201,31 +285,9 @@ const ModelEditContent: FC<ModelEditContentProps> = ({ model, onUpdateModel, ope
 }
 
 const TypeTitle = styled.div`
-  margin-bottom: 12px;
+  margin: 12px 0;
   font-size: 14px;
   font-weight: 600;
-`
-
-const ExpandIcon = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-`
-
-const MoreSettingsRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--color-text-3);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
 `
 
 export default ModelEditContent

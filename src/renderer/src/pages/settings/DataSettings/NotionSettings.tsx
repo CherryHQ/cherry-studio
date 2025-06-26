@@ -10,7 +10,7 @@ import {
   setNotionExportReasoning,
   setNotionPageNameKey
 } from '@renderer/store/settings'
-import { Button, Switch, Tooltip } from 'antd'
+import { Button, Space, Switch, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -121,15 +121,16 @@ const NotionSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
         <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
-          <Input
-            type="password"
-            value={notionApiKey || ''}
-            onChange={handleNotionTokenChange}
-            onBlur={handleNotionTokenChange}
-            style={{ width: 250 }}
-            placeholder={t('settings.data.notion.api_key_placeholder')}
-          />
-          <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              type="password"
+              value={notionApiKey || ''}
+              onChange={handleNotionTokenChange}
+              onBlur={handleNotionTokenChange}
+              placeholder={t('settings.data.notion.api_key_placeholder')}
+            />
+            <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
+          </Space.Compact>
         </HStack>
       </SettingRow>
       <SettingDivider />

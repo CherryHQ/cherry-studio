@@ -6,7 +6,7 @@ import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { Assistant, FileType, MCPServer, Model, Topic, Usage } from '@renderer/types'
+import type { Assistant, FileType, Model, Topic, Usage } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -108,9 +108,7 @@ export function getUserMessage({
   content,
   files,
   // Keep other potential params if needed by createMessage
-  knowledgeBaseIds,
   mentions,
-  enabledMCPs,
   usage
 }: {
   assistant: Assistant
@@ -120,7 +118,6 @@ export function getUserMessage({
   files?: FileType[]
   knowledgeBaseIds?: string[]
   mentions?: Model[]
-  enabledMCPs?: MCPServer[]
   usage?: Usage
 }): { message: Message; blocks: MessageBlock[] } {
   const defaultModel = getDefaultModel()
@@ -133,8 +130,7 @@ export function getUserMessage({
   if (content !== undefined) {
     // Pass messageId when creating blocks
     const textBlock = createMainTextBlock(messageId, content, {
-      status: MessageBlockStatus.SUCCESS,
-      knowledgeBaseIds
+      status: MessageBlockStatus.SUCCESS
     })
     blocks.push(textBlock)
     blockIds.push(textBlock.id)
@@ -165,7 +161,7 @@ export function getUserMessage({
       blocks: blockIds,
       // 移除knowledgeBaseIds
       mentions,
-      enabledMCPs,
+      // 移除mcp
       type,
       usage
     }
@@ -203,7 +199,6 @@ export function resetAssistantMessage(message: Message, model?: Model): Message 
     useful: undefined,
     askId: undefined,
     mentions: undefined,
-    enabledMCPs: undefined,
     blocks: [],
     createdAt: new Date().toISOString()
   }
@@ -214,7 +209,11 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
-      window.message.loading({ content: t('chat.topics.export.wait_for_title_naming'), key: 'message-title-naming' })
+      window.message.loading({
+        content: t('chat.topics.export.wait_for_title_naming'),
+        key: 'message-title-naming',
+        duration: 0
+      })
 
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
@@ -226,7 +225,7 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 
       // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
-
+      window.message.destroy('message-title-naming')
       if (title) {
         window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
         return title

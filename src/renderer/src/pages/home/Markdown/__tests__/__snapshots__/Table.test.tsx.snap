@@ -1,0 +1,103 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Table > rendering > should match snapshot 1`] = `
+.c0 {
+  position: relative;
+}
+
+.c0 .table-toolbar {
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  transform: translateZ(0);
+  will-change: opacity;
+}
+
+.c0:hover .table-toolbar {
+  opacity: 1;
+}
+
+.c1 {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 10;
+}
+
+.c2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  opacity: 1;
+  color: var(--color-text-3);
+  background-color: var(--color-background-mute);
+  will-change: background-color,opacity;
+}
+
+.c2:hover {
+  background-color: var(--color-background-soft);
+}
+
+<div
+  class="c0 table-wrapper"
+>
+  <table>
+    <tbody>
+      <tr>
+        <td>
+          Cell 1
+        </td>
+        <td>
+          Cell 2
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div
+    class="c1 table-toolbar"
+  >
+    <div
+      data-testid="tooltip"
+      title="common.copy"
+    >
+      <div
+        aria-label="common.copy"
+        class="c2"
+        role="button"
+      >
+        <svg
+          class="lucide lucide-copy"
+          data-testid="copy-icon"
+          fill="none"
+          height="14"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="14"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <rect
+            height="14"
+            rx="2"
+            ry="2"
+            width="14"
+            x="8"
+            y="8"
+          />
+          <path
+            d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+          />
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+`;

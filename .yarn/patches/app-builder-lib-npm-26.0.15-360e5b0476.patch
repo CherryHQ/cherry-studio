@@ -65,11 +65,44 @@ index e8bd7bb46c8a54b3f55cf3a853ef924195271e01..f956e9f3fe9eb903c78aef3502553b01
              await packager.info.emitArtifactBuildCompleted({
                  file: installerPath,
                  updateInfo,
+diff --git a/out/util/yarn.js b/out/util/yarn.js
+index 1ee20f8b252a8f28d0c7b103789cf0a9a427aec1..c2878ec54d57da50bf14225e0c70c9c88664eb8a 100644
+--- a/out/util/yarn.js
++++ b/out/util/yarn.js
+@@ -140,6 +140,7 @@ async function rebuild(config, { appDir, projectDir }, options) {
+         arch,
+         platform,
+         buildFromSource,
++        ignoreModules: config.excludeReBuildModules || undefined,
+         projectRootPath: projectDir,
+         mode: config.nativeRebuilder || "sequential",
+         disablePreGypCopy: true,
 diff --git a/scheme.json b/scheme.json
-index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43ebd0fa8b61 100644
+index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..0167441bf928a92f59b5dbe70b2317a74dda74c9 100644
 --- a/scheme.json
 +++ b/scheme.json
-@@ -1975,6 +1975,13 @@
+@@ -1825,6 +1825,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableArgs": {
+           "anyOf": [
+             {
+@@ -1975,6 +1989,13 @@
            ],
            "description": "The mime types in addition to specified in the file associations. Use it if you don't want to register a new mime type, but reuse existing."
          },
@@ -83,7 +116,7 @@ index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43eb
          "packageCategory": {
            "description": "backward compatibility + to allow specify fpm-only category for all possible fpm targets in one place",
            "type": [
-@@ -2327,6 +2334,13 @@
+@@ -2327,6 +2348,13 @@
      "MacConfiguration": {
        "additionalProperties": false,
        "properties": {
@@ -97,7 +130,28 @@ index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43eb
          "additionalArguments": {
            "anyOf": [
              {
-@@ -2737,7 +2751,7 @@
+@@ -2527,6 +2555,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableName": {
+           "description": "The executable name. Defaults to `productName`.",
+           "type": [
+@@ -2737,7 +2779,7 @@
            "type": "boolean"
          },
          "minimumSystemVersion": {
@@ -106,7 +160,7 @@ index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43eb
            "type": [
              "null",
              "string"
-@@ -2959,6 +2973,13 @@
+@@ -2959,6 +3001,13 @@
      "MasConfiguration": {
        "additionalProperties": false,
        "properties": {
@@ -120,7 +174,28 @@ index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43eb
          "additionalArguments": {
            "anyOf": [
              {
-@@ -3369,7 +3390,7 @@
+@@ -3159,6 +3208,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableName": {
+           "description": "The executable name. Defaults to `productName`.",
+           "type": [
+@@ -3369,7 +3432,7 @@
            "type": "boolean"
          },
          "minimumSystemVersion": {
@@ -129,7 +204,28 @@ index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43eb
            "type": [
              "null",
              "string"
-@@ -6507,6 +6528,13 @@
+@@ -6381,6 +6444,20 @@
+             "string"
+           ]
+         },
++        "excludeReBuildModules": {
++          "anyOf": [
++            {
++              "items": {
++                "type": "string"
++              },
++              "type": "array"
++            },
++            {
++              "type": "null"
++            }
++          ],
++          "description": "The modules to exclude from the rebuild."
++        },
+         "executableName": {
+           "description": "The executable name. Defaults to `productName`.",
+           "type": [
+@@ -6507,6 +6584,13 @@
              "string"
            ]
          },
@@ -143,7 +239,28 @@ index 433e2efc9cef156ff5444f0c4520362ed2ef9ea7..a89c7a9b0b608fef67902c49106a43eb
          "protocols": {
            "anyOf": [
              {
-@@ -7376,6 +7404,13 @@
+@@ -7153,6 +7237,20 @@
+         "string"
+       ]
+     },
++    "excludeReBuildModules": {
++      "anyOf": [
++        {
++          "items": {
++            "type": "string"
++          },
++          "type": "array"
++        },
++        {
++          "type": "null"
++        }
++      ],
++      "description": "The modules to exclude from the rebuild."
++    },
+     "executableName": {
+       "description": "The executable name. Defaults to `productName`.",
+       "type": [
+@@ -7376,6 +7474,13 @@
        ],
        "description": "MAS (Mac Application Store) development options (`mas-dev` target)."
      },

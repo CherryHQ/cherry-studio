@@ -14,7 +14,7 @@ import {
 
 import { WebDAVSyncState } from './backup'
 
-export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter'
+export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
 export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
 
@@ -155,6 +155,8 @@ export interface SettingsState {
   minappsOpenLinkExternal: boolean
   // 隐私设置
   enableDataCollection: boolean
+  enableSpellCheck: boolean
+  spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
   exportMenuOptions: {
@@ -167,6 +169,7 @@ export interface SettingsState {
     obsidian: boolean
     siyuan: boolean
     docx: boolean
+    plain_text: boolean
   }
   // OpenAI
   openAI: {
@@ -297,6 +300,8 @@ export const initialState: SettingsState = {
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
   enableDataCollection: false,
+  enableSpellCheck: false,
+  spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
   exportMenuOptions: {
@@ -308,7 +313,8 @@ export const initialState: SettingsState = {
     joplin: true,
     obsidian: true,
     siyuan: true,
-    docx: true
+    docx: true,
+    plain_text: true
   },
   // OpenAI
   openAI: {
@@ -655,6 +661,12 @@ const settingsSlice = createSlice({
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
+    setEnableSpellCheck: (state, action: PayloadAction<boolean>) => {
+      state.enableSpellCheck = action.payload
+    },
+    setSpellCheckLanguages: (state, action: PayloadAction<string[]>) => {
+      state.spellCheckLanguages = action.payload
+    },
     setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
       state.exportMenuOptions = action.payload
     },
@@ -774,8 +786,10 @@ export const {
   setShowOpenedMinappsInSidebar,
   setMinappsOpenLinkExternal,
   setEnableDataCollection,
-  setEnableQuickPanelTriggers,
+  setEnableSpellCheck,
+  setSpellCheckLanguages,
   setExportMenuOptions,
+  setEnableQuickPanelTriggers,
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
   setOpenAIServiceTier,

@@ -17,14 +17,17 @@ export default abstract class BaseReranker {
    * Get Rerank Request Url
    */
   protected getRerankUrl() {
-    if (this.base.rerankModelProvider === 'dashscope') {
+    if (this.base.rerankModelProvider === 'bailian') {
       return 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'
     }
 
-    let baseURL = this.base?.rerankBaseURL?.endsWith('/')
-      ? this.base.rerankBaseURL.slice(0, -1)
-      : this.base.rerankBaseURL
-    // 必须携带/v1，否则会404
+    let baseURL = this.base.rerankBaseURL
+
+    if (baseURL && baseURL.endsWith('/')) {
+      // `/` 结尾强制使用rerankBaseURL
+      return `${baseURL}rerank`
+    }
+
     if (baseURL && !baseURL.endsWith('/v1')) {
       baseURL = `${baseURL}/v1`
     }
@@ -47,7 +50,7 @@ export default abstract class BaseReranker {
         documents,
         top_k: topN
       }
-    } else if (provider === 'dashscope') {
+    } else if (provider === 'bailian') {
       return {
         model: this.base.rerankModel,
         input: {
@@ -57,6 +60,12 @@ export default abstract class BaseReranker {
         parameters: {
           top_n: topN
         }
+      }
+    } else if (provider?.includes('tei')) {
+      return {
+        query,
+        texts: documents,
+        return_text: true
       }
     } else {
       return {
@@ -73,10 +82,17 @@ export default abstract class BaseReranker {
    */
   protected extractRerankResult(data: any) {
     const provider = this.base.rerankModelProvider
-    if (provider === 'dashscope') {
+    if (provider === 'bailian') {
       return data.output.results
     } else if (provider === 'voyageai') {
       return data.data
+    } else if (provider === 'mis-tei') {
+      return data.map((item: any) => {
+        return {
+          index: item.index,
+          relevance_score: item.score
+        }
+      })
     } else {
       return data.results
     }

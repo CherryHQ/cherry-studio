@@ -145,14 +145,17 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
         setListModels(
           models
             .map((model) => ({
-              id: model.id,
+              // @ts-ignore modelId
+              id: model?.id || model?.name,
               // @ts-ignore name
-              name: model.name || model.id,
+              name: model?.display_name || model?.displayName || model?.name || model?.id,
               provider: _provider.id,
-              group: getDefaultGroupName(model.id, _provider.id),
-              // @ts-ignore name
-              description: model?.description,
-              owned_by: model?.owned_by
+              // @ts-ignore group
+              group: getDefaultGroupName(model?.id || model?.name, _provider.id),
+              // @ts-ignore description
+              description: model?.description || '',
+              // @ts-ignore owned_by
+              owned_by: model?.owned_by || ''
             }))
             .filter((model) => !isEmpty(model.name))
         )
@@ -253,10 +256,6 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
       afterClose={onClose}
       footer={null}
       width="800px"
-      styles={{
-        content: { padding: 0 },
-        header: { padding: '16px 22px 30px 22px' }
-      }}
       transitionName="animation-move-down"
       centered>
       <SearchContainer>
@@ -378,8 +377,6 @@ const SearchContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 15px;
-  padding: 0 22px;
-  margin-top: -10px;
 
   .ant-radio-group {
     display: flex;
@@ -396,12 +393,10 @@ const TopToolsWrapper = styled.div`
 const ListContainer = styled.div`
   height: calc(100vh - 300px);
   overflow-y: scroll;
-  padding: 0 6px 16px 6px;
-  margin-left: 16px;
-  margin-right: 10px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding-right: 2px;
 `
 
 const FlexColumn = styled.div`

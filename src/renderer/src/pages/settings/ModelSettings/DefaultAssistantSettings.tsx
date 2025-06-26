@@ -7,7 +7,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -101,7 +101,7 @@ const AssistantSettings: FC = () => {
       <HStack gap={8} alignItems="center" style={{ margin: '10px 0' }}>
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow>
           <EmojiButtonWrapper>
-            <Button style={{ fontSize: 20, padding: '4px', minWidth: '32px', height: '32px' }}>{emoji}</Button>
+            <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
             {emoji && (
               <CloseCircleFilled
                 className="delete-icon"
@@ -145,7 +145,7 @@ const AssistantSettings: FC = () => {
           justifyContent: 'space-between'
         }}>
         {t('settings.assistant.model_params')}
-        <Button onClick={onReset} style={{ width: 90 }}>
+        <Button onClick={onReset} style={{ width: 81 }}>
           {t('chat.settings.reset')}
         </Button>
       </SettingSubtitle>
@@ -156,7 +156,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={21}>
+        <Col span={19}>
           <Slider
             min={0}
             max={2}
@@ -167,7 +167,7 @@ const AssistantSettings: FC = () => {
             step={0.01}
           />
         </Col>
-        <Col span={3}>
+        <Col span={5}>
           <InputNumber
             min={0}
             max={2}
@@ -185,7 +185,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={21}>
+        <Col span={19}>
           <Slider
             min={0}
             max={1}
@@ -196,7 +196,7 @@ const AssistantSettings: FC = () => {
             step={0.01}
           />
         </Col>
-        <Col span={3}>
+        <Col span={5}>
           <InputNumber min={0} max={1} step={0.01} value={topP} onChange={onTopPChange} style={{ width: '100%' }} />
         </Col>
       </Row>
@@ -207,7 +207,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </Row>
       <Row align="middle" style={{ marginBottom: 10 }} gutter={20}>
-        <Col span={21}>
+        <Col span={19}>
           <Slider
             min={0}
             max={20}
@@ -218,7 +218,7 @@ const AssistantSettings: FC = () => {
             step={1}
           />
         </Col>
-        <Col span={3}>
+        <Col span={5}>
           <InputNumber
             min={0}
             max={20}
@@ -229,7 +229,7 @@ const AssistantSettings: FC = () => {
           />
         </Col>
       </Row>
-      <Row align="middle" style={{ marginBottom: 10 }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: 10 }}>
         <HStack alignItems="center">
           <Label>{t('chat.settings.max_tokens')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
@@ -255,7 +255,7 @@ const AssistantSettings: FC = () => {
             onUpdateAssistantSettings({ enableMaxTokens: enabled })
           }}
         />
-      </Row>
+      </Flex>
       {enableMaxTokens && (
         <Row align="middle" gutter={20}>
           <Col span={24}>
@@ -307,7 +307,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       centered
-      width={800}
+      width={500}
       footer={null}>
       <AssistantSettings />
     </Modal>

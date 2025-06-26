@@ -133,19 +133,11 @@ export const getCitationContent = (message: Message): string => {
   return citationBlocks
     .map((block) => formatCitationsFromBlock(block))
     .flat()
-    .map((citation) => `[${citation.number}] [${citation.title || citation.url}](${citation.url})`)
+    .map(
+      (citation) =>
+        `[${citation.number}] [${citation.title || citation.url.slice(0, 1999)}](${citation.url.slice(0, 1999)})`
+    )
     .join('\n\n')
-}
-
-/**
- * Gets the knowledgeBaseIds array from the *first* MainTextMessageBlock of a message.
- * Note: Assumes knowledgeBaseIds are only relevant on the first text block, adjust if needed.
- * @param message - The message object.
- * @returns The knowledgeBaseIds array or undefined if not found.
- */
-export const getKnowledgeBaseIds = (message: Message): string[] | undefined => {
-  const firstTextBlock = findMainTextBlocks(message)
-  return firstTextBlock?.flatMap((block) => block.knowledgeBaseIds).filter((id): id is string => Boolean(id))
 }
 
 /**

@@ -4,7 +4,7 @@ import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/compon
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { extractTitle } from '@renderer/utils/formats'
-import { isValidPlantUML } from '@renderer/utils/markdown'
+import { getExtensionByLanguage, isValidPlantUML } from '@renderer/utils/markdown'
 import dayjs from 'dayjs'
 import { CirclePlay, CodeXml, Copy, Download, Eye, Square, SquarePen, SquareSplitHorizontal } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -67,23 +67,21 @@ const CodeBlockView: React.FC<Props> = ({ children, language, onSave }) => {
     window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
   }, [children, t])
 
-  const handleDownloadSource = useCallback(() => {
+  const handleDownloadSource = useCallback(async () => {
     let fileName = ''
 
-    // 尝试提取标题
+    // 尝试提取 HTML 标题
     if (language === 'html' && children.includes('</html>')) {
-      const title = extractTitle(children)
-      if (title) {
-        fileName = `${title}.html`
-      }
+      fileName = extractTitle(children) || ''
     }
 
     // 默认使用日期格式命名
     if (!fileName) {
-      fileName = `${dayjs().format('YYYYMMDDHHmm')}.${language}`
+      fileName = `${dayjs().format('YYYYMMDDHHmm')}`
     }
 
-    window.api.file.save(fileName, children)
+    const ext = await getExtensionByLanguage(language)
+    window.api.file.save(`${fileName}${ext}`, children)
   }, [children, language])
 
   const handleRunScript = useCallback(() => {
@@ -275,6 +273,7 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   align-items: center;
   color: var(--color-text);
   font-size: 14px;
+  line-height: 1;
   font-weight: bold;
   padding: 0 10px;
   border-top-left-radius: 8px;
@@ -289,6 +288,10 @@ const SplitViewWrapper = styled.div`
   > * {
     flex: 1 1 auto;
     width: 100%;
+  }
+
+  &:not(:has(+ [class*='Container'])) {
+    border-radius: 0 0 8px 8px;
   }
 `
 

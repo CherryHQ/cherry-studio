@@ -3,7 +3,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { Lightbulb } from 'lucide-react'
+import { ChevronRight, Lightbulb } from 'lucide-react'
 import { motion } from 'motion/react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -57,6 +57,14 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       size="small"
       onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
+      expandIcon={({ isActive }) => (
+        <ChevronRight
+          color="var(--color-text-3)"
+          size={16}
+          strokeWidth={1.5}
+          style={{ transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)' }}
+        />
+      )}
       expandIconPosition="end"
       items={[
         {

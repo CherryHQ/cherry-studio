@@ -1,11 +1,9 @@
-import { isEmbeddingModel } from '@renderer/config/models'
-import AiProvider from '@renderer/providers/AiProvider'
 import store from '@renderer/store'
 import { Model, Provider } from '@renderer/types'
 import { t } from 'i18next'
 import { pick } from 'lodash'
 
-import { checkApiProvider } from './ApiService'
+import { checkApi } from './ApiService'
 
 export const getModelUniqId = (m?: Model) => {
   return m?.id ? JSON.stringify(pick(m, ['id', 'provider'])) : ''
@@ -33,64 +31,23 @@ export function getModelName(model?: Model) {
   return modelName
 }
 
-// Generic function to perform model checks
-// Abstracts provider validation and error handling, allowing different types of check logic
+// Generic function to perform model checks with exception handling
 async function performModelCheck<T>(
   provider: Provider,
   model: Model,
-  checkFn: (ai: AiProvider, model: Model) => Promise<T>,
-  processResult: (result: T) => { valid: boolean; error: Error | null }
-): Promise<{ valid: boolean; error: Error | null; latency?: number }> {
-  const validation = checkApiProvider(provider)
-  if (!validation.valid) {
-    return {
-      valid: validation.valid,
-      error: validation.error
-    }
-  }
+  checkFn: (provider: Provider, model: Model) => Promise<T>
+): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkFn(provider, model)
+  const latency = performance.now() - startTime
 
-  const AI = new AiProvider(provider)
-
-  try {
-    const startTime = performance.now()
-    const result = await checkFn(AI, model)
-    const latency = performance.now() - startTime
-
-    return {
-      ...processResult(result),
-      latency
-    }
-  } catch (error: any) {
-    return {
-      valid: false,
-      error
-    }
-  }
+  return { latency }
 }
 
 // Unified model check function
 // Automatically selects appropriate check method based on model type
-export async function checkModel(provider: Provider, model: Model) {
-  if (isEmbeddingModel(model)) {
-    return performModelCheck(
-      provider,
-      model,
-      (ai, model) => ai.getEmbeddingDimensions(model),
-      (dimensions) => ({ valid: dimensions > 0, error: null })
-    )
-  } else {
-    return performModelCheck(
-      provider,
-      model,
-      async (ai, model) => {
-        // Try streaming check first
-        const result = await ai.check(model, true)
-        if (result.valid && !result.error) {
-          return result
-        }
-        return ai.check(model, false)
-      },
-      ({ valid, error }) => ({ valid, error: error || null })
-    )
-  }
+export async function checkModel(provider: Provider, model: Model): Promise<{ latency: number }> {
+  return performModelCheck(provider, model, async (provider, model) => {
+    await checkApi(provider, model)
+  })
 }
