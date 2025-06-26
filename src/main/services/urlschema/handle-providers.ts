@@ -10,7 +10,9 @@ export function handleProvidersProtocolUrl(url: URL) {
       // {
       //   "id": "tokenflux",
       //   "baseUrl": "https://tokenflux.ai/v1",
-      //   "apiKey": "sk-xxxx"
+      //   "apiKey": "sk-xxxx",
+      //   "name": "TokenFlux", // optional
+      //   "type": "openai" // optional
       // }
       // cherrystudio://providers/api-keys?data={base64Encode(JSON.stringify(jsonConfig))}
       const data = params.get('data')

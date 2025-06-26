@@ -6,7 +6,7 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { INITIAL_PROVIDERS } from '@renderer/store/llm'
-import { Provider } from '@renderer/types'
+import { Provider, ProviderType } from '@renderer/types'
 import { droppableReorder, generateColorFromChar, getFirstCharacter, uuid } from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Eye, EyeOff, Search, UserPen } from 'lucide-react'
@@ -64,24 +64,30 @@ const ProvidersList: FC = () => {
 
   // Handle provider add key from URL schema
   useEffect(() => {
-    const handleProviderAddKey = (data: { id: string; apiKey: string; baseUrl: string }) => {
-      const { id, apiKey: newApiKey, baseUrl } = data
+    const handleProviderAddKey = (data: {
+      id: string
+      apiKey: string
+      baseUrl: string
+      type?: ProviderType
+      name?: string
+    }) => {
+      const { id, apiKey: newApiKey, baseUrl, type, name } = data
 
       // 查找匹配的 provider
       let existingProvider = providers.find((p) => p.id === id)
+      const isNewProvider = !existingProvider
 
       if (!existingProvider) {
         existingProvider = {
           id,
-          name: id,
-          type: 'openai' as const,
-          apiKey: newApiKey,
+          name: name || id,
+          type: type || 'openai',
+          apiKey: '',
           apiHost: baseUrl || '',
           models: [],
           enabled: true,
           isSystem: false
         }
-        addProvider(existingProvider)
       }
 
       const providerDisplayName = existingProvider.isSystem
@@ -209,7 +215,12 @@ const ProvidersList: FC = () => {
               ...(baseUrl && { apiHost: baseUrl })
             }
 
-            updateProvider({ ...updatedProvider, enabled: true })
+            if (isNewProvider) {
+              addProvider(updatedProvider)
+            } else {
+              updateProvider(updatedProvider)
+            }
+
             setSelectedProvider(updatedProvider)
             window.message.success(t('settings.models.provider_key_added', { provider: providerDisplayName }))
           }
@@ -228,8 +239,8 @@ const ProvidersList: FC = () => {
     }
 
     try {
-      const { id, apiKey: newApiKey, baseUrl } = JSON.parse(atob(addProviderData))
-      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl })
+      const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(atob(addProviderData))
+      handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
       window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
     }
