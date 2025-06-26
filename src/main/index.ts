@@ -129,14 +129,24 @@ if (!app.requestSingleInstanceLock()) {
     handleProtocolUrl(url)
   })
 
+  const handleOpenUrl = (args: string[]) => {
+    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
+  }
+
+  app.once('web-contents-created', (_, webContents) => {
+    webContents.once('did-finish-load', () => {
+      handleOpenUrl(process.argv)
+    })
+  })
+
   // Listen for second instance
   app.on('second-instance', (_event, argv) => {
     windowService.showMainWindow()
 
     // Protocol handler for Windows/Linux
     // The commandLine is an array of strings where the last item might be the URL
-    const url = argv.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-    if (url) handleProtocolUrl(url)
+    handleOpenUrl(argv)
   })
 
   app.on('browser-window-created', (_, window) => {

@@ -189,7 +189,11 @@ const ProvidersList: FC = () => {
           okText: keyAlreadyExists ? t('common.confirm') : t('common.add'),
           cancelText: t('common.cancel'),
           centered: true,
+          onCancel() {
+            window.navigate(`/settings/provider?id=${id}`)
+          },
           onOk() {
+            window.navigate(`/settings/provider?id=${id}`)
             if (keyAlreadyExists) {
               // 如果 key 已经存在，只显示消息，不做任何更改
               window.message.info(t('settings.models.provider_key_no_change', { provider: providerDisplayName }))
@@ -226,7 +230,6 @@ const ProvidersList: FC = () => {
     try {
       const { id, apiKey: newApiKey, baseUrl } = JSON.parse(atob(addProviderData))
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl })
-      window.navigate(`/settings/provider?id=${id}`)
     } catch (error) {
       window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
     }
