@@ -7,7 +7,7 @@ export const DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT = 1
 
 export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'
-export const isWindows = platform === 'win32' || platform === 'win64'
+export const isWin = platform === 'win32' || platform === 'win64'
 export const isLinux = platform === 'linux'
 
 export const SILICON_CLIENT_ID = 'SFaJLLq0y6CAMoyDm81aMu'

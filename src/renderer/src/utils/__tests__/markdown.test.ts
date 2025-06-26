@@ -465,8 +465,26 @@ describe('markdown', () => {
 
   describe('processLatexBrackets', () => {
     describe('basic LaTeX conversion', () => {
-      it('should convert display math \\[...\\] to $$...$$', () => {
+      it('should convert (inline) display math \\[...\\] to $$...$$', () => {
         expect(processLatexBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is $$a+b=c$$')
+      })
+
+      it('should convert display math \\[...\\] to $$...$$', () => {
+        const input = `
+The formula is
+
+\\[
+a+b=c
+\\]
+`
+        const expected = `
+The formula is
+
+$$
+a+b=c
+$$
+`
+        expect(processLatexBrackets(input)).toBe(expected)
       })
 
       it('should convert inline math \\(...\\) to $...$', () => {
@@ -611,9 +629,13 @@ const func = \\(x\\) => x * 2;
 
 Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
 
-Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) and display math:
+Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) in inline math and display math:
 
 \\[\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\\]
+
+\\[
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+\\]
 `
 
         const expectedOutput = `
@@ -647,9 +669,13 @@ const func = \\(x\\) => x * 2;
 
 Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
 
-Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ and display math:
+Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ in inline math and display math:
 
 $$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+
+$$
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+$$
 `
 
         expect(processLatexBrackets(complexInput)).toBe(expectedOutput)

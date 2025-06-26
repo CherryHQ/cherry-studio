@@ -363,7 +363,7 @@ class FileStorage {
   public open = async (
     _: Electron.IpcMainInvokeEvent,
     options: OpenDialogOptions
-  ): Promise<{ fileName: string; filePath: string; content: Buffer } | null> => {
+  ): Promise<{ fileName: string; filePath: string; content?: Buffer; size: number } | null> => {
     try {
       const result: OpenDialogReturnValue = await dialog.showOpenDialog({
         title: '打开文件',
@@ -375,8 +375,16 @@ class FileStorage {
       if (!result.canceled && result.filePaths.length > 0) {
         const filePath = result.filePaths[0]
         const fileName = filePath.split('/').pop() || ''
-        const content = await readFile(filePath)
-        return { fileName, filePath, content }
+        const stats = await fs.promises.stat(filePath)
+
+        // If the file is less than 2GB, read the content
+        if (stats.size < 2 * 1024 * 1024 * 1024) {
+          const content = await readFile(filePath)
+          return { fileName, filePath, content, size: stats.size }
+        }
+
+        // For large files, only return file information, do not read content
+        return { fileName, filePath, size: stats.size }
       }
 
       return null

@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -172,7 +173,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
           key={message.id}
           className={classNames([
             {
-              [multiModelMessageStyle]: message.role === 'assistant',
+              [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
               selected: message.id === selectedMessageId
             }
           ])}>
@@ -190,7 +191,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                 className={classNames([
                   'in-popover',
                   {
-                    [multiModelMessageStyle]: message.role === 'assistant',
+                    [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
                     selected: message.id === selectedMessageId
                   }
                 ])}>
@@ -209,7 +210,7 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
       return messageContent
     },
-    [isGrid, isGrouped, topic, multiModelMessageStyle, selectedMessageId, gridPopoverTrigger]
+    [isGrid, isGrouped, topic, multiModelMessageStyle, messages.length, selectedMessageId, gridPopoverTrigger]
   )
 
   return (
@@ -257,7 +258,7 @@ const GroupContainer = styled.div`
   }
 `
 
-const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
+const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }>`
   width: 100%;
   display: grid;
   overflow-y: visible;
@@ -283,6 +284,9 @@ const GridContainer = styled.div<{ $count: number; $gridColumns: number }>`
   &.multi-select-mode {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 10px;
+    .grid {
+      height: auto;
+    }
     .message {
       border: 0.5px solid var(--color-border);
       border-radius: 10px;
@@ -306,10 +310,12 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
   &.horizontal {
     overflow-y: auto;
     .message {
+      height: 100%;
       border: 0.5px solid var(--color-border);
       border-radius: 10px;
     }
     .message-content-container {
+      flex: 1;
       padding-left: 0;
       max-height: calc(100vh - 350px);
       overflow-y: auto !important;
@@ -327,6 +333,20 @@ const MessageWrapper = styled.div<MessageWrapperProps>`
     border: 0.5px solid var(--color-border);
     border-radius: 10px;
     cursor: pointer;
+    .message {
+      height: 100%;
+    }
+    .message-content-container {
+      overflow: hidden;
+      padding-left: 0;
+      flex: 1;
+      pointer-events: none;
+    }
+    .MessageFooter {
+      margin-left: 0;
+      margin-top: 2px;
+      margin-bottom: 2px;
+    }
   }
   &.in-popover {
     height: auto;

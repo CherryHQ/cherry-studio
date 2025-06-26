@@ -90,7 +90,7 @@ const ActionBar = styled.div`
   background-color: var(--color-background);
   padding: 4px 4px;
   border-radius: 99px;
-  box-shadow: 0 0px 5px 0px rgb(128 128 128 / 30%);
+  box-shadow: 0px 2px 8px 0px rgb(128 128 128 / 20%);
   border: 0.5px solid var(--color-border);
   gap: 16px;
 `

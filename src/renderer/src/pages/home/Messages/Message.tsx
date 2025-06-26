@@ -1,3 +1,4 @@
+import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -215,7 +216,7 @@ const MessageContainer = styled.div`
   }
 `
 
-const MessageContentContainer = styled.div`
+const MessageContentContainer = styled(Scrollbar)`
   max-width: 100%;
   padding-left: 46px;
   margin-top: 5px;
@@ -229,6 +230,7 @@ const MessageFooter = styled.div`
   align-items: center;
   gap: 20px;
   margin-left: 46px;
+  margin-top: 2px;
 `
 
 const NewContextMessage = styled.div`

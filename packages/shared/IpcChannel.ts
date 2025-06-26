@@ -15,7 +15,8 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetFeedUrl = 'app:set-feed-url',
+  App_SetEnableEarlyAccess = 'app:set-enable-early-access',
+  App_SetUpgradeChannel = 'app:set-upgrade-channel',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
@@ -68,6 +69,9 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+
+  // Python
+  Python_Execute = 'python:execute',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',
