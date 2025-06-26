@@ -1363,47 +1363,11 @@ export const appendAssistantResponseThunk =
           `[appendAssistantResponseThunk] Original user query (askId: ${askId}) not found in entities. Cannot create assistant response without corresponding user message.`
         )
 
-        const errorAssistantStub = createAssistantMessage(assistant.id, topicId, {
-          model: newModel,
-          modelId: newModel.id
+        // Show error popup instead of creating error message block
+        window.message.error({
+          content: t('error.missing_user_message'),
+          key: 'missing-user-message-error'
         })
-
-        const currentTopicMessageIds = getState().messages.messageIdsByTopic[topicId] || []
-        const existingMessageIndex = currentTopicMessageIds.findIndex((id) => id === existingAssistantMessageId)
-        const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
-
-        dispatch(
-          newMessagesActions.insertMessageAtIndex({ topicId, message: errorAssistantStub, index: insertAtIndex })
-        )
-
-        const errorBlock = createErrorBlock(
-          errorAssistantStub.id,
-          {
-            name: 'missing_user_message',
-            message: 'missing_user_message',
-            stack: '',
-            status: 'error'
-          },
-          { status: MessageBlockStatus.SUCCESS }
-        )
-
-        const updatedErrorMessage = {
-          ...errorAssistantStub,
-          blocks: [errorBlock.id],
-          status: AssistantMessageStatus.ERROR
-        }
-
-        dispatch(
-          newMessagesActions.updateMessage({
-            topicId,
-            messageId: errorAssistantStub.id,
-            updates: { blocks: [errorBlock.id], status: AssistantMessageStatus.ERROR }
-          })
-        )
-
-        dispatch(upsertOneBlock(errorBlock))
-
-        await saveMessageAndBlocksToDB(updatedErrorMessage, [errorBlock], insertAtIndex)
 
         return
       }
