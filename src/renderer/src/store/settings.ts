@@ -353,7 +353,7 @@ export const initialState: SettingsState = {
     root: '',
     autoSync: false,
     syncInterval: 0,
-    maxBackups: 5,
+    maxBackups: 0,
     skipBackupFile: false
   }
 }
