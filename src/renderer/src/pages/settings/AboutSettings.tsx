@@ -98,16 +98,7 @@ const AboutSettings: FC = () => {
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
   const handleUpgradeChannelChange = async (value: UpgradeChannel) => {
-    if (value === UpgradeChannel.RC) {
-      window.message.success(t('settings.general.early_access.rc_version_tooltip'))
-    } else if (value === UpgradeChannel.BETA) {
-      window.message.success(t('settings.general.early_access.beta_version_tooltip'))
-    } else if (value === UpgradeChannel.LATEST) {
-      window.message.success(t('settings.general.early_access.latest_version_tooltip'))
-    }
-
     setUpgradeChannel(value)
-
     // Clear update info when switching upgrade channel
     dispatch(
       setUpdateState({
