@@ -1,6 +1,6 @@
 import { NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
-import { isLinux, isWindows } from '@renderer/config/constant'
+import { isLinux, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { Button, Dropdown, Menu, type MenuProps } from 'antd'
 import { ChevronDown, Search } from 'lucide-react'
@@ -74,7 +74,7 @@ export const McpSettingsNavbar = () => {
   }))
 
   return (
-    <NavbarRight style={{ paddingRight: useFullscreen() ? '12px' : isWindows ? 150 : isLinux ? 120 : 12 }}>
+    <NavbarRight style={{ paddingRight: useFullscreen() ? '12px' : isWin ? 150 : isLinux ? 120 : 12 }}>
       <HStack alignItems="center" gap={5}>
         <Button
           size="small"

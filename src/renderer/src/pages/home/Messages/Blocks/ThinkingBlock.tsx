@@ -55,7 +55,6 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
       size="small"
       onChange={() => setActiveKey((key) => (key ? '' : 'thought'))}
       className="message-thought-container"
-      expandIconPosition="end"
       ghost
       items={[
         {

@@ -18,12 +18,12 @@ const ImageBlock: React.FC<Props> = ({ block }) => {
         ? [`file://${block?.file?.path}`]
         : []
     return (
-      <Container style={{ marginBottom: 8 }}>
+      <Container>
         {images.map((src, index) => (
           <ImageViewer
             src={src}
             key={`image-${index}`}
-            style={{ maxWidth: 500, maxHeight: 500, padding: 5, borderRadius: 8 }}
+            style={{ maxWidth: 500, maxHeight: 500, padding: 0, borderRadius: 8 }}
           />
         ))}
       </Container>
@@ -34,6 +34,5 @@ const Container = styled.div`
   display: flex;
   flex-direction: row;
   gap: 10px;
-  margin-top: 8px;
 `
 export default React.memo(ImageBlock)
