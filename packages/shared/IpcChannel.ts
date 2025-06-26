@@ -3,6 +3,8 @@ export enum IpcChannel {
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
+  App_SetEnableSpellCheck = 'app:set-enable-spell-check',
+  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
   App_Reload = 'app:reload',
@@ -13,13 +15,17 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetFeedUrl = 'app:set-feed-url',
+  App_SetEnableEarlyAccess = 'app:set-enable-early-access',
+  App_SetUpgradeChannel = 'app:set-upgrade-channel',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
   App_Copy = 'app:copy',
   App_SetStopQuitApp = 'app:set-stop-quit-app',
   App_SetAppDataPath = 'app:set-app-data-path',
+  App_GetDataPathFromArgs = 'app:get-data-path-from-args',
+  App_FlushAppData = 'app:flush-app-data',
+  App_IsNotEmptyDir = 'app:is-not-empty-dir',
   App_RelaunchApp = 'app:relaunch-app',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
@@ -63,6 +69,9 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+
+  // Python
+  Python_Execute = 'python:execute',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

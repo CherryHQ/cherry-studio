@@ -11,6 +11,7 @@ import {
   ThemeMode,
   TranslateLanguageVarious
 } from '@renderer/types'
+import { UpgradeChannel } from '@shared/config/constant'
 
 import { WebDAVSyncState } from './backup'
 
@@ -68,6 +69,7 @@ export interface SettingsState {
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   earlyAccess: boolean
+  upgradeChannel: UpgradeChannel
   renderInputMessageAsMarkdown: boolean
   // 代码执行
   codeExecution: {
@@ -155,6 +157,8 @@ export interface SettingsState {
   minappsOpenLinkExternal: boolean
   // 隐私设置
   enableDataCollection: boolean
+  enableSpellCheck: boolean
+  spellCheckLanguages: string[]
   enableQuickPanelTriggers: boolean
   enableBackspaceDeleteModel: boolean
   exportMenuOptions: {
@@ -219,6 +223,7 @@ export const initialState: SettingsState = {
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   earlyAccess: false,
+  upgradeChannel: UpgradeChannel.LATEST,
   renderInputMessageAsMarkdown: false,
   codeExecution: {
     enabled: false,
@@ -298,6 +303,8 @@ export const initialState: SettingsState = {
   showOpenedMinappsInSidebar: true,
   minappsOpenLinkExternal: false,
   enableDataCollection: false,
+  enableSpellCheck: false,
+  spellCheckLanguages: [],
   enableQuickPanelTriggers: false,
   enableBackspaceDeleteModel: true,
   exportMenuOptions: {
@@ -424,6 +431,9 @@ const settingsSlice = createSlice({
     },
     setEarlyAccess: (state, action: PayloadAction<boolean>) => {
       state.earlyAccess = action.payload
+    },
+    setUpgradeChannel: (state, action: PayloadAction<UpgradeChannel>) => {
+      state.upgradeChannel = action.payload
     },
     setRenderInputMessageAsMarkdown: (state, action: PayloadAction<boolean>) => {
       state.renderInputMessageAsMarkdown = action.payload
@@ -657,6 +667,12 @@ const settingsSlice = createSlice({
     setEnableDataCollection: (state, action: PayloadAction<boolean>) => {
       state.enableDataCollection = action.payload
     },
+    setEnableSpellCheck: (state, action: PayloadAction<boolean>) => {
+      state.enableSpellCheck = action.payload
+    },
+    setSpellCheckLanguages: (state, action: PayloadAction<string[]>) => {
+      state.spellCheckLanguages = action.payload
+    },
     setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
       state.exportMenuOptions = action.payload
     },
@@ -715,6 +731,7 @@ export const {
   setPasteLongTextAsFile,
   setAutoCheckUpdate,
   setEarlyAccess,
+  setUpgradeChannel,
   setRenderInputMessageAsMarkdown,
   setClickAssistantToShowTopic,
   setSkipBackupFile,
@@ -776,8 +793,10 @@ export const {
   setShowOpenedMinappsInSidebar,
   setMinappsOpenLinkExternal,
   setEnableDataCollection,
-  setEnableQuickPanelTriggers,
+  setEnableSpellCheck,
+  setSpellCheckLanguages,
   setExportMenuOptions,
+  setEnableQuickPanelTriggers,
   setEnableBackspaceDeleteModel,
   setOpenAISummaryText,
   setOpenAIServiceTier,

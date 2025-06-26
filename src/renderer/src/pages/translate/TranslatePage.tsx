@@ -23,7 +23,7 @@ import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { find, isEmpty, sortBy } from 'lodash'
-import { HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
+import { ChevronDown, HelpCircle, Settings2, TriangleAlert } from 'lucide-react'
 import { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -126,6 +126,7 @@ const TranslateSettings: FC<{
               }}
               options={selectOptions}
               showSearch
+              suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
             />
           </HStack>
           {!translateModel && (
@@ -187,6 +188,7 @@ const TranslateSettings: FC<{
                       </Space.Compact>
                     )
                   }))}
+                  suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
                 />
                 <span>⇆</span>
                 <Select
@@ -204,6 +206,7 @@ const TranslateSettings: FC<{
                       </Space.Compact>
                     )
                   }))}
+                  suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
                 />
               </Flex>
             )}
@@ -229,7 +232,7 @@ const TranslatePage: FC = () => {
   const [bidirectionalPair, setBidirectionalPair] = useState<[string, string]>(['english', 'chinese'])
   const [settingsVisible, setSettingsVisible] = useState(false)
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null)
-  const [sourceLanguage, setSourceLanguage] = useState<string>('auto') // 添加用户选择的源语言状态
+  const [sourceLanguage, setSourceLanguage] = useState<string>('auto')
   const contentContainerRef = useRef<HTMLDivElement>(null)
   const textAreaRef = useRef<TextAreaRef>(null)
   const outputTextRef = useRef<HTMLDivElement>(null)
@@ -307,8 +310,7 @@ const TranslatePage: FC = () => {
       let actualSourceLanguage: string
       if (sourceLanguage === 'auto') {
         actualSourceLanguage = await detectLanguage(text)
-        console.log('检测到的语言:', actualSourceLanguage)
-        setDetectedLanguage(actualSourceLanguage) // 更新检测到的语言
+        setDetectedLanguage(actualSourceLanguage)
       } else {
         actualSourceLanguage = sourceLanguage
       }
@@ -385,6 +387,9 @@ const TranslatePage: FC = () => {
       const targetLang = await db.settings.get({ id: 'translate:target:language' })
       targetLang && setTargetLanguage(targetLang.value)
 
+      const sourceLang = await db.settings.get({ id: 'translate:source:language' })
+      sourceLang && setSourceLanguage(sourceLang.value)
+
       const bidirectionalPairSetting = await db.settings.get({ id: 'translate:bidirectional:pair' })
       if (bidirectionalPairSetting) {
         const langPair = bidirectionalPairSetting.value
@@ -450,6 +455,7 @@ const TranslatePage: FC = () => {
             </Space.Compact>
           )
         }))}
+        suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
       />
     )
   }
@@ -526,12 +532,15 @@ const TranslatePage: FC = () => {
                 value={sourceLanguage}
                 style={{ width: 180 }}
                 optionFilterProp="label"
-                onChange={(value) => setSourceLanguage(value)}
+                onChange={(value) => {
+                  setSourceLanguage(value)
+                  db.settings.put({ id: 'translate:source:language', value })
+                }}
                 options={[
                   {
                     value: 'auto',
                     label: detectedLanguage
-                      ? `${t('translate.detected.language')}(${t(`languages.${detectedLanguage.toLowerCase()}`)})`
+                      ? `${t('translate.detected.language')} (${t(`languages.${detectedLanguage.toLowerCase()}`)})`
                       : t('translate.detected.language')
                   },
                   ...translateLanguageOptions().map((lang) => ({
@@ -546,6 +555,7 @@ const TranslatePage: FC = () => {
                     )
                   }))
                 ]}
+                suffixIcon={<ChevronDown strokeWidth={1.5} size={16} color="var(--color-text-3)" />}
               />
               <Button
                 type="text"
