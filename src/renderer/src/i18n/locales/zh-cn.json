@@ -1240,7 +1240,7 @@
           "title": "WebDAV",
           "user": "WebDAV 用户名",
           "maxBackups": "最大备份数",
-          "maxBackups.unlimited": "无限制"
+          "maxBackups.unlimited": "不限"
         },
         "s3": {
           "title": "S3 兼容存储",
@@ -1251,9 +1251,9 @@
           "region.placeholder": "Region, 例如: us-east-1",
           "bucket": "存储桶",
           "bucket.placeholder": "Bucket, 例如: example",
-          "accessKeyId": "访问密钥 ID",
+          "accessKeyId": "Access Key ID",
           "accessKeyId.placeholder": "Access Key ID",
-          "secretAccessKey": "机密访问密钥",
+          "secretAccessKey": "Secret Access Key",
           "secretAccessKey.placeholder": "Secret Access Key",
           "root": "备份目录（可选）",
           "root.placeholder": "例如：/cherry-studio",
