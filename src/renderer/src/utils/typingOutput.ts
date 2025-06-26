@@ -45,7 +45,7 @@ export function useTypingOutput(content: string, isStreaming: boolean): string {
     if (content && content !== lastContentRef.current) {
       lastContentRef.current = content
 
-      if (isStreaming) {
+      if (isStreaming || queueRef.current.length) {
         const newChars = content.slice(processedLengthRef.current)
         if (newChars) {
           queueRef.current += newChars
