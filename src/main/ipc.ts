@@ -5,7 +5,7 @@ import path from 'node:path'
 import { isMac, isWin } from '@main/constant'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { FeedUrl } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, session, shell } from 'electron'
@@ -141,8 +141,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     configManager.setAutoUpdate(isActive)
   })
 
-  ipcMain.handle(IpcChannel.App_SetFeedUrl, (_, feedUrl: FeedUrl) => {
-    appUpdater.setFeedUrl(feedUrl)
+  ipcMain.handle(IpcChannel.App_SetEnableEarlyAccess, async (_, isActive: boolean) => {
+    appUpdater.cancelDownload()
+    configManager.setEnableEarlyAccess(isActive)
+  })
+
+  ipcMain.handle(IpcChannel.App_SetUpgradeChannel, async (_, channel: UpgradeChannel) => {
+    appUpdater.cancelDownload()
+    configManager.setUpgradeChannel(channel)
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {

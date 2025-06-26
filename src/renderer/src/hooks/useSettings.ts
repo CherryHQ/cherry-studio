@@ -17,10 +17,11 @@ import {
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
+  setUpgradeChannel as _setUpgradeChannel,
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
-import { FeedUrl } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)
@@ -62,7 +63,12 @@ export function useSettings() {
 
     setEarlyAccess(isEarlyAccess: boolean) {
       dispatch(_setEarlyAccess(isEarlyAccess))
-      window.api.setFeedUrl(isEarlyAccess ? FeedUrl.EARLY_ACCESS : FeedUrl.PRODUCTION)
+      window.api.setEnableEarlyAccess(isEarlyAccess)
+    },
+
+    setUpgradeChannel(channel: UpgradeChannel) {
+      dispatch(_setUpgradeChannel(channel))
+      window.api.setUpgradeChannel(channel)
     },
 
     setTheme(theme: ThemeMode) {

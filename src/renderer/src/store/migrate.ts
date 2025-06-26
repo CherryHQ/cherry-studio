@@ -7,6 +7,7 @@ import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { Assistant, Provider, WebSearchProvider } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
+import { UpgradeChannel } from '@shared/config/constant'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
@@ -1627,6 +1628,9 @@ const migrateConfig = {
           }
         }
       })
+      if (state.settings) {
+        state.settings.upgradeChannel = UpgradeChannel.LATEST
+      }
       return state
     } catch (error) {
       return state

@@ -107,9 +107,10 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    - 新功能：可选数据保存目录
-    - 快捷助手：支持单独选择助手，支持暂停、上下文、思考过程、流式
-    - 划词助手：系统托盘菜单开关
-    - 翻译：新增 Markdown 预览选项
-    - 新供应商：新增 Vertex AI 服务商
-    - 错误修复和界面优化
+    界面优化：优化多处界面样式，气泡样式改版，自动调整代码预览边栏宽度
+    知识库：修复知识库引用不显示问题，修复部分嵌入模型适配问题
+    备份与恢复：修复超过 2GB 大文件无法恢复问题
+    文件处理：添加 .doc 文件支持
+    划词助手：支持自定义 CSS 样式
+    MCP：基于 Pyodide 实现 Python MCP 服务
+    其他错误修复和优化

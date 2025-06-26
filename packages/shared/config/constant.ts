@@ -406,8 +406,15 @@ export const defaultLanguage = 'en-US'
 
 export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',
-  EARLY_ACCESS = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
+  GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
+
+export enum UpgradeChannel {
+  LATEST = 'latest', // 最新稳定版本
+  RC = 'rc', // 公测版本
+  BETA = 'beta' // 预览版本
+}
+
 export const defaultTimeout = 5 * 1000 * 60
 
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']

@@ -1,5 +1,5 @@
 import { languages } from '@shared/config/languages'
-import balanced from 'balanced-match'
+import { default as balanced } from 'balanced-match'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
@@ -31,7 +31,7 @@ export const findCitationInChildren = (children: any): string => {
 }
 
 // 检查是否包含潜在的 LaTeX 模式
-const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]|\$.*?\$|\\begin\{equation\}.*?\\end\{equation\}/
+const containsLatexRegex = /\\\(.*?\\\)|\\\[.*?\\\]|\$.*?\$|\\begin\{equation\}.*?\\end\{equation\}/s
 
 /**
  * 转换 LaTeX 公式括号 `\[\]` 和 `\(\)` 为 Markdown 格式 `$$...$$` 和 `$...$`
