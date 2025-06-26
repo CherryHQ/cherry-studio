@@ -235,6 +235,20 @@ class FileStorage {
           return extracted.getBody()
         }
 
+        if (fileExtension === '.xls') {
+          const XLSX = require('xlsx')
+          const workbook = XLSX.readFile(filePath, { type: 'file', codepage: 65001 })
+          let allText = ''
+          workbook.SheetNames.forEach((sheetName) => {
+            const worksheet = workbook.Sheets[sheetName]
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' })
+            const sheetText = jsonData.map((row) => (Array.isArray(row) ? row.join('\t') : String(row))).join('\n')
+            allText += `${sheetName}\n${sheetText}\n\n`
+          })
+          chdir(originalCwd)
+          return allText.trim()
+        }
+
         const data = await officeParser.parseOfficeAsync(filePath)
         chdir(originalCwd)
         return data

@@ -19,6 +19,7 @@ const FILE_LOADER_MAP: Record<string, string> = {
   '.doc': 'common',
   '.docx': 'common',
   '.pptx': 'common',
+  '.xls': 'common',
   '.xlsx': 'common',
   '.md': 'common',
   // OD类型
