@@ -4,9 +4,9 @@ import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import { FileType, KnowledgeBase } from '@renderer/types'
-import { Divider, Input, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
+import { Divider, Input, InputRef, List, message, Modal, Spin, Tooltip, Typography } from 'antd'
 import { Search } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,6 +26,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
   const [results, setResults] = useState<Array<ExtractChunkData & { file: FileType | null }>>([])
   const [searchKeyword, setSearchKeyword] = useState('')
   const { t } = useTranslation()
+  const searchInputRef = useRef<InputRef>(null)
 
   const handleSearch = async (value: string) => {
     if (!value.trim()) {
@@ -82,6 +83,12 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
     }
   }
 
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [])
+
   return (
     <Modal
       title={null}
@@ -109,6 +116,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       }}>
       <HStack style={{ padding: '0 12px', marginTop: 8 }}>
         <Input
+          ref={searchInputRef}
           prefix={
             <SearchIcon>
               <Search size={15} />

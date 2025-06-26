@@ -53,17 +53,21 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
   if (!count) return null
 
   const popoverContent = (
-    <PopoverContent>
+    <div>
       {citations.map((citation) => (
         <PopoverContentItem key={citation.url || citation.number}>
           {citation.type === 'websearch' ? (
-            <WebSearchCitation citation={citation} />
+            <PopoverContent>
+              <WebSearchCitation citation={citation} />
+            </PopoverContent>
           ) : (
-            <KnowledgeCitation citation={citation} />
+            <KnowledgePopoverContent>
+              <KnowledgeCitation citation={citation} />
+            </KnowledgePopoverContent>
           )}
         </PopoverContentItem>
       ))}
-    </PopoverContent>
+    </div>
   )
 
   return (
@@ -184,9 +188,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>
-        <WebSearchCardContent className="selectable-text">
-          {citation.content && truncateText(citation.content, 100)}
-        </WebSearchCardContent>
+        <WebSearchCardContent className="selectable-text">{citation.content && citation.content}</WebSearchCardContent>
       </WebSearchCard>
     </ContextMenu>
   )
@@ -196,7 +198,7 @@ const OpenButton = styled(Button)`
   display: flex;
   align-items: center;
   padding: 3px 8px;
-  margin-bottom: 8px;
+  margin: 8px 0;
   align-self: flex-start;
   font-size: 12px;
   background-color: var(--color-background-soft);
@@ -318,10 +320,15 @@ const WebSearchCardContent = styled.div`
 `
 
 const PopoverContent = styled.div`
-  max-width: min(340px, 60vw);
+  max-width: min(400px, 60vw);
   max-height: 60vh;
   padding: 0 12px;
 `
+
+const KnowledgePopoverContent = styled(PopoverContent)`
+  max-width: 800px;
+`
+
 const PopoverContentItem = styled.div`
   border-bottom: 0.5px solid var(--color-border);
   &:last-child {

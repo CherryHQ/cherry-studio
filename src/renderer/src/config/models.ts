@@ -2469,6 +2469,10 @@ export function isGeminiReasoningModel(model?: Model): boolean {
     return false
   }
 
+  if (model.id.startsWith('gemini') && model.id.includes('thinking')) {
+    return true
+  }
+
   if (model.id.includes('gemini-2.5')) {
     return true
   }
