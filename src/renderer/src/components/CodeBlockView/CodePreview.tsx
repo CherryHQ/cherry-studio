@@ -204,7 +204,7 @@ const ShikiTokensRenderer: React.FC<ShikiTokensRendererProps> = memo(({ language
   const rendererRef = useRef<HTMLPreElement>(null)
 
   // 设置 pre 标签属性
-  useEffect(() => {
+  useLayoutEffect(() => {
     getShikiPreProperties(language).then((properties) => {
       const pre = rendererRef.current
       if (pre) {
