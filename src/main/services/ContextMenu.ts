@@ -4,8 +4,8 @@ import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
 
 class ContextMenu {
-  public contextMenu(w: Electron.BrowserWindow) {
-    w.webContents.on('context-menu', (_event, properties) => {
+  public contextMenu(w: Electron.WebContents) {
+    w.on('context-menu', (_event, properties) => {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
       if (filtered.length > 0) {

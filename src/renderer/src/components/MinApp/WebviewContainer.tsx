@@ -1,5 +1,6 @@
 import { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
+import { useSettings } from '@renderer/hooks/useSettings'
 
 /**
  * WebviewContainer is a component that renders a webview element.
@@ -21,6 +22,7 @@ const WebviewContainer = memo(
     onNavigateCallback: (appid: string, url: string) => void
   }) => {
     const webviewRef = useRef<WebviewTag | null>(null)
+    const { enableSpellCheck } = useSettings()
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -46,6 +48,14 @@ const WebviewContainer = memo(
         onNavigateCallback(appid, event.url)
       }
 
+      const handleDomReady = () => {
+        const webviewId = webviewRef.current?.getWebContentsId()
+        if (webviewId) {
+          window.api?.webview?.setSpellCheckEnabled?.(webviewId, enableSpellCheck)
+        }
+      }
+
+      webviewRef.current.addEventListener('dom-ready', handleDomReady)
       webviewRef.current.addEventListener('did-finish-load', handleLoaded)
       webviewRef.current.addEventListener('did-navigate-in-page', handleNavigate)
 
@@ -55,6 +65,7 @@ const WebviewContainer = memo(
       return () => {
         webviewRef.current?.removeEventListener('did-finish-load', handleLoaded)
         webviewRef.current?.removeEventListener('did-navigate-in-page', handleNavigate)
+        webviewRef.current?.removeEventListener('dom-ready', handleDomReady)
       }
       // because the appid and url are enough, no need to add onLoadedCallback
       // eslint-disable-next-line react-hooks/exhaustive-deps
