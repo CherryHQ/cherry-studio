@@ -4,7 +4,6 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
-  setTestPlan as _setTestPlan,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -12,12 +11,13 @@ import {
   setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
+  setTestChannel as _setTestChannel,
+  setTestPlan as _setTestPlan,
   setTheme,
   SettingsState,
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
-  setTestChannel as _setTestChannel,
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
