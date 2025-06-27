@@ -33,7 +33,7 @@ const CutoffSettings = () => {
       </SettingRowTitle>
       <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>
         <Input
-          style={{ width: '60%' }}
+          style={{ maxWidth: '60%' }}
           placeholder={t('settings.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
           onChange={(e) => {
@@ -47,7 +47,7 @@ const CutoffSettings = () => {
         />
         <Select
           value={compressionConfig?.cutoffUnit || 'char'}
-          style={{ width: '40%' }}
+          style={{ minWidth: '40%' }}
           onChange={handleCutoffUnitChange}
           options={unitOptions}
           suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
