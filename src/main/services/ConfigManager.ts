@@ -16,8 +16,8 @@ export enum ConfigKeys {
   ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
   EnableQuickAssistant = 'enableQuickAssistant',
   AutoUpdate = 'autoUpdate',
-  EnableEarlyAccess = 'enableEarlyAccess',
-  UpgradeChannel = 'upgradeChannel',
+  TestPlan = 'testPlan',
+  TestChannel = 'testChannel',
   EnableDataCollection = 'enableDataCollection',
   SelectionAssistantEnabled = 'selectionAssistantEnabled',
   SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
@@ -143,20 +143,20 @@ export class ConfigManager {
     this.set(ConfigKeys.AutoUpdate, value)
   }
 
-  getEnableEarlyAccess(): boolean {
-    return this.get<boolean>(ConfigKeys.EnableEarlyAccess, false)
+  getTestPlan(): boolean {
+    return this.get<boolean>(ConfigKeys.TestPlan, false)
   }
 
-  setEnableEarlyAccess(value: boolean) {
-    this.set(ConfigKeys.EnableEarlyAccess, value)
+  setTestPlan(value: boolean) {
+    this.set(ConfigKeys.TestPlan, value)
   }
 
-  getUpgradeChannel(): UpgradeChannel {
-    return this.get<UpgradeChannel>(ConfigKeys.UpgradeChannel, UpgradeChannel.LATEST)
+  getTestChannel(): UpgradeChannel {
+    return this.get<UpgradeChannel>(ConfigKeys.TestChannel)
   }
 
-  setUpgradeChannel(value: UpgradeChannel) {
-    this.set(ConfigKeys.UpgradeChannel, value)
+  setTestChannel(value: UpgradeChannel) {
+    this.set(ConfigKeys.TestChannel, value)
   }
 
   getEnableDataCollection(): boolean {

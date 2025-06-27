@@ -1543,7 +1543,7 @@ const migrateConfig = {
         state.paintings.tokenFluxPaintings = []
       }
       state.settings.showTokens = true
-      state.settings.earlyAccess = false
+      state.settings.testPlan = false
       return state
     } catch (error) {
       return state
@@ -1629,7 +1629,7 @@ const migrateConfig = {
         }
       })
       if (state.settings) {
-        state.settings.upgradeChannel = UpgradeChannel.LATEST
+        state.settings.testChannel = UpgradeChannel.LATEST
       }
       return state
     } catch (error) {

@@ -66,6 +66,7 @@ export default class AppUpdater {
 
   private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
     try {
+      logger.info('get pre release version from github', channel)
       const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
         headers: {
           Accept: 'application/vnd.github+json',
@@ -77,6 +78,8 @@ export default class AppUpdater {
       const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
         return item.prerelease && item.tag_name.includes(`-${channel}.`)
       })
+
+      logger.info('release info', release)
 
       if (!release) {
         return null
@@ -119,15 +122,33 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  private async _setFeedUrl() {
-    if (configManager.getEnableEarlyAccess()) {
-      const channel = configManager.getUpgradeChannel()
-      if (channel === UpgradeChannel.LATEST) {
-        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
-        this.autoUpdater.channel = UpgradeChannel.LATEST
-        return
-      }
+  private _getChannelByVersion(version: string) {
+    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
+      return UpgradeChannel.BETA
+    }
+    if (version.includes(`-${UpgradeChannel.RC}.`)) {
+      return UpgradeChannel.RC
+    }
+    return UpgradeChannel.LATEST
+  }
 
+  private _getTestChannel() {
+    const savedChannel = configManager.getTestChannel()
+    const currentChannel = this._getChannelByVersion(app.getVersion())
+    if (currentChannel === UpgradeChannel.LATEST) {
+      return savedChannel || UpgradeChannel.RC
+    }
+
+    if (currentChannel !== savedChannel) {
+      configManager.setTestChannel(currentChannel)
+    }
+    return currentChannel
+  }
+
+  private async _setFeedUrl() {
+    const testPlan = configManager.getTestPlan()
+    if (testPlan) {
+      const channel = this._getTestChannel()
       const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
       if (preReleaseUrl) {
         this.autoUpdater.setFeedURL(preReleaseUrl)
@@ -135,14 +156,13 @@ export default class AppUpdater {
         return
       }
 
-      // if no prerelease url, use lowest prerelease version
+      // if no prerelease url, use lowest prerelease version to avoid error
       this.autoUpdater.setFeedURL(FeedUrl.PRERELEASE_LOWEST)
       this.autoUpdater.channel = UpgradeChannel.LATEST
       return
     }
 
-    // no early access, use latest version
-    this.autoUpdater.channel = 'latest'
+    this.autoUpdater.channel = UpgradeChannel.LATEST
     this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
 
     const ipCountry = await this._getIpCountry()
