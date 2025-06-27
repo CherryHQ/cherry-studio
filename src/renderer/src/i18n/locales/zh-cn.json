@@ -703,6 +703,13 @@
       "success.siyuan.export": "导出到思源笔记成功",
       "warn.yuque.exporting": "正在导出语雀, 请勿重复请求导出!",
       "warn.siyuan.exporting": "正在导出到思源笔记，请勿重复请求导出!",
+      "websearch": {
+        "rag": "正在执行 RAG...",
+        "rag_complete": "保留 {{countBefore}} 个结果中的 {{countAfter}} 个...",
+        "rag_failed": "RAG 失败，返回空结果...",
+        "cutoff": "正在截断搜索内容...",
+        "fetch_complete": "已完成 {{count}} 次搜索..."
+      },
       "download.success": "下载成功",
       "download.failed": "下载失败"
     },
@@ -776,6 +783,7 @@
       "dimensions": "{{dimensions}} 维",
       "edit": "编辑模型",
       "embedding": "嵌入",
+      "embedding_dimensions": "嵌入维度",
       "embedding_model": "嵌入模型",
       "embedding_model_tooltip": "在设置->模型服务中点击管理按钮添加",
       "function_calling": "函数调用",
@@ -1478,7 +1486,8 @@
           "version": "版本"
         },
         "errors": {
-          "32000": "MCP 服务器启动失败，请根据教程检查参数是否填写完整"
+          "32000": "MCP 服务器启动失败，请根据教程检查参数是否填写完整",
+          "toolNotFound": "未找到工具 {{name}}"
         },
         "serverPlural": "服务器",
         "serverSingular": "服务器",
@@ -1844,8 +1853,33 @@
         "title": "网络搜索",
         "apikey": "API 密钥",
         "free": "免费",
-        "content_limit": "内容长度限制",
-        "content_limit_tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断"
+        "compression": {
+          "title": "搜索结果压缩",
+          "method": "压缩方法",
+          "method.none": "不压缩",
+          "method.cutoff": "截断",
+          "cutoff.limit": "截断长度",
+          "cutoff.limit.placeholder": "输入长度",
+          "cutoff.limit.tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断（例如 2000 字符）",
+          "cutoff.unit.char": "字符",
+          "cutoff.unit.token": "Token",
+          "method.rag": "RAG",
+          "rag.document_count": "文档数量",
+          "rag.document_count.default": "默认",
+          "rag.document_count.tooltip": "预期从单个搜索结果中提取的文档数量，实际提取的总数量是这个值乘以搜索结果数量。",
+          "rag.embedding_dimensions.auto_get": "自动获取维度",
+          "rag.embedding_dimensions.placeholder": "不设置维度",
+          "rag.embedding_dimensions.tooltip": "留空则不传递 dimensions 参数",
+          "info": {
+            "dimensions_auto_success": "维度自动获取成功，维度为 {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "请先选择嵌入模型",
+            "dimensions_auto_failed": "维度自动获取失败",
+            "provider_not_found": "未找到服务商",
+            "rag_failed": "RAG 失败"
+          }
+        }
       },
       "quickPhrase": {
         "title": "快捷短语",

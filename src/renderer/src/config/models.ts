@@ -145,7 +145,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { Model } from '@renderer/types'
-import { getBaseModelName } from '@renderer/utils'
+import { getLowerBaseModelName } from '@renderer/utils'
 import OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
@@ -2503,7 +2503,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     return false
   }
 
-  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  const baseName = getLowerBaseModelName(model.id, '/')
 
   return (
     baseName.startsWith('qwen3') ||
@@ -2616,7 +2616,7 @@ export function isWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  const baseName = getLowerBaseModelName(model.id, '/')
 
   // 不管哪个供应商都判断了
   if (model.id.includes('claude')) {
@@ -2710,7 +2710,7 @@ export function isGenerateImageModel(model: Model): boolean {
     return false
   }
 
-  const baseName = getBaseModelName(model.id, '/').toLowerCase()
+  const baseName = getLowerBaseModelName(model.id, '/')
   if (GENERATE_IMAGE_MODELS.includes(baseName)) {
     return true
   }
@@ -2722,7 +2722,7 @@ export function isSupportedDisableGenerationModel(model: Model): boolean {
     return false
   }
 
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getBaseModelName(model.id))
+  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getLowerBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {

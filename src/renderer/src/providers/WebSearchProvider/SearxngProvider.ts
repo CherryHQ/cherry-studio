@@ -122,11 +122,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
       // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
         // Logger.log(`Fetching content for ${item.url}...`)
-        const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
-        if (websearch.contentLimit && result.content.length > websearch.contentLimit) {
-          result.content = result.content.slice(0, websearch.contentLimit) + '...'
-        }
-        return result
+        return await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
       })
 
       // Wait for all fetches to complete

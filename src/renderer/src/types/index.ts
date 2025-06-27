@@ -500,7 +500,6 @@ export type WebSearchProvider = {
   url?: string
   basicAuthUsername?: string
   basicAuthPassword?: string
-  contentLimit?: number
   usingBrowser?: boolean
 }
 
@@ -540,6 +539,14 @@ export enum WebSearchSource {
 export type WebSearchResponse = {
   results?: WebSearchResults
   source: WebSearchSource
+}
+
+export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
+
+export type WebSearchStatus = {
+  phase: WebSearchPhase
+  countBefore?: number
+  countAfter?: number
 }
 
 export type KnowledgeReference = {

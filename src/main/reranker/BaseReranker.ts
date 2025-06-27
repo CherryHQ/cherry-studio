@@ -86,7 +86,7 @@ export default abstract class BaseReranker {
       return data.output.results
     } else if (provider === 'voyageai') {
       return data.data
-    } else if (provider === 'mis-tei') {
+    } else if (provider?.includes('tei')) {
       return data.map((item: any) => {
         return {
           index: item.index,
