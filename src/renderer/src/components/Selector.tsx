@@ -70,7 +70,7 @@ const Selector = <V extends string | number>({
       const findLabels = (opts: SelectorOption<V>[]): (string | ReactNode)[] => {
         const labels: (string | ReactNode)[] = []
         for (const opt of opts) {
-          if (selectedValues.includes(opt.value)) {
+          if (selectedValues.some((v) => v == opt.value)) {
             labels.push(opt.label)
           }
           if (opt.options) {
@@ -91,7 +91,7 @@ const Selector = <V extends string | number>({
     const mapOption = (option: SelectorOption<V>) => ({
       key: option.value,
       label: option.label,
-      extra: <CheckIcon>{selectedValues.includes(option.value) && <Check size={14} />}</CheckIcon>,
+      extra: <CheckIcon>{selectedValues.some((v) => v == option.value) && <Check size={14} />}</CheckIcon>,
       disabled: option.disabled,
       type: option.type || (option.options ? 'group' : undefined),
       children: option.options?.map(mapOption)
