@@ -24,6 +24,7 @@ import remarkMath from 'remark-math'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import remarkDebug from './plugins/remarkDebug'
 import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
 
@@ -45,6 +46,12 @@ const Markdown: FC<Props> = ({ block }) => {
     if (mathEngine !== 'none') {
       plugins.push(remarkMath)
     }
+
+    // 在开发环境中添加调试插件
+    if (process.env.NODE_ENV === 'development') {
+      plugins.push(remarkDebug())
+    }
+
     return plugins
   }, [mathEngine])
 
