@@ -77,7 +77,7 @@ export const INITIAL_PROVIDERS: Provider[] = [
   {
     id: 'ppio',
     name: 'PPIO',
-    type: 'ppio',
+    type: 'openai',
     apiKey: '',
     apiHost: 'https://api.ppinfra.com/v3/openai/',
     models: SYSTEM_MODELS.ppio,

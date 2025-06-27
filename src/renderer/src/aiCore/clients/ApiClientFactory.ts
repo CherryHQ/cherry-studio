@@ -32,6 +32,11 @@ export class ApiClientFactory {
       instance = new AihubmixAPIClient(provider) as BaseApiClient
       return instance
     }
+    if (provider.id === 'ppio') {
+      console.log(`[ApiClientFactory] Creating PPIOAPIClient for provider: ${provider.id}`)
+      instance = new PPIOAPIClient(provider) as BaseApiClient
+      return instance
+    }
 
     // 然后检查标准的provider type
     switch (provider.type) {
@@ -51,9 +56,6 @@ export class ApiClientFactory {
         break
       case 'anthropic':
         instance = new AnthropicAPIClient(provider) as BaseApiClient
-        break
-      case 'ppio':
-        instance = new PPIOAPIClient(provider) as BaseApiClient
         break
       default:
         console.log(`[ApiClientFactory] Using default OpenAIApiClient for provider: ${provider.id}`)
