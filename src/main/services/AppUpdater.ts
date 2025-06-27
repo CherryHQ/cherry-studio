@@ -120,26 +120,24 @@ export default class AppUpdater {
   }
 
   private async _setFeedUrl() {
-    // disable downgrade and differential download
-    // github and gitcode don't support multiple range download
-    this.autoUpdater.allowDowngrade = false
-    this.autoUpdater.disableDifferentialDownload = true
-
     if (configManager.getEnableEarlyAccess()) {
       const channel = configManager.getUpgradeChannel()
       if (channel === UpgradeChannel.LATEST) {
         this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
         this.autoUpdater.channel = UpgradeChannel.LATEST
-        return true
+        return
       }
 
       const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
       if (preReleaseUrl) {
         this.autoUpdater.setFeedURL(preReleaseUrl)
         this.autoUpdater.channel = channel
-        return true
+        return
       }
-      return false
+
+      // if no prerelease url, use lowest prerelease version
+      this.autoUpdater.setFeedURL(FeedUrl.PRERELEASE_LOWEST)
+      this.autoUpdater.channel = UpgradeChannel.LATEST
     }
 
     // no early access, use latest version
@@ -151,7 +149,6 @@ export default class AppUpdater {
     if (ipCountry.toLowerCase() !== 'cn') {
       this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
     }
-    return true
   }
 
   public cancelDownload() {
@@ -167,13 +164,11 @@ export default class AppUpdater {
       }
     }
 
-    const isSetFeedUrl = await this._setFeedUrl()
-    if (!isSetFeedUrl) {
-      return {
-        currentVersion: app.getVersion(),
-        updateInfo: null
-      }
-    }
+    await this._setFeedUrl()
+    // disable downgrade and differential download
+    // github and gitcode don't support multiple range download
+    this.autoUpdater.allowDowngrade = false
+    this.autoUpdater.disableDifferentialDownload = true
 
     try {
       const update = await this.autoUpdater.checkForUpdates()

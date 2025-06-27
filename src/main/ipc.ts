@@ -142,11 +142,13 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   })
 
   ipcMain.handle(IpcChannel.App_SetEnableEarlyAccess, async (_, isActive: boolean) => {
+    log.info('set enable early access', isActive)
     appUpdater.cancelDownload()
     configManager.setEnableEarlyAccess(isActive)
   })
 
   ipcMain.handle(IpcChannel.App_SetUpgradeChannel, async (_, channel: UpgradeChannel) => {
+    log.info('set upgrade channel', channel)
     appUpdater.cancelDownload()
     configManager.setUpgradeChannel(channel)
   })
