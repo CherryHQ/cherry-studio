@@ -74,7 +74,6 @@ export default class AppUpdater {
         }
       })
       const data = (await responses.json()) as GithubReleaseInfo[]
-      logger.debug('github release data', data)
       const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
         return item.prerelease && item.tag_name.includes(`-${channel}.`)
       })
