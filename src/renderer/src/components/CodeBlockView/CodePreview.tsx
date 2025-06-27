@@ -188,16 +188,18 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   )
 }
 
+interface ShikiTokensRendererProps {
+  language: string
+  tokenLines: ThemedToken[][]
+  showLineNumbers?: boolean
+}
+
 /**
  * 渲染 Shiki 高亮后的 tokens
  *
  * 独立出来，方便将来做 virtual list
  */
-const ShikiTokensRenderer: React.FC<{
-  language: string
-  tokenLines: ThemedToken[][]
-  showLineNumbers: boolean
-}> = memo(({ language, tokenLines, showLineNumbers }) => {
+const ShikiTokensRenderer: React.FC<ShikiTokensRendererProps> = memo(({ language, tokenLines, showLineNumbers }) => {
   const { getShikiPreProperties } = useCodeStyle()
   const rendererRef = useRef<HTMLPreElement>(null)
 
