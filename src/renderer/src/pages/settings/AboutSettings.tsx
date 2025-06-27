@@ -112,25 +112,43 @@ const AboutSettings: FC = () => {
     )
   }
 
+  const currentChannelByVersion =
+    [
+      { pattern: `-${UpgradeChannel.BETA}.`, channel: UpgradeChannel.BETA },
+      { pattern: `-${UpgradeChannel.RC}.`, channel: UpgradeChannel.RC }
+    ].find(({ pattern }) => version.includes(pattern))?.channel || UpgradeChannel.LATEST
+
   // Get available test version options based on current version
   const getAvailableTestChannels = () => {
-    return [
-      {
+    const allChannels = {
+      [UpgradeChannel.LATEST]: {
         tooltip: t('settings.general.early_access.latest_version_tooltip'),
         label: t('settings.general.early_access.latest_version'),
         value: UpgradeChannel.LATEST
       },
-      {
+      [UpgradeChannel.RC]: {
         tooltip: t('settings.general.early_access.rc_version_tooltip'),
         label: t('settings.general.early_access.rc_version'),
         value: UpgradeChannel.RC
       },
-      {
+      [UpgradeChannel.BETA]: {
         tooltip: t('settings.general.early_access.beta_version_tooltip'),
         label: t('settings.general.early_access.beta_version'),
         value: UpgradeChannel.BETA
       }
-    ]
+    }
+
+    const channelLimits = {
+      [UpgradeChannel.RC]: [allChannels[UpgradeChannel.LATEST], allChannels[UpgradeChannel.RC]],
+      [UpgradeChannel.BETA]: [allChannels[UpgradeChannel.LATEST], allChannels[UpgradeChannel.BETA]],
+      [UpgradeChannel.LATEST]: [
+        allChannels[UpgradeChannel.LATEST],
+        allChannels[UpgradeChannel.RC],
+        allChannels[UpgradeChannel.BETA]
+      ]
+    }
+
+    return channelLimits[currentChannelByVersion]
   }
 
   const handlerSetEarlyAccess = (value: boolean) => {
