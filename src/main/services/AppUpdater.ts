@@ -5,7 +5,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
@@ -15,6 +15,7 @@ export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
   private releaseInfo: UpdateInfo | undefined
   private cancellationToken: CancellationToken = new CancellationToken()
+  private updateCheckResult: UpdateCheckResult | null = null
 
   constructor(mainWindow: BrowserWindow) {
     logger.transports.file.level = 'info'
@@ -138,6 +139,7 @@ export default class AppUpdater {
       // if no prerelease url, use lowest prerelease version
       this.autoUpdater.setFeedURL(FeedUrl.PRERELEASE_LOWEST)
       this.autoUpdater.channel = UpgradeChannel.LATEST
+      return
     }
 
     // no early access, use latest version
@@ -154,6 +156,9 @@ export default class AppUpdater {
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
+    if (this.autoUpdater.autoDownload) {
+      this.updateCheckResult?.cancellationToken?.cancel()
+    }
   }
 
   public async checkForUpdates() {
@@ -165,14 +170,16 @@ export default class AppUpdater {
     }
 
     await this._setFeedUrl()
-    // disable downgrade and differential download
-    // github and gitcode don't support multiple range download
+
+    // disable downgrade after change the channel
     this.autoUpdater.allowDowngrade = false
+
+    // github and gitcode don't support multiple range download
     this.autoUpdater.disableDifferentialDownload = true
 
     try {
-      const update = await this.autoUpdater.checkForUpdates()
-      if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
+      this.updateCheckResult = await this.autoUpdater.checkForUpdates()
+      if (this.updateCheckResult?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
         logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
@@ -181,7 +188,7 @@ export default class AppUpdater {
 
       return {
         currentVersion: this.autoUpdater.currentVersion,
-        updateInfo: update?.updateInfo
+        updateInfo: this.updateCheckResult?.updateInfo
       }
     } catch (error) {
       logger.error('Failed to check for update:', error)
