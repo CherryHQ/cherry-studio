@@ -1,6 +1,7 @@
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
 import { Select } from 'antd'
+import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import CutoffSettings from './CutoffSettings'
@@ -32,6 +33,7 @@ const CompressionSettings = () => {
           style={{ width: '200px' }}
           onChange={handleCompressionMethodChange}
           options={compressionMethodOptions}
+          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
         />
       </SettingRow>
       <SettingDivider />

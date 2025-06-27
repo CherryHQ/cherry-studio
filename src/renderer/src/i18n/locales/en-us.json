@@ -1860,7 +1860,6 @@
           "cutoff.limit": "Cutoff Limit",
           "cutoff.limit.placeholder": "Enter length",
           "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
-          "cutoff.unit": "Cutoff Unit",
           "cutoff.unit.char": "Characters",
           "cutoff.unit.token": "Tokens",
           "method.rag": "RAG",

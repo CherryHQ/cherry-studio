@@ -1841,7 +1841,6 @@
           "cutoff.limit": "切り捨て長",
           "cutoff.limit.placeholder": "長さを入力",
           "cutoff.limit.tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）",
-          "cutoff.unit": "切り捨て単位",
           "cutoff.unit.char": "文字",
           "cutoff.unit.token": "トークン",
           "method.rag": "RAG",

@@ -1841,7 +1841,6 @@
           "cutoff.limit": "Лимит обрезки",
           "cutoff.limit.placeholder": "Введите длину",
           "cutoff.limit.tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан (например, 2000 символов)",
-          "cutoff.unit": "Единица обрезки",
           "cutoff.unit.char": "Символы",
           "cutoff.unit.token": "Токены",
           "method.rag": "RAG",

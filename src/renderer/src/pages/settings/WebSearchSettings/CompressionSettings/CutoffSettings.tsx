@@ -1,7 +1,7 @@
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
-import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { Input, Select, Tooltip } from 'antd'
-import { Info } from 'lucide-react'
+import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
+import { Input, Select, Space, Tooltip } from 'antd'
+import { ChevronDown, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 const INPUT_BOX_WIDTH = '200px'
@@ -24,27 +24,16 @@ const CutoffSettings = () => {
   ]
 
   return (
-    <>
-      <SettingRow>
-        <SettingRowTitle>{t('settings.websearch.compression.cutoff.unit')}</SettingRowTitle>
-        <Select
-          value={compressionConfig?.cutoffUnit || 'char'}
-          style={{ width: INPUT_BOX_WIDTH }}
-          onChange={handleCutoffUnitChange}
-          options={unitOptions}
-        />
-      </SettingRow>
-      <SettingDivider />
-
-      <SettingRow>
-        <SettingRowTitle>
-          {t('settings.websearch.compression.cutoff.limit')}
-          <Tooltip title={t('settings.websearch.compression.cutoff.limit.tooltip')} placement="right">
-            <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-          </Tooltip>
-        </SettingRowTitle>
+    <SettingRow>
+      <SettingRowTitle>
+        {t('settings.websearch.compression.cutoff.limit')}
+        <Tooltip title={t('settings.websearch.compression.cutoff.limit.tooltip')} placement="right">
+          <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
+        </Tooltip>
+      </SettingRowTitle>
+      <Space.Compact style={{ width: INPUT_BOX_WIDTH }}>
         <Input
-          style={{ width: INPUT_BOX_WIDTH }}
+          style={{ width: '60%' }}
           placeholder={t('settings.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
           onChange={(e) => {
@@ -56,8 +45,15 @@ const CutoffSettings = () => {
             }
           }}
         />
-      </SettingRow>
-    </>
+        <Select
+          value={compressionConfig?.cutoffUnit || 'char'}
+          style={{ width: '40%' }}
+          onChange={handleCutoffUnitChange}
+          options={unitOptions}
+          suffixIcon={<ChevronDown size={16} color="var(--color-border)" />}
+        />
+      </Space.Compact>
+    </SettingRow>
   )
 }
 

@@ -1860,7 +1860,6 @@
           "cutoff.limit": "截断长度",
           "cutoff.limit.placeholder": "输入长度",
           "cutoff.limit.tooltip": "限制搜索结果的内容长度, 超过限制的内容将被截断（例如 2000 字符）",
-          "cutoff.unit": "截断单位",
           "cutoff.unit.char": "字符",
           "cutoff.unit.token": "Token",
           "method.rag": "RAG",

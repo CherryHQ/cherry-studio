@@ -1844,7 +1844,6 @@
           "cutoff.limit": "截斷長度",
           "cutoff.limit.placeholder": "輸入長度",
           "cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字符）",
-          "cutoff.unit": "截斷單位",
           "cutoff.unit.char": "字符",
           "cutoff.unit.token": "Token",
           "method.rag": "RAG",
