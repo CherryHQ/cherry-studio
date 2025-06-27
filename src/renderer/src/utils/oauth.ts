@@ -1,4 +1,4 @@
-import { SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
+import { PPIO_CLIENT_ID, SILICON_CLIENT_ID, TOKENFLUX_HOST } from '@renderer/config/constant'
 import i18n, { getLanguageCode } from '@renderer/i18n'
 
 export const oauthWithSiliconFlow = async (setKey) => {
@@ -58,6 +58,30 @@ export const oauthWithAihubmix = async (setKey) => {
   window.addEventListener('message', messageHandler)
 }
 
+export const oauthWithPPIO = async (setKey) => {
+  const redirectUri = 'cherrystuido://'
+  const authUrl = `https://ppio.cn/oauth/authorize?client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
+
+  const popup = window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data && event.data.key === 'ppio_oauth_callback') {
+      if (event.data.data && event.data.data.api_key) {
+        setKey(event.data.data.api_key)
+        popup?.close()
+        window.removeEventListener('message', messageHandler)
+      }
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
+}
+
 export const oauthWithTokenFlux = async () => {
   const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
   const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
@@ -90,6 +114,11 @@ export const providerCharge = async (provider: string) => {
       url: `https://tokenflux.ai/dashboard/billing`,
       width: 900,
       height: 700
+    },
+    ppio: {
+      url: 'https://ppio.cn/user/recharge',
+      width: 900,
+      height: 700
     }
   }
 
@@ -116,6 +145,11 @@ export const providerBills = async (provider: string) => {
     },
     tokenflux: {
       url: `https://tokenflux.ai/dashboard/billing`,
+      width: 900,
+      height: 700
+    },
+    ppio: {
+      url: 'https://ppio.cn/user/billing',
       width: 900,
       height: 700
     }
