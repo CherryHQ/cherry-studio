@@ -59,7 +59,7 @@ export const oauthWithAihubmix = async (setKey) => {
 }
 
 export const oauthWithPPIO = async (setKey) => {
-  const redirectUri = 'cherrystudio://#/settings/provider'
+  const redirectUri = 'cherrystudio://'
   const authUrl = `https://ppio.cn/oauth/authorize?client_id=${PPIO_CLIENT_ID}&scope=api%20openid&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}`
 
   const popup = window.open(
