@@ -1,6 +1,6 @@
+import { useSettings } from '@renderer/hooks/useSettings'
 import { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
-import { useSettings } from '@renderer/hooks/useSettings'
 
 /**
  * WebviewContainer is a component that renders a webview element.
