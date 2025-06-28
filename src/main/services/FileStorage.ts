@@ -19,6 +19,7 @@ import { getDocument } from 'officeparser/pdfjs-dist-build/pdf.js'
 import * as path from 'path'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
+import WordExtractor from 'word-extractor'
 
 class FileStorage {
   private storageDir = getFilesDir()
@@ -228,7 +229,6 @@ class FileStorage {
         chdir(this.tempDir)
 
         if (fileExtension === '.doc') {
-          const WordExtractor = require('word-extractor')
           const extractor = new WordExtractor()
           const extracted = await extractor.extract(filePath)
           chdir(originalCwd)
