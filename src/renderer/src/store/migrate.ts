@@ -1628,6 +1628,13 @@ const migrateConfig = {
           }
         }
       })
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '116': (state: RootState) => {
+    try {
       if (state.settings) {
         state.settings.upgradeChannel = UpgradeChannel.LATEST
       }
