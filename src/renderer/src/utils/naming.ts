@@ -61,6 +61,19 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
 }
 
 /**
+ * 从模型 ID 中提取基础名称并转换为小写。
+ * 例如：
+ * - 'deepseek/DeepSeek-R1' => 'deepseek-r1'
+ * - 'deepseek-ai/deepseek/DeepSeek-R1' => 'deepseek-r1'
+ * @param {string} id 模型 ID
+ * @param {string} [delimiter='/'] 分隔符，默认为 '/'
+ * @returns {string} 小写的基础名称
+ */
+export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
+  return getBaseModelName(id, delimiter).toLowerCase()
+}
+
+/**
  * 用于获取 avatar 名字的辅助函数，会取出字符串的第一个字符，支持表情符号。
  * @param {string} str 输入字符串
  * @returns {string} 第一个字符，或者返回空字符串

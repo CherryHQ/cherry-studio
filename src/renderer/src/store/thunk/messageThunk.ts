@@ -1051,10 +1051,19 @@ export const resendMessageThunk =
         (m) => m.askId === userMessageToResend.id && m.role === 'assistant'
       )
 
+      // Clear cached search results for the user message being resent
+      // This ensures that the regenerated responses will not use stale search results
+      try {
+        window.keyv.remove(`web-search-${userMessageToResend.id}`)
+        window.keyv.remove(`knowledge-search-${userMessageToResend.id}`)
+      } catch (error) {
+        console.warn(`Failed to clear keyv cache for message ${userMessageToResend.id}:`, error)
+      }
+
       const resetDataList: Message[] = []
 
       if (assistantMessagesToReset.length === 0) {
-        // 没有用户消息,就创建一个或多个
+        // 没有相关的助手消息就创建一个或多个
 
         if (userMessageToResend?.mentions?.length) {
           console.log('userMessageToResend.mentions', userMessageToResend.mentions)

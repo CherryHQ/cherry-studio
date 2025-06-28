@@ -16,13 +16,14 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { RAGApplication, RAGApplicationBuilder, TextLoader } from '@cherrystudio/embedjs'
+import { RAGApplication, RAGApplicationBuilder } from '@cherrystudio/embedjs'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import Embeddings from '@main/embeddings/Embeddings'
 import { addFileLoader } from '@main/loader'
+import { NoteLoader } from '@main/loader/noteLoader'
 import OcrProvider from '@main/ocr/OcrProvider'
 import PreprocessProvider from '@main/preprocess/PreprocessProvider'
 import Reranker from '@main/reranker/Reranker'
@@ -153,7 +154,7 @@ class KnowledgeService {
     this.getRagApplication(base)
   }
 
-  public reset = async (_: Electron.IpcMainInvokeEvent, { base }: { base: KnowledgeBaseParams }): Promise<void> => {
+  public reset = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
     const ragApplication = await this.getRagApplication(base)
     await ragApplication.reset()
   }
@@ -376,6 +377,7 @@ class KnowledgeService {
   ): LoaderTask {
     const { base, item, forceReload } = options
     const content = item.content as string
+    const sourceUrl = (item as any).sourceUrl
 
     const encoder = new TextEncoder()
     const contentBytes = encoder.encode(content)
@@ -385,7 +387,12 @@ class KnowledgeService {
           state: LoaderTaskItemState.PENDING,
           task: () => {
             const loaderReturn = ragApplication.addLoader(
-              new TextLoader({ text: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }),
+              new NoteLoader({
+                text: content,
+                sourceUrl,
+                chunkSize: base.chunkSize,
+                chunkOverlap: base.chunkOverlap
+              }),
               forceReload
             ) as Promise<LoaderReturn>
 

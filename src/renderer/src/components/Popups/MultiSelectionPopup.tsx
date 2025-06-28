@@ -35,17 +35,38 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
           <Tooltip title={t('common.save')}>
-            <ActionButton icon={<Save size={16} />} disabled={isActionDisabled} onClick={() => handleAction('save')} />
+            <Button
+              shape="circle"
+              color="default"
+              variant="text"
+              icon={<Save size={16} />}
+              disabled={isActionDisabled}
+              onClick={() => handleAction('save')}
+            />
           </Tooltip>
           <Tooltip title={t('common.copy')}>
-            <ActionButton icon={<Copy size={16} />} disabled={isActionDisabled} onClick={() => handleAction('copy')} />
+            <Button
+              shape="circle"
+              color="default"
+              variant="text"
+              icon={<Copy size={16} />}
+              disabled={isActionDisabled}
+              onClick={() => handleAction('copy')}
+            />
           </Tooltip>
           <Tooltip title={t('common.delete')}>
-            <ActionButton danger icon={<Trash size={16} />} onClick={() => handleAction('delete')} />
+            <Button
+              shape="circle"
+              color="danger"
+              variant="text"
+              danger
+              icon={<Trash size={16} />}
+              onClick={() => handleAction('delete')}
+            />
           </Tooltip>
         </ActionButtons>
         <Tooltip title={t('chat.navigation.close')}>
-          <ActionButton icon={<X size={16} />} onClick={handleClose} />
+          <Button shape="circle" color="default" variant="text" icon={<X size={16} />} onClick={handleClose} />
         </Tooltip>
       </ActionBar>
     </Container>
@@ -53,45 +74,38 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
 }
 
 const Container = styled.div`
-  width: 100%;
-  padding: 36px 20px;
-  background-color: var(--color-background);
-  border-top: 1px solid var(--color-border);
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
 `
 
 const ActionBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background-color: var(--color-background);
+  padding: 4px 4px;
+  border-radius: 99px;
+  box-shadow: 0px 2px 8px 0px rgb(128 128 128 / 20%);
+  border: 0.5px solid var(--color-border);
+  gap: 16px;
 `
 
 const ActionButtons = styled.div`
   display: flex;
-  gap: 16px;
-`
-
-const ActionButton = styled(Button)`
-  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  border-radius: 50%;
-  .anticon {
-    font-size: 16px;
-  }
-  &:hover {
-    background-color: var(--color-background-mute);
-  }
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  gap: 8px;
 `
 
 const SelectionCount = styled.div`
-  margin-right: 15px;
   color: var(--color-text-2);
   font-size: 14px;
+  padding-left: 8px;
+  flex-shrink: 0;
 `
 
 export default MultiSelectActionPopup

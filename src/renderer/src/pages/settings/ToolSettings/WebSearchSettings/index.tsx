@@ -1,14 +1,15 @@
+import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultWebSearchProvider, useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import { WebSearchProvider } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
-import { Select } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import BasicSettings from './BasicSettings'
 import BlacklistSettings from './BlacklistSettings'
+import CompressionSettings from './CompressionSettings'
 import WebSearchProviderSetting from './WebSearchProviderSetting'
 
 const WebSearchSettings: FC = () => {
@@ -37,9 +38,9 @@ const WebSearchSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.tool.websearch.search_provider')}</SettingRowTitle>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <Select
+            <Selector
+              size={14}
               value={selectedProvider?.id}
-              style={{ width: '200px' }}
               onChange={(value: string) => updateSelectedWebSearchProvider(value)}
               placeholder={t('settings.tool.websearch.search_provider_placeholder')}
               options={providers.map((p) => ({
@@ -56,6 +57,7 @@ const WebSearchSettings: FC = () => {
         </SettingGroup>
       )}
       <BasicSettings />
+      <CompressionSettings />
       <BlacklistSettings />
     </SettingContainer>
   )

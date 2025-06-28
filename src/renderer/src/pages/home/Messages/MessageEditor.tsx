@@ -40,7 +40,7 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
   const model = assistant.model || assistant.defaultModel
   const isVision = useMemo(() => isVisionModel(model), [model])
   const supportExts = useMemo(() => [...textExts, ...documentExts, ...(isVision ? imageExts : [])], [isVision])
-  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut } = useSettings()
+  const { pasteLongTextAsFile, pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
@@ -222,12 +222,15 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
             }}
             onKeyDown={(e) => handleKeyDown(e, block.id)}
             autoFocus
-            contextMenu="true"
-            spellCheck={false}
+            spellCheck={enableSpellCheck}
             onPaste={(e) => onPaste(e.nativeEvent)}
             onFocus={() => {
               // 记录当前聚焦的组件
               PasteService.setLastFocusedComponent('messageEditor')
+            }}
+            onContextMenu={(e) => {
+              // 阻止事件冒泡，避免触发全局的 Electron contextMenu
+              e.stopPropagation()
             }}
             style={{
               fontSize,
@@ -305,10 +308,11 @@ const MessageBlockEditor: FC<Props> = ({ message, onSave, onResend, onCancel }) 
 
 const EditorContainer = styled.div`
   padding: 8px 0;
-  border: 1px solid var(--color-border);
+  border: 0.5px solid var(--color-border);
   transition: all 0.2s ease;
   border-radius: 15px;
   margin-top: 5px;
+  margin-bottom: 10px;
   background-color: var(--color-background-opacity);
   width: 100%;
 

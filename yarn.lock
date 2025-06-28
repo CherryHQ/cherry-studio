@@ -4258,13 +4258,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/balanced-match@npm:^3":
-  version: 3.0.2
-  resolution: "@types/balanced-match@npm:3.0.2"
-  checksum: 10c0/833f6499609363537026c4ec2770af5c5a36e71b80f7b5b23884b15296301bfcf974cd40bc75fda940dea4994acd96c9222b284c248383a1ade59bf8835940b0
-  languageName: node
-  linkType: hard
-
 "@types/cacheable-request@npm:^6.0.1":
   version: 6.0.3
   resolution: "@types/cacheable-request@npm:6.0.3"
@@ -5792,7 +5785,6 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.6.3"
     "@testing-library/react": "npm:^16.3.0"
     "@tryfabric/martian": "npm:^1.2.4"
-    "@types/balanced-match": "npm:^3"
     "@types/diff": "npm:^7"
     "@types/fs-extra": "npm:^11"
     "@types/lodash": "npm:^4.17.5"
@@ -5819,7 +5811,6 @@ __metadata:
     archiver: "npm:^7.0.1"
     async-mutex: "npm:^0.5.0"
     axios: "npm:^1.7.3"
-    balanced-match: "npm:^3.0.1"
     browser-image-compression: "npm:^2.0.2"
     color: "npm:^5.0.0"
     dayjs: "npm:^1.11.11"
@@ -5901,7 +5892,7 @@ __metadata:
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
     tiny-pinyin: "npm:^1.3.2"
-    tokenx: "npm:^0.4.1"
+    tokenx: "npm:^1.1.0"
     turndown: "npm:7.2.0"
     typescript: "npm:^5.6.2"
     uuid: "npm:^10.0.0"
@@ -6453,13 +6444,6 @@ __metadata:
   version: 1.0.2
   resolution: "balanced-match@npm:1.0.2"
   checksum: 10c0/9308baf0a7e4838a82bbfd11e01b1cb0f0cf2893bc1676c27c2a8c0e70cbae1c59120c3268517a8ae7fb6376b4639ef81ca22582611dbee4ed28df945134aaee
-  languageName: node
-  linkType: hard
-
-"balanced-match@npm:^3.0.1":
-  version: 3.0.1
-  resolution: "balanced-match@npm:3.0.1"
-  checksum: 10c0/ac8dd63a5b260610c2cbda982f436e964c1b9ae8764d368a523769da40a31710abd6e19f0fdf1773c4ad7b2ea7ba7b285d547375dc723f6e754369835afc8e9f
   languageName: node
   linkType: hard
 
@@ -17789,10 +17773,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tokenx@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "tokenx@npm:0.4.1"
-  checksum: 10c0/377f4e3c31ff9dc57b5b6af0fb1ae821227dee5e1d87b92a3ab1a0ed25454f01185c709d73592002b0d3024de1c904c8f029c46ae1806677816e4659fb8c481e
+"tokenx@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "tokenx@npm:1.1.0"
+  checksum: 10c0/8214bce58b48e130bcf4a27ac1bb5abf486c395310fb0c8f54e31656acacf97da533372afb9e8ac8f7736e6c3f29af86ea9623d4875f1399e66a5203b80609db
   languageName: node
   linkType: hard
 

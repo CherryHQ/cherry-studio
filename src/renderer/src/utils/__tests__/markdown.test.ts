@@ -465,12 +465,46 @@ describe('markdown', () => {
 
   describe('processLatexBrackets', () => {
     describe('basic LaTeX conversion', () => {
-      it('should convert display math \\[...\\] to $$...$$', () => {
+      it('should convert (inline) display math \\[...\\] to $$...$$', () => {
         expect(processLatexBrackets('The formula is \\[a+b=c\\]')).toBe('The formula is $$a+b=c$$')
+      })
+
+      it('should convert display math \\[...\\] to $$...$$', () => {
+        const input = `
+The formula is
+
+\\[
+a+b=c
+\\]
+`
+        const expected = `
+The formula is
+
+$$
+a+b=c
+$$
+`
+        expect(processLatexBrackets(input)).toBe(expected)
       })
 
       it('should convert inline math \\(...\\) to $...$', () => {
         expect(processLatexBrackets('The formula is \\(a+b=c\\)')).toBe('The formula is $a+b=c$')
+      })
+
+      it('should handle complex mathematical text with escaped brackets', () => {
+        const input = `设 \\(A\\) 为 \\(n\\times n\\) 的实可逆矩阵，
+\\[
+B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
+\\]
+求 \\(B\\) 的正惯性指数 \\(p(B)\\) 和负惯性指数 \\(q(B)\\)。`
+
+        const expected = `设 $A$ 为 $n\\times n$ 的实可逆矩阵，
+$$
+B=\\begin{pmatrix} O & A \\\\[2pt] A' & O \\end{pmatrix}\\;(2n\\times 2n,\\;B=B'),
+$$
+求 $B$ 的正惯性指数 $p(B)$ 和负惯性指数 $q(B)$。`
+
+        expect(processLatexBrackets(input)).toBe(expected)
       })
     })
 
@@ -611,9 +645,13 @@ const func = \\(x\\) => x * 2;
 
 Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
 
-Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) and display math:
+Final thoughts on \\(\\nabla \\cdot \\vec{F} = \\rho\\) in inline math and display math:
 
 \\[\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}\\]
+
+\\[
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+\\]
 `
 
         const expectedOutput = `
@@ -647,9 +685,13 @@ const func = \\(x\\) => x * 2;
 
 Read more in [Section \\[3.2\\]: Advanced Topics](url) and see inline code \`\\[array\\]\`.
 
-Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ and display math:
+Final thoughts on $\\nabla \\cdot \\vec{F} = \\rho$ in inline math and display math:
 
 $$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$
+
+$$
+\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}
+$$
 `
 
         expect(processLatexBrackets(complexInput)).toBe(expectedOutput)

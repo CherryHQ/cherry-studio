@@ -1,14 +1,22 @@
+import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
-import { setEnableDataCollection, setLanguage, setNotificationSettings } from '@renderer/store/settings'
-import { setProxyMode, setProxyUrl as _setProxyUrl } from '@renderer/store/settings'
+import {
+  setEnableDataCollection,
+  setEnableSpellCheck,
+  setLanguage,
+  setNotificationSettings,
+  setProxyMode,
+  setProxyUrl as _setProxyUrl,
+  setSpellCheckLanguages
+} from '@renderer/store/settings'
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
-import { Input, Select, Space, Switch } from 'antd'
+import { Flex, Input, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -26,7 +34,8 @@ const GeneralSettings: FC = () => {
     trayOnClose,
     tray,
     proxyMode: storeProxyMode,
-    enableDataCollection
+    enableDataCollection,
+    enableSpellCheck
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
@@ -69,6 +78,11 @@ const GeneralSettings: FC = () => {
     i18n.changeLanguage(value)
   }
 
+  const handleSpellCheckChange = (checked: boolean) => {
+    dispatch(setEnableSpellCheck(checked))
+    window.api.setEnableSpellCheck(checked)
+  }
+
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
       window.message.error({ content: t('message.error.invalid.proxy.url'), key: 'proxy-error' })
@@ -79,7 +93,7 @@ const GeneralSettings: FC = () => {
     window.api.setProxy(proxyUrl)
   }
 
-  const proxyModeOptions = [
+  const proxyModeOptions: { value: 'system' | 'custom' | 'none'; label: string }[] = [
     { value: 'system', label: t('settings.proxy.mode.system') },
     { value: 'custom', label: t('settings.proxy.mode.custom') },
     { value: 'none', label: t('settings.proxy.mode.none') }
@@ -109,9 +123,28 @@ const GeneralSettings: FC = () => {
   ]
 
   const notificationSettings = useSelector((state: RootState) => state.settings.notification)
+  const spellCheckLanguages = useSelector((state: RootState) => state.settings.spellCheckLanguages)
 
   const handleNotificationChange = (type: NotificationSource, value: boolean) => {
     dispatch(setNotificationSettings({ ...notificationSettings, [type]: value }))
+  }
+
+  // Define available spell check languages with display names (only commonly supported languages)
+  const spellCheckLanguageOptions = [
+    { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
+    { value: 'es', label: 'Español', flag: '🇪🇸' },
+    { value: 'fr', label: 'Français', flag: '🇫🇷' },
+    { value: 'de', label: 'Deutsch', flag: '🇩🇪' },
+    { value: 'it', label: 'Italiano', flag: '🇮🇹' },
+    { value: 'pt', label: 'Português', flag: '🇵🇹' },
+    { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+    { value: 'nl', label: 'Nederlands', flag: '🇳🇱' },
+    { value: 'pl', label: 'Polski', flag: '🇵🇱' }
+  ]
+
+  const handleSpellCheckLanguagesChange = (selectedLanguages: string[]) => {
+    dispatch(setSpellCheckLanguages(selectedLanguages))
+    window.api.setSpellCheckLanguages(selectedLanguages)
   }
 
   return (
@@ -121,28 +154,58 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Select defaultValue={language || defaultLanguage} style={{ width: 180 }} onChange={onSelectLanguage}>
-            {languagesOptions.map((lang) => (
-              <Select.Option key={lang.value} value={lang.value}>
-                <Space.Compact direction="horizontal" block>
-                  <Space.Compact block>{lang.label}</Space.Compact>
+          <Selector
+            size={14}
+            value={language || defaultLanguage}
+            onChange={onSelectLanguage}
+            options={languagesOptions.map((lang) => ({
+              label: (
+                <Flex align="center" gap={8}>
                   <span role="img" aria-label={lang.flag}>
                     {lang.flag}
                   </span>
-                </Space.Compact>
-              </Select.Option>
-            ))}
-          </Select>
+                  {lang.label}
+                </Flex>
+              ),
+              value: lang.value
+            }))}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
+          <SettingRowTitle>{t('settings.general.spell_check')}</SettingRowTitle>
+          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
+        </SettingRow>
+        {enableSpellCheck && (
+          <>
+            <SettingDivider />
+            <SettingRow>
+              <SettingRowTitle>{t('settings.general.spell_check.languages')}</SettingRowTitle>
+              <Selector<string>
+                size={14}
+                multiple
+                value={spellCheckLanguages}
+                placeholder={t('settings.general.spell_check.languages')}
+                onChange={handleSpellCheckLanguagesChange}
+                options={spellCheckLanguageOptions.map((lang) => ({
+                  value: lang.value,
+                  label: (
+                    <Flex align="center" gap={8}>
+                      <span role="img" aria-label={lang.flag}>
+                        {lang.flag}
+                      </span>
+                      {lang.label}
+                    </Flex>
+                  )
+                }))}
+              />
+            </SettingRow>
+          </>
+        )}
+        <SettingDivider />
+        <SettingRow>
           <SettingRowTitle>{t('settings.proxy.mode.title')}</SettingRowTitle>
-          <Select
-            value={storeProxyMode}
-            style={{ width: 180 }}
-            onChange={onProxyModeChange}
-            options={proxyModeOptions}
-          />
+          <Selector value={storeProxyMode} onChange={onProxyModeChange} options={proxyModeOptions} />
         </SettingRow>
         {storeProxyMode === 'custom' && (
           <>

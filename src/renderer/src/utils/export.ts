@@ -546,13 +546,13 @@ export const exportMarkdownToObsidian = async (attributes: any) => {
  */
 function transformObsidianFileName(fileName: string): string {
   const platform = window.navigator.userAgent
-  const isWindows = /win/i.test(platform)
+  const isWin = /win/i.test(platform)
   const isMac = /mac/i.test(platform)
 
   // 删除Obsidian 全平台无效字符
   let sanitized = fileName.replace(/[#|\\^\\[\]]/g, '')
 
-  if (isWindows) {
+  if (isWin) {
     // Windows 的清理
     sanitized = sanitized
       .replace(/[<>:"\\/\\|?*]/g, '') // 移除无效字符

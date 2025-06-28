@@ -135,6 +135,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
             setDimensions(finalDimensions)
           } catch (error) {
+            console.error('Error getting embedding dimensions:', error)
             window.message.error(t('message.error.get_embedding_dimensions') + '\n' + getErrorMessage(error))
             setLoading(false)
             return

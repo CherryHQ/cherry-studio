@@ -3,6 +3,8 @@ export enum IpcChannel {
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
   App_SetLanguage = 'app:set-language',
+  App_SetEnableSpellCheck = 'app:set-enable-spell-check',
+  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_ShowUpdateDialog = 'app:show-update-dialog',
   App_CheckForUpdate = 'app:check-for-update',
   App_Reload = 'app:reload',
@@ -13,7 +15,8 @@ export enum IpcChannel {
   App_SetTrayOnClose = 'app:set-tray-on-close',
   App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
-  App_SetFeedUrl = 'app:set-feed-url',
+  App_SetTestPlan = 'app:set-test-plan',
+  App_SetTestChannel = 'app:set-test-channel',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',
@@ -35,6 +38,7 @@ export enum IpcChannel {
   Notification_OnClick = 'notification:on-click',
 
   Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
+  Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
 
   // Open
   Open_Path = 'open:path',
@@ -66,6 +70,9 @@ export enum IpcChannel {
   Mcp_ServersChanged = 'mcp:servers-changed',
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
+
+  // Python
+  Python_Execute = 'python:execute',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

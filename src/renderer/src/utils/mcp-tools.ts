@@ -2,6 +2,7 @@ import { ContentBlockParam, MessageParam, ToolUnion, ToolUseBlock } from '@anthr
 import { Content, FunctionCall, Part, Tool, Type as GeminiSchemaType } from '@google/genai'
 import Logger from '@renderer/config/logger'
 import { isFunctionCallingModel, isVisionModel } from '@renderer/config/models'
+import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
@@ -479,6 +480,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[]): ToolUseRespo
     const mcpTool = mcpTools.find((tool) => tool.id === toolName)
     if (!mcpTool) {
       Logger.error(`Tool "${toolName}" not found in MCP tools`)
+      window.message.error(i18n.t('settings.mcp.errors.toolNotFound', { name: toolName }))
       continue
     }
 

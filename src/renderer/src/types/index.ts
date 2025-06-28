@@ -163,6 +163,7 @@ export type Provider = {
   isNotSupportArrayContent?: boolean
   isVertex?: boolean
   notes?: string
+  extra_headers?: Record<string, string>
 }
 
 export type ProviderType =
@@ -404,7 +405,7 @@ export interface KnowledgeBase {
   id: string
   name: string
   model: Model
-  dimensions: number
+  dimensions?: number
   description?: string
   items: KnowledgeItem[]
   created_at: number
@@ -511,7 +512,6 @@ export type WebSearchProvider = {
   url?: string
   basicAuthUsername?: string
   basicAuthPassword?: string
-  contentLimit?: number
   usingBrowser?: boolean
 }
 
@@ -551,6 +551,14 @@ export enum WebSearchSource {
 export type WebSearchResponse = {
   results?: WebSearchResults
   source: WebSearchSource
+}
+
+export type WebSearchPhase = 'default' | 'fetch_complete' | 'rag' | 'rag_complete' | 'rag_failed' | 'cutoff'
+
+export type WebSearchStatus = {
+  phase: WebSearchPhase
+  countBefore?: number
+  countAfter?: number
 }
 
 export type KnowledgeReference = {

@@ -1,6 +1,6 @@
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
-import { FeedUrl } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   FileListResponse,
@@ -28,11 +28,14 @@ const api = {
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
   setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
+  setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
+  setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
   setLaunchToTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchToTray, isActive),
   setTray: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTray, isActive),
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
-  setFeedUrl: (feedUrl: FeedUrl) => ipcRenderer.invoke(IpcChannel.App_SetFeedUrl, feedUrl),
+  setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
+  setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
   setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
@@ -41,7 +44,8 @@ const api = {
   hasWritePermission: (path: string) => ipcRenderer.invoke(IpcChannel.App_HasWritePermission, path),
   setAppDataPath: (path: string) => ipcRenderer.invoke(IpcChannel.App_SetAppDataPath, path),
   getDataPathFromArgs: () => ipcRenderer.invoke(IpcChannel.App_GetDataPathFromArgs),
-  copy: (oldPath: string, newPath: string) => ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath),
+  copy: (oldPath: string, newPath: string, occupiedDirs: string[] = []) =>
+    ipcRenderer.invoke(IpcChannel.App_Copy, oldPath, newPath, occupiedDirs),
   setStopQuitApp: (stop: boolean, reason: string) => ipcRenderer.invoke(IpcChannel.App_SetStopQuitApp, stop, reason),
   flushAppData: () => ipcRenderer.invoke(IpcChannel.App_FlushAppData),
   isNotEmptyDir: (path: string) => ipcRenderer.invoke(IpcChannel.App_IsNotEmptyDir, path),
@@ -209,6 +213,10 @@ const api = {
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server)
   },
+  python: {
+    execute: (script: string, context?: Record<string, any>, timeout?: number) =>
+      ipcRenderer.invoke(IpcChannel.Python_Execute, script, context, timeout)
+  },
   shell: {
     openExternal: (url: string, options?: Electron.OpenExternalOptions) => shell.openExternal(url, options)
   },
@@ -251,7 +259,9 @@ const api = {
   },
   webview: {
     setOpenLinkExternal: (webviewId: number, isExternal: boolean) =>
-      ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal)
+      ipcRenderer.invoke(IpcChannel.Webview_SetOpenLinkExternal, webviewId, isExternal),
+    setSpellCheckEnabled: (webviewId: number, isEnable: boolean) =>
+      ipcRenderer.invoke(IpcChannel.Webview_SetSpellCheckEnabled, webviewId, isEnable)
   },
   storeSync: {
     subscribe: () => ipcRenderer.invoke(IpcChannel.StoreSync_Subscribe),
