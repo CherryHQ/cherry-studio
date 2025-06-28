@@ -7,7 +7,6 @@ import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRen
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
@@ -57,8 +56,7 @@ const Markdown: FC<Props> = ({ block }) => {
     return removeSvgEmptyLines(processLatexBrackets(content))
   }, [block, t])
 
-  const isStreaming = block.status === MessageBlockStatus.STREAMING
-  const messageContent = useTypingOutput(rawContent, isStreaming)
+  const messageContent = useTypingOutput(rawContent)
 
   const rehypePlugins = useMemo(() => {
     const plugins: any[] = []

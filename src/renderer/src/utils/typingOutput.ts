@@ -3,14 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 /**
  * Output content character by character
  * @param content original content
- * @param isStreaming whether to output content character by character
  * @returns string output content character by character
  */
-export function useTypingOutput(content: string, isStreaming: boolean): string {
+export function useTypingOutput(content: string): string {
   const [typingContent, setTypingContent] = useState('')
 
   const queueRef = useRef<string>('')
-  const lastContentRef = useRef('')
   const processedLengthRef = useRef(0)
 
   const animationFrameIdRef = useRef<number | null>(null)
@@ -26,14 +24,29 @@ export function useTypingOutput(content: string, isStreaming: boolean): string {
 
     const outputNextChar = () => {
       if (queueRef.current.length > 0) {
-        const nextChar = queueRef.current.charAt(0)
-        queueRef.current = queueRef.current.slice(1)
-        setTypingContent((prev) => prev + nextChar)
+        // 检查是否是引用链接格式 [<sup data-citation='...'>...</sup>](URL)
+        const citationRegex = /^\[<sup data-citation='[^']*'>[^<]*<\/sup>\]\([^)]*\)/
+        const match = queueRef.current.match(citationRegex)
+
+        let nextContent: string
+        if (match) {
+          // 如果匹配到引用格式，取整个引用块
+          nextContent = match[0]
+          queueRef.current = queueRef.current.slice(nextContent.length)
+        } else {
+          // 否则按字符处理
+          nextContent = queueRef.current.charAt(0)
+          queueRef.current = queueRef.current.slice(1)
+        }
+
+        setTypingContent((prev) => prev + nextContent)
         animationFrameIdRef.current = requestAnimationFrame(outputNextChar)
+      } else {
+        clearAnimationFrame()
       }
     }
     animationFrameIdRef.current = requestAnimationFrame(outputNextChar)
-  }, [])
+  }, [clearAnimationFrame])
 
   useEffect(() => {
     if (!typingContent && content) {
@@ -42,32 +55,19 @@ export function useTypingOutput(content: string, isStreaming: boolean): string {
       return
     }
 
-    if (content && content !== lastContentRef.current) {
-      lastContentRef.current = content
-
-      if (isStreaming || queueRef.current.length) {
-        const newChars = content.slice(processedLengthRef.current)
-        if (newChars) {
-          queueRef.current += newChars
-          processedLengthRef.current = content.length
-
-          startOutputQueue()
-        }
-      } else {
-        queueRef.current = ''
-        processedLengthRef.current = content.length
-        setTypingContent(content)
-        clearAnimationFrame()
-      }
+    if (content && content.length > processedLengthRef.current) {
+      const newChars = content.slice(processedLengthRef.current)
+      queueRef.current += newChars
+      processedLengthRef.current = content.length
+      startOutputQueue()
     }
-  }, [content, isStreaming, startOutputQueue, clearAnimationFrame, typingContent])
+  }, [content, startOutputQueue, typingContent])
 
   useEffect(() => {
     return () => {
       clearAnimationFrame()
       queueRef.current = ''
       processedLengthRef.current = 0
-      lastContentRef.current = ''
     }
   }, [clearAnimationFrame])
 
