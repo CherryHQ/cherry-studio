@@ -1635,16 +1635,6 @@ const migrateConfig = {
   },
   '116': (state: RootState) => {
     try {
-      if (state.settings) {
-        state.settings.upgradeChannel = UpgradeChannel.LATEST
-      }
-      return state
-    } catch (error) {
-      return state
-    }
-  },
-  '116': (state: RootState) => {
-    try {
       if (state.websearch) {
         // migrate contentLimit to cutoffLimit
         // @ts-ignore eslint-disable-next-line
@@ -1661,6 +1651,9 @@ const migrateConfig = {
 
         // @ts-ignore eslint-disable-next-line
         delete state.websearch.contentLimit
+      }
+      if (state.settings) {
+        state.settings.upgradeChannel = UpgradeChannel.LATEST
       }
 
       return state
