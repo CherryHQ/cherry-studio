@@ -79,6 +79,8 @@
       "settings.model": "模型设置",
       "settings.prompt": "提示词设置",
       "settings.reasoning_effort": "思维链长度",
+      "settings.reasoning_effort.toggle_mode": "推理",
+      "settings.reasoning_effort.on": "开启",
       "settings.reasoning_effort.off": "关闭",
       "settings.reasoning_effort.low": "浮想",
       "settings.reasoning_effort.medium": "斟酌",
