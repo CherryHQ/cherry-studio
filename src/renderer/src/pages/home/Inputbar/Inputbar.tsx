@@ -788,7 +788,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
-            autoSize={{ minRows: 2, maxRows: 20 }}
+            autoSize={textareaHeight ? false : { minRows: 2, maxRows: 20 }}
             ref={textareaRef}
             style={{
               fontSize,
