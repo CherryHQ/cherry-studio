@@ -5,7 +5,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog } from 'electron'
 import logger from 'electron-log'
-import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater } from 'electron-updater'
+import { AppUpdater as _AppUpdater, autoUpdater, NsisUpdater, UpdateCheckResult } from 'electron-updater'
 import path from 'path'
 
 import icon from '../../../build/icon.png?asset'
@@ -15,6 +15,7 @@ export default class AppUpdater {
   autoUpdater: _AppUpdater = autoUpdater
   private releaseInfo: UpdateInfo | undefined
   private cancellationToken: CancellationToken = new CancellationToken()
+  private updateCheckResult: UpdateCheckResult | null = null
 
   constructor(mainWindow: BrowserWindow) {
     logger.transports.file.level = 'info'
@@ -65,6 +66,7 @@ export default class AppUpdater {
 
   private async _getPreReleaseVersionFromGithub(channel: UpgradeChannel) {
     try {
+      logger.info('get pre release version from github', channel)
       const responses = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases?per_page=8', {
         headers: {
           Accept: 'application/vnd.github+json',
@@ -73,10 +75,11 @@ export default class AppUpdater {
         }
       })
       const data = (await responses.json()) as GithubReleaseInfo[]
-      logger.debug('github release data', data)
       const release: GithubReleaseInfo | undefined = data.find((item: GithubReleaseInfo) => {
         return item.prerelease && item.tag_name.includes(`-${channel}.`)
       })
+
+      logger.info('release info', release)
 
       if (!release) {
         return null
@@ -119,31 +122,57 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = isActive
   }
 
-  private async _setFeedUrl() {
-    // disable downgrade and differential download
-    // github and gitcode don't support multiple range download
-    this.autoUpdater.allowDowngrade = false
-    this.autoUpdater.disableDifferentialDownload = true
+  private _getChannelByVersion(version: string) {
+    if (version.includes(`-${UpgradeChannel.BETA}.`)) {
+      return UpgradeChannel.BETA
+    }
+    if (version.includes(`-${UpgradeChannel.RC}.`)) {
+      return UpgradeChannel.RC
+    }
+    return UpgradeChannel.LATEST
+  }
 
-    if (configManager.getEnableEarlyAccess()) {
-      const channel = configManager.getUpgradeChannel()
+  private _getTestChannel() {
+    const currentChannel = this._getChannelByVersion(app.getVersion())
+    const savedChannel = configManager.getTestChannel()
+
+    if (currentChannel === UpgradeChannel.LATEST) {
+      return savedChannel || UpgradeChannel.RC
+    }
+
+    if (savedChannel === currentChannel) {
+      return savedChannel
+    }
+
+    // if the upgrade channel is not equal to the current channel, use the latest channel
+    return UpgradeChannel.LATEST
+  }
+
+  private async _setFeedUrl() {
+    const testPlan = configManager.getTestPlan()
+    if (testPlan) {
+      const channel = this._getTestChannel()
+
       if (channel === UpgradeChannel.LATEST) {
-        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
         this.autoUpdater.channel = UpgradeChannel.LATEST
-        return true
+        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
+        return
       }
 
       const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
       if (preReleaseUrl) {
         this.autoUpdater.setFeedURL(preReleaseUrl)
         this.autoUpdater.channel = channel
-        return true
+        return
       }
-      return false
+
+      // if no prerelease url, use lowest prerelease version to avoid error
+      this.autoUpdater.setFeedURL(FeedUrl.PRERELEASE_LOWEST)
+      this.autoUpdater.channel = UpgradeChannel.LATEST
+      return
     }
 
-    // no early access, use latest version
-    this.autoUpdater.channel = 'latest'
+    this.autoUpdater.channel = UpgradeChannel.LATEST
     this.autoUpdater.setFeedURL(FeedUrl.PRODUCTION)
 
     const ipCountry = await this._getIpCountry()
@@ -151,12 +180,14 @@ export default class AppUpdater {
     if (ipCountry.toLowerCase() !== 'cn') {
       this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
     }
-    return true
   }
 
   public cancelDownload() {
     this.cancellationToken.cancel()
     this.cancellationToken = new CancellationToken()
+    if (this.autoUpdater.autoDownload) {
+      this.updateCheckResult?.cancellationToken?.cancel()
+    }
   }
 
   public async checkForUpdates() {
@@ -167,17 +198,17 @@ export default class AppUpdater {
       }
     }
 
-    const isSetFeedUrl = await this._setFeedUrl()
-    if (!isSetFeedUrl) {
-      return {
-        currentVersion: app.getVersion(),
-        updateInfo: null
-      }
-    }
+    await this._setFeedUrl()
+
+    // disable downgrade after change the channel
+    this.autoUpdater.allowDowngrade = false
+
+    // github and gitcode don't support multiple range download
+    this.autoUpdater.disableDifferentialDownload = true
 
     try {
-      const update = await this.autoUpdater.checkForUpdates()
-      if (update?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
+      this.updateCheckResult = await this.autoUpdater.checkForUpdates()
+      if (this.updateCheckResult?.isUpdateAvailable && !this.autoUpdater.autoDownload) {
         // 如果 autoDownload 为 false，则需要再调用下面的函数触发下
         // do not use await, because it will block the return of this function
         logger.info('downloadUpdate manual by check for updates', this.cancellationToken)
@@ -186,7 +217,7 @@ export default class AppUpdater {
 
       return {
         currentVersion: this.autoUpdater.currentVersion,
-        updateInfo: update?.updateInfo
+        updateInfo: this.updateCheckResult?.updateInfo
       }
     } catch (error) {
       logger.error('Failed to check for update:', error)

@@ -184,7 +184,7 @@ const visionAllowedModels = [
   'deepseek-vl(?:[\\w-]+)?',
   'kimi-latest',
   'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)'
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?'
 ]
 
 const visionExcludedModels = [
@@ -271,6 +271,10 @@ export function isFunctionCallingModel(model: Model): boolean {
 
   if (model.provider === 'qiniu') {
     return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
+  }
+
+  if (model.provider === 'doubao') {
+    return FUNCTION_CALLING_REGEX.test(model.id) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
   if (['deepseek', 'anthropic'].includes(model.provider)) {
@@ -2508,9 +2512,11 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   return (
     baseName.startsWith('qwen3') ||
     [
+      'qwen-plus',
       'qwen-plus-latest',
       'qwen-plus-0428',
       'qwen-plus-2025-04-28',
+      'qwen-turbo',
       'qwen-turbo-latest',
       'qwen-turbo-0428',
       'qwen-turbo-2025-04-28'
@@ -2523,7 +2529,7 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
     return false
   }
 
-  return DOUBAO_THINKING_MODEL_REGEX.test(model.id)
+  return DOUBAO_THINKING_MODEL_REGEX.test(model.id) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
 }
 
 export function isClaudeReasoningModel(model?: Model): boolean {
@@ -2855,13 +2861,14 @@ export const findTokenLimit = (modelId: string): { min: number; max: number } | 
 
 // Doubao 支持思考模式的模型正则
 export const DOUBAO_THINKING_MODEL_REGEX =
-  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?)(?:-\d{6})?$/i
+  /doubao-(?:1[.-]5-thinking-vision-pro|1[.-]5-thinking-pro-m|seed-1[.-]6(?:-flash)?(?!-(?:thinking)(?:-|$)))(?:-[\w-]+)*/i
 
 // 支持 auto 的 Doubao 模型 doubao-seed-1.6-xxx doubao-seed-1-6-xxx  doubao-1-5-thinking-pro-m-xxx
-export const DOUBAO_THINKING_AUTO_MODEL_REGEX = /doubao-(1-5-thinking-pro-m|seed-1\.6|seed-1-6-[\w-]+)(?:-[\w-]+)*/i
+export const DOUBAO_THINKING_AUTO_MODEL_REGEX =
+  /doubao-(1-5-thinking-pro-m|seed-1[.-]6)(?!-(?:flash|thinking)(?:-|$))(?:-[\w-]+)*/i
 
 export function isDoubaoThinkingAutoModel(model: Model): boolean {
-  return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id)
+  return DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.id) || DOUBAO_THINKING_AUTO_MODEL_REGEX.test(model.name)
 }
 
 export const GEMINI_FLASH_MODEL_REGEX = new RegExp('gemini-.*-flash.*$')

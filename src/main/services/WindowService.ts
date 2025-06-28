@@ -143,9 +143,10 @@ export class WindowService {
   }
 
   private setupContextMenu(mainWindow: BrowserWindow) {
-    contextMenu.contextMenu(mainWindow)
-    app.on('browser-window-created', (_, win) => {
-      contextMenu.contextMenu(win)
+    contextMenu.contextMenu(mainWindow.webContents)
+    // setup context menu for all webviews like miniapp
+    app.on('web-contents-created', (_, webContents) => {
+      contextMenu.contextMenu(webContents)
     })
 
     // Dangerous API

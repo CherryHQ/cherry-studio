@@ -4,7 +4,6 @@ import {
   SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
-  setEarlyAccess as _setEarlyAccess,
   setLaunchOnBoot,
   setLaunchToTray,
   setPinTopicsToTop,
@@ -12,12 +11,13 @@ import {
   setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
+  setTestChannel as _setTestChannel,
+  setTestPlan as _setTestPlan,
   setTheme,
   SettingsState,
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
-  setUpgradeChannel as _setUpgradeChannel,
   setWindowStyle
 } from '@renderer/store/settings'
 import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
@@ -61,14 +61,14 @@ export function useSettings() {
       window.api.setAutoUpdate(isAutoUpdate)
     },
 
-    setEarlyAccess(isEarlyAccess: boolean) {
-      dispatch(_setEarlyAccess(isEarlyAccess))
-      window.api.setEnableEarlyAccess(isEarlyAccess)
+    setTestPlan(isTestPlan: boolean) {
+      dispatch(_setTestPlan(isTestPlan))
+      window.api.setTestPlan(isTestPlan)
     },
 
-    setUpgradeChannel(channel: UpgradeChannel) {
-      dispatch(_setUpgradeChannel(channel))
-      window.api.setUpgradeChannel(channel)
+    setTestChannel(channel: UpgradeChannel) {
+      dispatch(_setTestChannel(channel))
+      window.api.setTestChannel(channel)
     },
 
     setTheme(theme: ThemeMode) {
