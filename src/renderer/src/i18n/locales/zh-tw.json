@@ -703,6 +703,13 @@
       "success.siyuan.export": "導出到思源筆記成功",
       "warn.yuque.exporting": "正在導出語雀，請勿重複請求導出！",
       "warn.siyuan.exporting": "正在導出到思源筆記，請勿重複請求導出！",
+      "websearch": {
+        "rag": "正在執行 RAG...",
+        "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
+        "rag_failed": "RAG 失敗，返回空結果...",
+        "cutoff": "正在截斷搜尋內容...",
+        "fetch_complete": "已完成 {{count}} 次搜尋..."
+      },
       "download.success": "下載成功",
       "download.failed": "下載失敗"
     },
@@ -776,6 +783,7 @@
       "dimensions": "{{dimensions}} 維",
       "edit": "編輯模型",
       "embedding": "嵌入",
+      "embedding_dimensions": "嵌入維度",
       "embedding_model": "嵌入模型",
       "embedding_model_tooltip": "在設定->模型服務中點選管理按鈕新增",
       "function_calling": "函數調用",
@@ -1468,7 +1476,8 @@
           "version": "版本"
         },
         "errors": {
-          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整"
+          "32000": "MCP 伺服器啟動失敗，請根據教程檢查參數是否填寫完整",
+          "toolNotFound": "未找到工具 {{name}}"
         },
         "serverPlural": "伺服器",
         "serverSingular": "伺服器",
@@ -1828,8 +1837,33 @@
         "overwrite_tooltip": "強制使用搜尋服務商而不是大語言模型進行搜尋",
         "apikey": "API 金鑰",
         "free": "免費",
-        "content_limit": "內容長度限制",
-        "content_limit_tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷"
+        "compression": {
+          "title": "搜尋結果壓縮",
+          "method": "壓縮方法",
+          "method.none": "不壓縮",
+          "method.cutoff": "截斷",
+          "cutoff.limit": "截斷長度",
+          "cutoff.limit.placeholder": "輸入長度",
+          "cutoff.limit.tooltip": "限制搜尋結果的內容長度，超過限制的內容將被截斷（例如 2000 字符）",
+          "cutoff.unit.char": "字符",
+          "cutoff.unit.token": "Token",
+          "method.rag": "RAG",
+          "rag.document_count": "文檔數量",
+          "rag.document_count.default": "預設",
+          "rag.document_count.tooltip": "預期從單個搜尋結果中提取的文檔數量，實際提取的總數量是這個值乘以搜尋結果數量。",
+          "rag.embedding_dimensions.auto_get": "自動獲取維度",
+          "rag.embedding_dimensions.placeholder": "不設置維度",
+          "rag.embedding_dimensions.tooltip": "留空則不傳遞 dimensions 參數",
+          "info": {
+            "dimensions_auto_success": "維度自動獲取成功，維度為 {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "請先選擇嵌入模型",
+            "dimensions_auto_failed": "維度自動獲取失敗",
+            "provider_not_found": "未找到服務商",
+            "rag_failed": "RAG 失敗"
+          }
+        }
       },
       "general.auto_check_update.title": "自動更新",
       "general.early_access.title": "搶先體驗",

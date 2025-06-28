@@ -5,13 +5,19 @@ import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { WebSearchSource } from '@renderer/types'
 import { type CitationMessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import CitationsList from '../CitationsList'
 
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
+  const { t } = useTranslation()
   const formattedCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, block.id))
+  const { websearch } = useSelector((state: RootState) => state.runtime)
+  const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
+  const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
+
   const hasGeminiBlock = block.response?.source === WebSearchSource.GEMINI
   const hasCitations = useMemo(() => {
     return (
@@ -21,8 +27,32 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
     )
   }, [formattedCitations, block.knowledge, hasGeminiBlock])
 
+  const getWebSearchStatusText = (requestId: string) => {
+    const status = websearch.activeSearches[requestId] ?? { phase: 'default' }
+
+    switch (status.phase) {
+      case 'fetch_complete':
+        return t('message.websearch.fetch_complete', {
+          count: status.countAfter ?? 0
+        })
+      case 'rag':
+        return t('message.websearch.rag')
+      case 'rag_complete':
+        return t('message.websearch.rag_complete', {
+          countBefore: status.countBefore ?? 0,
+          countAfter: status.countAfter ?? 0
+        })
+      case 'rag_failed':
+        return t('message.websearch.rag_failed')
+      case 'cutoff':
+        return t('message.websearch.cutoff')
+      default:
+        return t('message.searching')
+    }
+  }
+
   if (block.status === MessageBlockStatus.PROCESSING) {
-    return <Spinner text="message.searching" />
+    return <Spinner text={getWebSearchStatusText(userMessageId)} />
   }
 
   if (!hasCitations) {

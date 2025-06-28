@@ -1635,6 +1635,31 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '116': (state: RootState) => {
+    try {
+      if (state.websearch) {
+        // migrate contentLimit to cutoffLimit
+        // @ts-ignore eslint-disable-next-line
+        if (state.websearch.contentLimit) {
+          state.websearch.compressionConfig = {
+            method: 'cutoff',
+            cutoffUnit: 'char',
+            // @ts-ignore eslint-disable-next-line
+            cutoffLimit: state.websearch.contentLimit
+          }
+        } else {
+          state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
+        }
+
+        // @ts-ignore eslint-disable-next-line
+        delete state.websearch.contentLimit
+      }
+
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

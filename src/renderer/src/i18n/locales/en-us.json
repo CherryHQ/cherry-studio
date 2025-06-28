@@ -703,6 +703,13 @@
       "success.siyuan.export": "Successfully exported to Siyuan Note",
       "warn.yuque.exporting": "Exporting to Yuque, please do not request export repeatedly!",
       "warn.siyuan.exporting": "Exporting to Siyuan Note, please do not request export repeatedly!",
+      "websearch": {
+        "rag": "Executing RAG...",
+        "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
+        "rag_failed": "RAG failed, returning empty results...",
+        "cutoff": "Truncating search content...",
+        "fetch_complete": "Completed {{count}} searches..."
+      },
       "download.success": "Download successfully",
       "download.failed": "Download failed"
     },
@@ -776,6 +783,7 @@
       "dimensions": "Dimensions {{dimensions}}",
       "edit": "Edit Model",
       "embedding": "Embedding",
+      "embedding_dimensions": "Embedding Dimensions",
       "embedding_model": "Embedding Model",
       "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
       "function_calling": "Function Calling",
@@ -1478,7 +1486,8 @@
           "version": "Version"
         },
         "errors": {
-          "32000": "MCP server failed to start, please check the parameters according to the tutorial"
+          "32000": "MCP server failed to start, please check the parameters according to the tutorial",
+          "toolNotFound": "Tool {{name}} not found"
         },
         "serverPlural": "servers",
         "serverSingular": "server",
@@ -1844,8 +1853,33 @@
         "overwrite_tooltip": "Force use search service instead of LLM",
         "apikey": "API key",
         "free": "Free",
-        "content_limit": "Content length limit",
-        "content_limit_tooltip": "Limit the content length of the search results; content that exceeds the limit will be truncated."
+        "compression": {
+          "title": "Search Result Compression",
+          "method": "Compression Method",
+          "method.none": "None",
+          "method.cutoff": "Cutoff",
+          "cutoff.limit": "Cutoff Limit",
+          "cutoff.limit.placeholder": "Enter length",
+          "cutoff.limit.tooltip": "Limit the content length of search results, content exceeding the limit will be truncated (e.g., 2000 characters)",
+          "cutoff.unit.char": "Char",
+          "cutoff.unit.token": "Token",
+          "method.rag": "RAG",
+          "rag.document_count": "Document Count",
+          "rag.document_count.default": "Default",
+          "rag.document_count.tooltip": "Expected number of documents to extract from each search result, the actual total number of extracted documents is this value multiplied by the number of search results.",
+          "rag.embedding_dimensions.auto_get": "Auto Get Dimensions",
+          "rag.embedding_dimensions.placeholder": "Leave empty",
+          "rag.embedding_dimensions.tooltip": "If left blank, the dimensions parameter will not be passed",
+          "info": {
+            "dimensions_auto_success": "Dimensions auto-obtained successfully, dimensions: {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "Please select an embedding model first",
+            "dimensions_auto_failed": "Failed to auto-obtain dimensions",
+            "provider_not_found": "Provider not found",
+            "rag_failed": "RAG failed"
+          }
+        }
       },
       "quickPhrase": {
         "title": "Quick Phrases",

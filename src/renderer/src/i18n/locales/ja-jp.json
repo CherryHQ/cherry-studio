@@ -702,6 +702,13 @@
       "warn.yuque.exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!",
       "warn.siyuan.exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!",
       "error.yuque.no_config": "語雀のAPIアドレスまたはトークンが設定されていません",
+      "websearch": {
+        "rag": "RAGを実行中...",
+        "rag_complete": "{{countBefore}}個の結果から{{countAfter}}個を保持...",
+        "rag_failed": "RAGが失敗しました。空の結果を返します...",
+        "cutoff": "検索内容を切り詰めています...",
+        "fetch_complete": "{{count}}回の検索を完了しました..."
+      },
       "download.success": "ダウンロードに成功しました",
       "download.failed": "ダウンロードに失敗しました",
       "error.fetchTopicName": "トピック名の取得に失敗しました"
@@ -776,6 +783,7 @@
       "dimensions": "{{dimensions}} 次元",
       "edit": "モデルを編集",
       "embedding": "埋め込み",
+      "embedding_dimensions": "埋め込み次元",
       "embedding_model": "埋め込み模型",
       "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
       "function_calling": "関数呼び出し",
@@ -1473,7 +1481,8 @@
         "updateSuccess": "サーバーが正常に更新されました",
         "url": "URL",
         "errors": {
-          "32000": "MCP サーバーが起動しませんでした。パラメーターを確認してください"
+          "32000": "MCP サーバーが起動しませんでした。パラメーターを確認してください",
+          "toolNotFound": "ツール {{name}} が見つかりません"
         },
         "editMcpJson": "MCP 設定を編集",
         "installHelp": "インストールヘルプを取得",
@@ -1825,8 +1834,33 @@
         "overwrite_tooltip": "大規模言語モデルではなく、サービス検索を使用する",
         "apikey": "API キー",
         "free": "無料",
-        "content_limit": "内容の長さ制限",
-        "content_limit_tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます。"
+        "compression": {
+          "title": "検索結果の圧縮",
+          "method": "圧縮方法",
+          "method.none": "圧縮しない",
+          "method.cutoff": "切り捨て",
+          "cutoff.limit": "切り捨て長",
+          "cutoff.limit.placeholder": "長さを入力",
+          "cutoff.limit.tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）",
+          "cutoff.unit.char": "文字",
+          "cutoff.unit.token": "トークン",
+          "method.rag": "RAG",
+          "rag.document_count": "文書数",
+          "rag.document_count.default": "デフォルト",
+          "rag.document_count.tooltip": "単一の検索結果から抽出する文書数。実際に抽出される文書数は、この値に検索結果数を乗じたものです。",
+          "rag.embedding_dimensions.auto_get": "次元を自動取得",
+          "rag.embedding_dimensions.placeholder": "次元を設定しない",
+          "rag.embedding_dimensions.tooltip": "空の場合、dimensions パラメーターは渡されません",
+          "info": {
+            "dimensions_auto_success": "次元が自動取得されました。次元: {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "まず埋め込みモデルを選択してください",
+            "dimensions_auto_failed": "次元の自動取得に失敗しました",
+            "provider_not_found": "プロバイダーが見つかりません",
+            "rag_failed": "RAG に失敗しました"
+          }
+        }
       },
       "general.auto_check_update.title": "自動更新",
       "general.early_access.title": "早期アクセス",

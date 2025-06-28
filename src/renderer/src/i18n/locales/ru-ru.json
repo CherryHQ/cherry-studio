@@ -702,6 +702,13 @@
       "success.siyuan.export": "Успешный экспорт в Siyuan",
       "warn.yuque.exporting": "Экспортируется в Yuque, пожалуйста, не отправляйте повторные запросы!",
       "warn.siyuan.exporting": "Экспортируется в Siyuan, пожалуйста, не отправляйте повторные запросы!",
+      "websearch": {
+        "rag": "Выполнение RAG...",
+        "rag_complete": "Сохранено {{countAfter}} из {{countBefore}} результатов...",
+        "rag_failed": "RAG не удалось, возвращается пустой результат...",
+        "cutoff": "Обрезка содержимого поиска...",
+        "fetch_complete": "Завершено {{count}} поисков..."
+      },
       "download.success": "Скачано успешно",
       "download.failed": "Скачивание не удалось",
       "error.fetchTopicName": "Не удалось назвать топик"
@@ -776,6 +783,7 @@
       "dimensions": "{{dimensions}} мер",
       "edit": "Редактировать модель",
       "embedding": "Встраиваемые",
+      "embedding_dimensions": "Встраиваемые размерности",
       "embedding_model": "Встраиваемые модели",
       "embedding_model_tooltip": "Добавьте в настройки->модель сервиса->управление",
       "function_calling": "Вызов функции",
@@ -1465,7 +1473,8 @@
           "version": "Версия"
         },
         "errors": {
-          "32000": "MCP сервер не запущен, пожалуйста, проверьте параметры"
+          "32000": "MCP сервер не запущен, пожалуйста, проверьте параметры",
+          "toolNotFound": "Инструмент {{name}} не найден"
         },
         "serverPlural": "серверы",
         "serverSingular": "сервер",
@@ -1825,8 +1834,33 @@
         "overwrite_tooltip": "Использовать провайдера поиска вместо LLM",
         "apikey": "API ключ",
         "free": "Бесплатно",
-        "content_limit": "Ограничение длины текста",
-        "content_limit_tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан."
+        "compression": {
+          "title": "Сжатие результатов поиска",
+          "method": "Метод сжатия",
+          "method.none": "Не сжимать",
+          "method.cutoff": "Обрезка",
+          "cutoff.limit": "Лимит обрезки",
+          "cutoff.limit.placeholder": "Введите длину",
+          "cutoff.limit.tooltip": "Ограничьте длину содержимого результатов поиска, контент, превышающий ограничение, будет обрезан (например, 2000 символов)",
+          "cutoff.unit.char": "Символы",
+          "cutoff.unit.token": "Токены",
+          "method.rag": "RAG",
+          "rag.document_count": "Количество документов",
+          "rag.document_count.default": "По умолчанию",
+          "rag.document_count.tooltip": "Ожидаемое количество документов, которые будут извлечены из каждого результата поиска. Фактическое количество извлеченных документов равно этому значению, умноженному на количество результатов поиска.",
+          "rag.embedding_dimensions.auto_get": "Автоматически получить размерности",
+          "rag.embedding_dimensions.placeholder": "Не устанавливать размерности",
+          "rag.embedding_dimensions.tooltip": "Если оставить пустым, параметр dimensions не будет передан",
+          "info": {
+            "dimensions_auto_success": "Размерности успешно получены, размерности: {{dimensions}}"
+          },
+          "error": {
+            "embedding_model_required": "Пожалуйста, сначала выберите модель встраивания",
+            "dimensions_auto_failed": "Не удалось получить размерности",
+            "provider_not_found": "Поставщик не найден",
+            "rag_failed": "RAG не удалось"
+          }
+        }
       },
       "general.auto_check_update.title": "Автоматическое обновление",
       "general.early_access.title": "Ранний доступ",

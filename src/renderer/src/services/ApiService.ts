@@ -157,8 +157,13 @@ async function fetchExternalTool(
     try {
       // Use the consolidated processWebsearch function
       WebSearchService.createAbortSignal(lastUserMessage.id)
+      const webSearchResponse = await WebSearchService.processWebsearch(
+        webSearchProvider!,
+        extractResults,
+        lastUserMessage.id
+      )
       return {
-        results: await WebSearchService.processWebsearch(webSearchProvider!, extractResults),
+        results: webSearchResponse,
         source: WebSearchSource.WEBSEARCH
       }
     } catch (error) {

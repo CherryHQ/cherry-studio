@@ -4,7 +4,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { uuid } from '@renderer/utils'
 import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { ChevronsDownUp, ChevronsUpDown, Text as UnWrapIcon, WrapText as WrapIcon } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
@@ -154,12 +154,18 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
     setTimeout(highlightCode, 0)
   }, [isInViewport, highlightCode])
 
-  useEffect(() => {
+  const lastDigitsRef = useRef(1)
+
+  useLayoutEffect(() => {
     const container = codeContainerRef.current
     if (!container || !codeShowLineNumbers) return
 
     const digits = Math.max(tokenLines.length.toString().length, 1)
-    container.style.setProperty('--line-digits', digits.toString())
+    if (digits === lastDigitsRef.current) return
+
+    const gutterWidth = digits * 0.6
+    container.style.setProperty('--gutter-width', `${gutterWidth}rem`)
+    lastDigitsRef.current = digits
   }, [codeShowLineNumbers, tokenLines.length])
 
   const hasHighlightedCode = tokenLines.length > 0
@@ -167,7 +173,6 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   return (
     <ContentContainer
       ref={codeContainerRef}
-      $lineNumbers={codeShowLineNumbers}
       $wrap={codeWrappable && !isUnwrapped}
       $fadeIn={hasHighlightedCode}
       style={{
@@ -175,7 +180,7 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
         maxHeight: codeCollapsible && !isExpanded ? '350px' : 'none'
       }}>
       {hasHighlightedCode ? (
-        <ShikiTokensRenderer language={language} tokenLines={tokenLines} />
+        <ShikiTokensRenderer language={language} tokenLines={tokenLines} showLineNumbers={codeShowLineNumbers} />
       ) : (
         <CodePlaceholder>{children}</CodePlaceholder>
       )}
@@ -183,48 +188,54 @@ const CodePreview = ({ children, language, setTools }: CodePreviewProps) => {
   )
 }
 
+interface ShikiTokensRendererProps {
+  language: string
+  tokenLines: ThemedToken[][]
+  showLineNumbers?: boolean
+}
+
 /**
  * 渲染 Shiki 高亮后的 tokens
  *
  * 独立出来，方便将来做 virtual list
  */
-const ShikiTokensRenderer: React.FC<{ language: string; tokenLines: ThemedToken[][] }> = memo(
-  ({ language, tokenLines }) => {
-    const { getShikiPreProperties } = useCodeStyle()
-    const rendererRef = useRef<HTMLPreElement>(null)
+const ShikiTokensRenderer: React.FC<ShikiTokensRendererProps> = memo(({ language, tokenLines, showLineNumbers }) => {
+  const { getShikiPreProperties } = useCodeStyle()
+  const rendererRef = useRef<HTMLPreElement>(null)
 
-    // 设置 pre 标签属性
-    useEffect(() => {
-      getShikiPreProperties(language).then((properties) => {
-        const pre = rendererRef.current
-        if (pre) {
-          pre.className = properties.class
-          pre.style.cssText = properties.style
-          pre.tabIndex = properties.tabindex
-        }
-      })
-    }, [language, getShikiPreProperties])
+  // 设置 pre 标签属性
+  useLayoutEffect(() => {
+    getShikiPreProperties(language).then((properties) => {
+      const pre = rendererRef.current
+      if (pre) {
+        pre.className = properties.class
+        pre.style.cssText = properties.style
+        pre.tabIndex = properties.tabindex
+      }
+    })
+  }, [language, getShikiPreProperties])
 
-    return (
-      <pre className="shiki" ref={rendererRef}>
-        <code>
-          {tokenLines.map((lineTokens, lineIndex) => (
-            <span key={`line-${lineIndex}`} className="line">
+  return (
+    <pre className="shiki" ref={rendererRef}>
+      <code>
+        {tokenLines.map((lineTokens, lineIndex) => (
+          <span key={`line-${lineIndex}`} className="line">
+            {showLineNumbers && <span className="line-number">{lineIndex + 1}</span>}
+            <span className="line-content">
               {lineTokens.map((token, tokenIndex) => (
                 <span key={`token-${tokenIndex}`} style={getReactStyleFromToken(token)}>
                   {token.content}
                 </span>
               ))}
             </span>
-          ))}
-        </code>
-      </pre>
-    )
-  }
-)
+          </span>
+        ))}
+      </code>
+    </pre>
+  )
+})
 
 const ContentContainer = styled.div<{
-  $lineNumbers: boolean
   $wrap: boolean
   $fadeIn: boolean
 }>`
@@ -233,9 +244,8 @@ const ContentContainer = styled.div<{
   border-radius: inherit;
   margin-top: 0;
 
-  /* 动态宽度计算 */
-  --line-digits: 0;
-  --gutter-width: max(calc(var(--line-digits) * 0.7rem), 2.1rem);
+  /* gutter 宽度默认值 */
+  --gutter-width: 0.6rem;
 
   .shiki {
     padding: 1em;
@@ -246,37 +256,34 @@ const ContentContainer = styled.div<{
       flex-direction: column;
 
       .line {
-        display: block;
+        display: flex;
+        align-items: flex-start;
         min-height: 1.3rem;
-        padding-left: ${(props) => (props.$lineNumbers ? 'var(--gutter-width)' : '0')};
 
-        * {
-          overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
-          white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
+        .line-number {
+          width: var(--gutter-width);
+          text-align: right;
+          opacity: 0.35;
+          margin-right: 1rem;
+          user-select: none;
+          flex-shrink: 0;
+          overflow: hidden;
+          line-height: inherit;
+          font-family: inherit;
+          font-variant-numeric: tabular-nums;
+        }
+
+        .line-content {
+          flex: 1;
+
+          * {
+            overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
+            white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
+          }
         }
       }
     }
   }
-
-  ${(props) =>
-    props.$lineNumbers &&
-    `
-      code {
-        counter-reset: step;
-        counter-increment: step 0;
-        position: relative;
-      }
-
-      code .line::before {
-        content: counter(step);
-        counter-increment: step;
-        width: 1rem;
-        position: absolute;
-        left: 0;
-        text-align: right;
-        opacity: 0.35;
-      }
-    `}
 
   @keyframes contentFadeIn {
     from {
