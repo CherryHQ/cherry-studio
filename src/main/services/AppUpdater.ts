@@ -133,22 +133,32 @@ export default class AppUpdater {
   }
 
   private _getTestChannel() {
-    const savedChannel = configManager.getTestChannel()
     const currentChannel = this._getChannelByVersion(app.getVersion())
+    const savedChannel = configManager.getTestChannel()
+
     if (currentChannel === UpgradeChannel.LATEST) {
       return savedChannel || UpgradeChannel.RC
     }
 
-    if (currentChannel !== savedChannel) {
-      configManager.setTestChannel(currentChannel)
+    if (savedChannel === currentChannel) {
+      return savedChannel
     }
-    return currentChannel
+
+    // if the upgrade channel is not equal to the current channel, use the latest channel
+    return UpgradeChannel.LATEST
   }
 
   private async _setFeedUrl() {
     const testPlan = configManager.getTestPlan()
     if (testPlan) {
       const channel = this._getTestChannel()
+
+      if (channel === UpgradeChannel.LATEST) {
+        this.autoUpdater.channel = UpgradeChannel.LATEST
+        this.autoUpdater.setFeedURL(FeedUrl.GITHUB_LATEST)
+        return
+      }
+
       const preReleaseUrl = await this._getPreReleaseVersionFromGithub(channel)
       if (preReleaseUrl) {
         this.autoUpdater.setFeedURL(preReleaseUrl)

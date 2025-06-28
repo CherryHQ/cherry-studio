@@ -1836,7 +1836,7 @@
       "general.test_plan.rc_version": "プレビュー版(RC)",
       "general.test_plan.rc_version_tooltip": "安定版に近い機能ですが、バグが少なく、迅速にアップグレードされます。",
       "general.test_plan.version_options": "バージョンオプション",
-      "general.test_plan.version_channel_not_match": "現在のバージョンとテストプランのバージョンが一致しません。まず、安定版にアップグレードしてから、テストプランのバージョンを切り替えてください。",
+      "general.test_plan.version_channel_not_match": "プレビュー版とテスト版の切り替えは、次の正式版リリース時に有効になります。",
       "quickPhrase": {
         "title": "クイックフレーズ",
         "add": "フレーズを追加",

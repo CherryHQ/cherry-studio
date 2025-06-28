@@ -1839,7 +1839,7 @@
       "general.test_plan.rc_version": "預覽版本(RC)",
       "general.test_plan.rc_version_tooltip": "相對穩定，請務必提前備份數據",
       "general.test_plan.version_options": "版本選項",
-      "general.test_plan.version_channel_not_match": "當前版本與測試計畫版本不匹配，請先升級到正式版再切換測試版本",
+      "general.test_plan.version_channel_not_match": "預覽版和測試版的切換將在下一個正式版發布時生效",
       "quickPhrase": {
         "title": "快捷短語",
         "add": "新增短語",

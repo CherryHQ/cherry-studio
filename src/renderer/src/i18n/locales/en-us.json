@@ -1391,7 +1391,7 @@
       "general.test_plan.rc_version": "Preview Version (RC)",
       "general.test_plan.rc_version_tooltip": "Close to stable version, features are basically stable, bugs are few",
       "general.test_plan.version_options": "Version Options",
-      "general.test_plan.version_channel_not_match": "The current version does not match the test plan version, please upgrade to the stable version first",
+      "general.test_plan.version_channel_not_match": "Preview and test version switching will take effect after the next stable version is released",
       "general.reset.button": "Reset",
       "general.reset.title": "Data Reset",
       "general.restore.button": "Restore",

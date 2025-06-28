@@ -102,12 +102,13 @@ const AboutSettings: FC = () => {
       { pattern: `-${UpgradeChannel.RC}.`, channel: UpgradeChannel.RC }
     ].find(({ pattern }) => version.includes(pattern))?.channel || UpgradeChannel.LATEST
 
-  const handleTestChannelChange = async (value: UpgradeChannel) => {
-    if (currentChannelByVersion !== UpgradeChannel.LATEST && value !== currentChannelByVersion) {
+  useEffect(() => {
+    if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && testChannel !== currentChannelByVersion) {
       window.message.warning(t('settings.general.test_plan.version_channel_not_match'))
-      return
     }
+  }, [testPlan, testChannel, currentChannelByVersion, t])
 
+  const handleTestChannelChange = async (value: UpgradeChannel) => {
     setTestChannel(value)
     // Clear update info when switching upgrade channel
     dispatch(
@@ -157,9 +158,6 @@ const AboutSettings: FC = () => {
   }
 
   const getTestChannel = () => {
-    if (currentChannelByVersion !== UpgradeChannel.LATEST) {
-      return currentChannelByVersion
-    }
     if (testChannel === UpgradeChannel.LATEST) {
       return UpgradeChannel.RC
     }
