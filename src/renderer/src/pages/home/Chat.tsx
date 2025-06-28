@@ -109,13 +109,6 @@ const Chat: FC<Props> = (props) => {
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
-        <ContentSearch
-          ref={contentSearchRef}
-          searchTarget={mainRef as React.RefObject<HTMLElement>}
-          filter={contentSearchFilter}
-          includeUser={filterIncludeUser}
-          onIncludeUserChange={userOutlinedItemClickHandler}
-        />
         <Messages
           key={props.activeTopic.id}
           assistant={assistant}
@@ -123,6 +116,13 @@ const Chat: FC<Props> = (props) => {
           setActiveTopic={props.setActiveTopic}
           onComponentUpdate={messagesComponentUpdateHandler}
           onFirstUpdate={messagesComponentFirstUpdateHandler}
+        />
+        <ContentSearch
+          ref={contentSearchRef}
+          searchTarget={mainRef as React.RefObject<HTMLElement>}
+          filter={contentSearchFilter}
+          includeUser={filterIncludeUser}
+          onIncludeUserChange={userOutlinedItemClickHandler}
         />
         <QuickPanelProvider>
           <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
