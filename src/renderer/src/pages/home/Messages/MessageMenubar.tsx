@@ -1,4 +1,4 @@
-import { CheckOutlined, EditOutlined, MenuOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, EditOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
@@ -29,7 +29,7 @@ import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
 import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Copy, Languages, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
+import { AtSign, Copy, Languages, ListChecks, Menu, RefreshCw, Save, Share, Split, ThumbsUp, Trash } from 'lucide-react'
 import { FilePenLine } from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -195,7 +195,7 @@ const MessageMenubar: FC<Props> = (props) => {
       {
         label: t('chat.multiple.select'),
         key: 'multi-select',
-        icon: <MenuOutlined size={16} />,
+        icon: <ListChecks size={16} />,
         onClick: () => {
           toggleMultiSelectMode(true)
         }
