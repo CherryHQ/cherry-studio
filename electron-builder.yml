@@ -48,7 +48,9 @@ files:
   - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
   - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
-  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters}' # filter .node build files
+  - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
+  - '!node_modules/selection-hook/src' # we don't need source files
+  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
 asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'
