@@ -1,11 +1,13 @@
 import db from '@renderer/databases'
 import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
+import { TraceService } from '@renderer/services/TraceService'
 import store from '@renderer/store'
 import type { Assistant, ExternalToolResult, FileType, MCPToolResponse, Model, Topic } from '@renderer/types'
 import type {
@@ -334,6 +336,8 @@ const fetchAndProcessAssistantResponseImpl = async (
 ) => {
   const assistantMsgId = assistantMessage.id
   let callbacks: StreamProcessorCallbacks = {}
+  const traceProvider = TraceService.getTraceProvider()
+
   try {
     dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
 
@@ -385,6 +389,27 @@ const fetchAndProcessAssistantResponseImpl = async (
       } else {
         console.error(`[handleBlockTransition] Failed to get updated message ${assistantMsgId} from state for DB save.`)
       }
+
+      // 开始追踪当前消息块
+      await startBlockObservation(newBlock.id)
+    }
+
+    const startBlockObservation = async (blockId: string) => {
+      if (traceProvider) {
+        await traceProvider.startObservation({
+          id: blockId,
+          parentId: assistantMsgId
+        })
+      }
+    }
+
+    const stopBlockObservation = async (blockId: string | null) => {
+      if (blockId && traceProvider) {
+        await traceProvider.stopObservation({
+          id: blockId,
+          parentId: assistantMsgId
+        })
+      }
     }
 
     const allMessagesForTopic = selectMessagesForTopic(getState(), topicId)
@@ -406,6 +431,16 @@ const fetchAndProcessAssistantResponseImpl = async (
     } else {
       const contextSlice = allMessagesForTopic.slice(0, userMessageIndex + 1)
       messagesForContext = contextSlice.filter((m) => m && !m.status?.includes('ing'))
+    }
+
+    if (traceProvider) {
+      const model = assistantMessage.model || getDefaultModel()
+      await traceProvider.startTrace({
+        id: assistantMsgId,
+        sessionId: topicId,
+        messages: messagesForContext,
+        model: model.id
+      })
     }
 
     callbacks = {
@@ -456,7 +491,6 @@ const fetchAndProcessAssistantResponseImpl = async (
           cancelThrottledBlockUpdate(mainTextBlockId)
           dispatch(updateOneBlock({ id: mainTextBlockId, changes }))
           saveUpdatedBlockToDB(mainTextBlockId, assistantMsgId, topicId, getState)
-          mainTextBlockId = null
         } else {
           console.warn(
             `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${lastBlockType}) or lastBlockId  is null.`
@@ -470,6 +504,9 @@ const fetchAndProcessAssistantResponseImpl = async (
           saveUpdatedBlockToDB(citationBlockId, assistantMsgId, topicId, getState)
           citationBlockId = null
         }
+
+        await stopBlockObservation(mainTextBlockId)
+        mainTextBlockId = null
       },
       onThinkingChunk: async (text, thinking_millsec) => {
         accumulatedThinking += text
@@ -501,7 +538,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           await handleBlockTransition(newBlock, MessageBlockType.THINKING)
         }
       },
-      onThinkingComplete: (finalText, final_thinking_millsec) => {
+      onThinkingComplete: async (finalText, final_thinking_millsec) => {
         if (thinkingBlockId) {
           const changes = {
             type: MessageBlockType.THINKING,
@@ -517,6 +554,8 @@ const fetchAndProcessAssistantResponseImpl = async (
             `[onThinkingComplete] Received thinking.complete but last block was not THINKING (was ${lastBlockType}) or lastBlockId  is null.`
           )
         }
+
+        await stopBlockObservation(thinkingBlockId)
         thinkingBlockId = null
       },
       onToolCallInProgress: (toolResponse: MCPToolResponse) => {
@@ -546,7 +585,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           )
         }
       },
-      onToolCallComplete: (toolResponse: MCPToolResponse) => {
+      onToolCallComplete: async (toolResponse: MCPToolResponse) => {
         const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
         toolCallIdToBlockIdMap.delete(toolResponse.id)
         if (toolResponse.status === 'done' || toolResponse.status === 'error') {
@@ -568,6 +607,10 @@ const fetchAndProcessAssistantResponseImpl = async (
           cancelThrottledBlockUpdate(existingBlockId)
           dispatch(updateOneBlock({ id: existingBlockId, changes }))
           saveUpdatedBlockToDB(existingBlockId, assistantMsgId, topicId, getState)
+
+          // 先尝试重新启动，避免 stop 先于 start
+          await startBlockObservation(existingBlockId)
+          await stopBlockObservation(existingBlockId)
         } else {
           console.warn(
             `[onToolCallComplete] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
@@ -580,7 +623,7 @@ const fetchAndProcessAssistantResponseImpl = async (
         await handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         // saveUpdatedBlockToDB(citationBlock.id, assistantMsgId, topicId, getState)
       },
-      onExternalToolComplete: (externalToolResult: ExternalToolResult) => {
+      onExternalToolComplete: async (externalToolResult: ExternalToolResult) => {
         if (citationBlockId) {
           const changes: Partial<CitationMessageBlock> = {
             response: externalToolResult.webSearch,
@@ -592,6 +635,8 @@ const fetchAndProcessAssistantResponseImpl = async (
         } else {
           console.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
         }
+
+        await stopBlockObservation(citationBlockId)
       },
       onLLMWebSearchInProgress: async () => {
         if (initialPlaceholderBlockId) {
@@ -638,6 +683,8 @@ const fetchAndProcessAssistantResponseImpl = async (
             mainTextBlockId = null
           }
         }
+
+        await stopBlockObservation(citationBlockId)
       },
       onImageCreated: async () => {
         if (initialPlaceholderBlockId) {
@@ -671,7 +718,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           saveUpdatedBlockToDB(imageBlockId, assistantMsgId, topicId, getState)
         }
       },
-      onImageGenerated: (imageData) => {
+      onImageGenerated: async (imageData) => {
         if (imageBlockId) {
           if (!imageData) {
             const changes: Partial<ImageMessageBlock> = {
@@ -692,6 +739,8 @@ const fetchAndProcessAssistantResponseImpl = async (
         } else {
           console.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
         }
+
+        await stopBlockObservation(imageBlockId)
         imageBlockId = null
       },
       onError: async (error) => {
@@ -741,6 +790,11 @@ const fetchAndProcessAssistantResponseImpl = async (
         dispatch(newMessagesActions.updateMessage({ topicId, messageId: assistantMsgId, updates: messageErrorUpdate }))
 
         saveUpdatesToDB(assistantMsgId, topicId, messageErrorUpdate, [])
+
+        // 以最后的助手消息结束观察本次对话
+        if (traceProvider) {
+          await traceProvider.stopTrace({ id: assistantMsgId })
+        }
 
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, {
           id: assistantMsgId,
@@ -820,7 +874,13 @@ const fetchAndProcessAssistantResponseImpl = async (
             updates: messageUpdates
           })
         )
+
         saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
+
+        // 以最后的助手消息结束观察本次对话
+        if (traceProvider) {
+          await traceProvider.stopTrace({ id: assistantMsgId })
+        }
 
         EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
       }
@@ -839,6 +899,11 @@ const fetchAndProcessAssistantResponseImpl = async (
     if (assistantMessage) {
       callbacks.onError?.(error)
       throw error
+    }
+  } finally {
+    // 无论如何，关闭 traceProvider
+    if (traceProvider) {
+      await traceProvider.close()
     }
   }
 }
