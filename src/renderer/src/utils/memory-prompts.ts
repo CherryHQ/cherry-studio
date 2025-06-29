@@ -261,11 +261,9 @@ export function getFactRetrievalMessages(parsedMessages: string, customPrompt?: 
 
 export function getUpdateMemoryMessages(
   retrievedOldMemory: Array<{ id: string; text: string }>,
-  newRetrievedFacts: string[],
-  customPrompt?: string
+  newRetrievedFacts: string[]
 ): string {
-  const systemPrompt = customPrompt || updateMemoryUserPrompt
-  return systemPrompt
+  return updateMemoryUserPrompt
     .replace('{{ retrievedOldMemory }}', JSON.stringify(retrievedOldMemory, null, 2))
     .replace('{{ newRetrievedFacts }}', JSON.stringify(newRetrievedFacts, null, 2))
 }

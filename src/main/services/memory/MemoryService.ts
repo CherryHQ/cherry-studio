@@ -46,6 +46,7 @@ export class MemoryService {
   private isInitialized = false
   private embeddings: Embeddings | null = null
   private config: MemoryConfig | null = null
+  private static readonly UNIFIED_DIMENSION = 1536
 
   private constructor() {
     // Private constructor to enforce singleton pattern
@@ -159,6 +160,9 @@ export class MemoryService {
         if (this.config?.embedderModel) {
           try {
             embedding = await this.generateEmbedding(trimmedMemory)
+            logger.info(
+              `Generated embedding with dimension: ${embedding.length} (normalized to ${MemoryService.UNIFIED_DIMENSION})`
+            )
           } catch (error) {
             logger.error('Failed to generate embedding:', error)
             // Continue without embedding
@@ -423,6 +427,9 @@ export class MemoryService {
       if (this.config?.embedderModel) {
         try {
           embedding = await this.generateEmbedding(memory)
+          logger.info(
+            `Updated embedding with dimension: ${embedding.length} (normalized to ${MemoryService.UNIFIED_DIMENSION})`
+          )
         } catch (error) {
           logger.error('Failed to generate embedding for update:', error)
         }
@@ -572,6 +579,23 @@ export class MemoryService {
   // ========== EMBEDDING OPERATIONS (Previously EmbeddingService) ==========
 
   /**
+   * Normalize embedding dimensions to unified size
+   */
+  private normalizeEmbedding(embedding: number[]): number[] {
+    if (embedding.length === MemoryService.UNIFIED_DIMENSION) {
+      return embedding
+    }
+
+    if (embedding.length < MemoryService.UNIFIED_DIMENSION) {
+      // Pad with zeros
+      return [...embedding, ...new Array(MemoryService.UNIFIED_DIMENSION - embedding.length).fill(0)]
+    } else {
+      // Truncate
+      return embedding.slice(0, MemoryService.UNIFIED_DIMENSION)
+    }
+  }
+
+  /**
    * Generate embedding for text
    */
   private async generateEmbedding(text: string): Promise<number[]> {
@@ -603,7 +627,8 @@ export class MemoryService {
 
       const embedding = await this.embeddings.embedQuery(text)
 
-      return embedding
+      // Normalize to unified dimension
+      return this.normalizeEmbedding(embedding)
     } catch (error) {
       logger.error('Embedding generation failed:', error)
       throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`)

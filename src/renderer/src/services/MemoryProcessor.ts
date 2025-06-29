@@ -4,10 +4,10 @@ import {
   getFactRetrievalMessages,
   getUpdateMemoryMessages,
   MemoryUpdateSchema,
-  removeCodeBlocks,
   updateMemorySystemPrompt
 } from '@renderer/utils/memory-prompts'
 import { MemoryConfig, MemoryItem } from '@types'
+import jaison from 'jaison/lib/index.js'
 
 import { fetchGenerate } from './ApiService'
 import MemoryService from './MemoryService'
@@ -16,6 +16,7 @@ export interface MemoryProcessorConfig {
   memoryConfig: MemoryConfig
   assistantId?: string
   userId?: string
+  lastMessageId?: string
 }
 
 export class MemoryProcessor {
@@ -59,10 +60,21 @@ export class MemoryProcessor {
 
       // Parse response using Zod schema
       try {
-        const parsed = FactRetrievalSchema.parse(JSON.parse(removeCodeBlocks(responseContent.trim())))
+        console.log('Response content for extraction:', responseContent)
+        const jsonParsed = jaison(responseContent)
+        // Handle both expected format and potential variations
+        let dataToValidate = jsonParsed
+
+        // If the response has a 'facts' key at the top level, use it directly
+        if (!jsonParsed.facts && Array.isArray(jsonParsed)) {
+          // If it's just an array, wrap it in the expected format
+          dataToValidate = { facts: jsonParsed }
+        }
+
+        const parsed = FactRetrievalSchema.parse(dataToValidate)
         return parsed.facts
-      } catch (parseError) {
-        console.error('Failed to parse fact extraction response:', parseError)
+      } catch (error) {
+        console.error('Failed to parse fact extraction response:', error, 'responseContent: ', responseContent)
         return []
       }
     } catch (error) {
@@ -85,49 +97,49 @@ export class MemoryProcessor {
       return []
     }
 
-    const { memoryConfig, assistantId, userId } = config
+    const { memoryConfig, assistantId, userId, lastMessageId } = config
 
     if (!memoryConfig.llmModel) {
       throw new Error('No LLM model configured for memory processing')
     }
 
-    // Get existing memories for the user/assistant
-    const existingMemoriesResult = await this.memoryService.list({
-      userId,
-      agentId: assistantId,
-      limit: 100
-    })
+    const existingMemoriesResult = window.keyv.get(`memory-search-${lastMessageId}`) as MemoryItem[] | []
 
-    const existingMemories = existingMemoriesResult.results.map((memory) => ({
+    const existingMemories = existingMemoriesResult.map((memory) => ({
       id: memory.id,
       text: memory.memory
     }))
 
-    // Generate update memory prompt
-    const updateMemoryUserPrompt = getUpdateMemoryMessages(
-      existingMemories,
-      facts,
-      memoryConfig.customUpdateMemoryPrompt
-    )
-
-    const responseContent = await fetchGenerate({
-      prompt: updateMemorySystemPrompt,
-      content: updateMemoryUserPrompt,
-      model: memoryConfig.llmModel
-    })
-    if (!responseContent || responseContent.trim() === '') {
-      return []
-    }
-    // Parse response using Zod schema
     let parsed: Array<{ event: string; id: string; text: string; old_memory?: string }> = []
-    try {
-      parsed = MemoryUpdateSchema.parse(JSON.parse(removeCodeBlocks(responseContent)))
-    } catch (parseError) {
-      console.error('Failed to parse memory update response:', parseError, 'responseContent: ', responseContent)
-      return []
-    }
-
     const operations: Array<{ action: string; [key: string]: any }> = []
+    if (existingMemories.length === 0) {
+      facts.forEach((fact) => {
+        parsed.push({ event: 'ADD', text: fact, id: '', old_memory: '' })
+      })
+    } else {
+      // Generate update memory prompt
+      const updateMemoryUserPrompt = getUpdateMemoryMessages(existingMemories, facts)
+
+      const responseContent = await fetchGenerate({
+        prompt: updateMemorySystemPrompt,
+        content: updateMemoryUserPrompt,
+        model: memoryConfig.llmModel
+      })
+      if (!responseContent || responseContent.trim() === '') {
+        return []
+      }
+
+      try {
+        console.log('Response content for memory update:', responseContent)
+        const jsonParsed = jaison(responseContent)
+        // Handle both direct array and wrapped object format
+        const dataToValidate = Array.isArray(jsonParsed) ? jsonParsed : jsonParsed.memory
+        parsed = MemoryUpdateSchema.parse(dataToValidate)
+      } catch (error) {
+        console.error('Failed to parse memory update response:', error, 'responseContent: ', responseContent)
+        return []
+      }
+    }
 
     for (const memoryOp of parsed) {
       switch (memoryOp.event) {
@@ -146,7 +158,7 @@ export class MemoryProcessor {
         case 'UPDATE':
           try {
             // Find the memory to update
-            const existingMemory = existingMemoriesResult.results.find((m) => m.id === memoryOp.id)
+            const existingMemory = existingMemoriesResult.find((m) => m.id === memoryOp.id)
             if (existingMemory) {
               await this.memoryService.update(memoryOp.id, memoryOp.text, {
                 userId,
