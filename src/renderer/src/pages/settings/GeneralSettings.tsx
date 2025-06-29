@@ -17,7 +17,8 @@ import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch } from 'antd'
-import { FC, useState } from 'react'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 
@@ -39,6 +40,10 @@ const GeneralSettings: FC = () => {
   } = useSettings()
   const [proxyUrl, setProxyUrl] = useState<string | undefined>(storeProxyUrl)
   const { theme } = useTheme()
+
+  useEffect(() => {
+    polyfillCountryFlagEmojis()
+  }, [])
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
@@ -161,7 +166,12 @@ const GeneralSettings: FC = () => {
             options={languagesOptions.map((lang) => ({
               label: (
                 <Flex align="center" gap={8}>
-                  <span role="img" aria-label={lang.flag}>
+                  <span
+                    role="img"
+                    aria-label={lang.flag}
+                    style={{
+                      fontFamily: '"Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+                    }}>
                     {lang.flag}
                   </span>
                   {lang.label}
@@ -212,7 +222,12 @@ const GeneralSettings: FC = () => {
                   value: lang.value,
                   label: (
                     <Flex align="center" gap={8}>
-                      <span role="img" aria-label={lang.flag}>
+                      <span
+                        role="img"
+                        aria-label={lang.flag}
+                        style={{
+                          fontFamily: '"Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+                        }}>
                         {lang.flag}
                       </span>
                       {lang.label}

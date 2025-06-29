@@ -8,6 +8,7 @@ import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
@@ -37,6 +38,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     }
     updateTokenCount()
   }, [prompt])
+
+  useEffect(() => {
+    polyfillCountryFlagEmojis('Twemoji Mozilla')
+  }, [])
 
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }

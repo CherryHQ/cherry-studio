@@ -14,6 +14,7 @@ import { Agent, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
+import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
 import { ChevronDown } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -66,6 +67,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     updateTokenCount()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.getFieldValue('prompt')])
+
+  useEffect(() => {
+    polyfillCountryFlagEmojis('Twemoji Country Flags')
+  }, [])
 
   const onFinish = (values: FieldType) => {
     const _emoji = emoji || getLeadingEmoji(values.name)
