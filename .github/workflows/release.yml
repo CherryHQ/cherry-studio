@@ -44,6 +44,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: macos-latest dependencies fix
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install python-setuptools
+
       - name: Install corepack
         run: corepack enable && corepack prepare yarn@4.6.0 --activate
 
