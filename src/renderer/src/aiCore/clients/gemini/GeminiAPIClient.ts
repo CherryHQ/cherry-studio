@@ -398,12 +398,13 @@ export class GeminiAPIClient extends BaseApiClient<
 
       // 如果thinking_budget是undefined，不思考
       if (reasoningEffort === undefined) {
-        return {
-          thinkingConfig: {
-            includeThoughts: false,
-            ...(GEMINI_FLASH_MODEL_REGEX.test(model.id) ? { thinkingBudget: 0 } : {})
-          } as ThinkingConfig
-        }
+        return GEMINI_FLASH_MODEL_REGEX.test(model.id)
+          ? {
+              thinkingConfig: {
+                thinkingBudget: 0
+              }
+            }
+          : {}
       }
 
       if (reasoningEffort === 'auto') {
