@@ -61,8 +61,9 @@ function getAppDataPathFromConfig() {
 
     let executablePath = app.getPath('exe')
     if (isLinux && process.env.APPIMAGE) {
-      // 如果是 AppImage 打包的应用，直接使用 APPIMAGE 环境变量作为数据目录
-      executablePath = process.env.APPIMAGE
+      // 如果是 AppImage 打包的应用，直接使用 APPIMAGE 环境变量
+      // 这样可以确保获取到正确的可执行文件路径
+      executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
     }
 
     let appDataPath = null
@@ -98,7 +99,7 @@ export function updateAppDataConfig(appDataPath: string) {
   const configPath = path.join(getConfigDir(), 'config.json')
   let executablePath = app.getPath('exe')
   if (isLinux && process.env.APPIMAGE) {
-    executablePath = process.env.APPIMAGE
+    executablePath = path.join(path.dirname(process.env.APPIMAGE), 'cherry-studio.appimage')
   }
 
   if (!fs.existsSync(configPath)) {
