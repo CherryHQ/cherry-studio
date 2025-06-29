@@ -181,3 +181,7 @@ export function getCacheDir() {
 export function getAppConfigDir(name: string) {
   return path.join(getConfigDir(), name)
 }
+
+export function getMcpDir() {
+  return path.join(os.homedir(), '.cherrystudio', 'mcp')
+}
