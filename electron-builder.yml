@@ -90,6 +90,7 @@ linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   target:
     - target: AppImage
+    - target: deb
   maintainer: electronjs.org
   category: Utility
   desktop:
