@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import FileManager from '@renderer/services/FileManager'
-import { FileType, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import { KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 
 export interface KnowledgeState {
   bases: KnowledgeBase[]
@@ -22,9 +21,6 @@ const knowledgeSlice = createSlice({
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
-        const files = base.items.filter((item) => item.type === 'file')
-        FileManager.deleteFiles(files.map((item) => item.content) as FileType[])
-        window.api.knowledgeBase.delete(action.payload.baseId)
       }
     },
 
