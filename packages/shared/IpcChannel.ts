@@ -244,5 +244,6 @@ export enum IpcChannel {
   Memory_Get = 'memory:get',
   Memory_SetConfig = 'memory:set-config',
   Memory_DeleteUser = 'memory:delete-user',
+  Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
   Memory_GetUsersList = 'memory:get-users-list'
 }

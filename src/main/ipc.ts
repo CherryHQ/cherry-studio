@@ -466,6 +466,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.Memory_DeleteUser, async (_, userId) => {
     return await memoryService.deleteUser(userId)
   })
+  ipcMain.handle(IpcChannel.Memory_DeleteAllMemoriesForUser, async (_, userId) => {
+    return await memoryService.deleteAllMemoriesForUser(userId)
+  })
   ipcMain.handle(IpcChannel.Memory_GetUsersList, async () => {
     return await memoryService.getUsersList()
   })

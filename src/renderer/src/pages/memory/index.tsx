@@ -510,6 +510,29 @@ const MemoriesPage = () => {
     form.resetFields()
   }
 
+  const handleResetMemories = async (userId: string) => {
+    Modal.confirm({
+      title: t('memory.reset_memories_confirm_title'),
+      content: t('memory.reset_memories_confirm_content', { user: getUserDisplayName(userId) }),
+      icon: <ExclamationCircleOutlined />,
+      okText: t('common.yes'),
+      cancelText: t('common.no'),
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await memoryService.deleteAllMemoriesForUser(userId)
+          message.success(t('memory.memories_reset_success', { user: getUserDisplayName(userId) }))
+
+          // Reload memories to show the empty state
+          await loadMemories(currentUser)
+        } catch (error) {
+          console.error('Failed to reset memories:', error)
+          message.error(t('memory.reset_memories_failed'))
+        }
+      }
+    })
+  }
+
   const handleDeleteUser = async (userId: string) => {
     if (userId === DEFAULT_USER_ID) {
       message.error(t('memory.cannot_delete_default_user'))
@@ -669,6 +692,17 @@ const MemoriesPage = () => {
                         label: t('common.refresh'),
                         icon: <ReloadOutlined />,
                         onClick: () => loadMemories(currentUser)
+                      },
+                      {
+                        key: 'divider-reset',
+                        type: 'divider' as const
+                      },
+                      {
+                        key: 'reset',
+                        label: t('memory.reset_memories'),
+                        icon: <DeleteOutlined />,
+                        danger: true,
+                        onClick: () => handleResetMemories(currentUser)
                       },
                       ...(currentUser !== DEFAULT_USER_ID
                         ? [

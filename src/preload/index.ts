@@ -184,6 +184,8 @@ const api = {
     get: (id: string) => ipcRenderer.invoke(IpcChannel.Memory_Get, id),
     setConfig: (config: MemoryConfig) => ipcRenderer.invoke(IpcChannel.Memory_SetConfig, config),
     deleteUser: (userId: string) => ipcRenderer.invoke(IpcChannel.Memory_DeleteUser, userId),
+    deleteAllMemoriesForUser: (userId: string) =>
+      ipcRenderer.invoke(IpcChannel.Memory_DeleteAllMemoriesForUser, userId),
     getUsersList: () => ipcRenderer.invoke(IpcChannel.Memory_GetUsersList)
   },
   window: {

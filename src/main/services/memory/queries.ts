@@ -145,6 +145,12 @@ export const MemoryQueries = {
       WHERE user_id IS NOT NULL AND is_deleted = 0
       GROUP BY user_id
       ORDER BY last_memory_date DESC
-    `
+    `,
+
+    countMemoriesForUser: 'SELECT COUNT(*) as total FROM memories WHERE user_id = ?',
+
+    deleteAllMemoriesForUser: 'DELETE FROM memories WHERE user_id = ?',
+
+    deleteHistoryForUser: 'DELETE FROM memory_history WHERE memory_id IN (SELECT id FROM memories WHERE user_id = ?)'
   }
 } as const

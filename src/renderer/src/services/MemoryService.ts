@@ -164,6 +164,15 @@ class MemoryService {
   }
 
   /**
+   * Deletes all memories for a user without deleting the user
+   * @param userId - The user ID whose memories to delete
+   * @returns Promise that resolves when deletion is complete
+   */
+  public async deleteAllMemoriesForUser(userId: string): Promise<void> {
+    return window.api.memory.deleteAllMemoriesForUser(userId)
+  }
+
+  /**
    * Deletes a user and all their memories (hard delete)
    * @param userId - The user ID to delete
    * @returns Promise that resolves when deletion is complete
