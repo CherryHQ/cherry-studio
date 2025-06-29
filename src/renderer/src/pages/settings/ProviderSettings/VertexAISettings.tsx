@@ -1,13 +1,19 @@
 import { HStack } from '@renderer/components/Layout'
 import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Alert, Input } from 'antd'
+import { Provider } from '@renderer/types'
+import { Alert, Input, Space } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '..'
 
-const VertexAISettings: FC = () => {
+interface Props {
+  provider: Provider
+}
+
+const VertexAISettings: FC<Props> = ({ provider: _provider }) => {
   const { t } = useTranslation()
   const {
     projectId,
@@ -18,12 +24,18 @@ const VertexAISettings: FC = () => {
     setServiceAccountPrivateKey,
     setServiceAccountClientEmail
   } = useVertexAISettings()
+  const { provider } = useProvider(_provider.id)
 
   const providerConfig = PROVIDER_CONFIG['vertexai']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const [localProjectId, setLocalProjectId] = useState(projectId)
   const [localLocation, setLocalLocation] = useState(location)
+  const [apiHost, setApiHost] = useState(provider.apiHost)
+  const { updateProvider } = useProvider(provider.id)
+  const onUpdateApiHost = () => {
+    updateProvider({ ...provider, apiHost })
+  }
 
   const handleProjectIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLocalProjectId(e.target.value)
@@ -60,6 +72,18 @@ const VertexAISettings: FC = () => {
 
   return (
     <>
+      <SettingSubtitle>{t('settings.provider.api_host')}</SettingSubtitle>
+      <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+        <Input
+          value={apiHost}
+          placeholder={t('settings.provider.api_host')}
+          onChange={(e) => setApiHost(e.target.value)}
+          onBlur={onUpdateApiHost}
+        />
+      </Space.Compact>
+      <SettingHelpTextRow>
+        <SettingHelpText>{t('settings.provider.vertex_ai.api_host_help')}</SettingHelpText>
+      </SettingHelpTextRow>
       <SettingSubtitle style={{ marginTop: 5 }}>
         {t('settings.provider.vertex_ai.service_account.title')}
       </SettingSubtitle>

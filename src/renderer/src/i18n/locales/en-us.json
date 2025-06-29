@@ -1801,6 +1801,7 @@
           "markdown_editor_default_value": "Preview area"
         },
         "vertex_ai": {
+          "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
           "project_id": "Project ID",
           "project_id_placeholder": "your-google-cloud-project-id",
           "project_id_help": "Your Google Cloud project ID",

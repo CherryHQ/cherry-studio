@@ -1786,6 +1786,7 @@
           "alert": "OpenAI Provider 不再支援舊的呼叫方法。如果使用第三方 API，請建立新的服務供應商"
         },
         "vertex_ai": {
+          "api_host_help": "Vertex AI 的 API 地址，不建議填寫，通常適用於反向代理",
           "project_id": "專案ID",
           "project_id_placeholder": "your-google-cloud-project-id",
           "project_id_help": "您的 Google Cloud 專案 ID",

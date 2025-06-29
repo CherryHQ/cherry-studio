@@ -1783,6 +1783,7 @@
           "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
         },
         "vertex_ai": {
+          "api_host_help": "Vertex AIのAPIアドレス。逆プロキシに適しています。",
           "project_id": "プロジェクトID",
           "project_id_placeholder": "your-google-cloud-project-id",
           "project_id_help": "Google CloudプロジェクトID",

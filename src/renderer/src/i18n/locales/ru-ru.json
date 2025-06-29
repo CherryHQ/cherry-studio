@@ -1783,6 +1783,7 @@
           "alert": "Поставщик OpenAI больше не поддерживает старые методы вызова. Если вы используете сторонний API, создайте нового поставщика услуг."
         },
         "vertex_ai": {
+          "api_host_help": "API-адрес Vertex AI, не рекомендуется заполнять, обычно применим к обратным прокси",
           "project_id": "ID проекта",
           "project_id_placeholder": "your-google-cloud-project-id",
           "project_id_help": "Ваш ID проекта Google Cloud",

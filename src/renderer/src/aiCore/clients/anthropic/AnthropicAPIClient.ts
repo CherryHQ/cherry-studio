@@ -24,6 +24,7 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import Logger from '@renderer/config/logger'
@@ -73,7 +74,7 @@ import { BaseApiClient } from '../BaseApiClient'
 import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
 
 export class AnthropicAPIClient extends BaseApiClient<
-  Anthropic,
+  Anthropic | AnthropicVertex,
   AnthropicSdkParams,
   AnthropicSdkRawOutput,
   AnthropicSdkRawChunk,
@@ -81,11 +82,12 @@ export class AnthropicAPIClient extends BaseApiClient<
   ToolUseBlock,
   ToolUnion
 > {
+  sdkInstance: Anthropic | AnthropicVertex | undefined = undefined
   constructor(provider: Provider) {
     super(provider)
   }
 
-  async getSdkInstance(): Promise<Anthropic> {
+  async getSdkInstance(): Promise<Anthropic | AnthropicVertex> {
     if (this.sdkInstance) {
       return this.sdkInstance
     }
@@ -105,7 +107,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     payload: AnthropicSdkParams,
     options?: Anthropic.RequestOptions
   ): Promise<AnthropicSdkRawOutput> {
-    const sdk = await this.getSdkInstance()
+    const sdk = (await this.getSdkInstance()) as Anthropic
     if (payload.stream) {
       return sdk.messages.stream(payload, options)
     }
@@ -119,7 +121,7 @@ export class AnthropicAPIClient extends BaseApiClient<
   }
 
   override async listModels(): Promise<Anthropic.ModelInfo[]> {
-    const sdk = await this.getSdkInstance()
+    const sdk = (await this.getSdkInstance()) as Anthropic
     const response = await sdk.models.list()
     return response.data
   }
