@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "เพิ่มไปยังผู้ช่วย",
+      "add.knowledge_base": "ฐานความรู้",
+      "add.knowledge_base.placeholder": "เลือกฐานความรู้",
+      "add.name": "ชื่อ",
+      "add.name.placeholder": "ใส่ชื่อ",
+      "add.prompt": "พรอมต์",
+      "add.prompt.placeholder": "ใส่พรอมต์",
+      "add.prompt.variables.tip": {
+        "title": "ตัวแปรที่ใช้ได้",
+        "content": "{{date}}:\tวันที่\n{{time}}:\tเวลา\n{{datetime}}:\tวันที่และเวลา\n{{system}}:\tระบบปฏิบัติการ\n{{arch}}:\tสถาปัตยกรรม CPU\n{{language}}:\tภาษา\n{{model_name}}:\tชื่อโมเดล"
+      },
+      "add.title": "สร้างเอเจนต์",
+      "import": {
+        "title": "นำเข้าจากภายนอก",
+        "type": {
+          "url": "URL",
+          "file": "ไฟล์"
+        },
+        "url_placeholder": "ใส่ URL JSON",
+        "select_file": "เลือกไฟล์",
+        "button": "นำเข้า",
+        "file_filter": "ไฟล์ JSON",
+        "error": {
+          "url_required": "กรุณาใส่ URL",
+          "fetch_failed": "ไม่สามารถดึงข้อมูลจาก URL ได้",
+          "invalid_format": "รูปแบบเอเจนต์ไม่ถูกต้อง: ขาดฟิลด์ที่จำเป็น"
+        }
+      },
+      "export": {
+        "agent": "ส่งออกเอเจนต์"
+      },
+      "delete.popup.content": "คุณแน่ใจหรือว่าต้องการลบเอเจนต์นี้?",
+      "edit.model.select.title": "เลือกโมเดล",
+      "edit.title": "แก้ไขเอเจนต์",
+      "manage.title": "จัดการเอเจนต์",
+      "my_agents": "เอเจนต์ของฉัน",
+      "search.no_results": "ไม่พบผลลัพธ์",
+      "sorting.title": "การเรียงลำดับ",
+      "settings": {
+        "title": "การตั้งค่าเอเจนต์"
+      },
+      "tag.agent": "เอเจนต์",
+      "tag.default": "ค่าเริ่มต้น",
+      "tag.new": "ใหม่",
+      "tag.system": "ระบบ",
+      "title": "เอเจนต์"
+    },
+    "languages": {
+      "albanian": "แอลเบเนีย",
+      "arabic": "อาหรับ",
+      "armenian": "อาร์เมเนีย",
+      "belarusian": "เบลารุส",
+      "bulgarian": "บัลแกเรีย",
+      "chinese": "จีน",
+      "chinese-traditional": "จีนแบบดั้งเดิม",
+      "croatian": "โครเอเชีย",
+      "czech": "เช็ก",
+      "danish": "เดนมาร์ก",
+      "dutch": "ดัตช์",
+      "english": "อังกฤษ",
+      "estonian": "เอสโตเนีย",
+      "finnish": "ฟินแลนด์",
+      "french": "ฝรั่งเศส",
+      "georgian": "จอร์เจีย",
+      "german": "เยอรมัน",
+      "greek": "กรีก",
+      "hungarian": "ฮังการี",
+      "indonesian": "อินโดนีเซีย",
+      "italian": "อิตาลี",
+      "japanese": "ญี่ปุ่น",
+      "korean": "เกาหลี",
+      "latvian": "ลัตเวีย",
+      "lithuanian": "ลิทัวเนีย",
+      "macedonian": "มาซิโดเนีย",
+      "malay": "มาเลย์",
+      "norwegian": "นอร์เวย์",
+      "polish": "โปแลนด์",
+      "portuguese": "โปรตุเกส",
+      "romanian": "โรมาเนีย",
+      "russian": "รัสเซีย",
+      "serbian": "เซอร์เบีย",
+      "slovak": "สโลวาเกีย",
+      "slovenian": "สโลวีเนีย",
+      "spanish": "สเปน",
+      "swedish": "สวีเดน",
+      "thai": "ไทย",
+      "turkish": "ตุรกี",
+      "ukrainian": "ยูเครน",
+      "urdu": "อูรดู",
+      "vietnamese": "เวียดนาม"
+    }
+  }
+}

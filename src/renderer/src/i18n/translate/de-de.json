@@ -1,0 +1,96 @@
+{
+  "translation": {
+    "agents": {
+      "add.button": "Zum Assistenten hinzufügen",
+      "add.knowledge_base": "Wissensbasis",
+      "add.knowledge_base.placeholder": "Wissensbasis auswählen",
+      "add.name": "Name",
+      "add.name.placeholder": "Name eingeben",
+      "add.prompt": "Prompt",
+      "add.prompt.placeholder": "Prompt eingeben",
+      "add.prompt.variables.tip": {
+        "title": "Verfügbare Variablen",
+        "content": "{{date}}:\tDatum\n{{time}}:\tUhrzeit\n{{datetime}}:\tDatum und Uhrzeit\n{{system}}:\tBetriebssystem\n{{arch}}:\tCPU-Architektur\n{{language}}:\tSprache\n{{model_name}}:\tModellname"
+      },
+      "add.title": "Agent erstellen",
+      "import": {
+        "title": "Von extern importieren",
+        "type": {
+          "url": "URL",
+          "file": "Datei"
+        },
+        "url_placeholder": "JSON-URL eingeben",
+        "select_file": "Datei auswählen",
+        "button": "Importieren",
+        "file_filter": "JSON-Dateien",
+        "error": {
+          "url_required": "Bitte geben Sie eine URL ein",
+          "fetch_failed": "Fehler beim Abrufen von der URL",
+          "invalid_format": "Ungültiges Agent-Format: Erforderliche Felder fehlen"
+        }
+      },
+      "export": {
+        "agent": "Agent exportieren"
+      },
+      "delete.popup.content": "Sind Sie sicher, dass Sie diesen Agenten löschen möchten?",
+      "edit.model.select.title": "Modell auswählen",
+      "edit.title": "Agent bearbeiten",
+      "manage.title": "Agenten verwalten",
+      "my_agents": "Meine Agenten",
+      "search.no_results": "Keine Ergebnisse gefunden",
+      "sorting.title": "Sortierung",
+      "settings": {
+        "title": "Agent-Einstellungen"
+      },
+      "tag.agent": "Agent",
+      "tag.default": "Standard",
+      "tag.new": "Neu",
+      "tag.system": "System",
+      "title": "Agenten"
+    },
+    "languages": {
+      "albanian": "Albanisch",
+      "arabic": "Arabisch",
+      "armenian": "Armenisch",
+      "belarusian": "Weißrussisch",
+      "bulgarian": "Bulgarisch",
+      "chinese": "Chinesisch",
+      "chinese-traditional": "Traditionelles Chinesisch",
+      "croatian": "Kroatisch",
+      "czech": "Tschechisch",
+      "danish": "Dänisch",
+      "dutch": "Niederländisch",
+      "english": "Englisch",
+      "estonian": "Estnisch",
+      "finnish": "Finnisch",
+      "french": "Französisch",
+      "georgian": "Georgisch",
+      "german": "Deutsch",
+      "greek": "Griechisch",
+      "hungarian": "Ungarisch",
+      "indonesian": "Indonesisch",
+      "italian": "Italienisch",
+      "japanese": "Japanisch",
+      "korean": "Koreanisch",
+      "latvian": "Lettisch",
+      "lithuanian": "Litauisch",
+      "macedonian": "Mazedonisch",
+      "malay": "Malaiisch",
+      "norwegian": "Norwegisch",
+      "polish": "Polnisch",
+      "portuguese": "Portugiesisch",
+      "romanian": "Rumänisch",
+      "russian": "Russisch",
+      "serbian": "Serbisch",
+      "slovak": "Slowakisch",
+      "slovenian": "Slowenisch",
+      "spanish": "Spanisch",
+      "swedish": "Schwedisch",
+      "thai": "Thailändisch",
+      "turkish": "Türkisch",
+      "ukrainian": "Ukrainisch",
+      "urdu": "Urdu",
+      "vietnamese": "Vietnamesisch"
+    }
+  }
+}

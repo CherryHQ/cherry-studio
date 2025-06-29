@@ -122,8 +122,146 @@ export const TranslateLanguageOptions: TranslateLanguageOption[] = [
     langCode: 'ms-my',
     label: i18n.t('languages.malay'),
     emoji: '🇲🇾'
+  },
+  {
+    value: 'bulgarian',
+    langCode: 'bg-bg',
+    label: i18n.t('languages.bulgarian'),
+    emoji: '🇧🇬'
+  },
+  {
+    value: 'romanian',
+    langCode: 'ro-ro',
+    label: i18n.t('languages.romanian'),
+    emoji: '🇷🇴'
+  },
+  {
+    value: 'danish',
+    langCode: 'da-dk',
+    label: i18n.t('languages.danish'),
+    emoji: '🇩🇰'
+  },
+  {
+    value: 'swedish',
+    langCode: 'sv-se',
+    label: i18n.t('languages.swedish'),
+    emoji: '🇸🇪'
+  },
+  {
+    value: 'norwegian',
+    langCode: 'nb-no',
+    label: i18n.t('languages.norwegian'),
+    emoji: '🇳🇴'
+  },
+  {
+    value: 'finnish',
+    langCode: 'fi-fi',
+    label: i18n.t('languages.finnish'),
+    emoji: '🇫🇮'
+  },
+  {
+    value: 'czech',
+    langCode: 'cs-cz',
+    label: i18n.t('languages.czech'),
+    emoji: '🇨🇿'
+  },
+  {
+    value: 'slovak',
+    langCode: 'sk-sk',
+    label: i18n.t('languages.slovak'),
+    emoji: '🇸🇰'
+  },
+  {
+    value: 'hungarian',
+    langCode: 'hu-hu',
+    label: i18n.t('languages.hungarian'),
+    emoji: '🇭🇺'
+  },
+  {
+    value: 'greek',
+    langCode: 'el-gr',
+    label: i18n.t('languages.greek'),
+    emoji: '🇬🇷'
+  },
+  {
+    value: 'ukrainian',
+    langCode: 'uk-ua',
+    label: i18n.t('languages.ukrainian'),
+    emoji: '🇺🇦'
+  },
+  {
+    value: 'croatian',
+    langCode: 'hr-hr',
+    label: i18n.t('languages.croatian'),
+    emoji: '🇭🇷'
+  },
+  {
+    value: 'serbian',
+    langCode: 'sr-rs',
+    label: i18n.t('languages.serbian'),
+    emoji: '🇷🇸'
+  },
+  {
+    value: 'slovenian',
+    langCode: 'sl-si',
+    label: i18n.t('languages.slovenian'),
+    emoji: '🇸🇮'
+  },
+  {
+    value: 'estonian',
+    langCode: 'et-ee',
+    label: i18n.t('languages.estonian'),
+    emoji: '🇪🇪'
+  },
+  {
+    value: 'latvian',
+    langCode: 'lv-lv',
+    label: i18n.t('languages.latvian'),
+    emoji: '🇱🇻'
+  },
+  {
+    value: 'lithuanian',
+    langCode: 'lt-lt',
+    label: i18n.t('languages.lithuanian'),
+    emoji: '🇱🇹'
+  },
+  {
+    value: 'dutch',
+    langCode: 'nl-nl',
+    label: i18n.t('languages.dutch'),
+    emoji: '🇳🇱'
+  },
+  {
+    value: 'belarusian',
+    langCode: 'be-by',
+    label: i18n.t('languages.belarusian'),
+    emoji: '🇧🇾'
+  },
+  {
+    value: 'georgian',
+    langCode: 'ka-ge',
+    label: i18n.t('languages.georgian'),
+    emoji: '🇬🇪'
+  },
+  {
+    value: 'macedonian',
+    langCode: 'mk-mk',
+    label: i18n.t('languages.macedonian'),
+    emoji: '🇲🇰'
+  },
+  {
+    value: 'albanian',
+    langCode: 'sq-al',
+    label: i18n.t('languages.albanian'),
+    emoji: '🇦🇱'
+  },
+  {
+    value: 'armenian',
+    langCode: 'hy-am',
+    label: i18n.t('languages.armenian'),
+    emoji: '🇦🇲'
   }
-]
+].sort((a, b) => a.value.localeCompare(b.value));
 
 export const translateLanguageOptions = (): typeof TranslateLanguageOptions => {
   return TranslateLanguageOptions.map((option) => {
