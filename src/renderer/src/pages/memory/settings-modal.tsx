@@ -27,9 +27,6 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
   // Get all models for lookup
   const allModels = providers.flatMap((p) => p.models)
 
-  // Check if embedding settings were previously configured
-  const isEmbeddingConfigured = memoryConfig?.embedderModel !== undefined
-
   // Initialize form with current memory config when modal opens
   useEffect(() => {
     if (visible && memoryConfig) {
@@ -150,11 +147,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
           label="Embedding Model"
           name="embedderModel"
           rules={[{ required: true, message: 'Please select an embedding model' }]}>
-          <Select
-            placeholder="Select Embedding Model"
-            options={embeddingSelectOptions}
-            disabled={isEmbeddingConfigured}
-          />
+          <Select placeholder="Select Embedding Model" options={embeddingSelectOptions} />
         </Form.Item>
         <Form.Item
           label={t('knowledge.dimensions_auto_set')}
@@ -170,7 +163,6 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                 form.setFieldValue('embedderDimensions', undefined)
               }
             }}
-            disabled={isEmbeddingConfigured}
           />
         </Form.Item>
 
@@ -188,12 +180,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                 }
               }
             ]}>
-            <InputNumber
-              style={{ width: '100%' }}
-              min={1}
-              placeholder={t('knowledge.dimensions_size_placeholder')}
-              disabled={isEmbeddingConfigured}
-            />
+            <InputNumber style={{ width: '100%' }} min={1} placeholder={t('knowledge.dimensions_size_placeholder')} />
           </Form.Item>
         )}
         {/* <Form.Item label="Custom Fact Extraction Prompt" name="customFactExtractionPrompt">
