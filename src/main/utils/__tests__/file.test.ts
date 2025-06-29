@@ -94,6 +94,7 @@ describe('file', () => {
       expect(getFileType('.pptx')).toBe(FileTypes.DOCUMENT)
       expect(getFileType('.doc')).toBe(FileTypes.DOCUMENT)
       expect(getFileType('.docx')).toBe(FileTypes.DOCUMENT)
+      expect(getFileType('.xls')).toBe(FileTypes.DOCUMENT)
       expect(getFileType('.xlsx')).toBe(FileTypes.DOCUMENT)
       expect(getFileType('.odt')).toBe(FileTypes.DOCUMENT)
     })
