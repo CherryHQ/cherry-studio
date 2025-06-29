@@ -506,6 +506,7 @@
       "add_note": "Add Note",
       "add_sitemap": "Website Map",
       "add_url": "Add URL",
+      "download_resource": "Download All",
       "cancel_index": "Cancel Indexing",
       "chunk_overlap": "Chunk Overlap",
       "chunk_overlap_placeholder": "Default (not recommended to change)",

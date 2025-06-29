@@ -431,6 +431,7 @@
       "add_note": "Agregar nota",
       "add_sitemap": "Mapa del sitio",
       "add_url": "Agregar URL",
+      "download_resource": "Descargar todo",
       "cancel_index": "Cancelar índice",
       "chunk_overlap": "Superposición de fragmentos",
       "chunk_overlap_placeholder": "Valor predeterminado (no recomendado para modificar)",
