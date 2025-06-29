@@ -173,12 +173,12 @@ ul {
   color: var(--color-icon);
 }
 
-span.highlight {
+::highlight(search-matches) {
   background-color: var(--color-background-highlight);
   color: var(--color-highlight);
 }
 
-span.highlight.selected {
+::highlight(current-match) {
   background-color: var(--color-background-highlight-accent);
 }
 

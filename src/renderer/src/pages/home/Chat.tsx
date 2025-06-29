@@ -55,28 +55,30 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  const contentSearchFilter = (node: Node): boolean => {
-    if (node.parentNode) {
-      let parentNode: HTMLElement | null = node.parentNode as HTMLElement
-      while (parentNode?.parentNode) {
-        if (parentNode.classList.contains('MessageFooter')) {
-          return false
-        }
+  const contentSearchFilter: NodeFilter = {
+    acceptNode(node) {
+      if (node.parentNode) {
+        let parentNode: HTMLElement | null = node.parentNode as HTMLElement
+        while (parentNode?.parentNode) {
+          if (parentNode.classList.contains('MessageFooter')) {
+            return NodeFilter.FILTER_REJECT
+          }
 
-        if (filterIncludeUser) {
-          if (parentNode?.classList.contains('message-content-container')) {
-            return true
+          if (filterIncludeUser) {
+            if (parentNode?.classList.contains('message-content-container')) {
+              return NodeFilter.FILTER_ACCEPT
+            }
+          } else {
+            if (parentNode?.classList.contains('message-content-container-assistant')) {
+              return NodeFilter.FILTER_ACCEPT
+            }
           }
-        } else {
-          if (parentNode?.classList.contains('message-content-container-assistant')) {
-            return true
-          }
+          parentNode = parentNode.parentNode as HTMLElement
         }
-        parentNode = parentNode.parentNode as HTMLElement
+        return NodeFilter.FILTER_REJECT
+      } else {
+        return NodeFilter.FILTER_REJECT
       }
-      return false
-    } else {
-      return false
     }
   }
 
