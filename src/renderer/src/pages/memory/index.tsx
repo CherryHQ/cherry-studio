@@ -515,8 +515,8 @@ const MemoriesPage = () => {
       title: t('memory.reset_memories_confirm_title'),
       content: t('memory.reset_memories_confirm_content', { user: getUserDisplayName(userId) }),
       icon: <ExclamationCircleOutlined />,
-      okText: t('common.yes'),
-      cancelText: t('common.no'),
+      okText: t('common.confirm'),
+      cancelText: t('common.cancel'),
       okType: 'danger',
       onOk: async () => {
         try {
