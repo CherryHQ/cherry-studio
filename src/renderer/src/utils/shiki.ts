@@ -149,13 +149,27 @@ export async function getMarkdownIt(theme: string, markdown: string) {
   const md = await mdInitializer.get()
   const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
+  let actualTheme = theme
+  try {
+    actualTheme = await loadThemeIfNeeded(highlighter, theme)
+  } catch (error) {
+    console.debug(`Failed to load theme '${theme}', using 'one-light' as fallback:`, error)
+    actualTheme = 'one-light'
+  }
+
+  const themes: Record<string, string> = {
+    'one-light': 'one-light',
+    'material-theme-darker': 'material-theme-darker'
+  }
+
+  if (actualTheme !== 'one-light' && actualTheme !== 'material-theme-darker') {
+    themes[actualTheme] = actualTheme
+  }
+
   md.use(
     fromHighlighter(highlighter, {
-      themes: {
-        'one-light': 'one-light',
-        'material-theme-darker': 'material-theme-darker'
-      },
-      defaultColor: theme,
+      themes,
+      defaultColor: actualTheme,
       defaultLanguage: 'json',
       fallbackLanguage: 'json'
     })
