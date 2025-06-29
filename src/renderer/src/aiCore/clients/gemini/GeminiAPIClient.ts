@@ -22,8 +22,8 @@ import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
-  isGeminiReasoningModel,
   isGemmaModel,
+  isSupportedThinkingTokenGeminiModel,
   isVisionModel
 } from '@renderer/config/models'
 import { CacheService } from '@renderer/services/CacheService'
@@ -393,7 +393,7 @@ export class GeminiAPIClient extends BaseApiClient<
    * @returns The reasoning effort
    */
   private getBudgetToken(assistant: Assistant, model: Model) {
-    if (isGeminiReasoningModel(model)) {
+    if (isSupportedThinkingTokenGeminiModel(model)) {
       const reasoningEffort = assistant?.settings?.reasoning_effort
 
       // 如果thinking_budget是undefined，不思考
@@ -406,16 +406,15 @@ export class GeminiAPIClient extends BaseApiClient<
         }
       }
 
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-
-      if (effortRatio > 1) {
+      if (reasoningEffort === 'auto') {
         return {
           thinkingConfig: {
-            includeThoughts: true
+            includeThoughts: true,
+            thinkingBudget: -1
           }
         }
       }
-
+      const effortRatio = EFFORT_RATIO[reasoningEffort]
       const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
       // 计算 budgetTokens，确保不低于 min
       const budget = Math.floor((max - min) * effortRatio + min)
