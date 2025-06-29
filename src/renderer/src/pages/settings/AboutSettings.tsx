@@ -26,8 +26,7 @@ const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
-  const { autoCheckUpdate, setAutoCheckUpdate, earlyAccess, setEarlyAccess, upgradeChannel, setUpgradeChannel } =
-    useSettings()
+  const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
   const { update } = useRuntime()
@@ -97,8 +96,20 @@ const AboutSettings: FC = () => {
 
   const hasNewVersion = update?.info?.version && version ? compareVersions(update.info.version, version) > 0 : false
 
-  const handleUpgradeChannelChange = async (value: UpgradeChannel) => {
-    setUpgradeChannel(value)
+  const currentChannelByVersion =
+    [
+      { pattern: `-${UpgradeChannel.BETA}.`, channel: UpgradeChannel.BETA },
+      { pattern: `-${UpgradeChannel.RC}.`, channel: UpgradeChannel.RC }
+    ].find(({ pattern }) => version.includes(pattern))?.channel || UpgradeChannel.LATEST
+
+  useEffect(() => {
+    if (testPlan && currentChannelByVersion !== UpgradeChannel.LATEST && testChannel !== currentChannelByVersion) {
+      window.message.warning(t('settings.general.test_plan.version_channel_not_match'))
+    }
+  }, [testPlan, testChannel, currentChannelByVersion, t])
+
+  const handleTestChannelChange = async (value: UpgradeChannel) => {
+    setTestChannel(value)
     // Clear update info when switching upgrade channel
     dispatch(
       setUpdateState({
@@ -116,25 +127,20 @@ const AboutSettings: FC = () => {
   const getAvailableTestChannels = () => {
     return [
       {
-        tooltip: t('settings.general.early_access.latest_version_tooltip'),
-        label: t('settings.general.early_access.latest_version'),
-        value: UpgradeChannel.LATEST
-      },
-      {
-        tooltip: t('settings.general.early_access.rc_version_tooltip'),
-        label: t('settings.general.early_access.rc_version'),
+        tooltip: t('settings.general.test_plan.rc_version_tooltip'),
+        label: t('settings.general.test_plan.rc_version'),
         value: UpgradeChannel.RC
       },
       {
-        tooltip: t('settings.general.early_access.beta_version_tooltip'),
-        label: t('settings.general.early_access.beta_version'),
+        tooltip: t('settings.general.test_plan.beta_version_tooltip'),
+        label: t('settings.general.test_plan.beta_version'),
         value: UpgradeChannel.BETA
       }
     ]
   }
 
-  const handlerSetEarlyAccess = (value: boolean) => {
-    setEarlyAccess(value)
+  const handleSetTestPlan = (value: boolean) => {
+    setTestPlan(value)
     dispatch(
       setUpdateState({
         available: false,
@@ -145,7 +151,17 @@ const AboutSettings: FC = () => {
         downloadProgress: 0
       })
     )
-    if (value === false) setUpgradeChannel(UpgradeChannel.LATEST)
+
+    if (value === true) {
+      setTestChannel(getTestChannel())
+    }
+  }
+
+  const getTestChannel = () => {
+    if (testChannel === UpgradeChannel.LATEST) {
+      return UpgradeChannel.RC
+    }
+    return testChannel
   }
 
   useEffect(() => {
@@ -155,7 +171,7 @@ const AboutSettings: FC = () => {
       setIsPortable(appInfo.isPortable)
     })
     setAutoCheckUpdate(autoCheckUpdate)
-  }, [autoCheckUpdate, setAutoCheckUpdate, setEarlyAccess])
+  }, [autoCheckUpdate, setAutoCheckUpdate])
 
   return (
     <SettingContainer theme={theme}>
@@ -217,22 +233,21 @@ const AboutSettings: FC = () => {
             </SettingRow>
             <SettingDivider />
             <SettingRow>
-              <SettingRowTitle>{t('settings.general.early_access.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.early_access.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={earlyAccess} onChange={(v) => handlerSetEarlyAccess(v)} />
+              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
+              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
+                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
-            {earlyAccess && getAvailableTestChannels().length > 0 && (
+            {testPlan && (
               <>
                 <SettingDivider />
                 <SettingRow>
-                  <SettingRowTitle>{t('settings.general.early_access.version_options')}</SettingRowTitle>
+                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
                   <Radio.Group
                     size="small"
                     buttonStyle="solid"
-                    defaultValue={UpgradeChannel.LATEST}
-                    value={upgradeChannel}
-                    onChange={(e) => handleUpgradeChannelChange(e.target.value)}>
+                    value={getTestChannel()}
+                    onChange={(e) => handleTestChannelChange(e.target.value)}>
                     {getAvailableTestChannels().map((option) => (
                       <Tooltip key={option.value} title={option.tooltip}>
                         <Radio.Button value={option.value}>{option.label}</Radio.Button>

@@ -113,6 +113,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     if (!reasoningEffort) {
+      if (model.provider === 'openrouter') {
+        return { reasoning: { enabled: false, exclude: true } }
+      }
       if (isSupportedThinkingTokenQwenModel(model)) {
         return { enable_thinking: false }
       }
@@ -122,10 +125,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if (isSupportedThinkingTokenGeminiModel(model)) {
-        // openrouter没有提供一个不推理的选项，先隐藏
-        if (this.provider.id === 'openrouter') {
-          return { reasoning: { max_tokens: 0, exclude: true } }
-        }
         if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
           return { reasoning_effort: 'none' }
         }
