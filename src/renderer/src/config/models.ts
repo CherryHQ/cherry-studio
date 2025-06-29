@@ -273,7 +273,7 @@ export function isFunctionCallingModel(model: Model): boolean {
     return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(model.id)
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return FUNCTION_CALLING_REGEX.test(model.id) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
@@ -2327,7 +2327,7 @@ export function isEmbeddingModel(model: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return EMBEDDING_REGEX.test(model.name)
   }
 
@@ -2351,7 +2351,7 @@ export function isVisionModel(model: Model): boolean {
   //   return false
   // }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(model.id) || model.type?.includes('vision') || false
   }
 
@@ -2422,7 +2422,9 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
     model.id.includes('gpt-4o-search-preview') ||
     model.id.includes('gpt-4o-mini-search-preview') ||
     (model.id.includes('gpt-4.1') && !model.id.includes('gpt-4.1-nano')) ||
-    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image'))
+    (model.id.includes('gpt-4o') && !model.id.includes('gpt-4o-image')) ||
+    model.id.includes('o3') ||
+    model.id.includes('o4')
   )
 }
 
@@ -2555,8 +2557,9 @@ export function isReasoningModel(model?: Model): boolean {
     return false
   }
 
-  if (model.provider === 'doubao') {
+  if (model.provider === 'doubao' || model.id.includes('doubao')) {
     return (
+      REASONING_REGEX.test(model.id) ||
       REASONING_REGEX.test(model.name) ||
       model.type?.includes('reasoning') ||
       isSupportedThinkingTokenDoubaoModel(model) ||
