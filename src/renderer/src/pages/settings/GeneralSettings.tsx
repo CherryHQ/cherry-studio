@@ -42,7 +42,7 @@ const GeneralSettings: FC = () => {
   const { theme } = useTheme()
 
   useEffect(() => {
-    polyfillCountryFlagEmojis()
+    polyfillCountryFlagEmojis('Twemoji Country Flags')
   }, [])
 
   const updateTray = (isShowTray: boolean) => {
