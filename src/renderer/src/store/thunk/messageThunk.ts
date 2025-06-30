@@ -1368,10 +1368,17 @@ export const appendAssistantResponseThunk =
 
       // (Optional but recommended) Verify the original user query exists
       if (!state.messages.entities[askId]) {
-        console.warn(
-          `[appendAssistantResponseThunk] Original user query (askId: ${askId}) not found in entities. Proceeding, but state might be inconsistent.`
+        console.error(
+          `[appendAssistantResponseThunk] Original user query (askId: ${askId}) not found in entities. Cannot create assistant response without corresponding user message.`
         )
-        // Decide whether to proceed or return based on requirements
+
+        // Show error popup instead of creating error message block
+        window.message.error({
+          content: t('error.missing_user_message'),
+          key: 'missing-user-message-error'
+        })
+
+        return
       }
 
       // 2. Create the new assistant message stub
