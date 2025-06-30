@@ -348,8 +348,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     //other keys should be ignored
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
+      if (quickPanel.isVisible) return event.preventDefault()
+
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
-        if (quickPanel.isVisible) return event.preventDefault()
         sendMessage()
         return event.preventDefault()
       } else {
@@ -788,6 +789,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
+            autoSize={textareaHeight ? false : { minRows: 2, maxRows: 20 }}
             ref={textareaRef}
             style={{
               fontSize,

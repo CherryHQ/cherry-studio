@@ -4,8 +4,8 @@ import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
 
 class ContextMenu {
-  public contextMenu(w: Electron.BrowserWindow) {
-    w.webContents.on('context-menu', (_event, properties) => {
+  public contextMenu(w: Electron.WebContents) {
+    w.on('context-menu', (_event, properties) => {
       const template: MenuItemConstructorOptions[] = this.createEditMenuItems(properties)
       const filtered = template.filter((item) => item.visible !== false)
       if (filtered.length > 0) {
@@ -26,7 +26,7 @@ class ContextMenu {
     })
   }
 
-  private createInspectMenuItems(w: Electron.BrowserWindow): MenuItemConstructorOptions[] {
+  private createInspectMenuItems(w: Electron.WebContents): MenuItemConstructorOptions[] {
     const locale = locales[configManager.getLanguage()]
     const { common } = locale.translation
     const template: MenuItemConstructorOptions[] = [
@@ -34,7 +34,7 @@ class ContextMenu {
         id: 'inspect',
         label: common.inspect,
         click: () => {
-          w.webContents.toggleDevTools()
+          w.toggleDevTools()
         },
         enabled: true
       }
@@ -86,7 +86,7 @@ class ContextMenu {
 
   private createSpellCheckMenuItem(
     properties: Electron.ContextMenuParams,
-    mainWindow: Electron.BrowserWindow
+    w: Electron.WebContents
   ): MenuItemConstructorOptions {
     const hasText = properties.selectionText.length > 0
 
@@ -95,14 +95,14 @@ class ContextMenu {
       label: '&Learn Spelling',
       visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
       click: () => {
-        mainWindow.webContents.session.addWordToSpellCheckerDictionary(properties.misspelledWord)
+        w.session.addWordToSpellCheckerDictionary(properties.misspelledWord)
       }
     }
   }
 
   private createDictionarySuggestions(
     properties: Electron.ContextMenuParams,
-    mainWindow: Electron.BrowserWindow
+    w: Electron.WebContents
   ): MenuItemConstructorOptions[] {
     const hasText = properties.selectionText.length > 0
 
@@ -126,7 +126,7 @@ class ContextMenu {
       label: suggestion,
       visible: Boolean(properties.isEditable && hasText && properties.misspelledWord),
       click: (menuItem: Electron.MenuItem) => {
-        mainWindow.webContents.replaceMisspelling(menuItem.label)
+        w.replaceMisspelling(menuItem.label)
       }
     }))
   }

@@ -155,7 +155,13 @@ const MessageItem: FC<Props> = ({
       {!isEditing && (
         <>
           <MessageContentContainer
-            className="message-content-container"
+            className={
+              message.role === 'user'
+                ? 'message-content-container message-content-container-user'
+                : message.role === 'assistant'
+                  ? 'message-content-container message-content-container-assistant'
+                  : 'message-content-container'
+            }
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize,

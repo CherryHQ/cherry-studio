@@ -3,12 +3,9 @@ import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-const HIGHLIGHT_CLASS = 'highlight'
-const HIGHLIGHT_SELECT_CLASS = 'selected'
 
 interface Props {
   children?: React.ReactNode
@@ -18,19 +15,14 @@ interface Props {
    *
    * 返回`true`表示该`node`会被搜索
    */
-  filter: (node: Node) => boolean
+  filter: NodeFilter
   includeUser?: boolean
   onIncludeUserChange?: (value: boolean) => void
 }
 
 enum SearchCompletedState {
   NotSearched,
-  FirstSearched
-}
-
-enum SearchTargetIndex {
-  Next,
-  Prev
+  Searched
 }
 
 export interface ContentSearchRef {
@@ -47,60 +39,20 @@ export interface ContentSearchRef {
   focus(): void
 }
 
-interface MatchInfo {
-  index: number
-  length: number
-  text: string
-}
-
 const escapeRegExp = (string: string): string => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // $& means the whole matched string
 }
 
-const findWindowVerticalCenterElementIndex = (elementList: HTMLElement[]): number | null => {
-  if (!elementList || elementList.length === 0) {
-    return null
-  }
-  let closestElementIndex: number | null = null
-  let minVerticalDistance = Infinity
-  const windowCenterY = window.innerHeight / 2
-  for (let i = 0; i < elementList.length; i++) {
-    const element = elementList[i]
-    if (!(element instanceof HTMLElement)) {
-      continue
-    }
-    const rect = element.getBoundingClientRect()
-    if (rect.bottom < 0 || rect.top > window.innerHeight) {
-      continue
-    }
-    const elementCenterY = rect.top + rect.height / 2
-    const verticalDistance = Math.abs(elementCenterY - windowCenterY)
-    if (verticalDistance < minVerticalDistance) {
-      minVerticalDistance = verticalDistance
-      closestElementIndex = i
-    }
-  }
-  return closestElementIndex
-}
-
-const highlightText = (
-  textNode: Node,
+const findRangesInTarget = (
+  target: HTMLElement,
+  filter: NodeFilter,
   searchText: string,
-  highlightClass: string,
   isCaseSensitive: boolean,
   isWholeWord: boolean
-): HTMLSpanElement[] | null => {
-  const textNodeParentNode: HTMLElement | null = textNode.parentNode as HTMLElement
-  if (textNodeParentNode) {
-    if (textNodeParentNode.classList.contains(highlightClass)) {
-      return null
-    }
-  }
-  if (textNode.nodeType !== Node.TEXT_NODE || !textNode.textContent) {
-    return null
-  }
+): Range[] => {
+  CSS.highlights.clear()
+  const ranges: Range[] = []
 
-  const textContent = textNode.textContent
   const escapedSearchText = escapeRegExp(searchText)
 
   // 检查搜索文本是否仅包含拉丁字母
@@ -109,89 +61,66 @@ const highlightText = (
   // 只有当搜索文本仅包含拉丁字母时才应用大小写敏感
   const regexFlags = hasOnlyLatinLetters && isCaseSensitive ? 'g' : 'gi'
   const regexPattern = isWholeWord ? `\\b${escapedSearchText}\\b` : escapedSearchText
-  const regex = new RegExp(regexPattern, regexFlags)
+  const searchRegex = new RegExp(regexPattern, regexFlags)
+  const treeWalker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, filter)
+  const allTextNodes: { node: Node; startOffset: number }[] = []
+  let fullText = ''
 
-  let match
-  const matches: MatchInfo[] = []
-  while ((match = regex.exec(textContent)) !== null) {
-    if (typeof match.index === 'number' && typeof match[0] === 'string') {
-      matches.push({ index: match.index, length: match[0].length, text: match[0] })
-    } else {
-      console.error('Unexpected match format:', match)
-    }
+  // 1. 拼接所有文本节点内容
+  while (treeWalker.nextNode()) {
+    allTextNodes.push({
+      node: treeWalker.currentNode,
+      startOffset: fullText.length
+    })
+    fullText += treeWalker.currentNode.nodeValue
   }
 
-  if (matches.length === 0) {
-    return null
-  }
+  // 2.在完整文本中查找匹配项
+  let match: RegExpExecArray | null = null
+  while ((match = searchRegex.exec(fullText))) {
+    const matchStart = match.index
+    const matchEnd = matchStart + match[0].length
 
-  const parentNode = textNode.parentNode
-  if (!parentNode) {
-    return null
-  }
+    // 3. 将匹配项的索引映射回DOM Range
+    let startNode: Node | null = null
+    let endNode: Node | null = null
+    let startOffset = 0
+    let endOffset = 0
 
-  const fragment = document.createDocumentFragment()
-  let currentIndex = 0
-  const highlightTextSet = new Set<HTMLSpanElement>()
-
-  matches.forEach(({ index, length, text }) => {
-    if (index > currentIndex) {
-      fragment.appendChild(document.createTextNode(textContent.substring(currentIndex, index)))
-    }
-    const highlightSpan = document.createElement('span')
-    highlightSpan.className = highlightClass
-    highlightSpan.textContent = text // Use the matched text to preserve case if not case-sensitive
-    fragment.appendChild(highlightSpan)
-    highlightTextSet.add(highlightSpan)
-    currentIndex = index + length
-  })
-
-  if (currentIndex < textContent.length) {
-    fragment.appendChild(document.createTextNode(textContent.substring(currentIndex)))
-  }
-
-  parentNode.replaceChild(fragment, textNode)
-  return [...highlightTextSet]
-}
-
-const mergeAdjacentTextNodes = (node: HTMLElement) => {
-  const children = Array.from(node.childNodes)
-  const groups: Array<Node | { text: string; nodes: Node[] }> = []
-  let currentTextGroup: { text: string; nodes: Node[] } | null = null
-
-  for (const child of children) {
-    if (child.nodeType === Node.TEXT_NODE) {
-      if (currentTextGroup === null) {
-        currentTextGroup = {
-          text: child.textContent ?? '',
-          nodes: [child]
-        }
-      } else {
-        currentTextGroup.text += child.textContent
-        currentTextGroup.nodes.push(child)
+    // 找到起始节点和偏移
+    for (const nodeInfo of allTextNodes) {
+      if (
+        matchStart >= nodeInfo.startOffset &&
+        matchStart < nodeInfo.startOffset + (nodeInfo.node.nodeValue?.length ?? 0)
+      ) {
+        startNode = nodeInfo.node
+        startOffset = matchStart - nodeInfo.startOffset
+        break
       }
-    } else {
-      if (currentTextGroup !== null) {
-        groups.push(currentTextGroup!)
-        currentTextGroup = null
+    }
+
+    // 找到结束节点和偏移
+    for (const nodeInfo of allTextNodes) {
+      if (
+        matchEnd > nodeInfo.startOffset &&
+        matchEnd <= nodeInfo.startOffset + (nodeInfo.node.nodeValue?.length ?? 0)
+      ) {
+        endNode = nodeInfo.node
+        endOffset = matchEnd - nodeInfo.startOffset
+        break
       }
-      groups.push(child)
+    }
+
+    // 如果起始和结束节点都找到了，则创建一个 Range
+    if (startNode && endNode) {
+      const range = new Range()
+      range.setStart(startNode, startOffset)
+      range.setEnd(endNode, endOffset)
+      ranges.push(range)
     }
   }
 
-  if (currentTextGroup !== null) {
-    groups.push(currentTextGroup)
-  }
-
-  const newChildren = groups.map((group) => {
-    if (group instanceof Node) {
-      return group
-    } else {
-      return document.createTextNode(group.text)
-    }
-  })
-
-  node.replaceChildren(...newChildren)
+  return ranges
 }
 
 // eslint-disable-next-line @eslint-react/no-forward-ref
@@ -206,328 +135,178 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
     })()
     const containerRef = React.useRef<HTMLDivElement>(null)
     const searchInputRef = React.useRef<HTMLInputElement>(null)
-    const [searchResultIndex, setSearchResultIndex] = useState(0)
-    const [totalCount, setTotalCount] = useState(0)
     const [enableContentSearch, setEnableContentSearch] = useState(false)
     const [searchCompleted, setSearchCompleted] = useState(SearchCompletedState.NotSearched)
     const [isCaseSensitive, setIsCaseSensitive] = useState(false)
     const [isWholeWord, setIsWholeWord] = useState(false)
-    const [shouldScroll, setShouldScroll] = useState(false)
-    const highlightTextSet = useState(new Set<Node>())[0]
+    const [allRanges, setAllRanges] = useState<Range[]>([])
+    const [currentIndex, setCurrentIndex] = useState(0)
     const prevSearchText = useRef('')
     const { t } = useTranslation()
 
-    const locateByIndex = (index: number, shouldScroll = true) => {
-      if (target) {
-        const highlightTextNodes = [...highlightTextSet] as HTMLElement[]
-        highlightTextNodes.sort((a, b) => {
-          const { top: aTop } = a.getBoundingClientRect()
-          const { top: bTop } = b.getBoundingClientRect()
-          return aTop - bTop
-        })
-        for (const node of highlightTextNodes) {
-          node.classList.remove(HIGHLIGHT_SELECT_CLASS)
-        }
-        setSearchResultIndex(index)
-        if (highlightTextNodes.length > 0) {
-          const highlightTextNode = highlightTextNodes[index] ?? null
-          if (highlightTextNode) {
-            highlightTextNode.classList.add(HIGHLIGHT_SELECT_CLASS)
+    const resetSearch = useCallback(() => {
+      CSS.highlights.clear()
+      setAllRanges([])
+      setSearchCompleted(SearchCompletedState.NotSearched)
+    }, [])
+
+    const locateByIndex = useCallback(
+      (shouldScroll = true) => {
+        // 清理旧的高亮
+        CSS.highlights.clear()
+
+        if (allRanges.length > 0) {
+          // 1. 创建并注册所有匹配项的高亮
+          const allMatchesHighlight = new Highlight(...allRanges)
+          CSS.highlights.set('search-matches', allMatchesHighlight)
+
+          // 2. 如果有当前项，为其创建并注册一个特殊的高亮
+          if (currentIndex !== -1 && allRanges[currentIndex]) {
+            const currentMatchRange = allRanges[currentIndex]
+            const currentMatchHighlight = new Highlight(currentMatchRange)
+            CSS.highlights.set('current-match', currentMatchHighlight)
+
+            // 3. 将当前项滚动到视图中
+            // 获取第一个文本节点的父元素来进行滚动
+            const parentElement = currentMatchRange.startContainer.parentElement
             if (shouldScroll) {
-              highlightTextNode.scrollIntoView({
+              parentElement?.scrollIntoView({
                 behavior: 'smooth',
-                block: 'center'
-                // inline: 'center' 水平方向居中可能会导致 content 页面整体偏右, 使得左半部的内容被遮挡. 因此先注释掉该代码
+                block: 'center',
+                inline: 'nearest'
               })
             }
           }
         }
-      }
-    }
+      },
+      [allRanges, currentIndex]
+    )
 
-    const restoreHighlight = () => {
-      const highlightTextParentNodeSet = new Set<HTMLElement>()
-      // Make a copy because the set might be modified during iteration indirectly
-      const nodesToRestore = [...highlightTextSet]
-      for (const highlightTextNode of nodesToRestore) {
-        if (highlightTextNode.textContent) {
-          const textNode = document.createTextNode(highlightTextNode.textContent)
-          const node = highlightTextNode as HTMLElement
-          if (node.parentNode) {
-            highlightTextParentNodeSet.add(node.parentNode as HTMLElement)
-            node.replaceWith(textNode) // This removes the node from the DOM
-          }
-        }
-      }
-      highlightTextSet.clear() // Clear the original set after processing
-      for (const parentNode of highlightTextParentNodeSet) {
-        mergeAdjacentTextNodes(parentNode)
-      }
-      // highlightTextSet.clear() // Already cleared
-    }
-
-    const search = (searchTargetIndex?: SearchTargetIndex): number | null => {
+    const search = useCallback(() => {
       const searchText = searchInputRef.current?.value.trim() ?? null
+      setSearchCompleted(SearchCompletedState.Searched)
       if (target && searchText !== null && searchText !== '') {
-        restoreHighlight()
-        const iter = document.createNodeIterator(target, NodeFilter.SHOW_TEXT)
-        let textNode: Node | null
-        const textNodeSet: Set<Node> = new Set()
-        while ((textNode = iter.nextNode())) {
-          if (filter(textNode)) {
-            textNodeSet.add(textNode)
-          }
-        }
-
-        const highlightTextSetTemp = new Set<HTMLSpanElement>()
-        for (const node of textNodeSet) {
-          const list = highlightText(node, searchText, HIGHLIGHT_CLASS, isCaseSensitive, isWholeWord)
-          if (list) {
-            list.forEach((node) => highlightTextSetTemp.add(node))
-          }
-        }
-        const highlightTextList = [...highlightTextSetTemp]
-        setTotalCount(highlightTextList.length)
-        highlightTextSetTemp.forEach((node) => highlightTextSet.add(node))
-        const changeIndex = () => {
-          let index: number
-          switch (searchTargetIndex) {
-            case SearchTargetIndex.Next:
-              {
-                index = (searchResultIndex + 1) % highlightTextList.length
-              }
-              break
-            case SearchTargetIndex.Prev:
-              {
-                index = (searchResultIndex - 1 + highlightTextList.length) % highlightTextList.length
-              }
-              break
-            default: {
-              index = searchResultIndex
-            }
-          }
-          return Math.max(index, 0)
-        }
-
-        const targetIndex = (() => {
-          switch (searchCompleted) {
-            case SearchCompletedState.NotSearched: {
-              setSearchCompleted(SearchCompletedState.FirstSearched)
-              const index = findWindowVerticalCenterElementIndex(highlightTextList)
-              if (index !== null) {
-                setSearchResultIndex(index)
-                return index
-              } else {
-                setSearchResultIndex(0)
-                return 0
-              }
-            }
-            case SearchCompletedState.FirstSearched: {
-              return changeIndex()
-            }
-            default: {
-              return null
-            }
-          }
-        })()
-
-        if (targetIndex === null) {
-          return null
-        } else {
-          const totalCount = highlightTextSet.size
-          if (targetIndex >= totalCount) {
-            return totalCount - 1
-          } else {
-            return targetIndex
-          }
-        }
-      } else {
-        return null
+        const ranges = findRangesInTarget(target, filter, searchText, isCaseSensitive, isWholeWord)
+        setAllRanges(ranges)
+        setCurrentIndex(0)
       }
-    }
+    }, [target, filter, isCaseSensitive, isWholeWord])
 
-    const _searchHandlerDebounce = debounce(() => {
-      implementation.search()
-    }, 300)
-    const searchHandler = useCallback(_searchHandlerDebounce, [_searchHandlerDebounce])
-    const userInputHandler = (event: React.ChangeEvent<HTMLInputElement>) => {
-      const value = event.target.value.trim()
-      if (value.length === 0) {
-        restoreHighlight()
-        setTotalCount(0)
-        setSearchResultIndex(0)
-        setSearchCompleted(SearchCompletedState.NotSearched)
-      } else {
-        // 用户输入时允许滚动
-        setShouldScroll(true)
-        searchHandler()
-      }
-      prevSearchText.current = value
-    }
-
-    const keyDownHandler = (event: React.KeyboardEvent<HTMLInputElement>) => {
-      const { code, key, shiftKey } = event
-      if (key === 'Process') {
-        return
-      }
-
-      switch (code) {
-        case 'Enter':
-          {
-            if (shiftKey) {
-              implementation.searchPrev()
-            } else {
-              implementation.searchNext()
-            }
-            event.preventDefault()
-          }
-          break
-        case 'Escape':
-          {
-            implementation.disable()
-          }
-          break
-      }
-    }
-
-    const searchInputFocus = () => requestAnimationFrame(() => searchInputRef.current?.focus())
-
-    const userOutlinedButtonOnClick = () => {
-      if (onIncludeUserChange) {
-        onIncludeUserChange(!includeUser)
-      }
-      searchInputFocus()
-    }
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    const implementation = {
-      disable() {
-        setEnableContentSearch(false)
-        restoreHighlight()
-        setShouldScroll(false)
-      },
-      enable(initialText?: string) {
-        setEnableContentSearch(true)
-        setShouldScroll(false) // Default to false, search itself might set it to true
-        if (searchInputRef.current) {
-          const inputEl = searchInputRef.current
-          if (initialText && initialText.trim().length > 0) {
-            inputEl.value = initialText
-            // Trigger search after setting initial text
-            // Need to make sure search() uses the new value
-            // and also to focus and select
-            requestAnimationFrame(() => {
-              inputEl.focus()
-              inputEl.select()
-              setShouldScroll(true)
-              const targetIndex = search()
-              if (targetIndex !== null) {
-                locateByIndex(targetIndex, true) // Ensure scrolling
-              } else {
-                // If search returns null (e.g., empty input or no matches with initial text), clear state
-                restoreHighlight()
-                setTotalCount(0)
-                setSearchResultIndex(0)
+    const implementation = useMemo(
+      () => ({
+        disable: () => {
+          setEnableContentSearch(false)
+          CSS.highlights.clear()
+        },
+        enable: (initialText?: string) => {
+          setEnableContentSearch(true)
+          if (searchInputRef.current) {
+            const inputEl = searchInputRef.current
+            if (initialText && initialText.trim().length > 0) {
+              inputEl.value = initialText
+              requestAnimationFrame(() => {
+                inputEl.focus()
+                inputEl.select()
+                search()
+                CSS.highlights.clear()
                 setSearchCompleted(SearchCompletedState.NotSearched)
-              }
-            })
-          } else {
-            requestAnimationFrame(() => {
-              inputEl.focus()
-              inputEl.select()
-            })
-            // Only search if there's existing text and no new initialText
-            if (inputEl.value.trim()) {
-              const targetIndex = search()
-              if (targetIndex !== null) {
-                setSearchResultIndex(targetIndex)
-                // locateByIndex(targetIndex, false); // Don't scroll if just enabling with existing text
-              }
+              })
+            } else {
+              requestAnimationFrame(() => {
+                inputEl.focus()
+                inputEl.select()
+              })
             }
           }
-        }
-      },
-      searchNext() {
-        if (enableContentSearch) {
-          const targetIndex = search(SearchTargetIndex.Next)
-          if (targetIndex !== null) {
-            locateByIndex(targetIndex)
+        },
+        searchNext: () => {
+          if (allRanges.length > 0) {
+            setCurrentIndex((prev) => (prev < allRanges.length - 1 ? prev + 1 : 0))
           }
-        }
-      },
-      searchPrev() {
-        if (enableContentSearch) {
-          const targetIndex = search(SearchTargetIndex.Prev)
-          if (targetIndex !== null) {
-            locateByIndex(targetIndex)
+        },
+        searchPrev: () => {
+          if (allRanges.length > 0) {
+            setCurrentIndex((prev) => (prev > 0 ? prev - 1 : allRanges.length - 1))
           }
-        }
-      },
-      resetSearchState() {
-        if (enableContentSearch) {
+        },
+        resetSearchState: () => {
           setSearchCompleted(SearchCompletedState.NotSearched)
-          // Maybe also reset index? Depends on desired behavior
-          // setSearchResultIndex(0);
+        },
+        search: () => {
+          search()
+          locateByIndex(true)
+        },
+        silentSearch: () => {
+          search()
+          locateByIndex(false)
+        },
+        focus: () => {
+          searchInputRef.current?.focus()
         }
+      }),
+      [allRanges.length, locateByIndex, search]
+    )
+
+    const _searchHandlerDebounce = useMemo(() => debounce(implementation.search, 300), [implementation.search])
+
+    const searchHandler = useCallback(() => {
+      _searchHandlerDebounce()
+    }, [_searchHandlerDebounce])
+
+    const userInputHandler = useCallback(
+      (event: React.ChangeEvent<HTMLInputElement>) => {
+        const value = event.target.value.trim()
+        if (value.length === 0) {
+          resetSearch()
+        } else {
+          searchHandler()
+        }
+        prevSearchText.current = value
       },
-      search() {
-        if (enableContentSearch) {
-          const targetIndex = search()
-          if (targetIndex !== null) {
-            locateByIndex(targetIndex, shouldScroll)
+      [searchHandler, resetSearch]
+    )
+
+    const keyDownHandler = useCallback(
+      (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          const value = (event.target as HTMLInputElement).value.trim()
+          if (value.length === 0) {
+            resetSearch()
+            return
+          }
+          if (event.shiftKey) {
+            implementation.searchPrev()
           } else {
-            // If search returns null (e.g., empty input), clear state
-            restoreHighlight()
-            setTotalCount(0)
-            setSearchResultIndex(0)
-            setSearchCompleted(SearchCompletedState.NotSearched)
+            implementation.searchNext()
           }
+        } else if (event.key === 'Escape') {
+          implementation.disable()
         }
       },
-      silentSearch() {
-        if (enableContentSearch) {
-          const targetIndex = search()
-          if (targetIndex !== null) {
-            // 只更新索引，不触发滚动
-            locateByIndex(targetIndex, false)
-          }
-        }
-      },
-      focus() {
-        searchInputFocus()
-      }
-    }
+      [implementation, resetSearch]
+    )
 
-    useImperativeHandle(ref, () => ({
-      disable() {
-        implementation.disable()
-      },
-      enable(initialText?: string) {
-        implementation.enable(initialText)
-      },
-      searchNext() {
-        implementation.searchNext()
-      },
-      searchPrev() {
-        implementation.searchPrev()
-      },
-      search() {
-        implementation.search()
-      },
-      silentSearch() {
-        implementation.silentSearch()
-      },
-      focus() {
-        implementation.focus()
-      }
-    }))
+    const searchInputFocus = useCallback(() => {
+      requestAnimationFrame(() => searchInputRef.current?.focus())
+    }, [])
 
-    // Re-run search when options change and search is active
+    const userOutlinedButtonOnClick = useCallback(() => {
+      onIncludeUserChange?.(!includeUser)
+      searchInputFocus()
+    }, [includeUser, onIncludeUserChange, searchInputFocus])
+
+    useImperativeHandle(ref, () => implementation, [implementation])
+
+    useEffect(() => {
+      locateByIndex()
+    }, [currentIndex, locateByIndex])
+
     useEffect(() => {
       if (enableContentSearch && searchInputRef.current?.value.trim()) {
-        implementation.search()
+        search()
       }
-    }, [isCaseSensitive, isWholeWord, enableContentSearch, implementation]) // Add enableContentSearch dependency
+    }, [isCaseSensitive, isWholeWord, enableContentSearch, search])
 
     const prevButtonOnClick = () => {
       implementation.searchPrev()
@@ -589,11 +368,11 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             <Separator></Separator>
             <SearchResults>
               {searchCompleted !== SearchCompletedState.NotSearched ? (
-                totalCount > 0 ? (
+                allRanges.length > 0 ? (
                   <>
-                    <SearchResultCount>{searchResultIndex + 1}</SearchResultCount>
+                    <SearchResultCount>{currentIndex + 1}</SearchResultCount>
                     <SearchResultSeparator>/</SearchResultSeparator>
-                    <SearchResultTotalCount>{totalCount}</SearchResultTotalCount>
+                    <SearchResultTotalCount>{allRanges.length}</SearchResultTotalCount>
                   </>
                 ) : (
                   <NoResults>{t('common.no_results')}</NoResults>
@@ -603,10 +382,10 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               )}
             </SearchResults>
             <ToolBar>
-              <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={totalCount === 0}>
+              <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
                 <ChevronUp size={18} />
               </ToolbarButton>
-              <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={totalCount === 0}>
+              <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
                 <ChevronDown size={18} />
               </ToolbarButton>
               <ToolbarButton type="text" onClick={closeButtonOnClick}>

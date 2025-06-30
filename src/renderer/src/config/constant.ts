@@ -3,6 +3,7 @@ export const DEFAULT_CONTEXTCOUNT = 5
 export const DEFAULT_MAX_TOKENS = 4096
 export const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
 export const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
+export const DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT = 1
 
 export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'
