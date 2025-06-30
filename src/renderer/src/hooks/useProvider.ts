@@ -1,5 +1,5 @@
 import { createSelector } from '@reduxjs/toolkit'
-import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addModel,
   addProvider,
@@ -10,7 +10,6 @@ import {
   updateProviders
 } from '@renderer/store/llm'
 import { Assistant, Model, Provider } from '@renderer/types'
-import { IpcChannel } from '@shared/IpcChannel'
 
 import { useDefaultModel } from './useAssistant'
 
@@ -64,17 +63,3 @@ export function useProviderByAssistant(assistant: Assistant) {
   const { provider } = useProvider(model.provider)
   return provider
 }
-
-// Listen for server changes from main process
-window.electron.ipcRenderer.on(IpcChannel.Provider_AddKey, (_, data) => {
-  console.log('Received provider key data:', data)
-  const { id, apiKey } = data
-  // for now only suppor tokenflux, but in the future we can support more
-  if (id === 'tokenflux') {
-    if (apiKey) {
-      store.dispatch(updateProvider({ id, apiKey } as Provider))
-      window.message.success('Provider API key updated')
-      console.log('Provider API key updated:', apiKey)
-    }
-  }
-})

@@ -19,7 +19,7 @@ export function registerProtocolClient(app: Electron.App) {
     }
   }
 
-  app.setAsDefaultProtocolClient('cherrystudio')
+  app.setAsDefaultProtocolClient(CHERRY_STUDIO_PROTOCOL)
 }
 
 export function handleProtocolUrl(url: string) {

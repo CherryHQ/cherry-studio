@@ -124,10 +124,19 @@ if (!app.requestSingleInstanceLock()) {
   registerProtocolClient(app)
 
   // macOS specific: handle protocol when app is already running
+
   app.on('open-url', (event, url) => {
     event.preventDefault()
     handleProtocolUrl(url)
   })
+
+  const handleOpenUrl = (args: string[]) => {
+    const url = args.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
+    if (url) handleProtocolUrl(url)
+  }
+
+  // for windows to start with url
+  handleOpenUrl(process.argv)
 
   // Listen for second instance
   app.on('second-instance', (_event, argv) => {
@@ -135,8 +144,7 @@ if (!app.requestSingleInstanceLock()) {
 
     // Protocol handler for Windows/Linux
     // The commandLine is an array of strings where the last item might be the URL
-    const url = argv.find((arg) => arg.startsWith(CHERRY_STUDIO_PROTOCOL + '://'))
-    if (url) handleProtocolUrl(url)
+    handleOpenUrl(argv)
   })
 
   app.on('browser-window-created', (_, window) => {
