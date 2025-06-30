@@ -6,3 +6,8 @@
   src: url('TwemojiCountryFlags.woff2') format('woff2');
   font-display: swap;
 }
+
+/* 国旗字体样式类 */
+.country-flag-font {
+  font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+}

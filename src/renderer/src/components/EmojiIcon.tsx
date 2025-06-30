@@ -16,7 +16,6 @@ const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className }) => {
 }
 
 const Container = styled.div`
-  font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
   width: 26px;
   height: 26px;
   border-radius: 13px;
@@ -28,6 +27,11 @@ const Container = styled.div`
   position: relative;
   overflow: hidden;
   margin-right: 3px;
+
+  &,
+  * {
+    font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+  }
 `
 
 const EmojiBackground = styled.div`

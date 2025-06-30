@@ -66,12 +66,12 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button
+              className="country-flag-font"
               style={{
                 fontSize: 18,
                 padding: '4px',
                 minWidth: '28px',
-                height: '28px',
-                fontFamily: 'Twemoji Country Flags, Apple Color Emoji, Segoe UI Emoji'
+                height: '28px'
               }}>
               {emoji}
             </Button>
@@ -156,7 +156,6 @@ const Container = styled.div`
 `
 
 const EmojiButtonWrapper = styled.div`
-  font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
   position: relative;
   display: inline-block;
 

@@ -161,12 +161,7 @@ const GeneralSettings: FC = () => {
             options={languagesOptions.map((lang) => ({
               label: (
                 <Flex align="center" gap={8}>
-                  <span
-                    role="img"
-                    aria-label={lang.flag}
-                    style={{
-                      fontFamily: '"Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
-                    }}>
+                  <span role="img" aria-label={lang.flag} className="country-flag-font">
                     {lang.flag}
                   </span>
                   {lang.label}
@@ -217,12 +212,7 @@ const GeneralSettings: FC = () => {
                   value: lang.value,
                   label: (
                     <Flex align="center" gap={8}>
-                      <span
-                        role="img"
-                        aria-label={lang.flag}
-                        style={{
-                          fontFamily: '"Twemoji Country Flags", "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
-                        }}>
+                      <span role="img" aria-label={lang.flag} className="country-flag-font">
                         {lang.flag}
                       </span>
                       {lang.label}

@@ -181,7 +181,11 @@ const TranslateSettings: FC<{
                     value: lang.value,
                     label: (
                       <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
+                        <span
+                          role="img"
+                          aria-label={lang.emoji}
+                          className="country-flag-font"
+                          style={{ marginRight: 8 }}>
                           {lang.emoji}
                         </span>
                         <Space.Compact block>{lang.label}</Space.Compact>
@@ -199,7 +203,11 @@ const TranslateSettings: FC<{
                     value: lang.value,
                     label: (
                       <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
+                        <span
+                          role="img"
+                          aria-label={lang.emoji}
+                          className="country-flag-font"
+                          style={{ marginRight: 8 }}>
                           {lang.emoji}
                         </span>
                         <div style={{ textAlign: 'left', flex: 1 }}>{lang.label}</div>
@@ -448,7 +456,7 @@ const TranslatePage: FC = () => {
           value: lang.value,
           label: (
             <Space.Compact direction="horizontal" block>
-              <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
+              <span role="img" aria-label={lang.emoji} className="country-flag-font" style={{ marginRight: 8 }}>
                 {lang.emoji}
               </span>
               <Space.Compact block>{lang.label}</Space.Compact>
@@ -547,7 +555,11 @@ const TranslatePage: FC = () => {
                     value: lang.value,
                     label: (
                       <Space.Compact direction="horizontal" block>
-                        <span role="img" aria-label={lang.emoji} style={{ marginRight: 8 }}>
+                        <span
+                          role="img"
+                          aria-label={lang.emoji}
+                          className="country-flag-font"
+                          style={{ marginRight: 8 }}>
                           {lang.emoji}
                         </span>
                         <Space.Compact block>{lang.label}</Space.Compact>
