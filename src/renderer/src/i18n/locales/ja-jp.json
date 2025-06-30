@@ -1988,7 +1988,8 @@
         "title": "通知設定",
         "assistant": "アシスタントメッセージ",
         "backup": "バックアップメッセージ",
-        "knowledge_embed": "ナレッジベースメッセージ"
+        "knowledge_embed": "ナレッジベースメッセージ",
+        "selection_assistant": "選択アシスタント"
       }
     },
     "translate": {
@@ -2079,6 +2080,10 @@
         },
         "translate": {
           "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
+        },
+        "quote": {
+          "message.title": "引用",
+          "message.quote_to_inputbar": "選択した内容が引用されました。入力バーに移動してください"
         }
       },
       "settings": {

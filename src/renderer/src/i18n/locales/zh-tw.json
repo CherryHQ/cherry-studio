@@ -1988,7 +1988,8 @@
         "title": "通知設定",
         "assistant": "助手訊息",
         "backup": "備份訊息",
-        "knowledge_embed": "知識庫訊息"
+        "knowledge_embed": "知識庫訊息",
+        "selection_assistant": "劃詞助手"
       }
     },
     "translate": {
@@ -2079,6 +2080,10 @@
         },
         "translate": {
           "smart_translate_tips": "智能翻譯：內容將優先翻譯為目標語言；內容已是目標語言的，將翻譯為備用語言"
+        },
+        "quote": {
+          "message.title": "引用",
+          "message.quote_to_inputbar": "選擇的內容已引用，請前往輸入欄查看"
         }
       },
       "settings": {

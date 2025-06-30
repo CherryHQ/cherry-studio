@@ -4,7 +4,9 @@ import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
+import { NotificationService } from '@renderer/services/NotificationService'
 import type { ActionItem } from '@renderer/types/selectionTypes'
+import { uuid } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
@@ -230,6 +232,15 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     if (action.selectedText) {
       window.api?.quoteToMainWindow(action.selectedText)
       window.api?.selection.hideToolbar()
+
+      NotificationService.getInstance().send({
+        id: uuid(),
+        type: 'success',
+        title: i18n.t('selection.action.quote.message.title'),
+        message: i18n.t('selection.action.quote.message.quote_to_inputbar'),
+        source: 'selectionAssistant',
+        timestamp: Date.now()
+      })
     }
   }
 

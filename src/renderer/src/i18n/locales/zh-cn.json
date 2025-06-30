@@ -1722,7 +1722,8 @@
         "title": "通知设置",
         "assistant": "助手消息",
         "backup": "备份",
-        "knowledge_embed": "知识嵌入"
+        "knowledge_embed": "知识嵌入",
+        "selection_assistant": "划词助手"
       },
       "provider": {
         "add.name": "提供商名称",
@@ -2079,6 +2080,10 @@
         },
         "translate": {
           "smart_translate_tips": "智能翻译：内容将优先翻译为目标语言；内容已是目标语言的，将翻译为备选语言"
+        },
+        "quote": {
+          "message.title": "引用",
+          "message.quote_to_inputbar": "选中内容已被引用，请前往输入框查看"
         }
       },
       "settings": {

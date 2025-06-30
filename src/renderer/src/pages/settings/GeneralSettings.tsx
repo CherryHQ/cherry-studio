@@ -244,6 +244,14 @@ const GeneralSettings: FC = () => {
             onChange={(v) => handleNotificationChange('knowledgeEmbed', v)}
           />
         </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.notification.selection_assistant')}</SettingRowTitle>
+          <Switch
+            checked={notificationSettings.selectionAssistant}
+            onChange={(v) => handleNotificationChange('selectionAssistant', v)}
+          />
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.launch.title')}</SettingTitle>

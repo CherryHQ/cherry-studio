@@ -1722,7 +1722,8 @@
         "title": "Notification Settings",
         "assistant": "Assistant Message",
         "backup": "Backup Message",
-        "knowledge_embed": "KnowledgeBase Message"
+        "knowledge_embed": "KnowledgeBase Message",
+        "selection_assistant": "Selection Assistant"
       },
       "provider": {
         "add.name": "Provider Name",
@@ -2079,6 +2080,10 @@
         },
         "translate": {
           "smart_translate_tips": "Smart Translation: Content will be translated to the target language first; content already in the target language will be translated to the alternative language"
+        },
+        "quote": {
+          "message.title": "Quote",
+          "message.quote_to_inputbar": "The selected content has been quoted, please go to the input bar to view"
         }
       },
       "settings": {
