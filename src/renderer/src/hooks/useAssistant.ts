@@ -4,7 +4,6 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   addAssistant,
   addTopic,
-  removeAllTopics,
   removeAssistant,
   removeTopic,
   setModel,
@@ -33,7 +32,7 @@ export function useAssistants() {
       dispatch(removeAssistant({ id }))
       const assistant = assistants.find((a) => a.id === id)
       const topics = assistant?.topics || []
-      topics.forEach(({ id }) => TopicManager.removeTopic(id))
+      topics.forEach((topic) => TopicManager.removeTopic(topic, id))
     }
   }
 }
@@ -55,8 +54,7 @@ export function useAssistant(id: string) {
     model,
     addTopic: (topic: Topic) => dispatch(addTopic({ assistantId: assistant.id, topic })),
     removeTopic: (topic: Topic) => {
-      TopicManager.removeTopic(topic.id)
-      dispatch(removeTopic({ assistantId: assistant.id, topic }))
+      TopicManager.removeTopic(topic, assistant.id)
     },
     moveTopic: (topic: Topic, toAssistant: Assistant) => {
       dispatch(addTopic({ assistantId: toAssistant.id, topic: { ...topic, assistantId: toAssistant.id } }))
@@ -76,7 +74,9 @@ export function useAssistant(id: string) {
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    removeAllTopics: () => {
+      TopicManager.removeAllTopics(assistant.id)
+    },
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]

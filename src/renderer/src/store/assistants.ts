@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
@@ -18,7 +17,7 @@ const initialState: AssistantsState = {
   tagsOrder: [],
   collapsedTags: {}
 }
-
+// 注意：这些函数仅修改redux状态，不修改db
 const assistantsSlice = createSlice({
   name: 'assistants',
   initialState,
@@ -94,6 +93,7 @@ const assistantsSlice = createSlice({
       )
     },
     removeTopic: (state, action: PayloadAction<{ assistantId: string; topic: Topic }>) => {
+      // 更新state，在assistant中删除topic
       state.assistants = state.assistants.map((assistant) =>
         assistant.id === action.payload.assistantId
           ? {
@@ -134,9 +134,10 @@ const assistantsSlice = createSlice({
     removeAllTopics: (state, action: PayloadAction<{ assistantId: string }>) => {
       state.assistants = state.assistants.map((assistant) => {
         if (assistant.id === action.payload.assistantId) {
-          assistant.topics.forEach((topic) => TopicManager.removeTopic(topic.id))
+          assistant.topics.forEach((topic) => removeTopic({ assistantId: assistant.id, topic }))
           return {
             ...assistant,
+            // 会留一个默认的topic
             topics: [getDefaultTopic(assistant.id)]
           }
         }

@@ -4,8 +4,8 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { TranslateLanguageOptions } from '@renderer/config/translate'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useTopicLoading, useTopicMessageOperations } from '@renderer/hooks/useTopicMessageOperations'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
@@ -67,7 +67,7 @@ const MessageMenubar: FC<Props> = (props) => {
     getTranslationUpdater,
     appendAssistantResponse,
     removeMessageBlock
-  } = useMessageOperations(topic)
+  } = useTopicMessageOperations(topic)
 
   const { isBubbleStyle } = useMessageStyle()
 

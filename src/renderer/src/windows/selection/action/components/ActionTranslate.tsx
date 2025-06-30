@@ -2,8 +2,8 @@ import { LoadingOutlined } from '@ant-design/icons'
 import CopyButton from '@renderer/components/CopyButton'
 import { TranslateLanguageOptions, translateLanguageOptions } from '@renderer/config/translate'
 import db from '@renderer/databases'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTopicMessages } from '@renderer/hooks/useTopicMessageOperations'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import {
   getDefaultAssistant,

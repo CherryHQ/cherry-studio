@@ -152,6 +152,7 @@ const messagesSlice = createSlice({
       }
     },
     clearTopicMessages(state, action: PayloadAction<string>) {
+      // 在状态中删除消息
       const topicId = action.payload
       const idsToRemove = state.messageIdsByTopic[topicId] || []
       if (idsToRemove.length > 0) {
@@ -161,10 +162,11 @@ const messagesSlice = createSlice({
       state.loadingByTopic[topicId] = false
     },
     removeMessage(state, action: PayloadAction<RemoveMessagePayload>) {
+      // 在状态中删除消息
       const { topicId, messageId } = action.payload
-      const currentTopicIds = state.messageIdsByTopic[topicId]
-      if (currentTopicIds) {
-        state.messageIdsByTopic[topicId] = currentTopicIds.filter((id) => id !== messageId)
+      const currentMessageIds = state.messageIdsByTopic[topicId]
+      if (currentMessageIds) {
+        state.messageIdsByTopic[topicId] = currentMessageIds.filter((id) => id !== messageId)
       }
       messagesAdapter.removeOne(state, messageId)
     },

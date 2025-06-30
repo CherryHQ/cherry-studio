@@ -54,7 +54,7 @@
 
     - `deleteSingleMessageThunk(topicId, messageId)`: 删除单个消息及其所有 `MessageBlock`。
     - `deleteMessageGroupThunk(topicId, askId)`: 删除一个用户消息及其所有相关的助手响应消息和它们的所有 `MessageBlock`。
-    - `clearTopicMessagesThunk(topicId)`: 清空主题下的所有消息及其所有 `MessageBlock`。
+    - `deleteTopicMessagesThunk(topicId)`: 清空主题下的所有消息及其所有 `MessageBlock`。
     - **Block 相关**: 从 Redux 和 DB 中移除指定的 `MessageBlock`。
 
 5.  **重发/重新生成 Thunks**
