@@ -17,8 +17,7 @@ import type {
   PlaceholderMessageBlock,
   ToolMessageBlock
 } from '@renderer/types/newMessage'
-import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType, Response } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import {
@@ -585,6 +584,7 @@ const fetchAndProcessAssistantResponseImpl = async (
           const changes: Partial<CitationMessageBlock> = {
             response: externalToolResult.webSearch,
             knowledge: externalToolResult.knowledge,
+            memories: externalToolResult.memories,
             status: MessageBlockStatus.SUCCESS
           }
           dispatch(updateOneBlock({ id: citationBlockId, changes }))

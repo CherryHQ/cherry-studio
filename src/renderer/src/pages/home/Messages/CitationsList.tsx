@@ -65,6 +65,27 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
               <KnowledgeCitation citation={citation} />
             </KnowledgePopoverContent>
           )}
+          {citation.type === 'websearch' && (
+            <PopoverContent>
+              <WebSearchCitation citation={citation} />
+            </PopoverContent>
+          )}
+          {citation.type === 'memory' && (
+            <KnowledgePopoverContent>
+              <KnowledgeCitation
+                citation={{
+                  ...citation,
+                  title: citation.title || t('message.memory'),
+                  showFavicon: false
+                }}
+              />
+            </KnowledgePopoverContent>
+          )}
+          {citation.type === 'knowledge' && (
+            <KnowledgePopoverContent>
+              <KnowledgeCitation citation={{ ...citation, showFavicon: true }} />
+            </KnowledgePopoverContent>
+          )}
         </PopoverContentItem>
       ))}
     </div>

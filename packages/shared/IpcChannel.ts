@@ -222,5 +222,16 @@ export enum IpcChannel {
   Selection_ActionWindowMinimize = 'selection:action-window-minimize',
   Selection_ActionWindowPin = 'selection:action-window-pin',
   Selection_ProcessAction = 'selection:process-action',
-  Selection_UpdateActionData = 'selection:update-action-data'
+  Selection_UpdateActionData = 'selection:update-action-data',
+
+  // Memory
+  Memory_Add = 'memory:add',
+  Memory_Search = 'memory:search',
+  Memory_List = 'memory:list',
+  Memory_Delete = 'memory:delete',
+  Memory_Update = 'memory:update',
+  Memory_Get = 'memory:get',
+  Memory_SetConfig = 'memory:set-config',
+  Memory_DeleteUser = 'memory:delete-user',
+  Memory_GetUsersList = 'memory:get-users-list'
 }

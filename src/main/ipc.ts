@@ -21,6 +21,7 @@ import FileService from './services/FileService'
 import FileStorage from './services/FileStorage'
 import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
+import MemoryService from './services/memory/MemoryService'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -44,6 +45,7 @@ const backupManager = new BackupManager()
 const exportService = new ExportService(fileManager)
 const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
+const memoryService = MemoryService.getInstance()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater(mainWindow)
@@ -402,6 +404,35 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.KnowledgeBase_Remove, KnowledgeService.remove)
   ipcMain.handle(IpcChannel.KnowledgeBase_Search, KnowledgeService.search)
   ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, KnowledgeService.rerank)
+
+  // memory
+  ipcMain.handle(IpcChannel.Memory_Add, async (_, messages, config) => {
+    return await memoryService.add(messages, config)
+  })
+  ipcMain.handle(IpcChannel.Memory_Search, async (_, query, config) => {
+    return await memoryService.search(query, config)
+  })
+  ipcMain.handle(IpcChannel.Memory_List, async (_, config) => {
+    return await memoryService.list(config)
+  })
+  ipcMain.handle(IpcChannel.Memory_Delete, async (_, id) => {
+    return await memoryService.delete(id)
+  })
+  ipcMain.handle(IpcChannel.Memory_Update, async (_, id, memory, metadata) => {
+    return await memoryService.update(id, memory, metadata)
+  })
+  ipcMain.handle(IpcChannel.Memory_Get, async (_, memoryId) => {
+    return await memoryService.get(memoryId)
+  })
+  ipcMain.handle(IpcChannel.Memory_SetConfig, async (_, config) => {
+    memoryService.setConfig(config)
+  })
+  ipcMain.handle(IpcChannel.Memory_DeleteUser, async (_, userId) => {
+    return await memoryService.deleteUser(userId)
+  })
+  ipcMain.handle(IpcChannel.Memory_GetUsersList, async () => {
+    return await memoryService.getUsersList()
+  })
 
   // window
   ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
