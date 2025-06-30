@@ -1,0 +1,275 @@
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
+import 'react-pdf/dist/esm/Page/TextLayer.css'
+
+import { SelectOutlined, UnorderedListOutlined, ZoomInOutlined, ZoomOutOutlined } from '@ant-design/icons'
+import { Checkbox, Empty, Flex, InputNumber, Space, Spin, Tooltip } from 'antd'
+import { debounce, find } from 'lodash'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Document, Outline, Page, pdfjs } from 'react-pdf'
+import styled from 'styled-components'
+
+import { OperateButton, OperateRow } from '..'
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
+const options = {
+  cMapUrl: '/cmaps/',
+  standardFontDataUrl: '/standard_fonts/'
+}
+
+const PdfStatueRender = {
+  LOADING: () => <Spin size="large" className="document-loading" spinning />,
+  ERROR: () => <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />,
+  NO_DATA: () => <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+}
+
+interface Props {
+  pageWidth: number
+  pdfFile: File | null | undefined
+  selectedPages: number[]
+  onTriggerSelectPage: (checked: boolean, page: number) => void
+}
+
+const usePdfReader = (props: Props) => {
+  const { selectedPages, pageWidth, pdfFile, onTriggerSelectPage } = props
+
+  const { t } = useTranslation()
+
+  const [pageTotal, setPageTotal] = useState(0)
+  const [pageCurrent, setPageCurrent] = useState(1)
+  const [pageContents, setPageContents] = useState<Map<number, string>>(new Map())
+  const [showOutline, setShowOutline] = useState(false)
+  const [showSelect, setShowSelect] = useState(false)
+  const [scale, setScale] = useState(1)
+  const [pageRefs, setPageRefs] = useState<React.RefObject<HTMLDivElement>[]>([])
+  const [noOutline, setNoOutline] = useState(false)
+
+  useEffect(() => {
+    setPageRefs(Array.from({ length: pageTotal }, () => React.createRef<any>()))
+  }, [pageTotal])
+
+  const handleLocatePage = (num: number) => {
+    pageRefs[num - 1].current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end'
+    })
+  }
+
+  const onZoomIn = debounce(() => {
+    setScale(scale + 0.2)
+  }, 200)
+
+  const onZoomOut = debounce(() => {
+    setScale(scale - 0.2)
+  }, 200)
+
+  const onLoadSuccess = (pdf: any) => {
+    setPageTotal(pdf.numPages)
+  }
+
+  const ReaderOperateRow = (
+    <OperateRow gap={8} align="center" justify="space-between">
+      <Space>
+        <Tooltip title={t('reader.showOutline')}>
+          <OperateButton
+            onClick={() => setShowOutline((state) => !state)}
+            data-active={showOutline}
+            icon={<UnorderedListOutlined size={14} />}
+          />
+        </Tooltip>
+        <Tooltip title={t('reader.showSelect')}>
+          <OperateButton
+            icon={<SelectOutlined size={14} />}
+            data-active={showSelect}
+            onClick={() => {
+              setShowSelect((state) => !state)
+            }}
+          />
+        </Tooltip>
+      </Space>
+      <Space>
+        <Tooltip title={t('reader.zoomIn')}>
+          <OperateButton icon={<ZoomInOutlined size={14} />} onClick={onZoomIn} />
+        </Tooltip>
+        <span>{`${scale * 100}%`}</span>
+        <Tooltip title={t('reader.zoomOut')}>
+          <OperateButton icon={<ZoomOutOutlined size={14} />} onClick={onZoomOut} />
+        </Tooltip>
+      </Space>
+      <Space size={12}>
+        <Pagination align="center">
+          <InputNumber
+            controls={false}
+            min={1}
+            max={pageTotal}
+            className="page-input"
+            defaultValue={1}
+            value={pageCurrent}
+            onChange={(num) => {
+              setPageCurrent(num || 1)
+            }}
+            onPressEnter={(e) => {
+              handleLocatePage(Number((e.target as HTMLInputElement).value) || 1)
+            }}
+          />
+          /<span className="page-total">{pageTotal}</span>
+        </Pagination>
+      </Space>
+    </OperateRow>
+  )
+
+  const Reader = (
+    <DocumentReader
+      file={pdfFile}
+      options={options}
+      onLoadSuccess={onLoadSuccess}
+      loading={PdfStatueRender.LOADING}
+      error={PdfStatueRender.ERROR}
+      noData={PdfStatueRender.NO_DATA}>
+      <OutlineWrapper className={showOutline ? 'visible' : ''}>
+        <Outline
+          className="outline"
+          onItemClick={({ pageNumber }) => {
+            handleLocatePage(pageNumber)
+            setShowOutline(false)
+          }}
+          onLoadSuccess={(outline) => {
+            if (!outline) {
+              setNoOutline(true)
+            } else {
+              setNoOutline(false)
+            }
+          }}
+        />
+        {noOutline && (
+          <Empty
+            className="outline-empty"
+            description={t('reader.outlineEmpty')}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        )}
+      </OutlineWrapper>
+      {Array.from(new Array(pageTotal), (_el, index) => {
+        const page = index + 1
+        const checked = !!find(selectedPages, (p) => p === page)
+
+        return (
+          <PageWrapper key={index} id={`page_${page}`} ref={pageRefs[index]}>
+            <Page
+              width={pageWidth}
+              scale={scale}
+              pageNumber={page}
+              loading={null}
+              error={null}
+              noData={null}
+              onGetTextSuccess={({ items }) => {
+                const text = items.reduce((acc, item: any) => {
+                  if (item.str === '') {
+                    return acc + `\r\n`
+                  }
+                  return acc + item.str
+                }, ``)
+                // 使用 Map 来存储页面内容
+                setPageContents((prevMap) => {
+                  const newMap = new Map(prevMap)
+                  newMap.set(page, text)
+                  return newMap
+                })
+              }}>
+              {showSelect && (
+                <Checkbox
+                  checked={checked}
+                  className={`page-checker ${checked ? 'checked' : ''}`}
+                  onChange={() => onTriggerSelectPage(checked, page)}
+                />
+              )}
+            </Page>
+          </PageWrapper>
+        )
+      })}
+    </DocumentReader>
+  )
+
+  return useMemo(
+    () => ({
+      Reader,
+      ReaderOperateRow,
+      pageContents
+    }),
+    [selectedPages, pageWidth, pdfFile, pageContents]
+  )
+}
+
+const DocumentReader = styled(Document)`
+  position: relative;
+  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+
+  .document-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .page-checker {
+    position: absolute;
+    right: 12px;
+    top: 12px;
+    z-index: 4;
+    flex-direction: row-reverse;
+
+    &.checked {
+      color: var(--color-primary);
+    }
+  }
+`
+
+const PageWrapper = styled.div`
+  position: relative;
+  margin-bottom: 8px;
+`
+
+const Pagination = styled(Flex)`
+  gap: 4px;
+  color: var(--color-primary-soft);
+
+  .page-input {
+    width: 50px;
+    color: var(--color-primary-soft);
+  }
+
+  .page-total {
+    font-size: 16px;
+    color: var(--color-primary);
+  }
+`
+
+const OutlineWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 0;
+  z-index: 5;
+  background-color: var(--color-background);
+  transition: width 0.2s ease-in-out;
+
+  .outline {
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  &.visible {
+    padding: 12px 0;
+    height: 240px;
+    border-bottom: 1px solid var(--color-border);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+
+  .outline-empty {
+    margin-top: 100px;
+  }
+`
+
+export default usePdfReader

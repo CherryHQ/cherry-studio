@@ -23,6 +23,8 @@ export type Assistant = {
   webSearchProviderId?: WebSearchProvider['id']
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  attachedDocument?: FileType & { disabled?: boolean }
+  reader?: ReaderSettings
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
@@ -127,6 +129,11 @@ export type Metrics = {
   time_thinking_millsec?: number
 }
 
+export type AttachedPage = {
+  index: number
+  content: string
+}
+
 export type Topic = {
   id: string
   assistantId: string
@@ -137,6 +144,8 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  attachedText?: string
+  attachedPages?: AttachedPage[]
 }
 
 export type User = {
@@ -743,3 +752,7 @@ export type S3Config = {
 }
 
 export type { Message } from './newMessage'
+
+export interface ReaderSettings {
+  position: 'left' | 'right'
+}

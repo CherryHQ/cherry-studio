@@ -111,7 +111,13 @@
         "settings": {
           "title": "Tag Settings"
         }
-      }
+      },
+      "settings.reader": "Reader Settings",
+      "settings.reader.reference": "Select Reference Materials",
+      "settings.reader.upload": "Click to Upload",
+      "settings.reader.reupload": "Re-upload",
+      "settings.reader.pickFromFiles": "Select from Files",
+      "settings.reader.pickFromFiles.confirm": "Are you sure you want to select this document?"
     },
     "auth": {
       "error": "API key automatically obtained failed, please get it manually",
@@ -2220,6 +2226,20 @@
           "user_tips": "Please enter the executable file name of the application, one per line, case insensitive, can be fuzzy matched. For example: chrome.exe, weixin.exe, Cherry Studio.exe, etc."
         }
       }
+    },
+    "reader": {
+      "outlineEmpty": "No readable table of contents",
+      "reference": "Reference Materials",
+      "close": "Close Reader",
+      "attaching": "Associating...",
+      "pageIndex": "Page {{index}}",
+      "switchPosition": "Switch Position",
+      "selectReference": "Select Reference Materials",
+      "showSelect": "Page Selection",
+      "showOutline": "Table of Contents",
+      "zoomIn": "Zoom In",
+      "zoomOut": "Zoom Out",
+      "move": "Drag"
     }
   }
 }

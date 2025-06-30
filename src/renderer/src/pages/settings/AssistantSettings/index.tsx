@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AssistantDocumentSettings from './AssistantDocumentSettings'
 import AssistantKnowledgeBaseSettings from './AssistantKnowledgeBaseSettings'
 import AssistantMCPSettings from './AssistantMCPSettings'
 import AssistantModelSettings from './AssistantModelSettings'
@@ -20,7 +21,14 @@ interface AssistantSettingPopupShowParams {
   tab?: AssistantSettingPopupTab
 }
 
-type AssistantSettingPopupTab = 'prompt' | 'model' | 'messages' | 'knowledge_base' | 'mcp' | 'regular_phrases'
+type AssistantSettingPopupTab =
+  | 'prompt'
+  | 'model'
+  | 'messages'
+  | 'knowledge_base'
+  | 'mcp'
+  | 'regular_phrases'
+  | 'document'
 
 interface Props extends AssistantSettingPopupShowParams {
   resolve: (assistant: Assistant) => void
@@ -61,6 +69,10 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     {
       key: 'model',
       label: t('assistants.settings.model')
+    },
+    {
+      key: 'document',
+      label: t('assistants.settings.reader')
     },
     showKnowledgeIcon && {
       key: 'knowledge_base',
@@ -139,6 +151,13 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           )}
           {menu === 'regular_phrases' && (
             <AssistantRegularPromptsSettings assistant={assistant} updateAssistant={updateAssistant} />
+          )}
+          {menu === 'document' && (
+            <AssistantDocumentSettings
+              assistant={assistant}
+              updateAssistant={updateAssistant}
+              updateAssistantSettings={updateAssistantSettings}
+            />
           )}
         </Settings>
       </HStack>
